@@ -163,11 +163,16 @@ function App() {
     return (
         <div className="min-h-screen bg-bg-primary">
             {/* Header matches legacy structure */}
-            <div className="max-w-2xl mx-auto px-4 py-3 flex justify-between items-center bg-black/85 backdrop-blur-xl border-b border-white/10 sticky top-0 z-40">
-                <h1 className="text-xl font-semibold">Trading Journal</h1>
-                <button onClick={handleLogout} className="text-text-tertiary text-sm hover:text-text-secondary transition-colors">
-                    Logout
-                </button>
+            <div
+                className="sticky top-0 z-40 bg-black/85 backdrop-blur-xl border-b border-white/10"
+                style={{ paddingTop: 'env(safe-area-inset-top)' }}
+            >
+                <div className="max-w-2xl mx-auto px-4 py-3 flex justify-between items-center">
+                    <h1 className="text-xl font-semibold">Trading Journal</h1>
+                    <button onClick={handleLogout} className="text-text-tertiary text-sm hover:text-text-secondary transition-colors">
+                        Logout
+                    </button>
+                </div>
             </div>
 
             <div className="max-w-2xl mx-auto px-4 py-6 pb-24 sm:pb-6">
