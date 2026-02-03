@@ -11,13 +11,15 @@ interface PositionCardProps {
     onUpdatePrice: (id: string, price: number) => Promise<void>;
 }
 
-export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdatePrice }) => {
+export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice }) => {
     const [loading, setLoading] = useState(false);
     const [liveData, setLiveData] = useState<LiveData>({ delta: undefined, iv: undefined });
     const [earnings, setEarnings] = useState<{ loading: boolean; date: string | null; days: number | null }>({ loading: true, date: null, days: null });
     const [actionMode, setActionMode] = useState<'Add' | 'TakeProfit' | 'Close' | null>(null);
     const [actionQty, setActionQty] = useState(1);
     const [actionPrice, setActionPrice] = useState('');
+    const [isEditingScore, setIsEditingScore] = useState(false);
+    const [scoreInput, setScoreInput] = useState('');
 
     // Fetch Earnings
     useEffect(() => {
@@ -139,6 +141,14 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         setActionQty(1);
     };
 
+    const handleScoreSave = async () => {
+        const newScore = parseInt(scoreInput);
+        if (!isNaN(newScore)) {
+            await onUpdateScore(position.id, newScore);
+            setIsEditingScore(false);
+        }
+    };
+
     return (
         <div className={`${cardClass} p-5 fade-in`}>
             {/* Header */}
@@ -236,10 +246,33 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     </div>
                 </div>
                 <div>
-                    <div className="metric-label">Score</div>
-                    <div className={`metric-value ${currentScore >= 70 ? 'text-accent-green' : currentScore >= 60 ? 'text-accent-yellow' : 'text-accent-red'}`}>
-                        {currentScore}
+                    <div className="metric-label flex items-center gap-1">
+                        Score
+                        <button onClick={() => { setIsEditingScore(true); setScoreInput(currentScore.toString()); }} className="text-text-tertiary hover:text-text-primary transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                        </button>
                     </div>
+                    {isEditingScore ? (
+                        <div className="flex items-center gap-1 mt-1">
+                            <input
+                                type="number"
+                                value={scoreInput}
+                                onChange={e => setScoreInput(e.target.value)}
+                                className="w-12 px-1 py-0.5 text-sm bg-bg-secondary rounded border border-border-default font-mono"
+                                autoFocus
+                            />
+                            <button onClick={handleScoreSave} className="text-accent-green hover:bg-accent-green/10 p-0.5 rounded">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            </button>
+                            <button onClick={() => setIsEditingScore(false)} className="text-accent-red hover:bg-accent-red/10 p-0.5 rounded">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
+                    ) : (
+                        <div className={`metric-value ${currentScore >= 70 ? 'text-accent-green' : currentScore >= 60 ? 'text-accent-yellow' : 'text-accent-red'}`}>
+                            {currentScore}
+                        </div>
+                    )}
                 </div>
             </div>
 
