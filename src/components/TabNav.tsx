@@ -17,7 +17,7 @@ export const TabNav: React.FC<TabNavProps> = ({ activeTab, setActiveTab }) => {
     return (
         <nav
             className="fixed bottom-0 left-0 right-0 sm:static bg-[#000000eb] sm:bg-transparent border-t border-white/10 sm:border-b sm:border-[#2A2A2A] sm:border-t-0 z-50 flex sm:mb-6 sm:gap-0 backdrop-blur-md sm:backdrop-blur-none"
-            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}
         >
             {tabs.map(tab => (
                 <button
