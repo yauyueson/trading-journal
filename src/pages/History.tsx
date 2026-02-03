@@ -43,8 +43,8 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transaction
         <div className="fade-in pb-24 sm:pb-0">
             {/* Summary Stats */}
             {closedPositions.length > 0 && (
-                <div className="grid grid-cols-4 gap-3 mb-6">
-                    <div className="card p-4 col-span-2">
+                <div className="grid grid-cols-7 gap-3 mb-6">
+                    <div className="card p-4 col-span-4">
                         <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Total P&L</div>
                         <div className={`text-2xl font-bold font-mono ${overallStats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                             {overallStats.totalPnL >= 0 ? '+' : ''}{formatCurrency(overallStats.totalPnL)}
@@ -60,7 +60,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transaction
                         <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Wins</div>
                         <div className="text-xl font-bold text-accent-green">{overallStats.wins}</div>
                     </div>
-                    <div className="card p-4 col-span-2 sm:col-span-1">
+                    <div className="card p-4">
                         <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Losses</div>
                         <div className="text-xl font-bold text-accent-red">{overallStats.losses}</div>
                     </div>
