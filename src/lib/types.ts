@@ -33,3 +33,11 @@ export interface LiveData {
     delta?: number;
     iv?: number;
 }
+
+export interface GreeksHistory {
+    id: string;
+    position_id: string;
+    iv: number;
+    delta: number;
+    recorded_at: string;
+}

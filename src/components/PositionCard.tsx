@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Calendar } from 'lucide-react';
-import { Position, Transaction, LiveData } from '../lib/types';
+import { RefreshCw, Calendar, ChevronDown } from 'lucide-react';
+import { Position, Transaction, LiveData, GreeksHistory } from '../lib/types';
+import { GreeksHistoryChart } from './GreeksHistoryChart';
+import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER } from '../lib/utils';
 
 interface PositionCardProps {
@@ -20,6 +22,9 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const [actionPrice, setActionPrice] = useState('');
     const [isEditingScore, setIsEditingScore] = useState(false);
     const [scoreInput, setScoreInput] = useState('');
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [historyData, setHistoryData] = useState<GreeksHistory[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
 
     // Fetch Earnings
     useEffect(() => {
@@ -43,7 +48,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         fetchEarnings();
     }, [position.ticker]);
 
-    // Fetch Greeks
+    // Fetch Greeks and save history once per day
     useEffect(() => {
         const fetchGreeks = async () => {
             try {
@@ -53,12 +58,25 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     const data = await response.json();
                     if (data.delta || data.iv) {
                         setLiveData({ delta: data.delta, iv: data.iv });
+                        // Save to history (once per day)
+                        saveGreeksHistory(position.id, data.iv, data.delta);
                     }
                 }
             } catch (e) { /* ignore */ }
         };
         fetchGreeks();
     }, [position.id, position.ticker, position.expiration, position.strike, position.type]);
+
+    // Fetch history when expanded
+    useEffect(() => {
+        if (isExpanded && historyData.length === 0) {
+            setHistoryLoading(true);
+            fetchGreeksHistory(position.id).then(data => {
+                setHistoryData(data);
+                setHistoryLoading(false);
+            });
+        }
+    }, [isExpanded, position.id, historyData.length]);
 
     const positionTxns = transactions.filter(t => t.position_id === position.id);
 
@@ -284,6 +302,25 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         <span className="mx-2 text-text-tertiary">·</span>
                         <span className="text-text-tertiary">Exit if:</span> {position.stop_reason}
                     </>
+                )}
+            </div>
+
+            {/* Expandable Greeks History */}
+            <div className="mb-4">
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="w-full flex items-center justify-between py-2 px-3 rounded-lg bg-bg-secondary/50 hover:bg-bg-secondary transition-colors text-sm text-text-secondary"
+                >
+                    <span>IV & Delta History</span>
+                    <ChevronDown
+                        size={16}
+                        className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                    />
+                </button>
+                {isExpanded && (
+                    <div className="mt-3 p-3 rounded-lg bg-bg-secondary/30 border border-border-default">
+                        <GreeksHistoryChart data={historyData} loading={historyLoading} />
+                    </div>
                 )}
             </div>
 
