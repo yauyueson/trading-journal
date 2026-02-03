@@ -96,10 +96,12 @@ function App() {
             current_score: score,
             score_updated_at: new Date().toISOString()
         }).eq('id', id);
+        fetchData();
     };
 
     const onUpdatePrice = async (id: string, price: number) => {
         await supabase.from('positions').update({ current_price: price }).eq('id', id);
+        fetchData();
     };
 
     const onAddDirect = async (item: any) => {
