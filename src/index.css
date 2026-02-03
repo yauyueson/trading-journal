@@ -1,0 +1,145 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { -webkit-tap-highlight-color: transparent; }
+  
+  body { 
+      @apply bg-bg-primary text-text-primary min-h-screen m-0 p-0;
+      font-feature-settings: 'ss01' on, 'ss02' on;
+      -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  /* Scrollbar */
+  ::-webkit-scrollbar { @apply w-1; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-[#333] rounded-sm; }
+  
+  /* Cards */
+  .card { 
+      @apply bg-bg-secondary border border-border-default rounded-2xl;
+  }
+  .card-elevated {
+      @apply bg-bg-tertiary border border-border-light rounded-xl;
+  }
+  
+  .card-danger {
+      background: linear-gradient(135deg, #1A0A00 0%, #0D0D0D 100%);
+      @apply border border-[#FF500040] rounded-2xl;
+  }
+  
+  .card-warning {
+      background: linear-gradient(135deg, #1A1500 0%, #0D0D0D 100%);
+      @apply border border-[#FFD60A30] rounded-2xl;
+  }
+  
+  .card-earnings {
+      background: linear-gradient(135deg, #1A0A1A 0%, #0D0D0D 100%);
+      @apply border border-[#A855F780] rounded-2xl shadow-[0_0_20px_#A855F720];
+  }
+  
+  .card-earnings-soon {
+      background: linear-gradient(135deg, #0A0A1A 0%, #0D0D0D 100%);
+      @apply border border-[#3B82F640] rounded-2xl;
+  }
+  
+  .card-success {
+      background: linear-gradient(135deg, #001A00 0%, #0D0D0D 100%);
+      @apply border border-[#00C80530] rounded-2xl;
+  }
+  
+  /* Inputs */
+  input, select, textarea {
+      @apply bg-bg-tertiary border border-border-light text-text-primary transition-colors duration-200 text-base appearance-none;
+  }
+  input:focus, select:focus, textarea:focus {
+      @apply border-accent-green outline-none shadow-[0_0_0_3px_#00C80515];
+  }
+  input::placeholder { @apply text-text-tertiary; }
+  
+  /* Buttons */
+  .btn-primary {
+      @apply bg-accent-green text-black font-semibold transition-all duration-150 min-h-[44px] hover:bg-[#00E006] hover:-translate-y-[1px] active:translate-y-0 active:bg-[#00B004] disabled:opacity-50 disabled:transform-none;
+  }
+  
+  .btn-secondary {
+      @apply bg-bg-elevated text-text-primary transition-all duration-150 min-h-[44px] hover:bg-border-light active:bg-[#3A3A3A];
+  }
+  
+  .btn-danger {
+      @apply bg-accent-redDim text-accent-red transition-all duration-150 min-h-[44px] hover:bg-[#FF500030] active:bg-[#FF500040];
+  }
+
+  /* Badges */
+  .badge {
+      @apply inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold;
+  }
+  .badge-green { @apply bg-accent-greenDim text-accent-green; }
+  .badge-red { @apply bg-accent-redDim text-accent-red; }
+  .badge-yellow { @apply bg-accent-yellow/20 text-accent-yellow; }
+  .badge-blue { @apply bg-accent-blue/20 text-accent-blue; }
+  .badge-gray { @apply bg-white/10 text-text-secondary; }
+}
+
+@layer utilities {
+  .fade-in { animation: fadeIn 0.3s ease-out; }
+  .pulse { animation: pulse 1.5s ease-in-out infinite; }
+  
+  .spinner { 
+      @apply w-5 h-5 border-2 border-[#333] border-t-accent-green rounded-full;
+      animation: spin 0.8s linear infinite;
+  }
+  
+  .big-number {
+      @apply text-3xl font-bold tracking-tight leading-none;
+  }
+  
+  .metric-label {
+      @apply text-[11px] text-text-tertiary uppercase tracking-wider mb-1;
+  }
+  
+  .metric-value {
+      @apply font-mono text-sm font-medium;
+  }
+  
+  .action-btn {
+      @apply flex-1 p-3 rounded-xl font-semibold text-sm transition-all duration-150;
+  }
+  
+  .modal-overlay {
+      @apply bg-black/80 backdrop-blur-[4px];
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Custom Select Arrow */
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23A3A3A3' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px !important;
+}
+
+/* Desktop Hover Effects */
+@media (min-width: 641px) {
+  .card:hover {
+      @apply border-[#3A3A3A] translate-y-[-4px] shadow-[0_12px_40px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.05)] scale-[1.01];
+  }
+}

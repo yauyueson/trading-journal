@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Trading Journal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- iOS PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#000000">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23000' width='100' height='100' rx='20'/><path d='M25 70 L45 40 L60 55 L75 30' stroke='%2300C805' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { 
+                        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+                        mono: ['DM Mono', 'monospace']
+                    },
+                    colors: {
+                        bg: { primary: '#000000', secondary: '#0D0D0D', tertiary: '#1A1A1A', elevated: '#242424' },
+                        text: { primary: '#FFFFFF', secondary: '#A3A3A3', tertiary: '#666666' },
+                        accent: { 
+                            green: '#00C805',
+                            greenDim: '#00C80520', 
+                            red: '#FF5000',
+                            redDim: '#FF500020',
+                            yellow: '#FFD60A',
+                            blue: '#0A84FF'
+                        },
+                        border: { default: '#2A2A2A', light: '#333333' }
+                    },
+                    spacing: {
+                        'safe-top': 'env(safe-area-inset-top)',
+                        'safe-bottom': 'env(safe-area-inset-bottom)',
+                        'safe-left': 'env(safe-area-inset-left)',
+                        'safe-right': 'env(safe-area-inset-right)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        html { height: -webkit-fill-available; }
+        body { 
+            background: #000000; 
+            color: #FFFFFF; 
+            font-feature-settings: 'ss01' on, 'ss02' on;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+            /* safe areas handled by header and nav components */
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Robinhood-style scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        
+        /* Glass morphism cards */
+        .card { 
+            background: #0D0D0D;
+            border: 1px solid #2A2A2A;
+            border-radius: 16px;
+        }
+        .card-elevated {
+            background: #1A1A1A;
+            border: 1px solid #333333;
+            border-radius: 12px;
+        }
+        
+        /* Danger card */
+        .card-danger {
+            background: linear-gradient(135deg, #1A0A00 0%, #0D0D0D 100%);
+            border: 1px solid #FF500040;
+            border-radius: 16px;
+        }
+        
+        /* Warning card */
+        .card-warning {
+            background: linear-gradient(135deg, #1A1500 0%, #0D0D0D 100%);
+            border: 1px solid #FFD60A30;
+            border-radius: 16px;
+        }
+        
+        /* Earnings imminent card - 3天内 */
+        .card-earnings {
+            background: linear-gradient(135deg, #1A0A1A 0%, #0D0D0D 100%);
+            border: 1px solid #A855F780;
+            border-radius: 16px;
+            box-shadow: 0 0 20px #A855F720;
+        }
+        
+        /* Earnings soon card - 7天内 */
+        .card-earnings-soon {
+            background: linear-gradient(135deg, #0A0A1A 0%, #0D0D0D 100%);
+            border: 1px solid #3B82F640;
+            border-radius: 16px;
+        }
+        
+        /* Success highlight */
+        .card-success {
+            background: linear-gradient(135deg, #001A00 0%, #0D0D0D 100%);
+            border: 1px solid #00C80530;
+            border-radius: 16px;
+        }
+        
+        /* Inputs - iOS优化 */
+        input, select, textarea {
+            background: #1A1A1A !important;
+            border: 1px solid #333333 !important;
+            color: #FFFFFF !important;
+            transition: border-color 0.2s ease;
+            font-size: 16px !important; /* 防止iOS缩放 */
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #00C805 !important;
+            outline: none;
+            box-shadow: 0 0 0 3px #00C80515;
+        }
+        input::placeholder { color: #666666; }
+        
+        /* Select arrow for iOS */
+        select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23A3A3A3' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px !important;
+        }
+        
+        /* Button styles - 增大触摸区域 */
+        .btn-primary {
+            background: #00C805;
+            color: #000000;
+            font-weight: 600;
+            transition: all 0.15s ease;
+            min-height: 44px; /* iOS推荐最小触摸目标 */
+        }
+        .btn-primary:hover { background: #00E006; transform: translateY(-1px); }
+        .btn-primary:active { transform: translateY(0); background: #00B004; }
+        .btn-primary:disabled { opacity: 0.5; transform: none; }
+        
+        .btn-secondary {
+            background: #242424;
+            color: #FFFFFF;
+            transition: all 0.15s ease;
+            min-height: 44px;
+        }
+        .btn-secondary:hover { background: #333333; }
+        .btn-secondary:active { background: #3A3A3A; }
+        
+        .btn-danger {
+            background: #FF500020;
+            color: #FF5000;
+            transition: all 0.15s ease;
+            min-height: 44px;
+        }
+        .btn-danger:hover { background: #FF500030; }
+        .btn-danger:active { background: #FF500040; }
+        
+        /* 移动端优化 */
+        @media (max-width: 640px) {
+            .card { border-radius: 12px; }
+            
+            /* 更大的触摸目标 */
+            input, select, textarea, button {
+                min-height: 48px;
+                padding-top: 12px;
+                padding-bottom: 12px;
+            }
+            
+            /* 更紧凑的间距 */
+            .mobile-compact {
+                padding: 12px !important;
+            }
+        }
+        
+        /* iPhone 16 Pro Max 特定优化 (430px宽度) */
+        @media (min-width: 420px) and (max-width: 440px) {
+            .container {
+                padding-left: 16px !important;
+                padding-right: 16px !important;
+            }
+        }
+        
+        /* 桌面端优化 */
+        @media (min-width: 1024px) {
+            .card:hover {
+                border-color: #3A3A3A;
+            }
+            
+            /* 更宽的内容区域 */
+            .desktop-wide {
+                max-width: 1200px;
+            }
+        }
+        
+        /* Tab navigation - Robinhood style */
+        .tab-nav {
+            display: flex;
+            border-bottom: 1px solid #2A2A2A;
+            gap: 0;
+        }
+        .tab-item {
+            padding: 16px 20px;
+            color: #666666;
+            font-weight: 500;
+            position: relative;
+            transition: color 0.2s ease;
+        }
+        .tab-item:hover { color: #A3A3A3; }
+        .tab-item.active { 
+            color: #FFFFFF;
+        }
+        .tab-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #00C805;
+        }
+        
+        /* ===========================================
+           iPhone 16 Pro Max 优化 (基于 Apple HIG)
+           Screen: 440 x 956 pts
+           Safe Area: top 62pt, bottom 34pt
+           Tab Bar: 49pt + safe area
+           Touch targets: min 44x44pt
+           Icon: ~25pt, Label: 10pt
+           =========================================== */
+        @media (max-width: 640px) {
+            /* iOS Tab Bar - 严格遵循 Apple 规范 */
+            .tab-nav {
+                position: fixed !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                /* iOS 毛玻璃效果 */
+                background: rgba(0, 0, 0, 0.92) !important;
+                -webkit-backdrop-filter: saturate(180%) blur(20px);
+                backdrop-filter: saturate(180%) blur(20px);
+                border-top: 0.5px solid rgba(255, 255, 255, 0.15) !important;
+                border-bottom: none !important;
+                z-index: 9999 !important;
+                display: flex !important;
+                justify-content: space-around;
+                align-items: flex-start;
+                /* Tab Bar 高度: 49pt 内容区 + safe area (iOS 11 + iOS 12+) */
+                height: calc(49px + constant(safe-area-inset-bottom));
+                height: calc(49px + env(safe-area-inset-bottom, 0px));
+                padding-top: 6px !important;
+                padding-bottom: constant(safe-area-inset-bottom);
+                padding-bottom: env(safe-area-inset-bottom, 0px);
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+                /* 关键：强制覆盖 Tailwind 的 mb-6 */
+                margin: 0 !important;
+            }
+            
+            /* Tab Item - 44x44pt 最小触摸区域 */
+            .tab-item {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: flex-start;
+                min-height: 44px;
+                padding: 2px 0;
+                font-size: 10px;
+                font-weight: 500;
+                color: #8E8E93; /* iOS inactive gray */
+                gap: 2px;
+                -webkit-tap-highlight-color: transparent;
+            }
+            
+            /* Icon 大小: 25pt */
+            .tab-item svg {
+                width: 25px;
+                height: 25px;
+                stroke-width: 1.5;
+            }
+            
+            /* Active state - iOS 系统蓝色或自定义主色 */
+            .tab-item.active {
+                color: #00C805;
+            }
+            .tab-item.active svg {
+                stroke: #00C805;
+            }
+            
+            /* 移动端不显示下划线指示器 */
+            .tab-item.active::after {
+                display: none;
+            }
+            
+            /* Main content 留出 Tab Bar 空间 */
+            .main-content {
+                /* Tab Bar 49pt + safe area 34pt + 额外 padding */
+                padding-bottom: calc(65px + env(safe-area-inset-bottom, 0px)) !important;
+            }
+            
+            /* Header 区域 - 考虑顶部 safe area */
+            .app-header {
+                padding-top: env(safe-area-inset-top, 0px);
+            }
+            
+            /* Card 优化 */
+            .card {
+                padding: 16px !important;
+                margin-bottom: 12px;
+                border-radius: 12px;
+            }
+            
+            /* 按钮 - 44pt 高度触摸目标 */
+            .action-btn {
+                min-height: 44px;
+                padding: 10px 16px !important;
+                font-size: 14px !important;
+                font-weight: 500;
+                border-radius: 10px;
+            }
+            
+            /* 输入框 - 44pt 高度 */
+            input, select, textarea {
+                min-height: 44px;
+                font-size: 17px !important; /* iOS 默认，防止缩放 */
+                border-radius: 10px !important;
+            }
+            
+            /* 头部按钮区域 */
+            .mobile-header {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            
+            /* 大数字显示 */
+            .big-number {
+                font-size: 28px;
+            }
+            
+            /* Grid 布局在小屏幕优化 */
+            .mobile-grid-2 {
+                grid-template-columns: repeat(2, 1fr) !important;
+            }
+            .mobile-grid-3 {
+                grid-template-columns: repeat(3, 1fr) !important;
+            }
+        }
+        
+        /* 桌面端卡片悬停效果 */
+        @media (min-width: 641px) {
+            .card {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                transform-origin: center;
+            }
+            .card:hover {
+                transform: translateY(-4px) scale(1.01);
+                box-shadow: 
+                    0 12px 40px rgba(0, 0, 0, 0.5),
+                    0 0 0 1px rgba(255, 255, 255, 0.05);
+                border-color: #404040;
+            }
+            .card:active {
+                transform: translateY(-2px) scale(1.005);
+                transition: all 0.1s ease;
+            }
+            
+            /* Danger card - 橙红脉动 */
+            .card-danger {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .card-danger:hover {
+                transform: translateY(-4px) scale(1.01);
+                border-color: #FF5000;
+                box-shadow: 
+                    0 12px 40px rgba(255, 80, 0, 0.25),
+                    0 0 30px rgba(255, 80, 0, 0.15),
+                    inset 0 1px 0 rgba(255, 80, 0, 0.1);
+            }
+            
+            /* Warning card - 金色光晕 */
+            .card-warning {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .card-warning:hover {
+                transform: translateY(-4px) scale(1.01);
+                border-color: #FFD60A;
+                box-shadow: 
+                    0 12px 40px rgba(255, 214, 10, 0.2),
+                    0 0 30px rgba(255, 214, 10, 0.1),
+                    inset 0 1px 0 rgba(255, 214, 10, 0.1);
+            }
+            
+            /* Earnings imminent - 紫色能量 */
+            .card-earnings {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .card-earnings:hover {
+                transform: translateY(-4px) scale(1.01);
+                border-color: #A855F7;
+                box-shadow: 
+                    0 12px 40px rgba(168, 85, 247, 0.3),
+                    0 0 40px rgba(168, 85, 247, 0.2),
+                    0 0 80px rgba(168, 85, 247, 0.1),
+                    inset 0 1px 0 rgba(168, 85, 247, 0.15);
+            }
+            
+            /* Earnings soon - 蓝色波纹 */
+            .card-earnings-soon {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .card-earnings-soon:hover {
+                transform: translateY(-4px) scale(1.01);
+                border-color: #3B82F6;
+                box-shadow: 
+                    0 12px 40px rgba(59, 130, 246, 0.25),
+                    0 0 30px rgba(59, 130, 246, 0.15),
+                    inset 0 1px 0 rgba(59, 130, 246, 0.1);
+            }
+            
+            /* Success card - 绿色生机 */
+            .card-success {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .card-success:hover {
+                transform: translateY(-4px) scale(1.01);
+                border-color: #00C805;
+                box-shadow: 
+                    0 12px 40px rgba(0, 200, 5, 0.2),
+                    0 0 30px rgba(0, 200, 5, 0.1),
+                    inset 0 1px 0 rgba(0, 200, 5, 0.1);
+            }
+            
+            /* 按钮悬停增强 */
+            .btn-primary:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 20px rgba(0, 200, 5, 0.3);
+            }
+            .btn-secondary:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            }
+        }
+        
+        /* Badge styles */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-green { background: #00C80520; color: #00C805; }
+        .badge-red { background: #FF500020; color: #FF5000; }
+        .badge-yellow { background: #FFD60A20; color: #FFD60A; }
+        .badge-blue { background: #0A84FF20; color: #0A84FF; }
+        .badge-gray { background: #FFFFFF10; color: #A3A3A3; }
+        
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .pulse { animation: pulse 1.5s ease-in-out infinite; }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .spinner { 
+            width: 20px; 
+            height: 20px; 
+            border: 2px solid #333;
+            border-top-color: #00C805;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        /* Big number display - Robinhood style */
+        .big-number {
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1;
+        }
+        
+        /* Metric grid */
+        .metric-label {
+            font-size: 11px;
+            color: #666666;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+        .metric-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        /* Action buttons row */
+        .action-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.15s ease;
+        }
+        
+        /* Modal overlay */
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body class="font-sans min-h-screen">
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useCallback } = React;
+        
+        // ==================== CONFIG ====================
+        const SUPABASE_URL = 'https://irejefxhgetulqmxponl.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_STPE7Kl1Pnlwm6a-mCa-9g_U7hvret6';
+        const CONTRACT_MULTIPLIER = 100;
+        const ACCESS_PASSWORD = 'YUCHEN83557138';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const SETUPS = ['Perfect Storm', 'Pullback Buy', 'Breakout', 'Divergence', 'Strong Trend', 'Failed Rally', 'Breakdown', 'Distribution', 'Strong Down', 'Other'];
+
+        // ==================== UTILS ====================
+        const formatDate = (d) => {
+            if (!d) return '—';
+            if (typeof d === 'string' && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const [year, month, day] = d.split('-');
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                return `${months[parseInt(month) - 1]} ${parseInt(day)}`;
+            }
+            return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        };
+        const formatCurrency = (n) => {
+            const num = Number(n);
+            if (num >= 1000) return '$' + (num / 1000).toFixed(1) + 'K';
+            return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+        const formatPrice = (n) => '$' + Number(n).toFixed(2);
+        const formatPercent = (n) => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+        const daysUntil = (d) => {
+            if (!d) return 999;
+            const [year, month, day] = d.split('-').map(Number);
+            const target = new Date(year, month - 1, day);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return Math.ceil((target - today) / 86400000);
+        };
+        const daysSince = (d) => Math.ceil((new Date() - new Date(d)) / 86400000);
+        
+        const LoadingSpinner = () => (
+            <div className="flex items-center justify-center py-16">
+                <div className="spinner"></div>
+            </div>
+        );
+
+        // ==================== LOGIN ====================
+        const LoginPage = ({ onLogin }) => {
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState(false);
+            
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (password === ACCESS_PASSWORD) {
+                    localStorage.setItem('tj_auth', 'true');
+                    onLogin();
+                } else {
+                    setError(true);
+                    setTimeout(() => setError(false), 2000);
+                }
+            };
+            
+            return (
+                <div className="min-h-screen flex items-center justify-center p-6">
+                    <div className="w-full max-w-sm fade-in">
+                        <div className="text-center mb-8">
+                            <h1 className="text-3xl font-bold mb-2">Trading Journal</h1>
+                            <p className="text-text-secondary">Track your options with discipline</p>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                                placeholder="Enter password"
+                                className={`w-full px-4 py-4 rounded-xl font-mono text-center text-lg ${error ? 'border-accent-red!' : ''}`}
+                                autoFocus
+                            />
+                            {error && <p className="text-accent-red text-sm text-center">Incorrect password</p>}
+                            <button type="submit" className="btn-primary w-full py-4 rounded-xl text-lg">
+                                Continue
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==================== ICONS ====================
+        const Icons = {
+            portfolio: ({ active }) => (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#00C805' : 'currentColor'} strokeWidth="2">
+                    <rect x="3" y="3" width="7" height="9" rx="1"/>
+                    <rect x="14" y="3" width="7" height="5" rx="1"/>
+                    <rect x="14" y="12" width="7" height="9" rx="1"/>
+                    <rect x="3" y="16" width="7" height="5" rx="1"/>
+                </svg>
+            ),
+            watchlist: ({ active }) => (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#00C805' : 'currentColor'} strokeWidth="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M2 12s4-8 10-8 10 8 10 8-4 8-10 8-10-8-10-8z"/>
+                </svg>
+            ),
+            history: ({ active }) => (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#00C805' : 'currentColor'} strokeWidth="2">
+                    <circle cx="12" cy="12" r="9"/>
+                    <polyline points="12,7 12,12 15,15"/>
+                </svg>
+            ),
+            stats: ({ active }) => (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#00C805' : 'currentColor'} strokeWidth="2">
+                    <path d="M3 3v18h18"/>
+                    <path d="M18 9l-5 5-4-4-3 3"/>
+                </svg>
+            ),
+            refresh: () => (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+                    <path d="M21 3v5h-5"/>
+                </svg>
+            ),
+            add: () => (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+            ),
+            alert: () => (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2L1 21h22L12 2zm0 4l7.5 13h-15L12 6zm-1 4v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
+                </svg>
+            ),
+            calendar: () => (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+            ),
+            target: () => (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <circle cx="12" cy="12" r="6"/>
+                    <circle cx="12" cy="12" r="2"/>
+                </svg>
+            ),
+            check: () => (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                    <polyline points="20,6 9,17 4,12"/>
+                </svg>
+            )
+        };
+
+        // ==================== TAB NAV ====================
+        const TabNav = ({ activeTab, setActiveTab }) => (
+            <nav className="tab-nav mb-0 sm:mb-6 overflow-x-auto">
+                {[
+                    { id: 'portfolio', label: 'Portfolio', Icon: Icons.portfolio },
+                    { id: 'watchlist', label: 'Watchlist', Icon: Icons.watchlist },
+                    { id: 'history', label: 'History', Icon: Icons.history },
+                    { id: 'stats', label: 'Stats', Icon: Icons.stats }
+                ].map(tab => (
+                    <button 
+                        key={tab.id} 
+                        onClick={() => setActiveTab(tab.id)} 
+                        className={`tab-item whitespace-nowrap flex flex-col sm:flex-row items-center gap-1 sm:gap-2 ${activeTab === tab.id ? 'active' : ''}`}
+                    >
+                        <tab.Icon active={activeTab === tab.id} />
+                        <span className="text-xs sm:text-base">{tab.label}</span>
+                    </button>
+                ))}
+            </nav>
+        );
+
+        // ==================== POSITION CARD ====================
+        const PositionCard = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice }) => {
+            const [expanded, setExpanded] = useState(false);
+            const [loading, setLoading] = useState(false);
+            const [liveData, setLiveData] = useState({ delta: null, iv: null });
+            const [earnings, setEarnings] = useState({ loading: true, date: null, days: null });
+            const [actionMode, setActionMode] = useState(null);
+            const [actionQty, setActionQty] = useState(1);
+            const [actionPrice, setActionPrice] = useState('');
+
+            // 获取财报日期
+            useEffect(() => {
+                const fetchEarnings = async () => {
+                    try {
+                        const response = await fetch(`/api/earnings?symbol=${position.ticker}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.hasUpcomingEarnings && data.daysUntilEarnings <= 14) {
+                                setEarnings({ loading: false, date: data.earningsDate, days: data.daysUntilEarnings });
+                            } else {
+                                setEarnings({ loading: false, date: null, days: null });
+                            }
+                        } else {
+                            setEarnings({ loading: false, date: null, days: null });
+                        }
+                    } catch (e) {
+                        setEarnings({ loading: false, date: null, days: null });
+                    }
+                };
+                fetchEarnings();
+            }, [position.ticker]);
+
+            // 自动获取 Delta 和 IV
+            useEffect(() => {
+                const fetchGreeks = async () => {
+                    try {
+                        const params = new URLSearchParams({ ticker: position.ticker, expiration: position.expiration, strike: position.strike, type: position.type });
+                        const response = await fetch(`/api/option-price?${params}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.delta || data.iv) {
+                                setLiveData({ delta: data.delta, iv: data.iv });
+                            }
+                        }
+                    } catch (e) { /* ignore */ }
+                };
+                fetchGreeks();
+            }, [position.id]);
+            const positionTxns = transactions.filter(t => t.position_id === position.id);
+            
+            let totalQtyBought = 0, totalCostBasis = 0, totalQtySold = 0, totalProceeds = 0;
+            positionTxns.forEach(t => {
+                const qty = t.quantity;
+                const price = parseFloat(t.price) * CONTRACT_MULTIPLIER;
+                if (qty > 0) { totalQtyBought += qty; totalCostBasis += qty * price; }
+                else { totalQtySold += Math.abs(qty); totalProceeds += Math.abs(qty) * price; }
+            });
+            
+            const totalQty = totalQtyBought - totalQtySold;
+            const avgCostPerContract = totalQtyBought > 0 ? totalCostBasis / totalQtyBought : 0;
+            const firstBuy = positionTxns.find(t => t.quantity > 0);
+            const entryPrice = firstBuy ? parseFloat(firstBuy.price) : 0;
+            
+            const hasTakenProfit = positionTxns.some(t => t.type === 'Take Profit');
+            const currentStopLoss = hasTakenProfit ? entryPrice * 0.75 : entryPrice * 0.5;
+            
+            const currentPrice = position.current_price ? parseFloat(position.current_price) : null;
+            const currentValue = currentPrice ? totalQty * currentPrice * CONTRACT_MULTIPLIER : 0;
+            const unrealizedCostBasis = totalQty * avgCostPerContract;
+            const unrealizedPnL = currentPrice ? currentValue - unrealizedCostBasis : 0;
+            const unrealizedPnLPct = unrealizedCostBasis > 0 && currentPrice ? ((currentPrice * CONTRACT_MULTIPLIER - avgCostPerContract) / avgCostPerContract) * 100 : 0;
+            
+            const daysToExp = daysUntil(position.expiration);
+            const currentScore = position.current_score || position.entry_score;
+            
+            // Alert logic
+            let alertLevel = 'none';
+            const alerts = [];
+            if (currentScore < 60) { alerts.push('Low Score'); alertLevel = 'danger'; }
+            if (currentPrice && currentPrice <= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
+            if (unrealizedPnLPct <= -40) { alerts.push('Heavy Loss'); alertLevel = 'danger'; }
+            if (alertLevel !== 'danger') {
+                if (currentScore < 70) { alerts.push('Score Warning'); alertLevel = 'warning'; }
+                if (daysToExp <= 7 && daysToExp > 0) { alerts.push(`${daysToExp}d left`); alertLevel = 'warning'; }
+            }
+            
+            // 财报警告 - 7天内有财报
+            const earningsWarning = earnings.days !== null && earnings.days >= 0 && earnings.days <= 7;
+            const earningsImminent = earnings.days !== null && earnings.days >= 0 && earnings.days <= 3; // 3天内更紧急
+
+            // 决定卡片样式
+            let cardClass = 'card';
+            if (alertLevel === 'danger') {
+                cardClass = 'card-danger';
+            } else if (earningsImminent) {
+                cardClass = 'card-earnings'; // 新样式：财报即将到来
+            } else if (alertLevel === 'warning') {
+                cardClass = 'card-warning';
+            } else if (earningsWarning) {
+                cardClass = 'card-earnings-soon'; // 财报在7天内
+            }
+            const pnlColor = unrealizedPnL >= 0 ? 'text-accent-green' : 'text-accent-red';
+
+            const fetchPrice = async () => {
+                setLoading(true);
+                try {
+                    const params = new URLSearchParams({ ticker: position.ticker, expiration: position.expiration, strike: position.strike, type: position.type });
+                    const response = await fetch(`/api/option-price?${params}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.price) {
+                            await onUpdatePrice(position.id, data.price);
+                            setLiveData({ delta: data.delta, iv: data.iv });
+                        }
+                    }
+                } catch (e) { console.error(e); }
+                setLoading(false);
+            };
+
+            const handleAction = async (type) => {
+                if (!actionPrice) return;
+                setLoading(true);
+                const qty = ['Size Down', 'Take Profit', 'Close'].includes(type) ? -Math.abs(actionQty) : Math.abs(actionQty);
+                await onAction(position.id, { type, quantity: type === 'Close' ? -totalQty : qty, price: parseFloat(actionPrice) });
+                setLoading(false);
+                setActionMode(null);
+                setActionPrice('');
+                setActionQty(1);
+            };
+
+            return (
+                <div className={`${cardClass} p-5 fade-in`}>
+                    {/* Header */}
+                    <div className="flex justify-between items-start mb-4">
+                        <div>
+                            <div className="flex items-center gap-3 mb-1">
+                                <span className="text-2xl font-bold">{position.ticker}</span>
+                                <span className={`badge ${position.type === 'Call' ? 'badge-green' : 'badge-red'}`}>
+                                    {position.type}
+                                </span>
+                            </div>
+                            <div className="text-text-secondary">
+                                <span className="font-mono">${position.strike}</span>
+                                <span className="mx-2">·</span>
+                                <span>{formatDate(position.expiration)}</span>
+                                <span className="mx-2">·</span>
+                                <span>{totalQty} contract{totalQty !== 1 ? 's' : ''}</span>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <div className={`big-number ${pnlColor}`}>
+                                {formatPercent(unrealizedPnLPct)}
+                            </div>
+                            <div className={`text-sm font-mono ${pnlColor}`}>
+                                {unrealizedPnL >= 0 ? '+' : ''}{formatCurrency(unrealizedPnL)}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Earnings Banner - 显眼的财报提醒 */}
+                    {earningsWarning && (
+                        <div className={`mb-4 p-3 rounded-xl flex items-center justify-between ${earningsImminent ? 'bg-purple-500/20 border border-purple-500/40' : 'bg-blue-500/10 border border-blue-500/30'}`}>
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${earningsImminent ? 'bg-purple-500/30' : 'bg-blue-500/20'}`}>
+                                    <Icons.calendar />
+                                </div>
+                                <div>
+                                    <div className={`font-semibold ${earningsImminent ? 'text-purple-400' : 'text-blue-400'}`}>
+                                        {earnings.days === 0 ? 'Earnings TODAY' : earnings.days === 1 ? 'Earnings TOMORROW' : `Earnings in ${earnings.days} days`}
+                                    </div>
+                                    <div className="text-sm text-text-secondary">
+                                        {formatDate(earnings.date)} · Consider position sizing
+                                    </div>
+                                </div>
+                            </div>
+                            {earningsImminent && (
+                                <span className="px-3 py-1 bg-purple-500/30 text-purple-300 rounded-lg text-sm font-semibold animate-pulse">
+                                    ACTION NEEDED
+                                </span>
+                            )}
+                        </div>
+                    )}
+                    
+                    {/* Other Alerts */}
+                    {alerts.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            {alerts.map((a, i) => (
+                                <span key={i} className={`badge ${alertLevel === 'danger' ? 'badge-red' : 'badge-yellow'}`}>
+                                    {a}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    
+                    {/* Metrics Grid */}
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 mb-4 py-4 border-y border-border-default">
+                        <div>
+                            <div className="metric-label">Entry</div>
+                            <div className="metric-value">{formatPrice(entryPrice)}</div>
+                        </div>
+                        <div>
+                            <div className="metric-label">Current</div>
+                            <div className="metric-value">{currentPrice ? formatPrice(currentPrice) : '—'}</div>
+                        </div>
+                        <div>
+                            <div className="metric-label">Stop</div>
+                            <div className={`metric-value ${hasTakenProfit ? 'text-accent-blue' : 'text-accent-red'}`}>
+                                {formatPrice(currentStopLoss)}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="metric-label">Delta</div>
+                            <div className="metric-value text-purple-400">
+                                {liveData.delta ? liveData.delta.toFixed(2) : '—'}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="metric-label">IV</div>
+                            <div className="metric-value text-cyan-400">
+                                {liveData.iv ? (liveData.iv * 100).toFixed(1) + '%' : '—'}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="metric-label">Score</div>
+                            <div className={`metric-value ${currentScore >= 70 ? 'text-accent-green' : currentScore >= 60 ? 'text-accent-yellow' : 'text-accent-red'}`}>
+                                {currentScore}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Setup info */}
+                    <div className="text-sm text-text-secondary mb-4">
+                        <span className="text-text-tertiary">Setup:</span> {position.setup}
+                        {position.stop_reason && (
+                            <>
+                                <span className="mx-2 text-text-tertiary">·</span>
+                                <span className="text-text-tertiary">Exit if:</span> {position.stop_reason}
+                            </>
+                        )}
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    {!actionMode ? (
+                        <div className="flex gap-2">
+                            <button onClick={fetchPrice} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-2">
+                                {loading ? <span className="spinner" style={{width: 16, height: 16}}></span> : <Icons.refresh />} 
+                                <span className="hidden sm:inline">Refresh</span>
+                            </button>
+                            <button onClick={() => setActionMode('Add')} className="action-btn bg-accent-greenDim text-accent-green">+ Add</button>
+                            <button onClick={() => setActionMode('TakeProfit')} className="action-btn bg-accent-blue/20 text-accent-blue">Profit</button>
+                            <button onClick={() => setActionMode('Close')} className="action-btn btn-danger">Close</button>
+                        </div>
+                    ) : (
+                        <div className="card-elevated p-4 space-y-3">
+                            <div className="text-sm font-medium text-text-secondary">
+                                {actionMode === 'Add' ? 'Add to Position' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close Position'}
+                            </div>
+                            <div className="flex gap-3">
+                                {actionMode !== 'Close' && (
+                                    <input type="number" min="1" value={actionQty} onChange={e => setActionQty(parseInt(e.target.value) || 1)} 
+                                        placeholder="Qty" className="w-24 px-4 py-3 rounded-xl font-mono" />
+                                )}
+                                <input type="number" step="0.01" value={actionPrice} onChange={e => setActionPrice(e.target.value)}
+                                    placeholder="Price" className="flex-1 px-4 py-3 rounded-xl font-mono" autoFocus />
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => setActionMode(null)} className="flex-1 py-3 btn-secondary rounded-xl">Cancel</button>
+                                <button onClick={() => handleAction(actionMode === 'Add' ? 'Size Up' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close')} 
+                                    disabled={!actionPrice || loading} className="flex-1 py-3 btn-primary rounded-xl">
+                                    {loading ? '...' : 'Confirm'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ==================== WATCHLIST ITEM ====================
+        const WatchlistItem = ({ item, onMoveToActive }) => {
+            const [currentPrice, setCurrentPrice] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [earnings, setEarnings] = useState({ date: null, days: null });
+
+            const fetchPrice = async () => {
+                setLoading(true);
+                try {
+                    const params = new URLSearchParams({ ticker: item.ticker, expiration: item.expiration, strike: item.strike, type: item.type });
+                    const response = await fetch(`/api/option-price?${params}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        setCurrentPrice(data.price);
+                    }
+                } catch (e) { console.error(e); }
+                setLoading(false);
+            };
+
+            useEffect(() => { 
+                fetchPrice();
+                // 获取财报日期
+                const fetchEarnings = async () => {
+                    try {
+                        const response = await fetch(`/api/earnings?symbol=${item.ticker}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.hasUpcomingEarnings && data.daysUntilEarnings <= 14) {
+                                setEarnings({ date: data.earningsDate, days: data.daysUntilEarnings });
+                            }
+                        }
+                    } catch (e) { /* ignore */ }
+                };
+                fetchEarnings();
+            }, []);
+
+            const priceDiff = currentPrice && item.ideal_entry ? ((currentPrice - item.ideal_entry) / item.ideal_entry * 100) : null;
+            const isGoodEntry = priceDiff !== null && priceDiff <= 5;
+            const hasEarningsSoon = earnings.days !== null && earnings.days >= 0 && earnings.days <= 7;
+
+            return (
+                <div className={`card p-5 fade-in ${isGoodEntry ? 'card-success' : ''}`}>
+                    <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-1 flex-wrap">
+                                <span className="text-xl font-bold">{item.ticker}</span>
+                                <span className={`badge ${item.type === 'Call' ? 'badge-green' : 'badge-red'}`}>{item.type}</span>
+                                <span className={`badge ${item.entry_score >= 70 ? 'badge-green' : item.entry_score >= 60 ? 'badge-yellow' : 'badge-red'}`}>
+                                    {item.entry_score}
+                                </span>
+                                {isGoodEntry && <span className="badge badge-green flex items-center gap-1"><Icons.target /> Entry</span>}
+                                {hasEarningsSoon && (
+                                    <span className="badge badge-blue flex items-center gap-1">
+                                        <Icons.calendar /> ER {earnings.days === 0 ? 'Today' : `${earnings.days}d`}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="text-text-secondary text-sm mb-3">
+                                <span className="font-mono">${item.strike}</span>
+                                <span className="mx-2">·</span>
+                                <span>{formatDate(item.expiration)}</span>
+                                <span className="mx-2">·</span>
+                                <span>{item.setup}</span>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm">
+                                <div>
+                                    <span className="text-text-tertiary">Now: </span>
+                                    <span className="font-mono font-medium">
+                                        {loading ? '...' : currentPrice ? formatPrice(currentPrice) : '—'}
+                                    </span>
+                                </div>
+                                {item.ideal_entry && (
+                                    <div>
+                                        <span className="text-text-tertiary">Ideal: </span>
+                                        <span className="font-mono text-accent-yellow">{formatPrice(item.ideal_entry)}</span>
+                                    </div>
+                                )}
+                                {priceDiff !== null && (
+                                    <span className={`font-mono ${priceDiff <= 0 ? 'text-accent-green' : priceDiff <= 10 ? 'text-accent-yellow' : 'text-accent-red'}`}>
+                                        ({priceDiff >= 0 ? '+' : ''}{priceDiff.toFixed(1)}%)
+                                    </span>
+                                )}
+                            </div>
+                            {item.stop_reason && <div className="text-sm text-text-tertiary mt-2">Exit if: {item.stop_reason}</div>}
+                        </div>
+                        <div className="flex flex-col gap-2 ml-4">
+                            <button onClick={() => onMoveToActive(item)} className="btn-primary px-5 py-2 rounded-lg">
+                                Buy
+                            </button>
+                            <button onClick={fetchPrice} disabled={loading} className="btn-secondary px-5 py-2 rounded-lg text-sm flex items-center justify-center">
+                                {loading ? '...' : <Icons.refresh />}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==================== WATCHLIST PAGE ====================
+        const WatchlistPage = ({ positions, onAddToWatchlist, onMoveToActive, loading }) => {
+            const [showForm, setShowForm] = useState(false);
+            const [submitting, setSubmitting] = useState(false);
+            const [form, setForm] = useState({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
+            const watchlistItems = positions.filter(p => p.status === 'watchlist');
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSubmitting(true);
+                await onAddToWatchlist({ ...form, strike: parseFloat(form.strike), entry_score: parseInt(form.entry_score), ideal_entry: form.ideal_entry ? parseFloat(form.ideal_entry) : null, target_price: form.target_price ? parseFloat(form.target_price) : null });
+                setSubmitting(false);
+                setForm({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
+                setShowForm(false);
+            };
+
+            if (loading) return <LoadingSpinner />;
+            
+            return (
+                <div className="fade-in">
+                    <div className="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 className="text-2xl font-bold">Watchlist</h2>
+                            <p className="text-text-secondary text-sm">{watchlistItems.length} items</p>
+                        </div>
+                        <button onClick={() => setShowForm(!showForm)} className={showForm ? 'btn-secondary px-5 py-3 rounded-xl' : 'btn-primary px-5 py-3 rounded-xl'}>
+                            {showForm ? 'Cancel' : '+ Add'}
+                        </button>
+                    </div>
+                    
+                    {showForm && (
+                        <form onSubmit={handleSubmit} className="card p-5 mb-6 space-y-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <input type="text" placeholder="Ticker" value={form.ticker} onChange={e => setForm({...form, ticker: e.target.value.toUpperCase()})} className="px-4 py-3 rounded-xl font-mono" required />
+                                <input type="number" step="0.5" placeholder="Strike" value={form.strike} onChange={e => setForm({...form, strike: e.target.value})} className="px-4 py-3 rounded-xl font-mono" required />
+                                <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="px-4 py-3 rounded-xl">
+                                    <option>Call</option><option>Put</option>
+                                </select>
+                                <input type="date" value={form.expiration} onChange={e => setForm({...form, expiration: e.target.value})} className="px-4 py-3 rounded-xl" required />
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <select value={form.setup} onChange={e => setForm({...form, setup: e.target.value})} className="px-4 py-3 rounded-xl">
+                                    {SETUPS.map(s => <option key={s}>{s}</option>)}
+                                </select>
+                                <input type="number" placeholder="Score" value={form.entry_score} onChange={e => setForm({...form, entry_score: e.target.value})} className="px-4 py-3 rounded-xl font-mono" required />
+                                <input type="number" step="0.01" placeholder="Ideal Entry $" value={form.ideal_entry} onChange={e => setForm({...form, ideal_entry: e.target.value})} className="px-4 py-3 rounded-xl font-mono" />
+                                <input type="number" step="0.01" placeholder="Target $" value={form.target_price} onChange={e => setForm({...form, target_price: e.target.value})} className="px-4 py-3 rounded-xl font-mono" />
+                            </div>
+                            <input type="text" placeholder="Exit if... (e.g., MB flips red)" value={form.stop_reason} onChange={e => setForm({...form, stop_reason: e.target.value})} className="w-full px-4 py-3 rounded-xl" />
+                            <button type="submit" disabled={submitting} className="btn-primary w-full py-4 rounded-xl text-lg">
+                                {submitting ? 'Adding...' : 'Add to Watchlist'}
+                            </button>
+                        </form>
+                    )}
+                    
+                    {watchlistItems.length === 0 ? (
+                        <div className="text-center py-16 text-text-secondary">
+                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-bg-tertiary flex items-center justify-center">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                    <circle cx="12" cy="12" r="3"/>
+                                    <path d="M2 12s4-8 10-8 10 8 10 8-4 8-10 8-10-8-10-8z"/>
+                                </svg>
+                            </div>
+                            <p>Your watchlist is empty</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {watchlistItems.map(item => <WatchlistItem key={item.id} item={item} onMoveToActive={onMoveToActive} />)}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ==================== PORTFOLIO PAGE ====================
+        const PortfolioPage = ({ positions, transactions, onAction, onUpdateScore, onUpdatePrice, onAddDirect, loading }) => {
+            const [showForm, setShowForm] = useState(false);
+            const [submitting, setSubmitting] = useState(false);
+            const [refreshing, setRefreshing] = useState(false);
+            const [refreshStatus, setRefreshStatus] = useState('');
+            const [autoRefreshed, setAutoRefreshed] = useState(false);
+            const [sortBy, setSortBy] = useState('expiration'); // expiration, ticker, pnl, created
+            const [form, setForm] = useState({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: 1, entry_price: '' });
+            
+            const activePositions = positions.filter(p => p.status === 'active');
+            
+            // 排序逻辑
+            const sortedPositions = [...activePositions].sort((a, b) => {
+                switch (sortBy) {
+                    case 'expiration':
+                        return new Date(a.expiration) - new Date(b.expiration);
+                    case 'ticker':
+                        return a.ticker.localeCompare(b.ticker);
+                    case 'created':
+                        return new Date(b.created_at) - new Date(a.created_at);
+                    default:
+                        return 0;
+                }
+            });
+
+            const refreshAllPrices = async () => {
+                if (activePositions.length === 0) return;
+                setRefreshing(true);
+                setRefreshStatus('');
+                let success = 0, failed = 0;
+                for (let i = 0; i < activePositions.length; i++) {
+                    const position = activePositions[i];
+                    setRefreshStatus(`${position.ticker} (${i + 1}/${activePositions.length})`);
+                    try {
+                        const params = new URLSearchParams({ ticker: position.ticker, expiration: position.expiration, strike: position.strike, type: position.type });
+                        const response = await fetch(`/api/option-price?${params}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.price) { await onUpdatePrice(position.id, data.price); success++; }
+                            else { failed++; }
+                        } else { failed++; }
+                    } catch (e) { failed++; }
+                    if (i < activePositions.length - 1) await new Promise(r => setTimeout(r, 500));
+                }
+                setRefreshStatus(failed > 0 ? `✓ ${success} updated, ${failed} failed` : `✓ All prices updated`);
+                setRefreshing(false);
+                setTimeout(() => setRefreshStatus(''), 3000);
+            };
+
+            useEffect(() => {
+                if (!loading && activePositions.length > 0 && !autoRefreshed) {
+                    setAutoRefreshed(true);
+                    refreshAllPrices();
+                }
+            }, [loading, activePositions.length]);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSubmitting(true);
+                await onAddDirect({ ticker: form.ticker, strike: parseFloat(form.strike), type: form.type, expiration: form.expiration, setup: form.setup, entry_score: parseInt(form.entry_score), stop_reason: form.stop_reason, quantity: parseInt(form.quantity), entry_price: parseFloat(form.entry_price) });
+                setSubmitting(false);
+                setForm({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: 1, entry_price: '' });
+                setShowForm(false);
+            };
+
+            if (loading) return <LoadingSpinner />;
+
+            return (
+                <div className="fade-in">
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+                        <div>
+                            <h2 className="text-2xl font-bold">Positions</h2>
+                            <p className="text-text-secondary text-sm">{activePositions.length} active</p>
+                        </div>
+                        <div className="flex gap-2 items-center flex-wrap">
+                            {activePositions.length > 1 && (
+                                <select 
+                                    value={sortBy} 
+                                    onChange={e => setSortBy(e.target.value)}
+                                    className="px-3 py-2 rounded-lg bg-bg-tertiary border border-border text-sm flex-shrink-0"
+                                >
+                                    <option value="expiration">Expiration</option>
+                                    <option value="ticker">Ticker</option>
+                                    <option value="created">Newest</option>
+                                </select>
+                            )}
+                            {activePositions.length > 0 && (
+                                <button onClick={refreshAllPrices} disabled={refreshing} className="btn-secondary px-3 py-2 rounded-lg flex items-center gap-1">
+                                    {refreshing ? <span className="spinner" style={{width: 14, height: 14}}></span> : <Icons.refresh />}
+                                    <span className="hidden sm:inline text-sm">{refreshing ? refreshStatus : 'Refresh'}</span>
+                                </button>
+                            )}
+                            <button onClick={() => setShowForm(!showForm)} className={showForm ? 'btn-secondary px-4 py-2 rounded-lg' : 'btn-primary px-4 py-2 rounded-lg'}>
+                                {showForm ? 'Cancel' : '+ New'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Status */}
+                    {refreshStatus && !refreshing && (
+                        <div className={`mb-4 p-4 rounded-xl text-sm ${refreshStatus.includes('failed') ? 'bg-accent-redDim text-accent-red' : 'bg-accent-greenDim text-accent-green'}`}>
+                            {refreshStatus}
+                        </div>
+                    )}
+
+                    {/* Add Form */}
+                    {showForm && (
+                        <form onSubmit={handleSubmit} className="card p-5 mb-6 space-y-4">
+                            <div className="text-sm text-text-secondary mb-2">Quick Entry</div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <input type="text" placeholder="Ticker" value={form.ticker} onChange={e => setForm({...form, ticker: e.target.value.toUpperCase()})} className="px-4 py-3 rounded-xl font-mono" required />
+                                <input type="number" step="0.5" placeholder="Strike" value={form.strike} onChange={e => setForm({...form, strike: e.target.value})} className="px-4 py-3 rounded-xl font-mono" required />
+                                <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="px-4 py-3 rounded-xl">
+                                    <option>Call</option><option>Put</option>
+                                </select>
+                                <input type="date" value={form.expiration} onChange={e => setForm({...form, expiration: e.target.value})} className="px-4 py-3 rounded-xl" required />
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <select value={form.setup} onChange={e => setForm({...form, setup: e.target.value})} className="px-4 py-3 rounded-xl">
+                                    {SETUPS.map(s => <option key={s}>{s}</option>)}
+                                </select>
+                                <input type="number" placeholder="Score" value={form.entry_score} onChange={e => setForm({...form, entry_score: e.target.value})} className="px-4 py-3 rounded-xl font-mono" required />
+                                <input type="number" min="1" placeholder="Qty" value={form.quantity} onChange={e => setForm({...form, quantity: e.target.value})} className="px-4 py-3 rounded-xl font-mono" required />
+                                <input type="number" step="0.01" placeholder="Entry $" value={form.entry_price} onChange={e => setForm({...form, entry_price: e.target.value})} className="px-4 py-3 rounded-xl font-mono" required />
+                            </div>
+                            <input type="text" placeholder="Exit if... (optional)" value={form.stop_reason} onChange={e => setForm({...form, stop_reason: e.target.value})} className="w-full px-4 py-3 rounded-xl" />
+                            <button type="submit" disabled={submitting} className="btn-primary w-full py-4 rounded-xl text-lg">
+                                {submitting ? 'Opening...' : 'Open Position'}
+                            </button>
+                        </form>
+                    )}
+
+                    {/* Positions List */}
+                    {activePositions.length === 0 && !showForm ? (
+                        <div className="text-center py-16 text-text-secondary">
+                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-bg-tertiary flex items-center justify-center">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                    <rect x="3" y="3" width="7" height="9" rx="1"/>
+                                    <rect x="14" y="3" width="7" height="5" rx="1"/>
+                                    <rect x="14" y="12" width="7" height="9" rx="1"/>
+                                    <rect x="3" y="16" width="7" height="5" rx="1"/>
+                                </svg>
+                            </div>
+                            <p>No active positions</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {sortedPositions.map(p => (
+                                <PositionCard key={p.id} position={p} transactions={transactions} onAction={onAction} onUpdateScore={onUpdateScore} onUpdatePrice={onUpdatePrice} />
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ==================== HISTORY PAGE ====================
+        const HistoryPage = ({ positions, transactions, onDeletePosition, loading }) => {
+            const closedPositions = positions.filter(p => p.status === 'closed');
+
+            const getStats = (position) => {
+                const txns = transactions.filter(t => t.position_id === position.id);
+                let totalQtyBought = 0, totalCostBasis = 0, totalProceeds = 0;
+                txns.forEach(t => {
+                    const price = parseFloat(t.price) * CONTRACT_MULTIPLIER;
+                    if (t.quantity > 0) { totalQtyBought += t.quantity; totalCostBasis += t.quantity * price; }
+                    else { totalProceeds += Math.abs(t.quantity) * price; }
+                });
+                const pnl = totalProceeds - totalCostBasis;
+                const pnlPct = totalCostBasis > 0 ? (pnl / totalCostBasis) * 100 : 0;
+                const holdDays = position.closed_at && position.created_at ? Math.ceil((new Date(position.closed_at) - new Date(position.created_at)) / 86400000) : 0;
+                return { pnl, pnlPct, holdDays };
+            };
+
+            // Calculate overall stats
+            const overallStats = useMemo(() => {
+                let totalPnL = 0, wins = 0, losses = 0;
+                closedPositions.forEach(p => {
+                    const { pnl } = getStats(p);
+                    totalPnL += pnl;
+                    if (pnl >= 0) wins++; else losses++;
+                });
+                const winRate = closedPositions.length > 0 ? (wins / closedPositions.length) * 100 : 0;
+                return { totalPnL, wins, losses, winRate };
+            }, [closedPositions, transactions]);
+
+            if (loading) return <LoadingSpinner />;
+
+            return (
+                <div className="fade-in">
+                    {/* Summary Stats */}
+                    {closedPositions.length > 0 && (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                            <div className="card p-4">
+                                <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Total P&L</div>
+                                <div className={`text-2xl font-bold font-mono ${overallStats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                    {overallStats.totalPnL >= 0 ? '+' : ''}{formatCurrency(overallStats.totalPnL)}
+                                </div>
+                            </div>
+                            <div className="card p-4">
+                                <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Win Rate</div>
+                                <div className={`text-2xl font-bold ${overallStats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                    {overallStats.winRate.toFixed(0)}%
+                                </div>
+                            </div>
+                            <div className="card p-4">
+                                <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Wins</div>
+                                <div className="text-2xl font-bold text-accent-green">{overallStats.wins}</div>
+                            </div>
+                            <div className="card p-4">
+                                <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Losses</div>
+                                <div className="text-2xl font-bold text-accent-red">{overallStats.losses}</div>
+                            </div>
+                        </div>
+                    )}
+
+                    <h2 className="text-2xl font-bold mb-6">Trade History</h2>
+                    
+                    {closedPositions.length === 0 ? (
+                        <div className="text-center py-16 text-text-secondary">
+                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-bg-tertiary flex items-center justify-center">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                    <circle cx="12" cy="12" r="9"/>
+                                    <polyline points="12,7 12,12 15,15"/>
+                                </svg>
+                            </div>
+                            <p>No closed trades yet</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {closedPositions.map(p => {
+                                const { pnl, pnlPct, holdDays } = getStats(p);
+                                const isWin = pnl >= 0;
+                                return (
+                                    <div key={p.id} className="card p-5 fade-in">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="flex items-center gap-3 mb-1">
+                                                    <span className="text-xl font-bold">{p.ticker}</span>
+                                                    <span className={`badge ${p.type === 'Call' ? 'badge-green' : 'badge-red'}`}>{p.type}</span>
+                                                    <span className={`badge ${isWin ? 'badge-green' : 'badge-red'} flex items-center gap-1`}>
+                                                        {isWin ? <><Icons.check /> Win</> : 'Loss'}
+                                                    </span>
+                                                </div>
+                                                <div className="text-text-secondary text-sm">
+                                                    <span className="font-mono">${p.strike}</span>
+                                                    <span className="mx-2">·</span>
+                                                    <span>{p.setup}</span>
+                                                    <span className="mx-2">·</span>
+                                                    <span>{holdDays}d held</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className={`big-number ${isWin ? 'text-accent-green' : 'text-accent-red'}`}>
+                                                    {formatPercent(pnlPct)}
+                                                </div>
+                                                <div className={`text-sm font-mono ${isWin ? 'text-accent-green' : 'text-accent-red'}`}>
+                                                    {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ==================== STATS PAGE ====================
+        const StatsPage = ({ positions, transactions, loading }) => {
+            const closedPositions = positions.filter(p => p.status === 'closed');
+            
+            const stats = useMemo(() => {
+                let totalPnL = 0, wins = 0, losses = 0, totalWinPnL = 0, totalLossPnL = 0;
+                const setupStats = {};
+                
+                closedPositions.forEach(p => {
+                    const txns = transactions.filter(t => t.position_id === p.id);
+                    let cost = 0, proceeds = 0;
+                    txns.forEach(t => {
+                        const price = parseFloat(t.price) * CONTRACT_MULTIPLIER;
+                        if (t.quantity > 0) cost += t.quantity * price;
+                        else proceeds += Math.abs(t.quantity) * price;
+                    });
+                    const pnl = proceeds - cost;
+                    totalPnL += pnl;
+                    
+                    if (pnl >= 0) { wins++; totalWinPnL += pnl; }
+                    else { losses++; totalLossPnL += pnl; }
+                    
+                    if (!setupStats[p.setup]) setupStats[p.setup] = { wins: 0, losses: 0, pnl: 0 };
+                    setupStats[p.setup].pnl += pnl;
+                    if (pnl >= 0) setupStats[p.setup].wins++;
+                    else setupStats[p.setup].losses++;
+                });
+                
+                const winRate = closedPositions.length > 0 ? (wins / closedPositions.length) * 100 : 0;
+                const avgWin = wins > 0 ? totalWinPnL / wins : 0;
+                const avgLoss = losses > 0 ? totalLossPnL / losses : 0;
+                const profitFactor = totalLossPnL !== 0 ? Math.abs(totalWinPnL / totalLossPnL) : totalWinPnL > 0 ? Infinity : 0;
+                
+                return { totalPnL, wins, losses, winRate, avgWin, avgLoss, profitFactor, setupStats };
+            }, [closedPositions, transactions]);
+
+            if (loading) return <LoadingSpinner />;
+
+            return (
+                <div className="fade-in">
+                    <h2 className="text-2xl font-bold mb-6">Performance Stats</h2>
+                    
+                    {closedPositions.length === 0 ? (
+                        <div className="text-center py-16 text-text-secondary">
+                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-bg-tertiary flex items-center justify-center">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                    <path d="M3 3v18h18"/>
+                                    <path d="M18 9l-5 5-4-4-3 3"/>
+                                </svg>
+                            </div>
+                            <p>Complete some trades to see your stats</p>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Key Metrics */}
+                            <div className="grid grid-cols-2 gap-4 mb-6">
+                                <div className="card p-5">
+                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-2">Total P&L</div>
+                                    <div className={`text-3xl font-bold font-mono ${stats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                        {stats.totalPnL >= 0 ? '+' : ''}{formatCurrency(stats.totalPnL)}
+                                    </div>
+                                </div>
+                                <div className="card p-5">
+                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-2">Win Rate</div>
+                                    <div className={`text-3xl font-bold ${stats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                        {stats.winRate.toFixed(1)}%
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                                <div className="card p-4">
+                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Avg Win</div>
+                                    <div className="text-xl font-bold font-mono text-accent-green">{formatCurrency(stats.avgWin)}</div>
+                                </div>
+                                <div className="card p-4">
+                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Avg Loss</div>
+                                    <div className="text-xl font-bold font-mono text-accent-red">{formatCurrency(Math.abs(stats.avgLoss))}</div>
+                                </div>
+                                <div className="card p-4">
+                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Profit Factor</div>
+                                    <div className={`text-xl font-bold ${stats.profitFactor >= 1 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                        {stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(2)}
+                                    </div>
+                                </div>
+                                <div className="card p-4">
+                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Total Trades</div>
+                                    <div className="text-xl font-bold">{closedPositions.length}</div>
+                                </div>
+                            </div>
+                            
+                            {/* Setup Breakdown */}
+                            <h3 className="text-lg font-semibold mb-4">By Setup</h3>
+                            <div className="space-y-3">
+                                {Object.entries(stats.setupStats)
+                                    .sort((a, b) => b[1].pnl - a[1].pnl)
+                                    .map(([setup, data]) => {
+                                        const total = data.wins + data.losses;
+                                        const winRate = total > 0 ? (data.wins / total) * 100 : 0;
+                                        return (
+                                            <div key={setup} className="card p-4 flex justify-between items-center">
+                                                <div>
+                                                    <div className="font-medium">{setup}</div>
+                                                    <div className="text-text-secondary text-sm">
+                                                        {data.wins}W / {data.losses}L · {winRate.toFixed(0)}%
+                                                    </div>
+                                                </div>
+                                                <div className={`text-xl font-bold font-mono ${data.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                                    {data.pnl >= 0 ? '+' : ''}{formatCurrency(data.pnl)}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+                        </>
+                    )}
+                </div>
+            );
+        };
+
+        // ==================== BUY MODAL ====================
+        const BuyModal = ({ position, onConfirm, onCancel }) => {
+            const [quantity, setQuantity] = useState(1);
+            const [price, setPrice] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            return (
+                <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
+                    <div className="card p-6 w-full max-w-md fade-in">
+                        <h3 className="text-xl font-bold mb-4">Open Position</h3>
+                        <div className="mb-4 p-4 bg-bg-tertiary rounded-xl">
+                            <div className="flex items-center gap-3">
+                                <span className="text-lg font-bold">{position.ticker}</span>
+                                <span className={`badge ${position.type === 'Call' ? 'badge-green' : 'badge-red'}`}>{position.type}</span>
+                            </div>
+                            <div className="text-text-secondary text-sm">
+                                ${position.strike} · {formatDate(position.expiration)}
+                            </div>
+                        </div>
+                        <div className="space-y-4 mb-6">
+                            <div>
+                                <label className="text-sm text-text-secondary block mb-2">Quantity</label>
+                                <input type="number" min="1" value={quantity} onChange={e => setQuantity(parseInt(e.target.value) || 1)} className="w-full px-4 py-3 rounded-xl font-mono" />
+                            </div>
+                            <div>
+                                <label className="text-sm text-text-secondary block mb-2">Entry Price</label>
+                                <input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} className="w-full px-4 py-3 rounded-xl font-mono" autoFocus required />
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={onCancel} className="flex-1 py-3 btn-secondary rounded-xl">Cancel</button>
+                            <button onClick={async () => { setLoading(true); await onConfirm(quantity, parseFloat(price)); setLoading(false); }} disabled={!price || loading} className="flex-1 py-3 btn-primary rounded-xl">
+                                {loading ? '...' : 'Confirm'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==================== MAIN APP ====================
+        const App = () => {
+            const [isAuthenticated, setIsAuthenticated] = useState(localStorage.getItem('tj_auth') === 'true');
+            const [positions, setPositions] = useState([]);
+            const [transactions, setTransactions] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [activeTab, setActiveTab] = useState('portfolio');
+            const [buyingPosition, setBuyingPosition] = useState(null);
+
+            const fetchData = useCallback(async () => {
+                setLoading(true);
+                const { data: posData } = await supabase.from('positions').select('*').order('created_at', { ascending: false });
+                const { data: txnData } = await supabase.from('transactions').select('*').order('date', { ascending: true });
+                if (posData) setPositions(posData);
+                if (txnData) setTransactions(txnData);
+                setLoading(false);
+            }, []);
+
+            useEffect(() => { if (isAuthenticated) fetchData(); }, [fetchData, isAuthenticated]);
+
+            const handleAddToWatchlist = async (formData) => {
+                const { data } = await supabase.from('positions').insert([{ ...formData, status: 'watchlist' }]).select();
+                if (data) setPositions(prev => [data[0], ...prev]);
+            };
+
+            const handleMoveToActive = (position) => setBuyingPosition(position);
+
+            const handleConfirmBuy = async (quantity, price) => {
+                if (!buyingPosition) return;
+                const now = new Date().toISOString();
+                await supabase.from('positions').update({ status: 'active', current_price: price }).eq('id', buyingPosition.id);
+                const { data: txnData } = await supabase.from('transactions').insert([{ position_id: buyingPosition.id, type: 'Open', quantity, price, date: now }]).select();
+                setPositions(prev => prev.map(p => p.id === buyingPosition.id ? { ...p, status: 'active', current_price: price } : p));
+                if (txnData) setTransactions(prev => [...prev, txnData[0]]);
+                setBuyingPosition(null);
+                setActiveTab('portfolio');
+            };
+
+            const handleAddDirect = async (formData) => {
+                const now = new Date().toISOString();
+                const { data: posData } = await supabase.from('positions').insert([{
+                    ticker: formData.ticker, strike: formData.strike, type: formData.type, expiration: formData.expiration,
+                    setup: formData.setup, entry_score: formData.entry_score, stop_reason: formData.stop_reason,
+                    status: 'active', current_price: formData.entry_price
+                }]).select();
+                if (posData) {
+                    setPositions(prev => [posData[0], ...prev]);
+                    const { data: txnData } = await supabase.from('transactions').insert([{
+                        position_id: posData[0].id, type: 'Open', quantity: formData.quantity, price: formData.entry_price, date: now
+                    }]).select();
+                    if (txnData) setTransactions(prev => [...prev, txnData[0]]);
+                }
+            };
+
+            const handleAction = async (positionId, transaction) => {
+                const now = new Date().toISOString();
+                const { data: txnData } = await supabase.from('transactions').insert([{ position_id: positionId, ...transaction, date: now }]).select();
+                if (txnData) setTransactions(prev => [...prev, txnData[0]]);
+                
+                const existingTxns = transactions.filter(t => t.position_id === positionId);
+                const totalQtyAfter = [...existingTxns, transaction].reduce((s, t) => s + t.quantity, 0);
+                
+                if (totalQtyAfter <= 0) {
+                    await supabase.from('positions').update({ status: 'closed', closed_at: now, current_price: transaction.price }).eq('id', positionId);
+                    setPositions(prev => prev.map(p => p.id === positionId ? { ...p, status: 'closed', closed_at: now, current_price: transaction.price } : p));
+                } else {
+                    await supabase.from('positions').update({ current_price: transaction.price }).eq('id', positionId);
+                    setPositions(prev => prev.map(p => p.id === positionId ? { ...p, current_price: transaction.price } : p));
+                }
+            };
+
+            const handleUpdateScore = async (positionId, score) => {
+                const now = new Date().toISOString();
+                await supabase.from('positions').update({ current_score: score, score_updated_at: now }).eq('id', positionId);
+                setPositions(prev => prev.map(p => p.id === positionId ? { ...p, current_score: score, score_updated_at: now } : p));
+            };
+
+            const handleUpdatePrice = async (positionId, price) => {
+                await supabase.from('positions').update({ current_price: price }).eq('id', positionId);
+                setPositions(prev => prev.map(p => p.id === positionId ? { ...p, current_price: price } : p));
+            };
+
+            const handleDeletePosition = async (positionId) => {
+                await supabase.from('positions').delete().eq('id', positionId);
+                setPositions(prev => prev.filter(p => p.id !== positionId));
+                setTransactions(prev => prev.filter(t => t.position_id !== positionId));
+            };
+
+            const handleLogout = () => {
+                localStorage.removeItem('tj_auth');
+                setIsAuthenticated(false);
+            };
+
+            if (!isAuthenticated) return <LoginPage onLogin={() => setIsAuthenticated(true)} />;
+
+            return (
+                <div className="min-h-screen">
+                    {/* Header - iOS 风格毛玻璃效果 */}
+                    <header className="app-header sticky top-0 z-40 bg-black/85 backdrop-blur-xl border-b border-white/10" style={{paddingTop: 'env(safe-area-inset-top, 0px)'}}>
+                        <div className="max-w-2xl mx-auto px-4 py-3 flex justify-between items-center">
+                            <h1 className="text-xl font-semibold">Trading Journal</h1>
+                            <button onClick={handleLogout} className="text-text-tertiary text-sm hover:text-text-secondary transition-colors">
+                                Logout
+                            </button>
+                        </div>
+                    </header>
+                    
+                    {/* Main Content */}
+                    <main className="main-content max-w-2xl mx-auto px-4 py-6">
+                        {/* TabNav 移到桌面端显示在顶部，移动端显示在底部 */}
+                        <div className="hidden sm:block">
+                            <TabNav activeTab={activeTab} setActiveTab={setActiveTab} />
+                        </div>
+                        {activeTab === 'portfolio' && <PortfolioPage positions={positions} transactions={transactions} onAction={handleAction} onUpdateScore={handleUpdateScore} onUpdatePrice={handleUpdatePrice} onAddDirect={handleAddDirect} loading={loading} />}
+                        {activeTab === 'watchlist' && <WatchlistPage positions={positions} onAddToWatchlist={handleAddToWatchlist} onMoveToActive={handleMoveToActive} loading={loading} />}
+                        {activeTab === 'history' && <HistoryPage positions={positions} transactions={transactions} onDeletePosition={handleDeletePosition} loading={loading} />}
+                        {activeTab === 'stats' && <StatsPage positions={positions} transactions={transactions} loading={loading} />}
+                    </main>
+                    
+                    {/* Mobile Bottom Nav */}
+                    <div className="sm:hidden">
+                        <TabNav activeTab={activeTab} setActiveTab={setActiveTab} />
+                    </div>
+                    
+                    {/* Footer - 只在桌面端显示 */}
+                    <footer className="hidden sm:block max-w-2xl mx-auto px-4 py-8 text-center text-text-tertiary text-sm border-t border-border-default mt-8">
+                        CBOE delayed data · ×{CONTRACT_MULTIPLIER} multiplier
+                    </footer>
+                    
+                    {/* Modal */}
+                    {buyingPosition && <BuyModal position={buyingPosition} onConfirm={handleConfirmBuy} onCancel={() => setBuyingPosition(null)} />}
+                </div>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "functions": {
+    "api/option-price.js": {
+      "memory": 256,
+      "maxDuration": 10
+    },
+    "api/earnings.js": {
+      "memory": 256,
+      "maxDuration": 10
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, OPTIONS" }
+      ]
+    }
+  ]
+}
