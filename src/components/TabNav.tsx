@@ -15,7 +15,10 @@ export const TabNav: React.FC<TabNavProps> = ({ activeTab, setActiveTab }) => {
     ];
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 sm:static bg-[#000000eb] sm:bg-transparent border-t border-white/10 sm:border-b sm:border-[#2A2A2A] sm:border-t-0 z-50 flex sm:mb-6 sm:gap-0 backdrop-blur-md sm:backdrop-blur-none pb-[safe-area-inset-bottom]">
+        <nav
+            className="fixed bottom-0 left-0 right-0 sm:static bg-[#000000eb] sm:bg-transparent border-t border-white/10 sm:border-b sm:border-[#2A2A2A] sm:border-t-0 z-50 flex sm:mb-6 sm:gap-0 backdrop-blur-md sm:backdrop-blur-none"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
+        >
             {tabs.map(tab => (
                 <button
                     key={tab.id}
@@ -23,7 +26,7 @@ export const TabNav: React.FC<TabNavProps> = ({ activeTab, setActiveTab }) => {
                     className={`flex-1 sm:flex-none flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 sm:px-5 py-3 sm:py-4 min-h-[60px] sm:min-h-auto transition-colors relative
                     ${activeTab === tab.id ? 'text-accent-green sm:text-white' : 'text-[#8E8E93] sm:text-[#666666] hover:text-[#A3A3A3]'}`}
                 >
-                    <tab.Icon size={28} strokeWidth={1.5} className="sm:w-5 sm:h-5 sm:stroke-2" />
+                    <tab.Icon size={24} strokeWidth={1.5} className="sm:w-5 sm:h-5 sm:stroke-2" />
                     <span className="text-xs sm:text-base font-medium">{tab.label}</span>
                     {activeTab === tab.id && (
                         <div className="hidden sm:block absolute bottom-0 left-0 right-0 h-[2px] bg-accent-green"></div>
