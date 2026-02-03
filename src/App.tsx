@@ -16,7 +16,7 @@ function App() {
     const [activeTab, setActiveTab] = useState('portfolio');
     const [positions, setPositions] = useState<Position[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     // State for the Buy Modal (Transition from Watchlist -> Active)
     const [buyingItem, setBuyingItem] = useState<Position | null>(null);
 
@@ -39,7 +39,7 @@ function App() {
 
     const fetchData = useCallback(async () => {
         if (!isAuthenticated) return;
-        setLoading(true);
+        // setLoading(true); // Can cause blinking if we do this every time
         const { data: posData } = await supabase.from('positions').select('*');
         const { data: txnData } = await supabase.from('transactions').select('*');
         if (posData) setPositions(posData as Position[]);
