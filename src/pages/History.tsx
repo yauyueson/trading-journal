@@ -46,7 +46,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transaction
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                     <div className="card p-4">
                         <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Total P&L</div>
-                        <div className={`text-2xl font-bold font-mono ${overallStats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                        <div className={`text-xl sm:text-2xl font-bold font-mono truncate ${overallStats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                             {overallStats.totalPnL >= 0 ? '+' : ''}{formatCurrency(overallStats.totalPnL)}
                         </div>
                     </div>
