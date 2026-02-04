@@ -23,7 +23,9 @@ export const TabNav: React.FC<TabNavProps> = ({ activeTab, setActiveTab }) => {
                 <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex-1 sm:flex-none flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 sm:px-5 py-3 sm:py-4 min-h-[60px] sm:min-h-auto transition-colors relative
+                    aria-label={`${tab.label} tab`}
+                    aria-current={activeTab === tab.id ? 'page' : undefined}
+                    className={`flex-1 sm:flex-none flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 sm:px-5 py-3 sm:py-4 min-h-[60px] sm:min-h-auto transition-colors relative cursor-pointer
                     ${activeTab === tab.id ? 'text-accent-green sm:text-white' : 'text-[#8E8E93] sm:text-[#666666] hover:text-[#A3A3A3]'}`}
                 >
                     <tab.Icon size={24} strokeWidth={1.5} className="sm:w-5 sm:h-5 sm:stroke-2" />

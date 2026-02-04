@@ -89,13 +89,18 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
                             </span>
                         )}
                     </div>
-                    {item.stop_reason && <div className="text-sm text-text-tertiary mt-2">Exit if: {item.stop_reason}</div>}
+                    {item.stop_reason && <div className="text-sm text-text-tertiary mt-2 line-clamp-2" title={item.stop_reason}>Exit if: {item.stop_reason}</div>}
                 </div>
                 <div className="flex flex-col gap-2 ml-4">
-                    <button onClick={() => onMoveToActive(item)} className="btn-primary px-5 py-2 rounded-lg">
+                    <button onClick={() => onMoveToActive(item)} className="btn-primary px-5 py-2 rounded-lg cursor-pointer">
                         Buy
                     </button>
-                    <button onClick={fetchPrice} disabled={loading} className="btn-secondary px-5 py-2 rounded-lg text-sm flex items-center justify-center">
+                    <button
+                        onClick={fetchPrice}
+                        disabled={loading}
+                        className="btn-secondary px-5 py-2 rounded-lg text-sm flex items-center justify-center cursor-pointer"
+                        aria-label="Refresh price"
+                    >
                         {loading ? '...' : <RefreshCw size={16} />}
                     </button>
                 </div>

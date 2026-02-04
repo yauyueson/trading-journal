@@ -44,6 +44,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                         onChange={e => setEmail(e.target.value)}
                         placeholder="Email"
                         className="w-full px-4 py-4 rounded-xl text-lg"
+                        aria-label="Email address"
                         autoFocus
                         required
                     />
@@ -53,12 +54,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                         onChange={e => setPassword(e.target.value)}
                         placeholder="Password"
                         className="w-full px-4 py-4 rounded-xl text-lg"
+                        aria-label="Password"
                         required
                     />
-                    {error && <p className="text-accent-red text-sm text-center">{error}</p>}
+                    {error && <p className="text-accent-red text-sm text-center" role="alert">{error}</p>}
                     <button
                         type="submit"
-                        className="btn-primary w-full py-4 rounded-xl text-lg"
+                        className="btn-primary w-full py-4 rounded-xl text-lg cursor-pointer"
                         disabled={loading}
                     >
                         {loading ? 'Signing in...' : 'Continue'}

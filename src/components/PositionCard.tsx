@@ -266,7 +266,11 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 <div>
                     <div className="metric-label flex items-center gap-1">
                         Score
-                        <button onClick={() => { setIsEditingScore(true); setScoreInput(currentScore.toString()); }} className="text-text-tertiary hover:text-text-primary transition-colors">
+                        <button
+                            onClick={() => { setIsEditingScore(true); setScoreInput(currentScore.toString()); }}
+                            className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+                            aria-label="Edit score"
+                        >
                             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
                         </button>
                     </div>
@@ -279,10 +283,10 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                                 className="w-12 px-1 py-0.5 text-sm bg-bg-secondary rounded border border-border-default font-mono"
                                 autoFocus
                             />
-                            <button onClick={handleScoreSave} className="text-accent-green hover:bg-accent-green/10 p-0.5 rounded">
+                            <button onClick={handleScoreSave} className="text-accent-green hover:bg-accent-green/10 p-0.5 rounded cursor-pointer" aria-label="Save score">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             </button>
-                            <button onClick={() => setIsEditingScore(false)} className="text-accent-red hover:bg-accent-red/10 p-0.5 rounded">
+                            <button onClick={() => setIsEditingScore(false)} className="text-accent-red hover:bg-accent-red/10 p-0.5 rounded cursor-pointer" aria-label="Cancel editing">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                             </button>
                         </div>
@@ -294,22 +298,27 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 </div>
             </div>
 
+
             {/* Setup info */}
-            <div className="text-sm text-text-secondary mb-4">
-                <span className="text-text-tertiary">Setup:</span> {position.setup}
+            <div className="text-sm text-text-secondary mb-4 flex flex-wrap gap-x-2 gap-y-1">
+                <span><span className="text-text-tertiary">Setup:</span> {position.setup}</span>
                 {position.stop_reason && (
-                    <>
-                        <span className="mx-2 text-text-tertiary">·</span>
-                        <span className="text-text-tertiary">Exit if:</span> {position.stop_reason}
-                    </>
+                    <span className="flex items-center gap-2 min-w-0">
+                        <span className="text-text-tertiary">·</span>
+                        <span className="text-text-tertiary shrink-0">Exit if:</span>
+                        <span className="truncate max-w-[200px] sm:max-w-[300px]" title={position.stop_reason}>{position.stop_reason}</span>
+                    </span>
                 )}
             </div>
+
 
             {/* Expandable Greeks History */}
             <div className="mb-4">
                 <button
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="w-full flex items-center justify-between py-2 px-3 rounded-lg bg-bg-secondary/50 hover:bg-bg-secondary transition-colors text-sm text-text-secondary"
+                    className="w-full flex items-center justify-between py-2 px-3 rounded-lg bg-bg-secondary/50 hover:bg-bg-secondary transition-colors text-sm text-text-secondary cursor-pointer"
+                    aria-expanded={isExpanded}
+                    aria-label={isExpanded ? 'Collapse IV & Delta history' : 'Expand IV & Delta history'}
                 >
                     <span>IV & Delta History</span>
                     <ChevronDown
@@ -327,7 +336,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
             {/* Action Buttons */}
             {!actionMode ? (
                 <div className="flex gap-2">
-                    <button onClick={fetchPrice} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-2">
+                    <button onClick={fetchPrice} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-2 cursor-pointer" aria-label="Refresh price">
                         {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={16} />}
                         <span className="hidden sm:inline">Refresh</span>
                     </button>

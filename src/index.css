@@ -12,6 +12,16 @@
         font-feature-settings: 'ss01' on, 'ss02' on;
         -webkit-font-smoothing: antialiased;
     }
+
+    /* Accessibility: Focus-visible ring for keyboard navigation */
+    button:focus-visible,
+    a:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    [role="button"]:focus-visible {
+        @apply outline-none ring-2 ring-accent-green ring-offset-2 ring-offset-bg-primary;
+    }
 }
 
 @layer components {
@@ -202,11 +212,31 @@ select {
     .card-earnings:hover,
     .card-earnings-soon:hover,
     .card-success:hover {
-        @apply -translate-y-1 scale-[1.01];
+        @apply -translate-y-1;
         box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
     }
 
     .card:hover {
         @apply border-[#3A3A3A];
+    }
+}
+
+/* Accessibility: Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .fade-in,
+    .pulse,
+    .spinner {
+        animation: none !important;
+    }
+
+    .card,
+    .card-danger,
+    .card-warning,
+    .card-earnings,
+    .card-earnings-soon,
+    .card-success,
+    button,
+    a {
+        transition: none !important;
     }
 }

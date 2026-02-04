@@ -138,22 +138,22 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 <form onSubmit={handleSubmit} className="card p-5 mb-6 space-y-4">
                     <div className="text-sm text-text-secondary mb-2">Quick Entry</div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <input type="text" placeholder="Ticker" value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value.toUpperCase() })} className="px-4 py-3 rounded-xl font-mono" required />
-                        <input type="number" step="0.5" placeholder="Strike" value={form.strike} onChange={e => setForm({ ...form, strike: e.target.value })} className="px-4 py-3 rounded-xl font-mono" required />
-                        <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} className="px-4 py-3 rounded-xl">
+                        <input type="text" placeholder="Ticker" value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value.toUpperCase() })} className="px-4 py-3 rounded-xl font-mono" aria-label="Ticker symbol" required />
+                        <input type="number" step="0.5" placeholder="Strike" value={form.strike} onChange={e => setForm({ ...form, strike: e.target.value })} className="px-4 py-3 rounded-xl font-mono" aria-label="Strike price" required />
+                        <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} className="px-4 py-3 rounded-xl" aria-label="Option type">
                             <option>Call</option><option>Put</option>
                         </select>
-                        <input type="date" value={form.expiration} onChange={e => setForm({ ...form, expiration: e.target.value })} className="px-4 py-3 rounded-xl" required />
+                        <input type="date" value={form.expiration} onChange={e => setForm({ ...form, expiration: e.target.value })} className="px-4 py-3 rounded-xl" aria-label="Expiration date" required />
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <select value={form.setup} onChange={e => setForm({ ...form, setup: e.target.value })} className="px-4 py-3 rounded-xl">
+                        <select value={form.setup} onChange={e => setForm({ ...form, setup: e.target.value })} className="px-4 py-3 rounded-xl" aria-label="Setup type">
                             {SETUPS.map(s => <option key={s}>{s}</option>)}
                         </select>
-                        <input type="number" placeholder="Score" value={form.entry_score} onChange={e => setForm({ ...form, entry_score: e.target.value })} className="px-4 py-3 rounded-xl font-mono" required />
-                        <input type="number" min="1" placeholder="Qty" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} className="px-4 py-3 rounded-xl font-mono" required />
-                        <input type="number" step="0.01" placeholder="Entry $" value={form.entry_price} onChange={e => setForm({ ...form, entry_price: e.target.value })} className="px-4 py-3 rounded-xl font-mono" required />
+                        <input type="number" placeholder="Score" value={form.entry_score} onChange={e => setForm({ ...form, entry_score: e.target.value })} className="px-4 py-3 rounded-xl font-mono" aria-label="Entry score" required />
+                        <input type="number" min="1" placeholder="Qty" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} className="px-4 py-3 rounded-xl font-mono" aria-label="Quantity" required />
+                        <input type="number" step="0.01" placeholder="Entry $" value={form.entry_price} onChange={e => setForm({ ...form, entry_price: e.target.value })} className="px-4 py-3 rounded-xl font-mono" aria-label="Entry price" required />
                     </div>
-                    <input type="text" placeholder="Exit if... (optional)" value={form.stop_reason} onChange={e => setForm({ ...form, stop_reason: e.target.value })} className="w-full px-4 py-3 rounded-xl" />
+                    <input type="text" placeholder="Exit if... (optional)" value={form.stop_reason} onChange={e => setForm({ ...form, stop_reason: e.target.value })} className="w-full px-4 py-3 rounded-xl" aria-label="Exit condition" />
                     <button type="submit" disabled={submitting} className="btn-primary w-full py-4 rounded-xl text-lg">
                         {submitting ? 'Opening...' : 'Open Position'}
                     </button>

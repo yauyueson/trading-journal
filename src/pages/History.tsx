@@ -43,26 +43,30 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transaction
         <div className="fade-in pb-24 sm:pb-0">
             {/* Summary Stats */}
             {closedPositions.length > 0 && (
-                <div className="grid grid-cols-16 gap-3 mb-6">
-                    <div className="card p-4 col-span-6">
+                <div className="space-y-3 mb-6">
+                    {/* Total P&L - Full Width */}
+                    <div className="card p-4">
                         <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Total P&L</div>
-                        <div className={`text-2xl font-bold font-mono ${overallStats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
-                            {overallStats.totalPnL >= 0 ? '+' : ''}{formatCurrency(overallStats.totalPnL)}
+                        <div className={`text-3xl font-bold font-mono ${overallStats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                            {overallStats.totalPnL >= 0 ? '+' : '-'}${Math.abs(overallStats.totalPnL).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                     </div>
-                    <div className="card p-4 col-span-4">
-                        <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Win Rate</div>
-                        <div className={`text-xl font-bold ${overallStats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>
-                            {overallStats.winRate.toFixed(0)}%
+                    {/* Other Stats Row */}
+                    <div className="grid grid-cols-3 gap-3">
+                        <div className="card p-4">
+                            <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Win Rate</div>
+                            <div className={`text-xl font-bold ${overallStats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                {overallStats.winRate.toFixed(0)}%
+                            </div>
                         </div>
-                    </div>
-                    <div className="card p-4 col-span-3">
-                        <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Wins</div>
-                        <div className="text-xl font-bold text-accent-green">{overallStats.wins}</div>
-                    </div>
-                    <div className="card p-4 col-span-3">
-                        <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Losses</div>
-                        <div className="text-xl font-bold text-accent-red">{overallStats.losses}</div>
+                        <div className="card p-4">
+                            <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Wins</div>
+                            <div className="text-xl font-bold text-accent-green">{overallStats.wins}</div>
+                        </div>
+                        <div className="card p-4">
+                            <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Losses</div>
+                            <div className="text-xl font-bold text-accent-red">{overallStats.losses}</div>
+                        </div>
                     </div>
                 </div>
             )}
