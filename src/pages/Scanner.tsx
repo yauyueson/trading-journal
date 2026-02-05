@@ -205,7 +205,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
             {/* Scan Form */}
             <div className="card-elevated p-6 mb-8 border border-white/10 shadow-xl shadow-bg-primary/50 relative overflow-hidden group bg-bg-secondary/40 backdrop-blur-sm">
                 {/* Glow effect */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-accent-primary/5 rounded-full blur-3xl -z-10 group-hover:bg-accent-primary/10 transition-colors duration-500"></div>
+                <div className="absolute top-0 right-0 w-64 h-64 bg-accent-green/5 rounded-full blur-3xl -z-10 group-hover:bg-accent-green/10 transition-colors duration-500"></div>
 
                 {/* Grid Layout */}
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -224,10 +224,10 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                                     onKeyDown={e => e.key === 'Enter' && handleScan()}
                                     className="w-full px-4 py-3.5 pl-11 rounded-xl bg-bg-secondary border border-white/10 
                                              text-lg font-mono tracking-wider text-text-primary placeholder:text-text-tertiary/50
-                                             focus:bg-bg-secondary focus:border-accent-primary/50 focus:ring-4 focus:ring-accent-primary/10 
+                                             focus:bg-bg-secondary focus:border-accent-green/50 focus:ring-4 focus:ring-accent-green/10 
                                              transition-all duration-200 uppercase shadow-inner"
                                 />
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary group-focus-within/input:text-accent-primary transition-colors" size={18} />
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary group-focus-within/input:text-accent-green transition-colors" size={18} />
                             </div>
                         </div>
 
@@ -259,7 +259,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                         {/* DTE Range */}
                         <div className="md:col-span-4 relative">
                             <label className="text-[10px] uppercase tracking-wider text-text-tertiary mb-1.5 font-bold ml-1">Expiration (DTE)</label>
-                            <div className="flex items-center gap-0 w-full bg-bg-secondary rounded-xl border border-white/10 p-1 focus-within:border-accent-primary/30 focus-within:ring-4 focus-within:ring-accent-primary/5 transition-all h-[52px]">
+                            <div className="flex items-center gap-0 w-full bg-bg-secondary rounded-xl border border-white/10 p-1 focus-within:border-accent-green/30 focus-within:ring-4 focus-within:ring-accent-green/5 transition-all h-[52px]">
                                 <input
                                     type="number"
                                     value={dteMin}
@@ -360,7 +360,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
 
                             <button
                                 onClick={handleScan}
-                                className="flex-1 flex items-center justify-center gap-2 h-[48px] bg-accent-primary hover:bg-accent-primary/90 text-white font-bold rounded-xl transition-all shadow-lg shadow-accent-primary/25 hover:shadow-accent-primary/50 hover:-translate-y-0.5 active:translate-y-0 text-base border-2 border-white/20 hover:border-white/40"
+                                className="flex-1 flex items-center justify-center gap-2 h-[48px] bg-accent-green hover:bg-accent-green/90 text-black font-bold rounded-xl transition-all shadow-lg shadow-accent-green/25 hover:shadow-accent-green/50 hover:-translate-y-0.5 active:translate-y-0 text-base border-2 border-white/20 hover:border-white/40"
                             >
                                 {loading ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />}
                                 <span>{loading ? 'Scanning...' : 'Scan Market'}</span>
