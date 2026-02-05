@@ -455,32 +455,67 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                                     <tr>
                                         <th className="px-4 py-3 text-left">#</th>
                                         <th className="px-4 py-3 text-left min-w-[160px]">
-                                            <Tooltip label="Contract" explanation="Ticker, Strike, Type, Expiration." position="bottom" />
+                                            <Tooltip
+                                                label="Contract"
+                                                explanation="The option contract details: underlying ticker symbol, strike price, option type (Call/Put), and expiration date with days-to-expiration (DTE)."
+                                                position="bottom"
+                                            />
                                         </th>
                                         <th className="px-4 py-3 text-center">
-                                            <Tooltip label="Style" explanation="Trade personality based on Delta (e.g. Aggressive, Balanced)." position="bottom" />
-                                        </th>
-                                        <th className="px-4 py-3 text-right">
-                                            <Tooltip label="Score" explanation="OSS Score (0-100). Higher is better quality." position="bottom" />
-                                        </th>
-                                        <th className="px-4 py-3 text-right">
-                                            <Tooltip label="Price" explanation="Ask Price." position="bottom" />
-                                        </th>
-                                        <th className="px-4 py-3 text-right">
-                                            <Tooltip label="Δ" explanation="Delta. Exposure to stock price movement." position="bottom" />
-                                        </th>
-                                        <th className="px-4 py-3 text-right">
                                             <Tooltip
-                                                label={strategy === 'long' ? 'λ' : 'POP'}
-                                                explanation={strategy === 'long' ? 'Lambda. Leverage factor.' : 'Probability of Profit.'}
+                                                label="Style"
+                                                explanation="Trade personality based on Delta. 🎰 Lottery (<15% Δ): High risk/reward OTM. 🚀 Aggressive (15-35% Δ): Speculative OTM. ⚖️ Balanced (35-65% Δ): ATM sweet spot. 📊 Deep ITM (>65% Δ): Stock-like behavior."
                                                 position="bottom"
                                             />
                                         </th>
                                         <th className="px-4 py-3 text-right">
-                                            <Tooltip label="IV" explanation="Implied Volatility." position="bottom" />
+                                            <Tooltip
+                                                label="Score"
+                                                explanation="OSS (Options Scoring System) v2.1: A composite score (0-100) measuring option quality. Combines Lambda efficiency, Gamma acceleration, Theta decay, Delta positioning, and IV environment. Higher scores indicate better risk-adjusted opportunities."
+                                                formula="Score = 40%×λ + 30%×γ_eff - 15%×θ_burn + 15%×Δ_bonus ± IV_adj"
+                                                position="bottom"
+                                            />
                                         </th>
                                         <th className="px-4 py-3 text-right">
-                                            <Tooltip label="Vol" explanation="Daily Volume." position="bottom" />
+                                            <Tooltip
+                                                label="Price"
+                                                explanation="Mid-price of the option, calculated as the average of bid and ask prices. This represents a fair market value estimate for the contract."
+                                                formula="Price = (Bid + Ask) / 2"
+                                                position="bottom"
+                                            />
+                                        </th>
+                                        <th className="px-4 py-3 text-right">
+                                            <Tooltip
+                                                label="Δ"
+                                                explanation="Delta measures how much the option price changes for every $1 move in the underlying stock. A delta of 0.50 means the option gains ~$0.50 when the stock rises $1. Also approximates the probability of expiring in-the-money."
+                                                formula="Δ = ∂Option / ∂Stock ≈ P(ITM)"
+                                                position="bottom"
+                                            />
+                                        </th>
+                                        <th className="px-4 py-3 text-right">
+                                            <Tooltip
+                                                label={strategy === 'long' ? 'λ' : 'POP'}
+                                                explanation={strategy === 'long'
+                                                    ? 'Lambda (λ) measures leverage efficiency - how much percentage gain you get in the option for a 1% move in the stock. Higher lambda = more leverage per dollar invested. Values above 10 indicate high leverage.'
+                                                    : 'Probability of Profit (POP) estimates the chance your short position expires worthless (you keep premium). Based on delta: POP ≈ 1 - |Δ|. Higher POP = safer but lower premium.'}
+                                                formula={strategy === 'long' ? 'λ = |Δ| × (Stock Price / Option Price)' : 'POP = 1 - |Δ|'}
+                                                position="bottom"
+                                            />
+                                        </th>
+                                        <th className="px-4 py-3 text-right">
+                                            <Tooltip
+                                                label="IV"
+                                                explanation="Implied Volatility represents the market's expectation of future price movement. Higher IV = more expensive options (higher premiums). Compare IV to historical volatility to assess if options are cheap or expensive."
+                                                formula="IV derived from Black-Scholes model"
+                                                position="bottom"
+                                            />
+                                        </th>
+                                        <th className="px-4 py-3 text-right">
+                                            <Tooltip
+                                                label="Vol"
+                                                explanation="Daily trading volume - the number of contracts traded today. Higher volume indicates better liquidity, tighter spreads, and easier entry/exit. Look for volume > 100 for active contracts."
+                                                position="bottom"
+                                            />
                                         </th>
                                         <th className="px-4 py-3 text-center">Action</th>
                                     </tr>
@@ -548,60 +583,120 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                                                 {isExpanded && (
                                                     <tr className="border-t border-white/5 bg-bg-tertiary/50">
                                                         <td colSpan={10} className="px-6 py-4">
-                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                                                 {/* Greeks Section */}
-                                                                <div className="space-y-2">
+                                                                <div className="space-y-3">
                                                                     <div className="text-sm font-semibold text-accent-blue mb-3">Greeks</div>
-                                                                    <div className="flex justify-between text-sm">
-                                                                        <span className="text-text-secondary">Delta (Δ)</span>
+                                                                    <div className="flex justify-between items-center text-sm">
+                                                                        <Tooltip
+                                                                            label="Delta (Δ)"
+                                                                            explanation="Rate of change in option price per $1 stock move. Measures directional exposure and approximates probability of expiring ITM."
+                                                                            formula="Δ = ∂V/∂S"
+                                                                            position="right"
+                                                                            className="text-text-secondary text-sm"
+                                                                        />
                                                                         <span className="font-mono">{r.greeks.delta.toFixed(4)}</span>
                                                                     </div>
-                                                                    <div className="flex justify-between text-sm">
-                                                                        <span className="text-text-secondary">Gamma (Γ)</span>
+                                                                    <div className="flex justify-between items-center text-sm">
+                                                                        <Tooltip
+                                                                            label="Gamma (Γ)"
+                                                                            explanation="Rate of change of Delta per $1 stock move. Higher gamma = faster delta acceleration. Critical for explosive moves near ATM."
+                                                                            formula="Γ = ∂Δ/∂S = ∂²V/∂S²"
+                                                                            position="right"
+                                                                            className="text-text-secondary text-sm"
+                                                                        />
                                                                         <span className="font-mono">{r.greeks.gamma.toFixed(4)}</span>
                                                                     </div>
-                                                                    <div className="flex justify-between text-sm">
-                                                                        <span className="text-text-secondary">Theta (Θ)</span>
+                                                                    <div className="flex justify-between items-center text-sm">
+                                                                        <Tooltip
+                                                                            label="Theta (Θ)"
+                                                                            explanation="Daily time decay - how much value the option loses each day. Negative for long positions (costs money), positive for short positions (earning premium)."
+                                                                            formula="Θ = ∂V/∂t (per day)"
+                                                                            position="right"
+                                                                            className="text-text-secondary text-sm"
+                                                                        />
                                                                         <span className="font-mono">{r.greeks.theta.toFixed(4)}</span>
                                                                     </div>
-                                                                    <div className="flex justify-between text-sm">
-                                                                        <span className="text-text-secondary">Vega (ν)</span>
+                                                                    <div className="flex justify-between items-center text-sm">
+                                                                        <Tooltip
+                                                                            label="Vega (ν)"
+                                                                            explanation="Sensitivity to 1% change in implied volatility. Higher vega = more exposure to IV changes. Important for earnings and news events."
+                                                                            formula="ν = ∂V/∂σ"
+                                                                            position="right"
+                                                                            className="text-text-secondary text-sm"
+                                                                        />
                                                                         <span className="font-mono">{r.greeks.vega.toFixed(4)}</span>
                                                                     </div>
                                                                 </div>
 
                                                                 {/* Metrics Section */}
-                                                                <div className="space-y-2">
+                                                                <div className="space-y-3">
                                                                     <div className="text-sm font-semibold text-accent-green mb-3">Metrics</div>
                                                                     {strategy === 'long' ? (
                                                                         <>
-                                                                            <div className="flex justify-between text-sm">
-                                                                                <span className="text-text-secondary">Lambda (λ)</span>
+                                                                            <div className="flex justify-between items-center text-sm">
+                                                                                <Tooltip
+                                                                                    label="Lambda (λ)"
+                                                                                    explanation="Leverage efficiency - percentage option gain per 1% stock move. λ=15 means 15% option gain for 1% stock move. Higher = more bang for your buck."
+                                                                                    formula="λ = |Δ| × (S / V)"
+                                                                                    position="right"
+                                                                                    className="text-text-secondary text-sm"
+                                                                                />
                                                                                 <span className="font-mono">{r.metrics.lambda?.toFixed(2)}</span>
                                                                             </div>
-                                                                            <div className="flex justify-between text-sm">
-                                                                                <span className="text-text-secondary">Gamma Eff</span>
+                                                                            <div className="flex justify-between items-center text-sm">
+                                                                                <Tooltip
+                                                                                    label="Gamma Eff"
+                                                                                    explanation="Gamma Efficiency - acceleration per dollar invested. Measures how quickly your delta grows relative to option cost. Higher = faster compounding on moves."
+                                                                                    formula="γ_eff = Γ / V"
+                                                                                    position="right"
+                                                                                    className="text-text-secondary text-sm"
+                                                                                />
                                                                                 <span className="font-mono">{r.metrics.gammaEff?.toFixed(4)}</span>
                                                                             </div>
-                                                                            <div className="flex justify-between text-sm">
-                                                                                <span className="text-text-secondary">Theta Burn</span>
+                                                                            <div className="flex justify-between items-center text-sm">
+                                                                                <Tooltip
+                                                                                    label="Theta Burn"
+                                                                                    explanation="Daily decay as % of option price. θ_burn=0.02 means 2% daily decay. Lower is better for long positions. Watch for burn > 0.5%."
+                                                                                    formula="θ_burn = |Θ| / V"
+                                                                                    position="right"
+                                                                                    className="text-text-secondary text-sm"
+                                                                                />
                                                                                 <span className="font-mono">{r.metrics.thetaBurn?.toFixed(4)}</span>
                                                                             </div>
                                                                         </>
                                                                     ) : (
                                                                         <>
-                                                                            <div className="flex justify-between text-sm">
-                                                                                <span className="text-text-secondary">POP</span>
+                                                                            <div className="flex justify-between items-center text-sm">
+                                                                                <Tooltip
+                                                                                    label="POP"
+                                                                                    explanation="Probability of Profit - chance the option expires worthless (you keep premium). 70% POP = 70% chance of winning the trade."
+                                                                                    formula="POP = 1 - |Δ|"
+                                                                                    position="right"
+                                                                                    className="text-text-secondary text-sm"
+                                                                                />
                                                                                 <span className="font-mono">{((r.metrics.pop || 0) * 100).toFixed(1)}%</span>
                                                                             </div>
-                                                                            <div className="flex justify-between text-sm">
-                                                                                <span className="text-text-secondary">Edge</span>
+                                                                            <div className="flex justify-between items-center text-sm">
+                                                                                <Tooltip
+                                                                                    label="Edge"
+                                                                                    explanation="Expected value of the trade - premium collected weighted by win probability. Higher edge = better risk-adjusted return."
+                                                                                    formula="Edge = POP × Premium"
+                                                                                    position="right"
+                                                                                    className="text-text-secondary text-sm"
+                                                                                />
                                                                                 <span className="font-mono">${r.metrics.edge?.toFixed(2)}</span>
                                                                             </div>
                                                                         </>
                                                                     )}
-                                                                    <div className="flex justify-between text-sm">
-                                                                        <span className="text-text-secondary">Spread</span>
+                                                                    <div className="flex justify-between items-center text-sm">
+                                                                        <Tooltip
+                                                                            label="Spread"
+                                                                            explanation="Bid-Ask spread as % of mid-price. Lower spread = better liquidity and execution. Target < 5% for efficient entry/exit."
+                                                                            formula="Spread% = (Ask - Bid) / Mid"
+                                                                            position="right"
+                                                                            className="text-text-secondary text-sm"
+                                                                        />
                                                                         <span className="font-mono">{(r.metrics.spreadPct * 100).toFixed(1)}%</span>
                                                                     </div>
                                                                 </div>
