@@ -135,10 +135,24 @@ function formatResponse(res, option, occSymbol, underlyingPrice) {
     lastPrice: option.last_trade_price || null,
     iv: option.iv || null,
     delta: option.delta || null,
+    gamma: option.gamma || null,
+    theta: option.theta || null,
+    vega: option.vega || null,
+    rho: option.rho || null,
     volume: option.volume || null,
     openInterest: option.open_interest || null,
     underlyingPrice: underlyingPrice || null,
     dataSource: 'CBOE',
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    // Debug: Show all available fields
+    availableFields: Object.keys(option),
+    rawGreeks: {
+      delta: option.delta,
+      gamma: option.gamma,
+      theta: option.theta,
+      vega: option.vega,
+      rho: option.rho,
+      iv: option.iv
+    }
   });
 }

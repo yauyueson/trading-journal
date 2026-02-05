@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, Calendar, ChevronDown } from 'lucide-react';
+import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory } from '../lib/types';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
@@ -11,11 +12,13 @@ interface PositionCardProps {
     onAction: (id: string, action: any) => Promise<void>;
     onUpdateScore: (id: string, score: number) => Promise<void>; // Kept for interface compatibility
     onUpdatePrice: (id: string, price: number) => Promise<void>;
+    refreshTrigger?: number;
+    index?: number;
 }
 
-export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice }) => {
+export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, refreshTrigger = 0, index = 0 }) => {
     const [loading, setLoading] = useState(false);
-    const [liveData, setLiveData] = useState<LiveData>({ delta: undefined, iv: undefined });
+    const [liveData, setLiveData] = useState<LiveData>({ delta: undefined, iv: undefined, gamma: undefined, theta: undefined, vega: undefined, score: undefined });
     const [earnings, setEarnings] = useState<{ loading: boolean; date: string | null; days: number | null }>({ loading: true, date: null, days: null });
     const [actionMode, setActionMode] = useState<'Add' | 'TakeProfit' | 'Close' | null>(null);
     const [actionQty, setActionQty] = useState(1);
@@ -57,7 +60,11 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 if (response.ok) {
                     const data = await response.json();
                     if (data.delta || data.iv) {
-                        setLiveData({ delta: data.delta, iv: data.iv });
+                        setLiveData({
+                            delta: data.delta,
+                            iv: data.iv,
+                            ivRatio: data.metrics?.ivRatio
+                        });
                         // Save to history (once per day)
                         saveGreeksHistory(position.id, data.iv, data.delta);
                     }
@@ -66,6 +73,16 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         };
         fetchGreeks();
     }, [position.id, position.ticker, position.expiration, position.strike, position.type]);
+
+    // Global Refresh Trigger
+    useEffect(() => {
+        if (refreshTrigger > 0) {
+            const delay = index * 200; // Stagger requests
+            setTimeout(() => {
+                fetchPrice();
+            }, delay);
+        }
+    }, [refreshTrigger]);
 
     // Fetch history when expanded
     useEffect(() => {
@@ -101,6 +118,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const currentValue = totalQty * currentPrice * CONTRACT_MULTIPLIER;
     const unrealizedPnL = currentPrice ? currentValue - unrealizedCostBasis : 0;
     const unrealizedPnLPct = unrealizedCostBasis > 0 && currentPrice ? ((currentPrice * CONTRACT_MULTIPLIER - avgCostPerContract) / avgCostPerContract) * 100 : 0;
+    const targetPrice = entryPrice * 1.25;
 
     const daysToExp = daysUntil(position.expiration);
     const currentScore = position.current_score || position.entry_score;
@@ -137,7 +155,18 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 const data = await response.json();
                 if (data.price) {
                     await onUpdatePrice(position.id, data.price);
-                    setLiveData({ delta: data.delta, iv: data.iv });
+                    // Do not auto-update db score, keep it manual. Use live data for option mechanics.
+                    setLiveData({
+                        delta: data.delta,
+                        gamma: data.gamma,
+                        theta: data.theta,
+                        vega: data.vega,
+                        iv: data.iv,
+
+                        score: data.score,
+                        isDayTrade: data.metrics?.isDayTrade,
+                        ivRatio: data.metrics?.ivRatio
+                    });
                 }
             }
         } catch (e) { console.error(e); }
@@ -184,6 +213,13 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         <span>{formatDate(position.expiration)}</span>
                         <span className="mx-2">·</span>
                         <span>{totalQty} contract{totalQty !== 1 ? 's' : ''}</span>
+                        {liveData.ivRatio !== undefined && (
+                            <span className="ml-3 px-2 py-0.5 rounded text-xs font-mono font-medium bg-bg-tertiary border border-border-default/50 text-text-secondary" title="IV Ratio">
+                                IVR: <span className={liveData.ivRatio > 1.05 ? 'text-accent-green' : liveData.ivRatio < 0.95 ? 'text-accent-red' : 'text-text-primary'}>
+                                    {liveData.ivRatio.toFixed(2)}
+                                </span>
+                            </span>
+                        )}
                     </div>
                 </div>
                 <div className="text-right">
@@ -198,13 +234,13 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
 
             {/* Earnings Banner */}
             {earningsWarning && (
-                <div className={`mb-4 p-3 rounded-xl flex items-center justify-between ${earningsImminent ? 'bg-purple-500/20 border border-purple-500/40' : 'bg-blue-500/10 border border-blue-500/30'}`}>
+                <div className={`mb-4 p-3 rounded-xl flex items-center justify-between ${earningsImminent ? 'bg-bg-secondary border border-purple-500/20' : 'bg-bg-secondary border border-blue-500/20'}`}>
                     <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${earningsImminent ? 'bg-purple-500/30' : 'bg-blue-500/20'}`}>
-                            <Calendar size={18} className={earningsImminent ? 'text-purple-300' : 'text-blue-300'} />
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${earningsImminent ? 'bg-purple-500/10' : 'bg-blue-500/10'}`}>
+                            <Calendar size={18} className={earningsImminent ? 'text-purple-300/70' : 'text-blue-300/70'} />
                         </div>
                         <div>
-                            <div className={`font-semibold ${earningsImminent ? 'text-purple-400' : 'text-blue-400'}`}>
+                            <div className={`font-semibold ${earningsImminent ? 'text-text-primary' : 'text-text-primary'}`}>
                                 {earnings.days === 0 ? 'Earnings TODAY' : earnings.days === 1 ? 'Earnings TOMORROW' : `Earnings in ${earnings.days} days`}
                             </div>
                             <div className="text-sm text-text-secondary">
@@ -232,72 +268,145 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
             )}
 
             {/* Metrics Grid */}
-            <div className="grid grid-cols-4 sm:grid-cols-7 gap-4 mb-4 py-4 border-y border-border-default">
-                <div>
-                    <div className="metric-label">Entry</div>
-                    <div className="metric-value">{formatPrice(entryPrice)}</div>
-                </div>
-                <div>
-                    <div className="metric-label">Avg. Cost</div>
-                    <div className="metric-value text-accent-blue">{formatPrice(avgCostPerContract / CONTRACT_MULTIPLIER)}</div>
-                </div>
-                <div>
-                    <div className="metric-label">Current</div>
-                    <div className="metric-value">{currentPrice ? formatPrice(currentPrice) : '—'}</div>
-                </div>
-                <div>
-                    <div className="metric-label">Stop</div>
-                    <div className={`metric-value ${hasTakenProfit ? 'text-accent-blue' : 'text-accent-red'}`}>
-                        {formatPrice(currentStopLoss)}
+            <div className="flex flex-col gap-4 mb-4 py-4 border-y border-border-default">
+                {/* Row 1: Trade Management & Technicals */}
+                <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-4">
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Entry" explanation="Original entry price per share." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value">{formatPrice(entryPrice)}</div>
                     </div>
-                </div>
-                <div>
-                    <div className="metric-label">Delta</div>
-                    <div className="metric-value text-purple-400">
-                        {liveData.delta ? liveData.delta.toFixed(2) : '—'}
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Target" explanation="Take Profit Target (1.25x Entry)." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-accent-green">{formatPrice(targetPrice)}</div>
                     </div>
-                </div>
-                <div>
-                    <div className="metric-label">IV</div>
-                    <div className="metric-value text-cyan-400">
-                        {liveData.iv ? (liveData.iv * 100).toFixed(1) + '%' : '—'}
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Current" explanation="Last traded price per share." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-text-primary">{currentPrice ? formatPrice(currentPrice) : '—'}</div>
                     </div>
-                </div>
-                <div>
-                    <div className="metric-label flex items-center gap-1">
-                        Score
-                        <button
-                            onClick={() => { setIsEditingScore(true); setScoreInput(currentScore.toString()); }}
-                            className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
-                            aria-label="Edit score"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-                        </button>
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Avg" explanation="Average Cost Basis." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value">{formatPrice(avgCostPerContract / CONTRACT_MULTIPLIER)}</div>
                     </div>
-                    {isEditingScore ? (
-                        <div className="flex items-center gap-1 mt-1">
-                            <input
-                                type="number"
-                                value={scoreInput}
-                                onChange={e => setScoreInput(e.target.value)}
-                                className="w-12 px-1 py-0.5 text-sm bg-bg-secondary rounded border border-border-default font-mono"
-                                autoFocus
-                            />
-                            <button onClick={handleScoreSave} className="text-accent-green hover:bg-accent-green/10 p-0.5 rounded cursor-pointer" aria-label="Save score">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            </button>
-                            <button onClick={() => setIsEditingScore(false)} className="text-accent-red hover:bg-accent-red/10 p-0.5 rounded cursor-pointer" aria-label="Cancel editing">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Stop" explanation="Stop Loss Level." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-accent-red">{formatPrice(currentStopLoss)}</div>
+                    </div>
+                    <div>
+                        <div className="mb-1 flex items-center gap-1">
+                            <Tooltip label="Tech Score" explanation="Manual Technical Analysis Score (0-100). Rating of the chart setup." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                            <button
+                                onClick={() => { setIsEditingScore(true); setScoreInput(currentScore.toString()); }}
+                                className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+                                aria-label="Edit score"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
                             </button>
                         </div>
-                    ) : (
-                        <div className={`metric-value ${currentScore >= 70 ? 'text-accent-green' : currentScore >= 60 ? 'text-accent-yellow' : 'text-accent-red'}`}>
-                            {currentScore}
+                        {isEditingScore ? (
+                            <div className="flex items-center gap-1">
+                                <input
+                                    type="number"
+                                    value={scoreInput}
+                                    onChange={e => setScoreInput(e.target.value)}
+                                    className="w-12 px-1 py-0.5 text-sm bg-bg-secondary rounded border border-border-default font-mono"
+                                    autoFocus
+                                />
+                                <button onClick={handleScoreSave} className="text-accent-green hover:bg-accent-green/10 p-0.5 rounded cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                </button>
+                                <button onClick={() => setIsEditingScore(false)} className="text-accent-red hover:bg-accent-red/10 p-0.5 rounded cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col">
+                                <span className={`metric-value ${currentScore ? (currentScore >= 70 ? 'text-accent-green' : currentScore >= 60 ? 'text-accent-yellow' : 'text-accent-red') : 'text-text-primary'}`}>
+                                    {currentScore || '—'}
+                                </span>
+                                {position.current_score && position.current_score !== position.entry_score && (
+                                    <span className="text-xs text-text-tertiary flex items-center">
+                                        from {position.entry_score}
+                                        {position.current_score < position.entry_score && <span className="ml-1 text-accent-red">↓</span>}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Row 2: Mechanics & Option Score */}
+                <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-4 pt-4 border-t border-border-light/50">
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Delta" explanation="Option sensitivity to stock price changes. Probability of expiring ITM." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
-                    )}
+                        <div className="metric-value text-text-primary">
+                            {liveData.delta !== undefined ? liveData.delta.toFixed(2) : '—'}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Gamma" explanation="Rate of change of Delta. Acceleration of directional exposure." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-text-primary">
+                            {liveData.gamma !== undefined ? liveData.gamma.toFixed(3) : '—'}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Theta" explanation="Time decay. Estimated value lost per day." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-text-primary">
+                            {liveData.theta !== undefined ? liveData.theta.toFixed(3) : '—'}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Vega" explanation="Sensitivity to changes in Implied Volatility." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-text-primary">
+                            {liveData.vega !== undefined ? liveData.vega.toFixed(3) : '—'}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="IV" explanation="Implied Volatility. Market's expectation of future moves." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-text-primary">
+                            {liveData.iv !== undefined ? (liveData.iv * 100).toFixed(1) + '%' : '—'}
+                        </div>
+                    </div>
+
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Opt Score" explanation="Calculated Option Quality (LOQ). Based on Greeks, IV & Liquidity." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="flex flex-col">
+                            <div className={`metric-value font-bold ${!liveData.score ? 'text-text-tertiary' :
+                                liveData.score >= 70 ? 'text-accent-green' :
+                                    liveData.score >= 50 ? 'text-accent-yellow' : 'text-accent-red'
+                                }`}>
+                                {liveData.score ? liveData.score : '—'}
+                            </div>
+                            {(liveData.score && liveData.isDayTrade) && (
+                                <span className="mt-0.5 px-1 pb-0.5 text-[8px] font-bold uppercase tracking-wider text-purple-300 bg-purple-500/10 rounded w-fit">
+                                    Day Trade
+                                </span>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
-
 
             {/* Setup info */}
             <div className="text-sm text-text-secondary mb-4 flex flex-wrap gap-x-2 gap-y-1">
@@ -310,7 +419,6 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     </span>
                 )}
             </div>
-
 
             {/* Expandable Greeks History */}
             <div className="mb-4">
@@ -326,46 +434,50 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
                     />
                 </button>
-                {isExpanded && (
-                    <div className="mt-3 p-3 rounded-lg bg-bg-secondary/30 border border-border-default">
-                        <GreeksHistoryChart data={historyData} loading={historyLoading} />
-                    </div>
-                )}
+                {
+                    isExpanded && (
+                        <div className="mt-3 p-3 rounded-lg bg-bg-secondary/30 border border-border-default">
+                            <GreeksHistoryChart data={historyData} loading={historyLoading} />
+                        </div>
+                    )
+                }
             </div>
 
             {/* Action Buttons */}
-            {!actionMode ? (
-                <div className="flex gap-2">
-                    <button onClick={fetchPrice} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-2 cursor-pointer" aria-label="Refresh price">
-                        {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={16} />}
-                        <span className="hidden sm:inline">Refresh</span>
-                    </button>
-                    <button onClick={() => setActionMode('Add')} className="action-btn bg-accent-greenDim text-accent-green">+ Add</button>
-                    <button onClick={() => setActionMode('TakeProfit')} className="action-btn bg-accent-blue/20 text-accent-blue">Profit</button>
-                    <button onClick={() => setActionMode('Close')} className="action-btn btn-danger">Close</button>
-                </div>
-            ) : (
-                <div className="card-elevated p-4 space-y-3">
-                    <div className="text-sm font-medium text-text-secondary">
-                        {actionMode === 'Add' ? 'Add to Position' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close Position'}
-                    </div>
-                    <div className="flex gap-3">
-                        {actionMode !== 'Close' && (
-                            <input type="number" min="1" value={actionQty} onChange={e => setActionQty(parseInt(e.target.value) || 1)}
-                                placeholder="Qty" className="w-24 px-4 py-3 rounded-xl font-mono" />
-                        )}
-                        <input type="number" step="0.01" value={actionPrice} onChange={e => setActionPrice(e.target.value)}
-                            placeholder="Price" className="flex-1 px-4 py-3 rounded-xl font-mono" autoFocus />
-                    </div>
+            {
+                !actionMode ? (
                     <div className="flex gap-2">
-                        <button onClick={() => setActionMode(null)} className="flex-1 py-3 btn-secondary rounded-xl">Cancel</button>
-                        <button onClick={() => handleAction(actionMode === 'Add' ? 'Size Up' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close')}
-                            disabled={!actionPrice || loading} className="flex-1 py-3 btn-primary rounded-xl">
-                            {loading ? '...' : 'Confirm'}
+                        <button onClick={fetchPrice} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-2 cursor-pointer" aria-label="Refresh price">
+                            {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={16} />}
+                            <span className="hidden sm:inline">Refresh</span>
                         </button>
+                        <button onClick={() => setActionMode('Add')} className="action-btn btn-secondary">+ Add</button>
+                        <button onClick={() => setActionMode('TakeProfit')} className="action-btn btn-secondary">Profit</button>
+                        <button onClick={() => setActionMode('Close')} className="action-btn btn-secondary text-text-secondary hover:text-accent-red hover:bg-accent-red/10">Close</button>
                     </div>
-                </div>
-            )}
-        </div>
+                ) : (
+                    <div className="card-elevated p-4 space-y-3">
+                        <div className="text-sm font-medium text-text-secondary">
+                            {actionMode === 'Add' ? 'Add to Position' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close Position'}
+                        </div>
+                        <div className="flex gap-3">
+                            {actionMode !== 'Close' && (
+                                <input type="number" min="1" value={actionQty} onChange={e => setActionQty(parseInt(e.target.value) || 1)}
+                                    placeholder="Qty" className="w-24 px-4 py-3 rounded-xl font-mono" />
+                            )}
+                            <input type="number" step="0.01" value={actionPrice} onChange={e => setActionPrice(e.target.value)}
+                                placeholder="Price" className="flex-1 px-4 py-3 rounded-xl font-mono" autoFocus />
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={() => setActionMode(null)} className="flex-1 py-3 btn-secondary rounded-xl">Cancel</button>
+                            <button onClick={() => handleAction(actionMode === 'Add' ? 'Size Up' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close')}
+                                disabled={!actionPrice || loading} className="flex-1 py-3 btn-primary rounded-xl">
+                                {loading ? '...' : 'Confirm'}
+                            </button>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 };

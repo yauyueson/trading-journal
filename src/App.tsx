@@ -5,6 +5,7 @@ import { TabNav } from './components/TabNav';
 import { LoginPage } from './pages/Login';
 import { PortfolioPage } from './pages/Portfolio';
 import { WatchlistPage } from './pages/Watchlist';
+import { ScannerPage } from './pages/Scanner';
 import { HistoryPage } from './pages/History';
 import { StatsPage } from './pages/Stats';
 import { BuyModal } from './components/BuyModal';
@@ -13,7 +14,7 @@ import type { Session } from '@supabase/supabase-js';
 function App() {
     const [session, setSession] = useState<Session | null>(null);
     const [authLoading, setAuthLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('portfolio');
+    const [activeTab, setActiveTab] = useState('scanner'); // Default to Scanner
     const [positions, setPositions] = useState<Position[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
@@ -198,6 +199,9 @@ function App() {
                         onMoveToActive={onMoveToActive}
                         loading={loading}
                     />
+                )}
+                {activeTab === 'scanner' && (
+                    <ScannerPage onAddToWatchlist={onAddToWatchlist} />
                 )}
                 {activeTab === 'history' && (
                     <HistoryPage

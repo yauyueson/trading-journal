@@ -8,6 +8,7 @@ export interface Position {
     setup: string;
     entry_score: number;
     current_score: number;
+    entry_loq_score?: number;  // OSS LOQ score at entry
     score_updated_at?: string;
     ideal_entry?: number;
     current_price?: number;
@@ -31,7 +32,14 @@ export interface Transaction {
 export interface LiveData {
     price?: number;
     delta?: number;
+    gamma?: number;
+    theta?: number;
+    vega?: number;
+    rho?: number;
     iv?: number;
+    score?: number;
+    isDayTrade?: boolean;
+    ivRatio?: number;
 }
 
 export interface GreeksHistory {
@@ -41,3 +49,11 @@ export interface GreeksHistory {
     delta: number;
     recorded_at: string;
 }
+
+// Scanner types (re-exported from scoring.ts for convenience)
+export type {
+    OptionData,
+    ScoredResult,
+    ScanContext,
+    Strategy
+} from './scoring';
