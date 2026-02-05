@@ -155,6 +155,10 @@
         @apply font-mono text-sm font-medium;
     }
 
+    .metric-delta {
+        @apply text-[10px] font-mono font-medium;
+    }
+
     .action-btn {
         @apply flex-1 p-3 rounded-xl font-semibold text-sm transition-all duration-150;
     }
@@ -239,4 +243,15 @@ select {
     a {
         transition: none !important;
     }
+}
+
+/* Hide number input spinners app-wide */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield;
 }

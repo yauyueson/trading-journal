@@ -105,15 +105,33 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
             });
 
             const res = await fetch(`/api/scan-options?${params}`);
-            const data = await res.json();
 
-            if (!data.success) {
-                setError(data.error || 'Scan failed');
+            if (!res.ok) {
+                const text = await res.text();
+                let errMsg = `Scan failed (${res.status})`;
+                try {
+                    const errorData = JSON.parse(text);
+                    errMsg = errorData.error || errMsg;
+                } catch {
+                    errMsg = `${errMsg}: ${text.slice(0, 100)}...`;
+                }
+                setError(errMsg);
                 return;
             }
 
-            setContext(data.context);
-            setResults(data.results);
+            const contentType = res.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                const data = await res.json();
+                if (!data.success) {
+                    setError(data.error || 'Scan failed');
+                    return;
+                }
+                setContext(data.context);
+                setResults(data.results);
+            } else {
+                const text = await res.text();
+                setError(`Unexpected non-JSON response: ${text.slice(0, 100)}...`);
+            }
         } catch (err: any) {
             setError(err.message || 'Network error');
         } finally {
@@ -207,34 +225,35 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                 {/* Glow effect */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-accent-green/5 rounded-full blur-3xl -z-10 group-hover:bg-accent-green/10 transition-colors duration-500"></div>
 
-                {/* Grid Layout */}
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                {/* Polished Grid Layout for Narrow Width */}
+                {/* Optimized 3-row layout for max-w-4xl */}
+                <div className="flex flex-col gap-6">
 
-                    {/* Column 1: Core Selection (Ticker, Strategy, DTE) */}
-                    <div className="xl:col-span-8 grid grid-cols-1 md:grid-cols-12 gap-6">
-                        {/* Ticker Input */}
-                        <div className="md:col-span-5 relative">
-                            <label className="text-[10px] uppercase tracking-wider text-text-tertiary mb-1.5 font-bold ml-1">Ticker Symbol</label>
-                            <div className="relative group/input">
+                    {/* Row 1: Ticker, Strategy, DTE */}
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                        {/* Ticker Symbol */}
+                        <div className="md:col-span-3 space-y-1.5">
+                            <label className="text-[10px] uppercase tracking-wider text-text-tertiary font-bold ml-1">Ticker Symbol</label>
+                            <div className="relative group/input h-[54px]">
                                 <input
                                     type="text"
                                     placeholder="SPY"
                                     value={ticker}
                                     onChange={e => setTicker(e.target.value.toUpperCase())}
                                     onKeyDown={e => e.key === 'Enter' && handleScan()}
-                                    className="w-full px-4 py-3.5 pl-11 rounded-xl bg-bg-secondary border border-white/10 
+                                    className="w-full h-full px-4 pl-11 rounded-xl bg-bg-secondary border border-white/10 
                                              text-lg font-mono tracking-wider text-text-primary placeholder:text-text-tertiary/50
                                              focus:bg-bg-secondary focus:border-accent-green/50 focus:ring-4 focus:ring-accent-green/10 
-                                             transition-all duration-200 uppercase shadow-inner"
+                                             transition-all duration-200 uppercase border-none focus:ring-0 shadow-none"
                                 />
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary group-focus-within/input:text-accent-green transition-colors" size={18} />
                             </div>
                         </div>
 
                         {/* Strategy Selection */}
-                        <div className="md:col-span-3">
-                            <label className="text-[10px] uppercase tracking-wider text-text-tertiary mb-1.5 font-bold ml-1">Strategy</label>
-                            <div className="flex bg-bg-secondary p-1 rounded-xl border border-white/10 h-[52px]">
+                        <div className="md:col-span-4 space-y-1.5">
+                            <label className="text-[10px] uppercase tracking-wider text-text-tertiary font-bold ml-1">Strategy</label>
+                            <div className="flex bg-bg-secondary p-1 rounded-xl border border-white/10 h-[54px]">
                                 <button
                                     onClick={() => setStrategy('long')}
                                     className={`flex-1 flex items-center justify-center gap-2 rounded-lg text-sm font-bold transition-all ${strategy === 'long'
@@ -256,40 +275,40 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                             </div>
                         </div>
 
-                        {/* DTE Range */}
-                        <div className="md:col-span-4 relative">
-                            <label className="text-[10px] uppercase tracking-wider text-text-tertiary mb-1.5 font-bold ml-1">Expiration (DTE)</label>
-                            <div className="flex items-center gap-0 w-full bg-bg-secondary rounded-xl border border-white/10 p-1 focus-within:border-accent-green/30 focus-within:ring-4 focus-within:ring-accent-green/5 transition-all h-[52px]">
+                        {/* Expiration (DTE) */}
+                        <div className="md:col-span-5 space-y-1.5">
+                            <label className="text-[10px] uppercase tracking-wider text-text-tertiary font-bold ml-1">Expiration (DTE)</label>
+                            <div className="flex items-center gap-0 w-full bg-bg-secondary rounded-xl border border-white/10 p-1 focus-within:border-accent-green/30 focus-within:ring-4 focus-within:ring-accent-green/5 transition-all h-[54px]">
                                 <input
                                     type="number"
                                     value={dteMin}
                                     onChange={e => setDteMin(parseInt(e.target.value) || 0)}
-                                    className="w-full bg-transparent px-3 text-center font-mono text-sm focus:outline-none text-text-primary font-medium"
+                                    className="flex-1 min-w-0 bg-transparent px-3 text-center font-mono text-sm focus:outline-none text-text-primary font-medium border-none focus:ring-0 shadow-none"
                                     placeholder="Min"
                                 />
                                 <div className="h-4 w-px bg-white/10"></div>
-                                <div className="px-3 text-[10px] text-text-tertiary font-bold">TO</div>
+                                <div className="px-4 text-[10px] text-text-tertiary font-bold">TO</div>
                                 <div className="h-4 w-px bg-white/10"></div>
                                 <input
                                     type="number"
                                     value={dteMax}
                                     onChange={e => setDteMax(parseInt(e.target.value) || 0)}
-                                    className="w-full bg-transparent px-3 text-center font-mono text-sm focus:outline-none text-text-primary font-medium"
+                                    className="flex-1 min-w-0 bg-transparent px-3 text-center font-mono text-sm focus:outline-none text-text-primary font-medium border-none focus:ring-0 shadow-none"
                                     placeholder="Max"
                                 />
                             </div>
                         </div>
                     </div>
 
-                    {/* Column 2: Filters & Actions */}
-                    <div className="xl:col-span-4 flex flex-col justify-between gap-4">
-                        {/* Filters Row */}
-                        <div className="flex flex-wrap gap-3">
-                            {/* Direction Toggle */}
-                            <div className="flex bg-bg-secondary p-1 rounded-xl border border-white/10 h-[42px]">
+                    {/* Row 2: Direction, Delta, Vol */}
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                        {/* Direction */}
+                        <div className="md:col-span-6 space-y-1.5">
+                            <label className="text-[10px] uppercase tracking-wider text-text-tertiary font-bold ml-1">Direction</label>
+                            <div className="flex bg-bg-secondary p-1 rounded-xl border border-white/10 h-[54px]">
                                 <button
                                     onClick={() => setDirection('all')}
-                                    className={`px-3 rounded-lg text-xs font-bold transition-all ${direction === 'all'
+                                    className={`flex-1 rounded-lg text-xs font-bold transition-all ${direction === 'all'
                                         ? 'bg-text-primary text-bg-primary shadow-sm'
                                         : 'text-text-secondary hover:text-text-primary hover:bg-white/5'}`}
                                 >
@@ -297,7 +316,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                                 </button>
                                 <button
                                     onClick={() => setDirection('call')}
-                                    className={`px-3 rounded-lg text-xs font-bold transition-all ${direction === 'call'
+                                    className={`flex-1 rounded-lg text-xs font-bold transition-all ${direction === 'call'
                                         ? 'bg-accent-green text-bg-primary shadow-sm'
                                         : 'text-text-secondary hover:text-accent-green hover:bg-accent-green/10'}`}
                                 >
@@ -305,69 +324,82 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                                 </button>
                                 <button
                                     onClick={() => setDirection('put')}
-                                    className={`px-3 rounded-lg text-xs font-bold transition-all ${direction === 'put'
+                                    className={`flex-1 rounded-lg text-xs font-bold transition-all ${direction === 'put'
                                         ? 'bg-accent-red text-bg-primary shadow-sm'
                                         : 'text-text-secondary hover:text-accent-red hover:bg-accent-red/10'}`}
                                 >
                                     Puts
                                 </button>
                             </div>
+                        </div>
 
-                            {/* Delta Range Shortcut */}
-                            <div className="flex items-center gap-2 bg-bg-secondary px-3 rounded-xl border border-white/10 h-[42px]">
-                                <span className="text-xs font-bold text-text-secondary">Δ</span>
+                        {/* Delta (Δ) */}
+                        <div className="md:col-span-4 space-y-1.5">
+                            <label className="text-[10px] uppercase tracking-wider text-text-tertiary font-bold ml-1">Delta (Δ)</label>
+                            <div className="flex items-center gap-0 bg-bg-secondary rounded-xl border border-white/10 p-1 focus-within:border-accent-green/30 focus-within:ring-4 focus-within:ring-accent-green/5 transition-all h-[54px]">
                                 <input
                                     type="number"
                                     step="0.05"
                                     value={minDelta}
                                     onChange={e => setMinDelta(parseFloat(e.target.value) || 0.20)}
-                                    className="w-10 bg-transparent text-center font-mono text-xs focus:outline-none text-text-primary"
+                                    className="flex-1 min-w-0 bg-transparent text-center font-mono text-xs focus:outline-none text-text-primary border-none focus:ring-0 shadow-none"
                                 />
-                                <span className="text-text-tertiary">-</span>
+                                <span className="px-1 text-text-tertiary">-</span>
                                 <input
                                     type="number"
                                     step="0.05"
                                     value={maxDelta}
                                     onChange={e => setMaxDelta(parseFloat(e.target.value) || 0.80)}
-                                    className="w-10 bg-transparent text-center font-mono text-xs focus:outline-none text-text-primary"
-                                />
-                            </div>
-
-                            {/* Min Vol */}
-                            <div className="flex items-center gap-2 bg-bg-secondary px-3 rounded-xl border border-white/10 h-[42px]">
-                                <span className="text-xs font-bold text-text-secondary">Vol</span>
-                                <input
-                                    type="number"
-                                    value={minVolume}
-                                    onChange={e => setMinVolume(parseInt(e.target.value) || 50)}
-                                    className="w-12 bg-transparent text-center font-mono text-xs focus:outline-none text-text-primary"
+                                    className="flex-1 min-w-0 bg-transparent text-center font-mono text-xs focus:outline-none text-text-primary border-none focus:ring-0 shadow-none"
                                 />
                             </div>
                         </div>
 
-                        {/* Actions Row */}
-                        <div className="flex items-center gap-4 mt-auto">
+                        {/* Vol */}
+                        <div className="md:col-span-2 space-y-1.5">
+                            <label className="text-[10px] uppercase tracking-wider text-text-tertiary font-bold ml-1">Vol</label>
+                            <div className="flex items-center bg-bg-secondary px-3 rounded-xl border border-white/10 h-[54px]">
+                                <input
+                                    type="number"
+                                    value={minVolume}
+                                    onChange={e => setMinVolume(parseInt(e.target.value) || 50)}
+                                    className="w-full bg-transparent text-center font-mono text-xs focus:outline-none text-text-primary border-none focus:ring-0 shadow-none"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Row 3: Day Trade & Scan Market (Spacing balanced with invisible label) */}
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] uppercase tracking-wider text-transparent select-none font-bold ml-1">Actions</label>
+                        <div className="flex flex-col sm:flex-row items-center gap-4">
                             <button
                                 onClick={() => setIsDayTradeMode(!isDayTradeMode)}
-                                className={`flex items-center gap-2 px-4 h-[48px] rounded-xl border transition-all duration-300 ${isDayTradeMode
+                                className={`flex items-center justify-center gap-2 w-full sm:w-auto px-6 h-[54px] rounded-xl border transition-all duration-300 ${isDayTradeMode
                                     ? 'bg-purple-500/20 border-purple-500/50 text-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
                                     : 'bg-bg-secondary border-white/10 text-text-secondary hover:text-text-primary hover:border-white/20'
                                     }`}
                             >
                                 <div className={`w-2 h-2 rounded-full ${isDayTradeMode ? 'bg-purple-400 animate-pulse' : 'bg-text-tertiary'}`}></div>
-                                <span className="text-sm font-bold whitespace-nowrap">Day Trade</span>
+                                <span className="text-sm font-bold whitespace-nowrap uppercase tracking-wider">Day Trade</span>
                             </button>
 
                             <button
                                 onClick={handleScan}
-                                className="flex-1 flex items-center justify-center gap-2 h-[48px] bg-accent-green hover:bg-accent-green/90 text-black font-bold rounded-xl transition-all shadow-lg shadow-accent-green/25 hover:shadow-accent-green/50 hover:-translate-y-0.5 active:translate-y-0 text-base border-2 border-white/20 hover:border-white/40"
+                                disabled={loading || !ticker}
+                                className={`flex-1 flex items-center justify-center gap-3 w-full h-[54px] text-black font-bold rounded-xl transition-all shadow-lg active:scale-[0.98] text-base border-2 border-white/20 hover:border-white/40 shadow-accent-green/25 hover:shadow-accent-green/50 ${loading || !ticker
+                                    ? 'bg-bg-tertiary text-text-tertiary opacity-50 cursor-not-allowed'
+                                    : 'bg-accent-green hover:bg-[#00E006] hover:-translate-y-0.5 active:translate-y-0'
+                                    }`}
                             >
-                                {loading ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />}
+                                {loading ? <Loader2 className="animate-spin" size={20} /> : <Search size={22} strokeWidth={2.5} />}
                                 <span>{loading ? 'Scanning...' : 'Scan Market'}</span>
                             </button>
                         </div>
                     </div>
                 </div>
+
+
             </div>
 
             {/* Error */}
@@ -423,32 +455,32 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                                     <tr>
                                         <th className="px-4 py-3 text-left">#</th>
                                         <th className="px-4 py-3 text-left min-w-[160px]">
-                                            <Tooltip label="Contract" explanation="Ticker, Strike, Type, Expiration." position="top" />
+                                            <Tooltip label="Contract" explanation="Ticker, Strike, Type, Expiration." position="bottom" />
                                         </th>
                                         <th className="px-4 py-3 text-center">
-                                            <Tooltip label="Style" explanation="Trade personality based on Delta (e.g. Aggressive, Balanced)." position="top" />
+                                            <Tooltip label="Style" explanation="Trade personality based on Delta (e.g. Aggressive, Balanced)." position="bottom" />
                                         </th>
                                         <th className="px-4 py-3 text-right">
-                                            <Tooltip label="Score" explanation="OSS Score (0-100). Higher is better quality." position="top" />
+                                            <Tooltip label="Score" explanation="OSS Score (0-100). Higher is better quality." position="bottom" />
                                         </th>
                                         <th className="px-4 py-3 text-right">
-                                            <Tooltip label="Price" explanation="Ask Price." position="top" />
+                                            <Tooltip label="Price" explanation="Ask Price." position="bottom" />
                                         </th>
                                         <th className="px-4 py-3 text-right">
-                                            <Tooltip label="Δ" explanation="Delta. Exposure to stock price movement." position="top" />
+                                            <Tooltip label="Δ" explanation="Delta. Exposure to stock price movement." position="bottom" />
                                         </th>
                                         <th className="px-4 py-3 text-right">
                                             <Tooltip
                                                 label={strategy === 'long' ? 'λ' : 'POP'}
                                                 explanation={strategy === 'long' ? 'Lambda. Leverage factor.' : 'Probability of Profit.'}
-                                                position="top"
+                                                position="bottom"
                                             />
                                         </th>
                                         <th className="px-4 py-3 text-right">
-                                            <Tooltip label="IV" explanation="Implied Volatility." position="top" />
+                                            <Tooltip label="IV" explanation="Implied Volatility." position="bottom" />
                                         </th>
                                         <th className="px-4 py-3 text-right">
-                                            <Tooltip label="Vol" explanation="Daily Volume." position="top" />
+                                            <Tooltip label="Vol" explanation="Daily Volume." position="bottom" />
                                         </th>
                                         <th className="px-4 py-3 text-center">Action</th>
                                     </tr>

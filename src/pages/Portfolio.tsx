@@ -55,11 +55,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     };
 
     useEffect(() => {
-        // This useEffect is no longer needed as refreshAllPrices is now a parent-level trigger
-        // and children will handle their own price fetching based on refreshTrigger.
-        // If auto-refresh on load is still desired, it should be implemented within PositionCard
-        // or a separate mechanism that doesn't rely on the parent iterating.
-        // For now, removing the auto-refresh logic from here.
+        refreshAllPrices();
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -84,7 +80,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     if (loading) return <LoadingSpinner />;
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+        <div className="fade-in pb-24 sm:pb-0 space-y-6">
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>

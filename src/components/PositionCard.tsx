@@ -271,36 +271,42 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
             <div className="flex flex-col gap-4 mb-4 py-4 border-y border-border-default">
                 {/* Row 1: Trade Management & Technicals */}
                 <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-4">
+                    {/* Entry */}
                     <div>
                         <div className="mb-1">
                             <Tooltip label="Entry" explanation="Original entry price per share." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className="metric-value">{formatPrice(entryPrice)}</div>
                     </div>
-                    <div>
-                        <div className="mb-1">
-                            <Tooltip label="Target" explanation="Take Profit Target (1.25x Entry)." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
-                        </div>
-                        <div className="metric-value text-accent-green">{formatPrice(targetPrice)}</div>
-                    </div>
-                    <div>
-                        <div className="mb-1">
-                            <Tooltip label="Current" explanation="Last traded price per share." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
-                        </div>
-                        <div className="metric-value text-text-primary">{currentPrice ? formatPrice(currentPrice) : '—'}</div>
-                    </div>
+                    {/* Avg */}
                     <div>
                         <div className="mb-1">
                             <Tooltip label="Avg" explanation="Average Cost Basis." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className="metric-value">{formatPrice(avgCostPerContract / CONTRACT_MULTIPLIER)}</div>
                     </div>
+                    {/* Target */}
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Target" explanation="Take Profit Target (1.25x Entry)." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-accent-green">{formatPrice(targetPrice)}</div>
+                    </div>
+                    {/* Current */}
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Current" explanation="Last traded price per share." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-text-primary">{currentPrice ? formatPrice(currentPrice) : '—'}</div>
+                    </div>
+                    {/* Stop */}
                     <div>
                         <div className="mb-1">
                             <Tooltip label="Stop" explanation="Stop Loss Level." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className="metric-value text-accent-red">{formatPrice(currentStopLoss)}</div>
                     </div>
+                    {/* Tech Score */}
                     <div>
                         <div className="mb-1 flex items-center gap-1">
                             <Tooltip label="Tech Score" explanation="Manual Technical Analysis Score (0-100). Rating of the chart setup." className="text-[11px] text-text-tertiary uppercase tracking-wider" />

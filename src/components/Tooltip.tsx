@@ -19,12 +19,14 @@ export const Tooltip: React.FC<TooltipProps> = ({ label, explanation, position =
     };
 
     return (
-        <div className="relative inline-flex items-center gap-1 group">
+        <div
+            className="relative inline-flex items-center gap-1 group"
+            onMouseEnter={() => setIsVisible(true)}
+            onMouseLeave={() => setIsVisible(false)}
+        >
             <span className={className || "text-text-secondary text-xs font-medium"}>{label}</span>
             <div
                 className="relative"
-                onMouseEnter={() => setIsVisible(true)}
-                onMouseLeave={() => setIsVisible(false)}
                 onClick={(e) => e.stopPropagation()}
             >
                 <HelpCircle
