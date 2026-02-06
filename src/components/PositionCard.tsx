@@ -91,64 +91,46 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
 
                 if (shortData && longData) {
                     // 1. Valuation Formula: Cost to Close = Short Price - Long Price
-                    // Always use positive prices from API
                     const shortPrice = Math.abs(shortData.price || 0);
                     const longPrice = Math.abs(longData.price || 0);
 
                     if (isCreditStrategy) {
-                        // For Credit Spread: Cost to Close = Short - Long
-                        // e.g. Sold @ 10, Bought @ 9.2. Net = 0.8.
                         netPrice = shortPrice - longPrice;
                     } else {
-                        // For Debit Spread: Liquidation Value = Long - Short (usually) or just Spread Value
-                        // Actually standard spread value is always Long - Short? 
-                        // No, Debit Call Spread: Long 660 ($10), Short 665 ($8). Value = $2.
-                        // So always Long - Short for "Value".
-                        // Wait, for Credit Spread, "Value" (Cost to Close) is Short - Long.
-                        // Let's stick to the User's Formula for Credit: Spread = Short - Long.
-                        netPrice = longPrice - shortPrice; // Default for debit
+                        netPrice = longPrice - shortPrice;
                     }
                 }
 
                 // Greeks Calculation
-                // Net Delta = ShortDelta * -1 + LongDelta
                 results.forEach((data, i) => {
                     if (!data) return;
                     validLegs++;
                     const side = position.legs![i].side;
-                    // Multiplier: Short = -1, Long = 1
                     const mult = side === 'short' ? -1 : 1;
 
                     netDelta += (data.delta || 0) * mult;
                     netGamma += (data.gamma || 0) * mult;
-                    netTheta += (data.theta || 0) * mult; // Short accumulates positive theta
-                    netVega += (data.vega || 0) * mult;   // Short benefits from IV crush
+                    netTheta += (data.theta || 0) * mult;
+                    netVega += (data.vega || 0) * mult;
                     netIv += (data.iv || 0);
                 });
                 netIv = validLegs > 0 ? netIv / validLegs : 0;
 
-                // Fix: If Credit Strategy, the 'netPrice' calculated above is 'Cost to Close' (positive).
-                // If Debit Strategy, 'netPrice' is 'Liquidation Value' (positive).
-                // However, my previous logic might have mixed signs.
                 if (isCreditStrategy && shortData && longData) {
                     netPrice = Math.abs(shortData.price) - Math.abs(longData.price);
                 } else if (!isCreditStrategy && shortData && longData) {
                     netPrice = Math.abs(longData.price) - Math.abs(shortData.price);
                 }
 
-                // Determine effective score
                 let compositeScore = undefined;
                 const underlyingPrice = shortData?.underlyingPrice || longData?.underlyingPrice || 0;
 
                 if (isCreditStrategy && shortData && longData && underlyingPrice > 0) {
-                    // Credit Spread Score
                     const shortLeg = position.legs?.find(l => l.side === 'short');
                     const longLeg = position.legs?.find(l => l.side === 'long');
                     const shortStrike = shortLeg ? shortLeg.strike : 0;
                     const longStrike = longLeg ? longLeg.strike : 0;
-
                     const width = Math.abs(Math.abs(shortStrike) - Math.abs(longStrike));
-                    // Current Credit (Cost to Close) effectively represents the premium a NEW seller would get roughly
                     const currentCredit = Math.abs(shortData.price) - Math.abs(longData.price);
 
                     compositeScore = calculateCreditSpreadScore({
@@ -159,12 +141,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         currentPrice: underlyingPrice
                     });
                 } else if (!isCreditStrategy && shortData && longData && underlyingPrice > 0) {
-                    // Debit Spread Score
-                    const shortLeg = position.legs?.find(l => l.side === 'short');
-                    const longLeg = position.legs?.find(l => l.side === 'long');
-                    const shortStrike = shortLeg ? shortLeg.strike : 0;
-                    const longStrike = longLeg ? longLeg.strike : 0;
-
+                    const shortStrike = position.legs?.find(l => l.side === 'short')?.strike || 0;
+                    const longStrike = position.legs?.find(l => l.side === 'long')?.strike || 0;
                     const width = Math.abs(Math.abs(shortStrike) - Math.abs(longStrike));
                     const currentDebit = Math.abs(longData.price) - Math.abs(shortData.price);
 
@@ -182,7 +160,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         shortData.theta || 0,
                         shortData.underlyingPrice,
                         Math.abs(shortData.price),
-                        1.0 // Default IV ratio if unknown
+                        1.0
                     ) : undefined);
                 } else if (!isCreditStrategy && longData) {
                     compositeScore = longData.score || (longData.underlyingPrice ? calculateSingleLOQ(
@@ -207,24 +185,19 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
 
                 if (netDelta !== 0) saveGreeksHistory(position.id, netIv, netDelta);
 
-                // IMPORTANT: For Credit Spreads, this 'netPrice' is Cost to Close.
-                // For Debit Spreads, it is Liquidation Value.
                 if (results.some(r => r !== null)) {
-                    // Optimized: Only update if price changed significantly to prevent infinite loops
                     if (Math.abs((position.current_price || 0) - netPrice) > 0.01) {
                         await onUpdatePrice(position.id, netPrice);
                     }
                 }
 
             } else {
-                // Single Leg Logic
                 const params = new URLSearchParams({ ticker: position.ticker, expiration: position.expiration, strike: position.strike.toString(), type: position.type });
                 const response = await fetch(`/api/option-price?${params}`);
                 if (response.ok) {
                     const data = await response.json();
                     if (data.price) {
                         await onUpdatePrice(position.id, data.price);
-                        // Calculate score if not provided by API
                         const calculatedScore = data.score || (data.underlyingPrice ? calculateSingleLOQ(
                             data.delta || 0,
                             data.gamma || 0,
@@ -257,7 +230,6 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         fetchGreeksAndPrice();
     }, [fetchGreeksAndPrice]);
 
-    // Global Refresh Trigger
     useEffect(() => {
         if (refreshTrigger > 0) {
             const delay = index * 200;
@@ -267,7 +239,6 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         }
     }, [refreshTrigger, index, fetchGreeksAndPrice]);
 
-    // Fetch history when expanded
     useEffect(() => {
         if (isExpanded && historyData.length === 0) {
             setHistoryLoading(true);
@@ -283,10 +254,6 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     let totalQtyBought = 0, totalCostBasis = 0, totalQtySold = 0;
     positionTxns.forEach(t => {
         const qty = t.quantity;
-        // Logic: Usually we buy positive qty.
-        // For credit spreads, if we enter with positive Qty meaning "1 Lot",
-        // Cost Basis should be Credit Received.
-        // Let's assume input was positive Quantity and positive Price.
         const price = t.price * CONTRACT_MULTIPLIER;
         if (qty > 0) { totalQtyBought += qty; totalCostBasis += qty * price; }
         else { totalQtySold += Math.abs(qty); }
@@ -298,27 +265,20 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const entryPrice = firstBuy ? Math.abs(firstBuy.price) : 0;
 
     const hasTakenProfit = positionTxns.some(t => t.type === 'Take Profit');
-    // Todo: Adjust for credit spreads
     const currentStopLoss = hasTakenProfit ? entryPrice * 0.75 : entryPrice * 0.5;
 
     const currentPrice = liveData.price !== undefined ? liveData.price : (position.current_price || 0);
 
-    // P&L Calculation Logic
     let unrealizedPnL = 0;
     let unrealizedPnLPct = 0;
 
     if (totalQty > 0 && currentPrice) {
         if (isCreditStrategy) {
-            // Credit Spread P&L = (Entry Credit - Current Cost to Close) * Qty * 100
-            // Example: Entry $1.01, Current $0.80. PnL = (1.01 - 0.80) * 100 = $21.5
             unrealizedPnL = (entryPrice - currentPrice) * totalQty * CONTRACT_MULTIPLIER;
-            // ROI based on Credit Received (or margin? User asked for ROI based on credit)
-            // User formula: roi = (pnlPerShare / entryCredit) * 100
             unrealizedPnLPct = entryPrice > 0 ? (unrealizedPnL / (entryPrice * totalQty * CONTRACT_MULTIPLIER)) * 100 : 0;
         } else {
             const totalValue = totalQty * currentPrice * CONTRACT_MULTIPLIER;
             const totalCost = totalQty * avgCostPerContract;
-            // Profit = Value - Cost
             unrealizedPnL = totalValue - totalCost;
             unrealizedPnLPct = (totalCost > 0) ? (unrealizedPnL / totalCost) * 100 : 0;
         }
@@ -327,17 +287,14 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const calculatedTarget = isCreditStrategy ? entryPrice * 0.5 : entryPrice * 1.25;
     const targetPrice = position.target_price || calculatedTarget;
 
-    // Realized P&L Calculation
     let realizedPnL = 0;
     positionTxns.forEach(t => {
         if (t.type === 'Take Profit' || t.type === 'Close' || t.type === 'Size Down') {
             const exitPricePerContract = t.price * CONTRACT_MULTIPLIER;
             const qtySold = Math.abs(t.quantity);
             if (isCreditStrategy) {
-                // Credit: Profit = Credit Received (Entry) - Debit Paid (Exit)
                 realizedPnL += (avgCostPerContract - exitPricePerContract) * qtySold;
             } else {
-                // Debit: Profit = Exit - Entry
                 realizedPnL += (exitPricePerContract - avgCostPerContract) * qtySold;
             }
         }
@@ -346,13 +303,11 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const daysToExp = daysUntil(position.expiration);
     const currentScore = position.current_score || position.entry_score;
 
-    // Alert logic
     let alertLevel: 'none' | 'danger' | 'warning' = 'none';
     const alerts: string[] = [];
     if (currentScore < 60) { alerts.push('Low Score'); alertLevel = 'danger'; }
-    // Stop check
     if (isCreditStrategy) {
-        if (currentPrice && currentPrice >= entryPrice * 2) { alerts.push('Hit Stop'); alertLevel = 'danger'; } // 2x credit stop loss
+        if (currentPrice && currentPrice >= entryPrice * 2) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
     } else {
         if (currentPrice && currentPrice <= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
     }
@@ -366,7 +321,6 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const earningsWarning = earnings.days !== null && earnings.days >= 0 && earnings.days <= 7;
     const earningsImminent = earnings.days !== null && earnings.days >= 0 && earnings.days <= 3;
 
-    // Card style
     let cardClass = 'card';
     if (alertLevel === 'danger') cardClass = 'card-danger';
     else if (earningsImminent) cardClass = 'card-earnings';
@@ -382,7 +336,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         await onAction(position.id, {
             type,
             quantity: type === 'Close' ? -totalQty : qty,
-            price: parseFloat(actionPrice) // Input price is always positive absolute price
+            price: parseFloat(actionPrice)
         });
         setLoading(false);
         setActionMode(null);
@@ -504,7 +458,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
 
             {/* Metrics Grid */}
             <div className="flex flex-col gap-4 mb-4 py-4 border-y border-border-default">
-                {/* Row 1: Trade Management & Technicals */}
+                {/* Row 1: Trade Management */}
                 <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-4">
                     {/* Entry */}
                     <div>
@@ -576,7 +530,10 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         </div>
                         <div className="metric-value text-accent-red">{formatPrice(currentStopLoss)}</div>
                     </div>
-                    {/* Tech Score */}
+                </div>
+
+                {/* Row 2: Technicals & Sentiment */}
+                <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-4 pt-4 border-t border-border-light/50">
                     <div>
                         <div className="mb-1 flex items-center gap-1 h-5">
                             <Tooltip label="Tech Score" explanation="Manual Technical Analysis Score (0-100)." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
@@ -620,7 +577,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     </div>
                 </div>
 
-                {/* Row 2: Mechanics & Option Score */}
+                {/* Row 3: Mechanics & Option Score */}
                 <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-4 pt-4 border-t border-border-light/50">
                     <div>
                         <div className="mb-1">
@@ -662,7 +619,6 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                             {liveData.iv !== undefined ? (liveData.iv * 100).toFixed(1) + '%' : '—'}
                         </div>
                     </div>
-
                     <div>
                         <div className="mb-1">
                             <Tooltip label="Opt Score" explanation="Calculated Option Quality." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
@@ -674,7 +630,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                                 }`}>
                                 {liveData.score !== undefined ? liveData.score : '—'}
                             </div>
-                            {(liveData.score && liveData.isDayTrade) && (
+                            {Boolean(liveData.isDayTrade) && (
                                 <span className="mt-0.5 px-1 pb-0.5 text-[8px] font-bold uppercase tracking-wider text-purple-300 bg-purple-500/10 rounded w-fit">
                                     Day Trade
                                 </span>
@@ -710,53 +666,49 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
                     />
                 </button>
-                {
-                    isExpanded && (
-                        <div className="mt-3 p-3 rounded-lg bg-bg-secondary/30 border border-border-default">
-                            <GreeksHistoryChart data={historyData} loading={historyLoading} />
-                        </div>
-                    )
-                }
+                {isExpanded && (
+                    <div className="mt-3 p-3 rounded-lg bg-bg-secondary/30 border border-border-default">
+                        <GreeksHistoryChart data={historyData} loading={historyLoading} />
+                    </div>
+                )}
             </div>
 
             {/* Action Buttons */}
-            {
-                !actionMode ? (
+            {!actionMode ? (
+                <div className="flex gap-2">
+                    <button onClick={fetchGreeksAndPrice} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-2 cursor-pointer" aria-label="Refresh price">
+                        {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={16} />}
+                        <span className="hidden sm:inline">Refresh</span>
+                    </button>
+                    <button onClick={() => setActionMode('Add')} className="action-btn btn-secondary">+ Add</button>
+                    <button onClick={() => setActionMode('TakeProfit')} className="action-btn btn-secondary">Profit</button>
+                    <button onClick={() => setActionMode('Close')} className="action-btn btn-secondary text-text-secondary hover:text-accent-red hover:bg-accent-red/10">Close</button>
+                    <button onClick={() => onDelete(position.id)} className="action-btn btn-secondary text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 px-3" aria-label="Delete Position">
+                        <Trash2 size={16} />
+                    </button>
+                </div>
+            ) : (
+                <div className="card-elevated p-4 space-y-3">
+                    <div className="text-sm font-medium text-text-secondary">
+                        {actionMode === 'Add' ? 'Add to Position' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close Position'}
+                    </div>
+                    <div className="flex gap-3">
+                        {actionMode !== 'Close' && (
+                            <input type="number" min="1" value={actionQty} onChange={e => setActionQty(parseInt(e.target.value) || 1)}
+                                placeholder="Qty" className="w-24 px-4 py-3 rounded-xl font-mono" />
+                        )}
+                        <input type="number" step="0.01" value={actionPrice} onChange={e => setActionPrice(e.target.value)}
+                            placeholder="Price" className="flex-1 px-4 py-3 rounded-xl font-mono" autoFocus />
+                    </div>
                     <div className="flex gap-2">
-                        <button onClick={fetchGreeksAndPrice} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-2 cursor-pointer" aria-label="Refresh price">
-                            {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={16} />}
-                            <span className="hidden sm:inline">Refresh</span>
-                        </button>
-                        <button onClick={() => setActionMode('Add')} className="action-btn btn-secondary">+ Add</button>
-                        <button onClick={() => setActionMode('TakeProfit')} className="action-btn btn-secondary">Profit</button>
-                        <button onClick={() => setActionMode('Close')} className="action-btn btn-secondary text-text-secondary hover:text-accent-red hover:bg-accent-red/10">Close</button>
-                        <button onClick={() => onDelete(position.id)} className="action-btn btn-secondary text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 px-3" aria-label="Delete Position">
-                            <Trash2 size={16} />
+                        <button onClick={() => setActionMode(null)} className="flex-1 py-3 btn-secondary rounded-xl">Cancel</button>
+                        <button onClick={() => handleAction(actionMode === 'Add' ? 'Size Up' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close')}
+                            disabled={!actionPrice || loading} className="flex-1 py-3 btn-primary rounded-xl">
+                            {loading ? '...' : 'Confirm'}
                         </button>
                     </div>
-                ) : (
-                    <div className="card-elevated p-4 space-y-3">
-                        <div className="text-sm font-medium text-text-secondary">
-                            {actionMode === 'Add' ? 'Add to Position' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close Position'}
-                        </div>
-                        <div className="flex gap-3">
-                            {actionMode !== 'Close' && (
-                                <input type="number" min="1" value={actionQty} onChange={e => setActionQty(parseInt(e.target.value) || 1)}
-                                    placeholder="Qty" className="w-24 px-4 py-3 rounded-xl font-mono" />
-                            )}
-                            <input type="number" step="0.01" value={actionPrice} onChange={e => setActionPrice(e.target.value)}
-                                placeholder="Price" className="flex-1 px-4 py-3 rounded-xl font-mono" autoFocus />
-                        </div>
-                        <div className="flex gap-2">
-                            <button onClick={() => setActionMode(null)} className="flex-1 py-3 btn-secondary rounded-xl">Cancel</button>
-                            <button onClick={() => handleAction(actionMode === 'Add' ? 'Size Up' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close')}
-                                disabled={!actionPrice || loading} className="flex-1 py-3 btn-primary rounded-xl">
-                                {loading ? '...' : 'Confirm'}
-                            </button>
-                        </div>
-                    </div>
-                )
-            }
-        </div >
+                </div>
+            )}
+        </div>
     );
 };
