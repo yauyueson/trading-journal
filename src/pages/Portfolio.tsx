@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import { Position, Transaction } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PositionCard } from '../components/PositionCard';
+import { DataFooter } from '../components/DataFooter';
 import { SETUPS } from '../lib/utils';
 // Helper for icons if needed, but I'll use Lucide directly 
 
@@ -26,6 +27,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     const [refreshing, setRefreshing] = useState(false);
     const [sortBy] = useState('expiration');
     const [form, setForm] = useState({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: '1', entry_price: '' });
+    const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
 
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -224,6 +226,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             onUpdatePrice={onUpdatePrice}
                             onUpdateTarget={onUpdateTarget}
                             onDelete={onDelete}
+                            onDataUpdate={setLastTimestamp}
                             refreshTrigger={refreshTrigger}
                             index={index}
                         />
@@ -231,6 +234,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 </div>
             )}
 
+            <DataFooter timestamp={lastTimestamp} />
         </div>
     );
 };

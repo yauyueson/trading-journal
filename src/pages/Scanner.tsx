@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Search, Info, Plus, Activity } from 'lucide-react';
 import { ScoredResult, Strategy } from '../lib/types';
 import { Tooltip } from '../components/Tooltip';
+import { DataFooter } from '../components/DataFooter';
 
 interface ScannerPageProps {
     onAddToWatchlist?: (position: any) => void;
@@ -348,6 +349,8 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                     <p className="text-sm">Try adjusting your filters or search for a different ticker.</p>
                 </div>
             )}
+
+            <DataFooter timestamp={context?.cboeTimestamp} />
         </div>
     );
 };

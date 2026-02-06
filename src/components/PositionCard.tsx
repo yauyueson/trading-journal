@@ -15,11 +15,12 @@ interface PositionCardProps {
     onUpdatePrice: (id: string, price: number) => Promise<void>;
     onUpdateTarget: (id: string, target: number) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
+    onDataUpdate?: (timestamp: string) => void;
     refreshTrigger?: number;
     index?: number;
 }
 
-export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onDelete, refreshTrigger = 0, index = 0 }) => {
+export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onDelete, onDataUpdate, refreshTrigger = 0, index = 0 }) => {
     const [loading, setLoading] = useState(false);
     const [liveData, setLiveData] = useState<LiveData>({ delta: undefined, iv: undefined, gamma: undefined, theta: undefined, vega: undefined, score: undefined });
     const [earnings, setEarnings] = useState<{ loading: boolean; date: string | null; days: number | null }>({ loading: true, date: null, days: null });
@@ -189,6 +190,11 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     if (Math.abs((position.current_price || 0) - netPrice) > 0.01) {
                         await onUpdatePrice(position.id, netPrice);
                     }
+                    // Report timestamp from first valid result
+                    const firstValid = results.find(r => r && r.cboeTimestamp);
+                    if (firstValid && onDataUpdate) {
+                        onDataUpdate(firstValid.cboeTimestamp);
+                    }
                 }
 
             } else {
@@ -198,6 +204,9 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     const data = await response.json();
                     if (data.price) {
                         await onUpdatePrice(position.id, data.price);
+                        if (data.cboeTimestamp && onDataUpdate) {
+                            onDataUpdate(data.cboeTimestamp);
+                        }
                         const calculatedScore = data.score || (data.underlyingPrice ? calculateSingleLOQ(
                             data.delta || 0,
                             data.gamma || 0,

@@ -434,7 +434,8 @@ export default async function handler(req, res) {
                 ivStatus,
                 strategy,
                 totalOptions: options.length,
-                filteredCount: filtered.length
+                filteredCount: filtered.length,
+                cboeTimestamp: data.data.timestamp || null
             },
             results
         });

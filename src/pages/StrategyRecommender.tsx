@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark } from 'lucide-react';
 import { Tooltip } from '../components/Tooltip';
+import { DataFooter } from '../components/DataFooter';
 
 // Types
 interface Recommendation {
@@ -619,6 +620,8 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                     </div>
                 </div>
             )}
+
+            <DataFooter timestamp={result?.context?.cboeTimestamp} />
         </div>
     );
 };

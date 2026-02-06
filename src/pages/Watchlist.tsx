@@ -3,6 +3,7 @@ import { List } from 'lucide-react';
 import { Position } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { WatchlistItem } from '../components/WatchlistItem';
+import { DataFooter } from '../components/DataFooter';
 import { SETUPS } from '../lib/utils';
 
 interface WatchlistPageProps {
@@ -17,6 +18,7 @@ export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddTo
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [form, setForm] = useState({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
+    const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const watchlistItems = positions.filter(p => p.status === 'watchlist');
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -87,9 +89,19 @@ export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddTo
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {watchlistItems.map(item => <WatchlistItem key={item.id} item={item} onMoveToActive={onMoveToActive} onDelete={onDelete} />)}
+                    {watchlistItems.map(item => (
+                        <WatchlistItem
+                            key={item.id}
+                            item={item}
+                            onMoveToActive={onMoveToActive}
+                            onDelete={onDelete}
+                            onDataUpdate={setLastTimestamp}
+                        />
+                    ))}
                 </div>
             )}
+
+            <DataFooter timestamp={lastTimestamp} />
         </div>
     );
 };

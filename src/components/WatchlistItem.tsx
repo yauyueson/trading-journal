@@ -7,9 +7,10 @@ interface WatchlistItemProps {
     item: Position;
     onMoveToActive: (item: Position) => void;
     onDelete: (id: string) => Promise<void>;
+    onDataUpdate?: (timestamp: string) => void;
 }
 
-export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActive, onDelete }) => {
+export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActive, onDelete, onDataUpdate }) => {
     const [currentPrice, setCurrentPrice] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
     const [earnings, setEarnings] = useState<{ date: string | null; days: number | null }>({ date: null, days: null });
@@ -29,8 +30,17 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
                 const shortIndex = item.legs.findIndex(l => l.side === 'short');
                 const longIndex = item.legs.findIndex(l => l.side === 'long');
 
-                const shortPrice = shortIndex >= 0 ? results[shortIndex].price : 0;
-                const longPrice = longIndex >= 0 ? results[longIndex].price : 0;
+                const shortResult = shortIndex >= 0 ? results[shortIndex] : { price: 0 };
+                const longResult = longIndex >= 0 ? results[longIndex] : { price: 0 };
+
+                const shortPrice = shortResult.price || 0;
+                const longPrice = longResult.price || 0;
+
+                // Report timestamp
+                const firstValid = results.find(r => r && r.cboeTimestamp);
+                if (firstValid && onDataUpdate) {
+                    onDataUpdate(firstValid.cboeTimestamp);
+                }
 
                 let net = 0;
                 if (item.type.includes('Credit') || item.type.includes('Short')) {
@@ -45,6 +55,9 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
                 if (response.ok) {
                     const data = await response.json();
                     setCurrentPrice(data.price);
+                    if (data.cboeTimestamp && onDataUpdate) {
+                        onDataUpdate(data.cboeTimestamp);
+                    }
                 }
             }
         } catch (e) { console.error(e); }
@@ -125,8 +138,8 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
                         )}
                         {priceDiff !== null && (
                             <span className={`font-mono ${item.type.includes('Credit')
-                                    ? (priceDiff >= 0 ? 'text-accent-green' : 'text-accent-red') // Credit: More is better
-                                    : (priceDiff <= 0 ? 'text-accent-green' : 'text-accent-red') // Debit: Less is better
+                                ? (priceDiff >= 0 ? 'text-accent-green' : 'text-accent-red') // Credit: More is better
+                                : (priceDiff <= 0 ? 'text-accent-green' : 'text-accent-red') // Debit: Less is better
                                 }`}>
                                 ({priceDiff >= 0 ? '+' : ''}{priceDiff.toFixed(1)}%)
                             </span>
