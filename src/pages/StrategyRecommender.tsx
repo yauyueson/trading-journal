@@ -535,8 +535,28 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                                         <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).delta?.toFixed(2)}</span>
                                                     </div>
                                                     <div className="flex flex-col">
+                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Gamma</span>
+                                                        <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).gamma?.toFixed(4)}</span>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Theta</span>
+                                                        <span className="text-red-400 font-mono font-bold">{(rec as SingleLegRecommendation).theta?.toFixed(3)}</span>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Vega</span>
+                                                        <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).vega?.toFixed(3)}</span>
+                                                    </div>
+                                                    <div className="flex flex-col">
                                                         <span className="text-[10px] text-gray-500 uppercase font-bold">Lambda</span>
                                                         <span className="text-accent-green font-mono font-bold">{(rec as SingleLegRecommendation).lambda?.toFixed(1)}</span>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Volume</span>
+                                                        <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).volume}</span>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">OI</span>
+                                                        <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).openInterest}</span>
                                                     </div>
                                                 </>
                                             )}
