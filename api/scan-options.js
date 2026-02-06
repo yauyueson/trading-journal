@@ -60,6 +60,82 @@ const zScores = (values) => {
     return values.map(v => (v - mean) / std);
 };
 
+// =============================================================================
+// STRICT IV CALCULATION
+// =============================================================================
+
+const getCleanATM_IV = (chain, currentPrice) => {
+    if (!chain || chain.length === 0) return null;
+
+    // Group by strike
+    const strikes = {};
+    chain.forEach(opt => {
+        if (!strikes[opt.strike]) strikes[opt.strike] = {};
+        strikes[opt.strike][opt.type] = opt;
+    });
+
+    // Find strike closest to spot price that has BOTH Call and Put
+    let bestStrike = null;
+    let minDiff = Infinity;
+
+    Object.keys(strikes).forEach(strikeStr => {
+        const strike = parseFloat(strikeStr);
+        if (strikes[strike].Call && strikes[strike].Put) {
+            const diff = Math.abs(strike - currentPrice);
+            if (diff < minDiff) {
+                minDiff = diff;
+                bestStrike = strike;
+            }
+        }
+    });
+
+    if (bestStrike === null) return null;
+
+    const atmCall = strikes[bestStrike].Call;
+    const atmPut = strikes[bestStrike].Put;
+
+    if (!atmCall.iv || !atmPut.iv) return null;
+
+    return (atmCall.iv + atmPut.iv) / 2;
+};
+
+const calculateTargetIV = (allOptions, targetDTE, currentPrice) => {
+    const dtes = [...new Set(allOptions.map(o => o.dte))].sort((a, b) => a - b);
+    if (dtes.length === 0) return null;
+
+    if (dtes.includes(targetDTE)) {
+        const chain = allOptions.filter(o => o.dte === targetDTE);
+        return getCleanATM_IV(chain, currentPrice);
+    }
+
+    let nearDTE = null;
+    let farDTE = null;
+
+    for (const dte of dtes) {
+        if (dte < targetDTE) nearDTE = dte;
+        if (dte > targetDTE) {
+            farDTE = dte;
+            break;
+        }
+    }
+
+    if (nearDTE === null || farDTE === null) return null;
+
+    const chainNear = allOptions.filter(o => o.dte === nearDTE);
+    const chainFar = allOptions.filter(o => o.dte === farDTE);
+
+    const ivNear = getCleanATM_IV(chainNear, currentPrice);
+    const ivFar = getCleanATM_IV(chainFar, currentPrice);
+
+    if (ivNear === null || ivFar === null) return null;
+
+    const timeRange = farDTE - nearDTE;
+    const timeToTarget = targetDTE - nearDTE;
+    const weight = timeToTarget / timeRange;
+
+    return ivNear + (ivFar - ivNear) * weight;
+};
+
 // ---------------------------------------------------------
 // 🚀 Main Handler
 // ---------------------------------------------------------
@@ -77,7 +153,7 @@ export default async function handler(req, res) {
         strategy = 'long',
         dteMin = '20',
         dteMax = '60',
-        strikeRange = '0.30',
+        strikeRange = '0.25',
         minVolume = '50',
         maxSpreadPct = '0.10',
         minDelta = '0',
@@ -205,26 +281,19 @@ export default async function handler(req, res) {
             });
         }
 
-        // Calculate IV Ratio (4-Card Method)
-        const getATMIV = (targetDTE) => {
-            const candidates = chain.filter((opt) =>
-                opt.type === 'Call' && Math.abs(opt.dte - targetDTE) <= 10
-            );
-            if (candidates.length < 2) return null;
-            candidates.sort((a, b) => a.strike - b.strike);
-            for (let i = 0; i < candidates.length - 1; i++) {
-                if (candidates[i].strike <= currentPrice && candidates[i + 1].strike >= currentPrice) {
-                    return (candidates[i].iv + candidates[i + 1].iv) / 2;
-                }
-            }
-            return candidates[0].iv;
-        };
+        // Calculate IV Ratio using Strict Interpolation
+        const iv30 = calculateTargetIV(chain, 30, currentPrice);
+        const iv90 = calculateTargetIV(chain, 90, currentPrice);
 
-        const iv30 = getATMIV(30);
-        const iv90 = getATMIV(90);
-        const ivRatio = (iv30 && iv90 && iv90 > 0) ? iv30 / iv90 : 1.0;
+        // Sanity Check
+        let ivRatio = 1.0;
+        if (iv30 && iv90 && iv90 > 0) {
+            ivRatio = iv30 / iv90;
+            // Outlier check
+            if (ivRatio > 2.0 || ivRatio < 0.5) ivRatio = 1.0;
+        }
+
         const ivStatus = ivRatio < 0.95 ? 'contango' : ivRatio > 1.05 ? 'backwardation' : 'neutral';
-
         const ivAdjustment = getIVAdjustment(ivRatio, strategy);
 
         // Calculate metrics

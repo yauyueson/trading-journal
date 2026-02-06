@@ -6,6 +6,7 @@ import { LoginPage } from './pages/Login';
 import { PortfolioPage } from './pages/Portfolio';
 import { WatchlistPage } from './pages/Watchlist';
 import { ScannerPage } from './pages/Scanner';
+import { StrategyRecommender } from './pages/StrategyRecommender';
 import { HistoryPage } from './pages/History';
 import { StatsPage } from './pages/Stats';
 import { BuyModal } from './components/BuyModal';
@@ -153,6 +154,14 @@ function App() {
         setBuyingItem(item);
     };
 
+    const onDelete = async (id: string) => {
+        if (window.confirm('Are you sure you want to permanently delete this position? This cannot be undone.')) {
+            await supabase.from('transactions').delete().eq('position_id', id);
+            await supabase.from('positions').delete().eq('id', id);
+            fetchData();
+        }
+    };
+
     if (authLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-bg-primary">
@@ -189,6 +198,7 @@ function App() {
                         onUpdateScore={onUpdateScore}
                         onUpdatePrice={onUpdatePrice}
                         onAddDirect={onAddDirect}
+                        onDelete={onDelete}
                         loading={loading}
                     />
                 )}
@@ -202,6 +212,9 @@ function App() {
                 )}
                 {activeTab === 'scanner' && (
                     <ScannerPage onAddToWatchlist={onAddToWatchlist} />
+                )}
+                {activeTab === 'strategy' && (
+                    <StrategyRecommender onAddToWatchlist={onAddToWatchlist} />
                 )}
                 {activeTab === 'history' && (
                     <HistoryPage

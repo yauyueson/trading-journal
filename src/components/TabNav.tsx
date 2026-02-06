@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, List, History, BarChart3, Search } from 'lucide-react';
+import { LayoutDashboard, List, History, BarChart3, Search, Target } from 'lucide-react';
 
 interface TabNavProps {
     activeTab: string;
@@ -9,6 +9,7 @@ interface TabNavProps {
 export const TabNav: React.FC<TabNavProps> = ({ activeTab, setActiveTab }) => {
     const tabs = [
         { id: 'scanner', label: 'Scanner', Icon: Search },
+        { id: 'strategy', label: 'Strategy', Icon: Target },
         { id: 'watchlist', label: 'Watchlist', Icon: List },
         { id: 'portfolio', label: 'Portfolio', Icon: LayoutDashboard },
         { id: 'history', label: 'History', Icon: History },

@@ -11,6 +11,10 @@
     "api/scan-options.js": {
       "memory": 512,
       "maxDuration": 15
+    },
+    "api/strategy-recommend.js": {
+      "memory": 512,
+      "maxDuration": 15
     }
   },
   "headers": [

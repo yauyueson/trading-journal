@@ -1,14 +1,15 @@
 # Trading Journal - API文档
 
-> 最后更新: 2026年2月4日
+> 最后更新: 2026年2月5日
 
 ## 📋 目录
 
 1. [API概述](#api概述)
 2. [期权价格API](#期权价格api)
-3. [财报数据API](#财报数据api)
-4. [Supabase REST API](#supabase-rest-api)
-5. [错误处理](#错误处理)
+3. [期权扫描API](#期权扫描-api-oss-scanner)
+4. [财报数据API](#财报数据api)
+5. [Supabase REST API](#supabase-rest-api)
+6. [错误处理](#错误处理)
 
 ---
 
@@ -18,10 +19,8 @@
 
 ```
 Frontend (React)
-    ↓
-Vercel Serverless Functions (代理层)
-    ↓
-External APIs (CBOE, etc.)
+   - **Vite (Low-Level Proxy/Plugin)**: 处理 `/api` 路由，模拟 Serverless Functions 环境
+- **Supabase (BaaS)**: 本身提供 REST API 和数据库存储
     ↓
 Supabase PostgreSQL (数据存储)
 ```
@@ -30,8 +29,9 @@ Supabase PostgreSQL (数据存储)
 
 | 端点 | 方法 | 用途 | 状态 |
 |------|------|------|------|
-| `/api/option-price` | GET | 获取期权价格和Greeks | ✅ 生产 |
-| `/api/earnings` | GET | 获取财报日期 | 🚧 开发中 |
+| `/api/option-price` | GET | 获取单份期权价格、Greeks 及 OSS 评分 | ✅ 生产 |
+| `/api/scan-options` | GET | OSS v2.1 扫描器，获取高分合约列表 | ✅ 生产 |
+| `/api/earnings` | GET | 获取财报日期（通过 Nasdaq API） | ✅ 生产 |
 
 ---
 
@@ -95,21 +95,16 @@ async function getOptionPrice(params: OptionPriceParams) {
   "success": true,
   "symbol": "QQQ   260220C00630000",
   "price": 7.36,
-  "priceSource": "mid",
+  "score": 85,
+  "metrics": {
+    "lambda": 33.7,
+    "gammaEff": 0.0016,
+    "thetaBurn": 0.0062,
+    "isDayTrade": false,
+    "ivRatio": 0.985
+  },
   "bid": 7.32,
-  "ask": 7.39,
-  "lastPrice": 7.35,
-  "iv": 0.1778,
-  "delta": 0.3999,
-  "gamma": 0.0123,
-  "theta": -0.0456,
-  "vega": 0.0789,
-  "rho": 0.0012,
-  "volume": 6485,
-  "openInterest": 29600,
-  "underlyingPrice": 620.24,
-  "dataSource": "CBOE",
-  "timestamp": 1769901862738
+  ...
 }
 ```
 
@@ -299,6 +294,64 @@ function PositionCard({ position }) {
       )}
     </div>
   );
+}
+```
+
+---
+
+## 🔍 期权扫描 API (OSS Scanner)
+
+### 端点
+
+```
+GET /api/scan-options
+```
+
+### 用途
+
+根据 OSS v2.1 算法扫描全链期权，返回经过数学评估后的最佳契约。
+
+### 参数
+
+| 参数 | 类型 | 必填 | 说明 | 默认值 |
+|------|------|------|------|------|
+| ticker | string | ✅ | 股票代码 | - |
+| strategy | string | ❌ | 策略类型 ('long', 'short') | 'long' |
+| dteMin | number | ❌ | 最小 DTE | 20 |
+| dteMax | number | ❌ | 最大 DTE | 60 |
+| strikeRange | number | ❌ | 行权价抓取范围 (百分比) | 0.25 (25%) |
+| limit | number | ❌ | 返回结果数量上限 | 20 |
+| minDelta | number | ❌ | 最小 Delta | 0 |
+| maxDelta | number | ❌ | 最大 Delta | 1 |
+| direction | string | ❌ | 方向 ('all', 'call', 'put') | 'all' |
+| dayTrade | boolean| ❌ | 是否开启日内模式 (权重优化) | false |
+| minVolume | number | ❌ | 最小成交量限制 | 50 |
+
+### 响应示例
+
+```json
+{
+  "success": true,
+  "context": {
+    "ticker": "QQQ",
+    "currentPrice": 620.24,
+    "ivRatio": 0.982,
+    "ivStatus": "contango",
+    "strategy": "long"
+  },
+  "results": [
+    {
+      "symbol": "QQQ   260220C00630000",
+      "score": 85,
+      "price": 7.36,
+      "metrics": {
+        "lambda": 33.7,
+        "gammaEff": 0.0016,
+        "thetaBurn": 0.0062
+      },
+      "greeks": { "delta": 0.4, "gamma": 0.012, ... }
+    }
+  ]
 }
 ```
 

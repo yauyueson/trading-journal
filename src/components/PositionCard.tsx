@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Calendar, ChevronDown } from 'lucide-react';
+import { RefreshCw, Calendar, ChevronDown, Trash2 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory } from '../lib/types';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
@@ -12,11 +12,12 @@ interface PositionCardProps {
     onAction: (id: string, action: any) => Promise<void>;
     onUpdateScore: (id: string, score: number) => Promise<void>; // Kept for interface compatibility
     onUpdatePrice: (id: string, price: number) => Promise<void>;
+    onDelete: (id: string) => Promise<void>;
     refreshTrigger?: number;
     index?: number;
 }
 
-export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, refreshTrigger = 0, index = 0 }) => {
+export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onDelete, refreshTrigger = 0, index = 0 }) => {
     const [loading, setLoading] = useState(false);
     const [liveData, setLiveData] = useState<LiveData>({ delta: undefined, iv: undefined, gamma: undefined, theta: undefined, vega: undefined, score: undefined });
     const [earnings, setEarnings] = useState<{ loading: boolean; date: string | null; days: number | null }>({ loading: true, date: null, days: null });
@@ -460,6 +461,9 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         <button onClick={() => setActionMode('Add')} className="action-btn btn-secondary">+ Add</button>
                         <button onClick={() => setActionMode('TakeProfit')} className="action-btn btn-secondary">Profit</button>
                         <button onClick={() => setActionMode('Close')} className="action-btn btn-secondary text-text-secondary hover:text-accent-red hover:bg-accent-red/10">Close</button>
+                        <button onClick={() => onDelete(position.id)} className="action-btn btn-secondary text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 px-3" aria-label="Delete Position">
+                            <Trash2 size={16} />
+                        </button>
                     </div>
                 ) : (
                     <div className="card-elevated p-4 space-y-3">
