@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import { Position, Transaction } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PositionCard } from '../components/PositionCard';
+import { RollModal } from '../components/RollModal';
 import { DataFooter } from '../components/DataFooter';
 import { SETUPS } from '../lib/utils';
 // Helper for icons if needed, but I'll use Lucide directly 
@@ -17,14 +18,16 @@ interface PortfolioPageProps {
     onUpdatePrice: (id: string, price: number) => Promise<void>;
     onUpdateTarget: (id: string, target: number) => Promise<void>;
     onAddDirect: (item: any) => Promise<void>;
+    onRoll: (originalPositionId: string, rollData: any) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
     loading: boolean;
 }
 
-export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onAddDirect, onDelete, loading }) => {
+export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onAddDirect, onRoll, onDelete, loading }) => {
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [rollingPosition, setRollingPosition] = useState<{ position: Position, qty: number } | null>(null);
     const [sortBy] = useState('expiration');
     const [form, setForm] = useState({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: '1', entry_price: '' });
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
@@ -229,12 +232,33 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             onDataUpdate={setLastTimestamp}
                             refreshTrigger={refreshTrigger}
                             index={index}
+                            onRollClick={(qty) => setRollingPosition({ position, qty })}
                         />
                     ))}
                 </div>
             )}
 
             <DataFooter timestamp={lastTimestamp} />
+
+            {rollingPosition && (
+                <RollModal
+                    position={rollingPosition.position}
+                    currentQuantity={rollingPosition.qty}
+                    onConfirm={async (closeQty, closePrice, newStrike, newType, newExpiration, newQty, newPrice) => {
+                        await onRoll(rollingPosition.position.id, {
+                            closeQty,
+                            closePrice,
+                            newStrike,
+                            newType,
+                            newExpiration,
+                            newQty,
+                            newPrice
+                        });
+                        setRollingPosition(null);
+                    }}
+                    onCancel={() => setRollingPosition(null)}
+                />
+            )}
         </div>
     );
 };

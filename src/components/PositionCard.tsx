@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Calendar, ChevronDown, Trash2 } from 'lucide-react';
+import { RefreshCw, Calendar, ChevronDown, Trash2, ArrowRightLeft } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory } from '../lib/types';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
@@ -18,9 +18,10 @@ interface PositionCardProps {
     onDataUpdate?: (timestamp: string) => void;
     refreshTrigger?: number;
     index?: number;
+    onRollClick?: (qty: number) => void;
 }
 
-export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onDelete, onDataUpdate, refreshTrigger = 0, index = 0 }) => {
+export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onDelete, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick }) => {
     const [loading, setLoading] = useState(false);
     const [liveData, setLiveData] = useState<LiveData>({ delta: undefined, iv: undefined, gamma: undefined, theta: undefined, vega: undefined, score: undefined });
     const [earnings, setEarnings] = useState<{ loading: boolean; date: string | null; days: number | null }>({ loading: true, date: null, days: null });
@@ -691,6 +692,11 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     </button>
                     <button onClick={() => setActionMode('Add')} className="action-btn btn-secondary">+ Add</button>
                     <button onClick={() => setActionMode('TakeProfit')} className="action-btn btn-secondary">Profit</button>
+                    {onRollClick && (
+                        <button onClick={() => onRollClick(totalQty)} className="action-btn btn-secondary text-text-secondary hover:text-white flex items-center gap-1">
+                            <ArrowRightLeft size={14} /> Roll
+                        </button>
+                    )}
                     <button onClick={() => setActionMode('Close')} className="action-btn btn-secondary text-text-secondary hover:text-accent-red hover:bg-accent-red/10">Close</button>
                     <button onClick={() => onDelete(position.id)} className="action-btn btn-secondary text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 px-3" aria-label="Delete Position">
                         <Trash2 size={16} />
