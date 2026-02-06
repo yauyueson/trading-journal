@@ -91,7 +91,14 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
                     <div className="flex items-center gap-3 mb-1 flex-wrap">
                         <span className="text-xl font-bold">{item.ticker}</span>
                         {isSpread ? (
-                            <span className="badge badge-purple">Spread</span>
+                            <div className="flex items-center gap-3">
+                                <span className="badge badge-purple">
+                                    {item.type}
+                                </span>
+                                <span className="font-mono text-xs text-[#8E8E93] bg-[#1C1C1E] px-2 py-0.5 rounded border border-[#2A2A2A]">
+                                    {item.legs?.find(l => l.side === 'short')?.strike} / {item.legs?.find(l => l.side === 'long')?.strike}
+                                </span>
+                            </div>
                         ) : (
                             <span className={`badge ${item.type === 'Call' ? 'badge-green' : 'badge-red'}`}>{item.type}</span>
                         )}
@@ -106,14 +113,9 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
                         )}
                     </div>
                     <div className="text-text-secondary text-sm mb-3">
-                        {isSpread ? (
-                            <span className="font-mono">
-                                {item.legs?.find(l => l.side === 'short')?.strike} / {item.legs?.find(l => l.side === 'long')?.strike}
-                            </span>
-                        ) : (
-                            <span className="font-mono">${item.strike}</span>
+                        {!isSpread && (
+                            <span className="font-mono">${item.strike} · </span>
                         )}
-                        <span className="mx-2">·</span>
                         <span>{formatDate(item.expiration)}</span>
                         <span className="mx-2">·</span>
                         <span>{item.setup}</span>

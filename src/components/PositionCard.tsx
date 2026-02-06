@@ -377,7 +377,24 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     <div className="flex items-center gap-3 mb-1">
                         <span className="text-2xl font-bold">{position.ticker}</span>
                         {isSpread ? (
-                            <span className="badge badge-purple">Spread</span>
+                            <div className="flex items-center gap-3">
+                                <span className="badge badge-purple">
+                                    {position.legs?.[0]?.type} {isCreditStrategy ? 'Credit' : 'Debit'} Spread
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className="flex items-center gap-1.5 text-accent-red bg-accent-red/10 px-2 py-0.5 rounded text-xs font-mono border border-accent-red/20" title="Short Leg">
+                                        <span className="font-bold">-</span>
+                                        {position.legs?.find(l => l.side === 'short')?.strike}
+                                        <span className="opacity-70">{position.legs?.[0]?.type?.charAt(0)}</span>
+                                    </span>
+                                    <span className="text-text-tertiary text-xs">/</span>
+                                    <span className="flex items-center gap-1.5 text-accent-green bg-accent-green/10 px-2 py-0.5 rounded text-xs font-mono border border-accent-green/20" title="Long Leg">
+                                        <span className="font-bold">+</span>
+                                        {position.legs?.find(l => l.side === 'long')?.strike}
+                                        <span className="opacity-70">{position.legs?.[0]?.type?.charAt(0)}</span>
+                                    </span>
+                                </div>
+                            </div>
                         ) : (
                             <span className={`badge ${position.type === 'Call' ? 'badge-green' : 'badge-red'}`}>
                                 {position.type}
@@ -385,24 +402,12 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         )}
                     </div>
                     <div className="text-text-secondary">
-                        {isSpread ? (
-                            <div className="flex items-center gap-2 mt-1 mb-1">
-                                <span className="flex items-center gap-1.5 text-accent-red bg-accent-red/10 px-2 py-0.5 rounded text-xs font-mono border border-accent-red/20" title="Short Leg">
-                                    <span className="font-bold">-</span>
-                                    {position.legs?.find(l => l.side === 'short')?.strike}
-                                    <span className="opacity-70">{position.legs?.[0]?.type?.charAt(0)}</span>
-                                </span>
-                                <span className="text-text-tertiary text-xs">/</span>
-                                <span className="flex items-center gap-1.5 text-accent-green bg-accent-green/10 px-2 py-0.5 rounded text-xs font-mono border border-accent-green/20" title="Long Leg">
-                                    <span className="font-bold">+</span>
-                                    {position.legs?.find(l => l.side === 'long')?.strike}
-                                    <span className="opacity-70">{position.legs?.[0]?.type?.charAt(0)}</span>
-                                </span>
-                            </div>
-                        ) : (
-                            <span className="font-mono">${position.strike}</span>
+                        {!isSpread && (
+                            <>
+                                <span className="font-mono">${position.strike}</span>
+                                <span className="mx-2">·</span>
+                            </>
                         )}
-                        {!isSpread && <span className="mx-2">·</span>}
                         <span>{formatDate(position.expiration)}</span>
                         <span className="mx-2">·</span>
                         <span>{totalQty} contract{totalQty !== 1 ? 's' : ''}</span>

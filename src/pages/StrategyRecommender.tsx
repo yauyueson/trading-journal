@@ -466,11 +466,18 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                         <div className="flex items-center gap-3 mb-1">
                                             <div className={`text-4xl font-black ${getScoreColor(rec.score)}`}>{rec.score}</div>
                                             <div>
-                                                <div className="font-bold text-lg text-white">{isSpread(rec) ? 'Spread' : rec.type}</div>
+                                                <div className="font-bold text-lg text-white flex items-center gap-2">
+                                                    {rec.type}
+                                                    {isSpread(rec) && (
+                                                        <span className="text-sm font-mono text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                                                            ${rec.shortLeg?.strike} / ${rec.longLeg?.strike}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div className="text-sm text-gray-400 font-mono">
                                                     {isSpread(rec) ? (
                                                         <span className="flex items-center gap-2">
-                                                            ${rec.shortLeg?.strike} / ${rec.longLeg?.strike} • {rec.shortLeg?.expiration || rec.longLeg?.expiration}
+                                                            {rec.shortLeg?.expiration || rec.longLeg?.expiration}
                                                         </span>
                                                     ) : (
                                                         <span className="flex items-center gap-2">
@@ -530,6 +537,10 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                                 </>
                                             ) : (
                                                 <>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Price</span>
+                                                        <span className="text-white font-mono font-bold">${(rec as SingleLegRecommendation).price?.toFixed(2)}</span>
+                                                    </div>
                                                     <div className="flex flex-col">
                                                         <span className="text-[10px] text-gray-500 uppercase font-bold">Delta</span>
                                                         <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).delta?.toFixed(2)}</span>
