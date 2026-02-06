@@ -428,12 +428,10 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     <div className={`text-sm font-mono ${pnlColor} mb-1`}>
                         {unrealizedPnL >= 0 ? '+' : ''}{formatCurrency(unrealizedPnL)}
                     </div>
-                    {realizedPnL !== 0 && (
-                        <div className={`text-xs font-mono font-medium ${realizedPnL > 0 ? 'text-accent-green' : 'text-accent-red'} flex items-center justify-end gap-1`}>
-                            <span className="text-text-tertiary text-[10px] uppercase tracking-wider">Realized</span>
-                            {realizedPnL > 0 ? '+' : ''}{formatCurrency(realizedPnL)}
-                        </div>
-                    )}
+                    <div className={`text-xs font-mono font-medium ${realizedPnL > 0 ? 'text-accent-green' : realizedPnL < 0 ? 'text-accent-red' : 'text-text-tertiary'} flex items-center justify-end gap-1`}>
+                        <span className="text-text-tertiary text-[10px] uppercase tracking-wider">Realized</span>
+                        {realizedPnL !== 0 ? (realizedPnL > 0 ? '+' : '') + formatCurrency(realizedPnL) : '—'}
+                    </div>
                 </div>
             </div>
 
@@ -523,6 +521,20 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                             <div className="metric-value text-accent-green">{formatPrice(targetPrice)}</div>
                         )}
                     </div>
+                    {/* Current */}
+                    <div>
+                        <div className="mb-1 flex items-center h-5">
+                            <Tooltip label="Current" explanation={isCreditStrategy ? "Cost to Close" : "Liquidation Value"} className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-text-primary">{currentPrice ? formatPrice(currentPrice) : '—'}</div>
+                    </div>
+                    {/* Stop */}
+                    <div>
+                        <div className="mb-1 flex items-center h-5">
+                            <Tooltip label="Stop" explanation="Stop Loss Level." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-accent-red">{formatPrice(currentStopLoss)}</div>
+                    </div>
                     {/* Tech Score */}
                     <div>
                         <div className="mb-1 flex items-center gap-1 h-5">
@@ -564,20 +576,6 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                                 )}
                             </div>
                         )}
-                    </div>
-                    {/* Current */}
-                    <div>
-                        <div className="mb-1 flex items-center h-5">
-                            <Tooltip label="Current" explanation={isCreditStrategy ? "Cost to Close" : "Liquidation Value"} className="text-[11px] text-text-tertiary uppercase tracking-wider" />
-                        </div>
-                        <div className="metric-value text-text-primary">{currentPrice ? formatPrice(currentPrice) : '—'}</div>
-                    </div>
-                    {/* Stop */}
-                    <div>
-                        <div className="mb-1 flex items-center h-5">
-                            <Tooltip label="Stop" explanation="Stop Loss Level." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
-                        </div>
-                        <div className="metric-value text-accent-red">{formatPrice(currentStopLoss)}</div>
                     </div>
                 </div>
 
