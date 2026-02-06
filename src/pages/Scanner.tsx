@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Search, Info, Sliders, TrendingUp, BarChart2, Plus, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
+import { Search, Info, Plus, Activity } from 'lucide-react';
 import { ScoredResult, Strategy } from '../lib/types';
 import { Tooltip } from '../components/Tooltip';
 
@@ -76,9 +76,13 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                 <div className="flex flex-col md:flex-row gap-4 mb-4">
                     {/* Ticker */}
                     <div className="flex-1 min-w-[200px]">
-                        <label className="text-xs text-gray-400 font-medium mb-1.5 block flex items-center gap-1">
-                            Ticker Symbol <Tooltip content="The underlying asset to scan options for (e.g., SPY, QQQ)." />
-                        </label>
+                        <div className="mb-1.5">
+                            <Tooltip
+                                label="Ticker Symbol"
+                                explanation="The underlying asset to scan options for (e.g., SPY, QQQ)."
+                                className="text-xs text-gray-400 font-medium"
+                            />
+                        </div>
                         <div className="relative">
                             <input
                                 type="text"
@@ -94,9 +98,13 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
 
                     {/* Strategy Selector */}
                     <div className="w-full md:w-48">
-                        <label className="text-xs text-gray-400 font-medium mb-1.5 block flex items-center gap-1">
-                            Strategy <Tooltip content="Long: Buy options (Calls/Puts). Short: Sell options (Cash Secured Puts/Covered Calls)." />
-                        </label>
+                        <div className="mb-1.5">
+                            <Tooltip
+                                label="Strategy"
+                                explanation="Long: Buy options (Calls/Puts). Short: Sell options (Cash Secured Puts/Covered Calls)."
+                                className="text-xs text-gray-400 font-medium"
+                            />
+                        </div>
                         <div className="flex bg-[#2C2C2E] rounded-lg p-1 border border-[#3A3A3C]">
                             <button
                                 onClick={() => setStrategy('long')}
@@ -136,8 +144,8 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                         <button
                             onClick={() => setIsDayTrade(!isDayTrade)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${isDayTrade
-                                    ? 'bg-purple-500/10 border-purple-500/30 text-purple-400'
-                                    : 'bg-[#2C2C2E] border-[#3A3A3C] text-gray-400 hover:bg-[#3A3A3C]'
+                                ? 'bg-purple-500/10 border-purple-500/30 text-purple-400'
+                                : 'bg-[#2C2C2E] border-[#3A3A3C] text-gray-400 hover:bg-[#3A3A3C]'
                                 }`}
                         >
                             <Activity size={16} />
@@ -229,7 +237,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                     <div className="bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl p-3 flex flex-col items-center justify-center">
                         <span className="text-xs text-gray-400 uppercase tracking-wider mb-1">IV Ratio</span>
                         <div className={`text-xl font-bold ${context.ivStatus === 'contango' ? 'text-green-400' :
-                                context.ivStatus === 'backwardation' ? 'text-red-400' : 'text-gray-300'
+                            context.ivStatus === 'backwardation' ? 'text-red-400' : 'text-gray-300'
                             }`}>
                             {context.ivRatio}
                         </div>
