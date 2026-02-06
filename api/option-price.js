@@ -15,7 +15,8 @@ function generateOCCSymbol(symbol, expiration, type, strike) {
     const dd = parts[2].padStart(2, '0');
     const dateStr = `${yy}${mm}${dd}`;
 
-    const typeCode = type.toLowerCase().startsWith('c') ? 'C' : 'P';
+    const loweredType = type.toLowerCase();
+    const typeCode = (loweredType.includes('call') || loweredType === 'c') ? 'C' : 'P';
     const strikeNum = Math.round(parseFloat(strike) * 1000);
     const strikeStr = strikeNum.toString().padStart(8, '0');
 
@@ -83,7 +84,7 @@ export default async function handler(req, res) {
     if (!targetOption) {
       // 尝试模糊匹配
       const expDateStr = expiration.replace(/-/g, '').slice(2); // "260220"
-      const typeChar = type.toUpperCase().charAt(0);
+      const typeChar = typeCode; // Use the already calculated C or P
       const strikeStr = (parseFloat(strike) * 1000).toString().padStart(8, '0');
 
       const fuzzyMatch = options.find(opt => {
