@@ -106,6 +106,11 @@ function App() {
         // Realtime subscription will trigger fetchData
     };
 
+    const onUpdateTarget = async (id: string, target: number) => {
+        await supabase.from('positions').update({ target_price: target }).eq('id', id);
+        fetchData();
+    };
+
     const onAddDirect = async (item: any) => {
         const { data, error } = await supabase.from('positions').insert([{
             ticker: item.ticker,
@@ -215,6 +220,7 @@ function App() {
                         onAction={onAction}
                         onUpdateScore={onUpdateScore}
                         onUpdatePrice={onUpdatePrice}
+                        onUpdateTarget={onUpdateTarget}
                         onAddDirect={onAddDirect}
                         onDelete={onDelete}
                         loading={loading}

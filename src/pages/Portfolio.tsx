@@ -14,12 +14,13 @@ interface PortfolioPageProps {
     onAction: (id: string, action: any) => Promise<void>;
     onUpdateScore: (id: string, score: number) => Promise<void>;
     onUpdatePrice: (id: string, price: number) => Promise<void>;
+    onUpdateTarget: (id: string, target: number) => Promise<void>;
     onAddDirect: (item: any) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
     loading: boolean;
 }
 
-export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transactions, onAction, onUpdateScore, onUpdatePrice, onAddDirect, onDelete, loading }) => {
+export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onAddDirect, onDelete, loading }) => {
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
@@ -221,6 +222,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             onAction={onAction}
                             onUpdateScore={onUpdateScore}
                             onUpdatePrice={onUpdatePrice}
+                            onUpdateTarget={onUpdateTarget}
                             onDelete={onDelete}
                             refreshTrigger={refreshTrigger}
                             index={index}

@@ -13,12 +13,13 @@ interface PositionCardProps {
     onAction: (id: string, action: any) => Promise<void>;
     onUpdateScore: (id: string, score: number) => Promise<void>; // Kept for interface compatibility
     onUpdatePrice: (id: string, price: number) => Promise<void>;
+    onUpdateTarget: (id: string, target: number) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
     refreshTrigger?: number;
     index?: number;
 }
 
-export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onDelete, refreshTrigger = 0, index = 0 }) => {
+export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onDelete, refreshTrigger = 0, index = 0 }) => {
     const [loading, setLoading] = useState(false);
     const [liveData, setLiveData] = useState<LiveData>({ delta: undefined, iv: undefined, gamma: undefined, theta: undefined, vega: undefined, score: undefined });
     const [earnings, setEarnings] = useState<{ loading: boolean; date: string | null; days: number | null }>({ loading: true, date: null, days: null });
@@ -27,6 +28,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const [actionPrice, setActionPrice] = useState('');
     const [isEditingScore, setIsEditingScore] = useState(false);
     const [scoreInput, setScoreInput] = useState('');
+    const [isEditingTarget, setIsEditingTarget] = useState(false);
+    const [targetInput, setTargetInput] = useState('');
     const [isExpanded, setIsExpanded] = useState(false);
     const [historyData, setHistoryData] = useState<GreeksHistory[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
@@ -296,7 +299,24 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         }
     }
 
-    const targetPrice = isCreditStrategy ? entryPrice * 0.5 : entryPrice * 1.25; // 50% max profit for credit, 25% for debit
+    const calculatedTarget = isCreditStrategy ? entryPrice * 0.5 : entryPrice * 1.25;
+    const targetPrice = position.target_price || calculatedTarget;
+
+    // Realized P&L Calculation
+    let realizedPnL = 0;
+    positionTxns.forEach(t => {
+        if (t.type === 'Take Profit' || t.type === 'Close' || t.type === 'Size Down') {
+            const exitPricePerContract = t.price * CONTRACT_MULTIPLIER;
+            const qtySold = Math.abs(t.quantity);
+            if (isCreditStrategy) {
+                // Credit: Profit = Credit Received (Entry) - Debit Paid (Exit)
+                realizedPnL += (avgCostPerContract - exitPricePerContract) * qtySold;
+            } else {
+                // Debit: Profit = Exit - Entry
+                realizedPnL += (exitPricePerContract - avgCostPerContract) * qtySold;
+            }
+        }
+    });
 
     const daysToExp = daysUntil(position.expiration);
     const currentScore = position.current_score || position.entry_score;
@@ -350,6 +370,14 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         if (!isNaN(newScore)) {
             await onUpdateScore(position.id, newScore);
             setIsEditingScore(false);
+        }
+    };
+
+    const handleTargetSave = async () => {
+        const newTarget = parseFloat(targetInput);
+        if (!isNaN(newTarget)) {
+            await onUpdateTarget(position.id, newTarget);
+            setIsEditingTarget(false);
         }
     };
 
@@ -469,10 +497,45 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     </div>
                     {/* Target */}
                     <div>
-                        <div className="mb-1 flex items-center h-5">
-                            <Tooltip label="Target" explanation="Profit Target (1.25x or 50% max profit)." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        <div className="mb-1 flex items-center gap-1 h-5">
+                            <Tooltip label="Target" explanation="Profit Target Price. Click to edit." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                            <button
+                                onClick={() => { setIsEditingTarget(true); setTargetInput(targetPrice.toString()); }}
+                                className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+                                aria-label="Edit target"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                            </button>
                         </div>
-                        <div className="metric-value text-accent-green">{formatPrice(targetPrice)}</div>
+                        {isEditingTarget ? (
+                            <div className="flex items-center gap-1">
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={targetInput}
+                                    onChange={e => setTargetInput(e.target.value)}
+                                    className="w-16 px-1 py-0.5 text-sm bg-bg-secondary rounded border border-border-default font-mono"
+                                    autoFocus
+                                />
+                                <button onClick={handleTargetSave} className="text-accent-green hover:bg-accent-green/10 p-0.5 rounded cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                </button>
+                                <button onClick={() => setIsEditingTarget(false)} className="text-accent-red hover:bg-accent-red/10 p-0.5 rounded cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="metric-value text-accent-green">{formatPrice(targetPrice)}</div>
+                        )}
+                    </div>
+                    {/* Realized */}
+                    <div>
+                        <div className="mb-1 flex items-center h-5">
+                            <Tooltip label="Realized" explanation="Total Profit/Loss realized from partial exits or closure." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className={`metric-value ${realizedPnL > 0 ? 'text-accent-green' : realizedPnL < 0 ? 'text-accent-red' : 'text-text-tertiary'}`}>
+                            {realizedPnL !== 0 ? (realizedPnL > 0 ? '+' : '') + formatCurrency(realizedPnL) : '—'}
+                        </div>
                     </div>
                     {/* Current */}
                     <div>
