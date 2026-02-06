@@ -275,7 +275,9 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const entryPrice = firstBuy ? Math.abs(firstBuy.price) : 0;
 
     const hasTakenProfit = positionTxns.some(t => t.type === 'Take Profit');
-    const currentStopLoss = hasTakenProfit ? entryPrice * 0.75 : entryPrice * 0.5;
+    const currentStopLoss = isCreditStrategy
+        ? entryPrice * 1.5
+        : (hasTakenProfit ? entryPrice * 0.75 : entryPrice * 0.5);
 
     const currentPrice = liveData.price !== undefined ? liveData.price : (position.current_price || 0);
 
@@ -317,7 +319,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const alerts: string[] = [];
     if (currentScore < 60) { alerts.push('Low Score'); alertLevel = 'danger'; }
     if (isCreditStrategy) {
-        if (currentPrice && currentPrice >= entryPrice * 2) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
+        if (currentPrice && currentPrice >= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
     } else {
         if (currentPrice && currentPrice <= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
     }
@@ -378,37 +380,25 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     <div className="flex items-center gap-3 mb-1">
                         <span className="text-2xl font-bold">{position.ticker}</span>
                         {isSpread ? (
-                            <div className="flex items-center gap-3">
-                                <span className="badge badge-purple">
-                                    {position.legs?.[0]?.type} {isCreditStrategy ? 'Credit' : 'Debit'} Spread
+                            <div className="flex items-center gap-2 text-sm text-text-secondary font-medium uppercase tracking-wide">
+                                <span className="text-text-primary">
+                                    ${position.legs?.find(l => l.side === 'short')?.strike}{position.legs?.[0]?.type?.charAt(0)}
+                                    <span className="mx-1.5">/</span>
+                                    ${position.legs?.find(l => l.side === 'long')?.strike}{position.legs?.[0]?.type?.charAt(0)}
                                 </span>
-                                <div className="flex items-center gap-2">
-                                    <span className="flex items-center gap-1.5 text-accent-red bg-accent-red/10 px-2 py-0.5 rounded text-xs font-mono border border-accent-red/20" title="Short Leg">
-                                        <span className="font-bold">-</span>
-                                        {position.legs?.find(l => l.side === 'short')?.strike}
-                                        <span className="opacity-70">{position.legs?.[0]?.type?.charAt(0)}</span>
-                                    </span>
-                                    <span className="text-text-tertiary text-xs">/</span>
-                                    <span className="flex items-center gap-1.5 text-accent-green bg-accent-green/10 px-2 py-0.5 rounded text-xs font-mono border border-accent-green/20" title="Long Leg">
-                                        <span className="font-bold">+</span>
-                                        {position.legs?.find(l => l.side === 'long')?.strike}
-                                        <span className="opacity-70">{position.legs?.[0]?.type?.charAt(0)}</span>
-                                    </span>
-                                </div>
+                                <span className="text-[15.5px]">{position.legs?.[0]?.type} {isCreditStrategy ? 'Credit' : 'Debit'} Spread</span>
                             </div>
                         ) : (
-                            <span className={`badge ${position.type === 'Call' ? 'badge-green' : 'badge-red'}`}>
-                                {position.type}
-                            </span>
+                            <div className="flex items-center gap-2 text-sm text-text-secondary font-medium uppercase tracking-wide">
+                                <span className="text-text-primary font-mono">${position.strike}</span>
+                                <span className={`text-[15.5px] ${position.type?.toLowerCase().includes('call') ? 'text-accent-green' : 'text-accent-red'}`}>
+                                    {position.type}
+                                </span>
+                            </div>
                         )}
                     </div>
                     <div className="text-text-secondary">
-                        {!isSpread && (
-                            <>
-                                <span className="font-mono">${position.strike}</span>
-                                <span className="mx-2">·</span>
-                            </>
-                        )}
+
                         <span>{formatDate(position.expiration)}</span>
                         <span className="mx-2">·</span>
                         <span>{totalQty} contract{totalQty !== 1 ? 's' : ''}</span>
