@@ -199,7 +199,7 @@ function App() {
         // Here `Close` transaction type is used.
 
         // 2. Open New
-        const { data: newPosData, error } = await supabase.from('positions').insert([{
+        const { data: newPosData } = await supabase.from('positions').insert([{
             ticker: originalPos.ticker,
             strike: rollData.newStrike,
             type: rollData.newType,
