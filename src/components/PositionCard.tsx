@@ -5,7 +5,7 @@ import { Position, Transaction, LiveData, GreeksHistory } from '../lib/types';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER } from '../lib/utils';
-import { calculateCreditSpreadScore, calculateDebitSpreadScore } from '../lib/scoring';
+import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQ } from '../lib/scoring';
 
 interface PositionCardProps {
     position: Position;
@@ -176,9 +176,23 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         currentPrice: underlyingPrice
                     });
                 } else if (isCreditStrategy && shortData) {
-                    compositeScore = shortData.score;
+                    compositeScore = shortData.score || (shortData.underlyingPrice ? calculateSingleLOQ(
+                        shortData.delta || 0,
+                        shortData.gamma || 0,
+                        shortData.theta || 0,
+                        shortData.underlyingPrice,
+                        Math.abs(shortData.price),
+                        1.0 // Default IV ratio if unknown
+                    ) : undefined);
                 } else if (!isCreditStrategy && longData) {
-                    compositeScore = longData.score;
+                    compositeScore = longData.score || (longData.underlyingPrice ? calculateSingleLOQ(
+                        longData.delta || 0,
+                        longData.gamma || 0,
+                        longData.theta || 0,
+                        longData.underlyingPrice,
+                        Math.abs(longData.price),
+                        1.0
+                    ) : undefined);
                 }
 
                 setLiveData({
@@ -210,13 +224,24 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     const data = await response.json();
                     if (data.price) {
                         await onUpdatePrice(position.id, data.price);
+                        // Calculate score if not provided by API
+                        const calculatedScore = data.score || (data.underlyingPrice ? calculateSingleLOQ(
+                            data.delta || 0,
+                            data.gamma || 0,
+                            data.theta || 0,
+                            data.underlyingPrice,
+                            data.price,
+                            data.metrics?.ivRatio || 1.0
+                        ) : undefined);
+
                         setLiveData({
                             delta: data.delta,
                             iv: data.iv,
                             gamma: data.gamma,
                             theta: data.theta,
                             vega: data.vega,
-                            score: data.score,
+                            score: calculatedScore,
+                            price: data.price,
                             isDayTrade: data.metrics?.isDayTrade,
                             ivRatio: data.metrics?.ivRatio
                         });
