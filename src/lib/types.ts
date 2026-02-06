@@ -17,6 +17,12 @@ export interface Position {
     notes?: string;
     created_at?: string;
     closed_at?: string;
+    legs?: {
+        strike: number;
+        type: string;
+        side: 'long' | 'short';
+        expiration: string;
+    }[];
 }
 
 export interface Transaction {

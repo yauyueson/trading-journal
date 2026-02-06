@@ -1,6 +1,6 @@
 # Trading Journal - API文档
 
-> 最后更新: 2026年2月5日
+> 最后更新: 2026年2月6日
 
 ## 📋 目录
 
@@ -30,7 +30,8 @@ Supabase PostgreSQL (数据存储)
 | 端点 | 方法 | 用途 | 状态 |
 |------|------|------|------|
 | `/api/option-price` | GET | 获取单份期权价格、Greeks 及 OSS 评分 | ✅ 生产 |
-| `/api/scan-options` | GET | OSS v2.1 扫描器，获取高分合约列表 | ✅ 生产 |
+| `/api/scan-options` | GET | OSS v2.1 扫描器，获取高分单腿合约列表 | ✅ 生产 |
+| `/api/strategy-recommend` | GET | 策略推荐引擎（价差/组合策略专用） | ✅ 生产 |
 | `/api/earnings` | GET | 获取财报日期（通过 Nasdaq API） | ✅ 生产 |
 
 ---
@@ -157,14 +158,62 @@ async function getOptionPrice(params: OptionPriceParams) {
 }
 ```
 
-### 数据源
+### 数据源 (CBOE Integration)
 
 **CBOE (Chicago Board Options Exchange)**:
 - **URL**: `https://cdn.cboe.com/api/global/delayed_quotes/options/{TICKER}.json`
 - **延迟**: 15分钟
-- **成本**: 免费
-- **限制**: 无严格速率限制
-- **覆盖**: 所有美股期权
+- **安全性要求**: 必须在请求头中包含有效的 `Referer` 和 `Origin` (通常为 `https://www.cboe.com`)，否则会返回 403 Forbidden。
+
+**Vercel Proxy 实现**:
+```javascript
+const response = await fetch(url, {
+  headers: {
+    'Referer': 'https://www.cboe.com/options/quotes/',
+    'Origin': 'https://www.cboe.com'
+  }
+});
+```
+
+---
+
+## 🤖 策略推荐 API (Strategy Recommender)
+
+### 端点
+```
+GET /api/strategy-recommend
+```
+
+### 用途
+智能生成复杂的价差策略（Vertical Spreads, Iron Condors 等），并基于风险回报比、POP 和杠杆率进行评估。
+
+### 参数
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| ticker | string | 股票代码 |
+| dteMin | number | 最小 DTE |
+| dteMax | number | 最大 DTE |
+| credit | boolean| 是否搜索信用价差 |
+
+### 响应格式
+返回一个包含多种策略组合的数组，每个结果包含 `score`, `whyThis`, `legs` 以及组合 Greeks。
+
+```json
+{
+  "success": true,
+  "results": [
+    {
+      "strategy": "Credit Put Spread",
+      "score": 73,
+      "legs": [...],
+      "netCredit": 1.01,
+      "maxRisk": 3.99,
+      "roi": 0.253,
+      "pop": 0.683
+    }
+  ]
+}
+```
 
 ### OCC Symbol生成
 

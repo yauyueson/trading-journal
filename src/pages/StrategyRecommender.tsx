@@ -173,24 +173,44 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
         if (!onAddToWatchlist) return;
 
         const isSpreadType = isSpread(rec);
+
+        let legs = undefined;
+        if (isSpreadType) {
+            const legType = rec.type.includes('Call') ? 'Call' : 'Put';
+            legs = [
+                {
+                    side: 'short',
+                    strike: rec.shortLeg.strike,
+                    type: legType,
+                    expiration: rec.shortLeg.expiration
+                },
+                {
+                    side: 'long',
+                    strike: rec.longLeg.strike,
+                    type: legType,
+                    expiration: rec.longLeg.expiration
+                }
+            ];
+        }
+
         const item = {
             ticker: result.context.ticker,
             strike: isSpreadType ? rec.shortLeg.strike : rec.strike,
-            type: rec.type, // e.g., "Credit Put Spread" or "Long Call"
+            type: rec.type,
             expiration: isSpreadType ? rec.shortLeg.expiration : rec.expiration,
             setup: `Strategy Rec: ${result.regime.advice.split(':')[0]}`,
             entry_score: rec.score,
             ideal_entry: isSpreadType ? rec.netCredit || rec.netDebit : rec.price,
-            target_price: 0, // Manual
+            target_price: 0,
             stop_reason: `Algorithm Rec: ${rec.whyThis}`,
             notes: isSpreadType
-                ? `Spread: ${rec.shortLeg.strike}/${rec.longLeg.strike} (${rec.width}w). EV: ${rec.expectedValue || 'N/A'}`
-                : `Single Leg. Delta: ${rec.delta}`
+                ? `EV: $${rec.expectedValue || '0'}. Width: $${rec.width}`
+                : `Delta: ${rec.delta}`,
+            legs: legs
         };
 
         await onAddToWatchlist(item);
-        // Optional: show some feedback?
-        setExpandedCard(null); // Close card on add
+        setExpandedCard(null);
     };
 
     return (

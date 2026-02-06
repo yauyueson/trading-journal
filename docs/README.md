@@ -1,6 +1,6 @@
 # Trading Journal - 文档总览
 
-> 最后更新: 2026年2月4日
+> 最后更新: 2026年2月6日
 
 欢迎来到Trading Journal项目文档中心！这里包含了项目的完整技术文档和使用指南。
 
@@ -194,10 +194,17 @@ docs/
 
 ## 🔄 文档更新日志
 
-### 2026-02-04
-- ✅ 创建完整文档体系
-- ✅ 添加6个核心文档
-- ✅ 创建文档索引（本文件）
+### 2026-02-06
+- ✅ **Credit Spread Accounting**: 修复信用价差核算，采用 Cost to Close (Short - Long) 逻辑，修正 P&L 计算。
+- ✅ **Spread Scoring Optimization**: 将价差评分算法集成至 `scoring.ts`，实现 Portfolio 与 Recommender 评分 100% 映射一致。
+- ✅ **Stability & Persistence**: 优化价格刷新逻辑，增加本地 `liveData` 缓存，修复数据刷新时的抖动和 disappearing 问题。
+- ✅ **API Polish**: 更新 CBOE 接口头信息，修复 403 错误，标准化 `underlyingPrice` 字段。
+- ✅ **Bug Fixes**: 解决评分 NaN 问题，优化 Tooltip 全局展示性能。
+
+### 2026-02-05
+- ✅ 优化评分权重 (OSS v2.1)
+- ✅ 增加 Delta Bonus 线性插值
+- ✅ 增加 Theta Pain Capsule 惩罚算法
 
 ### 未来计划
 - [ ] 添加视频教程
@@ -222,4 +229,4 @@ docs/
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年2月4日*
+*最后更新: 2026年2月6日*

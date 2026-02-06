@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { History, Check } from 'lucide-react';
+import { History, Check, Trash2 } from 'lucide-react';
 import { Position, Transaction } from '../lib/types';
 import { formatCurrency, formatPercent, CONTRACT_MULTIPLIER } from '../lib/utils';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -8,9 +8,10 @@ interface HistoryPageProps {
     positions: Position[];
     transactions: Transaction[];
     loading: boolean;
+    onDelete: (id: string) => Promise<void>;
 }
 
-export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transactions, loading }) => {
+export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transactions, loading, onDelete }) => {
     const closedPositions = positions.filter(p => p.status === 'closed');
     const getStats = (position: Position) => {
         const txns = transactions.filter(t => t.position_id === position.id);
@@ -104,13 +105,26 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transaction
                                             <span>{holdDays}d held</span>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <div className={`big-number ${isWin ? 'text-accent-green' : 'text-accent-red'}`}>
-                                            {formatPercent(pnlPct)}
+                                    <div className="flex flex-col items-end gap-3">
+                                        <div className="text-right">
+                                            <div className={`big-number ${isWin ? 'text-accent-green' : 'text-accent-red'}`}>
+                                                {formatPercent(pnlPct)}
+                                            </div>
+                                            <div className={`text-sm font-mono ${isWin ? 'text-accent-green' : 'text-accent-red'}`}>
+                                                {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
+                                            </div>
                                         </div>
-                                        <div className={`text-sm font-mono ${isWin ? 'text-accent-green' : 'text-accent-red'}`}>
-                                            {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
-                                        </div>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onDelete(p.id);
+                                            }}
+                                            className="p-1.5 text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                                            title="Delete Record"
+                                        >
+                                            <Trash2 size={14} />
+                                            <span>Delete</span>
+                                        </button>
                                     </div>
                                 </div>
                             </div>

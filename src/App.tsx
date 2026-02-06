@@ -103,7 +103,7 @@ function App() {
 
     const onUpdatePrice = async (id: string, price: number) => {
         await supabase.from('positions').update({ current_price: price }).eq('id', id);
-        fetchData();
+        // Realtime subscription will trigger fetchData
     };
 
     const onAddDirect = async (item: any) => {
@@ -135,7 +135,8 @@ function App() {
     };
 
     const onAddToWatchlist = async (item: any) => {
-        await supabase.from('positions').insert([{
+        console.log('Adding to watchlist:', item);
+        const { error } = await supabase.from('positions').insert([{
             ticker: item.ticker,
             strike: item.strike,
             type: item.type,
@@ -146,8 +147,17 @@ function App() {
             ideal_entry: item.ideal_entry,
             target_price: item.target_price,
             stop_reason: item.stop_reason,
-            notes: item.notes
+            notes: item.notes,
+            legs: item.legs
         }]);
+
+        if (error) {
+            console.error('Error adding to watchlist:', error);
+            alert(`Error adding to watchlist: ${error.message}`);
+        } else {
+            console.log('Successfully added to watchlist');
+            fetchData();
+        }
     };
 
     const onMoveToActive = (item: Position) => {
@@ -156,9 +166,17 @@ function App() {
 
     const onDelete = async (id: string) => {
         if (window.confirm('Are you sure you want to permanently delete this position? This cannot be undone.')) {
-            await supabase.from('transactions').delete().eq('position_id', id);
-            await supabase.from('positions').delete().eq('id', id);
-            fetchData();
+            console.log('Deleting position:', id);
+            // Note: Transactions and History are set to CASCADE on delete in the DB schema
+            const { error } = await supabase.from('positions').delete().eq('id', id);
+
+            if (error) {
+                console.error('Error deleting position:', error);
+                alert(`Error deleting position: ${error.message}`);
+            } else {
+                console.log('Successfully deleted position');
+                fetchData();
+            }
         }
     };
 
@@ -207,6 +225,7 @@ function App() {
                         positions={positions}
                         onAddToWatchlist={onAddToWatchlist}
                         onMoveToActive={onMoveToActive}
+                        onDelete={onDelete}
                         loading={loading}
                     />
                 )}
@@ -221,6 +240,7 @@ function App() {
                         positions={positions}
                         transactions={transactions}
                         loading={loading}
+                        onDelete={onDelete}
                     />
                 )}
                 {activeTab === 'stats' && (

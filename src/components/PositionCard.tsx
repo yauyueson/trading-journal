@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, Calendar, ChevronDown, Trash2 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory } from '../lib/types';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER } from '../lib/utils';
+import { calculateCreditSpreadScore, calculateDebitSpreadScore } from '../lib/scoring';
 
 interface PositionCardProps {
     position: Position;
@@ -30,6 +31,9 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const [historyData, setHistoryData] = useState<GreeksHistory[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
 
+    const isSpread = !!position.legs && position.legs.length > 0;
+    const isCreditStrategy = position.type.includes('Credit') || position.type.includes('Short');
+
     // Fetch Earnings
     useEffect(() => {
         const fetchEarnings = async () => {
@@ -52,38 +56,188 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         fetchEarnings();
     }, [position.ticker]);
 
-    // Fetch Greeks and save history once per day
-    useEffect(() => {
-        const fetchGreeks = async () => {
-            try {
+    // Fetch Greeks and price
+    const fetchGreeksAndPrice = useCallback(async () => {
+        setLoading(true);
+        try {
+            if (isSpread && position.legs) {
+                const promises = position.legs.map(async (leg) => {
+                    const params = new URLSearchParams({ ticker: position.ticker, expiration: leg.expiration, strike: leg.strike.toString(), type: leg.type });
+                    const res = await fetch(`/api/option-price?${params}`);
+                    return res.ok ? await res.json() : null;
+                });
+                const results = await Promise.all(promises);
+
+                // Prevent partial data update (wiping Greeks) if some requests failed
+                if (results.some(r => r === null)) {
+                    setLoading(false);
+                    return;
+                }
+
+                let netDelta = 0, netGamma = 0, netTheta = 0, netVega = 0;
+                let netIv = 0;
+                let netPrice = 0;
+                let validLegs = 0;
+
+                const shortIndex = position.legs.findIndex(l => l.side === 'short');
+                const longIndex = position.legs.findIndex(l => l.side === 'long');
+
+                // Ensure we have data for both legs
+                const shortData = shortIndex >= 0 ? results[shortIndex] : null;
+                const longData = longIndex >= 0 ? results[longIndex] : null;
+
+                if (shortData && longData) {
+                    // 1. Valuation Formula: Cost to Close = Short Price - Long Price
+                    // Always use positive prices from API
+                    const shortPrice = Math.abs(shortData.price || 0);
+                    const longPrice = Math.abs(longData.price || 0);
+
+                    if (isCreditStrategy) {
+                        // For Credit Spread: Cost to Close = Short - Long
+                        // e.g. Sold @ 10, Bought @ 9.2. Net = 0.8.
+                        netPrice = shortPrice - longPrice;
+                    } else {
+                        // For Debit Spread: Liquidation Value = Long - Short (usually) or just Spread Value
+                        // Actually standard spread value is always Long - Short? 
+                        // No, Debit Call Spread: Long 660 ($10), Short 665 ($8). Value = $2.
+                        // So always Long - Short for "Value".
+                        // Wait, for Credit Spread, "Value" (Cost to Close) is Short - Long.
+                        // Let's stick to the User's Formula for Credit: Spread = Short - Long.
+                        netPrice = longPrice - shortPrice; // Default for debit
+                    }
+                }
+
+                // Greeks Calculation
+                // Net Delta = ShortDelta * -1 + LongDelta
+                results.forEach((data, i) => {
+                    if (!data) return;
+                    validLegs++;
+                    const side = position.legs![i].side;
+                    // Multiplier: Short = -1, Long = 1
+                    const mult = side === 'short' ? -1 : 1;
+
+                    netDelta += (data.delta || 0) * mult;
+                    netGamma += (data.gamma || 0) * mult;
+                    netTheta += (data.theta || 0) * mult; // Short accumulates positive theta
+                    netVega += (data.vega || 0) * mult;   // Short benefits from IV crush
+                    netIv += (data.iv || 0);
+                });
+                netIv = validLegs > 0 ? netIv / validLegs : 0;
+
+                // Fix: If Credit Strategy, the 'netPrice' calculated above is 'Cost to Close' (positive).
+                // If Debit Strategy, 'netPrice' is 'Liquidation Value' (positive).
+                // However, my previous logic might have mixed signs.
+                if (isCreditStrategy && shortData && longData) {
+                    netPrice = Math.abs(shortData.price) - Math.abs(longData.price);
+                } else if (!isCreditStrategy && shortData && longData) {
+                    netPrice = Math.abs(longData.price) - Math.abs(shortData.price);
+                }
+
+                // Determine effective score
+                let compositeScore = undefined;
+                const underlyingPrice = shortData?.underlyingPrice || longData?.underlyingPrice || 0;
+
+                if (isCreditStrategy && shortData && longData && underlyingPrice > 0) {
+                    // Credit Spread Score
+                    const shortLeg = position.legs?.find(l => l.side === 'short');
+                    const longLeg = position.legs?.find(l => l.side === 'long');
+                    const shortStrike = shortLeg ? shortLeg.strike : 0;
+                    const longStrike = longLeg ? longLeg.strike : 0;
+
+                    const width = Math.abs(Math.abs(shortStrike) - Math.abs(longStrike));
+                    // Current Credit (Cost to Close) effectively represents the premium a NEW seller would get roughly
+                    const currentCredit = Math.abs(shortData.price) - Math.abs(longData.price);
+
+                    compositeScore = calculateCreditSpreadScore({
+                        credit: currentCredit,
+                        width: width,
+                        shortDelta: shortData.delta || 0,
+                        shortStrike: shortStrike,
+                        currentPrice: underlyingPrice
+                    });
+                } else if (!isCreditStrategy && shortData && longData && underlyingPrice > 0) {
+                    // Debit Spread Score
+                    const shortLeg = position.legs?.find(l => l.side === 'short');
+                    const longLeg = position.legs?.find(l => l.side === 'long');
+                    const shortStrike = shortLeg ? shortLeg.strike : 0;
+                    const longStrike = longLeg ? longLeg.strike : 0;
+
+                    const width = Math.abs(Math.abs(shortStrike) - Math.abs(longStrike));
+                    const currentDebit = Math.abs(longData.price) - Math.abs(shortData.price);
+
+                    compositeScore = calculateDebitSpreadScore({
+                        debit: currentDebit,
+                        width: width,
+                        longDelta: longData.delta || 0,
+                        longPrice: Math.abs(longData.price),
+                        currentPrice: underlyingPrice
+                    });
+                } else if (isCreditStrategy && shortData) {
+                    compositeScore = shortData.score;
+                } else if (!isCreditStrategy && longData) {
+                    compositeScore = longData.score;
+                }
+
+                setLiveData({
+                    delta: netDelta,
+                    gamma: netGamma,
+                    theta: netTheta,
+                    vega: netVega,
+                    iv: netIv,
+                    price: netPrice,
+                    score: compositeScore
+                });
+
+                if (netDelta !== 0) saveGreeksHistory(position.id, netIv, netDelta);
+
+                // IMPORTANT: For Credit Spreads, this 'netPrice' is Cost to Close.
+                // For Debit Spreads, it is Liquidation Value.
+                if (results.some(r => r !== null)) {
+                    // Optimized: Only update if price changed significantly to prevent infinite loops
+                    if (Math.abs((position.current_price || 0) - netPrice) > 0.01) {
+                        await onUpdatePrice(position.id, netPrice);
+                    }
+                }
+
+            } else {
+                // Single Leg Logic
                 const params = new URLSearchParams({ ticker: position.ticker, expiration: position.expiration, strike: position.strike.toString(), type: position.type });
                 const response = await fetch(`/api/option-price?${params}`);
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.delta || data.iv) {
+                    if (data.price) {
+                        await onUpdatePrice(position.id, data.price);
                         setLiveData({
                             delta: data.delta,
                             iv: data.iv,
+                            gamma: data.gamma,
+                            theta: data.theta,
+                            vega: data.vega,
+                            score: data.score,
+                            isDayTrade: data.metrics?.isDayTrade,
                             ivRatio: data.metrics?.ivRatio
                         });
-                        // Save to history (once per day)
                         saveGreeksHistory(position.id, data.iv, data.delta);
                     }
                 }
-            } catch (e) { /* ignore */ }
-        };
-        fetchGreeks();
-    }, [position.id, position.ticker, position.expiration, position.strike, position.type]);
+            }
+        } catch (e) { console.error(e); }
+        setLoading(false);
+    }, [position.id, position.ticker, position.expiration, position.strike, position.type, isSpread, isCreditStrategy, position.legs, onUpdatePrice]);
+
+    useEffect(() => {
+        fetchGreeksAndPrice();
+    }, [fetchGreeksAndPrice]);
 
     // Global Refresh Trigger
     useEffect(() => {
         if (refreshTrigger > 0) {
-            const delay = index * 200; // Stagger requests
+            const delay = index * 200;
             setTimeout(() => {
-                fetchPrice();
+                fetchGreeksAndPrice();
             }, delay);
         }
-    }, [refreshTrigger]);
+    }, [refreshTrigger, index, fetchGreeksAndPrice]);
 
     // Fetch history when expanded
     useEffect(() => {
@@ -101,6 +255,10 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     let totalQtyBought = 0, totalCostBasis = 0, totalQtySold = 0;
     positionTxns.forEach(t => {
         const qty = t.quantity;
+        // Logic: Usually we buy positive qty.
+        // For credit spreads, if we enter with positive Qty meaning "1 Lot",
+        // Cost Basis should be Credit Received.
+        // Let's assume input was positive Quantity and positive Price.
         const price = t.price * CONTRACT_MULTIPLIER;
         if (qty > 0) { totalQtyBought += qty; totalCostBasis += qty * price; }
         else { totalQtySold += Math.abs(qty); }
@@ -109,17 +267,36 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const totalQty = totalQtyBought - totalQtySold;
     const avgCostPerContract = totalQtyBought > 0 ? totalCostBasis / totalQtyBought : 0;
     const firstBuy = positionTxns.find(t => t.quantity > 0);
-    const entryPrice = firstBuy ? firstBuy.price : 0;
+    const entryPrice = firstBuy ? Math.abs(firstBuy.price) : 0;
 
     const hasTakenProfit = positionTxns.some(t => t.type === 'Take Profit');
+    // Todo: Adjust for credit spreads
     const currentStopLoss = hasTakenProfit ? entryPrice * 0.75 : entryPrice * 0.5;
 
-    const currentPrice = position.current_price || 0;
-    const unrealizedCostBasis = totalQty * avgCostPerContract;
-    const currentValue = totalQty * currentPrice * CONTRACT_MULTIPLIER;
-    const unrealizedPnL = currentPrice ? currentValue - unrealizedCostBasis : 0;
-    const unrealizedPnLPct = unrealizedCostBasis > 0 && currentPrice ? ((currentPrice * CONTRACT_MULTIPLIER - avgCostPerContract) / avgCostPerContract) * 100 : 0;
-    const targetPrice = entryPrice * 1.25;
+    const currentPrice = liveData.price !== undefined ? liveData.price : (position.current_price || 0);
+
+    // P&L Calculation Logic
+    let unrealizedPnL = 0;
+    let unrealizedPnLPct = 0;
+
+    if (totalQty > 0 && currentPrice) {
+        if (isCreditStrategy) {
+            // Credit Spread P&L = (Entry Credit - Current Cost to Close) * Qty * 100
+            // Example: Entry $1.01, Current $0.80. PnL = (1.01 - 0.80) * 100 = $21.5
+            unrealizedPnL = (entryPrice - currentPrice) * totalQty * CONTRACT_MULTIPLIER;
+            // ROI based on Credit Received (or margin? User asked for ROI based on credit)
+            // User formula: roi = (pnlPerShare / entryCredit) * 100
+            unrealizedPnLPct = entryPrice > 0 ? (unrealizedPnL / (entryPrice * totalQty * CONTRACT_MULTIPLIER)) * 100 : 0;
+        } else {
+            const totalValue = totalQty * currentPrice * CONTRACT_MULTIPLIER;
+            const totalCost = totalQty * avgCostPerContract;
+            // Profit = Value - Cost
+            unrealizedPnL = totalValue - totalCost;
+            unrealizedPnLPct = (totalCost > 0) ? (unrealizedPnL / totalCost) * 100 : 0;
+        }
+    }
+
+    const targetPrice = isCreditStrategy ? entryPrice * 0.5 : entryPrice * 1.25; // 50% max profit for credit, 25% for debit
 
     const daysToExp = daysUntil(position.expiration);
     const currentScore = position.current_score || position.entry_score;
@@ -128,8 +305,14 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     let alertLevel: 'none' | 'danger' | 'warning' = 'none';
     const alerts: string[] = [];
     if (currentScore < 60) { alerts.push('Low Score'); alertLevel = 'danger'; }
-    if (currentPrice && currentPrice <= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
-    if (unrealizedPnLPct <= -40) { alerts.push('Heavy Loss'); alertLevel = 'danger'; }
+    // Stop check
+    if (isCreditStrategy) {
+        if (currentPrice && currentPrice >= entryPrice * 2) { alerts.push('Hit Stop'); alertLevel = 'danger'; } // 2x credit stop loss
+    } else {
+        if (currentPrice && currentPrice <= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
+    }
+
+    if (unrealizedPnLPct <= -50) { alerts.push('Heavy Loss'); alertLevel = 'danger'; }
     if (alertLevel !== 'danger') {
         if (currentScore < 70) { alerts.push('Score Warning'); alertLevel = 'warning'; }
         if (daysToExp <= 7 && daysToExp > 0) { alerts.push(`${daysToExp}d left`); alertLevel = 'warning'; }
@@ -147,33 +330,6 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
 
     const pnlColor = unrealizedPnL >= 0 ? 'text-accent-green' : 'text-accent-red';
 
-    const fetchPrice = async () => {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams({ ticker: position.ticker, expiration: position.expiration, strike: position.strike.toString(), type: position.type });
-            const response = await fetch(`/api/option-price?${params}`);
-            if (response.ok) {
-                const data = await response.json();
-                if (data.price) {
-                    await onUpdatePrice(position.id, data.price);
-                    // Do not auto-update db score, keep it manual. Use live data for option mechanics.
-                    setLiveData({
-                        delta: data.delta,
-                        gamma: data.gamma,
-                        theta: data.theta,
-                        vega: data.vega,
-                        iv: data.iv,
-
-                        score: data.score,
-                        isDayTrade: data.metrics?.isDayTrade,
-                        ivRatio: data.metrics?.ivRatio
-                    });
-                }
-            }
-        } catch (e) { console.error(e); }
-        setLoading(false);
-    };
-
     const handleAction = async (type: 'Size Up' | 'Take Profit' | 'Close') => {
         if (!actionPrice) return;
         setLoading(true);
@@ -181,7 +337,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         await onAction(position.id, {
             type,
             quantity: type === 'Close' ? -totalQty : qty,
-            price: parseFloat(actionPrice)
+            price: parseFloat(actionPrice) // Input price is always positive absolute price
         });
         setLoading(false);
         setActionMode(null);
@@ -204,13 +360,38 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 <div>
                     <div className="flex items-center gap-3 mb-1">
                         <span className="text-2xl font-bold">{position.ticker}</span>
-                        <span className={`badge ${position.type === 'Call' ? 'badge-green' : 'badge-red'}`}>
-                            {position.type}
-                        </span>
+                        {isSpread ? (
+                            <>
+                                <span className={`badge ${isCreditStrategy ? 'badge-green' : 'badge-blue'}`}>
+                                    {isCreditStrategy ? 'Credit' : 'Debit'}
+                                </span>
+                                <span className="badge badge-purple">Spread</span>
+                            </>
+                        ) : (
+                            <span className={`badge ${position.type === 'Call' ? 'badge-green' : 'badge-red'}`}>
+                                {position.type}
+                            </span>
+                        )}
                     </div>
                     <div className="text-text-secondary">
-                        <span className="font-mono">${position.strike}</span>
-                        <span className="mx-2">·</span>
+                        {isSpread ? (
+                            <div className="flex items-center gap-2 mt-1 mb-1">
+                                <span className="flex items-center gap-1.5 text-accent-red bg-accent-red/10 px-2 py-0.5 rounded text-xs font-mono border border-accent-red/20" title="Short Leg">
+                                    <span className="font-bold">-</span>
+                                    {position.legs?.find(l => l.side === 'short')?.strike}
+                                    <span className="opacity-70">{position.legs?.[0]?.type?.charAt(0)}</span>
+                                </span>
+                                <span className="text-text-tertiary text-xs">/</span>
+                                <span className="flex items-center gap-1.5 text-accent-green bg-accent-green/10 px-2 py-0.5 rounded text-xs font-mono border border-accent-green/20" title="Long Leg">
+                                    <span className="font-bold">+</span>
+                                    {position.legs?.find(l => l.side === 'long')?.strike}
+                                    <span className="opacity-70">{position.legs?.[0]?.type?.charAt(0)}</span>
+                                </span>
+                            </div>
+                        ) : (
+                            <span className="font-mono">${position.strike}</span>
+                        )}
+                        {!isSpread && <span className="mx-2">·</span>}
                         <span>{formatDate(position.expiration)}</span>
                         <span className="mx-2">·</span>
                         <span>{totalQty} contract{totalQty !== 1 ? 's' : ''}</span>
@@ -274,45 +455,45 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-4">
                     {/* Entry */}
                     <div>
-                        <div className="mb-1">
-                            <Tooltip label="Entry" explanation="Original entry price per share." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        <div className="mb-1 flex items-center h-5">
+                            <Tooltip label="Entry" explanation="Original entry price/credit per contract." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className="metric-value">{formatPrice(entryPrice)}</div>
                     </div>
                     {/* Avg */}
                     <div>
-                        <div className="mb-1">
+                        <div className="mb-1 flex items-center h-5">
                             <Tooltip label="Avg" explanation="Average Cost Basis." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className="metric-value">{formatPrice(avgCostPerContract / CONTRACT_MULTIPLIER)}</div>
                     </div>
                     {/* Target */}
                     <div>
-                        <div className="mb-1">
-                            <Tooltip label="Target" explanation="Take Profit Target (1.25x Entry)." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        <div className="mb-1 flex items-center h-5">
+                            <Tooltip label="Target" explanation="Profit Target (1.25x or 50% max profit)." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className="metric-value text-accent-green">{formatPrice(targetPrice)}</div>
                     </div>
                     {/* Current */}
                     <div>
-                        <div className="mb-1">
-                            <Tooltip label="Current" explanation="Last traded price per share." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        <div className="mb-1 flex items-center h-5">
+                            <Tooltip label="Current" explanation={isCreditStrategy ? "Cost to Close" : "Liquidation Value"} className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className="metric-value text-text-primary">{currentPrice ? formatPrice(currentPrice) : '—'}</div>
                     </div>
                     {/* Stop */}
                     <div>
-                        <div className="mb-1">
+                        <div className="mb-1 flex items-center h-5">
                             <Tooltip label="Stop" explanation="Stop Loss Level." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className="metric-value text-accent-red">{formatPrice(currentStopLoss)}</div>
                     </div>
                     {/* Tech Score */}
                     <div>
-                        <div className="mb-1 flex items-center gap-1">
-                            <Tooltip label="Tech Score" explanation="Manual Technical Analysis Score (0-100). Rating of the chart setup." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        <div className="mb-1 flex items-center gap-1 h-5">
+                            <Tooltip label="Tech Score" explanation="Manual Technical Analysis Score (0-100)." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                             <button
-                                onClick={() => { setIsEditingScore(true); setScoreInput(currentScore.toString()); }}
+                                onClick={() => { setIsEditingScore(true); setScoreInput(currentScore ? currentScore.toString() : ''); }}
                                 className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
                                 aria-label="Edit score"
                             >
@@ -355,7 +536,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-4 pt-4 border-t border-border-light/50">
                     <div>
                         <div className="mb-1">
-                            <Tooltip label="Delta" explanation="Option sensitivity to stock price changes. Probability of expiring ITM." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                            <Tooltip label="Delta" explanation="Net Position Delta." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className="metric-value text-text-primary">
                             {liveData.delta !== undefined ? liveData.delta.toFixed(2) : '—'}
@@ -363,7 +544,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     </div>
                     <div>
                         <div className="mb-1">
-                            <Tooltip label="Gamma" explanation="Rate of change of Delta. Acceleration of directional exposure." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                            <Tooltip label="Gamma" explanation="Rate of change of Delta." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className="metric-value text-text-primary">
                             {liveData.gamma !== undefined ? liveData.gamma.toFixed(3) : '—'}
@@ -371,7 +552,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     </div>
                     <div>
                         <div className="mb-1">
-                            <Tooltip label="Theta" explanation="Time decay. Estimated value lost per day." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                            <Tooltip label="Theta" explanation="Time decay." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className="metric-value text-text-primary">
                             {liveData.theta !== undefined ? liveData.theta.toFixed(3) : '—'}
@@ -387,7 +568,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     </div>
                     <div>
                         <div className="mb-1">
-                            <Tooltip label="IV" explanation="Implied Volatility. Market's expectation of future moves." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                            <Tooltip label="IV" explanation="Avg Implied Volatility." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className="metric-value text-text-primary">
                             {liveData.iv !== undefined ? (liveData.iv * 100).toFixed(1) + '%' : '—'}
@@ -396,14 +577,14 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
 
                     <div>
                         <div className="mb-1">
-                            <Tooltip label="Opt Score" explanation="Calculated Option Quality (LOQ). Based on Greeks, IV & Liquidity." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                            <Tooltip label="Opt Score" explanation="Calculated Option Quality." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className="flex flex-col">
-                            <div className={`metric-value font-bold ${!liveData.score ? 'text-text-tertiary' :
+                            <div className={`metric-value font-bold ${liveData.score === undefined ? 'text-text-tertiary' :
                                 liveData.score >= 70 ? 'text-accent-green' :
                                     liveData.score >= 50 ? 'text-accent-yellow' : 'text-accent-red'
                                 }`}>
-                                {liveData.score ? liveData.score : '—'}
+                                {liveData.score !== undefined ? liveData.score : '—'}
                             </div>
                             {(liveData.score && liveData.isDayTrade) && (
                                 <span className="mt-0.5 px-1 pb-0.5 text-[8px] font-bold uppercase tracking-wider text-purple-300 bg-purple-500/10 rounded w-fit">
@@ -454,7 +635,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
             {
                 !actionMode ? (
                     <div className="flex gap-2">
-                        <button onClick={fetchPrice} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-2 cursor-pointer" aria-label="Refresh price">
+                        <button onClick={fetchGreeksAndPrice} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-2 cursor-pointer" aria-label="Refresh price">
                             {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={16} />}
                             <span className="hidden sm:inline">Refresh</span>
                         </button>

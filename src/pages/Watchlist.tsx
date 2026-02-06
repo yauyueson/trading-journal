@@ -9,10 +9,11 @@ interface WatchlistPageProps {
     positions: Position[];
     onAddToWatchlist: (item: any) => Promise<void>;
     onMoveToActive: (item: Position) => void;
+    onDelete: (id: string) => Promise<void>;
     loading: boolean;
 }
 
-export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddToWatchlist, onMoveToActive, loading }) => {
+export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddToWatchlist, onMoveToActive, onDelete, loading }) => {
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [form, setForm] = useState({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
@@ -21,16 +22,21 @@ export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddTo
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSubmitting(true);
-        await onAddToWatchlist({
-            ...form,
-            strike: parseFloat(form.strike),
-            entry_score: parseInt(form.entry_score),
-            ideal_entry: form.ideal_entry ? parseFloat(form.ideal_entry) : null,
-            target_price: form.target_price ? parseFloat(form.target_price) : null
-        });
-        setSubmitting(false);
-        setForm({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
-        setShowForm(false);
+        try {
+            await onAddToWatchlist({
+                ...form,
+                strike: parseFloat(form.strike),
+                entry_score: form.entry_score ? parseInt(form.entry_score) : null,
+                ideal_entry: form.ideal_entry ? parseFloat(form.ideal_entry) : null,
+                target_price: form.target_price ? parseFloat(form.target_price) : null
+            });
+            setForm({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
+            setShowForm(false);
+        } catch (e) {
+            console.error("Error in form submit:", e);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     if (loading) return <LoadingSpinner />;
@@ -81,7 +87,7 @@ export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddTo
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {watchlistItems.map(item => <WatchlistItem key={item.id} item={item} onMoveToActive={onMoveToActive} />)}
+                    {watchlistItems.map(item => <WatchlistItem key={item.id} item={item} onMoveToActive={onMoveToActive} onDelete={onDelete} />)}
                 </div>
             )}
         </div>

@@ -109,11 +109,14 @@ function localApiPlugin(): Plugin {
 
           const response = await fetch(cboeUrl, {
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Referer': 'https://www.cboe.com/',
+              'Origin': 'https://www.cboe.com'
             }
           });
 
           if (!response.ok) {
+            console.error(`❌ CBOE API Error [${upperTicker}]: ${response.status} ${response.statusText}`);
             res.statusCode = response.status;
             res.end(JSON.stringify({ error: 'CBOE API error', status: response.status }));
             return;
@@ -446,11 +449,14 @@ function localApiPlugin(): Plugin {
 
           const response = await fetch(cboeUrl, {
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Referer': 'https://www.cboe.com/',
+              'Origin': 'https://www.cboe.com'
             }
           });
 
           if (!response.ok) {
+            console.error(`❌ CBOE API Error [${upperTicker}]: ${response.status} ${response.statusText}`);
             res.statusCode = response.status;
             res.end(JSON.stringify({ error: 'CBOE API error', status: response.status }));
             return;
@@ -774,11 +780,14 @@ function localApiPlugin(): Plugin {
           const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
           const response = await fetch(cboeUrl, {
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Referer': 'https://www.cboe.com/',
+              'Origin': 'https://www.cboe.com'
             }
           });
 
           if (!response.ok) {
+            console.error(`❌ CBOE API Error [${upperTicker}]: ${response.status} ${response.statusText}`);
             res.statusCode = response.status;
             res.end(JSON.stringify({ error: 'CBOE API error', status: response.status }));
             return;

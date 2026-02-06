@@ -654,3 +654,71 @@ export function calculateSingleLOQ(
 
     return normalizeScoreTo100(rawScore);
 }
+// ============================================================
+// SPREAD SCORING (Ported from Strategy Recommender)
+// ============================================================
+
+const compressLambda = (lambda: number): number => {
+    const threshold = 20;
+    const decayRate = 0.1;
+    if (lambda <= threshold) return lambda;
+    return threshold + (lambda - threshold) * decayRate;
+};
+
+export interface CreditSpreadMetrics {
+    credit: number;
+    width: number;
+    shortDelta: number;
+    shortStrike: number;
+    currentPrice: number;
+}
+
+export function calculateCreditSpreadScore(metrics: CreditSpreadMetrics): number {
+    const { credit, width, shortDelta, shortStrike, currentPrice } = metrics;
+    const maxRisk = width - credit;
+    if (maxRisk <= 0) return 0;
+
+    const roi = (credit / maxRisk) * 100;
+    const pop = 1 - Math.abs(shortDelta);
+    const distance = Math.abs(currentPrice - shortStrike) / currentPrice;
+
+    // Score components
+    const scoreROI = Math.min(roi * 4, 100);             // 25% ROI = 100 pts
+    const scorePOP = pop * 100;                          // 100% POP = 100 pts
+    const scoreDistance = Math.min(distance * 1000, 100); // 10% OTM = 100 pts
+
+    const finalScore = 0.4 * scoreROI + 0.4 * scorePOP + 0.2 * scoreDistance;
+    return Math.round(Math.min(100, Math.max(0, finalScore)));
+}
+
+export interface DebitSpreadMetrics {
+    debit: number;
+    width: number;
+    longDelta: number;
+    longPrice: number;
+    currentPrice: number;
+}
+
+export function calculateDebitSpreadScore(metrics: DebitSpreadMetrics): number {
+    const { debit, width, longDelta, longPrice, currentPrice } = metrics;
+    const maxProfit = width - debit;
+    if (debit <= 0) return 0;
+
+    const riskReward = maxProfit / debit;
+
+    // Lambda (Leverage)
+    // Note: Use longPrice as 'mid' approximation if mid not available
+    const lambda = longPrice > 0 ? Math.abs(longDelta) * (currentPrice / longPrice) : 0;
+    const compLambda = compressLambda(lambda);
+
+    // Delta Bonus
+    const deltaBonus = getDeltaBonus(longDelta);
+
+    // Score components
+    const lambdaScore = Math.min((compLambda / 20) * 100, 100); // Lambda 20 = 100 pts
+    const rrScore = Math.min((riskReward / 3) * 100, 100);      // 1:3 R:R = 100 pts
+    const deltaScore = 50 + deltaBonus * 12.5;
+
+    const finalScore = 0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore;
+    return Math.round(Math.min(100, Math.max(0, finalScore)));
+}
