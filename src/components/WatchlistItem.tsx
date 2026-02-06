@@ -91,12 +91,7 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
                     <div className="flex items-center gap-3 mb-1 flex-wrap">
                         <span className="text-xl font-bold">{item.ticker}</span>
                         {isSpread ? (
-                            <>
-                                <span className="badge badge-purple">Spread</span>
-                                <span className={`badge ${item.type.includes('Credit') ? 'badge-green' : 'badge-blue'}`}>
-                                    {item.type.includes('Credit') ? 'Credit' : 'Debit'}
-                                </span>
-                            </>
+                            <span className="badge badge-purple">Spread</span>
                         ) : (
                             <span className={`badge ${item.type === 'Call' ? 'badge-green' : 'badge-red'}`}>{item.type}</span>
                         )}

@@ -377,12 +377,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     <div className="flex items-center gap-3 mb-1">
                         <span className="text-2xl font-bold">{position.ticker}</span>
                         {isSpread ? (
-                            <>
-                                <span className={`badge ${isCreditStrategy ? 'badge-green' : 'badge-blue'}`}>
-                                    {isCreditStrategy ? 'Credit' : 'Debit'}
-                                </span>
-                                <span className="badge badge-purple">Spread</span>
-                            </>
+                            <span className="badge badge-purple">Spread</span>
                         ) : (
                             <span className={`badge ${position.type === 'Call' ? 'badge-green' : 'badge-red'}`}>
                                 {position.type}
