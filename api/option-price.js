@@ -102,10 +102,10 @@ export default async function handler(req, res) {
         });
       }
 
-      return formatResponse(res, fuzzyMatch, occSymbol, data.data.current_price, data.data.timestamp);
+      return formatResponse(res, fuzzyMatch, occSymbol, data.data.current_price, data.timestamp);
     }
 
-    return formatResponse(res, targetOption, occSymbol, data.data.current_price, data.data.timestamp);
+    return formatResponse(res, targetOption, occSymbol, data.data.current_price, data.timestamp);
 
   } catch (error) {
     console.error('🚨 API Error:', error.message);

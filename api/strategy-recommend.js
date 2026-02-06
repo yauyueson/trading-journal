@@ -618,7 +618,7 @@ export default async function handler(req, res) {
                 currentPrice,
                 direction: isBull ? 'BULL' : 'BEAR',
                 targetDte: dteTarget,
-                cboeTimestamp: data.data.timestamp || null
+                cboeTimestamp: data.timestamp || null
             },
             regime: {
                 ivRatio: Number(regime.ivRatio.toFixed(3)),
