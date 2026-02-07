@@ -146,60 +146,123 @@ function calculateTargetIV(allOptions, targetDTE, currentPrice) {
     return ivNear + (ivFar - ivNear) * weight;
 }
 
-function detectRegime(allOptions, currentPrice) {
+/**
+ * Fetch RV20 from Nasdaq (Internal Logic)
+ */
+async function fetchRV20(ticker) {
+    try {
+        const toDate = new Date();
+        const fromDate = new Date();
+        fromDate.setDate(toDate.getDate() - 45);
+        const toStr = toDate.toISOString().split('T')[0];
+        const fromStr = fromDate.toISOString().split('T')[0];
+
+        const url = `https://api.nasdaq.com/api/quote/${ticker.toUpperCase()}/historical?assetclass=stocks&fromdate=${fromStr}&todate=${toStr}&limit=40`;
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        });
+
+        if (!response.ok) return null;
+        const data = await response.json();
+        const rows = data?.data?.tradesTable?.rows || [];
+        if (rows.length < 5) return null;
+
+        const prices = rows
+            .map(row => parseFloat(row.close.replace('$', '').replace(',', '')))
+            .filter(price => !isNaN(price))
+            .reverse();
+
+        const returns = [];
+        for (let i = 1; i < prices.length; i++) {
+            returns.push(Math.log(prices[i] / prices[i - 1]));
+        }
+
+        const recentReturns = returns.slice(-20);
+        const mean = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
+        const variance = recentReturns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (recentReturns.length - 1);
+        const annualizedRV = Math.sqrt(variance) * Math.sqrt(252) * 100;
+
+        return annualizedRV;
+    } catch (e) {
+        console.error("RV Fetch Error:", e);
+        return null;
+    }
+}
+
+async function detectRegime(allOptions, currentPrice, ticker) {
     // Calculate IV30 and IV90 using strict interpolation
     const iv30 = calculateTargetIV(allOptions, 30, currentPrice);
     const iv90 = calculateTargetIV(allOptions, 90, currentPrice);
+
+    // Fetch RV20
+    const rv20 = await fetchRV20(ticker);
 
     // Sanity Check: If data is missing
     if (!iv30 || !iv90 || iv90 === 0) {
         return {
             ivRatio: 1.0,
-            iv30: iv30,
-            iv90: iv90,
+            iv30,
+            iv90,
+            rv20,
+            ivRvRatio: null,
             mode: 'NEUTRAL',
             advice: '⚖️ Insufficient Data for IV Ratio. Defaulting to Neutral.'
         };
     }
 
-    const ratio = iv30 / iv90;
+    const termRatio = iv30 / iv90;
+    const ivRvRatio = rv20 ? (iv30 * 100) / rv20 : null;
 
-    // Sanity Check: Extreme outliers (user specified > 2.0 or < 0.5)
-    if (ratio > 2.0 || ratio < 0.5) {
+    let mode = 'NEUTRAL';
+    let advice = '⚖️ Neutral IV: Either strategy viable, compare scores';
+
+    // 1. Check for Term Structure Extreme (Backwardation)
+    if (termRatio > 1.05) {
+        mode = 'CREDIT';
+        advice = '🔴 Backwardation (Expensive near-term): Sell Credit Spreads';
+    }
+    // 2. Check for Volatility Risk Premium (IV > RV)
+    else if (ivRvRatio && ivRvRatio > 1.35) {
+        mode = 'CREDIT';
+        advice = '💎 High Risk Premium (IV > RV): Market overestimating move. Sell Credit.';
+    }
+    // 3. Check for Contango (Cheap near-term)
+    else if (termRatio < 0.95) {
+        mode = 'DEBIT';
+        advice = '🟢 Contango (Cheap near-term IV): Buy Debit Spreads';
+    }
+    // 4. Check for Cheap RV (IV < RV)
+    else if (ivRvRatio && ivRvRatio < 0.85) {
+        mode = 'DEBIT';
+        advice = '🚀 Momentum Alert (RV > IV): Stock moving faster than priced. Buy Debit.';
+    }
+
+    // Sanity Check: Extreme outliers
+    if (termRatio > 2.0 || termRatio < 0.5) {
         return {
-            ivRatio: 1.0, // Reset to neutral to avoid bad recommendations
+            ivRatio: 1.0,
             iv30,
             iv90,
+            rv20,
+            ivRvRatio,
             mode: 'NEUTRAL',
             advice: '⚠️ IV Ratio Outlier Detected. Data may be unreliable.'
         };
     }
 
-    if (ratio < 0.95) {
-        return {
-            ivRatio: ratio,
-            iv30,
-            iv90,
-            mode: 'DEBIT',
-            advice: '🟢 Contango (Cheap IV): Buy Debit Spreads / Long Options'
-        };
-    } else if (ratio > 1.05) {
-        return {
-            ivRatio: ratio,
-            iv30,
-            iv90,
-            mode: 'CREDIT',
-            advice: '🔴 Backwardation (Expensive IV): Sell Credit Spreads'
-        };
-    } else {
-        return {
-            ivRatio: ratio,
-            iv30,
-            iv90,
-            mode: 'NEUTRAL',
-            advice: '⚖️ Neutral IV: Either strategy viable, compare scores'
-        };
-    }
+    return {
+        ivRatio: termRatio,
+        iv30,
+        iv90,
+        rv20,
+        ivRvRatio,
+        mode,
+        advice
+    };
 }
 
 // =============================================================================
@@ -583,7 +646,7 @@ export default async function handler(req, res) {
         const strategyChain = parseChain(allOptions, currentPrice, dteTarget);
 
         // Detect IV Regime using Strict Interpolation
-        const regime = detectRegime(fullChain, currentPrice);
+        const regime = await detectRegime(fullChain, currentPrice, upperTicker);
 
         // Generate ALL recommendations
         const creditStrat = isBull ? 'Put' : 'Call';
@@ -624,6 +687,8 @@ export default async function handler(req, res) {
                 ivRatio: Number(regime.ivRatio.toFixed(3)),
                 iv30: regime.iv30 ? Number((regime.iv30 * 100).toFixed(1)) : null,
                 iv90: regime.iv90 ? Number((regime.iv90 * 100).toFixed(1)) : null,
+                rv20: regime.rv20 ? Number(regime.rv20.toFixed(1)) : null,
+                ivRvRatio: regime.ivRvRatio ? Number(regime.ivRvRatio.toFixed(3)) : null,
                 mode: regime.mode,
                 advice: regime.advice
             },

@@ -403,14 +403,30 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                     {result.regime.advice}
                                 </p>
                             </div>
-                            <div className="text-right">
-                                <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-1">IV Ratio</div>
-                                <div className="text-3xl font-mono font-bold text-white mb-1">
-                                    {result.regime.ivRatio.toFixed(3)}
-                                    <Tooltip label="" explanation="IV30 / IV90. Ratio < 0.95 suggests Contango (Cheap short-term IV). Ratio > 1.05 suggests Backwardation (Expensive short-term IV)." />
+                            <div className="flex gap-8 text-right">
+                                <div>
+                                    <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center justify-end gap-1">
+                                        IV Ratio
+                                        <Tooltip label="" explanation="IV30 / IV90. Ratio < 0.95 (Contango) = Cheap short-term. Ratio > 1.05 (Backwardation) = Expensive short-term." />
+                                    </div>
+                                    <div className="text-3xl font-mono font-bold text-white mb-1">
+                                        {result.regime.ivRatio.toFixed(3)}
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 font-mono">
+                                        IV30: {result.regime.iv30}% | IV90: {result.regime.iv90}%
+                                    </div>
                                 </div>
-                                <div className="text-[10px] text-gray-500 font-mono">
-                                    IV30: {result.regime.iv30}% | IV90: {result.regime.iv90}%
+                                <div>
+                                    <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center justify-end gap-1">
+                                        IV/RV Ratio
+                                        <Tooltip label="" explanation="Volatility Risk Premium (IV30 / RV20). > 1.25 = Seller's Edge (Options overpriced). < 0.85 = Buyer's Territory (Options cheap relative to move)." />
+                                    </div>
+                                    <div className={`text-3xl font-mono font-bold mb-1 ${result.regime.ivRvRatio > 1.2 ? 'text-accent-green' : result.regime.ivRvRatio < 0.8 ? 'text-blue-400' : 'text-white'}`}>
+                                        {result.regime.ivRvRatio ? result.regime.ivRvRatio.toFixed(3) : 'N/A'}
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 font-mono">
+                                        IV: {result.regime.iv30}% | RV20: {result.regime.rv20 || 'N/A'}%
+                                    </div>
                                 </div>
                             </div>
                         </div>
