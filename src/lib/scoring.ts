@@ -1,16 +1,85 @@
 /**
- * Options Scoring System (OSS) - Core Algorithms
- * Version: 2.1 (Hybrid Scoring / IV Optimized)
- * 
- * Implements:
- * - 4-Card Method for IV Term Structure
- * - LOQ (Long Option Quality) for buyers
- * - CSQ (Credit Spread Quality) for sellers
+ * Options Scoring System (OSS) v2.1
+ * ═══════════════════════════════════════════════════════════════
+ * Re-exports core algorithms from oss-core.ts and provides
+ * higher-level batch scoring + IV term structure analysis.
+ *
+ * All primitive scoring functions live in oss-core.ts.
+ * ═══════════════════════════════════════════════════════════════
  */
 
-// ============================================================
-// Types
-// ============================================================
+// ────────────────────────────────────────────────────────────────
+// Re-export core algorithms (Single Source of Truth)
+// ────────────────────────────────────────────────────────────────
+export {
+    // Types
+    type Strategy,
+    type CreditSpreadMetrics,
+    type DebitSpreadMetrics,
+
+    // Math primitives
+    lerp,
+    sigmoid,
+
+    // Metric calculations
+    compressLambda,
+    calculateLambda,
+    calculateGammaEfficiency,
+    calculateThetaBurn,
+    getThetaPenalty,
+    calculatePOP,
+    calculateSellerEdge,
+    calculateSpreadPct,
+
+    // Delta Bonus (LERP v2.1)
+    getDeltaBonus,
+
+    // Z-Score
+    normalizeToZScores,
+
+    // IV
+    getIVRiskFactor,
+    getIVAdjustment,
+
+    // LOQ / CSQ scoring
+    LOQ_WEIGHTS,
+    LOQ_DT_WEIGHTS,
+    CSQ_WEIGHTS,
+    calculateLOQRaw,
+    calculateCSQRaw,
+    normalizeScoreTo100,
+
+    // Single-position scoring
+    calculateSingleLOQ,
+
+    // Spread scoring
+    calculateCreditSpreadScore,
+    calculateDebitSpreadScore,
+} from './oss-core';
+
+// ────────────────────────────────────────────────────────────────
+// Local imports for batch functions
+// ────────────────────────────────────────────────────────────────
+import {
+    compressLambda as _compressLambda,
+    calculateLambda as _calculateLambda,
+    calculateGammaEfficiency as _calculateGammaEfficiency,
+    calculateThetaBurn as _calculateThetaBurn,
+    calculatePOP as _calculatePOP,
+    calculateSellerEdge as _calculateSellerEdge,
+    calculateSpreadPct as _calculateSpreadPct,
+    getDeltaBonus as _getDeltaBonus,
+    normalizeToZScores as _normalizeToZScores,
+    getIVAdjustment as _getIVAdjustment,
+    calculateLOQRaw as _calculateLOQRaw,
+    calculateCSQRaw as _calculateCSQRaw,
+    normalizeScoreTo100 as _normalizeScoreTo100,
+    type Strategy as StrategyType,
+} from './oss-core';
+
+// ────────────────────────────────────────────────────────────────
+// Types (kept here for backward compatibility)
+// ────────────────────────────────────────────────────────────────
 
 export interface OptionData {
     symbol: string;
@@ -36,9 +105,9 @@ export interface RawMetrics {
 }
 
 export interface SellerMetrics {
-    pop: number;        // Probability of Profit
-    edge: number;       // Seller's Edge
-    spreadPct: number;  // Bid-Ask Spread %
+    pop: number;
+    edge: number;
+    spreadPct: number;
 }
 
 export interface ScoredOption {
@@ -48,132 +117,11 @@ export interface ScoredOption {
     score: number;
 }
 
-export type Strategy = 'long' | 'short';
+// ────────────────────────────────────────────────────────────────
+// IV Term Structure: 4-Card Method (frontend version)
+// ────────────────────────────────────────────────────────────────
 
-// ============================================================
-// Raw Metric Calculations
-// ============================================================
-
-/**
- * Lambda (Λ) - True Leverage Ratio
- * Formula: Lambda = |Delta| × (Stock Price / Option Price)
- * High Lambda = High leverage, small capital controls large exposure
- */
-export function calculateLambda(delta: number, stockPrice: number, optionPrice: number): number {
-    if (optionPrice <= 0) return 0;
-    return Math.abs(delta) * (stockPrice / optionPrice);
-}
-
-/**
- * Gamma Efficiency (Γeff) - Explosiveness per dollar
- * Formula: Gamma / Option Price
- * High = Delta accelerates quickly on favorable moves
- */
-export function calculateGammaEfficiency(gamma: number, optionPrice: number): number {
-    if (optionPrice <= 0) return 0;
-    return gamma / optionPrice;
-}
-
-/**
- * Theta Burn (TB) - Daily time decay rate
- * Formula: |Theta| / Option Price
- * Lower is better for buyers (less daily bleed)
- */
-export function calculateThetaBurn(theta: number, optionPrice: number): number {
-    if (optionPrice <= 0) return 0;
-    return Math.abs(theta) / optionPrice;
-}
-
-/**
- * Theta Pain Curve - 指数型惩罚 (Exponential Penalty)
- * 
- * 设计理念：
- * - 安全区 (≤0.5%/天): 零惩罚，对 LEAPS 友好
- * - 超出安全区: 惩罚呈二次增长
- * - 封顶 50 分，防止极端值炸穿评分
- * 
- * 示例：
- * - 0.3%/天 → 0 (安全)
- * - 1.0%/天 → 0.125 分
- * - 3.0%/天 → 3.125 分
- * - 6.0%/天 → 15.125 分 (剧痛)
- */
-export function getThetaPenalty(thetaBurn: number): number {
-    const SAFE_ZONE = 0.005; // 0.5% daily decay is acceptable
-
-    if (thetaBurn <= SAFE_ZONE) {
-        return 0;
-    }
-
-    const excess = thetaBurn - SAFE_ZONE;
-    const penalty = Math.pow(excess * 100, 2) * 0.5;
-
-    return Math.min(penalty, 50); // Cap at 50 to prevent score explosion
-}
-
-/**
- * Probability of Profit (POP) - For sellers
- * Approximation: 1 - |Delta|
- */
-export function calculatePOP(delta: number): number {
-    return 1 - Math.abs(delta);
-}
-
-/**
- * Seller's Edge - Expected value for credit sellers
- * Formula: POP × Premium Received
- */
-export function calculateSellerEdge(pop: number, premium: number): number {
-    return pop * premium;
-}
-
-/**
- * Spread Percentage - Liquidity measure
- * Formula: (Ask - Bid) / Mid
- */
-export function calculateSpreadPct(bid: number, ask: number): number {
-    const mid = (bid + ask) / 2;
-    if (mid <= 0) return 1; // 100% spread = illiquid
-    return (ask - bid) / mid;
-}
-
-// ============================================================
-// Z-Score Normalization
-// ============================================================
-
-/**
- * Calculate mean of array
- */
-function mean(values: number[]): number {
-    if (values.length === 0) return 0;
-    return values.reduce((sum, v) => sum + v, 0) / values.length;
-}
-
-/**
- * Calculate standard deviation
- */
-function stdDev(values: number[]): number {
-    if (values.length < 2) return 1; // Avoid division by zero
-    const avg = mean(values);
-    const squaredDiffs = values.map(v => Math.pow(v - avg, 2));
-    return Math.sqrt(mean(squaredDiffs)) || 1;
-}
-
-/**
- * Normalize array values to Z-Scores
- * Z = (x - mean) / stdDev
- */
-export function normalizeToZScores(values: number[]): number[] {
-    const avg = mean(values);
-    const std = stdDev(values);
-    return values.map(v => (v - avg) / std);
-}
-
-// ============================================================
-// IV Term Structure: 4-Card Method
-// ============================================================
-
-interface IVTermResult {
+export interface IVTermResult {
     ivRatio: number;
     iv30: number | null;
     iv90: number | null;
@@ -181,8 +129,8 @@ interface IVTermResult {
 }
 
 /**
- * Find ATM IV for a target DTE using 2-card interpolation
- * Looks for the two strikes bracketing current price
+ * Find ATM IV for a target DTE.
+ * Uses Call-only with DTE tolerance and strike bracketing.
  */
 function getATMIV(
     chain: OptionData[],
@@ -190,24 +138,20 @@ function getATMIV(
     targetDTE: number,
     tolerance: number = 10
 ): number | null {
-    // Filter calls near target DTE
     const candidates = chain.filter(
         opt => opt.type === 'Call' && Math.abs(opt.dte - targetDTE) <= tolerance
     );
 
     if (candidates.length < 2) return null;
 
-    // Sort by strike
     candidates.sort((a, b) => a.strike - b.strike);
 
-    // Find strikes bracketing current price
     for (let i = 0; i < candidates.length - 1; i++) {
         if (candidates[i].strike <= currentPrice && candidates[i + 1].strike >= currentPrice) {
             return (candidates[i].iv + candidates[i + 1].iv) / 2;
         }
     }
 
-    // Fallback: use closest strike
     const closest = candidates.reduce((prev, curr) =>
         Math.abs(curr.strike - currentPrice) < Math.abs(prev.strike - currentPrice) ? curr : prev
     );
@@ -215,14 +159,12 @@ function getATMIV(
 }
 
 /**
- * Calculate IV Term Structure Ratio using 4-Card Method
- * Ratio = IV_30d / IV_90d
+ * Calculate IV Term Structure Ratio using 4-Card Method.
  */
 export function calculateIVRatio(chain: OptionData[], currentPrice: number): IVTermResult {
     const iv30 = getATMIV(chain, currentPrice, 30);
     const iv90 = getATMIV(chain, currentPrice, 90);
 
-    // Default to neutral if data unavailable
     if (!iv30 || !iv90 || iv90 === 0) {
         return { ivRatio: 1.0, iv30, iv90, status: 'neutral' };
     }
@@ -241,167 +183,16 @@ export function calculateIVRatio(chain: OptionData[], currentPrice: number): IVT
     return { ivRatio: ratio, iv30, iv90, status };
 }
 
-// ============================================================
-// IV Adjustment (Absolute Threshold)
-// ============================================================
-
-/**
- * Get IV penalty/bonus based on absolute thresholds (Thermometer)
- * 
- * For Buyers (LOQ):
- *   < 0.95 (Contango): +0.5 bonus
- *   0.95-1.05: -1.0 penalty
- *   > 1.10: -3.0 penalty (danger zone)
- * 
- * For Sellers (CSQ):
- *   > 1.05: +2.0 bonus (panic premium)
- *   < 0.90: -1.0 penalty
- *   else: 0
- */
-export function getIVAdjustment(ivRatio: number, strategy: Strategy): number {
-    const riskFactor = getIVRiskFactor(ivRatio);
-
-    if (strategy === 'long') {
-        // 安全时(riskFactor=0.9)加分，危险时(riskFactor=1.3)减分
-        // Range: +0.5 (contango) to -1.5 (backwardation)
-        return (1 - riskFactor) * 5;
-    } else {
-        // Seller: 危险时加分（卖高IV），安全时中性
-        // Range: -0.5 (contango) to +1.5 (backwardation)
-        return (riskFactor - 1) * 5;
-    }
-}
-
-/**
- * IV Risk Factor - Sigmoid 相变模型 (Phase Transition)
- * 
- * 设计理念：
- * - 市场情绪在"冷静"和"恐慌"之间突变
- * - Sigmoid 函数模拟这种相变
- * - k=12 提供平滑但明确的过渡
- * - x0=1.10 作为临界点
- * 
- * 返回值：
- * - ~0.9 = 安全 (Contango, ratio < 1.0)
- * - ~1.0 = 中性 (ratio ≈ 1.05)
- * - ~1.3 = 危险 (Backwardation, ratio > 1.15)
- */
-export function getIVRiskFactor(ratio: number): number {
-    const k = 12;     // Steepness (12 = gradual transition)
-    const x0 = 1.10;  // Critical point
-
-    const raw = 1 / (1 + Math.exp(-k * (ratio - x0)));
-
-    // Map to 0.9 - 1.3 multiplier range
-    return 0.9 + raw * 0.4;
-}
-
-// ============================================================
-// LOQ Score (Long Option Quality)
-// ============================================================
-
-// STABLE VERSION: Weights adjusted to reduce OTM bias
-const LOQ_WEIGHTS = {
-    lambda: 0.40,      // Reduced from 0.45
-    gammaEff: 0.30,    // Reduced from 0.35
-    thetaBurn: -0.15,  // Reduced penalty from -0.20
-    deltaBonus: 0.15   // NEW: Reward ATM, penalize lottery
-};
-
-/**
- * Delta Bonus: Reward ATM options, penalize lottery tickets
- * |Δ| < 0.15  → -2.0  (Lottery ticket penalty)
- * |Δ| 0.15-0.30 → -0.5  (Aggressive zone mild penalty)
- * |Δ| 0.30-0.50 → +1.0  (Sweet spot bonus)
- * |Δ| 0.50-0.70 → +0.5  (Stable zone bonus)
- * |Δ| > 0.70  → 0     (Deep ITM neutral)
- */
-export function getDeltaBonus(delta: number): number {
-    const absDelta = Math.abs(delta);
-    if (absDelta < 0.15) return -2.0;
-    if (absDelta < 0.30) return -0.5;
-    if (absDelta <= 0.50) return 1.0;
-    if (absDelta <= 0.70) return 0.5;
-    return 0;
-}
-
-/**
- * Calculate LOQ score for a single option (STABLE VERSION)
- * 
- * Formula: 0.40×z(Λ) + 0.30×z(Γeff) - 0.15×z(TB) + 0.15×ΔBonus + IV_Adjustment - ThetaPainPenalty
- * 
- * Returns raw Z-weighted score (can be negative)
- */
-export function calculateLOQRaw(
-    zLambda: number,
-    zGammaEff: number,
-    zThetaBurn: number,
-    ivAdjustment: number,
-    deltaBonus: number = 0,
-    thetaBurn: number = 0  // Raw theta burn for pain curve
-): number {
-    const thetaPenalty = getThetaPenalty(thetaBurn);
-
-    return (
-        LOQ_WEIGHTS.lambda * zLambda +
-        LOQ_WEIGHTS.gammaEff * zGammaEff +
-        LOQ_WEIGHTS.thetaBurn * zThetaBurn +
-        LOQ_WEIGHTS.deltaBonus * deltaBonus +
-        ivAdjustment -
-        thetaPenalty  // Exponential pain penalty for short-dated options
-    );
-}
-
-/**
- * Convert raw score to 0-100 scale
- * Uses sigmoid-like transformation
- */
-export function normalizeScoreTo100(rawScore: number): number {
-    // Map typical range [-4, 4] to [0, 100]
-    // Using: score = 50 + (rawScore × 12.5), clamped
-    const scaled = 50 + rawScore * 12.5;
-    return Math.max(0, Math.min(100, Math.round(scaled)));
-}
-
-// ============================================================
-// CSQ Score (Credit Spread Quality)
-// ============================================================
-
-const CSQ_WEIGHTS = {
-    edge: 0.50,
-    pop: 0.30,
-    spread: -0.20  // Negative because lower spread is better
-};
-
-/**
- * Calculate CSQ score for a single option
- * 
- * Formula: 0.50×z(Edge) + 0.30×z(POP) - 0.20×z(Spread) + IV_Adjustment
- */
-export function calculateCSQRaw(
-    zEdge: number,
-    zPOP: number,
-    zSpread: number,
-    ivAdjustment: number
-): number {
-    return (
-        CSQ_WEIGHTS.edge * zEdge +
-        CSQ_WEIGHTS.pop * zPOP +
-        CSQ_WEIGHTS.spread * zSpread +
-        ivAdjustment
-    );
-}
-
-// ============================================================
-// Batch Scoring
-// ============================================================
+// ────────────────────────────────────────────────────────────────
+// Batch Scoring Types
+// ────────────────────────────────────────────────────────────────
 
 export interface ScanContext {
     ticker: string;
     currentPrice: number;
     ivRatio: number;
     ivStatus: 'contango' | 'neutral' | 'backwardation';
-    strategy: Strategy;
+    strategy: StrategyType;
 }
 
 export interface ScoredResult {
@@ -435,21 +226,53 @@ export interface ScoredResult {
     };
 }
 
+// ────────────────────────────────────────────────────────────────
+// Discriminated processed types (eliminate `as any`)
+// ────────────────────────────────────────────────────────────────
+
+interface ProcessedBase {
+    opt: OptionData;
+    mid: number;
+    spreadPct: number;
+}
+
+interface ProcessedLong extends ProcessedBase {
+    strategy: 'long';
+    lambda: number;
+    gammaEff: number;
+    thetaBurn: number;
+}
+
+interface ProcessedShort extends ProcessedBase {
+    strategy: 'short';
+    pop: number;
+    edge: number;
+}
+
+type ProcessedOption = ProcessedLong | ProcessedShort;
+
+// ────────────────────────────────────────────────────────────────
+// Batch Scoring
+// ────────────────────────────────────────────────────────────────
+
+export interface ScanFilters {
+    dteMin?: number;
+    dteMax?: number;
+    strikeRangePercent?: number;
+    minVolume?: number;
+    maxSpreadPct?: number;
+    isDayTrade?: boolean;
+}
+
 /**
- * Score all options in a chain for a given strategy
- * Applies hard filters, calculates metrics, Z-scores, and final scores
+ * Score all options in a chain for a given strategy.
+ * Now supports Day Trade mode and uses Lambda compression.
  */
 export function scoreOptionsChain(
     chain: OptionData[],
     currentPrice: number,
-    strategy: Strategy,
-    filters: {
-        dteMin?: number;
-        dteMax?: number;
-        strikeRangePercent?: number;
-        minVolume?: number;
-        maxSpreadPct?: number;
-    } = {}
+    strategy: StrategyType,
+    filters: ScanFilters = {}
 ): { context: ScanContext; results: ScoredResult[] } {
 
     const {
@@ -457,33 +280,55 @@ export function scoreOptionsChain(
         dteMax = 60,
         strikeRangePercent = 0.30,
         minVolume = 50,
-        maxSpreadPct = 0.10
+        maxSpreadPct = 0.10,
+        isDayTrade = false,
     } = filters;
 
-    // Calculate IV Ratio
     const ivResult = calculateIVRatio(chain, currentPrice);
-    const ivAdjustment = getIVAdjustment(ivResult.ivRatio, strategy);
+    const ivAdjustment = _getIVAdjustment(ivResult.ivRatio, strategy);
 
-    // Hard filters
     const minStrike = currentPrice * (1 - strikeRangePercent);
     const maxStrike = currentPrice * (1 + strikeRangePercent);
 
-    const filtered = chain.filter(opt => {
+    // Single-pass filter + metric calculation
+    const processed: ProcessedOption[] = [];
+
+    for (const opt of chain) {
+        if (opt.dte < dteMin || opt.dte > dteMax) continue;
+        if (opt.strike < minStrike || opt.strike > maxStrike) continue;
+        if (opt.volume < minVolume) continue;
+        if (opt.bid <= 0 || opt.ask <= 0) continue;
+
         const mid = (opt.bid + opt.ask) / 2;
-        const spreadPct = calculateSpreadPct(opt.bid, opt.ask);
+        if (mid <= 0) continue;
 
-        return (
-            opt.dte >= dteMin &&
-            opt.dte <= dteMax &&
-            opt.strike >= minStrike &&
-            opt.strike <= maxStrike &&
-            opt.volume >= minVolume &&
-            spreadPct <= maxSpreadPct &&
-            mid > 0
-        );
-    });
+        const spreadPct = _calculateSpreadPct(opt.bid, opt.ask);
+        if (spreadPct > maxSpreadPct) continue;
 
-    if (filtered.length === 0) {
+        if (strategy === 'long') {
+            processed.push({
+                strategy: 'long',
+                opt,
+                mid,
+                spreadPct,
+                lambda: _calculateLambda(opt.delta, currentPrice, mid),
+                gammaEff: _calculateGammaEfficiency(opt.gamma, mid),
+                thetaBurn: _calculateThetaBurn(opt.theta, mid),
+            });
+        } else {
+            const pop = _calculatePOP(opt.delta);
+            processed.push({
+                strategy: 'short',
+                opt,
+                mid,
+                spreadPct,
+                pop,
+                edge: _calculateSellerEdge(pop, mid),
+            });
+        }
+    }
+
+    if (processed.length === 0) {
         return {
             context: {
                 ticker: '',
@@ -496,48 +341,27 @@ export function scoreOptionsChain(
         };
     }
 
-    // Calculate raw metrics
-    const processed = filtered.map(opt => {
-        const mid = (opt.bid + opt.ask) / 2;
-        const spreadPct = calculateSpreadPct(opt.bid, opt.ask);
-
-        if (strategy === 'long') {
-            return {
-                opt,
-                mid,
-                spreadPct,
-                lambda: calculateLambda(opt.delta, currentPrice, mid),
-                gammaEff: calculateGammaEfficiency(opt.gamma, mid),
-                thetaBurn: calculateThetaBurn(opt.theta, mid)
-            };
-        } else {
-            const pop = calculatePOP(opt.delta);
-            return {
-                opt,
-                mid,
-                spreadPct,
-                pop,
-                edge: calculateSellerEdge(pop, mid),
-            };
-        }
-    });
-
-    // Z-Score normalization
     let scored: ScoredResult[];
 
     if (strategy === 'long') {
-        const lambdas = processed.map(p => (p as any).lambda);
-        const gammas = processed.map(p => (p as any).gammaEff);
-        const thetas = processed.map(p => (p as any).thetaBurn);
+        const longItems = processed as ProcessedLong[];
 
-        const zLambdas = normalizeToZScores(lambdas);
-        const zGammas = normalizeToZScores(gammas);
-        const zThetas = normalizeToZScores(thetas);
+        // Apply Lambda compression before Z-Score normalization
+        const compressedLambdas = longItems.map(p => _compressLambda(p.lambda));
+        const gammas = longItems.map(p => p.gammaEff);
+        const thetas = longItems.map(p => p.thetaBurn);
 
-        scored = processed.map((p, i) => {
-            const thetaBurnValue = (p as any).thetaBurn;
-            const rawScore = calculateLOQRaw(zLambdas[i], zGammas[i], zThetas[i], ivAdjustment, 0, thetaBurnValue);
-            const score = normalizeScoreTo100(rawScore);
+        const zLambdas = _normalizeToZScores(compressedLambdas);
+        const zGammas = _normalizeToZScores(gammas);
+        const zThetas = _normalizeToZScores(thetas);
+
+        scored = longItems.map((p, i) => {
+            const deltaBonus = _getDeltaBonus(p.opt.delta);
+            const rawScore = _calculateLOQRaw(
+                zLambdas[i], zGammas[i], zThetas[i],
+                ivAdjustment, deltaBonus, p.thetaBurn, isDayTrade
+            );
+            const score = _normalizeScoreTo100(rawScore);
 
             return {
                 symbol: p.opt.symbol,
@@ -548,9 +372,9 @@ export function scoreOptionsChain(
                 price: p.mid,
                 score,
                 metrics: {
-                    lambda: (p as any).lambda,
-                    gammaEff: (p as any).gammaEff,
-                    thetaBurn: (p as any).thetaBurn,
+                    lambda: p.lambda,
+                    gammaEff: p.gammaEff,
+                    thetaBurn: p.thetaBurn,
                     spreadPct: p.spreadPct
                 },
                 greeks: {
@@ -569,18 +393,19 @@ export function scoreOptionsChain(
             };
         });
     } else {
-        // Seller strategy
-        const edges = processed.map(p => (p as any).edge);
-        const pops = processed.map(p => (p as any).pop);
-        const spreads = processed.map(p => p.spreadPct);
+        const shortItems = processed as ProcessedShort[];
 
-        const zEdges = normalizeToZScores(edges);
-        const zPops = normalizeToZScores(pops);
-        const zSpreads = normalizeToZScores(spreads);
+        const edges = shortItems.map(p => p.edge);
+        const pops = shortItems.map(p => p.pop);
+        const spreads = shortItems.map(p => p.spreadPct);
 
-        scored = processed.map((p, i) => {
-            const rawScore = calculateCSQRaw(zEdges[i], zPops[i], zSpreads[i], ivAdjustment);
-            const score = normalizeScoreTo100(rawScore);
+        const zEdges = _normalizeToZScores(edges);
+        const zPops = _normalizeToZScores(pops);
+        const zSpreads = _normalizeToZScores(spreads);
+
+        scored = shortItems.map((p, i) => {
+            const rawScore = _calculateCSQRaw(zEdges[i], zPops[i], zSpreads[i], ivAdjustment);
+            const score = _normalizeScoreTo100(rawScore);
 
             return {
                 symbol: p.opt.symbol,
@@ -591,8 +416,8 @@ export function scoreOptionsChain(
                 price: p.mid,
                 score,
                 metrics: {
-                    pop: (p as any).pop,
-                    edge: (p as any).edge,
+                    pop: p.pop,
+                    edge: p.edge,
                     spreadPct: p.spreadPct
                 },
                 greeks: {
@@ -612,12 +437,11 @@ export function scoreOptionsChain(
         });
     }
 
-    // Sort by score descending
     scored.sort((a, b) => b.score - a.score);
 
     return {
         context: {
-            ticker: filtered[0]?.symbol?.slice(0, 6).trim() || '',
+            ticker: chain[0]?.symbol?.slice(0, 6).trim() || '',
             currentPrice,
             ivRatio: ivResult.ivRatio,
             ivStatus: ivResult.status,
@@ -625,100 +449,4 @@ export function scoreOptionsChain(
         },
         results: scored
     };
-}
-
-/**
- * Calculate LOQ score for a single position (Portfolio use)
- * Used when we don't have a full chain for comparison
- */
-export function calculateSingleLOQ(
-    delta: number,
-    gamma: number,
-    theta: number,
-    stockPrice: number,
-    optionPrice: number,
-    ivRatio: number = 1.0
-): number {
-    const lambda = calculateLambda(delta, stockPrice, optionPrice);
-    const gammaEff = calculateGammaEfficiency(gamma, optionPrice);
-    const thetaBurn = calculateThetaBurn(theta, optionPrice);
-
-    // Without a pool, we use reference baselines
-    // Good Lambda: 5-15, Good GammaEff: 0.01-0.05, Good ThetaBurn: 0-0.05
-    const zLambda = (lambda - 8) / 4;  // Baseline: 8, std: 4
-    const zGamma = (gammaEff - 0.02) / 0.015;
-    const zTheta = (thetaBurn - 0.03) / 0.02;
-
-    const ivAdjustment = getIVAdjustment(ivRatio, 'long');
-    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, ivAdjustment, 0, thetaBurn);
-
-    return normalizeScoreTo100(rawScore);
-}
-// ============================================================
-// SPREAD SCORING (Ported from Strategy Recommender)
-// ============================================================
-
-const compressLambda = (lambda: number): number => {
-    const threshold = 20;
-    const decayRate = 0.1;
-    if (lambda <= threshold) return lambda;
-    return threshold + (lambda - threshold) * decayRate;
-};
-
-export interface CreditSpreadMetrics {
-    credit: number;
-    width: number;
-    shortDelta: number;
-    shortStrike: number;
-    currentPrice: number;
-}
-
-export function calculateCreditSpreadScore(metrics: CreditSpreadMetrics): number {
-    const { credit, width, shortDelta, shortStrike, currentPrice } = metrics;
-    const maxRisk = width - credit;
-    if (maxRisk <= 0) return 0;
-
-    const roi = (credit / maxRisk) * 100;
-    const pop = 1 - Math.abs(shortDelta);
-    const distance = Math.abs(currentPrice - shortStrike) / currentPrice;
-
-    // Score components
-    const scoreROI = Math.min(roi * 4, 100);             // 25% ROI = 100 pts
-    const scorePOP = pop * 100;                          // 100% POP = 100 pts
-    const scoreDistance = Math.min(distance * 1000, 100); // 10% OTM = 100 pts
-
-    const finalScore = 0.4 * scoreROI + 0.4 * scorePOP + 0.2 * scoreDistance;
-    return Math.round(Math.min(100, Math.max(0, finalScore)));
-}
-
-export interface DebitSpreadMetrics {
-    debit: number;
-    width: number;
-    longDelta: number;
-    longPrice: number;
-    currentPrice: number;
-}
-
-export function calculateDebitSpreadScore(metrics: DebitSpreadMetrics): number {
-    const { debit, width, longDelta, longPrice, currentPrice } = metrics;
-    const maxProfit = width - debit;
-    if (debit <= 0) return 0;
-
-    const riskReward = maxProfit / debit;
-
-    // Lambda (Leverage)
-    // Note: Use longPrice as 'mid' approximation if mid not available
-    const lambda = longPrice > 0 ? Math.abs(longDelta) * (currentPrice / longPrice) : 0;
-    const compLambda = compressLambda(lambda);
-
-    // Delta Bonus
-    const deltaBonus = getDeltaBonus(longDelta);
-
-    // Score components
-    const lambdaScore = Math.min((compLambda / 20) * 100, 100); // Lambda 20 = 100 pts
-    const rrScore = Math.min((riskReward / 3) * 100, 100);      // 1:3 R:R = 100 pts
-    const deltaScore = 50 + deltaBonus * 12.5;
-
-    const finalScore = 0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore;
-    return Math.round(Math.min(100, Math.max(0, finalScore)));
 }

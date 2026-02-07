@@ -1,127 +1,25 @@
 // api/strategy-recommend.js
 // Strategy Recommender API - Intelligent Options Strategy Selection
 // Based on IV Regime and User Direction (BULL/BEAR)
+// Uses shared scoring module (Single Source of Truth)
 
-// =============================================================================
-// SCORING UTILITIES (Shared with scan-options.js)
-// =============================================================================
-
-const getIVRiskFactor = (ratio) => {
-    const k = 12;
-    const x0 = 1.10;
-    const raw = 1 / (1 + Math.exp(-k * (ratio - x0)));
-    return 0.9 + raw * 0.4;
-};
-
-const getDeltaBonus = (delta) => {
-    const absDelta = Math.abs(delta);
-    const lerp = (x, x1, x2, y1, y2) =>
-        y1 + (y2 - y1) * ((x - x1) / (x2 - x1));
-
-    if (absDelta < 0.15) return -2.0;
-    if (absDelta < 0.30) return lerp(absDelta, 0.15, 0.30, -2.0, -0.5);
-    if (absDelta < 0.50) return lerp(absDelta, 0.30, 0.50, -0.5, 1.0);
-    if (absDelta < 0.70) return lerp(absDelta, 0.50, 0.70, 1.0, 0.5);
-    if (absDelta <= 1.0) return lerp(absDelta, 0.70, 1.0, 0.5, 0);
-    return 0;
-};
-
-const compressLambda = (lambda) => {
-    const threshold = 20;
-    const decayRate = 0.1;
-    if (lambda <= threshold) return lambda;
-    return threshold + (lambda - threshold) * decayRate;
-};
-
-const getThetaPenalty = (thetaBurn) => {
-    const SAFE_ZONE = 0.005;
-    if (thetaBurn <= SAFE_ZONE) return 0;
-    const excess = thetaBurn - SAFE_ZONE;
-    return Math.min(Math.pow(excess * 100, 2) * 0.5, 10);
-};
-
-const zScores = (values) => {
-    const n = values.length;
-    if (n < 2) return values.map(() => 0);
-    const mean = values.reduce((s, v) => s + v, 0) / n;
-    const std = Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / n) || 1;
-    return values.map(v => (v - mean) / std);
-};
+const {
+    compressLambda,
+    getThetaPenalty,
+    getDeltaBonus,
+    zScores,
+    getIVRiskFactor,
+    calculateLOQRaw,
+    normalizeScoreTo100,
+    calculateSpreadPct,
+    getCleanATM_IV,
+    calculateTargetIV,
+    parseChain,
+} = require('./_shared/scoring.js');
 
 // =============================================================================
 // DATA FETCHING UTILITIES
 // =============================================================================
-
-function getCleanATM_IV(chain, currentPrice) {
-    if (!chain || chain.length === 0) return null;
-
-    const strikes = {};
-    chain.forEach(opt => {
-        if (!strikes[opt.strike]) strikes[opt.strike] = {};
-        strikes[opt.strike][opt.type] = opt;
-    });
-
-    let bestStrike = null;
-    let minDiff = Infinity;
-
-    Object.keys(strikes).forEach(strikeStr => {
-        const strike = parseFloat(strikeStr);
-        if (strikes[strike].Call && strikes[strike].Put) {
-            const diff = Math.abs(strike - currentPrice);
-            if (diff < minDiff) {
-                minDiff = diff;
-                bestStrike = strike;
-            }
-        }
-    });
-
-    if (bestStrike === null) return null;
-
-    const atmCall = strikes[bestStrike].Call;
-    const atmPut = strikes[bestStrike].Put;
-
-    if (!atmCall.iv || !atmPut.iv) return null;
-
-    return (atmCall.iv + atmPut.iv) / 2;
-}
-
-function calculateTargetIV(allOptions, targetDTE, currentPrice) {
-    const dtes = [...new Set(allOptions.map(o => o.dte))].sort((a, b) => a - b);
-
-    if (dtes.length === 0) return null;
-
-    if (dtes.includes(targetDTE)) {
-        const chain = allOptions.filter(o => o.dte === targetDTE);
-        return getCleanATM_IV(chain, currentPrice);
-    }
-
-    let nearDTE = null;
-    let farDTE = null;
-
-    for (const dte of dtes) {
-        if (dte < targetDTE) nearDTE = dte;
-        if (dte > targetDTE) {
-            farDTE = dte;
-            break;
-        }
-    }
-
-    if (nearDTE === null || farDTE === null) return null;
-
-    const chainNear = allOptions.filter(o => o.dte === nearDTE);
-    const chainFar = allOptions.filter(o => o.dte === farDTE);
-
-    const ivNear = getCleanATM_IV(chainNear, currentPrice);
-    const ivFar = getCleanATM_IV(chainFar, currentPrice);
-
-    if (ivNear === null || ivFar === null) return null;
-
-    const timeRange = farDTE - nearDTE;
-    const timeToTarget = targetDTE - nearDTE;
-    const weight = timeToTarget / timeRange;
-
-    return ivNear + (ivFar - ivNear) * weight;
-}
 
 async function fetchRV20(ticker) {
     try {
@@ -155,11 +53,8 @@ async function fetchRV20(ticker) {
 
         const recentReturns = returns.slice(-30);
         const mean = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
-        // 使用总体标准差 (Population StdDev) 以符合机构口径，并改用 30D 窗口以匹配 IV30
         const variance = recentReturns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentReturns.length;
-        const annualizedRV = Math.sqrt(variance) * Math.sqrt(252) * 100;
-
-        return annualizedRV;
+        return Math.sqrt(variance) * Math.sqrt(252) * 100;
     } catch (e) {
         console.error("RV Fetch Error:", e);
         return null;
@@ -191,8 +86,7 @@ async function fetchEarnings(ticker) {
                         if (!isNaN(parsedDate.getTime())) {
                             const today = new Date();
                             today.setHours(0, 0, 0, 0);
-                            const diffDays = Math.ceil((parsedDate - today) / (1000 * 60 * 60 * 24));
-                            return diffDays;
+                            return Math.ceil((parsedDate - today) / (1000 * 60 * 60 * 24));
                         }
                     }
                 }
@@ -210,7 +104,7 @@ function detectRegime(iv30, iv90, rv20) {
             ivRatio: 1.0,
             ivRvRatio: null,
             mode: 'NEUTRAL',
-            advice: '⚖️ Insufficient Data for IV Ratio. Defaulting to Neutral.'
+            advice: 'Insufficient Data for IV Ratio. Defaulting to Neutral.'
         };
     }
 
@@ -218,15 +112,14 @@ function detectRegime(iv30, iv90, rv20) {
     const ivRvRatio = rv20 ? (iv30 * 100) / rv20 : null;
 
     let mode = 'NEUTRAL';
-    let advice = '⚖️ Neutral IV: Either strategy viable, compare scores';
+    let advice = 'Neutral IV: Either strategy viable, compare scores';
 
     if (termRatio > 1.05) {
         mode = 'CREDIT';
-        advice = '🔴 Backwardation (Expensive near-term): Sell Credit Spreads';
-    }
-    else if (termRatio < 0.95) {
+        advice = 'Backwardation (Expensive near-term): Sell Credit Spreads';
+    } else if (termRatio < 0.95) {
         mode = 'DEBIT';
-        advice = '🟢 Contango (Cheap near-term IV): Buy Debit Spreads';
+        advice = 'Contango (Cheap near-term IV): Buy Debit Spreads';
     }
 
     return { ivRatio: termRatio, ivRvRatio, mode, advice };
@@ -239,15 +132,13 @@ function detectRegime(iv30, iv90, rv20) {
 function calculateMaxContracts(maxRisk) {
     const ACCOUNT_RISK_LIMIT = 57; // 1% of $5,700
     if (maxRisk <= 0) return 0;
-    return Math.floor(ACCOUNT_RISK_LIMIT / (maxRisk * 100)); // risk * 100 for dollar amount
+    return Math.floor(ACCOUNT_RISK_LIMIT / (maxRisk * 100));
 }
 
 function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings) {
     const results = [];
-    const widths = [5, 10]; // Could be adaptive based on price
+    const widths = [5, 10];
 
-    // Safety check: Filter out low DTE if earnings or strictly enforce logic
-    // Anchor: Short Leg with Delta 0.20 - 0.40
     const shorts = chain.filter(o =>
         o.type === type &&
         Math.abs(o.delta) >= 0.20 &&
@@ -265,64 +156,48 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
 
             if (!longLeg) continue;
 
-            // --- LIQUIDITY GUARD (COMPOSITE) ---
-            // Conservative: Sell at Bid, Buy Back (Close) at Ask
-            // Spread Bid = Short Bid - Long Ask (Your entry credit - conservative)
-            // Spread Ask = Short Ask - Long Bid (Your exit debit - conservative)
+            // Liquidity Guard (Composite)
+            if (shortLeg.bid <= 0 || longLeg.ask <= 0) continue;
             const spreadBid = shortLeg.bid - longLeg.ask;
             const spreadAsk = shortLeg.ask - longLeg.bid;
             const spreadMid = (spreadBid + spreadAsk) / 2;
 
-            // Filter: Positive Credit Required
             if (spreadBid <= 0.10) continue;
 
             const spreadPct = spreadMid > 0 ? (spreadAsk - spreadBid) / spreadMid : 1.0;
-            if (spreadPct > 0.15) continue; // Hard liquidity filter
+            if (spreadPct > 0.15) continue;
 
-            // --- KEY METRICS ---
-            const credit = spreadBid; // Conservative Credit
+            // Key Metrics
+            const credit = spreadBid;
             const maxRisk = width - credit;
             const roi = (credit / maxRisk) * 100;
             const pop = 1 - Math.abs(shortLeg.delta);
             const distance = Math.abs(currentPrice - shortLeg.strike) / currentPrice;
             const dte = shortLeg.dte;
 
-            // --- EARNINGS GUARD ---
-            // If earnings are within DTE, penalize heavily or filter
+            // Earnings Guard
             const includesEarnings = daysUntilEarnings !== null && daysUntilEarnings <= dte && daysUntilEarnings >= 0;
             const earningsRisk = includesEarnings && daysUntilEarnings <= 10;
+            if (earningsRisk) continue;
 
-            if (earningsRisk) continue; // Skip Credit Spreads if Earnings within 10 days (Gamma Risk)
-
-            // --- SCORING ---
-            // 1. ROI Score (Cap at 25%)
+            // Scoring
             const scoreROI = Math.min(roi * 4, 100);
-            // 2. POP Score
             const scorePOP = pop * 100;
-            // 3. Distance Score
             const scoreDistance = Math.min(distance * 1000, 100);
 
-            // 4. DTE Sweet Spot (30-45 is ideal)
             let scoreDTE = 50;
             if (dte >= 30 && dte <= 45) scoreDTE = 100;
             else if (dte >= 21 && dte < 30) scoreDTE = 75;
             else if (dte > 45 && dte <= 60) scoreDTE = 80;
-            else if (dte < 21) scoreDTE = 20; // DTE Penalty
+            else if (dte < 21) scoreDTE = 20;
 
-            // 5. IV/RV Boost (Reference Only - Removed from Score)
-            let ivBoost = 0;
-            // if (ivRvRatio && ivRvRatio > 1.25) ivBoost = 15;
-            // if (ivRvRatio && ivRvRatio < 0.90) ivBoost = -15;
+            let finalScore = (0.35 * scoreROI) + (0.30 * scorePOP) + (0.15 * scoreDistance) + (0.20 * scoreDTE);
+            if (includesEarnings) finalScore -= 25;
 
-            let finalScore = (0.35 * scoreROI) + (0.30 * scorePOP) + (0.15 * scoreDistance) + (0.20 * scoreDTE) + ivBoost;
-            if (includesEarnings) finalScore -= 25; // Penalty if holding through earnings (even if > 10d)
-
-            // Hard filter: ROI check
             if (roi < 15) continue;
 
             const maxContracts = calculateMaxContracts(maxRisk);
 
-            // Why This Logic
             const whyThisParts = [];
             if (roi > 20) whyThisParts.push(`${roi.toFixed(0)}% ROI`);
             if (ivRvRatio && ivRvRatio > 1.25) whyThisParts.push('High IV Premium (Ref)');
@@ -345,7 +220,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
                 score: Math.min(100, Math.max(0, Math.round(finalScore))),
                 whyThis: whyThisParts.join(', ') || 'Balanced Risk/Reward',
                 recommendation: {
-                    maxContracts: maxContracts,
+                    maxContracts,
                     action: "SELL (Open)"
                 }
             });
@@ -358,7 +233,6 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
     const results = [];
     const widths = [2.5, 5];
 
-    // Anchor: Long Leg with Delta 0.45 - 0.70
     const longs = chain.filter(o =>
         o.type === type &&
         Math.abs(o.delta) >= 0.45 &&
@@ -376,26 +250,24 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
 
             if (!shortLeg) continue;
 
-            const debit = longLeg.ask - shortLeg.bid; // Conservative Debit
+            const debit = longLeg.ask - shortLeg.bid;
             const maxProfit = width - debit;
             const maxRisk = debit;
 
-            // Check for valid debit
             if (debit <= 0 || maxRisk <= 0) continue;
 
             const riskReward = maxProfit / debit;
             const mid = (longLeg.bid + longLeg.ask) / 2;
 
-            if (mid <= 0) continue; // Avoid division by zero
+            if (mid <= 0) continue;
 
-            const spreadPct = (longLeg.ask - longLeg.bid) / mid;
+            const spreadPctVal = (longLeg.ask - longLeg.bid) / mid;
 
-            // --- FILTERS ---
-            if (debit >= width * 0.55) continue; // Cost > 55% of width is bad
-            if (riskReward < 1.5) continue; // Strict R/R filter (v2.3)
-            if (spreadPct > 0.15) continue; // Liquidity check
+            if (debit >= width * 0.55) continue;
+            if (riskReward < 1.5) continue;
+            if (spreadPctVal > 0.15) continue;
 
-            // --- SCORING ---
+            // Scoring
             const lambda = Math.abs(longLeg.delta) * (currentPrice / mid);
             const compLambda = compressLambda(lambda);
             const deltaBonus = getDeltaBonus(longLeg.delta);
@@ -406,12 +278,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
             const rrScore = Math.min((riskReward / 3) * 100, 100);
             const deltaScore = 50 + deltaBonus * 12.5;
 
-            // IV/RV Adjustment (Reference Only - Removed from Score)
-            let ivAdj = 0;
-            // if (ivRvRatio && ivRvRatio < 0.85) ivAdj = 15;
-            // if (ivRvRatio && ivRvRatio > 1.15) ivAdj = -15;
-
-            const finalScore = (0.4 * lambdaScore) + (0.35 * rrScore) + (0.25 * deltaScore) + ivAdj;
+            const finalScore = (0.4 * lambdaScore) + (0.35 * rrScore) + (0.25 * deltaScore);
             const maxContracts = calculateMaxContracts(maxRisk);
 
             results.push({
@@ -430,7 +297,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
                 score: Math.min(100, Math.max(0, Math.round(finalScore))),
                 whyThis: `R/R ${riskReward.toFixed(1)}:1, λ=${lambda.toFixed(1)}${ivRvRatio && ivRvRatio < 0.85 ? ', Cheap Vol (Ref)' : ''}`,
                 recommendation: {
-                    maxContracts: maxContracts,
+                    maxContracts,
                     action: "BUY (Open)"
                 }
             });
@@ -443,20 +310,24 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
     const filtered = chain.filter(o =>
         o.type === type &&
         Math.abs(o.delta) >= 0.25 &&
-        Math.abs(o.delta) <= 0.60
+        Math.abs(o.delta) <= 0.60 &&
+        o.bid > 0 && o.ask > 0
     );
 
     if (filtered.length === 0) return [];
 
-    const processed = filtered.map(opt => {
+    const processed = [];
+    for (const opt of filtered) {
         const mid = (opt.bid + opt.ask) / 2;
-        if (mid <= 0) return null;
+        if (mid <= 0) continue;
         const lambda = Math.abs(opt.delta) * (currentPrice / mid);
         const gammaEff = opt.gamma / mid;
         const thetaBurn = Math.abs(opt.theta) / mid;
-        const spreadPct = (opt.ask - opt.bid) / mid;
-        return { opt, mid, lambda, gammaEff, thetaBurn, spreadPct };
-    }).filter(p => p !== null);
+        const spreadPctVal = (opt.ask - opt.bid) / mid;
+        processed.push({ opt, mid, lambda, gammaEff, thetaBurn, spreadPct: spreadPctVal });
+    }
+
+    if (processed.length === 0) return [];
 
     const compressedLambdas = processed.map(p => compressLambda(p.lambda));
     const gammas = processed.map(p => p.gammaEff);
@@ -467,14 +338,8 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
 
     return processed.map((p, i) => {
         const deltaBonus = getDeltaBonus(p.opt.delta);
-        const thetaPenalty = getThetaPenalty(p.thetaBurn);
-
-        let ivAdj = 0;
-        // if (ivRvRatio && ivRvRatio < 0.85) ivAdj = 10; // Cheap vol good for buying long
-        // if (ivRvRatio && ivRvRatio > 1.15) ivAdj = -10; // Expensive vol bad for buying long
-
-        const rawScore = 0.40 * zL[i] + 0.30 * zG[i] - 0.15 * zT[i] + 0.15 * deltaBonus + ivAdj - thetaPenalty;
-        const score = Math.max(0, Math.min(100, Math.round(50 + rawScore * 12.5)));
+        const rawScore = calculateLOQRaw(zL[i], zG[i], zT[i], 0, deltaBonus, p.thetaBurn, false);
+        const score = normalizeScoreTo100(rawScore);
 
         return {
             type: `Long ${type}`,
@@ -495,61 +360,6 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
             whyThis: `λ=${p.lambda.toFixed(1)}, Δ=${Math.abs(p.opt.delta).toFixed(2)}${ivRvRatio && ivRvRatio < 0.85 ? ', Cheap Vol (Ref)' : ''}`
         };
     }).sort((a, b) => b.score - a.score).slice(0, 5);
-}
-
-function parseChain(options, currentPrice, targetDTE = null) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    return options.map(opt => {
-        const symbol = opt.option || '';
-        const dateMatch = symbol.match(/(\d{6})[CP]/);
-        let dte = 30;
-        let expiration = '';
-
-        if (dateMatch) {
-            const dateStr = dateMatch[1];
-            const yy = parseInt(dateStr.slice(0, 2));
-            const mm = parseInt(dateStr.slice(2, 4));
-            const dd = parseInt(dateStr.slice(4, 6));
-            const expDate = new Date(2000 + yy, mm - 1, dd);
-            dte = Math.ceil((expDate.getTime() - today.getTime()) / 86400000);
-            expiration = `${2000 + yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
-        }
-
-        const strikeMatch = symbol.match(/[CP](\d{8})$/);
-        const strike = strikeMatch ? parseInt(strikeMatch[1]) / 1000 : 0;
-        const type = symbol.includes('C') && symbol.match(/\d{6}C/) ? 'Call' : 'Put';
-
-        return {
-            symbol,
-            strike,
-            type,
-            expiration,
-            dte,
-            bid: opt.bid || 0,
-            ask: opt.ask || 0,
-            delta: opt.delta || 0,
-            gamma: opt.gamma || 0,
-            theta: opt.theta || 0,
-            vega: opt.vega || 0,
-            iv: opt.iv || 0,
-            volume: opt.volume || 0,
-            openInterest: opt.open_interest || 0
-        };
-    }).filter(opt => {
-        const minStrike = currentPrice * 0.85;
-        const maxStrike = currentPrice * 1.15;
-        if (opt.strike < minStrike || opt.strike > maxStrike) return false;
-
-        if (targetDTE !== null) {
-            if (targetDTE < 30) return opt.dte >= 14 && opt.dte < 30;
-            if (targetDTE < 45) return opt.dte >= 30 && opt.dte < 45;
-            if (targetDTE < 90) return opt.dte >= 45 && opt.dte < 90;
-            return opt.dte >= 90;
-        }
-        return opt.dte > 0 && opt.dte <= 730;
-    });
 }
 
 // =============================================================================
@@ -585,7 +395,7 @@ export default async function handler(req, res) {
             fetchEarnings(upperTicker)
         ]);
 
-        if (!cboeRes || !cboeRes.data || !cboeRes.data.options) {
+        if (!cboeRes?.data?.options) {
             return res.status(404).json({ error: 'No options data found or API error' });
         }
 
@@ -604,7 +414,7 @@ export default async function handler(req, res) {
         const debitStrat = isBull ? 'Call' : 'Put';
         const legStrat = isBull ? 'Call' : 'Put';
 
-        // 2. Build Strategies with improved guards
+        // 2. Build Strategies
         const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings);
         const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio);
         const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice);
@@ -651,7 +461,7 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
-        console.error('🚨 Strategy API Error:', error.message);
+        console.error('Strategy API Error:', error.message);
         return res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 }

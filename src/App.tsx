@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './lib/supabase';
-import { Position, Transaction } from './lib/types';
+import { Position, Transaction, WatchlistItem, DirectAddItem, PositionAction, RollData } from './lib/types';
 import { formatDate } from './lib/utils';
 import { TabNav } from './components/TabNav';
 import { LoginPage } from './pages/Login';
@@ -77,7 +77,7 @@ function App() {
         await supabase.auth.signOut();
     };
 
-    const onAction = async (id: string, action: { type: string; quantity: number; price: number }) => {
+    const onAction = async (id: string, action: PositionAction) => {
         // Create transaction
         await supabase.from('transactions').insert([{
             position_id: id,
@@ -113,7 +113,7 @@ function App() {
         fetchData();
     };
 
-    const onAddDirect = async (item: any) => {
+    const onAddDirect = async (item: DirectAddItem) => {
         const { data, error } = await supabase.from('positions').insert([{
             ticker: item.ticker,
             strike: item.strike,
@@ -143,15 +143,7 @@ function App() {
 
     const onRoll = async (
         originalPositionId: string,
-        rollData: {
-            closeQty: number;
-            closePrice: number;
-            newStrike: number | string;
-            newType: 'Call' | 'Put';
-            newExpiration: string;
-            newQty: number;
-            newPrice: number;
-        }
+        rollData: RollData,
     ) => {
         // 1. Close Existing
         const originalPos = positions.find(p => p.id === originalPositionId);
@@ -226,7 +218,7 @@ function App() {
         }
     };
 
-    const onAddToWatchlist = async (item: any) => {
+    const onAddToWatchlist = async (item: WatchlistItem) => {
         console.log('Adding to watchlist:', item);
         const { error } = await supabase.from('positions').insert([{
             ticker: item.ticker,

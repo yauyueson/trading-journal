@@ -1,6 +1,6 @@
 # Trading Journal - 技术文档
 
-> 最后更新: 2026年1月31日
+> 最后更新: 2026年2月7日
 
 ## 项目概述
 
@@ -21,30 +21,45 @@
 ## 技术架构
 
 ```
-┌─────────────────────────────────────────────┐
-│            Frontend (Single HTML)            │
-│  React 18 + Tailwind CSS + Babel (in-browser)│
-└─────────────────────┬───────────────────────┘
-                      │ HTTPS API
-                      ▼
-┌─────────────────────────────────────────────┐
-│          Vercel Serverless Functions         │
-│  /api/option-price.js → CBOE API Proxy       │
-└─────────────────────┬───────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────┐
-│              Supabase Backend                │
-│  PostgreSQL Database + REST API + Auth       │
-└─────────────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────┐
-│        External Data: CBOE Free API          │
-│  cdn.cboe.com/api/global/delayed_quotes/     │
-│  (15分钟延迟，免费，无需API Key)              │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│              Frontend (React 18 + TypeScript + Vite)             │
+│  Portfolio | Watchlist | Scanner | Strategy Recommender | ...   │
+│  src/lib/oss-core.ts ← 评分算法单点事实 (与 API 逻辑一致)         │
+│  src/lib/scoring.ts  ← 批量评分、IV 期限结构，复用 oss-core      │
+└─────────────────────────────┬───────────────────────────────────┘
+                              │ HTTPS API
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│               Vercel Serverless Functions                        │
+│  api/_shared/scoring.js  ← 与 oss-core.ts 镜像，单点事实         │
+│  /api/option-price.js    → 单合约价格 + Greeks                   │
+│  /api/scan-options.js    → OSS 扫描器 (引用 _shared/scoring)     │
+│  /api/strategy-recommend.js → 策略推荐 (引用 _shared/scoring)     │
+│  /api/underlying-rv.js   → 标的 RV；/api/earnings.js → 财报日期   │
+└─────────────────────────────┬───────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Supabase Backend                             │
+│  PostgreSQL + REST API + Realtime + Auth                         │
+└─────────────────────────────┬───────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│            External: CBOE Delayed API + Nasdaq API               │
+│  cdn.cboe.com (期权链/报价) | api.nasdaq.com (历史/财报)          │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+### OSS 评分架构（单点事实）
+
+| 层级 | 文件 | 职责 |
+|------|------|------|
+| **规范源** | `src/lib/oss-core.ts` | 所有 LOQ/CSQ/Delta Bonus/Theta 惩罚/Lambda 压缩/Z-Score/价差评分；LERP、Sigmoid、边缘情况防护 |
+| **前端复用** | `src/lib/scoring.ts` | 从 oss-core  re-export；额外提供批量 `scoreOptionsChain`、IV 期限结构 `calculateIVRatio` |
+| **API 镜像** | `api/_shared/scoring.js` | 与 oss-core 逻辑同步的 JS 实现，供 `scan-options.js`、`strategy-recommend.js` 引用 |
+
+**原则**：不在此三处以外重复实现评分公式，避免前后端/扫描器与持仓卡片分数不一致。
 
 ### 技术选择理由
 
@@ -211,11 +226,30 @@ CREATE TABLE transactions (
 
 ```
 trading-journal/
-├── index.html           # 前端单文件应用
-├── package.json         # Node.js 配置（无依赖）
-├── vercel.json          # Vercel 配置
+├── index.html
+├── package.json
+├── vercel.json
+├── vite.config.ts
+├── src/
+│   ├── lib/
+│   │   ├── oss-core.ts      # OSS 评分算法单点事实 (TypeScript)
+│   │   ├── scoring.ts       # 批量评分、IV 期限结构，复用 oss-core
+│   │   ├── types.ts         # 全局类型 (Position, WatchlistItem, StrategyResult 等)
+│   │   ├── supabase.ts
+│   │   ├── utils.ts
+│   │   └── greeksHistory.ts
+│   ├── components/
+│   ├── pages/
+│   ├── App.tsx
+│   └── main.tsx
 └── api/
-    └── option-price.js  # 期权价格 API (Serverless Function)
+    ├── _shared/
+    │   └── scoring.js       # 与 oss-core.ts 镜像，供 Serverless 使用
+    ├── option-price.js
+    ├── scan-options.js      # OSS 扫描器，引用 _shared/scoring
+    ├── strategy-recommend.js
+    ├── underlying-rv.js
+    └── earnings.js
 ```
 
 ### 当前部署
@@ -248,6 +282,24 @@ GitHub: https://github.com/yauyueson/trading-journal
 1. 找到目标持仓
 2. 点击 **🔄 Auto Price** 自动获取最新价格
 3. 或点击 **✏️ Manual** 手动输入
+
+---
+
+## 重构说明 (2026-02)
+
+### 评分逻辑统一
+- **getDeltaBonus**：前端与 API 均采用 LERP 线性插值（文档 v2.1），不再使用阶梯函数。
+- **getThetaPenalty**：惩罚上限统一为 10（原前端为 50）。
+- **Lambda**：扫描与单腿 LOQ 均经 `compressLambda` 后再参与 Z-Score，避免极端杠杆拉偏分数。
+- **Day Trade 模式**：扫描器与前端 `scoreOptionsChain` 均支持日交易权重（Gamma 提高、Theta 惩罚系数降低）。
+
+### 类型与边界
+- 新增/统一类型：`WatchlistItem`、`DirectAddItem`、`StrategyResult`、`SpreadRecommendation`、`SingleLegRecommendation`、`PositionAction`、`RollData` 等，消除评分与页面中的 `any`。
+- 数学与数据边界：`lerp` 防除零、`sigmoid` 输入裁剪、`normalizeToZScores` 在 n&lt;2 或 std=0 时的防护、DTE≤0 过滤、低价期权 Lambda 防护。
+
+### 扫描器性能
+- `scan-options.js` 单遍完成过滤与指标计算，减少多轮遍历。
+- 流动性：显式要求 `bid > 0 && ask > 0`，并在解析阶段做 DTE/行权价预过滤。
 
 ---
 

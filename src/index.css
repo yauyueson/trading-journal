@@ -77,17 +77,26 @@
     input,
     select,
     textarea {
-        @apply bg-bg-tertiary border border-border-light text-text-primary transition-colors duration-200 text-base appearance-none;
+        @apply bg-bg-tertiary border border-border-light text-text-primary transition-all duration-200 text-base appearance-none rounded-xl;
     }
 
     input:focus,
     select:focus,
     textarea:focus {
-        @apply border-accent-green outline-none shadow-[0_0_0_3px_#00C80515];
+        @apply border-accent-green/50 outline-none shadow-accent-green/10;
     }
 
     input::placeholder {
         @apply text-text-tertiary;
+    }
+
+    .input-field {
+        @apply block w-full px-4 py-2.5 bg-bg-elevated/50 border border-border-default hover:border-border-light focus:bg-bg-elevated transition-all duration-200;
+        min-height: 48px;
+    }
+
+    label {
+        @apply block text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-1.5 ml-1;
     }
 
     /* Buttons */
@@ -227,6 +236,7 @@ select {
 
 /* Accessibility: Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
+
     .fade-in,
     .pulse,
     .spinner {

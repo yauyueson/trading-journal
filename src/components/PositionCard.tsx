@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, Calendar, ChevronDown, Trash2, ArrowRightLeft } from 'lucide-react';
 import { Tooltip } from './Tooltip';
-import { Position, Transaction, LiveData, GreeksHistory } from '../lib/types';
+import { Position, Transaction, LiveData, GreeksHistory, PositionAction } from '../lib/types';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER } from '../lib/utils';
@@ -10,7 +10,7 @@ import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleL
 interface PositionCardProps {
     position: Position;
     transactions: Transaction[];
-    onAction: (id: string, action: any) => Promise<void>;
+    onAction: (id: string, action: PositionAction) => Promise<void>;
     onUpdateScore: (id: string, score: number) => Promise<void>; // Kept for interface compatibility
     onUpdatePrice: (id: string, price: number) => Promise<void>;
     onUpdateTarget: (id: string, target: number) => Promise<void>;

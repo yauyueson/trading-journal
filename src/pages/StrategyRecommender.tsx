@@ -2,43 +2,13 @@ import React, { useState } from 'react';
 import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark } from 'lucide-react';
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
-
-// Types
-interface Recommendation {
-    type: string;
-    score: number;
-    whyThis: string;
-    [key: string]: any;
-}
-
-interface SpreadRecommendation extends Recommendation {
-    shortLeg: { strike: number; price: number; delta: number; expiration: string; dte: number; volume: number; openInterest: number };
-    longLeg: { strike: number; price: number; delta: number; expiration: string; dte: number; volume: number; openInterest: number };
-    width: number;
-    netCredit?: number;
-    netDebit?: number;
-    maxRisk: number;
-    maxProfit: number;
-    roi?: number;
-    pop?: number; // Probability of Profit
-    expectedValue?: number;
-    breakeven: number;
-}
-
-interface SingleLegRecommendation extends Recommendation {
-    strike: number;
-    expiration: string;
-    price: number;
-    delta: number;
-    gamma: number;
-    theta: number; // Raw Theta
-    vega: number;
-    volume: number;
-    openInterest: number;
-    lambda: number;
-    gammaEff: number;
-    thetaBurn: number; // Normalized Theta/Price
-}
+import type {
+    SpreadRecommendation,
+    SingleLegRecommendation,
+    Recommendation,
+    StrategyResult,
+    WatchlistItem,
+} from '../lib/types';
 
 
 
@@ -181,7 +151,7 @@ const PayoffDiagram: React.FC<{ recommendation: Recommendation; currentPrice: nu
 };
 
 interface StrategyRecommenderProps {
-    onAddToWatchlist?: (item: any) => Promise<void>;
+    onAddToWatchlist?: (item: WatchlistItem) => Promise<void>;
 }
 
 export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddToWatchlist }) => {
@@ -190,9 +160,9 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
     const [targetDte, setTargetDte] = useState(30);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [result, setResult] = useState<any>(null); // Using any temporarily for new structure
+    const [result, setResult] = useState<StrategyResult | null>(null);
     const [expandedCard, setExpandedCard] = useState<number | null>(null);
-    const [selectedTab, setSelectedTab] = useState<string>('RECOMMENDED');
+    const [selectedTab, setSelectedTab] = useState<'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SINGLE_LEG' | 'RECOMMENDED'>('RECOMMENDED');
 
     const handleAnalyze = async () => {
         if (!ticker) return;
@@ -208,8 +178,8 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
             if (!res.ok) throw new Error(data.error || 'Failed to fetch recommendations');
             setResult(data);
             setSelectedTab(data.recommendedStrategy); // Default to recommended
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Unknown error');
         } finally {
             setLoading(false);
         }
@@ -226,44 +196,45 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
         return 'text-red-400';
     };
 
-    const handleAddToWatchlist = async (rec: any) => {
-        if (!onAddToWatchlist) return;
+    const handleAddToWatchlist = async (rec: Recommendation) => {
+        if (!onAddToWatchlist || !result) return;
 
         const isSpreadType = isSpread(rec);
 
-        let legs = undefined;
+        let legs: { side: string; strike: number; type: string; expiration: string }[] | undefined = undefined;
         if (isSpreadType) {
-            const legType = rec.type.includes('Call') ? 'Call' : 'Put';
+            const spreadRec = rec as SpreadRecommendation;
+            const legType = spreadRec.type.includes('Call') ? 'Call' : 'Put';
             legs = [
                 {
                     side: 'short',
-                    strike: rec.shortLeg.strike,
+                    strike: spreadRec.shortLeg.strike,
                     type: legType,
-                    expiration: rec.shortLeg.expiration
+                    expiration: spreadRec.shortLeg.expiration
                 },
                 {
                     side: 'long',
-                    strike: rec.longLeg.strike,
+                    strike: spreadRec.longLeg.strike,
                     type: legType,
-                    expiration: rec.longLeg.expiration
+                    expiration: spreadRec.longLeg.expiration
                 }
             ];
         }
 
-        const item = {
+        const item: WatchlistItem = {
             ticker: result.context.ticker,
-            strike: isSpreadType ? rec.shortLeg.strike : rec.strike,
+            strike: isSpreadType ? (rec as SpreadRecommendation).shortLeg.strike : (rec as SingleLegRecommendation).strike,
             type: rec.type,
-            expiration: isSpreadType ? rec.shortLeg.expiration : rec.expiration,
+            expiration: isSpreadType ? (rec as SpreadRecommendation).shortLeg.expiration : (rec as SingleLegRecommendation).expiration,
             setup: `Strategy Rec: ${result.regime.advice.split(':')[0]}`,
             entry_score: rec.score,
-            ideal_entry: isSpreadType ? rec.netCredit || rec.netDebit : rec.price,
+            ideal_entry: isSpreadType ? ((rec as SpreadRecommendation).netCredit ?? (rec as SpreadRecommendation).netDebit) : (rec as SingleLegRecommendation).price,
             target_price: 0,
             stop_reason: `Algorithm Rec: ${rec.whyThis}`,
             notes: isSpreadType
-                ? `EV: $${rec.expectedValue || '0'}. Width: $${rec.width}`
-                : `Delta: ${rec.delta}`,
-            legs: legs
+                ? `EV: $${(rec as SpreadRecommendation).expectedValue ?? '0'}. Width: $${(rec as SpreadRecommendation).width}`
+                : `Delta: ${(rec as SingleLegRecommendation).delta}`,
+            legs: legs as WatchlistItem['legs']
         };
 
         await onAddToWatchlist(item);
@@ -410,7 +381,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                         <Tooltip label="" explanation="IV30 / IV90. Ratio < 0.95 (Contango) = Cheap short-term. Ratio > 1.05 (Backwardation) = Expensive short-term." />
                                     </div>
                                     <div className="text-3xl font-mono font-bold text-white mb-1">
-                                        {result.regime.ivRatio.toFixed(3)}
+                                        {result.regime.ivRatio?.toFixed(3) ?? 'N/A'}
                                     </div>
                                     <div className="text-[10px] text-gray-500 font-mono">
                                         IV30: {result.regime.iv30}% | IV90: {result.regime.iv90}%
@@ -421,11 +392,11 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                         IV/RV Ratio
                                         <Tooltip label="" explanation="Volatility Risk Premium (IV30 / RV20). > 1.25 = Seller's Edge (Options overpriced). < 0.85 = Buyer's Territory (Options cheap relative to move)." />
                                     </div>
-                                    <div className={`text-3xl font-mono font-bold mb-1 ${result.regime.ivRvRatio > 1.2 ? 'text-accent-green' : result.regime.ivRvRatio < 0.8 ? 'text-blue-400' : 'text-white'}`}>
-                                        {result.regime.ivRvRatio ? result.regime.ivRvRatio.toFixed(3) : 'N/A'}
+                                    <div className={`text-3xl font-mono font-bold mb-1 ${(result.regime.ivRvRatio ?? 0) > 1.2 ? 'text-accent-green' : (result.regime.ivRvRatio ?? 0) < 0.8 ? 'text-blue-400' : 'text-white'}`}>
+                                        {result.regime.ivRvRatio?.toFixed(3) ?? 'N/A'}
                                     </div>
                                     <div className="text-[10px] text-gray-500 font-mono">
-                                        IV: {result.regime.iv30}% | RV20: {result.regime.rv20 || 'N/A'}%
+                                        IV: {result.regime.iv30}% | RV20: {result.regime.rv30 ?? 'N/A'}%
                                     </div>
                                 </div>
                             </div>
@@ -434,11 +405,11 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
 
                     {/* Strategy Tabs */}
                     <div className="flex border-b border-[#2A2A2A] gap-6">
-                        {[
-                            { id: 'CREDIT_SPREAD', label: 'Credit Spreads' },
-                            { id: 'DEBIT_SPREAD', label: 'Debit Spreads' },
-                            { id: 'SINGLE_LEG', label: 'Long Options' }
-                        ].map(tab => (
+                        {([
+                            { id: 'CREDIT_SPREAD' as const, label: 'Credit Spreads' },
+                            { id: 'DEBIT_SPREAD' as const, label: 'Debit Spreads' },
+                            { id: 'SINGLE_LEG' as const, label: 'Long Options' }
+                        ]).map(tab => (
                             <button
                                 key={tab.id}
                                 onClick={() => { setSelectedTab(tab.id); setExpandedCard(null); }}
@@ -460,14 +431,14 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
 
                     {/* Recommendations List */}
                     <div className="space-y-4">
-                        {result.strategies[selectedTab]?.length === 0 && (
+                        {(result.strategies[selectedTab as keyof typeof result.strategies] as Recommendation[] | undefined)?.length === 0 && (
                             <div className="text-center py-10 text-gray-500">
                                 <Search size={32} className="mx-auto mb-2 opacity-20" />
                                 No results found for this strategy with current filters.
                             </div>
                         )}
 
-                        {result.strategies[selectedTab]?.map((rec: any, idx: number) => (
+                        {(result.strategies[selectedTab as keyof typeof result.strategies] as Recommendation[])?.map((rec: Recommendation, idx: number) => (
                             <div
                                 key={idx}
                                 className={`bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl overflow-hidden transition-all duration-300 ${expandedCard === idx ? 'ring-1 ring-accent-green/50 shadow-lg shadow-green-900/10' : 'hover:border-[#444]'
@@ -724,7 +695,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                 </div>
             )}
 
-            <DataFooter timestamp={result?.context?.cboeTimestamp} />
+            <DataFooter timestamp={null} />
         </div>
     );
 };

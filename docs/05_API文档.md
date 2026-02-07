@@ -1,6 +1,6 @@
 # Trading Journal - API文档
 
-> 最后更新: 2026年2月6日
+> 最后更新: 2026年2月7日
 
 ## 📋 目录
 
@@ -32,7 +32,10 @@ Supabase PostgreSQL (数据存储)
 | `/api/option-price` | GET | 获取单份期权价格、Greeks 及 OSS 评分 | ✅ 生产 |
 | `/api/scan-options` | GET | OSS v2.1 扫描器，获取高分单腿合约列表 | ✅ 生产 |
 | `/api/strategy-recommend` | GET | 策略推荐引擎（价差/组合策略专用） | ✅ 生产 |
+| `/api/underlying-rv` | GET | 标的已实现波动率（Nasdaq 历史） | ✅ 生产 |
 | `/api/earnings` | GET | 获取财报日期（通过 Nasdaq API） | ✅ 生产 |
+
+**评分逻辑统一**：`/api/scan-options` 与 `/api/strategy-recommend` 均引用 `api/_shared/scoring.js`，与前端 `src/lib/oss-core.ts` 逻辑镜像，保证扫描结果、策略推荐与持仓卡片 OSS 分数一致。
 
 ---
 

@@ -1,12 +1,12 @@
 
 import React, { useState } from 'react';
 import { Search, Info, Plus, Activity } from 'lucide-react';
-import { ScoredResult, Strategy } from '../lib/types';
+import { ScoredResult, Strategy, WatchlistItem, ScannerApiContext } from '../lib/types';
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
 
 interface ScannerPageProps {
-    onAddToWatchlist?: (position: any) => void;
+    onAddToWatchlist?: (position: WatchlistItem) => void;
 }
 
 export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) => {
@@ -23,7 +23,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
 
     // Results State
     const [results, setResults] = useState<ScoredResult[]>([]);
-    const [context, setContext] = useState<any>(null);
+    const [context, setContext] = useState<ScannerApiContext | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -54,8 +54,8 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
 
             setResults(data.results || []);
             setContext(data.context);
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Unknown error');
         } finally {
             setLoading(false);
         }
@@ -131,7 +131,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                         </label>
                         <select
                             value={direction}
-                            onChange={(e) => setDirection(e.target.value as any)}
+                            onChange={(e) => setDirection(e.target.value as 'all' | 'call' | 'put')}
                             className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-accent-green/50"
                         >
                             <option value="all">All</option>
@@ -350,7 +350,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                 </div>
             )}
 
-            <DataFooter timestamp={context?.cboeTimestamp} />
+            <DataFooter timestamp={context?.cboeTimestamp ?? null} />
         </div>
     );
 };

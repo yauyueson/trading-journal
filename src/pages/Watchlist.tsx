@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { List } from 'lucide-react';
-import { Position } from '../lib/types';
+import { Position, WatchlistItem as WatchlistItemType } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { WatchlistItem } from '../components/WatchlistItem';
 import { DataFooter } from '../components/DataFooter';
@@ -8,7 +8,7 @@ import { SETUPS } from '../lib/utils';
 
 interface WatchlistPageProps {
     positions: Position[];
-    onAddToWatchlist: (item: any) => Promise<void>;
+    onAddToWatchlist: (item: WatchlistItemType) => Promise<void>;
     onMoveToActive: (item: Position) => void;
     onDelete: (id: string) => Promise<void>;
     loading: boolean;

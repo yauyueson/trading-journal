@@ -26,7 +26,7 @@ export const RollModal: React.FC<RollModalProps> = ({ position, currentQuantity,
 
     // Open Leg State
     const [newStrike, setNewStrike] = useState(position.strike);
-    const [newType, setNewType] = useState(position.type);
+    const [newType, setNewType] = useState<'Call' | 'Put'>(position.type as 'Call' | 'Put');
     const [newExpiration, setNewExpiration] = useState(position.expiration);
     const [newQty, setNewQty] = useState(currentQuantity); // Default to rolling same size
     const [newPrice, setNewPrice] = useState('');

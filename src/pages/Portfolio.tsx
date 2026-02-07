@@ -1,24 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
-import { Position, Transaction } from '../lib/types';
+import { Position, Transaction, PositionAction, DirectAddItem, RollData } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PositionCard } from '../components/PositionCard';
 import { RollModal } from '../components/RollModal';
 import { DataFooter } from '../components/DataFooter';
 import { SETUPS } from '../lib/utils';
-// Helper for icons if needed, but I'll use Lucide directly 
-
-
 
 interface PortfolioPageProps {
     positions: Position[];
     transactions: Transaction[];
-    onAction: (id: string, action: any) => Promise<void>;
+    onAction: (id: string, action: PositionAction) => Promise<void>;
     onUpdateScore: (id: string, score: number) => Promise<void>;
     onUpdatePrice: (id: string, price: number) => Promise<void>;
     onUpdateTarget: (id: string, target: number) => Promise<void>;
-    onAddDirect: (item: any) => Promise<void>;
-    onRoll: (originalPositionId: string, rollData: any) => Promise<void>;
+    onAddDirect: (item: DirectAddItem) => Promise<void>;
+    onRoll: (originalPositionId: string, rollData: RollData) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
     loading: boolean;
 }
@@ -127,86 +124,169 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
 
             {/* Quick Add Form */}
             {showForm && (
-                <div className="card-elevated p-6 animate-in fade-in slide-in-from-top-4">
-                    <h3 className="text-lg font-bold mb-4">Quick Add Position</h3>
-                    <form onSubmit={handleSubmit} className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        <input
-                            placeholder="Ticker (e.g. SPY)"
-                            className="input-field"
-                            value={form.ticker}
-                            onChange={e => setForm({ ...form, ticker: e.target.value.toUpperCase() })}
-                            required
-                        />
-                        <div className="flex gap-2">
-                            <input
-                                type="number"
-                                placeholder="Strike"
-                                className="input-field"
-                                value={form.strike}
-                                onChange={e => setForm({ ...form, strike: e.target.value })}
-                                required
-                            />
-                            <select
-                                className="input-field w-24"
-                                value={form.type}
-                                onChange={e => setForm({ ...form, type: e.target.value })}
-                            >
-                                <option value="Call">Call</option>
-                                <option value="Put">Put</option>
-                            </select>
+                <div className="card-elevated p-8 animate-in fade-in slide-in-from-top-4 shadow-2xl relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/50" />
+                    <div className="flex justify-between items-center mb-8">
+                        <div>
+                            <h3 className="text-xl font-bold text-text-primary">Quick Add Position</h3>
+                            <p className="text-sm text-text-tertiary">Enter the details of your new option position</p>
                         </div>
-                        <input
-                            type="date"
-                            className="input-field"
-                            value={form.expiration}
-                            onChange={e => setForm({ ...form, expiration: e.target.value })}
-                            required
-                        />
-                        <select
-                            className="input-field"
-                            value={form.setup}
-                            onChange={e => setForm({ ...form, setup: e.target.value })}
+                        <button
+                            onClick={() => setShowForm(false)}
+                            className="p-2 hover:bg-bg-elevated rounded-lg transition-colors text-text-tertiary hover:text-text-primary"
                         >
-                            {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                        <div className="flex gap-2">
-                            <input
-                                type="number"
-                                placeholder="Score"
-                                className="input-field w-20"
-                                value={form.entry_score}
-                                onChange={e => setForm({ ...form, entry_score: e.target.value })}
-                            />
-                            <input
-                                placeholder="Stop Reason"
-                                className="input-field flex-1"
-                                value={form.stop_reason}
-                                onChange={e => setForm({ ...form, stop_reason: e.target.value })}
-                            />
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="space-y-8">
+                        {/* Row 1: Basic Info */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div className="space-y-1.5">
+                                <label htmlFor="ticker">Symbol</label>
+                                <input
+                                    id="ticker"
+                                    placeholder="e.g. SPY"
+                                    className="input-field"
+                                    value={form.ticker}
+                                    onChange={e => setForm({ ...form, ticker: e.target.value.toUpperCase() })}
+                                    required
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <label htmlFor="strike">Strike</label>
+                                    <input
+                                        id="strike"
+                                        type="number"
+                                        placeholder="0.00"
+                                        className="input-field"
+                                        value={form.strike}
+                                        onChange={e => setForm({ ...form, strike: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label htmlFor="type">Type</label>
+                                    <select
+                                        id="type"
+                                        className="input-field"
+                                        value={form.type}
+                                        onChange={e => setForm({ ...form, type: e.target.value })}
+                                    >
+                                        <option value="Call">Call</option>
+                                        <option value="Put">Put</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label htmlFor="expiration">Expiration</label>
+                                <input
+                                    id="expiration"
+                                    type="date"
+                                    className="input-field"
+                                    value={form.expiration}
+                                    onChange={e => setForm({ ...form, expiration: e.target.value })}
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label htmlFor="setup">Setup Strategy</label>
+                                <select
+                                    id="setup"
+                                    className="input-field"
+                                    value={form.setup}
+                                    onChange={e => setForm({ ...form, setup: e.target.value })}
+                                >
+                                    {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
                         </div>
-                        <div className="flex gap-2">
-                            <input
-                                type="number"
-                                placeholder="Qty"
-                                className="input-field w-20"
-                                value={form.quantity}
-                                onChange={e => setForm({ ...form, quantity: e.target.value })}
-                                required
-                            />
-                            <input
-                                type="number"
-                                step="0.01"
-                                placeholder="Price"
-                                className="input-field flex-1"
-                                value={form.entry_price}
-                                onChange={e => setForm({ ...form, entry_price: e.target.value })}
-                                required
-                            />
+
+                        {/* Row 2: Analysis & Execution */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div className="space-y-1.5">
+                                <label htmlFor="score">Entry Score</label>
+                                <input
+                                    id="score"
+                                    type="number"
+                                    placeholder="0-100"
+                                    className="input-field"
+                                    value={form.entry_score}
+                                    onChange={e => setForm({ ...form, entry_score: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="space-y-1.5 lg:col-span-1">
+                                <label htmlFor="stop_reason">Stop Reason / Plan</label>
+                                <input
+                                    id="stop_reason"
+                                    placeholder="Why take this trade?"
+                                    className="input-field"
+                                    value={form.stop_reason}
+                                    onChange={e => setForm({ ...form, stop_reason: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label htmlFor="quantity">Quantity</label>
+                                <input
+                                    id="quantity"
+                                    type="number"
+                                    placeholder="1"
+                                    className="input-field"
+                                    value={form.quantity}
+                                    onChange={e => setForm({ ...form, quantity: e.target.value })}
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label htmlFor="price">Entry Price</label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary select-none">$</span>
+                                    <input
+                                        id="price"
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="0.00"
+                                        className="input-field pl-8"
+                                        value={form.entry_price}
+                                        onChange={e => setForm({ ...form, entry_price: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
                         </div>
-                        <div className="col-span-2 md:col-span-4 lg:col-span-5 flex justify-end gap-2 mt-2">
-                            <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
-                            <button type="submit" disabled={submitting} className="btn-primary">
-                                {submitting ? 'Adding...' : 'Add Position'}
+
+                        {/* Actions */}
+                        <div className="flex justify-end items-center gap-4 pt-4 border-t border-border-default/50">
+                            <button
+                                type="button"
+                                onClick={() => setShowForm(false)}
+                                className="px-6 py-2.5 rounded-xl font-medium text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={submitting}
+                                className="btn-primary px-8 py-2.5 rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-500/10"
+                            >
+                                {submitting ? (
+                                    <>
+                                        <RefreshCw size={18} className="animate-spin" />
+                                        <span>Adding...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="text-xl leading-none mb-0.5">+</span>
+                                        <span>Add Position</span>
+                                    </>
+                                )}
                             </button>
                         </div>
                     </form>
