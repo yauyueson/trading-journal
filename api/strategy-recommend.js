@@ -49,28 +49,18 @@ const zScores = (values) => {
 };
 
 // =============================================================================
-// REGIME DETECTION (4-Card Method)
+// DATA FETCHING UTILITIES
 // =============================================================================
 
-// =============================================================================
-// REGIME DETECTION (Strict Interpolation Method)
-// =============================================================================
-
-/**
- * Get Clean ATM IV (The Golden Rule)
- * Average of ATM Call and Put IV to remove skew/noise
- */
 function getCleanATM_IV(chain, currentPrice) {
     if (!chain || chain.length === 0) return null;
 
-    // Group by strike
     const strikes = {};
     chain.forEach(opt => {
         if (!strikes[opt.strike]) strikes[opt.strike] = {};
         strikes[opt.strike][opt.type] = opt;
     });
 
-    // Find strike closest to spot price that has BOTH Call and Put
     let bestStrike = null;
     let minDiff = Infinity;
 
@@ -90,29 +80,21 @@ function getCleanATM_IV(chain, currentPrice) {
     const atmCall = strikes[bestStrike].Call;
     const atmPut = strikes[bestStrike].Put;
 
-    // Sanity check for bad data
     if (!atmCall.iv || !atmPut.iv) return null;
 
     return (atmCall.iv + atmPut.iv) / 2;
 }
 
-/**
- * Calculate Target IV using Linear Interpolation
- * IV_target = IV_near + (IV_far - IV_near) * weight
- */
 function calculateTargetIV(allOptions, targetDTE, currentPrice) {
-    // 1. Get all unique DTEs available sorted
     const dtes = [...new Set(allOptions.map(o => o.dte))].sort((a, b) => a - b);
 
     if (dtes.length === 0) return null;
 
-    // Exact match check
     if (dtes.includes(targetDTE)) {
         const chain = allOptions.filter(o => o.dte === targetDTE);
         return getCleanATM_IV(chain, currentPrice);
     }
 
-    // 2. Find near and far DTEs
     let nearDTE = null;
     let farDTE = null;
 
@@ -124,12 +106,8 @@ function calculateTargetIV(allOptions, targetDTE, currentPrice) {
         }
     }
 
-    // If we can't bracket the target date, we can't interpolate accurately.
-    // Fallback: If we have data very close (e.g. within 2 days), use it?
-    // User demand: "Data Integrity ... Term Structure Completeness" -> Fallback to null implies system downgrade.
     if (nearDTE === null || farDTE === null) return null;
 
-    // 3. Get ATM IVs for those dates
     const chainNear = allOptions.filter(o => o.dte === nearDTE);
     const chainFar = allOptions.filter(o => o.dte === farDTE);
 
@@ -138,7 +116,6 @@ function calculateTargetIV(allOptions, targetDTE, currentPrice) {
 
     if (ivNear === null || ivFar === null) return null;
 
-    // 4. Interpolate
     const timeRange = farDTE - nearDTE;
     const timeToTarget = targetDTE - nearDTE;
     const weight = timeToTarget / timeRange;
@@ -146,9 +123,6 @@ function calculateTargetIV(allOptions, targetDTE, currentPrice) {
     return ivNear + (ivFar - ivNear) * weight;
 }
 
-/**
- * Fetch RV20 from Nasdaq (Internal Logic)
- */
 async function fetchRV20(ticker) {
     try {
         const toDate = new Date();
@@ -160,9 +134,7 @@ async function fetchRV20(ticker) {
         const url = `https://api.nasdaq.com/api/quote/${ticker.toUpperCase()}/historical?assetclass=stocks&fromdate=${fromStr}&todate=${toStr}&limit=40`;
         const response = await fetch(url, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'application/json, text/plain, */*',
-                'Accept-Language': 'en-US,en;q=0.9'
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
         });
 
@@ -193,21 +165,48 @@ async function fetchRV20(ticker) {
     }
 }
 
-async function detectRegime(allOptions, currentPrice, ticker) {
-    // Calculate IV30 and IV90 using strict interpolation
-    const iv30 = calculateTargetIV(allOptions, 30, currentPrice);
-    const iv90 = calculateTargetIV(allOptions, 90, currentPrice);
+async function fetchEarnings(ticker) {
+    try {
+        const url = `https://api.nasdaq.com/api/quote/${ticker.toUpperCase()}/info?assetclass=stocks`;
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
 
-    // Fetch RV20
-    const rv20 = await fetchRV20(ticker);
+        if (!response.ok) return null;
+        const data = await response.json();
+        const notifications = data?.data?.notifications || [];
 
-    // Sanity Check: If data is missing
+        for (const notif of notifications) {
+            const eventTypes = notif?.eventTypes || [];
+            for (const event of eventTypes) {
+                if (event.eventName === 'Earnings Date' || event.id === 'upcoming_events') {
+                    const message = event.message || '';
+                    const match = message.match(/Earnings Date\s*:\s*(.+)/i);
+                    if (match) {
+                        const dateStr = match[1].trim();
+                        const parsedDate = new Date(dateStr);
+                        if (!isNaN(parsedDate.getTime())) {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const diffDays = Math.ceil((parsedDate - today) / (1000 * 60 * 60 * 24));
+                            return diffDays;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function detectRegime(iv30, iv90, rv20) {
     if (!iv30 || !iv90 || iv90 === 0) {
         return {
             ivRatio: 1.0,
-            iv30,
-            iv90,
-            rv20,
             ivRvRatio: null,
             mode: 'NEUTRAL',
             advice: '⚖️ Insufficient Data for IV Ratio. Defaulting to Neutral.'
@@ -220,59 +219,41 @@ async function detectRegime(allOptions, currentPrice, ticker) {
     let mode = 'NEUTRAL';
     let advice = '⚖️ Neutral IV: Either strategy viable, compare scores';
 
-    // 1. Check for Term Structure Extreme (Backwardation)
     if (termRatio > 1.05) {
         mode = 'CREDIT';
         advice = '🔴 Backwardation (Expensive near-term): Sell Credit Spreads';
     }
-    // 2. Check for Volatility Risk Premium (IV > RV)
     else if (ivRvRatio && ivRvRatio > 1.35) {
         mode = 'CREDIT';
         advice = '💎 High Risk Premium (IV > RV): Market overestimating move. Sell Credit.';
     }
-    // 3. Check for Contango (Cheap near-term)
     else if (termRatio < 0.95) {
         mode = 'DEBIT';
         advice = '🟢 Contango (Cheap near-term IV): Buy Debit Spreads';
     }
-    // 4. Check for Cheap RV (IV < RV)
     else if (ivRvRatio && ivRvRatio < 0.85) {
         mode = 'DEBIT';
         advice = '🚀 Momentum Alert (RV > IV): Stock moving faster than priced. Buy Debit.';
     }
 
-    // Sanity Check: Extreme outliers
-    if (termRatio > 2.0 || termRatio < 0.5) {
-        return {
-            ivRatio: 1.0,
-            iv30,
-            iv90,
-            rv20,
-            ivRvRatio,
-            mode: 'NEUTRAL',
-            advice: '⚠️ IV Ratio Outlier Detected. Data may be unreliable.'
-        };
-    }
-
-    return {
-        ivRatio: termRatio,
-        iv30,
-        iv90,
-        rv20,
-        ivRvRatio,
-        mode,
-        advice
-    };
+    return { ivRatio: termRatio, ivRvRatio, mode, advice };
 }
 
 // =============================================================================
-// CREDIT SPREAD BUILDER
+// STRATEGY BUILDERS
 // =============================================================================
 
-function buildCreditSpreads(chain, type, currentPrice) {
-    const results = [];
-    const widths = [5, 10];
+function calculateMaxContracts(maxRisk) {
+    const ACCOUNT_RISK_LIMIT = 57; // 1% of $5,700
+    if (maxRisk <= 0) return 0;
+    return Math.floor(ACCOUNT_RISK_LIMIT / (maxRisk * 100)); // risk * 100 for dollar amount
+}
 
+function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings) {
+    const results = [];
+    const widths = [5, 10]; // Could be adaptive based on price
+
+    // Safety check: Filter out low DTE if earnings or strictly enforce logic
     // Anchor: Short Leg with Delta 0.20 - 0.40
     const shorts = chain.filter(o =>
         o.type === type &&
@@ -282,12 +263,7 @@ function buildCreditSpreads(chain, type, currentPrice) {
 
     for (const shortLeg of shorts) {
         for (const width of widths) {
-            // For Put Spread: Long is below Short (protection)
-            // For Call Spread: Long is above Short (protection)
-            const longStrike = type === 'Put'
-                ? shortLeg.strike - width
-                : shortLeg.strike + width;
-
+            const longStrike = type === 'Put' ? shortLeg.strike - width : shortLeg.strike + width;
             const longLeg = chain.find(o =>
                 o.type === type &&
                 o.expiration === shortLeg.expiration &&
@@ -296,101 +272,110 @@ function buildCreditSpreads(chain, type, currentPrice) {
 
             if (!longLeg) continue;
 
-            // Calculate metrics
-            const credit = shortLeg.bid - longLeg.ask;
+            // --- LIQUIDITY GUARD (COMPOSITE) ---
+            // Conservative: Sell at Bid, Buy Back (Close) at Ask
+            // Spread Bid = Short Bid - Long Ask (Your entry credit - conservative)
+            // Spread Ask = Short Ask - Long Bid (Your exit debit - conservative)
+            const spreadBid = shortLeg.bid - longLeg.ask;
+            const spreadAsk = shortLeg.ask - longLeg.bid;
+            const spreadMid = (spreadBid + spreadAsk) / 2;
+
+            // Filter: Positive Credit Required
+            if (spreadBid <= 0.10) continue;
+
+            const spreadPct = spreadMid > 0 ? (spreadAsk - spreadBid) / spreadMid : 1.0;
+            if (spreadPct > 0.15) continue; // Hard liquidity filter
+
+            // --- KEY METRICS ---
+            const credit = spreadBid; // Conservative Credit
             const maxRisk = width - credit;
-
-            // Hard filter: must have positive credit and risk
-            if (credit < 0.15 || maxRisk <= 0) continue;
-
             const roi = (credit / maxRisk) * 100;
             const pop = 1 - Math.abs(shortLeg.delta);
             const distance = Math.abs(currentPrice - shortLeg.strike) / currentPrice;
-            const spreadPct = ((shortLeg.ask - shortLeg.bid) / ((shortLeg.ask + shortLeg.bid) / 2));
+            const dte = shortLeg.dte;
 
-            // Expected Value
-            const expectedValue = (credit * pop) - (maxRisk * (1 - pop));
+            // --- EARNINGS GUARD ---
+            // If earnings are within DTE, penalize heavily or filter
+            const includesEarnings = daysUntilEarnings !== null && daysUntilEarnings <= dte && daysUntilEarnings >= 0;
+            const earningsRisk = includesEarnings && daysUntilEarnings <= 10;
 
-            // Hard filter: ROI too low or liquidity too poor
-            if (roi < 15 || spreadPct > 0.10) continue;
+            if (earningsRisk) continue; // Skip Credit Spreads if Earnings within 10 days (Gamma Risk)
 
-            // CSQ Spread Score: 40% ROI + 40% POP + 20% Distance
-            const scoreROI = Math.min(roi * 4, 100); // 25% ROI = 100 pts
+            // --- SCORING ---
+            // 1. ROI Score (Cap at 25%)
+            const scoreROI = Math.min(roi * 4, 100);
+            // 2. POP Score
             const scorePOP = pop * 100;
-            const scoreDistance = Math.min(distance * 1000, 100); // 10% OTM = 100 pts
+            // 3. Distance Score
+            const scoreDistance = Math.min(distance * 1000, 100);
 
-            const finalScore = Math.round(0.4 * scoreROI + 0.4 * scorePOP + 0.2 * scoreDistance);
+            // 4. DTE Sweet Spot (30-45 is ideal)
+            let scoreDTE = 50;
+            if (dte >= 30 && dte <= 45) scoreDTE = 100;
+            else if (dte >= 21 && dte < 30) scoreDTE = 75;
+            else if (dte > 45 && dte <= 60) scoreDTE = 80;
+            else if (dte < 21) scoreDTE = 20; // DTE Penalty
 
-            // Generate "Why this?" explanation
-            const whyThis = roi >= 25
-                ? `High yield ${roi.toFixed(0)}% ROI with ${(pop * 100).toFixed(0)}% win rate`
-                : `Balanced ${roi.toFixed(0)}% ROI, ${(distance * 100).toFixed(1)}% safety margin`;
+            // 5. IV/RV Boost
+            // If IV is expensive (IV > RV), boost credit score
+            let ivBoost = 0;
+            if (ivRvRatio && ivRvRatio > 1.25) ivBoost = 15;
+            if (ivRvRatio && ivRvRatio < 0.90) ivBoost = -15;
+
+            let finalScore = (0.35 * scoreROI) + (0.30 * scorePOP) + (0.15 * scoreDistance) + (0.20 * scoreDTE) + ivBoost;
+            if (includesEarnings) finalScore -= 25; // Penalty if holding through earnings (even if > 10d)
+
+            // Hard filter: ROI check
+            if (roi < 15) continue;
+
+            const maxContracts = calculateMaxContracts(maxRisk);
+
+            // Why This Logic
+            const whyThisParts = [];
+            if (roi > 20) whyThisParts.push(`${roi.toFixed(0)}% ROI`);
+            if (ivBoost > 0) whyThisParts.push('High IV Premium');
+            if (scoreDTE >= 75) whyThisParts.push('Theta Zone');
+            if (maxContracts > 0) whyThisParts.push(`Max size: ${maxContracts}`);
 
             results.push({
                 type: type === 'Put' ? 'Credit Put Spread' : 'Credit Call Spread',
-                shortLeg: {
-                    strike: shortLeg.strike,
-                    expiration: shortLeg.expiration,
-                    dte: shortLeg.dte,
-                    price: shortLeg.bid,
-                    delta: shortLeg.delta,
-                    iv: shortLeg.iv,
-                    volume: shortLeg.volume,
-                    openInterest: shortLeg.openInterest
-                },
-                longLeg: {
-                    strike: longLeg.strike,
-                    expiration: longLeg.expiration,
-                    price: longLeg.ask,
-                    delta: longLeg.delta,
-                    volume: longLeg.volume,
-                    openInterest: longLeg.openInterest
-                },
+                shortLeg: { ...shortLeg, price: shortLeg.bid },
+                longLeg: { ...longLeg, price: longLeg.ask },
                 width,
                 netCredit: Number(credit.toFixed(2)),
                 maxRisk: Number(maxRisk.toFixed(2)),
                 maxProfit: Number(credit.toFixed(2)),
                 roi: Number(roi.toFixed(1)),
                 pop: Number((pop * 100).toFixed(1)),
-                expectedValue: Number(expectedValue.toFixed(2)),
+                expectedValue: Number(((credit * pop) - (maxRisk * (1 - pop))).toFixed(2)),
                 distance: Number((distance * 100).toFixed(1)),
-                breakeven: type === 'Put'
-                    ? shortLeg.strike - credit
-                    : shortLeg.strike + credit,
-                score: Math.min(100, Math.max(0, finalScore)),
-                whyThis
+                breakeven: type === 'Put' ? shortLeg.strike - credit : shortLeg.strike + credit,
+                score: Math.min(100, Math.max(0, Math.round(finalScore))),
+                whyThis: whyThisParts.join(', ') || 'Balanced Risk/Reward',
+                recommendation: {
+                    maxContracts: maxContracts,
+                    action: "SELL (Open)"
+                }
             });
         }
     }
-
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
-// =============================================================================
-// DEBIT SPREAD BUILDER
-// =============================================================================
-
-// =============================================================================
-// DEBIT SPREAD BUILDER
-// =============================================================================
-
-function buildDebitSpreads(chain, type, currentPrice) {
+function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
     const results = [];
     const widths = [2.5, 5];
 
-    // Anchor: Long Leg with Delta 0.40 - 0.70 (Wider range)
+    // Anchor: Long Leg with Delta 0.45 - 0.70
     const longs = chain.filter(o =>
         o.type === type &&
-        Math.abs(o.delta) >= 0.40 &&
+        Math.abs(o.delta) >= 0.45 &&
         Math.abs(o.delta) <= 0.70
     );
 
     for (const longLeg of longs) {
         for (const width of widths) {
-            const shortStrike = type === 'Call'
-                ? longLeg.strike + width
-                : longLeg.strike - width;
-
+            const shortStrike = type === 'Call' ? longLeg.strike + width : longLeg.strike - width;
             const shortLeg = chain.find(o =>
                 o.type === type &&
                 o.expiration === longLeg.expiration &&
@@ -399,58 +384,49 @@ function buildDebitSpreads(chain, type, currentPrice) {
 
             if (!shortLeg) continue;
 
-            // Calculate metrics
-            const debit = longLeg.ask - shortLeg.bid;
+            const debit = longLeg.ask - shortLeg.bid; // Conservative Debit
             const maxProfit = width - debit;
             const maxRisk = debit;
+
+            // Check for valid debit
+            if (debit <= 0 || maxRisk <= 0) continue;
+
             const riskReward = maxProfit / debit;
-            const spreadPct = ((longLeg.ask - longLeg.bid) / ((longLeg.ask + longLeg.bid) / 2));
-
-            // Hard filters (Relaxed)
-            // Allow Debit up to 50% of width (1:1 R:R), minimum 1.0 R:R
-            if (debit <= 0 || debit >= width * 0.50) continue;
-            if (riskReward < 1.0) continue;
-            if (spreadPct > 0.10) continue;
-
-            // Calculate Lambda for long leg
             const mid = (longLeg.bid + longLeg.ask) / 2;
+
+            if (mid <= 0) continue; // Avoid division by zero
+
+            const spreadPct = (longLeg.ask - longLeg.bid) / mid;
+
+            // --- FILTERS ---
+            if (debit >= width * 0.55) continue; // Cost > 55% of width is bad
+            if (riskReward < 1.5) continue; // Strict R/R filter (v2.3)
+            if (spreadPct > 0.15) continue; // Liquidity check
+
+            // --- SCORING ---
             const lambda = Math.abs(longLeg.delta) * (currentPrice / mid);
             const compLambda = compressLambda(lambda);
             const deltaBonus = getDeltaBonus(longLeg.delta);
-
-            // Pop & EV
-            const pop = Math.abs(longLeg.delta) - 0.05; // Conservative approximation
+            const pop = Math.abs(longLeg.delta) - 0.05;
             const expectedValue = (maxProfit * pop) - (maxRisk * (1 - pop));
 
-            // LOQ Spread Score
             const lambdaScore = Math.min((compLambda / 20) * 100, 100);
             const rrScore = Math.min((riskReward / 3) * 100, 100);
             const deltaScore = 50 + deltaBonus * 12.5;
 
-            const finalScore = Math.round(0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore);
+            // IV/RV Adjustment
+            // If IV is cheap (IV < RV), boost Debit score
+            let ivAdj = 0;
+            if (ivRvRatio && ivRvRatio < 0.85) ivAdj = 15;
+            if (ivRvRatio && ivRvRatio > 1.15) ivAdj = -15;
 
-            const whyThis = `${riskReward.toFixed(1)}:1 reward-to-risk, λ=${lambda.toFixed(1)} leverage`;
+            const finalScore = (0.4 * lambdaScore) + (0.35 * rrScore) + (0.25 * deltaScore) + ivAdj;
+            const maxContracts = calculateMaxContracts(maxRisk);
 
             results.push({
                 type: type === 'Call' ? 'Debit Call Spread' : 'Debit Put Spread',
-                longLeg: {
-                    strike: longLeg.strike,
-                    expiration: longLeg.expiration,
-                    dte: longLeg.dte,
-                    price: longLeg.ask,
-                    delta: longLeg.delta,
-                    iv: longLeg.iv,
-                    volume: longLeg.volume,
-                    openInterest: longLeg.openInterest
-                },
-                shortLeg: {
-                    strike: shortLeg.strike,
-                    expiration: shortLeg.expiration,
-                    price: shortLeg.bid,
-                    delta: shortLeg.delta,
-                    volume: shortLeg.volume,
-                    openInterest: shortLeg.openInterest
-                },
+                longLeg: { ...longLeg, price: longLeg.ask },
+                shortLeg: { ...shortLeg, price: shortLeg.bid },
                 width,
                 netDebit: Number(debit.toFixed(2)),
                 maxRisk: Number(maxRisk.toFixed(2)),
@@ -459,23 +435,20 @@ function buildDebitSpreads(chain, type, currentPrice) {
                 lambda: Number(lambda.toFixed(1)),
                 pop: Number((pop * 100).toFixed(1)),
                 expectedValue: Number(expectedValue.toFixed(2)),
-                breakeven: type === 'Call'
-                    ? longLeg.strike + debit
-                    : longLeg.strike - debit,
-                score: Math.min(100, Math.max(0, finalScore)),
-                whyThis
+                breakeven: type === 'Call' ? longLeg.strike + debit : longLeg.strike - debit,
+                score: Math.min(100, Math.max(0, Math.round(finalScore))),
+                whyThis: `R/R ${riskReward.toFixed(1)}:1, λ=${lambda.toFixed(1)}${ivAdj > 0 ? ', Cheap Vol' : ''}`,
+                recommendation: {
+                    maxContracts: maxContracts,
+                    action: "BUY (Open)"
+                }
             });
         }
     }
-
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
-// =============================================================================
-// SINGLE LEG SCORER (LOQ-based)
-// =============================================================================
-
-function scoreSingleLegs(chain, type, ivRatio, currentPrice) {
+function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
     const filtered = chain.filter(o =>
         o.type === type &&
         Math.abs(o.delta) >= 0.25 &&
@@ -484,17 +457,16 @@ function scoreSingleLegs(chain, type, ivRatio, currentPrice) {
 
     if (filtered.length === 0) return [];
 
-    // Calculate metrics
     const processed = filtered.map(opt => {
         const mid = (opt.bid + opt.ask) / 2;
+        if (mid <= 0) return null;
         const lambda = Math.abs(opt.delta) * (currentPrice / mid);
         const gammaEff = opt.gamma / mid;
         const thetaBurn = Math.abs(opt.theta) / mid;
         const spreadPct = (opt.ask - opt.bid) / mid;
         return { opt, mid, lambda, gammaEff, thetaBurn, spreadPct };
-    });
+    }).filter(p => p !== null);
 
-    // Z-Score normalize
     const compressedLambdas = processed.map(p => compressLambda(p.lambda));
     const gammas = processed.map(p => p.gammaEff);
     const thetas = processed.map(p => p.thetaBurn);
@@ -502,13 +474,14 @@ function scoreSingleLegs(chain, type, ivRatio, currentPrice) {
     const zG = zScores(gammas);
     const zT = zScores(thetas);
 
-    // IV Adjustment
-    const riskFactor = getIVRiskFactor(ivRatio);
-    const ivAdj = (1 - riskFactor) * 5;
-
     return processed.map((p, i) => {
         const deltaBonus = getDeltaBonus(p.opt.delta);
         const thetaPenalty = getThetaPenalty(p.thetaBurn);
+
+        let ivAdj = 0;
+        if (ivRvRatio && ivRvRatio < 0.85) ivAdj = 10; // Cheap vol good for buying long
+        if (ivRvRatio && ivRvRatio > 1.15) ivAdj = -10; // Expensive vol bad for buying long
+
         const rawScore = 0.40 * zL[i] + 0.30 * zG[i] - 0.15 * zT[i] + 0.15 * deltaBonus + ivAdj - thetaPenalty;
         const score = Math.max(0, Math.min(100, Math.round(50 + rawScore * 12.5)));
 
@@ -519,24 +492,11 @@ function scoreSingleLegs(chain, type, ivRatio, currentPrice) {
             dte: p.opt.dte,
             price: Number(p.mid.toFixed(2)),
             delta: p.opt.delta,
-            iv: p.opt.iv,
-            gamma: p.opt.gamma,
-            theta: p.opt.theta,
-            vega: p.opt.vega,
-            volume: p.opt.volume,
-            openInterest: p.opt.openInterest,
-            lambda: Number(p.lambda.toFixed(1)),
-            gammaEff: Number(p.gammaEff.toFixed(4)),
-            thetaBurn: Number(p.thetaBurn.toFixed(4)),
             score,
-            whyThis: `λ=${p.lambda.toFixed(1)} leverage, Δ=${Math.abs(p.opt.delta).toFixed(2)} exposure`
+            whyThis: `λ=${p.lambda.toFixed(1)}, Δ=${Math.abs(p.opt.delta).toFixed(2)}${ivAdj > 0 ? ', Cheap Vol' : ''}`
         };
     }).sort((a, b) => b.score - a.score).slice(0, 5);
 }
-
-// =============================================================================
-// CHAIN PARSER (CBOE Format)
-// =============================================================================
 
 function parseChain(options, currentPrice, targetDTE = null) {
     const today = new Date();
@@ -579,16 +539,15 @@ function parseChain(options, currentPrice, targetDTE = null) {
             openInterest: opt.open_interest || 0
         };
     }).filter(opt => {
-        // Filter by strike range (15% around current price)
         const minStrike = currentPrice * 0.85;
         const maxStrike = currentPrice * 1.15;
         if (opt.strike < minStrike || opt.strike > maxStrike) return false;
-        // Filter by DTE if specified
+
         if (targetDTE !== null) {
-            if (targetDTE < 30) return opt.dte >= 14 && opt.dte < 30; // Short: 14-30
-            if (targetDTE < 45) return opt.dte >= 30 && opt.dte < 45; // Med: 30-45
-            if (targetDTE < 90) return opt.dte >= 45 && opt.dte < 90; // Long: 45-90
-            return opt.dte >= 90; // Leaps: 90+
+            if (targetDTE < 30) return opt.dte >= 14 && opt.dte < 30;
+            if (targetDTE < 45) return opt.dte >= 30 && opt.dte < 45;
+            if (targetDTE < 90) return opt.dte >= 45 && opt.dte < 90;
+            return opt.dte >= 90;
         }
         return opt.dte > 0 && opt.dte <= 730;
     });
@@ -618,58 +577,50 @@ export default async function handler(req, res) {
     const dteTarget = targetDte ? parseInt(targetDte) : 30;
 
     try {
-        // Fetch full chain from CBOE
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
-        const response = await fetch(cboeUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-        });
 
-        if (!response.ok) {
-            return res.status(response.status).json({ error: 'CBOE API error', status: response.status });
+        // 1. Parallel Fetching
+        const [cboeRes, rv20, daysUntilEarnings] = await Promise.all([
+            fetch(cboeUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then(r => r.ok ? r.json() : null),
+            fetchRV20(upperTicker),
+            fetchEarnings(upperTicker)
+        ]);
+
+        if (!cboeRes || !cboeRes.data || !cboeRes.data.options) {
+            return res.status(404).json({ error: 'No options data found or API error' });
         }
 
-        const data = await response.json();
+        const currentPrice = cboeRes.data.current_price;
+        const allOptions = cboeRes.data.options;
 
-        if (!data.data || !data.data.options) {
-            return res.status(404).json({ error: 'No options data found' });
-        }
-
-        const currentPrice = data.data.current_price;
-        const allOptions = data.data.options;
-
-        // Parse FULL chain for strict IV Term Structure calculation (Interpolation needs all DTEs)
         const fullChain = parseChain(allOptions, currentPrice, null);
-
-        // Filter options based on target DTE for strategy generation
         const strategyChain = parseChain(allOptions, currentPrice, dteTarget);
 
-        // Detect IV Regime using Strict Interpolation
-        const regime = await detectRegime(fullChain, currentPrice, upperTicker);
+        const iv30 = calculateTargetIV(fullChain, 30, currentPrice);
+        const iv90 = calculateTargetIV(fullChain, 90, currentPrice);
 
-        // Generate ALL recommendations
+        const regime = detectRegime(iv30, iv90, rv20);
+
         const creditStrat = isBull ? 'Put' : 'Call';
         const debitStrat = isBull ? 'Call' : 'Put';
         const legStrat = isBull ? 'Call' : 'Put';
 
-        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice);
-        const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice);
-        const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRatio, currentPrice);
+        // 2. Build Strategies with improved guards
+        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings);
+        const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio);
+        const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice);
 
-        // Determine Recommended Strategy
         let recommendedStrategy = 'CREDIT_SPREAD';
 
+        // 3. Strategy Selection based on Regime & Scores
         if (regime.mode === 'DEBIT') {
             recommendedStrategy = 'DEBIT_SPREAD';
         } else if (regime.mode === 'NEUTRAL') {
-            // Tie-breaker: Check scores
             const topCredit = creditSpreads[0]?.score || 0;
             const topDebit = debitSpreads[0]?.score || 0;
             if (topDebit > topCredit) recommendedStrategy = 'DEBIT_SPREAD';
         }
 
-        // Validation: If recommended has no results, fallback
         if (recommendedStrategy === 'CREDIT_SPREAD' && creditSpreads.length === 0) recommendedStrategy = 'DEBIT_SPREAD';
         if (recommendedStrategy === 'DEBIT_SPREAD' && debitSpreads.length === 0) recommendedStrategy = 'SINGLE_LEG';
         if (recommendedStrategy === 'SINGLE_LEG' && singleLegs.length === 0 && creditSpreads.length > 0) recommendedStrategy = 'CREDIT_SPREAD';
@@ -681,13 +632,13 @@ export default async function handler(req, res) {
                 currentPrice,
                 direction: isBull ? 'BULL' : 'BEAR',
                 targetDte: dteTarget,
-                cboeTimestamp: data.timestamp || null
+                daysUntilEarnings
             },
             regime: {
-                ivRatio: Number(regime.ivRatio.toFixed(3)),
-                iv30: regime.iv30 ? Number((regime.iv30 * 100).toFixed(1)) : null,
-                iv90: regime.iv90 ? Number((regime.iv90 * 100).toFixed(1)) : null,
-                rv20: regime.rv20 ? Number(regime.rv20.toFixed(1)) : null,
+                ivRatio: regime.ivRatio ? Number(regime.ivRatio.toFixed(3)) : null,
+                iv30: iv30 ? Number((iv30 * 100).toFixed(1)) : null,
+                iv90: iv90 ? Number((iv90 * 100).toFixed(1)) : null,
+                rv20: rv20 ? Number(rv20.toFixed(1)) : null,
                 ivRvRatio: regime.ivRvRatio ? Number(regime.ivRvRatio.toFixed(3)) : null,
                 mode: regime.mode,
                 advice: regime.advice

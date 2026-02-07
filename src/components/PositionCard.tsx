@@ -92,14 +92,20 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 const longData = longIndex >= 0 ? results[longIndex] : null;
 
                 if (shortData && longData) {
-                    // 1. Valuation Formula: Cost to Close = Short Price - Long Price
-                    const shortPrice = Math.abs(shortData.price || 0);
-                    const longPrice = Math.abs(longData.price || 0);
+                    // CONSERVATIVE PRICING (Survival Mode)
+                    // Use Bid/Ask to calculate "True Cost to Close" or "True Liquidation Value"
+                    // If Bid/Ask missing, fallback to Mid/Last (price)
+                    const shortAsk = shortData.ask || Math.abs(shortData.price || 0);
+                    // const shortBid unused
+                    // const longAsk unused
+                    const longBid = longData.bid || Math.abs(longData.price || 0);
 
                     if (isCreditStrategy) {
-                        netPrice = shortPrice - longPrice;
+                        // Cost to Close = Buy back Short (Ask) - Sell Long (Bid)
+                        netPrice = shortAsk - longBid;
                     } else {
-                        netPrice = longPrice - shortPrice;
+                        // Liquidation Value = Sell Long (Bid) - Buy back Short (Ask)
+                        netPrice = longBid - shortAsk;
                     }
                 }
 
@@ -118,11 +124,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 });
                 netIv = validLegs > 0 ? netIv / validLegs : 0;
 
-                if (isCreditStrategy && shortData && longData) {
-                    netPrice = Math.abs(shortData.price) - Math.abs(longData.price);
-                } else if (!isCreditStrategy && shortData && longData) {
-                    netPrice = Math.abs(longData.price) - Math.abs(shortData.price);
-                }
+                // netPrice calculation moved to initial block for consistency
+
 
                 let compositeScore = undefined;
                 const underlyingPrice = shortData?.underlyingPrice || longData?.underlyingPrice || 0;
