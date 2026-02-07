@@ -76,12 +76,13 @@ export default async function handler(req, res) {
             returns.push(Math.log(prices[i] / prices[i - 1]));
         }
 
-        // 取最近 20 个收益率 (RV20)
-        const recentReturns = returns.slice(-20);
+        // 取最近 30 个收益率 (RV30)
+        const recentReturns = returns.slice(-30);
 
         // 计算标准差
         const mean = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
-        const variance = recentReturns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (recentReturns.length - 1);
+        // 使用总体标准差 (Population StdDev) 以符合机构口径
+        const variance = recentReturns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentReturns.length;
         const stdDev = Math.sqrt(variance);
 
         // 年化 RV (Standard Deviation * sqrt(252))
@@ -90,7 +91,7 @@ export default async function handler(req, res) {
         return res.status(200).json({
             success: true,
             ticker: upperTicker,
-            rv20: Number(annualizedRV.toFixed(2)),
+            rv30: Number(annualizedRV.toFixed(2)),
             daysProcessed: recentReturns.length,
             lastClose: prices[prices.length - 1]
         });

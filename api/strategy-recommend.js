@@ -153,9 +153,10 @@ async function fetchRV20(ticker) {
             returns.push(Math.log(prices[i] / prices[i - 1]));
         }
 
-        const recentReturns = returns.slice(-20);
+        const recentReturns = returns.slice(-30);
         const mean = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
-        const variance = recentReturns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (recentReturns.length - 1);
+        // 使用总体标准差 (Population StdDev) 以符合机构口径，并改用 30D 窗口以匹配 IV30
+        const variance = recentReturns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentReturns.length;
         const annualizedRV = Math.sqrt(variance) * Math.sqrt(252) * 100;
 
         return annualizedRV;
@@ -233,7 +234,8 @@ function detectRegime(iv30, iv90, rv20) {
     }
     else if (ivRvRatio && ivRvRatio < 0.85) {
         mode = 'DEBIT';
-        advice = '🚀 Momentum Alert (RV > IV): Stock moving faster than priced. Buy Debit.';
+        // 稳健版本：使用 30D HV 减少单日异常波动影响，匹配 IV30 周期
+        advice = '🚀 Momentum Alert (RV30 > IV30): Stock moving faster than priced. Buy Debit.';
     }
 
     return { ivRatio: termRatio, ivRvRatio, mode, advice };
@@ -492,6 +494,14 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
             dte: p.opt.dte,
             price: Number(p.mid.toFixed(2)),
             delta: p.opt.delta,
+            gamma: p.opt.gamma,
+            theta: p.opt.theta,
+            vega: p.opt.vega,
+            lambda: p.lambda,
+            gammaEff: p.gammaEff,
+            thetaBurn: p.thetaBurn,
+            volume: p.opt.volume,
+            openInterest: p.opt.openInterest,
             score,
             whyThis: `λ=${p.lambda.toFixed(1)}, Δ=${Math.abs(p.opt.delta).toFixed(2)}${ivAdj > 0 ? ', Cheap Vol' : ''}`
         };
@@ -580,7 +590,7 @@ export default async function handler(req, res) {
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
         // 1. Parallel Fetching
-        const [cboeRes, rv20, daysUntilEarnings] = await Promise.all([
+        const [cboeRes, rv30, daysUntilEarnings] = await Promise.all([
             fetch(cboeUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then(r => r.ok ? r.json() : null),
             fetchRV20(upperTicker),
             fetchEarnings(upperTicker)
@@ -599,7 +609,7 @@ export default async function handler(req, res) {
         const iv30 = calculateTargetIV(fullChain, 30, currentPrice);
         const iv90 = calculateTargetIV(fullChain, 90, currentPrice);
 
-        const regime = detectRegime(iv30, iv90, rv20);
+        const regime = detectRegime(iv30, iv90, rv30);
 
         const creditStrat = isBull ? 'Put' : 'Call';
         const debitStrat = isBull ? 'Call' : 'Put';
@@ -638,7 +648,7 @@ export default async function handler(req, res) {
                 ivRatio: regime.ivRatio ? Number(regime.ivRatio.toFixed(3)) : null,
                 iv30: iv30 ? Number((iv30 * 100).toFixed(1)) : null,
                 iv90: iv90 ? Number((iv90 * 100).toFixed(1)) : null,
-                rv20: rv20 ? Number(rv20.toFixed(1)) : null,
+                rv30: rv30 ? Number(rv30.toFixed(1)) : null,
                 ivRvRatio: regime.ivRvRatio ? Number(regime.ivRvRatio.toFixed(3)) : null,
                 mode: regime.mode,
                 advice: regime.advice

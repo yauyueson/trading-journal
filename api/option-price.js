@@ -84,7 +84,8 @@ export default async function handler(req, res) {
     if (!targetOption) {
       // 尝试模糊匹配
       const expDateStr = expiration.replace(/-/g, '').slice(2); // "260220"
-      const typeChar = typeCode; // Use the already calculated C or P
+      const typeCode = (type.toLowerCase().includes('call') || type.toLowerCase() === 'c') ? 'C' : 'P';
+      const typeChar = typeCode; // Correctly determined as C or P
       const strikeStr = (parseFloat(strike) * 1000).toString().padStart(8, '0');
 
       const fuzzyMatch = options.find(opt => {
