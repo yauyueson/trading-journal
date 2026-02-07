@@ -54,23 +54,6 @@ export type Strategy = 'long' | 'short';
 // Raw Metric Calculations
 // ============================================================
 
-// ============================================================
-// Global Baselines (v2.2.1 Harmony)
-// These ensure consistent scoring across Portfolio and Scanner
-// ============================================================
-export const BASELINES = {
-    long: {
-        lambda: { mean: 8, std: 4 },
-        gammaEff: { mean: 0.02, std: 0.015 },
-        thetaBurn: { mean: 0.03, std: 0.02 }
-    },
-    short: {
-        edge: { mean: 0.8, std: 0.4 },
-        pop: { mean: 0.7, std: 0.15 },
-        spread: { mean: 0.03, std: 0.03 }
-    }
-};
-
 /**
  * Lambda (Λ) - True Leverage Ratio
  * Formula: Lambda = |Delta| × (Stock Price / Option Price)
@@ -313,96 +296,6 @@ export function getIVRiskFactor(ratio: number): number {
     return 0.9 + raw * 0.4;
 }
 
-/**
- * Volatility Risk Premium Factor (IV/RV Ratio)
- * 
- * Logic:
- * - IV/RV > 1.2: Options are expensive (Good for sellers, Bad for buyers)
- * - IV/RV < 0.8: Options are cheap (Good for buyers, Bad for sellers)
- * 
- * Returns adjustment:
- * - Buyers: +1.0 (Cheap) to -1.0 (Expensive)
- * - Sellers: -1.0 (Cheap) to +1.0 (Expensive)
- */
-/**
- * Volatility Regime Adjustment (Matrix)
- * 
- * Combines IV Term Structure (IV30/IV90) and IV/RV Ratio (IV30/RV20)
- * to determine the true "value" of options.
- * 
- * Quadrants:
- * 1. Value Zone (Contango + Low VRP): Strong Buy
- * 2. Momentum Zone (Backwardation + Low VRP): Speculative Buy
- * 3. Trap Zone (Contango + High VRP): Avoid/Sell
- * 4. Fear Zone (Backwardation + High VRP): Strong Sell
- */
-export function getVolatilityRegimeAdjustment(
-    termStructureRatio: number,
-    ivRvRatio: number | undefined | null,
-    strategy: Strategy
-): number {
-    // defaults
-    const isContango = termStructureRatio < 1.0;
-    const isBackwardation = termStructureRatio > 1.05;
-
-    // If IV/RV is missing, fallback to simple Term Structure logic
-    if (ivRvRatio === undefined || ivRvRatio === null || isNaN(ivRvRatio)) {
-        const simpleRisk = getIVRiskFactor(termStructureRatio);
-        return strategy === 'long' ? (1 - simpleRisk) * 5 : (simpleRisk - 1) * 5;
-    }
-
-    const isCheap = ivRvRatio < 0.95;
-    const isExpensive = ivRvRatio > 1.1;
-
-    let adjustment = 0;
-
-    // --- REGIME LOGIC ---
-
-    // 1. Value Zone (Contango + Low VRP)
-    // Options are cheap historically AND cheap vs realized movement.
-    // Best time to buy.
-    if (isContango && isCheap) {
-        adjustment = +2.5;
-    }
-
-    // 2. Momentum Zone (Backwardation + Low VRP)
-    // Options look expensive (Backwa.) but Realized Vol is huge.
-    // Market is moving fast. Buying is okay (chasing momentum).
-    else if (isBackwardation && isCheap) {
-        adjustment = +1.0;
-    }
-
-    // 3. Trap Zone (Contango + High VRP)
-    // Options look cheap (Contango) but Price Action is dead (High VRP).
-    // Market markers are overpricing options relative to actual movement.
-    // "Value Trap" for buyers.
-    else if (isContango && isExpensive) {
-        adjustment = -2.0;
-    }
-
-    // 4. Fear Zone (Backwardation + High VRP)
-    // Options are expensive historically AND expensive vs realized.
-    // Panic pricing. Best time to sell.
-    else if (isBackwardation && isExpensive) {
-        adjustment = -3.0;
-    }
-
-    // Neutral / Mixed zones
-    else {
-        // Linear interpolation for the middle ground
-        const termScore = (1 - termStructureRatio) * 5; // >0 if Contango
-        const vrpScore = (1 - ivRvRatio) * 5;           // >0 if Cheap
-        adjustment = (termScore + vrpScore) / 2;
-    }
-
-    // Flip for Sellers
-    if (strategy === 'short') {
-        return -adjustment;
-    }
-
-    return adjustment;
-}
-
 // ============================================================
 // LOQ Score (Long Option Quality)
 // ============================================================
@@ -507,7 +400,6 @@ export interface ScanContext {
     ticker: string;
     currentPrice: number;
     ivRatio: number;
-    ivRvRatio?: number; // Volatility Risk Premium
     ivStatus: 'contango' | 'neutral' | 'backwardation';
     strategy: Strategy;
 }
@@ -557,7 +449,6 @@ export function scoreOptionsChain(
         strikeRangePercent?: number;
         minVolume?: number;
         maxSpreadPct?: number;
-        ivRvRatio?: number;
     } = {}
 ): { context: ScanContext; results: ScoredResult[] } {
 
@@ -566,15 +457,12 @@ export function scoreOptionsChain(
         dteMax = 60,
         strikeRangePercent = 0.30,
         minVolume = 50,
-        maxSpreadPct = 0.10,
-        ivRvRatio
+        maxSpreadPct = 0.10
     } = filters;
 
     // Calculate IV Ratio
     const ivResult = calculateIVRatio(chain, currentPrice);
-
-    // Combine IV Term Structure + IV/RV Ratio into a Regime Score
-    const totalIvAdjustment = getVolatilityRegimeAdjustment(ivResult.ivRatio, ivRvRatio, strategy);
+    const ivAdjustment = getIVAdjustment(ivResult.ivRatio, strategy);
 
     // Hard filters
     const minStrike = currentPrice * (1 - strikeRangePercent);
@@ -638,50 +526,17 @@ export function scoreOptionsChain(
     let scored: ScoredResult[];
 
     if (strategy === 'long') {
-        scored = processed.map((p) => {
+        const lambdas = processed.map(p => (p as any).lambda);
+        const gammas = processed.map(p => (p as any).gammaEff);
+        const thetas = processed.map(p => (p as any).thetaBurn);
+
+        const zLambdas = normalizeToZScores(lambdas);
+        const zGammas = normalizeToZScores(gammas);
+        const zThetas = normalizeToZScores(thetas);
+
+        scored = processed.map((p, i) => {
             const thetaBurnValue = (p as any).thetaBurn;
-            const lambda = (p as any).lambda;
-            const gammaEff = (p as any).gammaEff;
-
-            // Use Global Baselines for consistency
-            const zLambda = (lambda - BASELINES.long.lambda.mean) / BASELINES.long.lambda.std;
-            const zGamma = (gammaEff - BASELINES.long.gammaEff.mean) / BASELINES.long.gammaEff.std;
-            const zTheta = (thetaBurnValue - BASELINES.long.thetaBurn.mean) / BASELINES.long.thetaBurn.std;
-
-            // Deal Breaker: Spread > 15% = Score 0
-            if (p.spreadPct > 0.15) {
-                return {
-                    symbol: p.opt.symbol,
-                    strike: p.opt.strike, // ... fill rest with dummy or existing
-                    type: p.opt.type,
-                    expiration: p.opt.expiration,
-                    dte: p.opt.dte,
-                    price: p.mid,
-                    score: 0, // KILLED
-                    metrics: {
-                        lambda: (p as any).lambda,
-                        gammaEff: (p as any).gammaEff,
-                        thetaBurn: (p as any).thetaBurn,
-                        spreadPct: p.spreadPct
-                    },
-                    greeks: {
-                        delta: p.opt.delta,
-                        gamma: p.opt.gamma,
-                        theta: p.opt.theta,
-                        vega: p.opt.vega,
-                        iv: p.opt.iv
-                    },
-                    liquidity: {
-                        volume: p.opt.volume,
-                        openInterest: p.opt.openInterest,
-                        bid: p.opt.bid,
-                        ask: p.opt.ask
-                    }
-                };
-            }
-
-            const deltaBonus = getDeltaBonus(p.opt.delta);
-            const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, totalIvAdjustment, deltaBonus, thetaBurnValue);
+            const rawScore = calculateLOQRaw(zLambdas[i], zGammas[i], zThetas[i], ivAdjustment, 0, thetaBurnValue);
             const score = normalizeScoreTo100(rawScore);
 
             return {
@@ -715,48 +570,16 @@ export function scoreOptionsChain(
         });
     } else {
         // Seller strategy
-        scored = processed.map((p) => {
-            const edge = (p as any).edge;
-            const pop = (p as any).pop;
-            const spread = p.spreadPct;
+        const edges = processed.map(p => (p as any).edge);
+        const pops = processed.map(p => (p as any).pop);
+        const spreads = processed.map(p => p.spreadPct);
 
-            // Use Global Baselines
-            const zEdge = (edge - BASELINES.short.edge.mean) / BASELINES.short.edge.std;
-            const zPop = (pop - BASELINES.short.pop.mean) / BASELINES.short.pop.std;
-            const zSpread = (spread - BASELINES.short.spread.mean) / BASELINES.short.spread.std;
+        const zEdges = normalizeToZScores(edges);
+        const zPops = normalizeToZScores(pops);
+        const zSpreads = normalizeToZScores(spreads);
 
-            // Deal Breaker: Spread > 15% = Score 0
-            if (p.spreadPct > 0.15) {
-                return {
-                    symbol: p.opt.symbol,
-                    strike: p.opt.strike,
-                    type: p.opt.type,
-                    expiration: p.opt.expiration,
-                    dte: p.opt.dte,
-                    price: p.mid,
-                    score: 0,
-                    metrics: {
-                        pop: (p as any).pop,
-                        edge: (p as any).edge,
-                        spreadPct: p.spreadPct
-                    },
-                    greeks: {
-                        delta: p.opt.delta,
-                        gamma: p.opt.gamma,
-                        theta: p.opt.theta,
-                        vega: p.opt.vega,
-                        iv: p.opt.iv
-                    },
-                    liquidity: {
-                        volume: p.opt.volume,
-                        openInterest: p.opt.openInterest,
-                        bid: p.opt.bid,
-                        ask: p.opt.ask
-                    }
-                };
-            }
-
-            const rawScore = calculateCSQRaw(zEdge, zPop, zSpread, totalIvAdjustment);
+        scored = processed.map((p, i) => {
+            const rawScore = calculateCSQRaw(zEdges[i], zPops[i], zSpreads[i], ivAdjustment);
             const score = normalizeScoreTo100(rawScore);
 
             return {
@@ -797,7 +620,6 @@ export function scoreOptionsChain(
             ticker: filtered[0]?.symbol?.slice(0, 6).trim() || '',
             currentPrice,
             ivRatio: ivResult.ivRatio,
-            ivRvRatio: filters.ivRvRatio,
             ivStatus: ivResult.status,
             strategy
         },
@@ -823,13 +645,12 @@ export function calculateSingleLOQ(
 
     // Without a pool, we use reference baselines
     // Good Lambda: 5-15, Good GammaEff: 0.01-0.05, Good ThetaBurn: 0-0.05
-    const zLambda = (lambda - BASELINES.long.lambda.mean) / BASELINES.long.lambda.std;
-    const zGamma = (gammaEff - BASELINES.long.gammaEff.mean) / BASELINES.long.gammaEff.std;
-    const zTheta = (thetaBurn - BASELINES.long.thetaBurn.mean) / BASELINES.long.thetaBurn.std;
+    const zLambda = (lambda - 8) / 4;  // Baseline: 8, std: 4
+    const zGamma = (gammaEff - 0.02) / 0.015;
+    const zTheta = (thetaBurn - 0.03) / 0.02;
 
-    const deltaBonus = getDeltaBonus(delta);
-    const totalIvAdjustment = getVolatilityRegimeAdjustment(ivRatio, 1.0, 'long');
-    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, totalIvAdjustment, deltaBonus, thetaBurn);
+    const ivAdjustment = getIVAdjustment(ivRatio, 'long');
+    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, ivAdjustment, 0, thetaBurn);
 
     return normalizeScoreTo100(rawScore);
 }
@@ -850,7 +671,6 @@ export interface CreditSpreadMetrics {
     shortDelta: number;
     shortStrike: number;
     currentPrice: number;
-    ivAdjustment?: number;
 }
 
 export function calculateCreditSpreadScore(metrics: CreditSpreadMetrics): number {
@@ -867,7 +687,7 @@ export function calculateCreditSpreadScore(metrics: CreditSpreadMetrics): number
     const scorePOP = pop * 100;                          // 100% POP = 100 pts
     const scoreDistance = Math.min(distance * 1000, 100); // 10% OTM = 100 pts
 
-    const finalScore = 0.4 * scoreROI + 0.4 * scorePOP + 0.2 * scoreDistance + (metrics.ivAdjustment || 0);
+    const finalScore = 0.4 * scoreROI + 0.4 * scorePOP + 0.2 * scoreDistance;
     return Math.round(Math.min(100, Math.max(0, finalScore)));
 }
 
@@ -877,7 +697,6 @@ export interface DebitSpreadMetrics {
     longDelta: number;
     longPrice: number;
     currentPrice: number;
-    ivAdjustment?: number;
 }
 
 export function calculateDebitSpreadScore(metrics: DebitSpreadMetrics): number {
@@ -900,6 +719,6 @@ export function calculateDebitSpreadScore(metrics: DebitSpreadMetrics): number {
     const rrScore = Math.min((riskReward / 3) * 100, 100);      // 1:3 R:R = 100 pts
     const deltaScore = 50 + deltaBonus * 12.5;
 
-    const finalScore = 0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore + (metrics.ivAdjustment || 0);
+    const finalScore = 0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore;
     return Math.round(Math.min(100, Math.max(0, finalScore)));
 }

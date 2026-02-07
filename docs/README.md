@@ -194,21 +194,14 @@ docs/
 
 ## 🔄 文档更新日志
 
-### 2026-02-06 (v2.2 Update - Harmony)
-- ✅ **Volatility Regime Matrix**: 放弃简单的加法模型，改用 4 象限矩阵整合 IV Term Structure 和 IV/RV Ratio，精准识别“爆发动量”与“价值陷阱”。
-- ✅ **Performance Overhaul**: 引入 `/api/batch-option-price` 接口，解决 N+1 调用瓶颈，Portfolio 加载速度提升 ~80%。
-- ✅ **UI/UX Modernization**: 重构 `PositionCard` 为 Glassmorphism 设计，引入 Health Bar 视觉化分值。
-- ✅ **Liquidity Guard**: 增加 Deal Breaker 硬约束，自动过滤买卖价差率 > 15% 的劣质合约。
-- ✅ **Cross-Platform Alignment**: 统一 `Portfolio`, `Scanner` 与 `Recommender` 的底层算法，消除所有评分误差。
-
-### 2026-02-06 (Credit/Spread Patch)
+### 2026-02-06
 - ✅ **Credit Spread Accounting**: 修复信用价差核算，采用 Cost to Close (Short - Long) 逻辑，修正 P&L 计算。
 - ✅ **Spread Scoring Optimization**: 将价差评分算法集成至 `scoring.ts`，实现 Portfolio 与 Recommender 评分 100% 映射一致。
 - ✅ **Stability & Persistence**: 优化价格刷新逻辑，增加本地 `liveData` 缓存，修复数据刷新时的抖动和 disappearing 问题。
 - ✅ **API Polish**: 更新 CBOE 接口头信息，修复 403 错误，标准化 `underlyingPrice` 字段。
 - ✅ **Bug Fixes**: 解决评分 NaN 问题，优化 Tooltip 全局展示性能。
 
-### 2026-02-05 (OSS v2.1)
+### 2026-02-05
 - ✅ 优化评分权重 (OSS v2.1)
 - ✅ 增加 Delta Bonus 线性插值
 - ✅ 增加 Theta Pain Capsule 惩罚算法

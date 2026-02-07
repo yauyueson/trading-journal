@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, ChevronDown, Trash2, TrendingUp, Target, AlertOctagon, Clock, ArrowRightLeft } from 'lucide-react';
-
+import { RefreshCw, Calendar, ChevronDown, Trash2, ArrowRightLeft } from 'lucide-react';
+import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory } from '../lib/types';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
@@ -11,18 +11,17 @@ interface PositionCardProps {
     position: Position;
     transactions: Transaction[];
     onAction: (id: string, action: any) => Promise<void>;
-    onUpdateScore: (id: string, score: number) => Promise<void>;
+    onUpdateScore: (id: string, score: number) => Promise<void>; // Kept for interface compatibility
     onUpdatePrice: (id: string, price: number) => Promise<void>;
     onUpdateTarget: (id: string, target: number) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
     onDataUpdate?: (timestamp: string) => void;
+    refreshTrigger?: number;
     index?: number;
     onRollClick?: (qty: number) => void;
-    preFetchedData?: any[];
 }
 
-export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onDelete, onDataUpdate, onRollClick, preFetchedData }) => {
-
+export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onDelete, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick }) => {
     const [loading, setLoading] = useState(false);
     const [liveData, setLiveData] = useState<LiveData>({ delta: undefined, iv: undefined, gamma: undefined, theta: undefined, vega: undefined, score: undefined });
     const [earnings, setEarnings] = useState<{ loading: boolean; date: string | null; days: number | null }>({ loading: true, date: null, days: null });
@@ -40,6 +39,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const isSpread = !!position.legs && position.legs.length > 0;
     const isCreditStrategy = position.type.includes('Credit') || position.type.includes('Short');
 
+    // Fetch Earnings
     useEffect(() => {
         const fetchEarnings = async () => {
             try {
@@ -58,367 +58,654 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 setEarnings({ loading: false, date: null, days: null });
             }
         };
-
-        if (position.ticker) fetchEarnings();
+        fetchEarnings();
     }, [position.ticker]);
 
-    const processOptionData = useCallback(async (results: any[]) => {
-        if (!results || results.some(r => !r)) return;
-
-        let netDelta = 0, netGamma = 0, netTheta = 0, netVega = 0, netIv = 0, netPrice = 0;
-        let underlyingPrice = 0;
-        let compositeScore = 0;
-        let isDayTrade = false;
-        let netIvRatio = 1.0;
-
-        if (isSpread && position.legs) {
-            const shortLeg = position.legs.find(l => l.side === 'short');
-            const longLeg = position.legs.find(l => l.side === 'long');
-
-            const shortData = results.find(r => r.strike === shortLeg?.strike && r.type === shortLeg?.type && r.expiration === shortLeg?.expiration);
-            const longData = results.find(r => r.strike === longLeg?.strike && r.type === longLeg?.type && r.expiration === longLeg?.expiration);
-
-            if (shortData) {
-                netDelta += shortData.delta * -100; // Short 1 contract
-                netGamma += shortData.gamma * -100;
-                netTheta += shortData.theta * -100;
-                netVega += shortData.vega * -100;
-                netIv += shortData.iv; // Approx
-                underlyingPrice = shortData.underlyingPrice;
-                isDayTrade = isDayTrade || shortData.isDayTrade;
-            }
-            if (longData) {
-                netDelta += longData.delta * 100; // Long 1 contract
-                netGamma += longData.gamma * 100;
-                netTheta += longData.theta * 100;
-                netVega += longData.vega * 100;
-                netIv = (netIv + longData.iv) / 2;
-                underlyingPrice = longData.underlyingPrice || underlyingPrice;
-                isDayTrade = isDayTrade || longData.isDayTrade;
-            }
-
-            // Price & Score
-            if (shortData && longData) {
-                const shortPrice = Math.abs(shortData.price || 0);
-                const longPrice = Math.abs(longData.price || 0);
-                netIvRatio = shortData.ivRatio || longData.ivRatio || 1.0;
-
-                if (isCreditStrategy) {
-                    const shortAsk = shortData.ask || shortPrice;
-                    const longBid = longData.bid || longPrice;
-                    netPrice = shortAsk - longBid;
-                } else {
-                    const longBid = longData.bid || longPrice;
-                    const shortAsk = shortData.ask || shortPrice;
-                    netPrice = longBid - shortAsk;
-                }
-            }
-
-            if (isCreditStrategy && shortData && longData && underlyingPrice > 0) {
-                const shortLeg = position.legs.find(l => l.side === 'short')!;
-                const longLeg = position.legs.find(l => l.side === 'long')!;
-                const width = Math.abs(Math.abs(shortLeg.strike) - Math.abs(longLeg.strike));
-                const ivAdjustment = (1 - (1 / (1 + Math.exp(-12 * (netIvRatio - 1.10)))) * 0.4 - 0.9) * 5;
-
-                compositeScore = calculateCreditSpreadScore({
-                    credit: netPrice,
-                    width,
-                    shortDelta: shortData.delta || 0,
-                    shortStrike: shortLeg.strike,
-                    currentPrice: underlyingPrice,
-                    ivAdjustment: -ivAdjustment
-                });
-            } else if (!isCreditStrategy && shortData && longData && underlyingPrice > 0) {
-                const shortLeg = position.legs.find(l => l.side === 'short')!;
-                const longLeg = position.legs.find(l => l.side === 'long')!;
-                const width = Math.abs(Math.abs(shortLeg.strike) - Math.abs(longLeg.strike));
-                const ivAdjustment = (1 - (1 / (1 + Math.exp(-12 * (netIvRatio - 1.10)))) * 0.4 - 0.9) * 5;
-
-                compositeScore = calculateDebitSpreadScore({
-                    debit: netPrice,
-                    width,
-                    longDelta: longData.delta || 0,
-                    longPrice: Math.abs(longData.price),
-                    currentPrice: underlyingPrice,
-                    ivAdjustment
-                });
-            }
-        } else {
-            const data = results[0];
-            if (data) {
-                netPrice = data.price;
-                netDelta = data.delta;
-                netGamma = data.gamma;
-                netTheta = data.theta;
-                netVega = data.vega;
-                netIv = data.iv;
-                isDayTrade = data.isDayTrade;
-                netIvRatio = data.ivRatio;
-                underlyingPrice = data.underlyingPrice;
-                compositeScore = data.score || (underlyingPrice ? calculateSingleLOQ(
-                    data.delta || 0,
-                    data.gamma || 0,
-                    data.theta || 0,
-                    underlyingPrice,
-                    data.price,
-                    data.ivRatio || 1.0
-                ) : undefined);
-            }
-        }
-
-        if (netPrice > 0) await onUpdatePrice(position.id, netPrice);
-        if (compositeScore > 0) await onUpdateScore(position.id, compositeScore);
-
-        setLiveData({
-            delta: netDelta,
-            gamma: netGamma,
-            theta: netTheta,
-            vega: netVega,
-            iv: netIv,
-            score: compositeScore,
-            isDayTrade
-        });
-
-        if (onDataUpdate) onDataUpdate(new Date().toISOString());
-
-    }, [position, isSpread, isCreditStrategy, onUpdatePrice, onUpdateScore, onDataUpdate]);
-
+    // Fetch Greeks and price
     const fetchGreeksAndPrice = useCallback(async () => {
-        if (preFetchedData) {
-            await processOptionData(preFetchedData);
-            return;
-        }
         setLoading(true);
         try {
-            let results = [];
             if (isSpread && position.legs) {
                 const promises = position.legs.map(async (leg) => {
                     const params = new URLSearchParams({ ticker: position.ticker, expiration: leg.expiration, strike: leg.strike.toString(), type: leg.type });
                     const res = await fetch(`/api/option-price?${params}`);
                     return res.ok ? await res.json() : null;
                 });
-                results = await Promise.all(promises);
+                const results = await Promise.all(promises);
+
+                // Prevent partial data update (wiping Greeks) if some requests failed
+                if (results.some(r => r === null)) {
+                    setLoading(false);
+                    return;
+                }
+
+                let netDelta = 0, netGamma = 0, netTheta = 0, netVega = 0;
+                let netIv = 0;
+                let netPrice = 0;
+                let validLegs = 0;
+
+                const shortIndex = position.legs.findIndex(l => l.side === 'short');
+                const longIndex = position.legs.findIndex(l => l.side === 'long');
+
+                // Ensure we have data for both legs
+                const shortData = shortIndex >= 0 ? results[shortIndex] : null;
+                const longData = longIndex >= 0 ? results[longIndex] : null;
+
+                if (shortData && longData) {
+                    // 1. Valuation Formula: Cost to Close = Short Price - Long Price
+                    const shortPrice = Math.abs(shortData.price || 0);
+                    const longPrice = Math.abs(longData.price || 0);
+
+                    if (isCreditStrategy) {
+                        netPrice = shortPrice - longPrice;
+                    } else {
+                        netPrice = longPrice - shortPrice;
+                    }
+                }
+
+                // Greeks Calculation
+                results.forEach((data, i) => {
+                    if (!data) return;
+                    validLegs++;
+                    const side = position.legs![i].side;
+                    const mult = side === 'short' ? -1 : 1;
+
+                    netDelta += (data.delta || 0) * mult;
+                    netGamma += (data.gamma || 0) * mult;
+                    netTheta += (data.theta || 0) * mult;
+                    netVega += (data.vega || 0) * mult;
+                    netIv += (data.iv || 0);
+                });
+                netIv = validLegs > 0 ? netIv / validLegs : 0;
+
+                if (isCreditStrategy && shortData && longData) {
+                    netPrice = Math.abs(shortData.price) - Math.abs(longData.price);
+                } else if (!isCreditStrategy && shortData && longData) {
+                    netPrice = Math.abs(longData.price) - Math.abs(shortData.price);
+                }
+
+                let compositeScore = undefined;
+                const underlyingPrice = shortData?.underlyingPrice || longData?.underlyingPrice || 0;
+
+                if (isCreditStrategy && shortData && longData && underlyingPrice > 0) {
+                    const shortLeg = position.legs?.find(l => l.side === 'short');
+                    const longLeg = position.legs?.find(l => l.side === 'long');
+                    const shortStrike = shortLeg ? shortLeg.strike : 0;
+                    const longStrike = longLeg ? longLeg.strike : 0;
+                    const width = Math.abs(Math.abs(shortStrike) - Math.abs(longStrike));
+                    const currentCredit = Math.abs(shortData.price) - Math.abs(longData.price);
+
+                    compositeScore = calculateCreditSpreadScore({
+                        credit: currentCredit,
+                        width: width,
+                        shortDelta: shortData.delta || 0,
+                        shortStrike: shortStrike,
+                        currentPrice: underlyingPrice
+                    });
+                } else if (!isCreditStrategy && shortData && longData && underlyingPrice > 0) {
+                    const shortStrike = position.legs?.find(l => l.side === 'short')?.strike || 0;
+                    const longStrike = position.legs?.find(l => l.side === 'long')?.strike || 0;
+                    const width = Math.abs(Math.abs(shortStrike) - Math.abs(longStrike));
+                    const currentDebit = Math.abs(longData.price) - Math.abs(shortData.price);
+
+                    compositeScore = calculateDebitSpreadScore({
+                        debit: currentDebit,
+                        width: width,
+                        longDelta: longData.delta || 0,
+                        longPrice: Math.abs(longData.price),
+                        currentPrice: underlyingPrice
+                    });
+                } else if (isCreditStrategy && shortData) {
+                    compositeScore = shortData.score || (shortData.underlyingPrice ? calculateSingleLOQ(
+                        shortData.delta || 0,
+                        shortData.gamma || 0,
+                        shortData.theta || 0,
+                        shortData.underlyingPrice,
+                        Math.abs(shortData.price),
+                        1.0
+                    ) : undefined);
+                } else if (!isCreditStrategy && longData) {
+                    compositeScore = longData.score || (longData.underlyingPrice ? calculateSingleLOQ(
+                        longData.delta || 0,
+                        longData.gamma || 0,
+                        longData.theta || 0,
+                        longData.underlyingPrice,
+                        Math.abs(longData.price),
+                        1.0
+                    ) : undefined);
+                }
+
+                setLiveData({
+                    delta: netDelta,
+                    gamma: netGamma,
+                    theta: netTheta,
+                    vega: netVega,
+                    iv: netIv,
+                    price: netPrice,
+                    score: compositeScore
+                });
+
+                if (netDelta !== 0) saveGreeksHistory(position.id, netIv, netDelta);
+
+                if (results.some(r => r !== null)) {
+                    if (Math.abs((position.current_price || 0) - netPrice) > 0.01) {
+                        await onUpdatePrice(position.id, netPrice);
+                    }
+                    // Report timestamp from first valid result
+                    const firstValid = results.find(r => r && r.cboeTimestamp);
+                    if (firstValid && onDataUpdate) {
+                        onDataUpdate(firstValid.cboeTimestamp);
+                    }
+                }
+
             } else {
                 const params = new URLSearchParams({ ticker: position.ticker, expiration: position.expiration, strike: position.strike.toString(), type: position.type });
                 const response = await fetch(`/api/option-price?${params}`);
-                if (response.ok) results = [await response.json()];
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.price) {
+                        await onUpdatePrice(position.id, data.price);
+                        if (data.cboeTimestamp && onDataUpdate) {
+                            onDataUpdate(data.cboeTimestamp);
+                        }
+                        const calculatedScore = data.score || (data.underlyingPrice ? calculateSingleLOQ(
+                            data.delta || 0,
+                            data.gamma || 0,
+                            data.theta || 0,
+                            data.underlyingPrice,
+                            data.price,
+                            data.metrics?.ivRatio || 1.0
+                        ) : undefined);
+
+                        setLiveData({
+                            delta: data.delta,
+                            iv: data.iv,
+                            gamma: data.gamma,
+                            theta: data.theta,
+                            vega: data.vega,
+                            score: calculatedScore,
+                            price: data.price,
+                            isDayTrade: data.metrics?.isDayTrade,
+                            ivRatio: data.metrics?.ivRatio
+                        });
+                        saveGreeksHistory(position.id, data.iv, data.delta);
+                    }
+                }
             }
-            await processOptionData(results);
-        } catch (e) {
-            console.error(e);
-        }
+        } catch (e) { console.error(e); }
         setLoading(false);
-    }, [position, isSpread, processOptionData, preFetchedData]);
+    }, [position.id, position.ticker, position.expiration, position.strike, position.type, isSpread, isCreditStrategy, position.legs, onUpdatePrice]);
 
-    useEffect(() => { fetchGreeksAndPrice(); }, [fetchGreeksAndPrice]);
-
-    // History Logic
     useEffect(() => {
-        const loadHistory = async () => {
-            if (isExpanded) {
-                setHistoryLoading(true);
-                const data = await fetchGreeksHistory(position.id);
+        fetchGreeksAndPrice();
+    }, [fetchGreeksAndPrice]);
+
+    useEffect(() => {
+        if (refreshTrigger > 0) {
+            const delay = index * 200;
+            setTimeout(() => {
+                fetchGreeksAndPrice();
+            }, delay);
+        }
+    }, [refreshTrigger, index, fetchGreeksAndPrice]);
+
+    useEffect(() => {
+        if (isExpanded && historyData.length === 0) {
+            setHistoryLoading(true);
+            fetchGreeksHistory(position.id).then(data => {
                 setHistoryData(data);
                 setHistoryLoading(false);
-            }
-        };
-        loadHistory();
-    }, [isExpanded, position.id]);
-
-    useEffect(() => {
-        if (liveData.iv && liveData.delta) {
-            saveGreeksHistory(position.id, liveData.iv, liveData.delta);
+            });
         }
-    }, [liveData.iv, liveData.delta, position.id]);
+    }, [isExpanded, position.id, historyData.length]);
 
+    const positionTxns = transactions.filter(t => t.position_id === position.id);
 
-    // Calculations
-    const currentPrice = position.current_price || position.entry_price;
-    const entryPrice = position.entry_price;
-    const qty = position.quantity;
-    const totalQty = transactions.reduce((sum, t) => sum + (t.type === 'Buy' || t.type === 'Sell' ? t.quantity : 0), 0);
+    let totalQtyBought = 0, totalCostBasis = 0, totalQtySold = 0;
+    positionTxns.forEach(t => {
+        const qty = t.quantity;
+        const price = t.price * CONTRACT_MULTIPLIER;
+        if (qty > 0) { totalQtyBought += qty; totalCostBasis += qty * price; }
+        else { totalQtySold += Math.abs(qty); }
+    });
 
-    const unrealizedPnL = (currentPrice - entryPrice) * qty * CONTRACT_MULTIPLIER * (isCreditStrategy ? -1 : 1);
-    const unrealizedPnLPct = (unrealizedPnL / (entryPrice * qty * CONTRACT_MULTIPLIER)) * 100;
-    const targetPrice = position.target_price || (entryPrice * (isCreditStrategy ? 0.5 : 1.5)); // Default targets
+    const totalQty = totalQtyBought - totalQtySold;
+    const avgCostPerContract = totalQtyBought > 0 ? totalCostBasis / totalQtyBought : 0;
+    const firstBuy = positionTxns.find(t => t.quantity > 0);
+    const entryPrice = firstBuy ? Math.abs(firstBuy.price) : 0;
+
+    const hasTakenProfit = positionTxns.some(t => t.type === 'Take Profit');
+    const currentStopLoss = isCreditStrategy
+        ? entryPrice * 1.5
+        : (hasTakenProfit ? entryPrice * 0.75 : entryPrice * 0.5);
+
+    const currentPrice = liveData.price !== undefined ? liveData.price : (position.current_price || 0);
+
+    let unrealizedPnL = 0;
+    let unrealizedPnLPct = 0;
+
+    if (totalQty > 0 && currentPrice) {
+        if (isCreditStrategy) {
+            unrealizedPnL = (entryPrice - currentPrice) * totalQty * CONTRACT_MULTIPLIER;
+            unrealizedPnLPct = entryPrice > 0 ? (unrealizedPnL / (entryPrice * totalQty * CONTRACT_MULTIPLIER)) * 100 : 0;
+        } else {
+            const totalValue = totalQty * currentPrice * CONTRACT_MULTIPLIER;
+            const totalCost = totalQty * avgCostPerContract;
+            unrealizedPnL = totalValue - totalCost;
+            unrealizedPnLPct = (totalCost > 0) ? (unrealizedPnL / totalCost) * 100 : 0;
+        }
+    }
+
+    const calculatedTarget = isCreditStrategy ? entryPrice * 0.5 : entryPrice * 1.25;
+    const targetPrice = position.target_price || calculatedTarget;
+
+    let realizedPnL = 0;
+    positionTxns.forEach(t => {
+        if (t.type === 'Take Profit' || t.type === 'Close' || t.type === 'Size Down') {
+            const exitPricePerContract = t.price * CONTRACT_MULTIPLIER;
+            const qtySold = Math.abs(t.quantity);
+            if (isCreditStrategy) {
+                realizedPnL += (avgCostPerContract - exitPricePerContract) * qtySold;
+            } else {
+                realizedPnL += (exitPricePerContract - avgCostPerContract) * qtySold;
+            }
+        }
+    });
+
     const daysToExp = daysUntil(position.expiration);
     const currentScore = position.current_score || position.entry_score;
-    const scoreColor = currentScore >= 70 ? 'text-accent-green' : currentScore >= 50 ? 'text-accent-yellow' : 'text-accent-red';
+
+    let alertLevel: 'none' | 'danger' | 'warning' = 'none';
+    const alerts: string[] = [];
+    if (currentScore < 60) { alerts.push('Low Score'); alertLevel = 'danger'; }
+    if (isCreditStrategy) {
+        if (currentPrice && currentPrice >= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
+    } else {
+        if (currentPrice && currentPrice <= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
+    }
+
+    if (unrealizedPnLPct <= -50) { alerts.push('Heavy Loss'); alertLevel = 'danger'; }
+    if (alertLevel !== 'danger') {
+        if (currentScore < 70) { alerts.push('Score Warning'); alertLevel = 'warning'; }
+        if (daysToExp <= 7 && daysToExp > 0) { alerts.push(`${daysToExp}d left`); alertLevel = 'warning'; }
+    }
+
+    const earningsWarning = earnings.days !== null && earnings.days >= 0 && earnings.days <= 7;
+    const earningsImminent = earnings.days !== null && earnings.days >= 0 && earnings.days <= 3;
+
+    let cardClass = 'card';
+    if (alertLevel === 'danger') cardClass = 'card-danger';
+    else if (earningsImminent) cardClass = 'card-earnings';
+    else if (alertLevel === 'warning') cardClass = 'card-warning';
+    else if (earningsWarning) cardClass = 'card-earnings-soon';
+
     const pnlColor = unrealizedPnL >= 0 ? 'text-accent-green' : 'text-accent-red';
-    const currentStopLoss = position.stop_loss || 0;
 
     const handleAction = async (type: 'Size Up' | 'Take Profit' | 'Close') => {
-        const price = parseFloat(actionPrice);
-        if (isNaN(price)) return;
-        await onAction(position.id, { type, quantity: actionQty, price });
+        if (!actionPrice) return;
+        setLoading(true);
+        const qty = ['Size Down', 'Take Profit', 'Close'].includes(type) ? -Math.abs(actionQty) : Math.abs(actionQty);
+        await onAction(position.id, {
+            type,
+            quantity: type === 'Close' ? -totalQty : qty,
+            price: parseFloat(actionPrice)
+        });
+        setLoading(false);
         setActionMode(null);
+        setActionPrice('');
+        setActionQty(1);
     };
 
     const handleScoreSave = async () => {
         const newScore = parseInt(scoreInput);
-        if (!isNaN(newScore)) { await onUpdateScore(position.id, newScore); setIsEditingScore(false); }
+        if (!isNaN(newScore)) {
+            await onUpdateScore(position.id, newScore);
+            setIsEditingScore(false);
+        }
     };
 
     const handleTargetSave = async () => {
         const newTarget = parseFloat(targetInput);
-        if (!isNaN(newTarget)) { await onUpdateTarget(position.id, newTarget); setIsEditingTarget(false); }
+        if (!isNaN(newTarget)) {
+            await onUpdateTarget(position.id, newTarget);
+            setIsEditingTarget(false);
+        }
     };
 
     return (
-        <div className="relative overflow-hidden group rounded-xl border border-white/10 bg-[#1C1C1E] transition-all duration-300 shadow-sm mb-3">
-            <div className="p-4">
-                {/* Header Section */}
-                <div className="flex justify-between items-start mb-6">
-                    <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-3">
-                            <h3 className="text-2xl font-bold tracking-tight text-white">{position.ticker}</h3>
-                            <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${isCreditStrategy ? 'border-accent-green/30 text-accent-green bg-accent-green/10' : 'border-accent-blue/30 text-accent-blue bg-accent-blue/10'}`}>
-                                {isSpread ? 'Spread' : position.type}
-                            </span>
-                            {Boolean(liveData.isDayTrade) && (
-                                <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border border-purple-500/30 text-purple-300 bg-purple-500/10">DT</span>
-                            )}
-                        </div>
-                        <div className="text-sm text-text-tertiary font-mono flex items-center gap-2">
-                            <span>{formatDate(position.expiration)}</span>
-                            <span>•</span>
-                            <span className={daysToExp <= 7 ? 'text-accent-yellow font-bold' : ''}>{daysToExp}d left</span>
-                        </div>
-                    </div>
-
-                    {/* Score Badge */}
-                    <div className="flex flex-col items-end">
-                        <div className="text-[10px] text-text-tertiary mb-0.5 uppercase tracking-wider font-bold">Score</div>
-                        <div className="cursor-pointer" onClick={() => { setIsEditingScore(true); setScoreInput(currentScore?.toString() || ''); }}>
-                            {isEditingScore ? (
-                                <input autoFocus className="w-12 bg-bg-secondary text-right border rounded px-1" value={scoreInput} onChange={e => setScoreInput(e.target.value)} onBlur={handleScoreSave} onKeyDown={e => e.key === 'Enter' && handleScoreSave()} />
-                            ) : (
-                                <div className={`text-2xl font-black ${scoreColor} tabular-nums`}>
-                                    {currentScore || '--'}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Main Body Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-
-                    {/* Left: PnL & Status */}
-                    <div className="md:col-span-4 flex flex-col">
-                        <div className="flex items-baseline gap-2">
-                            <span className={`text-4xl font-bold tracking-tighter ${pnlColor}`}>
-                                {formatPercent(unrealizedPnLPct)}
-                            </span>
-                            <span className={`text-lg font-mono opacity-80 ${pnlColor}`}>
-                                {unrealizedPnL >= 0 ? '+' : ''}{formatCurrency(unrealizedPnL)}
-                            </span>
-                        </div>
-                        <div className="mt-2 flex items-center gap-4 text-xs font-mono text-text-secondary">
-                            <div className="flex flex-col">
-                                <span className="text-text-tertiary uppercase text-[9px]">Entry</span>
-                                <span>{formatPrice(entryPrice)}</span>
+        <div className={`${cardClass} p-5 fade-in`}>
+            {/* Header */}
+            <div className="flex justify-between items-start mb-4">
+                <div>
+                    <div className="flex items-center gap-3 mb-1">
+                        <span className="text-2xl font-bold">{position.ticker}</span>
+                        {isSpread ? (
+                            <div className="flex items-center gap-2 text-sm text-text-secondary font-medium uppercase tracking-wide">
+                                <span className="text-text-primary">
+                                    ${position.legs?.find(l => l.side === 'short')?.strike}{position.legs?.[0]?.type?.charAt(0)}
+                                    <span className="mx-1.5">/</span>
+                                    ${position.legs?.find(l => l.side === 'long')?.strike}{position.legs?.[0]?.type?.charAt(0)}
+                                </span>
+                                <span className="text-[15.5px]">{position.legs?.[0]?.type} {isCreditStrategy ? 'Credit' : 'Debit'} Spread</span>
                             </div>
-                            <div className="flex flex-col">
-                                <span className="text-text-tertiary uppercase text-[9px]">Current</span>
-                                <span>{currentPrice ? formatPrice(currentPrice) : '...'}</span>
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-text-tertiary uppercase text-[9px]">Target</span>
-                                <span className="text-accent-green" onClick={() => { setIsEditingTarget(true); setTargetInput(targetPrice.toString()); }}>
-                                    {isEditingTarget ? <input className="w-12 bg-transparent border-b" value={targetInput} onChange={e => setTargetInput(e.target.value)} onBlur={handleTargetSave} autoFocus /> : formatPrice(targetPrice)}
+                        ) : (
+                            <div className="flex items-center gap-2 text-sm text-text-secondary font-medium uppercase tracking-wide">
+                                <span className="text-text-primary font-mono">${position.strike}</span>
+                                <span className={`text-[15.5px] ${position.type?.toLowerCase().includes('call') ? 'text-accent-green' : 'text-accent-red'}`}>
+                                    {position.type}
                                 </span>
                             </div>
-                            <div className="flex flex-col">
-                                <span className="text-text-tertiary uppercase text-[9px]">Stop</span>
-                                <span className="text-accent-red">{formatPrice(currentStopLoss)}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Center: Greeks Grid (Compact) */}
-                    <div className="md:col-span-5 grid grid-cols-4 gap-2">
-                        {[
-                            { label: 'Delta', value: liveData.delta, fmt: (v: number) => v.toFixed(2) },
-                            { label: 'Gamma', value: liveData.gamma, fmt: (v: number) => v.toFixed(3) },
-                            { label: 'Theta', value: liveData.theta, fmt: (v: number) => v.toFixed(2) },
-                            { label: 'IV', value: liveData.iv, fmt: (v: number) => (v * 100).toFixed(0) + '%' },
-                        ].map((g, i) => (
-                            <div key={i} className="bg-[#111] rounded px-2 py-1.5 text-center border border-white/5">
-                                <div className="text-[9px] text-text-tertiary uppercase tracking-wider mb-0.5">{g.label}</div>
-                                <div className={`text-xs font-mono font-medium ${!g.value ? 'text-text-tertiary' : 'text-white'}`}>
-                                    {g.value !== undefined ? g.fmt(g.value) : '--'}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Right: Actions */}
-                    <div className="md:col-span-3 flex justify-end gap-2">
-                        {!actionMode ? (
-                            <>
-                                <button onClick={() => setActionMode('Add')} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 hover:text-white text-text-secondary transition-colors" title="Size Up">
-                                    <TrendingUp size={18} />
-                                </button>
-                                <button onClick={() => setActionMode('TakeProfit')} className="p-2 rounded-lg bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 text-text-secondary transition-colors" title="Take Profit">
-                                    <Target size={18} />
-                                </button>
-                                <button onClick={() => setActionMode('Close')} className="p-2 rounded-lg bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-text-secondary transition-colors" title="Close Position">
-                                    <Trash2 size={18} />
-                                </button>
-                                {onRollClick && (
-                                    <button onClick={() => onRollClick(totalQty)} className="p-2 rounded-lg bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 text-text-secondary transition-colors" title="Roll Position">
-                                        <ArrowRightLeft size={18} />
-                                    </button>
-                                )}
-                                <button onClick={() => onDelete(position.id)} className="p-2 rounded-lg bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-text-secondary transition-colors" title="Delete Position">
-                                    <Trash2 size={18} />
-                                </button>
-                                <button onClick={fetchGreeksAndPrice} disabled={loading} className={`p-2 rounded-lg bg-white/5 hover:bg-white/10 text-text-secondary transition-colors ${loading ? 'animate-spin' : ''}`} title="Refresh">
-                                    <RefreshCw size={18} />
-                                </button>
-                            </>
-                        ) : (
-                            <div className="flex flex-col gap-2 w-full animate-in fade-in zoom-in-95">
-                                <div className="flex gap-2">
-                                    {actionMode !== 'Close' && <input className="w-12 bg-bg-tertiary rounded px-1 text-sm" placeholder="#" value={actionQty} onChange={e => setActionQty(parseFloat(e.target.value))} />}
-                                    <input className="flex-1 bg-bg-tertiary rounded px-1 text-sm" placeholder="Price" value={actionPrice} onChange={e => setActionPrice(e.target.value)} autoFocus />
-                                </div>
-                                <div className="flex gap-1">
-                                    <button onClick={() => handleAction(actionMode === 'Add' ? 'Size Up' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close')} className="flex-1 bg-emerald-500/20 text-emerald-400 text-xs py-1 rounded hover:bg-emerald-500/30">Confirm</button>
-                                    <button onClick={() => setActionMode(null)} className="flex-1 bg-white/5 text-text-secondary text-xs py-1 rounded hover:bg-white/10">Cancel</button>
-                                </div>
-                            </div>
                         )}
                     </div>
-                </div>
+                    <div className="text-text-secondary">
 
-                {/* Footer Details */}
-                <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center text-xs text-text-tertiary">
-                    <div className="flex items-center gap-4">
-                        {isSpread ? (
-                            <span>{position.legs?.find(l => l.side === 'short')?.strike}/{position.legs?.find(l => l.side === 'long')?.strike} {isCreditStrategy ? 'Credit' : 'Debit'}</span>
-                        ) : (
-                            <span>${position.strike} {position.type}</span>
-                        )}
-                        {Boolean(earnings.days !== null && earnings.days <= 14) && (
-                            <span className="flex items-center gap-1 text-orange-400/80">
-                                <AlertOctagon size={12} /> Earn in {earnings.days}d
+                        <span>{formatDate(position.expiration)}</span>
+                        <span className="mx-2">·</span>
+                        <span>{totalQty} contract{totalQty !== 1 ? 's' : ''}</span>
+                        {liveData.ivRatio !== undefined && (
+                            <span className="ml-3 px-2 py-0.5 rounded text-xs font-mono font-medium bg-bg-tertiary border border-border-default/50 text-text-secondary" title="IV Ratio">
+                                IVR: <span className={liveData.ivRatio > 1.05 ? 'text-accent-green' : liveData.ivRatio < 0.95 ? 'text-accent-red' : 'text-text-primary'}>
+                                    {liveData.ivRatio.toFixed(2)}
+                                </span>
                             </span>
                         )}
                     </div>
-                    <div className="flex items-center gap-2 cursor-pointer hover:text-text-secondary transition-colors" onClick={() => setIsExpanded(!isExpanded)}>
-                        {historyLoading ? <RefreshCw size={10} className="animate-spin" /> : <Clock size={12} />}
-                        <span>History</span>
-                        <ChevronDown size={12} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                </div>
+                <div className="text-right">
+                    <div className={`big-number ${pnlColor}`}>
+                        {formatPercent(unrealizedPnLPct)}
+                    </div>
+                    <div className={`text-sm font-mono ${pnlColor} mb-1`}>
+                        {unrealizedPnL >= 0 ? '+' : ''}{formatCurrency(unrealizedPnL)}
+                    </div>
+                    <div className={`text-xs font-mono font-medium ${realizedPnL > 0 ? 'text-accent-green' : realizedPnL < 0 ? 'text-accent-red' : 'text-text-tertiary'} flex items-center justify-end gap-1`}>
+                        <span className="text-text-tertiary text-[10px] uppercase tracking-wider">Realized</span>
+                        {realizedPnL !== 0 ? (realizedPnL > 0 ? '+' : '') + formatCurrency(realizedPnL) : '—'}
                     </div>
                 </div>
             </div>
 
-            {/* Expanded History */}
-            {isExpanded && (
-                <div className="bg-black/20 p-4 border-t border-white/5 animate-in slide-in-from-top-2">
-                    <GreeksHistoryChart data={historyData} loading={historyLoading} />
+            {/* Earnings Banner */}
+            {earningsWarning && (
+                <div className={`mb-4 p-3 rounded-xl flex items-center justify-between ${earningsImminent ? 'bg-bg-secondary border border-purple-500/20' : 'bg-bg-secondary border border-blue-500/20'}`}>
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${earningsImminent ? 'bg-purple-500/10' : 'bg-blue-500/10'}`}>
+                            <Calendar size={18} className={earningsImminent ? 'text-purple-300/70' : 'text-blue-300/70'} />
+                        </div>
+                        <div>
+                            <div className={`font-semibold ${earningsImminent ? 'text-text-primary' : 'text-text-primary'}`}>
+                                {earnings.days === 0 ? 'Earnings TODAY' : earnings.days === 1 ? 'Earnings TOMORROW' : `Earnings in ${earnings.days} days`}
+                            </div>
+                            <div className="text-sm text-text-secondary">
+                                {formatDate(earnings.date)} · Consider position sizing
+                            </div>
+                        </div>
+                    </div>
+                    {earningsImminent && (
+                        <span className="px-3 py-1 bg-purple-500/30 text-purple-300 rounded-lg text-sm font-semibold animate-pulse">
+                            ACTION NEEDED
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {/* Alerts */}
+            {alerts.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                    {alerts.map((a, i) => (
+                        <span key={i} className={`badge ${alertLevel === 'danger' ? 'badge-red' : 'badge-yellow'}`}>
+                            {a}
+                        </span>
+                    ))}
+                </div>
+            )}
+
+            {/* Metrics Grid */}
+            <div className="flex flex-col gap-4 mb-4 py-4 border-y border-border-default">
+                {/* Row 1: Trade Management */}
+                <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-4">
+                    {/* Entry */}
+                    <div>
+                        <div className="mb-1 flex items-center h-5">
+                            <Tooltip label="Entry" explanation="Original entry price/credit per contract." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value">{formatPrice(entryPrice)}</div>
+                    </div>
+                    {/* Avg */}
+                    <div>
+                        <div className="mb-1 flex items-center h-5">
+                            <Tooltip label="Avg" explanation="Average Cost Basis." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value">{formatPrice(avgCostPerContract / CONTRACT_MULTIPLIER)}</div>
+                    </div>
+                    {/* Target */}
+                    <div>
+                        <div className="mb-1 flex items-center gap-1 h-5">
+                            <Tooltip label="Target" explanation="Profit Target Price. Click to edit." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                            <button
+                                onClick={() => { setIsEditingTarget(true); setTargetInput(targetPrice.toString()); }}
+                                className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+                                aria-label="Edit target"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                            </button>
+                        </div>
+                        {isEditingTarget ? (
+                            <div className="flex items-center gap-1">
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={targetInput}
+                                    onChange={e => setTargetInput(e.target.value)}
+                                    className="w-16 px-1 py-0.5 text-sm bg-bg-secondary rounded border border-border-default font-mono"
+                                    autoFocus
+                                />
+                                <button onClick={handleTargetSave} className="text-accent-green hover:bg-accent-green/10 p-0.5 rounded cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                </button>
+                                <button onClick={() => setIsEditingTarget(false)} className="text-accent-red hover:bg-accent-red/10 p-0.5 rounded cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="metric-value text-accent-green">{formatPrice(targetPrice)}</div>
+                        )}
+                    </div>
+                    {/* Current */}
+                    <div>
+                        <div className="mb-1 flex items-center h-5">
+                            <Tooltip label="Current" explanation={isCreditStrategy ? "Cost to Close" : "Liquidation Value"} className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-text-primary">{currentPrice ? formatPrice(currentPrice) : '—'}</div>
+                    </div>
+                    {/* Stop */}
+                    <div>
+                        <div className="mb-1 flex items-center h-5">
+                            <Tooltip label="Stop" explanation="Stop Loss Level." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-accent-red">{formatPrice(currentStopLoss)}</div>
+                    </div>
+                    {/* Tech Score */}
+                    <div>
+                        <div className="mb-1 flex items-center gap-1 h-5">
+                            <Tooltip label="Tech Score" explanation="Manual Technical Analysis Score (0-100)." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                            <button
+                                onClick={() => { setIsEditingScore(true); setScoreInput(currentScore ? currentScore.toString() : ''); }}
+                                className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+                                aria-label="Edit score"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                            </button>
+                        </div>
+                        {isEditingScore ? (
+                            <div className="flex items-center gap-1">
+                                <input
+                                    type="number"
+                                    value={scoreInput}
+                                    onChange={e => setScoreInput(e.target.value)}
+                                    className="w-12 px-1 py-0.5 text-sm bg-bg-secondary rounded border border-border-default font-mono"
+                                    autoFocus
+                                />
+                                <button onClick={handleScoreSave} className="text-accent-green hover:bg-accent-green/10 p-0.5 rounded cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                </button>
+                                <button onClick={() => setIsEditingScore(false)} className="text-accent-red hover:bg-accent-red/10 p-0.5 rounded cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col">
+                                <span className={`metric-value ${currentScore ? (currentScore >= 70 ? 'text-accent-green' : currentScore >= 60 ? 'text-accent-yellow' : 'text-accent-red') : 'text-text-primary'}`}>
+                                    {currentScore || '—'}
+                                </span>
+                                {position.current_score && position.current_score !== position.entry_score && (
+                                    <span className="text-xs text-text-tertiary flex items-center">
+                                        from {position.entry_score}
+                                        {position.current_score < position.entry_score && <span className="ml-1 text-accent-red">↓</span>}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+
+
+                {/* Row 3: Mechanics & Option Score */}
+                <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-4 pt-4 border-t border-border-light/50">
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Delta" explanation="Net Position Delta." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-text-primary">
+                            {liveData.delta !== undefined ? liveData.delta.toFixed(2) : '—'}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Gamma" explanation="Rate of change of Delta." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-text-primary">
+                            {liveData.gamma !== undefined ? liveData.gamma.toFixed(3) : '—'}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Theta" explanation="Time decay." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-text-primary">
+                            {liveData.theta !== undefined ? liveData.theta.toFixed(3) : '—'}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Vega" explanation="Sensitivity to changes in Implied Volatility." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-text-primary">
+                            {liveData.vega !== undefined ? liveData.vega.toFixed(3) : '—'}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="IV" explanation="Avg Implied Volatility." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="metric-value text-text-primary">
+                            {liveData.iv !== undefined ? (liveData.iv * 100).toFixed(1) + '%' : '—'}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="Opt Score" explanation="Calculated Option Quality." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className="flex flex-col">
+                            <div className={`metric-value font-bold ${liveData.score === undefined ? 'text-text-tertiary' :
+                                liveData.score >= 70 ? 'text-accent-green' :
+                                    liveData.score >= 50 ? 'text-accent-yellow' : 'text-accent-red'
+                                }`}>
+                                {liveData.score !== undefined ? liveData.score : '—'}
+                            </div>
+                            {Boolean(liveData.isDayTrade) && (
+                                <span className="mt-0.5 px-1 pb-0.5 text-[8px] font-bold uppercase tracking-wider text-purple-300 bg-purple-500/10 rounded w-fit">
+                                    Day Trade
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Setup info */}
+            <div className="text-sm text-text-secondary mb-4 flex flex-wrap gap-x-2 gap-y-1">
+                <span><span className="text-text-tertiary">Setup:</span> {position.setup}</span>
+                {position.stop_reason && (
+                    <span className="flex items-center gap-2 min-w-0">
+                        <span className="text-text-tertiary">·</span>
+                        <span className="text-text-tertiary shrink-0">Exit if:</span>
+                        <span className="truncate max-w-[200px] sm:max-w-[300px]" title={position.stop_reason}>{position.stop_reason}</span>
+                    </span>
+                )}
+            </div>
+
+            {/* Expandable Greeks History */}
+            <div className="mb-4">
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="w-full flex items-center justify-between py-2 px-3 rounded-lg bg-bg-secondary/50 hover:bg-bg-secondary transition-colors text-sm text-text-secondary cursor-pointer"
+                    aria-expanded={isExpanded}
+                    aria-label={isExpanded ? 'Collapse IV & Delta history' : 'Expand IV & Delta history'}
+                >
+                    <span>IV & Delta History</span>
+                    <ChevronDown
+                        size={16}
+                        className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                    />
+                </button>
+                {isExpanded && (
+                    <div className="mt-3 p-3 rounded-lg bg-bg-secondary/30 border border-border-default">
+                        <GreeksHistoryChart data={historyData} loading={historyLoading} />
+                    </div>
+                )}
+            </div>
+
+            {/* Action Buttons */}
+            {!actionMode ? (
+                <div className="flex gap-2">
+                    <button onClick={fetchGreeksAndPrice} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-2 cursor-pointer" aria-label="Refresh price">
+                        {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={16} />}
+                        <span className="hidden sm:inline">Refresh</span>
+                    </button>
+                    <button onClick={() => setActionMode('Add')} className="action-btn btn-secondary">+ Add</button>
+                    <button onClick={() => setActionMode('TakeProfit')} className="action-btn btn-secondary">Profit</button>
+                    {onRollClick && (
+                        <button onClick={() => onRollClick(totalQty)} className="action-btn btn-secondary text-text-secondary hover:text-white flex items-center gap-1">
+                            <ArrowRightLeft size={14} /> Roll
+                        </button>
+                    )}
+                    <button onClick={() => setActionMode('Close')} className="action-btn btn-secondary text-text-secondary hover:text-accent-red hover:bg-accent-red/10">Close</button>
+                    <button onClick={() => onDelete(position.id)} className="action-btn btn-secondary text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 px-3" aria-label="Delete Position">
+                        <Trash2 size={16} />
+                    </button>
+                </div>
+            ) : (
+                <div className="card-elevated p-4 space-y-3">
+                    <div className="text-sm font-medium text-text-secondary">
+                        {actionMode === 'Add' ? 'Add to Position' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close Position'}
+                    </div>
+                    <div className="flex gap-3">
+                        {actionMode !== 'Close' && (
+                            <input type="number" min="1" value={actionQty} onChange={e => setActionQty(parseInt(e.target.value) || 1)}
+                                placeholder="Qty" className="w-24 px-4 py-3 rounded-xl font-mono" />
+                        )}
+                        <input type="number" step="0.01" value={actionPrice} onChange={e => setActionPrice(e.target.value)}
+                            placeholder="Price" className="flex-1 px-4 py-3 rounded-xl font-mono" autoFocus />
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={() => setActionMode(null)} className="flex-1 py-3 btn-secondary rounded-xl">Cancel</button>
+                        <button onClick={() => handleAction(actionMode === 'Add' ? 'Size Up' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close')}
+                            disabled={!actionPrice || loading} className="flex-1 py-3 btn-primary rounded-xl">
+                            {loading ? '...' : 'Confirm'}
+                        </button>
+                    </div>
                 </div>
             )}
         </div>

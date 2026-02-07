@@ -776,8 +776,6 @@ function localApiPlugin(): Plugin {
         const isBull = direction.toUpperCase() === 'BULL';
 
         try {
-          console.log(`[Recommender] Analyzing ${upperTicker} (${direction}, DTE=${targetDte})...`);
-
           // Fetch full chain from CBOE
           const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
           const response = await fetch(cboeUrl, {

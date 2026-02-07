@@ -29,11 +29,10 @@ Supabase PostgreSQL (数据存储)
 
 | 端点 | 方法 | 用途 | 状态 |
 |------|------|------|------|
-| `/api/option-price` | GET | 获取单份期权价格、Greeks 及 OSS 评分 (v2.2) | ✅ 生产 |
-| `/api/batch-option-price` | POST | 批量获取多个期权合约的数据（高性能版） | ✅ 生产 |
-| `/api/scan-options` | GET | OSS v2.2 扫描器，支持 VRP & Regime 分析 | ✅ 生产 |
-| `/api/strategy-recommend` | GET | 策略推荐引擎（支持价差/组合策略, v2.2） | ✅ 生产 |
-| `/api/earnings` | GET | 获取财报日期（基于 Nasdaq API） | ✅ 生产 |
+| `/api/option-price` | GET | 获取单份期权价格、Greeks 及 OSS 评分 | ✅ 生产 |
+| `/api/scan-options` | GET | OSS v2.1 扫描器，获取高分单腿合约列表 | ✅ 生产 |
+| `/api/strategy-recommend` | GET | 策略推荐引擎（价差/组合策略专用） | ✅ 生产 |
+| `/api/earnings` | GET | 获取财报日期（通过 Nasdaq API） | ✅ 生产 |
 
 ---
 
@@ -178,73 +177,6 @@ const response = await fetch(url, {
 
 ---
 
-## 📦 批量期权价格 API
-
-### 端点
-
-```
-POST /api/batch-option-price
-```
-
-### 用途
-
-一次性获取多个期权合约的价格和 Greeks。该接口会合并相同 Ticker 的请求，内部仅触发一次 CBOE API 调用，极大缩短了 Portfolio 页面的加载时间（解决 N+1 调用问题）。
-
-### 参数 (Request Body)
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| items | array | 包含合约信息的对象数组 |
-
-**Item 格式**:
-```typescript
-{
-  id: string,         // 自定义标识符（如 positionId）
-  ticker: string,     // 股票代码
-  expiration: string, // YYYY-MM-DD
-  strike: number,     // 行权价
-  type: string        // 'Call' | 'Put'
-}
-```
-
-### 请求示例
-
-```json
-{
-  "items": [
-    { "id": "pos1_short", "ticker": "SPY", "strike": 500, "type": "Call", "expiration": "2026-03-20" },
-    { "id": "pos1_long", "ticker": "SPY", "strike": 510, "type": "Call", "expiration": "2026-03-20" }
-  ]
-}
-```
-
-### 响应格式
-
-```json
-{
-  "results": {
-    "pos1_short": {
-      "price": 12.50,
-      "delta": 0.45,
-      "iv": 0.18,
-      "underlyingPrice": 498.2,
-      "score": 75,
-      ...
-    },
-    "pos1_long": {
-      "price": 8.20,
-      "delta": 0.30,
-      "iv": 0.18,
-      "underlyingPrice": 498.2,
-      "score": 68,
-      ...
-    }
-  }
-}
-```
-
----
-
 ## 🤖 策略推荐 API (Strategy Recommender)
 
 ### 端点
@@ -255,8 +187,6 @@ GET /api/strategy-recommend
 ### 用途
 智能生成复杂的价差策略（Vertical Spreads, Iron Condors 等），并基于风险回报比、POP 和杠杆率进行评估。
 
-**性能优化 (v2.2.1)**: 该端点现在使用 `Promise.all` 并行获取 CBOE 完整期权链和计算 RV20 所需的历史报价，平均响应时间缩短了 40-60%。
-
 ### 参数
 | 参数 | 类型 | 说明 |
 |------|------|------|
@@ -266,32 +196,22 @@ GET /api/strategy-recommend
 | credit | boolean| 是否搜索信用价差 |
 
 ### 响应格式
-返回一个包含多种策略组合的数组，每个结果包含 `score`, `whyThis`, `legs` 以及组合 Greeks。此外，响应中还包含详细的波动率环境背景 (`regime`)。
+返回一个包含多种策略组合的数组，每个结果包含 `score`, `whyThis`, `legs` 以及组合 Greeks。
 
 ```json
 {
   "success": true,
-  "context": {
-    "ticker": "QQQ",
-    "currentPrice": 620.24,
-    "direction": "BULL",
-    "targetDte": 30
-  },
-  "regime": {
-    "ivRatio": 0.985,
-    "iv30": 17.5,
-    "iv90": 17.8,
-    "rv20": 15.2,
-    "ivRvRatio": 1.15,
-    "mode": "NEUTRAL",
-    "advice": "⚖️ Neutral IV: Either strategy viable, compare scores"
-  },
-  "recommendedStrategy": "DEBIT_SPREAD",
-  "strategies": {
-    "CREDIT_SPREAD": [...],
-    "DEBIT_SPREAD": [...],
-    "SINGLE_LEG": [...]
-  }
+  "results": [
+    {
+      "strategy": "Credit Put Spread",
+      "score": 73,
+      "legs": [...],
+      "netCredit": 1.01,
+      "maxRisk": 3.99,
+      "roi": 0.253,
+      "pop": 0.683
+    }
+  ]
 }
 ```
 
@@ -439,8 +359,6 @@ GET /api/scan-options
 ### 用途
 
 根据 OSS v2.1 算法扫描全链期权，返回经过数学评估后的最佳契约。
-
-**性能优化 (v2.2.1)**: 后端采用并发获取模式，同时请求期权价格与历史波动率数据，保证了扫描大规模期权链时的低延迟体验。
 
 ### 参数
 

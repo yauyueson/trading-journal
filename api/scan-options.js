@@ -11,54 +11,6 @@ const getIVRiskFactor = (ratio) => {
     return 0.9 + raw * 0.4;
 };
 
-// 1.5. VRP Adjustment (IV/RV Ratio)
-// 1.5. Volatility Regime Adjustment (Matrix)
-const getVolatilityRegimeAdjustment = (termStructureRatio, ivRvRatio, strategy) => {
-    // defaults
-    const isContango = termStructureRatio < 1.0;
-    const isBackwardation = termStructureRatio > 1.05;
-
-    // If IV/RV is missing, fallback to simple Term Structure logic
-    if (ivRvRatio === undefined || ivRvRatio === null || isNaN(ivRvRatio)) {
-        const simpleRisk = getIVRiskFactor(termStructureRatio);
-        return strategy === 'long' ? (1 - simpleRisk) * 5 : (simpleRisk - 1) * 5;
-    }
-
-    const isCheap = ivRvRatio < 0.95;
-    const isExpensive = ivRvRatio > 1.1;
-
-    let adjustment = 0;
-
-    // 1. Value Zone (Contango + Low VRP) -> Strong Buy
-    if (isContango && isCheap) {
-        adjustment = +2.5;
-    }
-    // 2. Momentum Zone (Backwardation + Low VRP) -> Buying ok
-    else if (isBackwardation && isCheap) {
-        adjustment = +1.0;
-    }
-    // 3. Trap Zone (Contango + High VRP) -> Avoid
-    else if (isContango && isExpensive) {
-        adjustment = -2.0;
-    }
-    // 4. Fear Zone (Backwardation + High VRP) -> Strong Sell
-    else if (isBackwardation && isExpensive) {
-        adjustment = -3.0;
-    }
-    // Mixed
-    else {
-        const termScore = (1 - termStructureRatio) * 5;
-        const vrpScore = (1 - ivRvRatio) * 5;
-        adjustment = (termScore + vrpScore) / 2;
-    }
-
-    if (strategy !== 'long') {
-        return -adjustment;
-    }
-
-    return adjustment;
-};
-
 // 2. IV Adjustment
 const getIVAdjustment = (ivRatio, strategy) => {
     const riskFactor = getIVRiskFactor(ivRatio);
@@ -99,20 +51,13 @@ const getDeltaBonus = (delta) => {
     return 0;
 };
 
-// =============================================================================
-// GLOBAL BASELINES (v2.2.1 Harmony)
-// =============================================================================
-const BASELINES = {
-    long: {
-        lambda: { mean: 8, std: 4 },
-        gammaEff: { mean: 0.02, std: 0.015 },
-        thetaBurn: { mean: 0.03, std: 0.02 }
-    },
-    short: {
-        edge: { mean: 0.8, std: 0.4 },
-        pop: { mean: 0.7, std: 0.15 },
-        spread: { mean: 0.03, std: 0.03 }
-    }
+// Z-Score normalization
+const zScores = (values) => {
+    const n = values.length;
+    if (n < 2) return values.map(() => 0);
+    const mean = values.reduce((s, v) => s + v, 0) / n;
+    const std = Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / n) || 1;
+    return values.map(v => (v - mean) / std);
 };
 
 // =============================================================================
@@ -191,30 +136,6 @@ const calculateTargetIV = (allOptions, targetDTE, currentPrice) => {
     return ivNear + (ivFar - ivNear) * weight;
 };
 
-const fetchRV20 = async (ticker) => {
-    try {
-        const toDate = new Date();
-        const fromDate = new Date();
-        fromDate.setDate(toDate.getDate() - 45);
-        const toStr = toDate.toISOString().split('T')[0];
-        const fromStr = fromDate.toISOString().split('T')[0];
-        const url = `https://api.nasdaq.com/api/quote/${ticker.toUpperCase()}/historical?assetclass=stocks&fromdate=${fromStr}&todate=${toStr}&limit=40`;
-        const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        if (!response.ok) return null;
-        const data = await response.json();
-        const rows = data?.data?.tradesTable?.rows || [];
-        if (rows.length < 5) return null;
-        const prices = rows.map(r => parseFloat(r.close.replace('$', '').replace(',', ''))).filter(p => !isNaN(p)).reverse();
-        if (prices.length < 5) return null;
-        const returns = [];
-        for (let i = 1; i < prices.length; i++) { returns.push(Math.log(prices[i] / prices[i - 1])); }
-        const recent = returns.slice(-20);
-        const mean = recent.reduce((a, b) => a + b, 0) / recent.length;
-        const variance = recent.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (recent.length - 1);
-        return Math.sqrt(variance) * Math.sqrt(252) * 100;
-    } catch (e) { return null; }
-};
-
 // ---------------------------------------------------------
 // 🚀 Main Handler
 // ---------------------------------------------------------
@@ -258,14 +179,11 @@ export default async function handler(req, res) {
         const upperTicker = ticker.toUpperCase();
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
-        const [response, rv20] = await Promise.all([
-            fetch(cboeUrl, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-            }),
-            fetchRV20(upperTicker)
-        ]);
+        const response = await fetch(cboeUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
 
         if (!response.ok) {
             return res.status(response.status).json({ error: 'CBOE API error', status: response.status });
@@ -376,17 +294,7 @@ export default async function handler(req, res) {
         }
 
         const ivStatus = ivRatio < 0.95 ? 'contango' : ivRatio > 1.05 ? 'backwardation' : 'neutral';
-
-        // Fetch RV20 and calculate IV/RV Ratio
-        // const rv20 = await fetchRV20(upperTicker); // Already fetched in parallel
-        let ivRvRatio = null;
-        let vrpAdj = 0;
-
-        if (rv20 && iv30) {
-            ivRvRatio = (iv30 * 100) / rv20;
-        }
-
-        const totalIvAdjustment = getVolatilityRegimeAdjustment(ivRatio, ivRvRatio, strategy);
+        const ivAdjustment = getIVAdjustment(ivRatio, strategy);
 
         // Calculate metrics
         const processed = filtered.map((opt) => {
@@ -408,11 +316,14 @@ export default async function handler(req, res) {
         let results;
 
         if (strategy === 'long') {
-            results = processed.map((p) => {
-                const zL = (compressLambda(p.lambda) - BASELINES.long.lambda.mean) / BASELINES.long.lambda.std;
-                const zG = (p.gammaEff - BASELINES.long.gammaEff.mean) / BASELINES.long.gammaEff.std;
-                const zT = (p.thetaBurn - BASELINES.long.thetaBurn.mean) / BASELINES.long.thetaBurn.std;
+            const compressedLambdas = processed.map((p) => compressLambda(p.lambda));
+            const gammas = processed.map((p) => p.gammaEff);
+            const thetas = processed.map((p) => p.thetaBurn);
+            const zL = zScores(compressedLambdas);
+            const zG = zScores(gammas);
+            const zT = zScores(thetas);
 
+            results = processed.map((p, i) => {
                 const deltaBonus = getDeltaBonus(p.opt.delta);
                 const thetaPenalty = getThetaPenalty(p.thetaBurn);
 
@@ -429,32 +340,15 @@ export default async function handler(req, res) {
                 }
 
                 const rawScore = (
-                    wLambda * zL +
-                    wGamma * zG -
-                    wTheta * zT +
+                    wLambda * zL[i] +
+                    wGamma * zG[i] -
+                    wTheta * zT[i] +
                     0.15 * deltaBonus +
-                    totalIvAdjustment -
+                    ivAdjustment -
                     (thetaPenalty * penaltyMultiplier)
                 );
 
-                const normalizedScore = Math.round(50 + rawScore * 12.5);
-
-                // Deal Breaker: Spread > 15%
-                if (p.spreadPct > 0.15) return {
-                    symbol: p.opt.symbol, strike: p.opt.strike, type: p.opt.type, expiration: p.opt.expiration, dte: p.opt.dte,
-                    price: Math.round(p.mid * 100) / 100,
-                    score: 0,
-                    metrics: {
-                        lambda: Math.round(p.lambda * 100) / 100,
-                        gammaEff: Math.round(p.gammaEff * 10000) / 10000,
-                        thetaBurn: Math.round(p.thetaBurn * 10000) / 10000,
-                        spreadPct: Math.round(p.spreadPct * 1000) / 1000
-                    },
-                    greeks: { delta: p.opt.delta, gamma: p.opt.gamma, theta: p.opt.theta, vega: p.opt.vega, iv: p.opt.iv },
-                    liquidity: { volume: p.opt.volume, openInterest: p.opt.openInterest, bid: p.opt.bid, ask: p.opt.ask }
-                };
-
-                const score = Math.max(0, Math.min(100, normalizedScore));
+                const score = Math.max(0, Math.min(100, Math.round(50 + rawScore * 12.5)));
                 return {
                     symbol: p.opt.symbol,
                     strike: p.opt.strike,
@@ -485,25 +379,16 @@ export default async function handler(req, res) {
                 };
             });
         } else {
-            results = processed.map((p) => {
-                const zE = (p.edge - BASELINES.short.edge.mean) / BASELINES.short.edge.std;
-                const zP = (p.pop - BASELINES.short.pop.mean) / BASELINES.short.pop.std;
-                const zS = (p.spreadPct - BASELINES.short.spread.mean) / BASELINES.short.spread.std;
+            const edges = processed.map((p) => p.edge);
+            const pops = processed.map((p) => p.pop);
+            const spreads = processed.map((p) => p.spreadPct);
+            const zE = zScores(edges);
+            const zP = zScores(pops);
+            const zS = zScores(spreads);
 
-                const rawScore = 0.50 * zE + 0.30 * zP - 0.20 * zS + totalIvAdjustment;
-                const normalizedScore = Math.round(50 + rawScore * 12.5);
-
-                // Deal Breaker: Spread > 15%
-                if (p.spreadPct > 0.15) return {
-                    symbol: p.opt.symbol, strike: p.opt.strike, type: p.opt.type, expiration: p.opt.expiration, dte: p.opt.dte,
-                    price: Math.round(p.mid * 100) / 100,
-                    score: 0,
-                    metrics: { pop: 0, edge: 0, spreadPct: p.spreadPct },
-                    greeks: { delta: p.opt.delta, gamma: p.opt.gamma, theta: p.opt.theta, vega: p.opt.vega, iv: p.opt.iv },
-                    liquidity: { volume: p.opt.volume, openInterest: p.opt.openInterest, bid: p.opt.bid, ask: p.opt.ask }
-                };
-
-                const score = Math.max(0, Math.min(100, normalizedScore));
+            results = processed.map((p, i) => {
+                const rawScore = 0.50 * zE[i] + 0.30 * zP[i] - 0.20 * zS[i] + ivAdjustment;
+                const score = Math.max(0, Math.min(100, Math.round(50 + rawScore * 12.5)));
                 return {
                     symbol: p.opt.symbol,
                     strike: p.opt.strike,
@@ -544,8 +429,6 @@ export default async function handler(req, res) {
                 ticker: upperTicker,
                 currentPrice,
                 ivRatio: Math.round(ivRatio * 1000) / 1000,
-                ivRvRatio: ivRvRatio ? Math.round(ivRvRatio * 1000) / 1000 : null,
-                rv20: rv20 ? Math.round(rv20 * 10) / 10 : null,
                 iv30: iv30 ? Math.round(iv30 * 1000) / 1000 : null,
                 iv90: iv90 ? Math.round(iv90 * 1000) / 1000 : null,
                 ivStatus,
