@@ -11,6 +11,16 @@ const getIVRiskFactor = (ratio) => {
     return 0.9 + raw * 0.4;
 };
 
+// 1.5. VRP Adjustment (IV/RV Ratio)
+const getVRPAdjustment = (ivRvRatio, strategy) => {
+    if (ivRvRatio === undefined || ivRvRatio === null || isNaN(ivRvRatio)) return 0;
+    const factor = (ivRvRatio - 1.0) * 5;
+    // Buyers want Low IV/RV (factor < 0) -> Bonus if neg, Penalty if pos
+    // Sellers want High IV/RV (factor > 0) -> Bonus if pos, Penalty if neg
+    if (strategy === 'long') return -factor;
+    return factor;
+};
+
 // 2. IV Adjustment
 const getIVAdjustment = (ivRatio, strategy) => {
     const riskFactor = getIVRiskFactor(ivRatio);
@@ -134,6 +144,30 @@ const calculateTargetIV = (allOptions, targetDTE, currentPrice) => {
     const weight = timeToTarget / timeRange;
 
     return ivNear + (ivFar - ivNear) * weight;
+};
+
+const fetchRV20 = async (ticker) => {
+    try {
+        const toDate = new Date();
+        const fromDate = new Date();
+        fromDate.setDate(toDate.getDate() - 45);
+        const toStr = toDate.toISOString().split('T')[0];
+        const fromStr = fromDate.toISOString().split('T')[0];
+        const url = `https://api.nasdaq.com/api/quote/${ticker.toUpperCase()}/historical?assetclass=stocks&fromdate=${fromStr}&todate=${toStr}&limit=40`;
+        const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (!response.ok) return null;
+        const data = await response.json();
+        const rows = data?.data?.tradesTable?.rows || [];
+        if (rows.length < 5) return null;
+        const prices = rows.map(r => parseFloat(r.close.replace('$', '').replace(',', ''))).filter(p => !isNaN(p)).reverse();
+        if (prices.length < 5) return null;
+        const returns = [];
+        for (let i = 1; i < prices.length; i++) { returns.push(Math.log(prices[i] / prices[i - 1])); }
+        const recent = returns.slice(-20);
+        const mean = recent.reduce((a, b) => a + b, 0) / recent.length;
+        const variance = recent.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (recent.length - 1);
+        return Math.sqrt(variance) * Math.sqrt(252) * 100;
+    } catch (e) { return null; }
 };
 
 // ---------------------------------------------------------
@@ -294,7 +328,19 @@ export default async function handler(req, res) {
         }
 
         const ivStatus = ivRatio < 0.95 ? 'contango' : ivRatio > 1.05 ? 'backwardation' : 'neutral';
-        const ivAdjustment = getIVAdjustment(ivRatio, strategy);
+
+        // Fetch RV20 and calculate IV/RV Ratio
+        const rv20 = await fetchRV20(upperTicker);
+        let ivRvRatio = null;
+        let vrpAdj = 0;
+
+        if (rv20 && iv30) {
+            ivRvRatio = (iv30 * 100) / rv20;
+            vrpAdj = getVRPAdjustment(ivRvRatio, strategy);
+        }
+
+        const termStructureAdj = getIVAdjustment(ivRatio, strategy);
+        const totalIvAdjustment = termStructureAdj + vrpAdj;
 
         // Calculate metrics
         const processed = filtered.map((opt) => {
@@ -344,11 +390,28 @@ export default async function handler(req, res) {
                     wGamma * zG[i] -
                     wTheta * zT[i] +
                     0.15 * deltaBonus +
-                    ivAdjustment -
+                    totalIvAdjustment -
                     (thetaPenalty * penaltyMultiplier)
                 );
 
-                const score = Math.max(0, Math.min(100, Math.round(50 + rawScore * 12.5)));
+                const normalizedScore = Math.round(50 + rawScore * 12.5);
+
+                // Deal Breaker: Spread > 15%
+                if (p.spreadPct > 0.15) return {
+                    symbol: p.opt.symbol, strike: p.opt.strike, type: p.opt.type, expiration: p.opt.expiration, dte: p.opt.dte,
+                    price: Math.round(p.mid * 100) / 100,
+                    score: 0,
+                    metrics: {
+                        lambda: Math.round(p.lambda * 100) / 100,
+                        gammaEff: Math.round(p.gammaEff * 10000) / 10000,
+                        thetaBurn: Math.round(p.thetaBurn * 10000) / 10000,
+                        spreadPct: Math.round(p.spreadPct * 1000) / 1000
+                    },
+                    greeks: { delta: p.opt.delta, gamma: p.opt.gamma, theta: p.opt.theta, vega: p.opt.vega, iv: p.opt.iv },
+                    liquidity: { volume: p.opt.volume, openInterest: p.opt.openInterest, bid: p.opt.bid, ask: p.opt.ask }
+                };
+
+                const score = Math.max(0, Math.min(100, normalizedScore));
                 return {
                     symbol: p.opt.symbol,
                     strike: p.opt.strike,
@@ -387,8 +450,20 @@ export default async function handler(req, res) {
             const zS = zScores(spreads);
 
             results = processed.map((p, i) => {
-                const rawScore = 0.50 * zE[i] + 0.30 * zP[i] - 0.20 * zS[i] + ivAdjustment;
-                const score = Math.max(0, Math.min(100, Math.round(50 + rawScore * 12.5)));
+                const rawScore = 0.50 * zE[i] + 0.30 * zP[i] - 0.20 * zS[i] + totalIvAdjustment;
+                const normalizedScore = Math.round(50 + rawScore * 12.5);
+
+                // Deal Breaker: Spread > 15%
+                if (p.spreadPct > 0.15) return {
+                    symbol: p.opt.symbol, strike: p.opt.strike, type: p.opt.type, expiration: p.opt.expiration, dte: p.opt.dte,
+                    price: Math.round(p.mid * 100) / 100,
+                    score: 0,
+                    metrics: { pop: 0, edge: 0, spreadPct: p.spreadPct },
+                    greeks: { delta: p.opt.delta, gamma: p.opt.gamma, theta: p.opt.theta, vega: p.opt.vega, iv: p.opt.iv },
+                    liquidity: { volume: p.opt.volume, openInterest: p.opt.openInterest, bid: p.opt.bid, ask: p.opt.ask }
+                };
+
+                const score = Math.max(0, Math.min(100, normalizedScore));
                 return {
                     symbol: p.opt.symbol,
                     strike: p.opt.strike,
@@ -429,6 +504,8 @@ export default async function handler(req, res) {
                 ticker: upperTicker,
                 currentPrice,
                 ivRatio: Math.round(ivRatio * 1000) / 1000,
+                ivRvRatio: ivRvRatio ? Math.round(ivRvRatio * 1000) / 1000 : null,
+                rv20: rv20 ? Math.round(rv20 * 10) / 10 : null,
                 iv30: iv30 ? Math.round(iv30 * 1000) / 1000 : null,
                 iv90: iv90 ? Math.round(iv90 * 1000) / 1000 : null,
                 ivStatus,

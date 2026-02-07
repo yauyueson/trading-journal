@@ -32,8 +32,6 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     const [form, setForm] = useState({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: '1', entry_price: '' });
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
 
-    const [refreshTrigger, setRefreshTrigger] = useState(0);
-
     const activePositions = positions.filter(p => p.status === 'active');
 
     const sortedPositions = [...activePositions].sort((a, b) => {
@@ -49,15 +47,48 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
         }
     });
 
+    const [batchResults, setBatchResults] = useState<Record<string, any>>({});
+
     const refreshAllPrices = async () => {
         setRefreshing(true);
-        // Increment trigger to signal children to fetch
-        setRefreshTrigger(prev => prev + 1);
+        try {
+            const items: any[] = [];
+            activePositions.forEach(p => {
+                if (p.legs && p.legs.length > 0) {
+                    p.legs.forEach((leg, i) => {
+                        items.push({
+                            id: `${p.id}_${i}`,
+                            ticker: p.ticker,
+                            strike: leg.strike,
+                            type: leg.type,
+                            expiration: leg.expiration
+                        });
+                    });
+                } else {
+                    items.push({
+                        id: `${p.id}_main`,
+                        ticker: p.ticker,
+                        strike: p.strike,
+                        type: p.type,
+                        expiration: p.expiration
+                    });
+                }
+            });
 
-        // Simulating the loading state for UI feedback
-        // The actual fetching happens in the children
-        await new Promise(r => setTimeout(r, activePositions.length * 200 + 500));
-
+            if (items.length > 0) {
+                const res = await fetch('/api/batch-option-price', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setBatchResults(data.results);
+                }
+            }
+        } catch (e) {
+            console.error("Batch fetch error:", e);
+        }
         setRefreshing(false);
     };
 
@@ -82,6 +113,19 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
         setSubmitting(false);
         setForm({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: '1', entry_price: '' });
         setShowForm(false);
+    };
+
+    const getPositionData = (position: Position) => {
+        if (!batchResults || Object.keys(batchResults).length === 0) return undefined;
+
+        if (position.legs && position.legs.length > 0) {
+            // Return array of leg data
+            return position.legs.map((_, i) => batchResults[`${position.id}_${i}`]);
+        } else {
+            // Single leg
+            const data = batchResults[`${position.id}_main`];
+            return data ? [data] : undefined;
+        }
     };
 
     if (loading) return <LoadingSpinner />;
@@ -230,9 +274,9 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             onUpdateTarget={onUpdateTarget}
                             onDelete={onDelete}
                             onDataUpdate={setLastTimestamp}
-                            refreshTrigger={refreshTrigger}
                             index={index}
                             onRollClick={(qty) => setRollingPosition({ position, qty })}
+                            preFetchedData={getPositionData(position)}
                         />
                     ))}
                 </div>

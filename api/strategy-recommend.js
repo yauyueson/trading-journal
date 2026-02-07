@@ -13,6 +13,13 @@ const getIVRiskFactor = (ratio) => {
     return 0.9 + raw * 0.4;
 };
 
+const getVRPAdjustment = (ivRvRatio, strategy) => {
+    if (ivRvRatio === undefined || ivRvRatio === null || isNaN(ivRvRatio)) return 0;
+    const factor = (ivRvRatio - 1.0) * 5;
+    if (strategy === 'long') return -factor;
+    return factor;
+};
+
 const getDeltaBonus = (delta) => {
     const absDelta = Math.abs(delta);
     const lerp = (x, x1, x2, y1, y2) =>
@@ -269,7 +276,7 @@ async function detectRegime(allOptions, currentPrice, ticker) {
 // CREDIT SPREAD BUILDER
 // =============================================================================
 
-function buildCreditSpreads(chain, type, currentPrice) {
+function buildCreditSpreads(chain, type, currentPrice, ivRvRatio) {
     const results = [];
     const widths = [5, 10];
 
@@ -312,14 +319,16 @@ function buildCreditSpreads(chain, type, currentPrice) {
             const expectedValue = (credit * pop) - (maxRisk * (1 - pop));
 
             // Hard filter: ROI too low or liquidity too poor
-            if (roi < 15 || spreadPct > 0.10) continue;
+            if (roi < 15 || spreadPct > 0.15) continue;
 
-            // CSQ Spread Score: 40% ROI + 40% POP + 20% Distance
+            const vrpAdj = getVRPAdjustment(ivRvRatio, 'short');
+
+            // CSQ Spread Score: 40% ROI + 40% POP + 20% Distance + VRP Adj
             const scoreROI = Math.min(roi * 4, 100); // 25% ROI = 100 pts
             const scorePOP = pop * 100;
             const scoreDistance = Math.min(distance * 1000, 100); // 10% OTM = 100 pts
 
-            const finalScore = Math.round(0.4 * scoreROI + 0.4 * scorePOP + 0.2 * scoreDistance);
+            const finalScore = Math.round(0.4 * scoreROI + 0.4 * scorePOP + 0.2 * scoreDistance + vrpAdj);
 
             // Generate "Why this?" explanation
             const whyThis = roi >= 25
@@ -374,7 +383,7 @@ function buildCreditSpreads(chain, type, currentPrice) {
 // DEBIT SPREAD BUILDER
 // =============================================================================
 
-function buildDebitSpreads(chain, type, currentPrice) {
+function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
     const results = [];
     const widths = [2.5, 5];
 
@@ -410,7 +419,9 @@ function buildDebitSpreads(chain, type, currentPrice) {
             // Allow Debit up to 50% of width (1:1 R:R), minimum 1.0 R:R
             if (debit <= 0 || debit >= width * 0.50) continue;
             if (riskReward < 1.0) continue;
-            if (spreadPct > 0.10) continue;
+            if (spreadPct > 0.15) continue;
+
+            const vrpAdj = getVRPAdjustment(ivRvRatio, 'long');
 
             // Calculate Lambda for long leg
             const mid = (longLeg.bid + longLeg.ask) / 2;
@@ -427,7 +438,7 @@ function buildDebitSpreads(chain, type, currentPrice) {
             const rrScore = Math.min((riskReward / 3) * 100, 100);
             const deltaScore = 50 + deltaBonus * 12.5;
 
-            const finalScore = Math.round(0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore);
+            const finalScore = Math.round(0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore + vrpAdj);
 
             const whyThis = `${riskReward.toFixed(1)}:1 reward-to-risk, λ=${lambda.toFixed(1)} leverage`;
 
@@ -475,7 +486,7 @@ function buildDebitSpreads(chain, type, currentPrice) {
 // SINGLE LEG SCORER (LOQ-based)
 // =============================================================================
 
-function scoreSingleLegs(chain, type, ivRatio, currentPrice) {
+function scoreSingleLegs(chain, type, ivRatio, ivRvRatio, currentPrice) {
     const filtered = chain.filter(o =>
         o.type === type &&
         Math.abs(o.delta) >= 0.25 &&
@@ -504,12 +515,18 @@ function scoreSingleLegs(chain, type, ivRatio, currentPrice) {
 
     // IV Adjustment
     const riskFactor = getIVRiskFactor(ivRatio);
-    const ivAdj = (1 - riskFactor) * 5;
+    const termAdj = (1 - riskFactor) * 5;
+    const vrpAdj = getVRPAdjustment(ivRvRatio, 'long');
+    const totalIvAdj = termAdj + vrpAdj;
 
     return processed.map((p, i) => {
         const deltaBonus = getDeltaBonus(p.opt.delta);
         const thetaPenalty = getThetaPenalty(p.thetaBurn);
-        const rawScore = 0.40 * zL[i] + 0.30 * zG[i] - 0.15 * zT[i] + 0.15 * deltaBonus + ivAdj - thetaPenalty;
+
+        // Deal Breaker
+        if (p.spreadPct > 0.15) return null;
+
+        const rawScore = 0.40 * zL[i] + 0.30 * zG[i] - 0.15 * zT[i] + 0.15 * deltaBonus + totalIvAdj - thetaPenalty;
         const score = Math.max(0, Math.min(100, Math.round(50 + rawScore * 12.5)));
 
         return {
@@ -653,9 +670,9 @@ export default async function handler(req, res) {
         const debitStrat = isBull ? 'Call' : 'Put';
         const legStrat = isBull ? 'Call' : 'Put';
 
-        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice);
-        const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice);
-        const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRatio, currentPrice);
+        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio);
+        const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio);
+        const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRatio, regime.ivRvRatio, currentPrice).filter(x => x !== null);
 
         // Determine Recommended Strategy
         let recommendedStrategy = 'CREDIT_SPREAD';

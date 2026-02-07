@@ -296,6 +296,36 @@ export function getIVRiskFactor(ratio: number): number {
     return 0.9 + raw * 0.4;
 }
 
+/**
+ * Volatility Risk Premium Factor (IV/RV Ratio)
+ * 
+ * Logic:
+ * - IV/RV > 1.2: Options are expensive (Good for sellers, Bad for buyers)
+ * - IV/RV < 0.8: Options are cheap (Good for buyers, Bad for sellers)
+ * 
+ * Returns adjustment:
+ * - Buyers: +1.0 (Cheap) to -1.0 (Expensive)
+ * - Sellers: -1.0 (Cheap) to +1.0 (Expensive)
+ */
+export function getVRPAdjustment(ivRvRatio: number, strategy: Strategy): number {
+    if (ivRvRatio === undefined || ivRvRatio === null || isNaN(ivRvRatio)) return 0;
+
+    // Center at 1.0
+    // Cheap (<0.8) -> factor < 0
+    // Expensive (>1.2) -> factor > 0
+    const factor = (ivRvRatio - 1.0) * 5; // 1.2 -> +1.0, 0.8 -> -1.0
+
+    if (strategy === 'long') {
+        // Buyers want LOW IV/RV (Cheap)
+        // If factor is positive (Expensive), penalty.
+        // If factor is negative (Cheap), bonus.
+        return -factor;
+    } else {
+        // Sellers want HIGH IV/RV (Expensive)
+        return factor;
+    }
+}
+
 // ============================================================
 // LOQ Score (Long Option Quality)
 // ============================================================
@@ -400,6 +430,7 @@ export interface ScanContext {
     ticker: string;
     currentPrice: number;
     ivRatio: number;
+    ivRvRatio?: number; // Volatility Risk Premium
     ivStatus: 'contango' | 'neutral' | 'backwardation';
     strategy: Strategy;
 }
@@ -449,6 +480,7 @@ export function scoreOptionsChain(
         strikeRangePercent?: number;
         minVolume?: number;
         maxSpreadPct?: number;
+        ivRvRatio?: number;
     } = {}
 ): { context: ScanContext; results: ScoredResult[] } {
 
@@ -457,12 +489,18 @@ export function scoreOptionsChain(
         dteMax = 60,
         strikeRangePercent = 0.30,
         minVolume = 50,
-        maxSpreadPct = 0.10
+        maxSpreadPct = 0.10,
+        ivRvRatio
     } = filters;
 
     // Calculate IV Ratio
     const ivResult = calculateIVRatio(chain, currentPrice);
-    const ivAdjustment = getIVAdjustment(ivResult.ivRatio, strategy);
+
+    // Combine IV Term Structure Adjustment + IV/RV Adjustment
+    const termStructureAdj = getIVAdjustment(ivResult.ivRatio, strategy);
+    const vrpAdj = ivRvRatio ? getVRPAdjustment(ivRvRatio, strategy) : 0;
+
+    const totalIvAdjustment = termStructureAdj + vrpAdj;
 
     // Hard filters
     const minStrike = currentPrice * (1 - strikeRangePercent);
@@ -536,7 +574,40 @@ export function scoreOptionsChain(
 
         scored = processed.map((p, i) => {
             const thetaBurnValue = (p as any).thetaBurn;
-            const rawScore = calculateLOQRaw(zLambdas[i], zGammas[i], zThetas[i], ivAdjustment, 0, thetaBurnValue);
+
+            // Deal Breaker: Spread > 15% = Score 0
+            if (p.spreadPct > 0.15) {
+                return {
+                    symbol: p.opt.symbol,
+                    strike: p.opt.strike, // ... fill rest with dummy or existing
+                    type: p.opt.type,
+                    expiration: p.opt.expiration,
+                    dte: p.opt.dte,
+                    price: p.mid,
+                    score: 0, // KILLED
+                    metrics: {
+                        lambda: (p as any).lambda,
+                        gammaEff: (p as any).gammaEff,
+                        thetaBurn: (p as any).thetaBurn,
+                        spreadPct: p.spreadPct
+                    },
+                    greeks: {
+                        delta: p.opt.delta,
+                        gamma: p.opt.gamma,
+                        theta: p.opt.theta,
+                        vega: p.opt.vega,
+                        iv: p.opt.iv
+                    },
+                    liquidity: {
+                        volume: p.opt.volume,
+                        openInterest: p.opt.openInterest,
+                        bid: p.opt.bid,
+                        ask: p.opt.ask
+                    }
+                };
+            }
+
+            const rawScore = calculateLOQRaw(zLambdas[i], zGammas[i], zThetas[i], totalIvAdjustment, 0, thetaBurnValue);
             const score = normalizeScoreTo100(rawScore);
 
             return {
@@ -579,7 +650,38 @@ export function scoreOptionsChain(
         const zSpreads = normalizeToZScores(spreads);
 
         scored = processed.map((p, i) => {
-            const rawScore = calculateCSQRaw(zEdges[i], zPops[i], zSpreads[i], ivAdjustment);
+            // Deal Breaker: Spread > 15% = Score 0
+            if (p.spreadPct > 0.15) {
+                return {
+                    symbol: p.opt.symbol,
+                    strike: p.opt.strike,
+                    type: p.opt.type,
+                    expiration: p.opt.expiration,
+                    dte: p.opt.dte,
+                    price: p.mid,
+                    score: 0,
+                    metrics: {
+                        pop: (p as any).pop,
+                        edge: (p as any).edge,
+                        spreadPct: p.spreadPct
+                    },
+                    greeks: {
+                        delta: p.opt.delta,
+                        gamma: p.opt.gamma,
+                        theta: p.opt.theta,
+                        vega: p.opt.vega,
+                        iv: p.opt.iv
+                    },
+                    liquidity: {
+                        volume: p.opt.volume,
+                        openInterest: p.opt.openInterest,
+                        bid: p.opt.bid,
+                        ask: p.opt.ask
+                    }
+                };
+            }
+
+            const rawScore = calculateCSQRaw(zEdges[i], zPops[i], zSpreads[i], totalIvAdjustment);
             const score = normalizeScoreTo100(rawScore);
 
             return {
@@ -620,6 +722,7 @@ export function scoreOptionsChain(
             ticker: filtered[0]?.symbol?.slice(0, 6).trim() || '',
             currentPrice,
             ivRatio: ivResult.ivRatio,
+            ivRvRatio: filters.ivRvRatio,
             ivStatus: ivResult.status,
             strategy
         },
