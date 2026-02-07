@@ -58,54 +58,56 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 setEarnings({ loading: false, date: null, days: null });
             }
         };
-        fetchEarnings();
+
+        if (position.ticker) fetchEarnings();
     }, [position.ticker]);
 
     const processOptionData = useCallback(async (results: any[]) => {
-        if (results.some(r => r === null || r.error)) return;
+        if (!results || results.some(r => !r)) return;
 
-        let netDelta = 0, netGamma = 0, netTheta = 0, netVega = 0;
-        let netIv = 0;
-        let netPrice = 0;
-        let validLegs = 0;
-        let compositeScore = undefined;
-        let netIvRatio = results[0]?.ivRatio || 1.0;
-        let isDayTrade = false;
+        let netDelta = 0, netGamma = 0, netTheta = 0, netVega = 0, netIv = 0, netPrice = 0;
         let underlyingPrice = 0;
+        let compositeScore = 0;
+        let isDayTrade = false;
+        let netIvRatio = 1.0;
 
         if (isSpread && position.legs) {
-            const shortIndex = position.legs.findIndex(l => l.side === 'short');
-            const longIndex = position.legs.findIndex(l => l.side === 'long');
-            const shortData = shortIndex >= 0 ? results[shortIndex] : null;
-            const longData = longIndex >= 0 ? results[longIndex] : null;
+            const shortLeg = position.legs.find(l => l.side === 'short');
+            const longLeg = position.legs.find(l => l.side === 'long');
 
-            underlyingPrice = shortData?.underlyingPrice || longData?.underlyingPrice || 0;
+            const shortData = results.find(r => r.strike === shortLeg?.strike && r.type === shortLeg?.type && r.expiration === shortLeg?.expiration);
+            const longData = results.find(r => r.strike === longLeg?.strike && r.type === longLeg?.type && r.expiration === longLeg?.expiration);
 
-            results.forEach((data, i) => {
-                if (!data) return;
-                validLegs++;
-                const side = position.legs![i].side;
-                const mult = side === 'short' ? -1 : 1;
-                netDelta += (data.delta || 0) * mult;
-                netGamma += (data.gamma || 0) * mult;
-                netTheta += (data.theta || 0) * mult;
-                netVega += (data.vega || 0) * mult;
-                netIv += (data.iv || 0);
-            });
-            netIv = validLegs > 0 ? netIv / validLegs : 0;
+            if (shortData) {
+                netDelta += shortData.delta * -100; // Short 1 contract
+                netGamma += shortData.gamma * -100;
+                netTheta += shortData.theta * -100;
+                netVega += shortData.vega * -100;
+                netIv += shortData.iv; // Approx
+                underlyingPrice = shortData.underlyingPrice;
+                isDayTrade = isDayTrade || shortData.isDayTrade;
+            }
+            if (longData) {
+                netDelta += longData.delta * 100; // Long 1 contract
+                netGamma += longData.gamma * 100;
+                netTheta += longData.theta * 100;
+                netVega += longData.vega * 100;
+                netIv = (netIv + longData.iv) / 2;
+                underlyingPrice = longData.underlyingPrice || underlyingPrice;
+                isDayTrade = isDayTrade || longData.isDayTrade;
+            }
 
+            // Price & Score
             if (shortData && longData) {
                 const shortPrice = Math.abs(shortData.price || 0);
                 const longPrice = Math.abs(longData.price || 0);
                 netIvRatio = shortData.ivRatio || longData.ivRatio || 1.0;
 
                 if (isCreditStrategy) {
-                    // Conservative Mark: Cost to Close (Short Ask - Long Bid)
                     const shortAsk = shortData.ask || shortPrice;
                     const longBid = longData.bid || longPrice;
                     netPrice = shortAsk - longBid;
                 } else {
-                    // Debit Spread: Sell to Close (Long Bid - Short Ask)
                     const longBid = longData.bid || longPrice;
                     const shortAsk = shortData.ask || shortPrice;
                     netPrice = longBid - shortAsk;
@@ -116,7 +118,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 const shortLeg = position.legs.find(l => l.side === 'short')!;
                 const longLeg = position.legs.find(l => l.side === 'long')!;
                 const width = Math.abs(Math.abs(shortLeg.strike) - Math.abs(longLeg.strike));
-                const ivAdjustment = (1 - (1 / (1 + Math.exp(-12 * (netIvRatio - 1.10)))) * 0.4 - 0.9) * 5; // Simplified long/short adj alignment
+                const ivAdjustment = (1 - (1 / (1 + Math.exp(-12 * (netIvRatio - 1.10)))) * 0.4 - 0.9) * 5;
 
                 compositeScore = calculateCreditSpreadScore({
                     credit: netPrice,
@@ -124,7 +126,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     shortDelta: shortData.delta || 0,
                     shortStrike: shortLeg.strike,
                     currentPrice: underlyingPrice,
-                    ivAdjustment: -ivAdjustment // Sellers benefit from High IV (Backwardation) -> Flip it
+                    ivAdjustment: -ivAdjustment
                 });
             } else if (!isCreditStrategy && shortData && longData && underlyingPrice > 0) {
                 const shortLeg = position.legs.find(l => l.side === 'short')!;
@@ -164,27 +166,22 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
             }
         }
 
+        if (netPrice > 0) await onUpdatePrice(position.id, netPrice);
+        if (compositeScore > 0) await onUpdateScore(position.id, compositeScore);
+
         setLiveData({
             delta: netDelta,
             gamma: netGamma,
             theta: netTheta,
             vega: netVega,
             iv: netIv,
-            price: netPrice,
             score: compositeScore,
-            isDayTrade,
-            ivRatio: netIvRatio
+            isDayTrade
         });
 
-        if (netDelta !== 0) saveGreeksHistory(position.id, netIv, netDelta);
-        if (netPrice && Math.abs((position.current_price || 0) - netPrice) > 0.01) {
-            await onUpdatePrice(position.id, netPrice);
-        }
-        const firstValid = results.find(r => r && r.cboeTimestamp);
-        if (firstValid && onDataUpdate) {
-            onDataUpdate(firstValid.cboeTimestamp);
-        }
-    }, [position, isSpread, isCreditStrategy, onUpdatePrice, onDataUpdate]);
+        if (onDataUpdate) onDataUpdate(new Date().toISOString());
+
+    }, [position, isSpread, isCreditStrategy, onUpdatePrice, onUpdateScore, onDataUpdate]);
 
     const fetchGreeksAndPrice = useCallback(async () => {
         if (preFetchedData) {
@@ -207,80 +204,54 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 if (response.ok) results = [await response.json()];
             }
             await processOptionData(results);
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+        }
         setLoading(false);
     }, [position, isSpread, processOptionData, preFetchedData]);
 
     useEffect(() => { fetchGreeksAndPrice(); }, [fetchGreeksAndPrice]);
 
+    // History Logic
     useEffect(() => {
-        if (isExpanded && historyData.length === 0) {
-            setHistoryLoading(true);
-            fetchGreeksHistory(position.id).then(data => {
+        const loadHistory = async () => {
+            if (isExpanded) {
+                setHistoryLoading(true);
+                const data = await fetchGreeksHistory(position.id);
                 setHistoryData(data);
                 setHistoryLoading(false);
-            });
+            }
+        };
+        loadHistory();
+    }, [isExpanded, position.id]);
+
+    useEffect(() => {
+        if (liveData.iv && liveData.delta) {
+            saveGreeksHistory(position.id, liveData.iv, liveData.delta);
         }
-    }, [isExpanded, position.id, historyData.length]);
+    }, [liveData.iv, liveData.delta, position.id]);
 
-    // Derived Logic for UI
-    const positionTxns = transactions.filter(t => t.position_id === position.id);
-    let totalQtyBought = 0, totalCostBasis = 0, totalQtySold = 0;
-    positionTxns.forEach(t => {
-        const qty = t.quantity;
-        const price = t.price * CONTRACT_MULTIPLIER;
-        if (qty > 0) { totalQtyBought += qty; totalCostBasis += qty * price; }
-        else { totalQtySold += Math.abs(qty); }
-    });
 
-    const totalQty = totalQtyBought - totalQtySold;
-    const avgCostPerContract = totalQtyBought > 0 ? totalCostBasis / totalQtyBought : 0;
-    const firstBuy = positionTxns.find(t => t.quantity > 0);
-    const entryPrice = firstBuy ? Math.abs(firstBuy.price) : 0;
-    const hasTakenProfit = positionTxns.some(t => t.type === 'Take Profit');
-    const currentStopLoss = isCreditStrategy ? entryPrice * 1.5 : (hasTakenProfit ? entryPrice * 0.75 : entryPrice * 0.5);
-    const currentPrice = liveData.price !== undefined ? liveData.price : (position.current_price || 0);
+    // Calculations
+    const currentPrice = position.current_price || position.entry_price;
+    const entryPrice = position.entry_price;
+    const qty = position.quantity;
+    const totalQty = transactions.reduce((sum, t) => sum + (t.type === 'Buy' || t.type === 'Sell' ? t.quantity : 0), 0);
 
-    let unrealizedPnL = 0, unrealizedPnLPct = 0;
-    if (totalQty > 0 && currentPrice) {
-        if (isCreditStrategy) {
-            unrealizedPnL = (entryPrice - currentPrice) * totalQty * CONTRACT_MULTIPLIER;
-            unrealizedPnLPct = entryPrice > 0 ? (unrealizedPnL / (entryPrice * totalQty * CONTRACT_MULTIPLIER)) * 100 : 0;
-        } else {
-            const totalValue = totalQty * currentPrice * CONTRACT_MULTIPLIER;
-            const totalCost = totalQty * avgCostPerContract;
-            unrealizedPnL = totalValue - totalCost;
-            unrealizedPnLPct = (totalCost > 0) ? (unrealizedPnL / totalCost) * 100 : 0;
-        }
-    }
-
-    const calculatedTarget = isCreditStrategy ? entryPrice * 0.5 : entryPrice * 1.25;
-    const targetPrice = position.target_price || calculatedTarget;
-    let realizedPnL = 0;
-    positionTxns.forEach(t => {
-        if (t.type === 'Take Profit' || t.type === 'Close' || t.type === 'Size Down') {
-            const exitPricePerContract = t.price * CONTRACT_MULTIPLIER;
-            const qtySold = Math.abs(t.quantity);
-            if (isCreditStrategy) realizedPnL += (avgCostPerContract - exitPricePerContract) * qtySold;
-            else realizedPnL += (exitPricePerContract - avgCostPerContract) * qtySold;
-        }
-    });
-
+    const unrealizedPnL = (currentPrice - entryPrice) * qty * CONTRACT_MULTIPLIER * (isCreditStrategy ? -1 : 1);
+    const unrealizedPnLPct = (unrealizedPnL / (entryPrice * qty * CONTRACT_MULTIPLIER)) * 100;
+    const targetPrice = position.target_price || (entryPrice * (isCreditStrategy ? 0.5 : 1.5)); // Default targets
     const daysToExp = daysUntil(position.expiration);
     const currentScore = position.current_score || position.entry_score;
     const scoreColor = currentScore >= 70 ? 'text-accent-green' : currentScore >= 50 ? 'text-accent-yellow' : 'text-accent-red';
-    const scoreBarColor = currentScore >= 70 ? 'bg-accent-green' : currentScore >= 50 ? 'bg-accent-yellow' : 'bg-accent-red';
     const pnlColor = unrealizedPnL >= 0 ? 'text-accent-green' : 'text-accent-red';
+    const currentStopLoss = position.stop_loss || 0;
 
     const handleAction = async (type: 'Size Up' | 'Take Profit' | 'Close') => {
-        if (!actionPrice) return;
-        setLoading(true);
-        const qty = ['Size Down', 'Take Profit', 'Close'].includes(type) ? -Math.abs(actionQty) : Math.abs(actionQty);
-        await onAction(position.id, { type, quantity: type === 'Close' ? -totalQty : qty, price: parseFloat(actionPrice) });
-        setLoading(false);
+        const price = parseFloat(actionPrice);
+        if (isNaN(price)) return;
+        await onAction(position.id, { type, quantity: actionQty, price });
         setActionMode(null);
-        setActionPrice('');
-        setActionQty(1);
     };
 
     const handleScoreSave = async () => {
@@ -294,11 +265,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     };
 
     return (
-        <div className="relative overflow-hidden group rounded-2xl border border-white/5 bg-white/5 backdrop-blur-md hover:bg-white/10 transition-all duration-300 shadow-xl mb-4">
-            {/* Top Bar: Gradient Line based on PnL */}
-            <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${unrealizedPnL >= 0 ? 'from-transparent via-accent-green/50 to-transparent' : 'from-transparent via-accent-red/50 to-transparent'} opacity-50`}></div>
-
-            <div className="p-5">
+        <div className="relative overflow-hidden group rounded-xl border border-white/10 bg-[#1C1C1E] transition-all duration-300 shadow-sm mb-3">
+            <div className="p-4">
                 {/* Header Section */}
                 <div className="flex justify-between items-start mb-6">
                     <div className="flex flex-col gap-1">
@@ -320,19 +288,15 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
 
                     {/* Score Badge */}
                     <div className="flex flex-col items-end">
-                        <div className="text-xs text-text-tertiary mb-1 uppercase tracking-wider font-bold">Score</div>
-                        <div className="relative group/score cursor-pointer" onClick={() => { setIsEditingScore(true); setScoreInput(currentScore?.toString() || ''); }}>
+                        <div className="text-[10px] text-text-tertiary mb-0.5 uppercase tracking-wider font-bold">Score</div>
+                        <div className="cursor-pointer" onClick={() => { setIsEditingScore(true); setScoreInput(currentScore?.toString() || ''); }}>
                             {isEditingScore ? (
                                 <input autoFocus className="w-12 bg-bg-secondary text-right border rounded px-1" value={scoreInput} onChange={e => setScoreInput(e.target.value)} onBlur={handleScoreSave} onKeyDown={e => e.key === 'Enter' && handleScoreSave()} />
                             ) : (
-                                <div className={`text-3xl font-black ${scoreColor} tabular-nums relative z-10`}>
+                                <div className={`text-2xl font-black ${scoreColor} tabular-nums`}>
                                     {currentScore || '--'}
                                 </div>
                             )}
-                            {/* Health Bar Underline */}
-                            <div className="absolute -bottom-1 left-0 right-0 h-1 bg-white/10 rounded-full overflow-hidden">
-                                <div className={`h-full ${scoreBarColor} transition-all duration-500`} style={{ width: `${currentScore}%` }}></div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -380,9 +344,9 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                             { label: 'Theta', value: liveData.theta, fmt: (v: number) => v.toFixed(2) },
                             { label: 'IV', value: liveData.iv, fmt: (v: number) => (v * 100).toFixed(0) + '%' },
                         ].map((g, i) => (
-                            <div key={i} className="bg-white/5 rounded-lg p-2 text-center border border-white/5 hover:border-white/10 transition-colors">
+                            <div key={i} className="bg-[#111] rounded px-2 py-1.5 text-center border border-white/5">
                                 <div className="text-[9px] text-text-tertiary uppercase tracking-wider mb-0.5">{g.label}</div>
-                                <div className={`text-sm font-mono font-medium ${!g.value ? 'text-text-tertiary' : 'text-white'}`}>
+                                <div className={`text-xs font-mono font-medium ${!g.value ? 'text-text-tertiary' : 'text-white'}`}>
                                     {g.value !== undefined ? g.fmt(g.value) : '--'}
                                 </div>
                             </div>
