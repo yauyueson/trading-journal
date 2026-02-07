@@ -224,18 +224,9 @@ function detectRegime(iv30, iv90, rv20) {
         mode = 'CREDIT';
         advice = '🔴 Backwardation (Expensive near-term): Sell Credit Spreads';
     }
-    else if (ivRvRatio && ivRvRatio > 1.35) {
-        mode = 'CREDIT';
-        advice = '💎 High Risk Premium (IV > RV): Market overestimating move. Sell Credit.';
-    }
     else if (termRatio < 0.95) {
         mode = 'DEBIT';
         advice = '🟢 Contango (Cheap near-term IV): Buy Debit Spreads';
-    }
-    else if (ivRvRatio && ivRvRatio < 0.85) {
-        mode = 'DEBIT';
-        // 稳健版本：使用 30D HV 减少单日异常波动影响，匹配 IV30 周期
-        advice = '🚀 Momentum Alert (RV30 > IV30): Stock moving faster than priced. Buy Debit.';
     }
 
     return { ivRatio: termRatio, ivRvRatio, mode, advice };
@@ -318,11 +309,10 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             else if (dte > 45 && dte <= 60) scoreDTE = 80;
             else if (dte < 21) scoreDTE = 20; // DTE Penalty
 
-            // 5. IV/RV Boost
-            // If IV is expensive (IV > RV), boost credit score
+            // 5. IV/RV Boost (Reference Only - Removed from Score)
             let ivBoost = 0;
-            if (ivRvRatio && ivRvRatio > 1.25) ivBoost = 15;
-            if (ivRvRatio && ivRvRatio < 0.90) ivBoost = -15;
+            // if (ivRvRatio && ivRvRatio > 1.25) ivBoost = 15;
+            // if (ivRvRatio && ivRvRatio < 0.90) ivBoost = -15;
 
             let finalScore = (0.35 * scoreROI) + (0.30 * scorePOP) + (0.15 * scoreDistance) + (0.20 * scoreDTE) + ivBoost;
             if (includesEarnings) finalScore -= 25; // Penalty if holding through earnings (even if > 10d)
@@ -335,7 +325,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             // Why This Logic
             const whyThisParts = [];
             if (roi > 20) whyThisParts.push(`${roi.toFixed(0)}% ROI`);
-            if (ivBoost > 0) whyThisParts.push('High IV Premium');
+            if (ivRvRatio && ivRvRatio > 1.25) whyThisParts.push('High IV Premium (Ref)');
             if (scoreDTE >= 75) whyThisParts.push('Theta Zone');
             if (maxContracts > 0) whyThisParts.push(`Max size: ${maxContracts}`);
 
@@ -416,11 +406,10 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
             const rrScore = Math.min((riskReward / 3) * 100, 100);
             const deltaScore = 50 + deltaBonus * 12.5;
 
-            // IV/RV Adjustment
-            // If IV is cheap (IV < RV), boost Debit score
+            // IV/RV Adjustment (Reference Only - Removed from Score)
             let ivAdj = 0;
-            if (ivRvRatio && ivRvRatio < 0.85) ivAdj = 15;
-            if (ivRvRatio && ivRvRatio > 1.15) ivAdj = -15;
+            // if (ivRvRatio && ivRvRatio < 0.85) ivAdj = 15;
+            // if (ivRvRatio && ivRvRatio > 1.15) ivAdj = -15;
 
             const finalScore = (0.4 * lambdaScore) + (0.35 * rrScore) + (0.25 * deltaScore) + ivAdj;
             const maxContracts = calculateMaxContracts(maxRisk);
@@ -439,7 +428,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
                 expectedValue: Number(expectedValue.toFixed(2)),
                 breakeven: type === 'Call' ? longLeg.strike + debit : longLeg.strike - debit,
                 score: Math.min(100, Math.max(0, Math.round(finalScore))),
-                whyThis: `R/R ${riskReward.toFixed(1)}:1, λ=${lambda.toFixed(1)}${ivAdj > 0 ? ', Cheap Vol' : ''}`,
+                whyThis: `R/R ${riskReward.toFixed(1)}:1, λ=${lambda.toFixed(1)}${ivRvRatio && ivRvRatio < 0.85 ? ', Cheap Vol (Ref)' : ''}`,
                 recommendation: {
                     maxContracts: maxContracts,
                     action: "BUY (Open)"
@@ -481,8 +470,8 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
         const thetaPenalty = getThetaPenalty(p.thetaBurn);
 
         let ivAdj = 0;
-        if (ivRvRatio && ivRvRatio < 0.85) ivAdj = 10; // Cheap vol good for buying long
-        if (ivRvRatio && ivRvRatio > 1.15) ivAdj = -10; // Expensive vol bad for buying long
+        // if (ivRvRatio && ivRvRatio < 0.85) ivAdj = 10; // Cheap vol good for buying long
+        // if (ivRvRatio && ivRvRatio > 1.15) ivAdj = -10; // Expensive vol bad for buying long
 
         const rawScore = 0.40 * zL[i] + 0.30 * zG[i] - 0.15 * zT[i] + 0.15 * deltaBonus + ivAdj - thetaPenalty;
         const score = Math.max(0, Math.min(100, Math.round(50 + rawScore * 12.5)));
@@ -503,7 +492,7 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
             volume: p.opt.volume,
             openInterest: p.opt.openInterest,
             score,
-            whyThis: `λ=${p.lambda.toFixed(1)}, Δ=${Math.abs(p.opt.delta).toFixed(2)}${ivAdj > 0 ? ', Cheap Vol' : ''}`
+            whyThis: `λ=${p.lambda.toFixed(1)}, Δ=${Math.abs(p.opt.delta).toFixed(2)}${ivRvRatio && ivRvRatio < 0.85 ? ', Cheap Vol (Ref)' : ''}`
         };
     }).sort((a, b) => b.score - a.score).slice(0, 5);
 }
