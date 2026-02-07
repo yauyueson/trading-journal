@@ -239,13 +239,13 @@ async function fetchRV20(ticker) {
     }
 }
 
-async function detectRegime(allOptions, currentPrice, ticker) {
+async function detectRegime(allOptions, currentPrice, ticker, preFetchedRv20 = null) {
     // Calculate IV30 and IV90 using strict interpolation
     const iv30 = calculateTargetIV(allOptions, 30, currentPrice);
     const iv90 = calculateTargetIV(allOptions, 90, currentPrice);
 
-    // Fetch RV20
-    const rv20 = await fetchRV20(ticker);
+    // Fetch RV20 (use pre-fetched if available)
+    const rv20 = preFetchedRv20 !== null ? preFetchedRv20 : await fetchRV20(ticker);
 
     // Sanity Check: If data is missing
     if (!iv30 || !iv90 || iv90 === 0) {
@@ -352,12 +352,16 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, ivRatio) {
             const roi = (credit / maxRisk) * 100;
             const pop = 1 - Math.abs(shortLeg.delta);
             const distance = Math.abs(currentPrice - shortLeg.strike) / currentPrice;
-            const spreadPct = ((shortLeg.ask - shortLeg.bid) / ((shortLeg.ask + shortLeg.bid) / 2));
-
             // Expected Value
             const expectedValue = (credit * pop) - (maxRisk * (1 - pop));
 
-            // Hard filter: ROI too low or liquidity too poor
+            // Liquidity Guard (Composite Spread)
+            const spreadBid = shortLeg.bid - longLeg.ask; // Conservative credit to open
+            const spreadAsk = shortLeg.ask - longLeg.bid; // Conservative debit to close
+            const spreadMid = (spreadBid + spreadAsk) / 2;
+            const spreadPct = spreadMid > 0 ? (spreadAsk - spreadBid) / spreadMid : 1.0;
+
+            // Hard filter: ROI too low or liquidity too poor (Complex Wide Spread)
             if (roi < 15 || spreadPct > 0.15) continue;
 
             const totalIvAdj = getVolatilityRegimeAdjustment(ivRatio, ivRvRatio, 'short');
@@ -424,12 +428,12 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, ivRatio) {
 
 function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, ivRatio) {
     const results = [];
-    const widths = [2.5, 5];
+    const widths = [2.5, 5, 10]; // Added 10 for larger tickers
 
-    // Anchor: Long Leg with Delta 0.40 - 0.70 (Wider range)
+    // Anchor: Long Leg with Delta 0.45 - 0.70 (Sweet spot)
     const longs = chain.filter(o =>
         o.type === type &&
-        Math.abs(o.delta) >= 0.40 &&
+        Math.abs(o.delta) >= 0.45 &&
         Math.abs(o.delta) <= 0.70
     );
 
@@ -448,22 +452,40 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, ivRatio) {
             if (!shortLeg) continue;
 
             // Calculate metrics
-            const debit = longLeg.ask - shortLeg.bid;
+            const debit = longLeg.ask - shortLeg.bid; // Conservative debit
             const maxProfit = width - debit;
             const maxRisk = debit;
-            const riskReward = maxProfit / debit;
-            const spreadPct = ((longLeg.ask - longLeg.bid) / ((longLeg.ask + longLeg.bid) / 2));
 
-            // Hard filters (Relaxed)
-            // Allow Debit up to 50% of width (1:1 R:R), minimum 1.0 R:R
-            if (debit <= 0 || debit >= width * 0.50) continue;
-            if (riskReward < 1.0) continue;
+            // Hard filters
+            if (debit <= 0 || debit >= width * 0.60) continue; // Cost < 60% of width
+            const riskReward = maxProfit / maxRisk; // Proper R:R calculation
+            if (riskReward < 1.5) continue; // Strict R:R per v2.3
+
+            // Liquidity Guard
+            const spreadBid = longLeg.bid - shortLeg.ask;
+            const spreadAsk = longLeg.ask - shortLeg.bid;
+            const spreadMid = (spreadBid + spreadAsk) / 2;
+            const spreadPct = spreadMid > 0 ? (spreadAsk - spreadBid) / spreadMid : 1.0;
+
             if (spreadPct > 0.15) continue;
+
+            // Scoring Factors
+            const mid = (longLeg.bid + longLeg.ask) / 2;
+            const lambda = mid > 0 ? Math.abs(longLeg.delta) * (currentPrice / mid) : 0;
+            const compLambda = compressLambda(lambda);
+            const deltaBonus = getDeltaBonus(longLeg.delta);
+            const pop = Math.abs(longLeg.delta) - 0.05; // Approx
+            const expectedValue = (maxProfit * pop) - (maxRisk * (1 - pop));
+
+            // Scores
+            const lambdaScore = Math.min((compLambda / 20) * 100, 100);
+            const rrScore = Math.min((riskReward / 3) * 100, 100);
+            const deltaScore = 50 + deltaBonus * 12.5;
 
             const totalIvAdj = getVolatilityRegimeAdjustment(ivRatio, ivRvRatio, 'long');
             const finalScore = Math.round(0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore + totalIvAdj);
 
-            const whyThis = `${riskReward.toFixed(1)}:1 reward-to-risk, λ=${lambda.toFixed(1)} leverage`;
+            const whyThis = `${riskReward.toFixed(1)}:1 R:R, λ=${lambda.toFixed(1)} leverage`;
 
             results.push({
                 type: type === 'Call' ? 'Debit Call Spread' : 'Debit Put Spread',
@@ -655,19 +677,22 @@ export default async function handler(req, res) {
     const dteTarget = targetDte ? parseInt(targetDte) : 30;
 
     try {
-        // Fetch full chain from CBOE
+        // Fetch CBOE and RV20 in parallel
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
-        const response = await fetch(cboeUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-        });
+        const [cboeResponse, rv20] = await Promise.all([
+            fetch(cboeUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            }),
+            fetchRV20(upperTicker)
+        ]);
 
-        if (!response.ok) {
-            return res.status(response.status).json({ error: 'CBOE API error', status: response.status });
+        if (!cboeResponse.ok) {
+            return res.status(cboeResponse.status).json({ error: 'CBOE API error', status: cboeResponse.status });
         }
 
-        const data = await response.json();
+        const data = await cboeResponse.json();
 
         if (!data.data || !data.data.options) {
             return res.status(404).json({ error: 'No options data found' });
@@ -682,8 +707,8 @@ export default async function handler(req, res) {
         // Filter options based on target DTE for strategy generation
         const strategyChain = parseChain(allOptions, currentPrice, dteTarget);
 
-        // Detect IV Regime using Strict Interpolation
-        const regime = await detectRegime(fullChain, currentPrice, upperTicker);
+        // Detect IV Regime using Strict Interpolation (Passing pre-fetched rv20)
+        const regime = await detectRegime(fullChain, currentPrice, upperTicker, rv20);
 
         // Generate ALL recommendations
         const creditStrat = isBull ? 'Put' : 'Call';

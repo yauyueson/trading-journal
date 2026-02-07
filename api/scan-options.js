@@ -251,11 +251,14 @@ export default async function handler(req, res) {
         const upperTicker = ticker.toUpperCase();
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
-        const response = await fetch(cboeUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-        });
+        const [response, rv20] = await Promise.all([
+            fetch(cboeUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            }),
+            fetchRV20(upperTicker)
+        ]);
 
         if (!response.ok) {
             return res.status(response.status).json({ error: 'CBOE API error', status: response.status });
@@ -368,7 +371,7 @@ export default async function handler(req, res) {
         const ivStatus = ivRatio < 0.95 ? 'contango' : ivRatio > 1.05 ? 'backwardation' : 'neutral';
 
         // Fetch RV20 and calculate IV/RV Ratio
-        const rv20 = await fetchRV20(upperTicker);
+        // const rv20 = await fetchRV20(upperTicker); // Already fetched in parallel
         let ivRvRatio = null;
         let vrpAdj = 0;
 

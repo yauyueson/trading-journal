@@ -97,7 +97,18 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
             if (shortData && longData) {
                 const shortPrice = Math.abs(shortData.price || 0);
                 const longPrice = Math.abs(longData.price || 0);
-                netPrice = isCreditStrategy ? shortPrice - longPrice : longPrice - shortPrice;
+
+                if (isCreditStrategy) {
+                    // Conservative Mark: Cost to Close (Short Ask - Long Bid)
+                    const shortAsk = shortData.ask || shortPrice;
+                    const longBid = longData.bid || longPrice;
+                    netPrice = shortAsk - longBid;
+                } else {
+                    // Debit Spread: Sell to Close (Long Bid - Short Ask)
+                    const longBid = longData.bid || longPrice;
+                    const shortAsk = shortData.ask || shortPrice;
+                    netPrice = longBid - shortAsk;
+                }
             }
 
             if (isCreditStrategy && shortData && longData && underlyingPrice > 0) {
