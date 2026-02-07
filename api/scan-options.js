@@ -99,13 +99,20 @@ const getDeltaBonus = (delta) => {
     return 0;
 };
 
-// Z-Score normalization
-const zScores = (values) => {
-    const n = values.length;
-    if (n < 2) return values.map(() => 0);
-    const mean = values.reduce((s, v) => s + v, 0) / n;
-    const std = Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / n) || 1;
-    return values.map(v => (v - mean) / std);
+// =============================================================================
+// GLOBAL BASELINES (v2.2.1 Harmony)
+// =============================================================================
+const BASELINES = {
+    long: {
+        lambda: { mean: 8, std: 4 },
+        gammaEff: { mean: 0.02, std: 0.015 },
+        thetaBurn: { mean: 0.03, std: 0.02 }
+    },
+    short: {
+        edge: { mean: 0.8, std: 0.4 },
+        pop: { mean: 0.7, std: 0.15 },
+        spread: { mean: 0.03, std: 0.03 }
+    }
 };
 
 // =============================================================================
@@ -401,14 +408,11 @@ export default async function handler(req, res) {
         let results;
 
         if (strategy === 'long') {
-            const compressedLambdas = processed.map((p) => compressLambda(p.lambda));
-            const gammas = processed.map((p) => p.gammaEff);
-            const thetas = processed.map((p) => p.thetaBurn);
-            const zL = zScores(compressedLambdas);
-            const zG = zScores(gammas);
-            const zT = zScores(thetas);
+            results = processed.map((p) => {
+                const zL = (compressLambda(p.lambda) - BASELINES.long.lambda.mean) / BASELINES.long.lambda.std;
+                const zG = (p.gammaEff - BASELINES.long.gammaEff.mean) / BASELINES.long.gammaEff.std;
+                const zT = (p.thetaBurn - BASELINES.long.thetaBurn.mean) / BASELINES.long.thetaBurn.std;
 
-            results = processed.map((p, i) => {
                 const deltaBonus = getDeltaBonus(p.opt.delta);
                 const thetaPenalty = getThetaPenalty(p.thetaBurn);
 
@@ -425,9 +429,9 @@ export default async function handler(req, res) {
                 }
 
                 const rawScore = (
-                    wLambda * zL[i] +
-                    wGamma * zG[i] -
-                    wTheta * zT[i] +
+                    wLambda * zL +
+                    wGamma * zG -
+                    wTheta * zT +
                     0.15 * deltaBonus +
                     totalIvAdjustment -
                     (thetaPenalty * penaltyMultiplier)
@@ -481,15 +485,12 @@ export default async function handler(req, res) {
                 };
             });
         } else {
-            const edges = processed.map((p) => p.edge);
-            const pops = processed.map((p) => p.pop);
-            const spreads = processed.map((p) => p.spreadPct);
-            const zE = zScores(edges);
-            const zP = zScores(pops);
-            const zS = zScores(spreads);
+            results = processed.map((p) => {
+                const zE = (p.edge - BASELINES.short.edge.mean) / BASELINES.short.edge.std;
+                const zP = (p.pop - BASELINES.short.pop.mean) / BASELINES.short.pop.std;
+                const zS = (p.spreadPct - BASELINES.short.spread.mean) / BASELINES.short.spread.std;
 
-            results = processed.map((p, i) => {
-                const rawScore = 0.50 * zE[i] + 0.30 * zP[i] - 0.20 * zS[i] + totalIvAdjustment;
+                const rawScore = 0.50 * zE + 0.30 * zP - 0.20 * zS + totalIvAdjustment;
                 const normalizedScore = Math.round(50 + rawScore * 12.5);
 
                 // Deal Breaker: Spread > 15%

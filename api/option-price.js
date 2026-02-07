@@ -1,5 +1,81 @@
 // api/option-price.js
 // 使用 CBOE 免费延迟数据 API (15分钟延迟)
+// 包含 OSS v2.2.1 Scoring Engine
+
+const BASELINES = {
+  long: {
+    lambda: { mean: 8, std: 4 },
+    gammaEff: { mean: 0.02, std: 0.015 },
+    thetaBurn: { mean: 0.03, std: 0.02 }
+  }
+};
+
+const getDeltaBonus = (delta) => {
+  const absDelta = Math.abs(delta);
+  const lerp = (x, x1, x2, y1, y2) => y1 + (y2 - y1) * ((x - x1) / (x2 - x1));
+  if (absDelta < 0.15) return -2.0;
+  if (absDelta < 0.30) return lerp(absDelta, 0.15, 0.30, -2.0, -0.5);
+  if (absDelta < 0.50) return lerp(absDelta, 0.30, 0.50, -0.5, 1.0);
+  if (absDelta < 0.70) return lerp(absDelta, 0.50, 0.70, 1.0, 0.5);
+  if (absDelta <= 1.0) return lerp(absDelta, 0.70, 1.0, 0.5, 0);
+  return 0;
+};
+
+const getThetaPenalty = (thetaBurn) => {
+  const SAFE_ZONE = 0.005;
+  if (thetaBurn <= SAFE_ZONE) return 0;
+  const excess = thetaBurn - SAFE_ZONE;
+  return Math.min(Math.pow(excess * 100, 2) * 0.5, 10);
+};
+
+const compressLambda = (lambda) => {
+  const threshold = 20;
+  const decayRate = 0.1;
+  if (lambda <= threshold) return lambda;
+  return threshold + (lambda - threshold) * decayRate;
+};
+
+const getCleanATM_IV = (chain, currentPrice) => {
+  if (!chain || chain.length === 0) return null;
+  const strikes = {};
+  chain.forEach(opt => {
+    if (!strikes[opt.strike]) strikes[opt.strike] = {};
+    strikes[opt.strike][opt.type] = opt;
+  });
+  let bestStrike = null;
+  let minDiff = Infinity;
+  Object.keys(strikes).forEach(strikeStr => {
+    const strike = parseFloat(strikeStr);
+    if (strikes[strike].Call && strikes[strike].Put) {
+      const diff = Math.abs(strike - currentPrice);
+      if (diff < minDiff) { minDiff = diff; bestStrike = strike; }
+    }
+  });
+  if (bestStrike === null) return null;
+  const atmCall = strikes[bestStrike].Call;
+  const atmPut = strikes[bestStrike].Put;
+  if (!atmCall.iv || !atmPut.iv) return null;
+  return (atmCall.iv + atmPut.iv) / 2;
+};
+
+const calculateTargetIV = (allOptions, targetDTE, currentPrice) => {
+  const dtes = [...new Set(allOptions.map(o => o.dte))].sort((a, b) => a - b);
+  if (dtes.length === 0) return null;
+  if (dtes.includes(targetDTE)) {
+    const chain = allOptions.filter(o => o.dte === targetDTE);
+    return getCleanATM_IV(chain, currentPrice);
+  }
+  let nearDTE = null; let farDTE = null;
+  for (const dte of dtes) {
+    if (dte < targetDTE) nearDTE = dte;
+    if (dte > targetDTE) { farDTE = dte; break; }
+  }
+  if (nearDTE === null || farDTE === null) return null;
+  const ivNear = getCleanATM_IV(allOptions.filter(o => o.dte === nearDTE), currentPrice);
+  const ivFar = getCleanATM_IV(allOptions.filter(o => o.dte === farDTE), currentPrice);
+  if (ivNear === null || ivFar === null) return null;
+  return ivNear + (ivFar - ivNear) * ((targetDTE - nearDTE) / (farDTE - nearDTE));
+};
 
 // ---------------------------------------------------------
 // 🛠️ 辅助：生成 OCC 代码
@@ -84,7 +160,9 @@ export default async function handler(req, res) {
     if (!targetOption) {
       // 尝试模糊匹配
       const expDateStr = expiration.replace(/-/g, '').slice(2); // "260220"
-      const typeChar = typeCode; // Use the already calculated C or P
+      // Need to re-derive typeCode here as it's not in scope
+      const loweredType = type.toLowerCase();
+      const typeChar = (loweredType.includes('call') || loweredType === 'c') ? 'C' : 'P';
       const strikeStr = (parseFloat(strike) * 1000).toString().padStart(8, '0');
 
       const fuzzyMatch = options.find(opt => {
@@ -106,8 +184,27 @@ export default async function handler(req, res) {
       return formatResponse(res, fuzzyMatch, occSymbol, data.data.current_price, data.timestamp);
     }
 
-    return formatResponse(res, targetOption, occSymbol, data.data.current_price, data.timestamp);
+    // Calculate IV Ratio
+    const processedChain = options.map(opt => {
+      const symbol = opt.option || '';
+      const dateMatch = symbol.match(/(\d{6})[CP]/);
+      let dte = 30;
+      if (dateMatch) {
+        const dateStr = dateMatch[1];
+        const yy = parseInt(dateStr.slice(0, 2));
+        const mm = parseInt(dateStr.slice(2, 4));
+        const dd = parseInt(dateStr.slice(4, 6));
+        const expDate = new Date(2000 + yy, mm - 1, dd);
+        dte = Math.ceil((expDate.getTime() - Date.now()) / 86400000);
+      }
+      return { strike: opt.strike, type: symbol.includes('C') ? 'Call' : 'Put', iv: opt.iv, dte };
+    });
 
+    const iv30 = calculateTargetIV(processedChain, 30, data.data.current_price);
+    const iv90 = calculateTargetIV(processedChain, 90, data.data.current_price);
+    const ivRatio = (iv30 && iv90) ? iv30 / iv90 : 1.0;
+
+    return formatResponse(res, targetOption, occSymbol, data.data.current_price, data.timestamp, ivRatio);
   } catch (error) {
     console.error('🚨 API Error:', error.message);
     return res.status(500).json({
@@ -117,7 +214,27 @@ export default async function handler(req, res) {
   }
 }
 
-function formatResponse(res, option, occSymbol, underlyingPrice, cboeTimestamp) {
+function calculateScore(option, underlyingPrice, ivRatio) {
+  const mid = (option.bid + option.ask) / 2 || option.last_trade_price;
+  if (!mid || mid <= 0) return 0;
+
+  const lambda = Math.abs(option.delta) * (underlyingPrice / mid);
+  const gammaEff = option.gamma / mid;
+  const thetaBurn = Math.abs(option.theta) / mid;
+
+  const zL = (compressLambda(lambda) - BASELINES.long.lambda.mean) / BASELINES.long.lambda.std;
+  const zG = (gammaEff - BASELINES.long.gammaEff.mean) / BASELINES.long.gammaEff.std;
+  const zT = (thetaBurn - BASELINES.long.thetaBurn.mean) / BASELINES.long.thetaBurn.std;
+
+  const deltaBonus = getDeltaBonus(option.delta);
+  const thetaPenalty = getThetaPenalty(thetaBurn);
+  const ivAdj = (1 - (1 / (1 + Math.exp(-12 * (ivRatio - 1.10)))) * 0.4 - 0.9) * 5; // Simplified long adj
+
+  const raw = 0.40 * zL + 0.30 * zG - 0.15 * zT + 0.15 * deltaBonus + ivAdj - thetaPenalty;
+  return Math.max(0, Math.min(100, Math.round(50 + raw * 12.5)));
+}
+
+function formatResponse(res, option, occSymbol, underlyingPrice, cboeTimestamp, ivRatio) {
   let price = option.last_trade_price;
   let source = 'last';
 
@@ -125,6 +242,8 @@ function formatResponse(res, option, occSymbol, underlyingPrice, cboeTimestamp) 
     price = (option.bid + option.ask) / 2;
     source = 'mid';
   }
+
+  const score = calculateScore(option, underlyingPrice, ivRatio);
 
   return res.status(200).json({
     success: true,
@@ -144,6 +263,8 @@ function formatResponse(res, option, occSymbol, underlyingPrice, cboeTimestamp) 
     openInterest: option.open_interest || null,
     underlyingPrice: underlyingPrice || null,
     dataSource: 'CBOE',
+    score: score,
+    ivRatio: ivRatio,
     timestamp: Date.now(),
     dataTimestamp: option.last_trade_time || null,
     cboeTimestamp: cboeTimestamp || null,

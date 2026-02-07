@@ -54,6 +54,23 @@ export type Strategy = 'long' | 'short';
 // Raw Metric Calculations
 // ============================================================
 
+// ============================================================
+// Global Baselines (v2.2.1 Harmony)
+// These ensure consistent scoring across Portfolio and Scanner
+// ============================================================
+export const BASELINES = {
+    long: {
+        lambda: { mean: 8, std: 4 },
+        gammaEff: { mean: 0.02, std: 0.015 },
+        thetaBurn: { mean: 0.03, std: 0.02 }
+    },
+    short: {
+        edge: { mean: 0.8, std: 0.4 },
+        pop: { mean: 0.7, std: 0.15 },
+        spread: { mean: 0.03, std: 0.03 }
+    }
+};
+
 /**
  * Lambda (Λ) - True Leverage Ratio
  * Formula: Lambda = |Delta| × (Stock Price / Option Price)
@@ -621,16 +638,15 @@ export function scoreOptionsChain(
     let scored: ScoredResult[];
 
     if (strategy === 'long') {
-        const lambdas = processed.map(p => (p as any).lambda);
-        const gammas = processed.map(p => (p as any).gammaEff);
-        const thetas = processed.map(p => (p as any).thetaBurn);
-
-        const zLambdas = normalizeToZScores(lambdas);
-        const zGammas = normalizeToZScores(gammas);
-        const zThetas = normalizeToZScores(thetas);
-
         scored = processed.map((p, i) => {
             const thetaBurnValue = (p as any).thetaBurn;
+            const lambda = (p as any).lambda;
+            const gammaEff = (p as any).gammaEff;
+
+            // Use Global Baselines for consistency
+            const zLambda = (lambda - BASELINES.long.lambda.mean) / BASELINES.long.lambda.std;
+            const zGamma = (gammaEff - BASELINES.long.gammaEff.mean) / BASELINES.long.gammaEff.std;
+            const zTheta = (thetaBurnValue - BASELINES.long.thetaBurn.mean) / BASELINES.long.thetaBurn.std;
 
             // Deal Breaker: Spread > 15% = Score 0
             if (p.spreadPct > 0.15) {
@@ -664,7 +680,8 @@ export function scoreOptionsChain(
                 };
             }
 
-            const rawScore = calculateLOQRaw(zLambdas[i], zGammas[i], zThetas[i], totalIvAdjustment, 0, thetaBurnValue);
+            const deltaBonus = getDeltaBonus(p.opt.delta);
+            const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, totalIvAdjustment, deltaBonus, thetaBurnValue);
             const score = normalizeScoreTo100(rawScore);
 
             return {
@@ -698,15 +715,16 @@ export function scoreOptionsChain(
         });
     } else {
         // Seller strategy
-        const edges = processed.map(p => (p as any).edge);
-        const pops = processed.map(p => (p as any).pop);
-        const spreads = processed.map(p => p.spreadPct);
-
-        const zEdges = normalizeToZScores(edges);
-        const zPops = normalizeToZScores(pops);
-        const zSpreads = normalizeToZScores(spreads);
-
         scored = processed.map((p, i) => {
+            const edge = (p as any).edge;
+            const pop = (p as any).pop;
+            const spread = p.spreadPct;
+
+            // Use Global Baselines
+            const zEdge = (edge - BASELINES.short.edge.mean) / BASELINES.short.edge.std;
+            const zPop = (pop - BASELINES.short.pop.mean) / BASELINES.short.pop.std;
+            const zSpread = (spread - BASELINES.short.spread.mean) / BASELINES.short.spread.std;
+
             // Deal Breaker: Spread > 15% = Score 0
             if (p.spreadPct > 0.15) {
                 return {
@@ -738,7 +756,7 @@ export function scoreOptionsChain(
                 };
             }
 
-            const rawScore = calculateCSQRaw(zEdges[i], zPops[i], zSpreads[i], totalIvAdjustment);
+            const rawScore = calculateCSQRaw(zEdge, zPop, zSpread, totalIvAdjustment);
             const score = normalizeScoreTo100(rawScore);
 
             return {
@@ -805,13 +823,13 @@ export function calculateSingleLOQ(
 
     // Without a pool, we use reference baselines
     // Good Lambda: 5-15, Good GammaEff: 0.01-0.05, Good ThetaBurn: 0-0.05
-    const zLambda = (lambda - 8) / 4;  // Baseline: 8, std: 4
-    const zGamma = (gammaEff - 0.02) / 0.015;
-    const zTheta = (thetaBurn - 0.03) / 0.02;
+    const zLambda = (lambda - BASELINES.long.lambda.mean) / BASELINES.long.lambda.std;
+    const zGamma = (gammaEff - BASELINES.long.gammaEff.mean) / BASELINES.long.gammaEff.std;
+    const zTheta = (thetaBurn - BASELINES.long.thetaBurn.mean) / BASELINES.long.thetaBurn.std;
 
-    // Use Regime Logic (assuming IV/RV is 1.0 if not provided, basically neutral)
+    const deltaBonus = getDeltaBonus(delta);
     const totalIvAdjustment = getVolatilityRegimeAdjustment(ivRatio, 1.0, 'long');
-    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, totalIvAdjustment, 0, thetaBurn);
+    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, totalIvAdjustment, deltaBonus, thetaBurn);
 
     return normalizeScoreTo100(rawScore);
 }
@@ -832,6 +850,7 @@ export interface CreditSpreadMetrics {
     shortDelta: number;
     shortStrike: number;
     currentPrice: number;
+    ivAdjustment?: number;
 }
 
 export function calculateCreditSpreadScore(metrics: CreditSpreadMetrics): number {
@@ -848,7 +867,7 @@ export function calculateCreditSpreadScore(metrics: CreditSpreadMetrics): number
     const scorePOP = pop * 100;                          // 100% POP = 100 pts
     const scoreDistance = Math.min(distance * 1000, 100); // 10% OTM = 100 pts
 
-    const finalScore = 0.4 * scoreROI + 0.4 * scorePOP + 0.2 * scoreDistance;
+    const finalScore = 0.4 * scoreROI + 0.4 * scorePOP + 0.2 * scoreDistance + (metrics.ivAdjustment || 0);
     return Math.round(Math.min(100, Math.max(0, finalScore)));
 }
 
@@ -858,6 +877,7 @@ export interface DebitSpreadMetrics {
     longDelta: number;
     longPrice: number;
     currentPrice: number;
+    ivAdjustment?: number;
 }
 
 export function calculateDebitSpreadScore(metrics: DebitSpreadMetrics): number {
@@ -880,6 +900,6 @@ export function calculateDebitSpreadScore(metrics: DebitSpreadMetrics): number {
     const rrScore = Math.min((riskReward / 3) * 100, 100);      // 1:3 R:R = 100 pts
     const deltaScore = 50 + deltaBonus * 12.5;
 
-    const finalScore = 0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore;
+    const finalScore = 0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore + (metrics.ivAdjustment || 0);
     return Math.round(Math.min(100, Math.max(0, finalScore)));
 }

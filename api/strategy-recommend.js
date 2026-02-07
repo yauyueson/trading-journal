@@ -86,12 +86,20 @@ const getThetaPenalty = (thetaBurn) => {
     return Math.min(Math.pow(excess * 100, 2) * 0.5, 10);
 };
 
-const zScores = (values) => {
-    const n = values.length;
-    if (n < 2) return values.map(() => 0);
-    const mean = values.reduce((s, v) => s + v, 0) / n;
-    const std = Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / n) || 1;
-    return values.map(v => (v - mean) / std);
+// =============================================================================
+// GLOBAL BASELINES (v2.2.1 Harmony)
+// =============================================================================
+const BASELINES = {
+    long: {
+        lambda: { mean: 8, std: 4 },
+        gammaEff: { mean: 0.02, std: 0.015 },
+        thetaBurn: { mean: 0.03, std: 0.02 }
+    },
+    short: {
+        edge: { mean: 0.8, std: 0.4 },
+        pop: { mean: 0.7, std: 0.15 },
+        spread: { mean: 0.03, std: 0.03 }
+    }
 };
 
 // =============================================================================
@@ -550,25 +558,20 @@ function scoreSingleLegs(chain, type, ivRatio, ivRvRatio, currentPrice) {
         return { opt, mid, lambda, gammaEff, thetaBurn, spreadPct };
     });
 
-    // Z-Score normalize
-    const compressedLambdas = processed.map(p => compressLambda(p.lambda));
-    const gammas = processed.map(p => p.gammaEff);
-    const thetas = processed.map(p => p.thetaBurn);
-    const zL = zScores(compressedLambdas);
-    const zG = zScores(gammas);
-    const zT = zScores(thetas);
-
-    // IV Adjustment
+    // Calculate Scores using Global Baselines
     const totalIvAdj = getVolatilityRegimeAdjustment(ivRatio, ivRvRatio, 'long');
 
-    return processed.map((p, i) => {
+    return processed.map((p) => {
+        const zL = (compressLambda(p.lambda) - BASELINES.long.lambda.mean) / BASELINES.long.lambda.std;
+        const zG = (p.gammaEff - BASELINES.long.gammaEff.mean) / BASELINES.long.gammaEff.std;
+        const zT = (p.thetaBurn - BASELINES.long.thetaBurn.mean) / BASELINES.long.thetaBurn.std;
         const deltaBonus = getDeltaBonus(p.opt.delta);
         const thetaPenalty = getThetaPenalty(p.thetaBurn);
 
         // Deal Breaker
         if (p.spreadPct > 0.15) return null;
 
-        const rawScore = 0.40 * zL[i] + 0.30 * zG[i] - 0.15 * zT[i] + 0.15 * deltaBonus + totalIvAdj - thetaPenalty;
+        const rawScore = 0.40 * zL + 0.30 * zG - 0.15 * zT + 0.15 * deltaBonus + totalIvAdj - thetaPenalty;
         const score = Math.max(0, Math.min(100, Math.round(50 + rawScore * 12.5)));
 
         return {

@@ -21,7 +21,7 @@ interface PositionCardProps {
     preFetchedData?: any[];
 }
 
-export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onDelete, onDataUpdate, index = 0, onRollClick, preFetchedData }) => {
+export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onDelete, onDataUpdate, onRollClick, preFetchedData }) => {
 
     const [loading, setLoading] = useState(false);
     const [liveData, setLiveData] = useState<LiveData>({ delta: undefined, iv: undefined, gamma: undefined, theta: undefined, vega: undefined, score: undefined });
@@ -69,7 +69,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         let netPrice = 0;
         let validLegs = 0;
         let compositeScore = undefined;
-        let netIvRatio = undefined;
+        let netIvRatio = results[0]?.ivRatio || 1.0;
         let isDayTrade = false;
         let underlyingPrice = 0;
 
@@ -97,6 +97,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
             if (shortData && longData) {
                 const shortPrice = Math.abs(shortData.price || 0);
                 const longPrice = Math.abs(longData.price || 0);
+                netIvRatio = shortData.ivRatio || longData.ivRatio || 1.0;
 
                 if (isCreditStrategy) {
                     // Conservative Mark: Cost to Close (Short Ask - Long Bid)
@@ -115,23 +116,29 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 const shortLeg = position.legs.find(l => l.side === 'short')!;
                 const longLeg = position.legs.find(l => l.side === 'long')!;
                 const width = Math.abs(Math.abs(shortLeg.strike) - Math.abs(longLeg.strike));
+                const ivAdjustment = (1 - (1 / (1 + Math.exp(-12 * (netIvRatio - 1.10)))) * 0.4 - 0.9) * 5; // Simplified long/short adj alignment
+
                 compositeScore = calculateCreditSpreadScore({
                     credit: netPrice,
                     width,
                     shortDelta: shortData.delta || 0,
                     shortStrike: shortLeg.strike,
-                    currentPrice: underlyingPrice
+                    currentPrice: underlyingPrice,
+                    ivAdjustment: -ivAdjustment // Sellers benefit from High IV (Backwardation) -> Flip it
                 });
             } else if (!isCreditStrategy && shortData && longData && underlyingPrice > 0) {
                 const shortLeg = position.legs.find(l => l.side === 'short')!;
                 const longLeg = position.legs.find(l => l.side === 'long')!;
                 const width = Math.abs(Math.abs(shortLeg.strike) - Math.abs(longLeg.strike));
+                const ivAdjustment = (1 - (1 / (1 + Math.exp(-12 * (netIvRatio - 1.10)))) * 0.4 - 0.9) * 5;
+
                 compositeScore = calculateDebitSpreadScore({
                     debit: netPrice,
                     width,
                     longDelta: longData.delta || 0,
                     longPrice: Math.abs(longData.price),
-                    currentPrice: underlyingPrice
+                    currentPrice: underlyingPrice,
+                    ivAdjustment
                 });
             }
         } else {
