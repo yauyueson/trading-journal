@@ -13,11 +13,50 @@ const getIVRiskFactor = (ratio) => {
     return 0.9 + raw * 0.4;
 };
 
-const getVRPAdjustment = (ivRvRatio, strategy) => {
-    if (ivRvRatio === undefined || ivRvRatio === null || isNaN(ivRvRatio)) return 0;
-    const factor = (ivRvRatio - 1.0) * 5;
-    if (strategy === 'long') return -factor;
-    return factor;
+const getVolatilityRegimeAdjustment = (termStructureRatio, ivRvRatio, strategy) => {
+    // defaults
+    const isContango = termStructureRatio < 1.0;
+    const isBackwardation = termStructureRatio > 1.05;
+
+    // If IV/RV is missing, fallback to simple Term Structure logic
+    if (ivRvRatio === undefined || ivRvRatio === null || isNaN(ivRvRatio)) {
+        const simpleRisk = getIVRiskFactor(termStructureRatio);
+        return strategy === 'long' ? (1 - simpleRisk) * 5 : (simpleRisk - 1) * 5;
+    }
+
+    const isCheap = ivRvRatio < 0.95;
+    const isExpensive = ivRvRatio > 1.1;
+
+    let adjustment = 0;
+
+    // 1. Value Zone (Contango + Low VRP) -> Strong Buy
+    if (isContango && isCheap) {
+        adjustment = +2.5;
+    }
+    // 2. Momentum Zone (Backwardation + Low VRP) -> Buying ok
+    else if (isBackwardation && isCheap) {
+        adjustment = +1.0;
+    }
+    // 3. Trap Zone (Contango + High VRP) -> Avoid
+    else if (isContango && isExpensive) {
+        adjustment = -2.0;
+    }
+    // 4. Fear Zone (Backwardation + High VRP) -> Strong Sell
+    else if (isBackwardation && isExpensive) {
+        adjustment = -3.0;
+    }
+    // Mixed
+    else {
+        const termScore = (1 - termStructureRatio) * 5;
+        const vrpScore = (1 - ivRvRatio) * 5;
+        adjustment = (termScore + vrpScore) / 2;
+    }
+
+    if (strategy !== 'long') {
+        return -adjustment;
+    }
+
+    return adjustment;
 };
 
 const getDeltaBonus = (delta) => {
@@ -276,7 +315,7 @@ async function detectRegime(allOptions, currentPrice, ticker) {
 // CREDIT SPREAD BUILDER
 // =============================================================================
 
-function buildCreditSpreads(chain, type, currentPrice, ivRvRatio) {
+function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, ivRatio) {
     const results = [];
     const widths = [5, 10];
 
@@ -321,14 +360,14 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio) {
             // Hard filter: ROI too low or liquidity too poor
             if (roi < 15 || spreadPct > 0.15) continue;
 
-            const vrpAdj = getVRPAdjustment(ivRvRatio, 'short');
+            const totalIvAdj = getVolatilityRegimeAdjustment(ivRatio, ivRvRatio, 'short');
 
             // CSQ Spread Score: 40% ROI + 40% POP + 20% Distance + VRP Adj
             const scoreROI = Math.min(roi * 4, 100); // 25% ROI = 100 pts
             const scorePOP = pop * 100;
             const scoreDistance = Math.min(distance * 1000, 100); // 10% OTM = 100 pts
 
-            const finalScore = Math.round(0.4 * scoreROI + 0.4 * scorePOP + 0.2 * scoreDistance + vrpAdj);
+            const finalScore = Math.round(0.4 * scoreROI + 0.4 * scorePOP + 0.2 * scoreDistance + totalIvAdj);
 
             // Generate "Why this?" explanation
             const whyThis = roi >= 25
@@ -383,7 +422,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio) {
 // DEBIT SPREAD BUILDER
 // =============================================================================
 
-function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
+function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, ivRatio) {
     const results = [];
     const widths = [2.5, 5];
 
@@ -421,24 +460,8 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
             if (riskReward < 1.0) continue;
             if (spreadPct > 0.15) continue;
 
-            const vrpAdj = getVRPAdjustment(ivRvRatio, 'long');
-
-            // Calculate Lambda for long leg
-            const mid = (longLeg.bid + longLeg.ask) / 2;
-            const lambda = Math.abs(longLeg.delta) * (currentPrice / mid);
-            const compLambda = compressLambda(lambda);
-            const deltaBonus = getDeltaBonus(longLeg.delta);
-
-            // Pop & EV
-            const pop = Math.abs(longLeg.delta) - 0.05; // Conservative approximation
-            const expectedValue = (maxProfit * pop) - (maxRisk * (1 - pop));
-
-            // LOQ Spread Score
-            const lambdaScore = Math.min((compLambda / 20) * 100, 100);
-            const rrScore = Math.min((riskReward / 3) * 100, 100);
-            const deltaScore = 50 + deltaBonus * 12.5;
-
-            const finalScore = Math.round(0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore + vrpAdj);
+            const totalIvAdj = getVolatilityRegimeAdjustment(ivRatio, ivRvRatio, 'long');
+            const finalScore = Math.round(0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore + totalIvAdj);
 
             const whyThis = `${riskReward.toFixed(1)}:1 reward-to-risk, λ=${lambda.toFixed(1)} leverage`;
 
@@ -514,10 +537,7 @@ function scoreSingleLegs(chain, type, ivRatio, ivRvRatio, currentPrice) {
     const zT = zScores(thetas);
 
     // IV Adjustment
-    const riskFactor = getIVRiskFactor(ivRatio);
-    const termAdj = (1 - riskFactor) * 5;
-    const vrpAdj = getVRPAdjustment(ivRvRatio, 'long');
-    const totalIvAdj = termAdj + vrpAdj;
+    const totalIvAdj = getVolatilityRegimeAdjustment(ivRatio, ivRvRatio, 'long');
 
     return processed.map((p, i) => {
         const deltaBonus = getDeltaBonus(p.opt.delta);
@@ -670,8 +690,8 @@ export default async function handler(req, res) {
         const debitStrat = isBull ? 'Call' : 'Put';
         const legStrat = isBull ? 'Call' : 'Put';
 
-        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio);
-        const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio);
+        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, regime.ivRatio);
+        const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio, regime.ivRatio);
         const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRatio, regime.ivRvRatio, currentPrice).filter(x => x !== null);
 
         // Determine Recommended Strategy

@@ -307,23 +307,83 @@ export function getIVRiskFactor(ratio: number): number {
  * - Buyers: +1.0 (Cheap) to -1.0 (Expensive)
  * - Sellers: -1.0 (Cheap) to +1.0 (Expensive)
  */
-export function getVRPAdjustment(ivRvRatio: number, strategy: Strategy): number {
-    if (ivRvRatio === undefined || ivRvRatio === null || isNaN(ivRvRatio)) return 0;
+/**
+ * Volatility Regime Adjustment (Matrix)
+ * 
+ * Combines IV Term Structure (IV30/IV90) and IV/RV Ratio (IV30/RV20)
+ * to determine the true "value" of options.
+ * 
+ * Quadrants:
+ * 1. Value Zone (Contango + Low VRP): Strong Buy
+ * 2. Momentum Zone (Backwardation + Low VRP): Speculative Buy
+ * 3. Trap Zone (Contango + High VRP): Avoid/Sell
+ * 4. Fear Zone (Backwardation + High VRP): Strong Sell
+ */
+export function getVolatilityRegimeAdjustment(
+    termStructureRatio: number,
+    ivRvRatio: number | undefined | null,
+    strategy: Strategy
+): number {
+    // defaults
+    const isContango = termStructureRatio < 1.0;
+    const isBackwardation = termStructureRatio > 1.05;
 
-    // Center at 1.0
-    // Cheap (<0.8) -> factor < 0
-    // Expensive (>1.2) -> factor > 0
-    const factor = (ivRvRatio - 1.0) * 5; // 1.2 -> +1.0, 0.8 -> -1.0
-
-    if (strategy === 'long') {
-        // Buyers want LOW IV/RV (Cheap)
-        // If factor is positive (Expensive), penalty.
-        // If factor is negative (Cheap), bonus.
-        return -factor;
-    } else {
-        // Sellers want HIGH IV/RV (Expensive)
-        return factor;
+    // If IV/RV is missing, fallback to simple Term Structure logic
+    if (ivRvRatio === undefined || ivRvRatio === null || isNaN(ivRvRatio)) {
+        const simpleRisk = getIVRiskFactor(termStructureRatio);
+        return strategy === 'long' ? (1 - simpleRisk) * 5 : (simpleRisk - 1) * 5;
     }
+
+    const isCheap = ivRvRatio < 0.95;
+    const isExpensive = ivRvRatio > 1.1;
+
+    let adjustment = 0;
+
+    // --- REGIME LOGIC ---
+
+    // 1. Value Zone (Contango + Low VRP)
+    // Options are cheap historically AND cheap vs realized movement.
+    // Best time to buy.
+    if (isContango && isCheap) {
+        adjustment = +2.5;
+    }
+
+    // 2. Momentum Zone (Backwardation + Low VRP)
+    // Options look expensive (Backwa.) but Realized Vol is huge.
+    // Market is moving fast. Buying is okay (chasing momentum).
+    else if (isBackwardation && isCheap) {
+        adjustment = +1.0;
+    }
+
+    // 3. Trap Zone (Contango + High VRP)
+    // Options look cheap (Contango) but Price Action is dead (High VRP).
+    // Market markers are overpricing options relative to actual movement.
+    // "Value Trap" for buyers.
+    else if (isContango && isExpensive) {
+        adjustment = -2.0;
+    }
+
+    // 4. Fear Zone (Backwardation + High VRP)
+    // Options are expensive historically AND expensive vs realized.
+    // Panic pricing. Best time to sell.
+    else if (isBackwardation && isExpensive) {
+        adjustment = -3.0;
+    }
+
+    // Neutral / Mixed zones
+    else {
+        // Linear interpolation for the middle ground
+        const termScore = (1 - termStructureRatio) * 5; // >0 if Contango
+        const vrpScore = (1 - ivRvRatio) * 5;           // >0 if Cheap
+        adjustment = (termScore + vrpScore) / 2;
+    }
+
+    // Flip for Sellers
+    if (strategy === 'short') {
+        return -adjustment;
+    }
+
+    return adjustment;
 }
 
 // ============================================================
@@ -496,11 +556,8 @@ export function scoreOptionsChain(
     // Calculate IV Ratio
     const ivResult = calculateIVRatio(chain, currentPrice);
 
-    // Combine IV Term Structure Adjustment + IV/RV Adjustment
-    const termStructureAdj = getIVAdjustment(ivResult.ivRatio, strategy);
-    const vrpAdj = ivRvRatio ? getVRPAdjustment(ivRvRatio, strategy) : 0;
-
-    const totalIvAdjustment = termStructureAdj + vrpAdj;
+    // Combine IV Term Structure + IV/RV Ratio into a Regime Score
+    const totalIvAdjustment = getVolatilityRegimeAdjustment(ivResult.ivRatio, ivRvRatio, strategy);
 
     // Hard filters
     const minStrike = currentPrice * (1 - strikeRangePercent);
@@ -752,8 +809,9 @@ export function calculateSingleLOQ(
     const zGamma = (gammaEff - 0.02) / 0.015;
     const zTheta = (thetaBurn - 0.03) / 0.02;
 
-    const ivAdjustment = getIVAdjustment(ivRatio, 'long');
-    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, ivAdjustment, 0, thetaBurn);
+    // Use Regime Logic (assuming IV/RV is 1.0 if not provided, basically neutral)
+    const totalIvAdjustment = getVolatilityRegimeAdjustment(ivRatio, 1.0, 'long');
+    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, totalIvAdjustment, 0, thetaBurn);
 
     return normalizeScoreTo100(rawScore);
 }

@@ -194,12 +194,12 @@ docs/
 
 ## 🔄 文档更新日志
 
-### 2026-02-06 (v2.2 Update)
-- ✅ **VRP Optimization**: 整合 IV/RV Ratio (Volatility Risk Premium)，显著增强评分算法在不同波动率环境下的筛选精度。
+### 2026-02-06 (v2.2 Update - Harmony)
+- ✅ **Volatility Regime Matrix**: 放弃简单的加法模型，改用 4 象限矩阵整合 IV Term Structure 和 IV/RV Ratio，精准识别“爆发动量”与“价值陷阱”。
 - ✅ **Performance Overhaul**: 引入 `/api/batch-option-price` 接口，解决 N+1 调用瓶颈，Portfolio 加载速度提升 ~80%。
-- ✅ **UI/UX Modernization**: 重构 `PositionCard` 为 Glassmorphism 设计，引入 Health Bar 视觉化分值，大幅提升操作体验。
+- ✅ **UI/UX Modernization**: 重构 `PositionCard` 为 Glassmorphism 设计，引入 Health Bar 视觉化分值。
 - ✅ **Liquidity Guard**: 增加 Deal Breaker 硬约束，自动过滤买卖价差率 > 15% 的劣质合约。
-- ✅ **Algorithm Refactoring**: 统一 `Portfolio` 与 `Scanner` 的底层计算逻辑，消除评分偏差。
+- ✅ **Cross-Platform Alignment**: 统一 `Portfolio`, `Scanner` 与 `Recommender` 的底层算法，消除所有评分误差。
 
 ### 2026-02-06 (Credit/Spread Patch)
 - ✅ **Credit Spread Accounting**: 修复信用价差核算，采用 Cost to Close (Short - Long) 逻辑，修正 P&L 计算。

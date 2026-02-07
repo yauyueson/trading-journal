@@ -12,13 +12,51 @@ const getIVRiskFactor = (ratio) => {
 };
 
 // 1.5. VRP Adjustment (IV/RV Ratio)
-const getVRPAdjustment = (ivRvRatio, strategy) => {
-    if (ivRvRatio === undefined || ivRvRatio === null || isNaN(ivRvRatio)) return 0;
-    const factor = (ivRvRatio - 1.0) * 5;
-    // Buyers want Low IV/RV (factor < 0) -> Bonus if neg, Penalty if pos
-    // Sellers want High IV/RV (factor > 0) -> Bonus if pos, Penalty if neg
-    if (strategy === 'long') return -factor;
-    return factor;
+// 1.5. Volatility Regime Adjustment (Matrix)
+const getVolatilityRegimeAdjustment = (termStructureRatio, ivRvRatio, strategy) => {
+    // defaults
+    const isContango = termStructureRatio < 1.0;
+    const isBackwardation = termStructureRatio > 1.05;
+
+    // If IV/RV is missing, fallback to simple Term Structure logic
+    if (ivRvRatio === undefined || ivRvRatio === null || isNaN(ivRvRatio)) {
+        const simpleRisk = getIVRiskFactor(termStructureRatio);
+        return strategy === 'long' ? (1 - simpleRisk) * 5 : (simpleRisk - 1) * 5;
+    }
+
+    const isCheap = ivRvRatio < 0.95;
+    const isExpensive = ivRvRatio > 1.1;
+
+    let adjustment = 0;
+
+    // 1. Value Zone (Contango + Low VRP) -> Strong Buy
+    if (isContango && isCheap) {
+        adjustment = +2.5;
+    }
+    // 2. Momentum Zone (Backwardation + Low VRP) -> Buying ok
+    else if (isBackwardation && isCheap) {
+        adjustment = +1.0;
+    }
+    // 3. Trap Zone (Contango + High VRP) -> Avoid
+    else if (isContango && isExpensive) {
+        adjustment = -2.0;
+    }
+    // 4. Fear Zone (Backwardation + High VRP) -> Strong Sell
+    else if (isBackwardation && isExpensive) {
+        adjustment = -3.0;
+    }
+    // Mixed
+    else {
+        const termScore = (1 - termStructureRatio) * 5;
+        const vrpScore = (1 - ivRvRatio) * 5;
+        adjustment = (termScore + vrpScore) / 2;
+    }
+
+    if (strategy !== 'long') {
+        return -adjustment;
+    }
+
+    return adjustment;
 };
 
 // 2. IV Adjustment
@@ -336,11 +374,9 @@ export default async function handler(req, res) {
 
         if (rv20 && iv30) {
             ivRvRatio = (iv30 * 100) / rv20;
-            vrpAdj = getVRPAdjustment(ivRvRatio, strategy);
         }
 
-        const termStructureAdj = getIVAdjustment(ivRatio, strategy);
-        const totalIvAdjustment = termStructureAdj + vrpAdj;
+        const totalIvAdjustment = getVolatilityRegimeAdjustment(ivRatio, ivRvRatio, strategy);
 
         // Calculate metrics
         const processed = filtered.map((opt) => {

@@ -29,10 +29,10 @@ Supabase PostgreSQL (数据存储)
 
 | 端点 | 方法 | 用途 | 状态 |
 |------|------|------|------|
-| `/api/option-price` | GET | 获取单份期权价格、Greeks 及 OSS 评分 | ✅ 生产 |
+| `/api/option-price` | GET | 获取单份期权价格、Greeks 及 OSS 评分 (v2.2) | ✅ 生产 |
 | `/api/batch-option-price` | POST | 批量获取多个期权合约的数据（高性能版） | ✅ 生产 |
-| `/api/scan-options` | GET | OSS v2.2 扫描器，支持 VRP 分析 | ✅ 生产 |
-| `/api/strategy-recommend` | GET | 策略推荐引擎（支持价差/组合策略） | ✅ 生产 |
+| `/api/scan-options` | GET | OSS v2.2 扫描器，支持 VRP & Regime 分析 | ✅ 生产 |
+| `/api/strategy-recommend` | GET | 策略推荐引擎（支持价差/组合策略, v2.2） | ✅ 生产 |
 | `/api/earnings` | GET | 获取财报日期（基于 Nasdaq API） | ✅ 生产 |
 
 ---
