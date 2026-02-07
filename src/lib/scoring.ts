@@ -638,7 +638,7 @@ export function scoreOptionsChain(
     let scored: ScoredResult[];
 
     if (strategy === 'long') {
-        scored = processed.map((p, i) => {
+        scored = processed.map((p) => {
             const thetaBurnValue = (p as any).thetaBurn;
             const lambda = (p as any).lambda;
             const gammaEff = (p as any).gammaEff;
@@ -715,7 +715,7 @@ export function scoreOptionsChain(
         });
     } else {
         // Seller strategy
-        scored = processed.map((p, i) => {
+        scored = processed.map((p) => {
             const edge = (p as any).edge;
             const pop = (p as any).pop;
             const spread = p.spreadPct;
