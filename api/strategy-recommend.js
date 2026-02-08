@@ -6,9 +6,9 @@
 
 let compressLambda, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
     calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, getIVRiskFactor,
-    getIVRankAdjustment, calculateLOQRaw, normalizeScoreTo100, normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct,
+    calculateLOQRaw, normalizeScoreTo100, normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct,
     getCleanATM_IV, calculateTargetIV, parseChain;
-let saveTickerIVSnapshot, getIVRank;
+let saveTickerIVSnapshot;
 let _scoringLoaded = false;
 
 async function ensureScoring() {
@@ -28,7 +28,6 @@ async function ensureScoring() {
     getDeltaBonus = scoring.getDeltaBonus;
     zScores = scoring.zScores;
     getIVRiskFactor = scoring.getIVRiskFactor;
-    getIVRankAdjustment = scoring.getIVRankAdjustment;
     calculateLOQRaw = scoring.calculateLOQRaw;
     normalizeScoreTo100 = scoring.normalizeScoreTo100;
     normalizeLOQScoresWithDynamicBaseline = scoring.normalizeLOQScoresWithDynamicBaseline;
@@ -41,10 +40,8 @@ async function ensureScoring() {
         const ivMod = await import(ivUrl);
         const iv = ivMod.default ?? ivMod;
         saveTickerIVSnapshot = iv.saveTickerIVSnapshot;
-        getIVRank = iv.getIVRank;
     } catch (_) {
         saveTickerIVSnapshot = async () => {};
-        getIVRank = async () => ({ ivRank: null, ivPercentile: null, currentIv30: null, minIv: null, maxIv: null, sampleDays: 0 });
     }
     _scoringLoaded = true;
 }
@@ -359,7 +356,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
-function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRank = null) {
+function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
     const filtered = chain.filter(o =>
         o.type === type &&
         Math.abs(o.delta) >= 0.25 &&
@@ -393,7 +390,7 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRank = null) {
     const zT = zScores(thetas);
     const zGT = zScores(gtRatios);
 
-    const ivRankAdj = getIVRankAdjustment(ivRank, 'long');
+    const ivRankAdj = 0; // IV Rank/Percentile removed; regime uses IV Ratio + IV/RV only
     const rawScores = processed.map((p, i) => {
         const deltaBonus = getDeltaBonus(p.opt.delta);
         const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
@@ -475,20 +472,16 @@ export default async function handler(req, res) {
 
         if (iv30 != null) {
             await saveTickerIVSnapshot(upperTicker, iv30, iv90);
-            const rankInfo = await getIVRank(upperTicker);
-            regime.ivRank = rankInfo.ivRank;
-            regime.ivPercentile = rankInfo.ivPercentile;
-            regime.ivRankSampleDays = rankInfo.sampleDays;
         }
 
         const creditStrat = isBull ? 'Put' : 'Call';
         const debitStrat = isBull ? 'Call' : 'Put';
         const legStrat = isBull ? 'Call' : 'Put';
 
-        // 2. Build Strategies
+        // 2. Build Strategies (regime uses IV Ratio + IV/RV only; no IV Rank/Percentile)
         const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings);
         const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio);
-        const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice, regime.ivRank);
+        const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice);
 
         let recommendedStrategy = 'CREDIT_SPREAD';
 
@@ -520,9 +513,6 @@ export default async function handler(req, res) {
                 iv90: iv90 ? Number((iv90 * 100).toFixed(1)) : null,
                 rv30: rv30 ? Number(rv30.toFixed(1)) : null,
                 ivRvRatio: regime.ivRvRatio ? Number(regime.ivRvRatio.toFixed(3)) : null,
-                ivRank: regime.ivRank != null ? Number(regime.ivRank.toFixed(3)) : null,
-                ivPercentile: regime.ivPercentile != null ? Number(regime.ivPercentile.toFixed(3)) : null,
-                ivRankSampleDays: regime.ivRankSampleDays ?? null,
                 mode: regime.mode,
                 advice: regime.advice
             },

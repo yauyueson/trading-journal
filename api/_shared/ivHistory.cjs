@@ -9,6 +9,8 @@
  */
 
 const WINDOW_DAYS = 252;
+/** Minimum number of daily snapshots needed to report IV Rank / IV Percentile. Fewer → return null (show N/A). */
+const MIN_SAMPLES_FOR_RANK = 5;
 
 function getSupabase() {
     const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -93,20 +95,27 @@ async function getIVRank(ticker) {
         const iv30Values = rows.map((r) => (r.iv30 != null ? Number(r.iv30) : null)).filter((v) => v != null);
         if (iv30Values.length === 0) return { ivRank: null, ivPercentile: null, currentIv30: null, minIv: null, maxIv: null, sampleDays: 0 };
 
+        const n = iv30Values.length;
         const currentIv30 = iv30Values[0];
         const minIv = Math.min(...iv30Values);
         const maxIv = Math.max(...iv30Values);
         const span = maxIv - minIv;
-        const ivRank = span > 0 ? (currentIv30 - minIv) / span : 0.5;
-        const ivPercentile = iv30Values.filter((v) => v < currentIv30).length / iv30Values.length;
+
+        if (n < MIN_SAMPLES_FOR_RANK) {
+            return { ivRank: null, ivPercentile: null, currentIv30, minIv, maxIv, sampleDays: n };
+        }
+
+        const ivRank = span > 0 ? (currentIv30 - minIv) / span : null;
+        const countBelow = iv30Values.filter((v) => v < currentIv30).length;
+        const ivPercentile = n > 0 ? countBelow / n : null;
 
         return {
-            ivRank: Math.max(0, Math.min(1, ivRank)),
-            ivPercentile: Math.max(0, Math.min(1, ivPercentile)),
+            ivRank: ivRank != null ? Math.max(0, Math.min(1, ivRank)) : null,
+            ivPercentile: ivPercentile != null ? Math.max(0, Math.min(1, ivPercentile)) : null,
             currentIv30,
             minIv,
             maxIv,
-            sampleDays: iv30Values.length,
+            sampleDays: n,
         };
     } catch (e) {
         console.warn('IV rank fetch error:', e.message);

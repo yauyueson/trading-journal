@@ -393,26 +393,26 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                             <div className="flex gap-8 text-right">
                                 <div>
                                     <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center justify-end gap-1">
-                                        IV Rank
-                                        <Tooltip label="" explanation="Where current IV30 sits vs 252-day min–max (0 = lowest, 1 = highest). High = expensive vol, low = cheap vol. Drives LOQ adjustment." />
+                                        IV Ratio
+                                        <Tooltip label="" explanation="IV30/IV90 term structure. &lt;1 = contango (short vol friendly), &gt;1 = backwardation (long vol friendly)." />
                                     </div>
-                                    <div className={`text-3xl font-mono font-bold mb-1 ${(result.regime.ivRank ?? 0) > 0.7 ? 'text-amber-400' : (result.regime.ivRank ?? 0) < 0.3 ? 'text-emerald-400' : 'text-white'}`}>
-                                        {result.regime.ivRank != null ? `${(result.regime.ivRank * 100).toFixed(0)}%` : 'N/A'}
+                                    <div className={`text-3xl font-mono font-bold mb-1 ${(result.regime.ivRatio ?? 1) < 0.95 ? 'text-emerald-400' : (result.regime.ivRatio ?? 1) > 1.05 ? 'text-amber-400' : 'text-white'}`}>
+                                        {result.regime.ivRatio != null ? result.regime.ivRatio.toFixed(2) : 'N/A'}
                                     </div>
                                     <div className="text-[10px] text-gray-500 font-mono">
-                                        {result.regime.ivRankSampleDays != null ? `${result.regime.ivRankSampleDays}d` : ''} {result.regime.iv30 != null ? `IV30: ${result.regime.iv30}%` : ''}
+                                        {result.regime.iv30 != null ? `IV30: ${result.regime.iv30}%` : ''} {result.regime.iv90 != null ? ` · IV90: ${result.regime.iv90}%` : ''}
                                     </div>
                                 </div>
                                 <div>
                                     <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center justify-end gap-1">
-                                        IV Percentile
-                                        <Tooltip label="" explanation="% of past days with IV30 below today. 80% = IV higher than 80% of history (expensive). 20% = cheap relative to history." />
+                                        IV / RV Ratio
+                                        <Tooltip label="" explanation="IV30 vs 20d realized vol. &gt;1 = implied expensive vs recent realized; &lt;1 = implied cheap. Drives regime (credit vs debit)." />
                                     </div>
-                                    <div className={`text-3xl font-mono font-bold mb-1 ${(result.regime.ivPercentile ?? 0) > 0.7 ? 'text-amber-400' : (result.regime.ivPercentile ?? 0) < 0.3 ? 'text-emerald-400' : 'text-white'}`}>
-                                        {result.regime.ivPercentile != null ? `${(result.regime.ivPercentile * 100).toFixed(0)}%` : 'N/A'}
+                                    <div className={`text-3xl font-mono font-bold mb-1 ${(result.regime.ivRvRatio ?? 1) > 1.1 ? 'text-amber-400' : (result.regime.ivRvRatio ?? 1) < 0.9 ? 'text-emerald-400' : 'text-white'}`}>
+                                        {result.regime.ivRvRatio != null ? result.regime.ivRvRatio.toFixed(2) : 'N/A'}
                                     </div>
                                     <div className="text-[10px] text-gray-500 font-mono">
-                                        {result.regime.ivRatio != null ? `Term: ${result.regime.ivRatio.toFixed(2)}` : ''} {result.regime.ivRvRatio != null ? `| IV/RV: ${result.regime.ivRvRatio.toFixed(2)}` : ''}
+                                        {result.regime.rv30 != null ? `RV30: ${result.regime.rv30}%` : ''}
                                     </div>
                                 </div>
                             </div>

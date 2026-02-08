@@ -14,7 +14,6 @@ const {
     getDeltaBonus,
     zScores,
     getIVAdjustment,
-    getIVRankAdjustment,
     calculateLOQRaw,
     calculateCSQRaw,
     normalizeScoreTo100,
@@ -24,7 +23,7 @@ const {
     calculateTargetIV,
     parseChain,
 } = require('./_shared/scoring.cjs');
-const { saveTickerIVSnapshot, getIVRank } = require('./_shared/ivHistory.cjs');
+const { saveTickerIVSnapshot } = require('./_shared/ivHistory.cjs');
 
 // ---------------------------------------------------------
 // Main Handler
@@ -167,14 +166,8 @@ export default async function handler(req, res) {
         const ivStatus = ivRatio < 0.95 ? 'contango' : ivRatio > 1.05 ? 'backwardation' : 'neutral';
         let ivAdjustment = getIVAdjustment(ivRatio, strategy);
 
-        // IV Rank: save today's snapshot, then get historical rank and add adjustment
-        let ivRankInfo = { ivRank: null, ivPercentile: null, sampleDays: 0 };
         if (iv30 != null) {
             await saveTickerIVSnapshot(upperTicker, iv30, iv90);
-            ivRankInfo = await getIVRank(upperTicker);
-            if (ivRankInfo.ivRank != null) {
-                ivAdjustment += getIVRankAdjustment(ivRankInfo.ivRank, strategy);
-            }
         }
 
         // Score
@@ -286,9 +279,6 @@ export default async function handler(req, res) {
                 iv30: iv30 ? Math.round(iv30 * 1000) / 1000 : null,
                 iv90: iv90 ? Math.round(iv90 * 1000) / 1000 : null,
                 ivStatus,
-                ivRank: ivRankInfo.ivRank != null ? Math.round(ivRankInfo.ivRank * 1000) / 1000 : null,
-                ivPercentile: ivRankInfo.ivPercentile != null ? Math.round(ivRankInfo.ivPercentile * 1000) / 1000 : null,
-                ivRankSampleDays: ivRankInfo.sampleDays,
                 strategy,
                 totalOptions: options.length,
                 filteredCount: processed.length,
