@@ -39,19 +39,13 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const isSpread = !!position.legs && position.legs.length > 0;
     const isCreditStrategy = position.type.includes('Credit') || position.type.includes('Short');
 
-    const [rvPercentile, setRvPercentile] = useState<number>(50);
-
-    // Fetch Earnings & RV Metrics
+    // Fetch Earnings
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchEarnings = async () => {
             try {
-                const [earnRes, rvRes] = await Promise.all([
-                    fetch(`/api/earnings?symbol=${position.ticker}`),
-                    fetch(`/api/underlying-rv?ticker=${position.ticker}`)
-                ]);
-
-                if (earnRes.ok) {
-                    const data = await earnRes.json();
+                const response = await fetch(`/api/earnings?symbol=${position.ticker}`);
+                if (response.ok) {
+                    const data = await response.json();
                     if (data.hasUpcomingEarnings && data.daysUntilEarnings <= 14) {
                         setEarnings({ loading: false, date: data.earningsDate, days: data.daysUntilEarnings });
                     } else {
@@ -60,18 +54,11 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 } else {
                     setEarnings({ loading: false, date: null, days: null });
                 }
-
-                if (rvRes.ok) {
-                    const data = await rvRes.json();
-                    if (data.success && data.rvPercentile !== undefined && data.rvPercentile !== null) {
-                        setRvPercentile(data.rvPercentile);
-                    }
-                }
             } catch (e) {
                 setEarnings({ loading: false, date: null, days: null });
             }
         };
-        fetchData();
+        fetchEarnings();
     }, [position.ticker]);
 
     // Fetch Greeks and price
@@ -157,7 +144,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         shortDelta: shortData.delta || 0,
                         shortStrike: shortStrike,
                         currentPrice: underlyingPrice
-                    }, rvPercentile);
+                    });
                 } else if (!isCreditStrategy && shortData && longData && underlyingPrice > 0) {
                     const shortStrike = position.legs?.find(l => l.side === 'short')?.strike || 0;
                     const longStrike = position.legs?.find(l => l.side === 'long')?.strike || 0;
@@ -170,7 +157,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         longDelta: longData.delta || 0,
                         longPrice: Math.abs(longData.price),
                         currentPrice: underlyingPrice
-                    }, rvPercentile);
+                    });
                 } else if (isCreditStrategy && shortData) {
                     compositeScore = shortData.score || (shortData.underlyingPrice ? calculateSingleLOQ(
                         shortData.delta || 0,
@@ -179,8 +166,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         shortData.underlyingPrice,
                         Math.abs(shortData.price),
                         1.0,
-                        daysUntil(position.expiration),
-                        rvPercentile
+                        daysUntil(position.expiration)
                     ) : undefined);
                 } else if (!isCreditStrategy && longData) {
                     compositeScore = longData.score || (longData.underlyingPrice ? calculateSingleLOQ(
@@ -190,8 +176,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         longData.underlyingPrice,
                         Math.abs(longData.price),
                         1.0,
-                        daysUntil(position.expiration),
-                        rvPercentile
+                        daysUntil(position.expiration)
                     ) : undefined);
                 }
 
@@ -235,8 +220,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                             data.underlyingPrice,
                             data.price,
                             data.metrics?.ivRatio || 1.0,
-                            daysUntil(position.expiration),
-                            rvPercentile
+                            daysUntil(position.expiration)
                         ) : undefined);
 
                         setLiveData({
@@ -256,7 +240,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
             }
         } catch (e) { console.error(e); }
         setLoading(false);
-    }, [position.id, position.ticker, position.expiration, position.strike, position.type, isSpread, isCreditStrategy, position.legs, onUpdatePrice, rvPercentile]);
+    }, [position.id, position.ticker, position.expiration, position.strike, position.type, isSpread, isCreditStrategy, position.legs, onUpdatePrice]);
 
     useEffect(() => {
         fetchGreeksAndPrice();

@@ -130,38 +130,13 @@ const getIVAdjustment = (ivRatio, strategy) => {
 };
 
 // ────────────────────────────────────────────────────────────────
-// IV Rank/Percentile Bonus (v2.2)
-// ────────────────────────────────────────────────────────────────
-
-const getIVRankBonus = (ivPercentile, strategy) => {
-    // Clamp 0-100
-    const rank = Math.max(0, Math.min(100, ivPercentile));
-
-    if (strategy === 'long') {
-        // Buyer wants cheap vol
-        if (rank <= 20) return 1.5;
-        if (rank <= 40) return lerp(rank, 20, 40, 1.5, 0);
-        if (rank >= 80) return -1.5;
-        if (rank >= 60) return lerp(rank, 60, 80, 0, -1.5);
-        return 0;
-    } else {
-        // Seller wants expensive vol
-        if (rank >= 80) return 1.5;
-        if (rank >= 60) return lerp(rank, 60, 80, 0, 1.5);
-        if (rank <= 20) return -1.5;
-        if (rank <= 40) return lerp(rank, 20, 40, -1.5, 0);
-        return 0;
-    }
-};
-
-// ────────────────────────────────────────────────────────────────
 // LOQ / CSQ Raw Score
 // ────────────────────────────────────────────────────────────────
 
-const LOQ_WEIGHTS = { lambda: 0.30, gammaEff: 0.20, gammaThetaRatio: 0.15, thetaBurn: -0.10, deltaBonus: 0.15, breakevenPenalty: 0.10, ivRankBonus: 0.20 };
-const LOQ_DT_WEIGHTS = { lambda: 0.30, gammaEff: 0.35, gammaThetaRatio: 0.20, thetaBurn: -0.05, breakevenPenalty: 0.05, ivRankBonus: 0.10, penaltyMult: 0.2 };
+const LOQ_WEIGHTS = { lambda: 0.30, gammaEff: 0.20, gammaThetaRatio: 0.15, thetaBurn: -0.10, deltaBonus: 0.15, breakevenPenalty: 0.10 };
+const LOQ_DT_WEIGHTS = { lambda: 0.30, gammaEff: 0.35, gammaThetaRatio: 0.20, thetaBurn: -0.05, breakevenPenalty: 0.05, penaltyMult: 0.2 };
 
-const calculateLOQRaw = (zLambda, zGammaEff, zThetaBurn, ivAdjustment, deltaBonus = 0, thetaBurn = 0, isDayTrade = false, zGammaThetaRatio = 0, breakevenPenalty = 0, ivRankBonus = 0) => {
+const calculateLOQRaw = (zLambda, zGammaEff, zThetaBurn, ivAdjustment, deltaBonus = 0, thetaBurn = 0, isDayTrade = false, zGammaThetaRatio = 0, breakevenPenalty = 0) => {
     const thetaPenalty = getThetaPenalty(thetaBurn);
 
     if (isDayTrade) {
@@ -172,7 +147,6 @@ const calculateLOQRaw = (zLambda, zGammaEff, zThetaBurn, ivAdjustment, deltaBonu
             LOQ_DT_WEIGHTS.thetaBurn * zThetaBurn +
             LOQ_WEIGHTS.deltaBonus * deltaBonus +
             LOQ_DT_WEIGHTS.breakevenPenalty * breakevenPenalty +
-            LOQ_DT_WEIGHTS.ivRankBonus * ivRankBonus +
             ivAdjustment -
             thetaPenalty * LOQ_DT_WEIGHTS.penaltyMult
         );
@@ -185,16 +159,15 @@ const calculateLOQRaw = (zLambda, zGammaEff, zThetaBurn, ivAdjustment, deltaBonu
         LOQ_WEIGHTS.thetaBurn * zThetaBurn +
         LOQ_WEIGHTS.deltaBonus * deltaBonus +
         LOQ_WEIGHTS.breakevenPenalty * breakevenPenalty +
-        LOQ_WEIGHTS.ivRankBonus * ivRankBonus +
         ivAdjustment -
         thetaPenalty
     );
 };
 
-const CSQ_WEIGHTS = { edge: 0.50, pop: 0.30, spread: -0.20, ivRankBonus: 0.25 };
+const CSQ_WEIGHTS = { edge: 0.50, pop: 0.30, spread: -0.20 };
 
-const calculateCSQRaw = (zEdge, zPOP, zSpread, ivAdjustment, ivRankBonus = 0) => {
-    return CSQ_WEIGHTS.edge * zEdge + CSQ_WEIGHTS.pop * zPOP + CSQ_WEIGHTS.spread * zSpread + CSQ_WEIGHTS.ivRankBonus * ivRankBonus + ivAdjustment;
+const calculateCSQRaw = (zEdge, zPOP, zSpread, ivAdjustment) => {
+    return CSQ_WEIGHTS.edge * zEdge + CSQ_WEIGHTS.pop * zPOP + CSQ_WEIGHTS.spread * zSpread + ivAdjustment;
 };
 
 // ────────────────────────────────────────────────────────────────
@@ -397,5 +370,4 @@ module.exports = {
     LOQ_WEIGHTS,
     LOQ_DT_WEIGHTS,
     CSQ_WEIGHTS,
-    getIVRankBonus,
 };

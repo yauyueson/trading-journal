@@ -18,10 +18,7 @@ const {
     getCleanATM_IV,
     calculateTargetIV,
     parseChain,
-    getIVRankBonus,
 } = require('./_shared/scoring.js');
-
-const { fetchVolatilityMetrics } = require('./_shared/market-data.js');
 
 // ---------------------------------------------------------
 // Main Handler
@@ -66,11 +63,11 @@ export default async function handler(req, res) {
         const upperTicker = ticker.toUpperCase();
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
-        // Parallel Fetching
-        const [response, metrics] = await Promise.all([
-            fetch(cboeUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }),
-            fetchVolatilityMetrics(upperTicker)
-        ]);
+        const response = await fetch(cboeUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
 
         if (!response.ok) {
             return res.status(response.status).json({ error: 'CBOE API error', status: response.status });
@@ -164,11 +161,6 @@ export default async function handler(req, res) {
         const ivStatus = ivRatio < 0.95 ? 'contango' : ivRatio > 1.05 ? 'backwardation' : 'neutral';
         const ivAdjustment = getIVAdjustment(ivRatio, strategy);
 
-        // IV Rank Metrics
-        const rv30 = metrics?.rv30 || null;
-        const ivPercentile = metrics?.rvPercentile || 50;
-        const ivRankBonus = getIVRankBonus(ivPercentile, strategy);
-
         // Score
         let results;
 
@@ -185,7 +177,7 @@ export default async function handler(req, res) {
             results = processed.map((p, i) => {
                 const deltaBonus = getDeltaBonus(p.opt.delta);
                 const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
-                const rawScore = calculateLOQRaw(zL[i], zG[i], zT[i], ivAdjustment, deltaBonus, p.thetaBurn, isDayTradeMode, zGT[i], bePenalty, ivRankBonus);
+                const rawScore = calculateLOQRaw(zL[i], zG[i], zT[i], ivAdjustment, deltaBonus, p.thetaBurn, isDayTradeMode, zGT[i], bePenalty);
                 const score = normalizeScoreTo100(rawScore);
 
                 return {
@@ -228,7 +220,7 @@ export default async function handler(req, res) {
             const zS = zScores(spreads);
 
             results = processed.map((p, i) => {
-                const rawScore = calculateCSQRaw(zE[i], zP[i], zS[i], ivAdjustment, ivRankBonus);
+                const rawScore = calculateCSQRaw(zE[i], zP[i], zS[i], ivAdjustment);
                 const score = normalizeScoreTo100(rawScore);
 
                 return {
@@ -273,8 +265,6 @@ export default async function handler(req, res) {
                 ivRatio: Math.round(ivRatio * 1000) / 1000,
                 iv30: iv30 ? Math.round(iv30 * 1000) / 1000 : null,
                 iv90: iv90 ? Math.round(iv90 * 1000) / 1000 : null,
-                rv30: rv30 ? Math.round(rv30 * 100) / 100 : null,
-                ivPercentile: Math.round(ivPercentile * 10) / 10,
                 ivStatus,
                 strategy,
                 totalOptions: options.length,

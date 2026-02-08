@@ -48,7 +48,6 @@ export interface LiveData {
     score?: number;
     isDayTrade?: boolean;
     ivRatio?: number;
-    rvPercentile?: number;
 }
 
 export interface GreeksHistory {
@@ -104,7 +103,6 @@ export interface StrategyRegime {
     iv30: number | null;
     iv90: number | null;
     rv30: number | null;
-    rvPercentile: number | null;
     ivRvRatio: number | null;
     mode: 'CREDIT' | 'DEBIT' | 'NEUTRAL';
     advice: string;

@@ -1,6 +1,5 @@
 // api/underlying-rv.js
-// Proxies to shared market-data utility to get RV metrics
-const { fetchVolatilityMetrics } = require('./_shared/market-data.js');
+// 获取底层资产的 20 日历史年化波动率 (Realized Volatility)
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -20,27 +19,81 @@ export default async function handler(req, res) {
     const upperTicker = ticker.toUpperCase();
 
     try {
-        const metrics = await fetchVolatilityMetrics(upperTicker);
+        // 获取过去 45 天的数据，以确保有足够的交易日 (20+ 个)
+        const toDate = new Date();
+        const fromDate = new Date();
+        fromDate.setDate(toDate.getDate() - 45);
 
-        if (!metrics) {
+        const toStr = toDate.toISOString().split('T')[0];
+        const fromStr = fromDate.toISOString().split('T')[0];
+
+        // Nasdaq Historical API
+        const url = `https://api.nasdaq.com/api/quote/${upperTicker}/historical?assetclass=stocks&fromdate=${fromStr}&todate=${toStr}&limit=40`;
+
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Nasdaq API failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        const rows = data?.data?.tradesTable?.rows || [];
+
+        if (rows.length < 2) {
             return res.status(200).json({
                 success: true,
                 ticker: upperTicker,
-                rv30: null,
+                rv20: null,
                 error: 'Not enough historical data'
             });
         }
 
+        // 提取收盘价 (Nasdaq 返回的是字符串 like "$123.45")
+        const prices = rows
+            .map(row => parseFloat(row.close.replace('$', '').replace(',', '')))
+            .filter(price => !isNaN(price))
+            .reverse(); // 从旧到新
+
+        if (prices.length < 5) {
+            return res.status(200).json({
+                success: true,
+                ticker: upperTicker,
+                rv20: null,
+                error: 'Too few valid prices'
+            });
+        }
+
+        // 计算每日对数收益率
+        // r_i = ln(P_i / P_{i-1})
+        const returns = [];
+        for (let i = 1; i < prices.length; i++) {
+            returns.push(Math.log(prices[i] / prices[i - 1]));
+        }
+
+        // 取最近 30 个收益率 (RV30)
+        const recentReturns = returns.slice(-30);
+
+        // 计算标准差
+        const mean = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
+        // 使用总体标准差 (Population StdDev) 以符合机构口径
+        const variance = recentReturns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentReturns.length;
+        const stdDev = Math.sqrt(variance);
+
+        // 年化 RV (Standard Deviation * sqrt(252))
+        const annualizedRV = stdDev * Math.sqrt(252) * 100;
+
         return res.status(200).json({
             success: true,
             ticker: upperTicker,
-            rv30: metrics.rv30,
-            rvRank: metrics.rvRank,
-            rvPercentile: metrics.rvPercentile,
-            minRV: metrics.minRV,
-            maxRV: metrics.maxRV,
-            daysProcessed: metrics.historyCount,
-            lastClose: metrics.currentPrice
+            rv30: Number(annualizedRV.toFixed(2)),
+            daysProcessed: recentReturns.length,
+            lastClose: prices[prices.length - 1]
         });
 
     } catch (error) {

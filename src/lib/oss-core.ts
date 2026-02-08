@@ -280,48 +280,10 @@ export function getIVAdjustment(ivRatio: number, strategy: Strategy): number {
 }
 
 // ────────────────────────────────────────────────────────────────
-// IV Rank/Percentile Bonus (v2.2)
-// ────────────────────────────────────────────────────────────────
-
-/**
- * Calculates a bonus/penalty based on IV Rank/Percentile.
- *
- * LOQ (Long):
- * - Low IV (< 30) is good → Bonus
- * - High IV (> 70) is bad → Penalty
- *
- * CSQ (Short):
- * - High IV (> 70) is good → Bonus
- * - Low IV (< 30) is bad → Penalty
- *
- * Returns a value roughly between -1.5 and +1.5 (Z-score equivalent).
- */
-export function getIVRankBonus(ivPercentile: number, strategy: Strategy): number {
-    // Clamp 0-100
-    const rank = Math.max(0, Math.min(100, ivPercentile));
-
-    if (strategy === 'long') {
-        // Buyer wants cheap vol
-        if (rank <= 20) return 1.5;
-        if (rank <= 40) return lerp(rank, 20, 40, 1.5, 0);
-        if (rank >= 80) return -1.5;
-        if (rank >= 60) return lerp(rank, 60, 80, 0, -1.5);
-        return 0;
-    } else {
-        // Seller wants expensive vol
-        if (rank >= 80) return 1.5;
-        if (rank >= 60) return lerp(rank, 60, 80, 0, 1.5);
-        if (rank <= 20) return -1.5;
-        if (rank <= 40) return lerp(rank, 20, 40, -1.5, 0);
-        return 0;
-    }
-}
-
-// ────────────────────────────────────────────────────────────────
 // LOQ Weights & Score
 // ────────────────────────────────────────────────────────────────
 
-/** Standard mode weights (v2.2 — G/T + Breakeven + IV Rank) */
+/** Standard mode weights (v2.2 — G/T + Breakeven) */
 export const LOQ_WEIGHTS = {
     lambda: 0.30,
     gammaEff: 0.20,
@@ -329,7 +291,6 @@ export const LOQ_WEIGHTS = {
     thetaBurn: -0.10,
     deltaBonus: 0.15,
     breakevenPenalty: 0.10,
-    ivRankBonus: 0.20, // New weight for IV Rank
 } as const;
 
 /** Day-trade mode weights (DTE ≤ 5, v2.2 — G/T emphasized, BE de-emphasized) */
@@ -339,12 +300,11 @@ export const LOQ_DT_WEIGHTS = {
     gammaThetaRatio: 0.20,
     thetaBurn: -0.05,
     breakevenPenalty: 0.05,
-    ivRankBonus: 0.10, // Less impact for day trades
     penaltyMult: 0.2,
 } as const;
 
 /**
- * Calculate raw LOQ score (v2.2 — G/T Ratio + Breakeven Penalty + IV Rank).
+ * Calculate raw LOQ score (v2.2 — G/T Ratio + Breakeven Penalty).
  *
  * Supports both Standard and Day-Trade mode via `isDayTrade` flag.
  * breakevenPenalty is an additive LERP term (not Z-scored), similar to deltaBonus.
@@ -359,7 +319,6 @@ export function calculateLOQRaw(
     isDayTrade: boolean = false,
     zGammaThetaRatio: number = 0,
     breakevenPenalty: number = 0,
-    ivRankBonus: number = 0,
 ): number {
     const thetaPenalty = getThetaPenalty(thetaBurn);
 
@@ -371,7 +330,6 @@ export function calculateLOQRaw(
             LOQ_DT_WEIGHTS.thetaBurn * zThetaBurn +
             LOQ_WEIGHTS.deltaBonus * deltaBonus +
             LOQ_DT_WEIGHTS.breakevenPenalty * breakevenPenalty +
-            LOQ_DT_WEIGHTS.ivRankBonus * ivRankBonus +
             ivAdjustment -
             thetaPenalty * LOQ_DT_WEIGHTS.penaltyMult
         );
@@ -384,7 +342,6 @@ export function calculateLOQRaw(
         LOQ_WEIGHTS.thetaBurn * zThetaBurn +
         LOQ_WEIGHTS.deltaBonus * deltaBonus +
         LOQ_WEIGHTS.breakevenPenalty * breakevenPenalty +
-        LOQ_WEIGHTS.ivRankBonus * ivRankBonus +
         ivAdjustment -
         thetaPenalty
     );
@@ -398,7 +355,6 @@ export const CSQ_WEIGHTS = {
     edge: 0.50,
     pop: 0.30,
     spread: -0.20,
-    ivRankBonus: 0.25, // Significant weight for seller
 } as const;
 
 /**
@@ -409,13 +365,11 @@ export function calculateCSQRaw(
     zPOP: number,
     zSpread: number,
     ivAdjustment: number,
-    ivRankBonus: number = 0,
 ): number {
     return (
         CSQ_WEIGHTS.edge * zEdge +
         CSQ_WEIGHTS.pop * zPOP +
         CSQ_WEIGHTS.spread * zSpread +
-        CSQ_WEIGHTS.ivRankBonus * ivRankBonus +
         ivAdjustment
     );
 }
@@ -440,7 +394,7 @@ export function normalizeScoreTo100(rawScore: number): number {
 /**
  * Calculate LOQ for a single position without a comparison pool.
  * Uses reference baselines and applies Lambda compression.
- * v2.2: includes G/T Ratio, Breakeven Penalty, IV Rank.
+ * v2.2: includes G/T Ratio and Breakeven Penalty.
  */
 export function calculateSingleLOQ(
     delta: number,
@@ -450,7 +404,6 @@ export function calculateSingleLOQ(
     optionPrice: number,
     ivRatio: number = 1.0,
     dte: number = 30,
-    ivPercentile: number = 50,
 ): number {
     const rawLambda = calculateLambda(delta, stockPrice, optionPrice);
     const compLambda = compressLambda(rawLambda);
@@ -459,7 +412,6 @@ export function calculateSingleLOQ(
     const gtRatio = calculateGammaThetaRatio(gamma, theta);
     const beMove = calculateBreakevenMove(optionPrice, delta, stockPrice);
     const bePenalty = getBreakevenPenalty(beMove, dte);
-    const ivRankBonus = getIVRankBonus(ivPercentile, 'long');
 
     // Reference baselines (no pool available)
     const zLambda = (compLambda - 8) / 4;
@@ -469,7 +421,7 @@ export function calculateSingleLOQ(
 
     const deltaBonus = getDeltaBonus(delta);
     const ivAdjustment = getIVAdjustment(ivRatio, 'long');
-    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, ivAdjustment, deltaBonus, thetaBurn, false, zGT, bePenalty, ivRankBonus);
+    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, ivAdjustment, deltaBonus, thetaBurn, false, zGT, bePenalty);
 
     return normalizeScoreTo100(rawScore);
 }
@@ -487,7 +439,7 @@ export function calculateSingleLOQ(
  * metric. ROI and POP are kept as separate dimensions for ranking trades that
  * have similar EV but different risk profiles (lottery vs. grinder).
  */
-export function calculateCreditSpreadScore(metrics: CreditSpreadMetrics, ivPercentile: number = 50): number {
+export function calculateCreditSpreadScore(metrics: CreditSpreadMetrics): number {
     const { credit, width, shortDelta, shortStrike, currentPrice } = metrics;
     const maxRisk = width - credit;
     if (maxRisk <= 0) return 0;
@@ -506,14 +458,7 @@ export function calculateCreditSpreadScore(metrics: CreditSpreadMetrics, ivPerce
     const scorePOP = pop * 100;
     const scoreDistance = Math.min(distance * 1000, 100);
 
-    let finalScore = 0.30 * scoreEV + 0.25 * scoreROI + 0.25 * scorePOP + 0.20 * scoreDistance;
-
-    // IV Rank Impact for Credit Spread (Seller)
-    // 0-30%: Penalty (-10)
-    // 70-100%: Bonus (+10)
-    const ivBonus = getIVRankBonus(ivPercentile, 'short') * 5; // Scale Z (1.5) to Points (~7.5)
-    finalScore += ivBonus;
-
+    const finalScore = 0.30 * scoreEV + 0.25 * scoreROI + 0.25 * scorePOP + 0.20 * scoreDistance;
     return Math.round(Math.min(100, Math.max(0, finalScore)));
 }
 
@@ -521,7 +466,7 @@ export function calculateCreditSpreadScore(metrics: CreditSpreadMetrics, ivPerce
  * Debit Spread Score (LOQ+).
  * Lambda 40% | Risk/Reward 35% | Delta Bonus 25%.
  */
-export function calculateDebitSpreadScore(metrics: DebitSpreadMetrics, ivPercentile: number = 50): number {
+export function calculateDebitSpreadScore(metrics: DebitSpreadMetrics): number {
     const { debit, width, longDelta, longPrice, currentPrice } = metrics;
     const maxProfit = width - debit;
     if (debit <= 0) return 0;
@@ -535,13 +480,6 @@ export function calculateDebitSpreadScore(metrics: DebitSpreadMetrics, ivPercent
     const rrScore = Math.min((riskReward / 3) * 100, 100);
     const deltaScore = 50 + deltaBonus * 12.5;
 
-    let finalScore = 0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore;
-
-    // IV Rank Impact for Debit Spread (Buyer)
-    // 0-30%: Bonus (+10)
-    // 70-100%: Penalty (-10)
-    const ivBonus = getIVRankBonus(ivPercentile, 'long') * 5;
-    finalScore += ivBonus;
-
+    const finalScore = 0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore;
     return Math.round(Math.min(100, Math.max(0, finalScore)));
 }
