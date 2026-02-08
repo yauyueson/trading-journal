@@ -188,7 +188,11 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                 // #region agent log
                 fetch('http://127.0.0.1:7242/ingest/137ba6e0-38b1-42b1-9ed2-dd177adfbbbb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StrategyRecommender.tsx:jsonParse',message:'JSON parse failed',data:{bodyStart:(text||'').slice(0,80)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
                 // #endregion
-                throw parseErr;
+                const snippet = (text || '').trim().slice(0, 100);
+                const friendly = snippet
+                    ? `Server returned non-JSON (${res.status}): ${snippet}${(text || '').length > 100 ? '…' : ''}`
+                    : `Server returned non-JSON (${res.status}). Check network or try again.`;
+                throw new Error(friendly);
             }
 
             if (!res.ok) throw new Error((data as { error?: string })?.error || 'Failed to fetch recommendations');

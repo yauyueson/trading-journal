@@ -21,7 +21,17 @@ const {
     calculateTargetIV,
     parseChain,
 } = require('./_shared/scoring.js');
-const { saveTickerIVSnapshot, getIVRank } = require('./_shared/ivHistory.js');
+
+let saveTickerIVSnapshot;
+let getIVRank;
+try {
+    const ivHistory = require('./_shared/ivHistory.js');
+    saveTickerIVSnapshot = ivHistory.saveTickerIVSnapshot;
+    getIVRank = ivHistory.getIVRank;
+} catch (_) {
+    saveTickerIVSnapshot = async () => {};
+    getIVRank = async () => ({ ivRank: null, ivPercentile: null, currentIv30: null, minIv: null, maxIv: null, sampleDays: 0 });
+}
 
 // =============================================================================
 // DATA FETCHING UTILITIES
