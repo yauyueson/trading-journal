@@ -104,6 +104,11 @@ export interface StrategyRegime {
     iv90: number | null;
     rv30: number | null;
     ivRvRatio: number | null;
+    /** IV Rank 0–1: (currentIv30 - min) / (max - min) over 252d. */
+    ivRank: number | null;
+    /** IV Percentile 0–1: % of past days with iv30 < current. */
+    ivPercentile: number | null;
+    ivRankSampleDays: number | null;
     mode: 'CREDIT' | 'DEBIT' | 'NEUTRAL';
     advice: string;
 }

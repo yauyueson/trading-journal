@@ -55,6 +55,7 @@ export {
     calculateLOQRaw,
     calculateCSQRaw,
     normalizeScoreTo100,
+    normalizeLOQScoresWithDynamicBaseline,
 
     // Single-position scoring
     calculateSingleLOQ,
@@ -84,6 +85,7 @@ import {
     calculateLOQRaw as _calculateLOQRaw,
     calculateCSQRaw as _calculateCSQRaw,
     normalizeScoreTo100 as _normalizeScoreTo100,
+    normalizeLOQScoresWithDynamicBaseline as _normalizeLOQScoresWithDynamicBaseline,
     type Strategy as StrategyType,
 } from './oss-core';
 
@@ -375,14 +377,18 @@ export function scoreOptionsChain(
         const zThetas = _normalizeToZScores(thetas);
         const zGTRatios = _normalizeToZScores(gtRatios);
 
-        scored = longItems.map((p, i) => {
+        const rawScores = longItems.map((p, i) => {
             const deltaBonus = _getDeltaBonus(p.opt.delta);
             const bePenalty = _getBreakevenPenalty(p.breakevenMove, p.opt.dte);
-            const rawScore = _calculateLOQRaw(
+            return _calculateLOQRaw(
                 zLambdas[i], zGammas[i], zThetas[i],
                 ivAdjustment, deltaBonus, p.thetaBurn, isDayTrade, zGTRatios[i], bePenalty, p.opt.dte
             );
-            const score = _normalizeScoreTo100(rawScore);
+        });
+        const loqScores = _normalizeLOQScoresWithDynamicBaseline(rawScores);
+
+        scored = longItems.map((p, i) => {
+            const score = loqScores[i];
 
             return {
                 symbol: p.opt.symbol,

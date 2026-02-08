@@ -27,6 +27,8 @@ export interface CreditSpreadMetrics {
     shortDelta: number;
     shortStrike: number;
     currentPrice: number;
+    /** If set, POP is derived from delta at breakeven (more accurate than short-strike delta). */
+    deltaAtBreakeven?: number;
 }
 
 export interface DebitSpreadMetrics {
@@ -463,6 +465,25 @@ export function normalizeScoreTo100(rawScore: number): number {
     return Math.max(0, Math.min(100, Math.round(scaled)));
 }
 
+/**
+ * Normalize an array of raw LOQ scores to 0–100 using the pool's distribution (dynamic baseline).
+ * Eliminates cross-ticker unfairness: scores are comparable within the same pool (e.g. same chain or same scan).
+ * mean → 50, +1 std → 70, -1 std → 30; scale uses 20 pts per z so 2.5 z ≈ 0–100.
+ */
+export function normalizeLOQScoresWithDynamicBaseline(rawScores: number[]): number[] {
+    const n = rawScores.length;
+    if (n === 0) return [];
+    if (n === 1) return [50];
+    const mean = rawScores.reduce((s, v) => s + v, 0) / n;
+    const variance = rawScores.reduce((s, v) => s + (v - mean) ** 2, 0) / n;
+    const std = Math.sqrt(variance) || 1;
+    return rawScores.map((raw) => {
+        const z = (raw - mean) / std;
+        const scaled = 50 + z * 20;
+        return Math.max(0, Math.min(100, Math.round(scaled)));
+    });
+}
+
 // ────────────────────────────────────────────────────────────────
 // Single-Position LOQ (Portfolio Use)
 // ────────────────────────────────────────────────────────────────
@@ -516,12 +537,12 @@ export function calculateSingleLOQ(
  * have similar EV but different risk profiles (lottery vs. grinder).
  */
 export function calculateCreditSpreadScore(metrics: CreditSpreadMetrics): number {
-    const { credit, width, shortDelta, shortStrike, currentPrice } = metrics;
+    const { credit, width, shortDelta, shortStrike, currentPrice, deltaAtBreakeven } = metrics;
     const maxRisk = width - credit;
     if (maxRisk <= 0) return 0;
 
     const roi = (credit / maxRisk) * 100;
-    const pop = 1 - Math.abs(shortDelta);
+    const pop = deltaAtBreakeven != null ? 1 - Math.abs(deltaAtBreakeven) : 1 - Math.abs(shortDelta);
     const distance = currentPrice > 0 ? Math.abs(currentPrice - shortStrike) / currentPrice : 0;
     const ev = calculateExpectedValue(pop, credit, maxRisk);
 

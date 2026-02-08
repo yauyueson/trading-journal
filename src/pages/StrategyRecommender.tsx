@@ -173,21 +173,12 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
 
         try {
             const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}`;
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/137ba6e0-38b1-42b1-9ed2-dd177adfbbbb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StrategyRecommender.tsx:fetch',message:'Strategy API request',data:{url,ticker,direction,targetDte},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-            // #endregion
             const res = await fetch(url);
             const text = await res.text();
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/137ba6e0-38b1-42b1-9ed2-dd177adfbbbb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StrategyRecommender.tsx:afterFetch',message:'Strategy API response',data:{ok:res.ok,status:res.status,bodyStart:(text||'').slice(0,80)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-            // #endregion
             let data: unknown;
             try {
                 data = text ? JSON.parse(text) : {};
             } catch (parseErr) {
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/137ba6e0-38b1-42b1-9ed2-dd177adfbbbb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StrategyRecommender.tsx:jsonParse',message:'JSON parse failed',data:{bodyStart:(text||'').slice(0,80)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-                // #endregion
                 const snippet = (text || '').trim().slice(0, 100);
                 const friendly = snippet
                     ? `Server returned non-JSON (${res.status}): ${snippet}${(text || '').length > 100 ? '…' : ''}`
@@ -204,9 +195,6 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
             setSelectedTab(resultData.recommendedStrategy); // Default to recommended
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : 'Unknown error';
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/137ba6e0-38b1-42b1-9ed2-dd177adfbbbb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StrategyRecommender.tsx:catch',message:'Strategy fetch error',data:{message:msg},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-            // #endregion
             setError(msg);
         } finally {
             setLoading(false);
@@ -405,26 +393,26 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                             <div className="flex gap-8 text-right">
                                 <div>
                                     <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center justify-end gap-1">
-                                        IV Ratio
-                                        <Tooltip label="" explanation="IV30 / IV90. Ratio < 0.95 (Contango) = Cheap short-term. Ratio > 1.05 (Backwardation) = Expensive short-term." />
+                                        IV Rank
+                                        <Tooltip label="" explanation="Where current IV30 sits vs 252-day min–max (0 = lowest, 1 = highest). High = expensive vol, low = cheap vol. Drives LOQ adjustment." />
                                     </div>
-                                    <div className="text-3xl font-mono font-bold text-white mb-1">
-                                        {result.regime.ivRatio?.toFixed(3) ?? 'N/A'}
+                                    <div className={`text-3xl font-mono font-bold mb-1 ${(result.regime.ivRank ?? 0) > 0.7 ? 'text-amber-400' : (result.regime.ivRank ?? 0) < 0.3 ? 'text-emerald-400' : 'text-white'}`}>
+                                        {result.regime.ivRank != null ? `${(result.regime.ivRank * 100).toFixed(0)}%` : 'N/A'}
                                     </div>
                                     <div className="text-[10px] text-gray-500 font-mono">
-                                        IV30: {result.regime.iv30}% | IV90: {result.regime.iv90}%
+                                        {result.regime.ivRankSampleDays != null ? `${result.regime.ivRankSampleDays}d` : ''} {result.regime.iv30 != null ? `IV30: ${result.regime.iv30}%` : ''}
                                     </div>
                                 </div>
                                 <div>
                                     <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center justify-end gap-1">
-                                        IV/RV Ratio
-                                        <Tooltip label="" explanation="Volatility Risk Premium (IV30 / RV20). > 1.25 = Seller's Edge (Options overpriced). < 0.85 = Buyer's Territory (Options cheap relative to move)." />
+                                        IV Percentile
+                                        <Tooltip label="" explanation="% of past days with IV30 below today. 80% = IV higher than 80% of history (expensive). 20% = cheap relative to history." />
                                     </div>
-                                    <div className={`text-3xl font-mono font-bold mb-1 ${(result.regime.ivRvRatio ?? 0) > 1.2 ? 'text-accent-green' : (result.regime.ivRvRatio ?? 0) < 0.8 ? 'text-blue-400' : 'text-white'}`}>
-                                        {result.regime.ivRvRatio?.toFixed(3) ?? 'N/A'}
+                                    <div className={`text-3xl font-mono font-bold mb-1 ${(result.regime.ivPercentile ?? 0) > 0.7 ? 'text-amber-400' : (result.regime.ivPercentile ?? 0) < 0.3 ? 'text-emerald-400' : 'text-white'}`}>
+                                        {result.regime.ivPercentile != null ? `${(result.regime.ivPercentile * 100).toFixed(0)}%` : 'N/A'}
                                     </div>
                                     <div className="text-[10px] text-gray-500 font-mono">
-                                        IV: {result.regime.iv30}% | RV20: {result.regime.rv30 ?? 'N/A'}%
+                                        {result.regime.ivRatio != null ? `Term: ${result.regime.ivRatio.toFixed(2)}` : ''} {result.regime.ivRvRatio != null ? `| IV/RV: ${result.regime.ivRvRatio.toFixed(2)}` : ''}
                                     </div>
                                 </div>
                             </div>

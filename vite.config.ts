@@ -883,7 +883,20 @@ function localApiPlugin(): Plugin {
             }
           }
 
-          // Build Spreads
+          // POP from breakeven: delta at BE strike (same type & exp), then pop = 1 - |delta|
+          const getDeltaAtStrike = (c: any[], optionType: string, expiration: string, targetStrike: number) => {
+            const same = c.filter((o: any) => o.type === optionType && o.expiration === expiration);
+            if (same.length === 0) return null;
+            same.sort((a: any, b: any) => a.strike - b.strike);
+            const below = same.filter((o: any) => o.strike <= targetStrike);
+            const above = same.filter((o: any) => o.strike > targetStrike);
+            const a = below.length ? below[below.length - 1] : same[0];
+            const b = above.length ? above[0] : same[same.length - 1];
+            if (a.strike === b.strike) return a.delta;
+            const t = (targetStrike - a.strike) / (b.strike - a.strike);
+            return a.delta + t * (b.delta - a.delta);
+          };
+
           const buildCreditSpreads = (chain: any[], spreadType: string) => {
             const results: any[] = [];
             const widths = [5, 10];
@@ -899,12 +912,13 @@ function localApiPlugin(): Plugin {
                 const maxRisk = width - credit;
                 if (credit < 0.15 || maxRisk <= 0) continue;
 
+                const breakeven = spreadType === 'Put' ? shortLeg.strike - credit : shortLeg.strike + credit;
+                const deltaAtBE = getDeltaAtStrike(chain, spreadType, shortLeg.expiration, breakeven);
+                const pop = deltaAtBE != null ? 1 - Math.abs(deltaAtBE) : 1 - Math.abs(shortLeg.delta);
                 const roi = (credit / maxRisk) * 100;
-                const pop = 1 - Math.abs(shortLeg.delta);
                 const distance = Math.abs(currentPrice - shortLeg.strike) / currentPrice;
                 const spreadPct = ((shortLeg.ask - shortLeg.bid) / ((shortLeg.ask + shortLeg.bid) / 2));
 
-                // Expected Value
                 const expectedValue = (credit * pop) - (maxRisk * (1 - pop));
 
                 if (roi < 15 || spreadPct > 0.10) continue;
@@ -919,7 +933,7 @@ function localApiPlugin(): Plugin {
                   width, netCredit: +credit.toFixed(2), maxRisk: +maxRisk.toFixed(2), maxProfit: +credit.toFixed(2),
                   roi: +roi.toFixed(1), pop: +(pop * 100).toFixed(1), distance: +(distance * 100).toFixed(1),
                   expectedValue: +expectedValue.toFixed(2),
-                  breakeven: spreadType === 'Put' ? shortLeg.strike - credit : shortLeg.strike + credit,
+                  breakeven,
                   score: Math.min(100, Math.max(0, score)), whyThis
                 });
               }

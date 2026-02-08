@@ -204,6 +204,24 @@ const normalizeScoreTo100 = (rawScore) => {
     return Math.max(0, Math.min(100, Math.round(scaled)));
 };
 
+/**
+ * Dynamic baseline: normalize raw LOQ scores to 0-100 using the pool's distribution.
+ * Makes scores comparable within the same chain/scan (cross-ticker fair).
+ */
+const normalizeLOQScoresWithDynamicBaseline = (rawScores) => {
+    const n = rawScores.length;
+    if (n === 0) return [];
+    if (n === 1) return [50];
+    const mean = rawScores.reduce((s, v) => s + v, 0) / n;
+    const variance = rawScores.reduce((s, v) => s + (v - mean) ** 2, 0) / n;
+    const std = Math.sqrt(variance) || 1;
+    return rawScores.map((raw) => {
+        const z = (raw - mean) / std;
+        const scaled = 50 + z * 20;
+        return Math.max(0, Math.min(100, Math.round(scaled)));
+    });
+};
+
 // ────────────────────────────────────────────────────────────────
 // Metric Helpers
 // ────────────────────────────────────────────────────────────────
@@ -389,6 +407,7 @@ module.exports = {
     calculateLOQRaw,
     calculateCSQRaw,
     normalizeScoreTo100,
+    normalizeLOQScoresWithDynamicBaseline,
     calculateSpreadPct,
     calculateExpectedValue,
     getCleanATM_IV,

@@ -18,6 +18,7 @@ const {
     calculateLOQRaw,
     calculateCSQRaw,
     normalizeScoreTo100,
+    normalizeLOQScoresWithDynamicBaseline,
     calculateSpreadPct,
     getCleanATM_IV,
     calculateTargetIV,
@@ -189,11 +190,15 @@ export default async function handler(req, res) {
             const zT = zScores(thetas);
             const zGT = zScores(gtRatios);
 
-            results = processed.map((p, i) => {
+            const rawScores = processed.map((p, i) => {
                 const deltaBonus = getDeltaBonus(p.opt.delta);
                 const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
-                const rawScore = calculateLOQRaw(zL[i], zG[i], zT[i], ivAdjustment, deltaBonus, p.thetaBurn, isDayTradeMode, zGT[i], bePenalty, p.opt.dte);
-                const score = normalizeScoreTo100(rawScore);
+                return calculateLOQRaw(zL[i], zG[i], zT[i], ivAdjustment, deltaBonus, p.thetaBurn, isDayTradeMode, zGT[i], bePenalty, p.opt.dte);
+            });
+            const loqScores = normalizeLOQScoresWithDynamicBaseline(rawScores);
+
+            results = processed.map((p, i) => {
+                const score = loqScores[i];
 
                 return {
                     symbol: p.opt.symbol,

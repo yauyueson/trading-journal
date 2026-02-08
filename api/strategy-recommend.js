@@ -6,7 +6,7 @@
 
 let compressLambda, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
     calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, getIVRiskFactor,
-    getIVRankAdjustment, calculateLOQRaw, normalizeScoreTo100, calculateSpreadPct,
+    getIVRankAdjustment, calculateLOQRaw, normalizeScoreTo100, normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct,
     getCleanATM_IV, calculateTargetIV, parseChain;
 let saveTickerIVSnapshot, getIVRank;
 let _scoringLoaded = false;
@@ -31,6 +31,7 @@ async function ensureScoring() {
     getIVRankAdjustment = scoring.getIVRankAdjustment;
     calculateLOQRaw = scoring.calculateLOQRaw;
     normalizeScoreTo100 = scoring.normalizeScoreTo100;
+    normalizeLOQScoresWithDynamicBaseline = scoring.normalizeLOQScoresWithDynamicBaseline;
     calculateSpreadPct = scoring.calculateSpreadPct;
     getCleanATM_IV = scoring.getCleanATM_IV;
     calculateTargetIV = scoring.calculateTargetIV;
@@ -166,6 +167,20 @@ function calculateMaxContracts(maxRisk) {
     return Math.floor(ACCOUNT_RISK_LIMIT / (maxRisk * 100));
 }
 
+/** Get delta at or near targetStrike from chain (same type & expiration). Interpolates between strikes for POP-from-breakeven. */
+function getDeltaAtStrike(chain, optionType, expiration, targetStrike) {
+    const same = chain.filter(o => o.type === optionType && o.expiration === expiration);
+    if (same.length === 0) return null;
+    same.sort((a, b) => a.strike - b.strike);
+    const below = same.filter(o => o.strike <= targetStrike);
+    const above = same.filter(o => o.strike > targetStrike);
+    const a = below.length ? below[below.length - 1] : same[0];
+    const b = above.length ? above[0] : same[same.length - 1];
+    if (a.strike === b.strike) return a.delta;
+    const t = (targetStrike - a.strike) / (b.strike - a.strike);
+    return a.delta + t * (b.delta - a.delta);
+}
+
 function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings) {
     const results = [];
     const widths = [5, 10];
@@ -201,8 +216,10 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             // Key Metrics
             const credit = spreadBid;
             const maxRisk = width - credit;
+            const breakeven = type === 'Put' ? shortLeg.strike - credit : shortLeg.strike + credit;
+            const deltaAtBE = getDeltaAtStrike(chain, type, shortLeg.expiration, breakeven);
+            const pop = deltaAtBE != null ? 1 - Math.abs(deltaAtBE) : 1 - Math.abs(shortLeg.delta);
             const roi = (credit / maxRisk) * 100;
-            const pop = 1 - Math.abs(shortLeg.delta);
             const distance = Math.abs(currentPrice - shortLeg.strike) / currentPrice;
             const dte = shortLeg.dte;
 
@@ -252,7 +269,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
                 pop: Number((pop * 100).toFixed(1)),
                 expectedValue: Number(((credit * pop) - (maxRisk * (1 - pop))).toFixed(2)),
                 distance: Number((distance * 100).toFixed(1)),
-                breakeven: type === 'Put' ? shortLeg.strike - credit : shortLeg.strike + credit,
+                breakeven,
                 score: Math.min(100, Math.max(0, Math.round(finalScore))),
                 whyThis: whyThisParts.join(', ') || 'Balanced Risk/Reward',
                 recommendation: {
@@ -377,11 +394,14 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRank = null) {
     const zGT = zScores(gtRatios);
 
     const ivRankAdj = getIVRankAdjustment(ivRank, 'long');
-    return processed.map((p, i) => {
+    const rawScores = processed.map((p, i) => {
         const deltaBonus = getDeltaBonus(p.opt.delta);
         const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
-        const rawScore = calculateLOQRaw(zL[i], zG[i], zT[i], ivRankAdj, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty, p.opt.dte);
-        const score = normalizeScoreTo100(rawScore);
+        return calculateLOQRaw(zL[i], zG[i], zT[i], ivRankAdj, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty, p.opt.dte);
+    });
+    const scores = normalizeLOQScoresWithDynamicBaseline(rawScores);
+    return processed.map((p, i) => {
+        const score = scores[i];
 
         return {
             type: `Long ${type}`,
@@ -408,10 +428,6 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRank = null) {
 // MAIN HANDLER
 // =============================================================================
 
-const DEBUG_LOG = (loc, msg, data, hyp) => {
-    fetch('http://127.0.0.1:7242/ingest/137ba6e0-38b1-42b1-9ed2-dd177adfbbbb', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: loc, message: msg, data: data || {}, timestamp: Date.now(), hypothesisId: hyp }) }).catch(() => {});
-};
-
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -422,9 +438,6 @@ export default async function handler(req, res) {
     }
 
     const { ticker, direction = 'BULL', targetDte } = req.query;
-    // #region agent log
-    DEBUG_LOG('strategy-recommend.js:handler', 'handler start', { ticker, direction, targetDte }, 'H2');
-    // #endregion
 
     if (!ticker) {
         return res.status(400).json({ error: 'Missing ticker parameter' });
@@ -461,14 +474,8 @@ export default async function handler(req, res) {
         const regime = detectRegime(iv30, iv90, rv30);
 
         if (iv30 != null) {
-            // #region agent log
-            DEBUG_LOG('strategy-recommend.js:beforeIV', 'before IV snapshot/rank', { upperTicker }, 'H3');
-            // #endregion
             await saveTickerIVSnapshot(upperTicker, iv30, iv90);
             const rankInfo = await getIVRank(upperTicker);
-            // #region agent log
-            DEBUG_LOG('strategy-recommend.js:afterIV', 'after getIVRank', { ivRank: rankInfo.ivRank, sampleDays: rankInfo.sampleDays }, 'H3');
-            // #endregion
             regime.ivRank = rankInfo.ivRank;
             regime.ivPercentile = rankInfo.ivPercentile;
             regime.ivRankSampleDays = rankInfo.sampleDays;
@@ -498,9 +505,6 @@ export default async function handler(req, res) {
         if (recommendedStrategy === 'DEBIT_SPREAD' && debitSpreads.length === 0) recommendedStrategy = 'SINGLE_LEG';
         if (recommendedStrategy === 'SINGLE_LEG' && singleLegs.length === 0 && creditSpreads.length > 0) recommendedStrategy = 'CREDIT_SPREAD';
 
-        // #region agent log
-        DEBUG_LOG('strategy-recommend.js:success', 'sending 200 JSON', { recommendedStrategy }, 'H2');
-        // #endregion
         return res.status(200).json({
             success: true,
             context: {
@@ -532,9 +536,6 @@ export default async function handler(req, res) {
 
     } catch (error) {
         const errMsg = error && typeof error.message === 'string' ? error.message : String(error);
-        // #region agent log
-        DEBUG_LOG('strategy-recommend.js:catch', 'handler error', { message: errMsg }, 'H2');
-        // #endregion
         console.error('Strategy API Error:', errMsg);
         return res.status(500).json({ error: 'Internal Server Error', message: errMsg });
     }
