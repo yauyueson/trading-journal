@@ -596,6 +596,34 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                 {/* Expanded Details */}
                                 {expandedCard === idx && (
                                     <div className="p-5 border-t border-[#3A3A3C] bg-black/20">
+                                        {/* Analysis Section */}
+                                        {isSpread(rec) && rec.recommendation?.note && (
+                                            <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {rec.recommendation.note.includes('✅') && (
+                                                    <div className="bg-green-500/5 border border-green-500/20 p-4 rounded-xl">
+                                                        <h4 className="text-xs font-bold text-green-400 uppercase mb-2 flex items-center gap-2">
+                                                            <TrendingUp size={14} />
+                                                            Why This Strategy works
+                                                        </h4>
+                                                        <p className="text-sm text-gray-300 leading-relaxed">
+                                                            {rec.recommendation.note.split('⚠️')[0].replace('✅ Pros:', '').trim().replace(/\.$/, '')}
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {rec.recommendation.note.includes('⚠️') && (
+                                                    <div className="bg-red-500/5 border border-red-500/20 p-4 rounded-xl">
+                                                        <h4 className="text-xs font-bold text-red-400 uppercase mb-2 flex items-center gap-2">
+                                                            <AlertCircle size={14} />
+                                                            Risks & Drawbacks
+                                                        </h4>
+                                                        <p className="text-sm text-gray-300 leading-relaxed">
+                                                            {rec.recommendation.note.split('⚠️ Cons:')[1]?.trim() || ''}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                         {isSpread(rec) ? (
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                                 <div>

@@ -144,7 +144,7 @@ export interface SpreadRecommendation {
     breakeven: number;
     distance?: number;
     lambda?: number;
-    recommendation?: { maxContracts: number; action: string };
+    recommendation?: { maxContracts?: number; action: string; note?: string };
 }
 
 export interface SingleLegRecommendation {
