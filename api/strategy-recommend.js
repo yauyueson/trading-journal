@@ -3,6 +3,9 @@
 // Based on IV Regime and User Direction (BULL/BEAR)
 // Uses shared scoring module (Single Source of Truth)
 
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
 const {
     compressLambda,
     calculateGammaThetaRatio,
