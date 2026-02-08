@@ -65,9 +65,10 @@
 |------|------|------|
 | **规范源** | `src/lib/oss-core.ts` | 所有 LOQ/CSQ/Delta Bonus/Theta 惩罚/Lambda 压缩/Z-Score/价差评分；LERP、Sigmoid、边缘情况防护 |
 | **前端复用** | `src/lib/scoring.ts` | 从 oss-core  re-export；额外提供批量 `scoreOptionsChain`、IV 期限结构 `calculateIVRatio` |
-| **API 镜像** | `api/_shared/scoring.js` | 与 oss-core 逻辑同步的 JS 实现，供 `scan-options.js`、`strategy-recommend.js` 引用 |
+| **API 镜像** | `api/_shared/scoring.cjs` | 与 oss-core 逻辑同步的 JS 实现，供 `scan-options.js`、`strategy-recommend.js` 引用 |
+| **跨策略统一** | `api/_shared/scoring.cjs` | `calculateUnifiedScore` — 跨 Credit/Debit/Long 的统一评分，仅后端使用 |
 
-**原则**：不在此三处以外重复实现评分公式，避免前后端/扫描器与持仓卡片分数不一致。
+**原则**：不在此三处以外重复实现评分公式，避免前后端/扫描器与持仓卡片分数不一致。统一评分仅在 API 层计算后传给前端，前端不重复实现。
 
 ### 技术选择理由
 
@@ -242,7 +243,7 @@ trading-journal/
 │   ├── lib/
 │   │   ├── oss-core.ts      # OSS 评分算法单点事实 (TypeScript)
 │   │   ├── scoring.ts       # 批量评分、IV 期限结构，复用 oss-core
-│   │   ├── types.ts         # 全局类型 (Position, WatchlistItem, StrategyResult 等)
+│   │   ├── types.ts         # 全局类型 (Position, WatchlistItem, StrategyResult, UnifiedCandidateType 等)
 │   │   ├── supabase.ts
 │   │   ├── utils.ts
 │   │   └── greeksHistory.ts
@@ -252,7 +253,7 @@ trading-journal/
 │   └── main.tsx
 └── api/
     ├── _shared/
-    │   └── scoring.js       # 与 oss-core.ts 镜像，供 Serverless 使用
+    │   └── scoring.cjs      # 与 oss-core.ts 镜像，供 Serverless 使用；含跨策略统一评分
     ├── option-price.js
     ├── scan-options.js      # OSS 扫描器，引用 _shared/scoring
     ├── strategy-recommend.js
@@ -327,7 +328,7 @@ https://api.vercel.com/v1/integrations/deploy/prj_Q27dySs80ReT8IwzjuVlMtePI2xu/s
 - **Day Trade 模式**：扫描器与前端 `scoreOptionsChain` 均支持日交易权重（Gamma 提高、Theta 惩罚系数降低）。
 
 ### 类型与边界
-- 新增/统一类型：`WatchlistItem`、`DirectAddItem`、`StrategyResult`、`SpreadRecommendation`、`SingleLegRecommendation`、`PositionAction`、`RollData` 等，消除评分与页面中的 `any`。
+- 新增/统一类型：`WatchlistItem`、`DirectAddItem`、`StrategyResult`、`SpreadRecommendation`、`SingleLegRecommendation`、`PositionAction`、`RollData`、`StrategyCategory`、`UnifiedCandidateType` 等，消除评分与页面中的 `any`。
 - 数学与数据边界：`lerp` 防除零、`sigmoid` 输入裁剪、`normalizeToZScores` 在 n&lt;2 或 std=0 时的防护、DTE≤0 过滤、低价期权 Lambda 防护。
 
 ### 扫描器性能
@@ -338,6 +339,52 @@ https://api.vercel.com/v1/integrations/deploy/prj_Q27dySs80ReT8IwzjuVlMtePI2xu/s
 - 新增 `api/check-alerts.js`：定时检查 Active 持仓是否触及止损/目标价，触及则发 Discord Embed 提醒。
 - 使用 Supabase REST API（PostgREST）直接 fetch，不引入 `@supabase/supabase-js` SDK，避免 Vercel Serverless ESM 兼容问题。
 - 定时触发由外部 cron-job.org 完成（每 15 分钟），而非 Vercel Cron（Hobby 计划不支持高频）。
+
+### 跨策略统一评分 & Top Picks (2026-02-08)
+
+**问题**：策略推荐器的三种策略（Credit Spread、Debit Spread、Long Option）各有独立评分体系，分数不可跨类型比较。Credit Spread 80 分并不一定优于 Long Option 50 分，因为：
+- Credit Spread 评分 = 加权绝对值（EV 20% + ROI 20% + POP 20% + Distance 15% + DTE 25%）
+- Debit Spread 评分 = 加权绝对值（Lambda 40% + R:R 35% + Delta 25%）
+- Long Option 评分 = z-score 相对排名（50 = 同组平均）
+
+原有 `recommendedStrategy` 在 NEUTRAL 模式下直接比较这些不可比的分数，存在逻辑缺陷。
+
+**解决方案**：新增统一评分层 `calculateUnifiedScore`，使用所有策略类型都能计算的通用指标：
+
+```
+UnifiedScore = 0.40 × norm(EV/Risk)     // 风险调整后期望收益
+             + 0.20 × norm(POP)          // 盈利概率
+             + 0.25 × norm(RegimeBonus)  // IV 环境匹配度
+             + 0.15 × norm(Liquidity)    // 流动性/滑点
+```
+
+| 指标 | Credit Spread | Debit Spread | Long Option |
+|------|---------------|--------------|-------------|
+| maxRisk | width - credit | debit | premium |
+| maxProfit | credit | width - debit | **2 × premium（封顶）** |
+| POP | 1 - \|delta@BE\| | \|delta\| - 0.05 | \|delta\| - 0.05 |
+| EV | POP × profit - (1-POP) × risk | 同左 | 同左 |
+
+Long Option 的 maxProfit 封顶在 2 × premium（100% 回报情景），避免理论无限利润导致 EV 虚高。
+
+**Regime Bonus 规则**：
+- Backwardation (IV30 > IV90)：Credit +15
+- Contango (IV30 < IV90)：Debit +10, Long +10
+- IV/RV > 1.2：Credit 额外 +5 | IV/RV < 0.85：Debit/Long 额外 +5
+
+**前端变更**：
+- 新增 "Top Picks" Tab（带 Trophy 图标），作为默认首选 Tab
+- 展示所有 ~15 个候选策略，按 `unifiedScore` 统一排序
+- 每张卡片显示：统一分数（大字）+ 策略类别徽章（Credit 红 / Debit 蓝 / Long 紫）+ 原始类内分数（辅助）
+- 原有三个策略 Tab 不变，仍用各自内部评分排序
+
+**文件变更**：
+| 文件 | 变更 |
+|------|------|
+| `api/_shared/scoring.cjs` | 新增 `normalizeEVRisk`、`calculateLiquidityScore`、`calculateRegimeBonus`、`calculateUnifiedScore` |
+| `api/strategy-recommend.js` | 构建 `TOP_PICKS` 数组、修复 `recommendedStrategy` 逻辑 |
+| `src/lib/types.ts` | 新增 `StrategyCategory`、`UnifiedCandidateType`；`StrategyResult.strategies` 增加 `TOP_PICKS` |
+| `src/pages/StrategyRecommender.tsx` | 新增 Top Picks Tab、类别徽章、统一分数展示 |
 
 ### 部署与基础设施 (2026-02-08)
 - 修复 `.gitignore`：排除 `dist/`、`.env`、`.env.local`，防止构建产物污染仓库。

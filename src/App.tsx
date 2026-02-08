@@ -17,7 +17,7 @@ import type { Session } from '@supabase/supabase-js';
 function App() {
     const [session, setSession] = useState<Session | null>(null);
     const [authLoading, setAuthLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('scanner'); // Default to Scanner
+    const [activeTab, setActiveTab] = useState('portfolio'); // Default landing page
     const [positions, setPositions] = useState<Position[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
@@ -110,6 +110,12 @@ function App() {
 
     const onUpdateTarget = async (id: string, target: number) => {
         await supabase.from('positions').update({ target_price: target }).eq('id', id);
+        fetchData();
+    };
+
+    const onUpdateStop = async (id: string, stopPrice: number) => {
+        await supabase.from('positions').update({ stop_price: stopPrice }).eq('id', id);
+        setPositions(prev => prev.map(p => p.id === id ? { ...p, stop_price: stopPrice } : p));
         fetchData();
     };
 
@@ -300,6 +306,7 @@ function App() {
                         onUpdateScore={onUpdateScore}
                         onUpdatePrice={onUpdatePrice}
                         onUpdateTarget={onUpdateTarget}
+                        onUpdateStop={onUpdateStop}
                         onAddDirect={onAddDirect}
                         onRoll={onRoll}
                         onDelete={onDelete}

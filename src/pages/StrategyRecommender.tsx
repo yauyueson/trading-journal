@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
-import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark, Trophy } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark, Trophy, Settings2 } from 'lucide-react';
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
+import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
+import { usePortfolioSettings } from '../context/PortfolioSettingsContext';
+import { getSuggestedContracts } from '../lib/riskSizing';
+import { formatCurrency } from '../lib/utils';
 import type {
     SpreadRecommendation,
     SingleLegRecommendation,
@@ -157,6 +161,7 @@ interface StrategyRecommenderProps {
 }
 
 export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddToWatchlist }) => {
+    const { portfolioTotal, riskPct, stopOutFraction, stopOutPct } = usePortfolioSettings();
     const [ticker, setTicker] = useState('SPY');
     const [direction, setDirection] = useState<'BULL' | 'BEAR'>('BULL');
     const [targetDte, setTargetDte] = useState(30);
@@ -165,6 +170,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
     const [result, setResult] = useState<StrategyResult | null>(null);
     const [expandedCard, setExpandedCard] = useState<number | null>(null);
     const [selectedTab, setSelectedTab] = useState<'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SINGLE_LEG' | 'TOP_PICKS'>('TOP_PICKS');
+    const [showSettings, setShowSettings] = useState(false);
 
     const handleAnalyze = async () => {
         if (!ticker) return;
@@ -281,6 +287,25 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
             {/* Input Panel */}
             <div className="bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl p-6 mb-6 shadow-sm">
                 <div className="flex flex-col gap-6">
+                    {/* Portfolio / Risk Settings */}
+                    <div className="border border-[#2A2A2A] rounded-lg overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setShowSettings(!showSettings)}
+                            className="w-full flex items-center justify-between px-4 py-3 bg-[#0a0a0a] hover:bg-[#111] transition-colors text-left"
+                        >
+                            <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                                <Settings2 size={16} className="text-accent-green" />
+                                Portfolio Total / Account Size & Risk
+                            </span>
+                            <ChevronDown size={18} className={`text-gray-500 transition-transform ${showSettings ? 'rotate-180' : ''}`} />
+                        </button>
+                        {showSettings && (
+                            <div className="p-4 bg-[#111] border-t border-[#2A2A2A]">
+                                <PortfolioSettingsForm variant="full" />
+                            </div>
+                        )}
+                    </div>
                     {/* Top Row: Ticker & Direction */}
                     <div className="flex flex-col md:flex-row gap-6 items-end">
                         <div className="flex-1 w-full">
@@ -627,9 +652,20 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                 </div>
 
                                 {/* Review "Why This" Banner */}
-                                <div className="bg-[#2C2C2E] px-5 py-2 flex items-center gap-2 border-t border-[#3A3A3C]">
-                                    <Info size={14} className="text-yellow-500" />
-                                    <span className="text-sm text-gray-300 italic">{rec.whyThis}</span>
+                                <div className="bg-[#2C2C2E] px-5 py-2 border-t border-[#3A3A3C] space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <Info size={14} className="text-yellow-500 shrink-0" />
+                                        <span className="text-sm text-gray-300 italic">{rec.whyThis}</span>
+                                    </div>
+                                    {(() => {
+                                        const sizing = getSuggestedContracts(rec, portfolioTotal, riskPct, { useKelly: true, stopOutFraction });
+                                        return (
+                                            <div className="text-xs text-gray-400 font-mono pl-6">
+                                                Suggested size: <span className="text-accent-green font-bold">{sizing.suggestedContracts}</span> contracts
+                                                {' '}(risk cap: {formatCurrency(sizing.riskCapDollars)}, stop-out/contract: {formatCurrency(sizing.riskPerContractAtStopOutDollars)} at {stopOutPct}% loss, max loss/contract: {formatCurrency(sizing.maxLossPerContractDollars)})
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* Expanded Details */}

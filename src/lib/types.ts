@@ -14,6 +14,8 @@ export interface Position {
     current_price?: number;
     stop_reason?: string;
     target_price?: number;
+    /** Manual stop loss price (per contract). If set, overrides calculated stop. */
+    stop_price?: number;
     notes?: string;
     created_at?: string;
     closed_at?: string;

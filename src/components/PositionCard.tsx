@@ -6,6 +6,24 @@ import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER } from '../lib/utils';
 import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQ } from '../lib/scoring';
+import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
+import { usePortfolioSettings } from '../context/PortfolioSettingsContext';
+
+/** Normalize expiration to YYYY-MM-DD for option-price API (avoids wrong contract match). */
+function normalizeExpiration(exp: string): string {
+    if (!exp || typeof exp !== 'string') return exp;
+    const s = exp.trim();
+    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)) {
+        const [y, m, d] = s.split('-').map(Number);
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (slashMatch) {
+        const [, mm, dd, yyyy] = slashMatch;
+        return `${yyyy}-${String(parseInt(mm, 10)).padStart(2, '0')}-${String(parseInt(dd, 10)).padStart(2, '0')}`;
+    }
+    return s;
+}
 
 interface PositionCardProps {
     position: Position;
@@ -14,14 +32,20 @@ interface PositionCardProps {
     onUpdateScore: (id: string, score: number) => Promise<void>; // Kept for interface compatibility
     onUpdatePrice: (id: string, price: number) => Promise<void>;
     onUpdateTarget: (id: string, target: number) => Promise<void>;
+    onUpdateStop?: (id: string, stopPrice: number) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
     onDataUpdate?: (timestamp: string) => void;
     refreshTrigger?: number;
     index?: number;
     onRollClick?: (qty: number) => void;
+    /** If set, show single-trade risk as % of portfolio */
+    portfolioTotal?: number;
 }
 
-export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onDelete, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick }) => {
+export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onDelete, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick, portfolioTotal: portfolioTotalProp }) => {
+    const settings = usePortfolioSettings();
+    const portfolioTotal = portfolioTotalProp ?? settings.portfolioTotal;
+    const stopOutFraction = settings.stopOutFraction;
     const [loading, setLoading] = useState(false);
     const [liveData, setLiveData] = useState<LiveData>({ delta: undefined, iv: undefined, gamma: undefined, theta: undefined, vega: undefined, score: undefined });
     const [earnings, setEarnings] = useState<{ loading: boolean; date: string | null; days: number | null }>({ loading: true, date: null, days: null });
@@ -32,6 +56,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const [scoreInput, setScoreInput] = useState('');
     const [isEditingTarget, setIsEditingTarget] = useState(false);
     const [targetInput, setTargetInput] = useState('');
+    const [isEditingStop, setIsEditingStop] = useState(false);
+    const [stopInput, setStopInput] = useState('');
     const [isExpanded, setIsExpanded] = useState(false);
     const [historyData, setHistoryData] = useState<GreeksHistory[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
@@ -67,7 +93,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         try {
             if (isSpread && position.legs) {
                 const promises = position.legs.map(async (leg) => {
-                    const params = new URLSearchParams({ ticker: position.ticker, expiration: leg.expiration, strike: leg.strike.toString(), type: leg.type });
+                    const params = new URLSearchParams({ ticker: position.ticker, expiration: normalizeExpiration(leg.expiration), strike: leg.strike.toString(), type: leg.type });
                     const res = await fetch(`/api/option-price?${params}`);
                     return res.ok ? await res.json() : null;
                 });
@@ -204,12 +230,15 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 }
 
             } else {
-                const params = new URLSearchParams({ ticker: position.ticker, expiration: position.expiration, strike: position.strike.toString(), type: position.type });
+                const expNorm = normalizeExpiration(position.expiration);
+                const params = new URLSearchParams({ ticker: position.ticker, expiration: expNorm, strike: position.strike.toString(), type: position.type });
                 const response = await fetch(`/api/option-price?${params}`);
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.price) {
-                        await onUpdatePrice(position.id, data.price);
+                    // Current = mid (bid+ask)/2，与 API 返回的 price 一致
+                    const price = data.price ?? 0;
+                    if (price || data.bid != null || data.ask != null) {
+                        await onUpdatePrice(position.id, price);
                         if (data.cboeTimestamp && onDataUpdate) {
                             onDataUpdate(data.cboeTimestamp);
                         }
@@ -218,7 +247,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                             data.gamma || 0,
                             data.theta || 0,
                             data.underlyingPrice,
-                            data.price,
+                            price,
                             data.metrics?.ivRatio || 1.0,
                             daysUntil(position.expiration)
                         ) : undefined);
@@ -230,7 +259,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                             theta: data.theta,
                             vega: data.vega,
                             score: calculatedScore,
-                            price: data.price,
+                            price,
                             isDayTrade: data.metrics?.isDayTrade,
                             ivRatio: data.metrics?.ivRatio
                         });
@@ -281,9 +310,10 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const entryPrice = firstBuy ? Math.abs(firstBuy.price) : 0;
 
     const hasTakenProfit = positionTxns.some(t => t.type === 'Take Profit');
-    const currentStopLoss = isCreditStrategy
+    const calculatedStopLoss = isCreditStrategy
         ? entryPrice * 1.5
         : (hasTakenProfit ? entryPrice * 0.75 : entryPrice * 0.5);
+    const currentStopLoss = position.stop_price ?? calculatedStopLoss;
 
     const currentPrice = liveData.price !== undefined ? liveData.price : (position.current_price || 0);
 
@@ -320,6 +350,11 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
 
     const daysToExp = daysUntil(position.expiration);
     const currentScore = position.current_score || position.entry_score;
+
+    const positionRiskAtStopOutDollars = getPositionRiskAtStopOutDollars(position, Math.max(0, totalQty), entryPrice, stopOutFraction);
+    const singleTradeRiskPct = portfolioTotal && portfolioTotal > 0
+        ? (positionRiskAtStopOutDollars / portfolioTotal) * 100
+        : null;
 
     let alertLevel: 'none' | 'danger' | 'warning' = 'none';
     const alerts: string[] = [];
@@ -378,6 +413,14 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         }
     };
 
+    const handleStopSave = async () => {
+        const newStop = parseFloat(stopInput);
+        if (!isNaN(newStop) && onUpdateStop) {
+            await onUpdateStop(position.id, newStop);
+            setIsEditingStop(false);
+        }
+    };
+
     return (
         <div className={`${cardClass} p-5 fade-in`}>
             {/* Header */}
@@ -408,6 +451,14 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         <span>{formatDate(position.expiration)}</span>
                         <span className="mx-2">·</span>
                         <span>{totalQty} contract{totalQty !== 1 ? 's' : ''}</span>
+                        {singleTradeRiskPct != null && (
+                            <>
+                                <span className="mx-2">·</span>
+                                <span className="font-mono text-text-primary" title="Max risk at stop-out: $ and % of portfolio">
+                                    Risk: {formatCurrency(positionRiskAtStopOutDollars)} ({singleTradeRiskPct.toFixed(1)}% of portfolio)
+                                </span>
+                            </>
+                        )}
                         {liveData.ivRatio !== undefined && (
                             <span className="ml-3 px-2 py-0.5 rounded text-xs font-mono font-medium bg-bg-tertiary border border-border-default/50 text-text-secondary" title="IV Ratio">
                                 IVR: <span className={liveData.ivRatio > 1.05 ? 'text-accent-green' : liveData.ivRatio < 0.95 ? 'text-accent-red' : 'text-text-primary'}>
@@ -526,10 +577,38 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     </div>
                     {/* Stop */}
                     <div>
-                        <div className="mb-1 flex items-center h-5">
-                            <Tooltip label="Stop" explanation="Stop Loss Level." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        <div className="mb-1 flex items-center gap-1 h-5">
+                            <Tooltip label="Stop" explanation="Stop loss price. Click to edit." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                            {onUpdateStop && (
+                                <button
+                                    onClick={() => { setIsEditingStop(true); setStopInput(currentStopLoss.toString()); }}
+                                    className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+                                    aria-label="Edit stop"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                </button>
+                            )}
                         </div>
-                        <div className="metric-value text-accent-red">{formatPrice(currentStopLoss)}</div>
+                        {isEditingStop && onUpdateStop ? (
+                            <div className="flex items-center gap-1">
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={stopInput}
+                                    onChange={e => setStopInput(e.target.value)}
+                                    className="w-16 px-1 py-0.5 text-sm bg-bg-secondary rounded border border-border-default font-mono"
+                                    autoFocus
+                                />
+                                <button onClick={handleStopSave} className="text-accent-green hover:bg-accent-green/10 p-0.5 rounded cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                </button>
+                                <button onClick={() => setIsEditingStop(false)} className="text-accent-red hover:bg-accent-red/10 p-0.5 rounded cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="metric-value text-accent-red">{formatPrice(currentStopLoss)}</div>
+                        )}
                     </div>
                     {/* Tech Score */}
                     <div>

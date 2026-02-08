@@ -96,9 +96,10 @@ export default async function handler(req, res) {
 
       const hasTakenProfit = posTxns.some(t => t.type === 'Take Profit');
       const isCreditStrategy = legs.length >= 2; // 单腿视为 debit
-      const currentStopLoss = isCreditStrategy
+      const calculatedStopLoss = isCreditStrategy
         ? entryPrice * 1.5
         : (hasTakenProfit ? entryPrice * 0.75 : entryPrice * 0.5);
+      const currentStopLoss = pos.stop_price ?? calculatedStopLoss;
 
       const targetPrice = pos.target_price || (isCreditStrategy ? entryPrice * 0.5 : entryPrice * 1.25);
 

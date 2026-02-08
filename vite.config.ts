@@ -137,7 +137,7 @@ function localApiPlugin(): Plugin {
           const mm = parts[1].padStart(2, '0');
           const dd = parts[2].padStart(2, '0');
           const dateStr = `${yy}${mm}${dd}`;
-          const typeCode = type.toLowerCase().startsWith('c') ? 'C' : 'P';
+          const typeCode = (type.toLowerCase().includes('call') || type.toLowerCase() === 'c') ? 'C' : 'P';
           const strikeNum = Math.round(parseFloat(strike) * 1000);
           const strikeStr = strikeNum.toString().padStart(8, '0');
           const cboeSymbol = `${paddedSymbol}${dateStr}${typeCode}${strikeStr}`.replace(/\s/g, '');
@@ -146,15 +146,13 @@ function localApiPlugin(): Plugin {
           const options = data.data.options;
           let targetOption = options.find((opt: any) => opt.option === cboeSymbol);
 
-          // Fuzzy match if not found
+          // Fuzzy match: 严格按 OCC 第 13 位 (index 12) 匹配 C/P，避免 CALL 请求匹配到 PUT
           if (!targetOption) {
             const expDateStr = expiration.replace(/-/g, '').slice(2);
-            const typeChar = type.toUpperCase().charAt(0);
             targetOption = options.find((opt: any) => {
-              return opt.option &&
-                opt.option.includes(expDateStr) &&
-                opt.option.includes(typeChar) &&
-                opt.option.endsWith(strikeStr);
+              if (!opt.option) return false;
+              const sym = opt.option.replace(/\s/g, '');
+              return sym.includes(expDateStr) && sym.charAt(12) === typeCode && sym.endsWith(strikeStr);
             });
           }
 

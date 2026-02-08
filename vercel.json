@@ -5,8 +5,12 @@
     "api/scan-options.js": { "memory": 512, "maxDuration": 15 },
     "api/strategy-recommend.js": { "memory": 512, "maxDuration": 15 },
     "api/check-alerts.js": { "memory": 256, "maxDuration": 60 },
-    "api/backfill-iv-history.js": { "memory": 256, "maxDuration": 30 }
+    "api/backfill-iv-history.js": { "memory": 256, "maxDuration": 30 },
+    "api/daily-recap.js": { "memory": 256, "maxDuration": 60 }
   },
+  "crons": [
+    { "path": "/api/daily-recap", "schedule": "30 21 * * *" }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",

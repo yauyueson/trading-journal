@@ -82,17 +82,16 @@ export default async function handler(req, res) {
     const targetOption = options.find(opt => opt.option === cboeSymbol);
 
     if (!targetOption) {
-      // 尝试模糊匹配
-      const expDateStr = expiration.replace(/-/g, '').slice(2); // "260220"
+      // 尝试模糊匹配：必须严格匹配 Call(C) 或 Put(P)，避免把 PUT 当成 CALL 返回
+      const expDateStr = expiration.replace(/-/g, '').slice(2); // "260320"
       const typeCode = (type.toLowerCase().includes('call') || type.toLowerCase() === 'c') ? 'C' : 'P';
-      const typeChar = typeCode; // Correctly determined as C or P
-      const strikeStr = (parseFloat(strike) * 1000).toString().padStart(8, '0');
-
+      const strikeStr = Math.round(parseFloat(strike) * 1000).toString().padStart(8, '0');
+      // OCC: 6 char symbol + 6 char YYMMDD + 1 char C/P + 8 char strike → type 在 index 12
       const fuzzyMatch = options.find(opt => {
-        return opt.option &&
-          opt.option.includes(expDateStr) &&
-          opt.option.includes(typeChar) &&
-          opt.option.endsWith(strikeStr);
+        if (!opt.option) return false;
+        const sym = opt.option.replace(/\s/g, '');
+        const typeAt12 = sym.charAt(12);
+        return sym.includes(expDateStr) && typeAt12 === typeCode && sym.endsWith(strikeStr);
       });
 
       if (!fuzzyMatch) {

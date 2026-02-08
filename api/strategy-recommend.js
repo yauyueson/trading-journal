@@ -153,11 +153,27 @@ function detectRegime(iv30, iv90, rv20) {
     if (termRatio > 1.05) {
         mode = 'CREDIT';
         advice = 'Backwardation (Expensive near-term): Sell Credit Spreads';
-        adviceDetail = 'Near-term implied volatility (IV30) is higher than longer-term (IV90)—this is backwardation. Short-dated options are priced rich relative to longer-dated ones, so selling premium (credit spreads) is favored: you receive more for the same risk. Combined with IV/RV above 1, the market is paying a volatility premium; credit spreads let you collect that premium while limiting risk with a long leg. Prefer 30–45 DTE to balance theta decay and gamma risk.';
+        adviceDetail = 'Near-term IV (IV30) is higher than IV90—backwardation. Short-dated options are priced rich vs longer-dated, so selling premium (credit spreads) is favored. ';
+        if (ivRvRatio != null) {
+            if (ivRvRatio > 1.05) {
+                adviceDetail += `IV/RV is ${ivRvRatio.toFixed(2)} (above 1): the market is paying a volatility premium vs recent realized; credit spreads let you collect that premium with defined risk. `;
+            } else if (ivRvRatio < 0.95) {
+                adviceDetail += `IV/RV is ${ivRvRatio.toFixed(2)} (below 1): implied is cheap vs realized, so the edge for selling premium is smaller; still consider credit if term structure and other metrics (EV, POP, distance) are strong. `;
+            }
+        }
+        adviceDetail += 'Prefer 30–45 DTE to balance theta decay and gamma risk.';
     } else if (termRatio < 0.95) {
         mode = 'DEBIT';
         advice = 'Contango (Cheap near-term IV): Buy Debit Spreads';
-        adviceDetail = 'Near-term IV (IV30) is lower than IV90—contango. Near-term options are relatively cheap, so buying them (debit spreads) is favored over selling. If IV/RV is below 1, realized volatility has been higher than what’s implied, so long options can benefit from a potential vol or directional move without overpaying. Debit spreads reduce cost and cap risk versus a single long option while keeping leverage (lambda) and positive delta.';
+        adviceDetail = 'IV30 is lower than IV90—contango. Near-term options are relatively cheap vs far-term (no big near-term event premium). ';
+        if (ivRvRatio != null) {
+            if (ivRvRatio < 1) {
+                adviceDetail += `IV/RV is ${ivRvRatio.toFixed(2)} (below 1): realized vol has been higher than implied, so long options can benefit from a vol or directional move without overpaying. Debit spreads reduce cost and cap risk vs a single long while keeping leverage. `;
+            } else {
+                adviceDetail += `IV/RV is ${ivRvRatio.toFixed(2)} (above 1): options are still priced above recent realized vol—you are paying volatility risk premium (VRP). So favor debit spreads only when selective: long-leg delta 0.50–0.65, risk/reward ≥ 1.5, DTE 30–45. If you have no strong direction and want to earn VRP, a small size credit spread (good distance, liquidity, avoid earnings) can also be appropriate since IV > RV is statistically seller-friendly. `;
+            }
+        }
+        adviceDetail += 'Debit spreads cap risk and keep positive delta with lower capital than a naked long.';
     }
 
     return { ivRatio: termRatio, ivRvRatio, mode, advice, adviceDetail };
@@ -186,9 +202,10 @@ function generateStrategyNote(strategyType, metrics) {
     // Debit Specific
     if (strategyType === 'DEBIT') {
         if (metrics.lambda > 8) pros.push("Leverage (lambda) is high, so a small move in the underlying can produce a proportionally larger P&L.");
-        if (metrics.ivRvRatio < 0.85) pros.push("Volatility is cheap relative to recent realized; long options are not overpaying for vol.");
+        if (metrics.ivRvRatio != null && metrics.ivRvRatio < 0.85) pros.push("Volatility is cheap relative to recent realized; long options are not overpaying for vol.");
         if (metrics.deltaBonus > 0) pros.push("Delta exposure is well aligned with your direction, giving good participation in the underlying move.");
 
+        if (metrics.ivRvRatio != null && metrics.ivRvRatio > 1.1) cons.push("IV is above recent realized vol (you are paying VRP); prefer selective entries with R:R ≥ 1.5 and DTE 30–45.");
         if (metrics.slippageImpact > 0.15) cons.push("Wide bid-ask or low liquidity can add slippage to the debit; use limit orders and check volume/OI.");
         if (metrics.theta && metrics.theta < -0.1) cons.push("Time decay is meaningful; the position loses value if the underlying does not move enough before expiry.");
     }
@@ -414,7 +431,17 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
             const rrScore = Math.min((riskReward / 3) * 100, 100);
             const deltaScore = 50 + deltaBonus * 12.5;
 
-            const finalScore = (0.4 * lambdaScore) + (0.35 * rrScore) + (0.25 * deltaScore);
+            let finalScore = (0.4 * lambdaScore) + (0.35 * rrScore) + (0.25 * deltaScore);
+
+            // When IV/RV > 1.10 (contango but paying VRP), favor more selective debits: R:R ≥ 1.5, DTE 30–45, delta 0.50–0.65
+            if (ivRvRatio != null && ivRvRatio > 1.10) {
+                if (riskReward >= 1.5) finalScore += 8;
+                const dte = longLeg.dte ?? 0;
+                if (dte >= 30 && dte <= 45) finalScore += 8;
+                const absDelta = Math.abs(longLeg.delta);
+                if (absDelta >= 0.50 && absDelta <= 0.65) finalScore += 6;
+                if (riskReward < 1.5) finalScore -= 10; // Penalize low R:R when vol is expensive
+            }
 
             const note = generateStrategyNote('DEBIT', {
                 ev: expectedValue,

@@ -21,8 +21,9 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
         setLoading(true);
         try {
             if (isSpread && item.legs) {
+                const norm = (exp: string) => /^\d{4}-\d{1,2}-\d{1,2}$/.test(exp?.trim()) ? exp.trim().split('-').map((p, i) => i ? String(Number(p)).padStart(2, '0') : p).join('-') : exp;
                 const promises = item.legs.map(leg =>
-                    fetch(`/api/option-price?ticker=${item.ticker}&expiration=${leg.expiration}&strike=${leg.strike}&type=${leg.type}`)
+                    fetch(`/api/option-price?ticker=${item.ticker}&expiration=${encodeURIComponent(norm(leg.expiration))}&strike=${leg.strike}&type=${leg.type}`)
                         .then(res => res.ok ? res.json() : { price: 0 })
                 );
                 const results = await Promise.all(promises);
@@ -33,8 +34,8 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
                 const shortResult = shortIndex >= 0 ? results[shortIndex] : { price: 0 };
                 const longResult = longIndex >= 0 ? results[longIndex] : { price: 0 };
 
-                const shortPrice = shortResult.price || 0;
-                const longPrice = longResult.price || 0;
+                const shortPrice = shortResult.price ?? 0;
+                const longPrice = longResult.price ?? 0;
 
                 // Report timestamp
                 const firstValid = results.find(r => r && r.cboeTimestamp);
@@ -50,11 +51,12 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
                 }
                 setCurrentPrice(net);
             } else {
-                const params = new URLSearchParams({ ticker: item.ticker, expiration: item.expiration, strike: item.strike.toString(), type: item.type });
+                const expNorm = /^\d{4}-\d{1,2}-\d{1,2}$/.test(item.expiration?.trim()) ? item.expiration.trim().split('-').map((p, i) => i ? String(Number(p)).padStart(2, '0') : p).join('-') : item.expiration;
+                const params = new URLSearchParams({ ticker: item.ticker, expiration: expNorm, strike: item.strike.toString(), type: item.type });
                 const response = await fetch(`/api/option-price?${params}`);
                 if (response.ok) {
                     const data = await response.json();
-                    setCurrentPrice(data.price);
+                    setCurrentPrice(data.price ?? 0);
                     if (data.cboeTimestamp && onDataUpdate) {
                         onDataUpdate(data.cboeTimestamp);
                     }

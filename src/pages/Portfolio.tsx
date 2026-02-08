@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, ChevronDown, Settings2 } from 'lucide-react';
 import { Position, Transaction, PositionAction, DirectAddItem, RollData } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PositionCard } from '../components/PositionCard';
 import { RollModal } from '../components/RollModal';
 import { DataFooter } from '../components/DataFooter';
-import { SETUPS } from '../lib/utils';
+import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
+import { usePortfolioSettings } from '../context/PortfolioSettingsContext';
+import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
+import { SETUPS, formatCurrency } from '../lib/utils';
 
 interface PortfolioPageProps {
     positions: Position[];
@@ -14,14 +17,17 @@ interface PortfolioPageProps {
     onUpdateScore: (id: string, score: number) => Promise<void>;
     onUpdatePrice: (id: string, price: number) => Promise<void>;
     onUpdateTarget: (id: string, target: number) => Promise<void>;
+    onUpdateStop: (id: string, stopPrice: number) => Promise<void>;
     onAddDirect: (item: DirectAddItem) => Promise<void>;
     onRoll: (originalPositionId: string, rollData: RollData) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
     loading: boolean;
 }
 
-export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onAddDirect, onRoll, onDelete, loading }) => {
+export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onAddDirect, onRoll, onDelete, loading }) => {
+    const { portfolioTotal, riskPct, stopOutPct, stopOutFraction, maxRiskPerTrade } = usePortfolioSettings();
     const [showForm, setShowForm] = useState(false);
+    const [showAccountSettings, setShowAccountSettings] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [rollingPosition, setRollingPosition] = useState<{ position: Position, qty: number } | null>(null);
@@ -32,6 +38,23 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     const activePositions = positions.filter(p => p.status === 'active');
+
+    const totalRiskDollars = activePositions.reduce((sum, position) => {
+        const posTxns = transactions.filter(t => t.position_id === position.id);
+        let totalQtyBought = 0, totalQtySold = 0, entryPrice = 0;
+        posTxns.forEach(t => {
+            const qty = t.quantity;
+            if (qty > 0) {
+                if (entryPrice === 0) entryPrice = t.price;
+                totalQtyBought += qty;
+            } else {
+                totalQtySold += Math.abs(qty);
+            }
+        });
+        const totalQty = totalQtyBought - totalQtySold;
+        return sum + getPositionRiskAtStopOutDollars(position, totalQty, entryPrice, stopOutFraction);
+    }, 0);
+    const totalRiskPct = portfolioTotal > 0 ? (totalRiskDollars / portfolioTotal) * 100 : 0;
 
     const sortedPositions = [...activePositions].sort((a, b) => {
         switch (sortBy) {
@@ -86,40 +109,65 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     return (
         <div className="fade-in pb-24 sm:pb-0 space-y-6">
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-text-primary to-text-secondary bg-clip-text text-transparent">
-                        Portfolio
-                    </h1>
-                    <p className="text-text-secondary mt-1">Manage open positions and track performance</p>
+            <div className="space-y-4">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold bg-gradient-to-r from-text-primary to-text-secondary bg-clip-text text-transparent">
+                            Portfolio
+                        </h1>
+                        <p className="text-text-secondary mt-1">Manage open positions and track performance</p>
+                        {activePositions.length > 0 && portfolioTotal > 0 && (
+                            <p className="text-sm text-text-tertiary mt-2 font-mono">
+                                Total risk: <span className={totalRiskPct > 10 ? 'text-accent-red font-semibold' : 'text-text-primary'}>{formatCurrency(totalRiskDollars)}</span>
+                                {' '}(<span className={totalRiskPct > 10 ? 'text-accent-red font-semibold' : ''}>{totalRiskPct.toFixed(1)}%</span> of portfolio)
+                            </p>
+                        )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setShowAccountSettings(!showAccountSettings)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border-default/50 bg-bg-secondary/30 hover:bg-bg-secondary text-text-secondary hover:text-text-primary text-sm font-medium transition-colors"
+                            aria-expanded={showAccountSettings}
+                        >
+                            <Settings2 size={16} className="text-accent-green" />
+                            <span className="font-mono">
+                                Portfolio {formatCurrency(portfolioTotal)} · Risk {riskPct}% · Stop {stopOutPct}% · Cap {formatCurrency(maxRiskPerTrade)}/trade
+                            </span>
+                            <ChevronDown size={16} className={`text-gray-500 transition-transform ${showAccountSettings ? 'rotate-180' : ''}`} />
+                        </button>
+                        <button
+                            onClick={refreshAllPrices}
+                            disabled={refreshing}
+                            className={`
+                                relative overflow-hidden group flex items-center gap-2 px-4 py-2 rounded-xl border border-border-default/50 
+                                bg-bg-secondary/30 backdrop-blur-sm hover:bg-bg-secondary transition-all duration-200
+                                ${refreshing ? 'opacity-70 cursor-not-allowed text-text-tertiary' : 'text-text-secondary hover:text-text-primary hover:border-text-secondary/30'}
+                            `}
+                        >
+                            <RefreshCw size={18} className={`transition-transform duration-500 ${refreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
+                            <span className="font-medium text-sm">{refreshing ? 'Refreshing...' : 'Refresh All'}</span>
+                        </button>
+                        <button
+                            onClick={() => setShowForm(!showForm)}
+                            className={`
+                                flex items-center gap-2 px-5 py-2 rounded-xl font-medium text-sm text-white shadow-lg transition-all duration-200
+                                bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500
+                                shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:-translate-y-0.5
+                            `}
+                        >
+                            <span className="text-lg leading-none mb-0.5">+</span>
+                            <span>Add Position</span>
+                        </button>
+                    </div>
                 </div>
-
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={refreshAllPrices}
-                        disabled={refreshing}
-                        className={`
-                            relative overflow-hidden group flex items-center gap-2 px-4 py-2 rounded-xl border border-border-default/50 
-                            bg-bg-secondary/30 backdrop-blur-sm hover:bg-bg-secondary transition-all duration-200
-                            ${refreshing ? 'opacity-70 cursor-not-allowed text-text-tertiary' : 'text-text-secondary hover:text-text-primary hover:border-text-secondary/30'}
-                        `}
-                    >
-                        <RefreshCw size={18} className={`transition-transform duration-500 ${refreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
-                        <span className="font-medium text-sm">{refreshing ? 'Refreshing...' : 'Refresh All'}</span>
-                    </button>
-
-                    <button
-                        onClick={() => setShowForm(!showForm)}
-                        className={`
-                            flex items-center gap-2 px-5 py-2 rounded-xl font-medium text-sm text-white shadow-lg transition-all duration-200
-                            bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500
-                            shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:-translate-y-0.5
-                        `}
-                    >
-                        <span className="text-lg leading-none mb-0.5">+</span>
-                        <span>Add Position</span>
-                    </button>
-                </div>
+                {/* Collapsible Account & Risk Settings */}
+                {showAccountSettings && (
+                    <div className="rounded-xl border border-border-default/50 bg-bg-secondary/20 p-6">
+                        <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4">Account & risk</h3>
+                        <PortfolioSettingsForm variant="full" className="max-w-md" />
+                    </div>
+                )}
             </div>
 
             {/* Quick Add Form */}
@@ -308,11 +356,13 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             onUpdateScore={onUpdateScore}
                             onUpdatePrice={onUpdatePrice}
                             onUpdateTarget={onUpdateTarget}
+                            onUpdateStop={onUpdateStop}
                             onDelete={onDelete}
                             onDataUpdate={setLastTimestamp}
                             refreshTrigger={refreshTrigger}
                             index={index}
                             onRollClick={(qty) => setRollingPosition({ position, qty })}
+                            portfolioTotal={portfolioTotal}
                         />
                     ))}
                 </div>
