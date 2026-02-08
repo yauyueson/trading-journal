@@ -106,6 +106,8 @@ export interface StrategyRegime {
     ivRvRatio: number | null;
     mode: 'CREDIT' | 'DEBIT' | 'NEUTRAL';
     advice: string;
+    /** Longer explanation of why this regime favors Credit/Debit/Neutral and what to do. */
+    adviceDetail?: string | null;
 }
 
 export interface StrategyContext {
@@ -164,6 +166,7 @@ export interface SingleLegRecommendation {
     thetaBurn: number;
     volume: number;
     openInterest: number;
+    recommendation?: { action: string; note?: string };
 }
 
 export type Recommendation = SpreadRecommendation | SingleLegRecommendation;

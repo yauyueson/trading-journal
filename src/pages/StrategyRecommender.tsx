@@ -389,6 +389,11 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                     {result.regime.mode === 'DEBIT' && <TrendingUp size={18} />}
                                     {result.regime.advice}
                                 </p>
+                                {result.regime.adviceDetail && (
+                                    <p className="mt-3 text-sm text-gray-400 leading-relaxed max-w-2xl">
+                                        {result.regime.adviceDetail}
+                                    </p>
+                                )}
                             </div>
                             <div className="flex gap-8 text-right">
                                 <div>
@@ -596,14 +601,14 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                 {/* Expanded Details */}
                                 {expandedCard === idx && (
                                     <div className="p-5 border-t border-[#3A3A3C] bg-black/20">
-                                        {/* Analysis Section */}
+                                        {/* Analysis Section: Why this strategy/option is a good choice */}
                                         {isSpread(rec) && rec.recommendation?.note && (
                                             <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 {rec.recommendation.note.includes('✅') && (
                                                     <div className="bg-green-500/5 border border-green-500/20 p-4 rounded-xl">
                                                         <h4 className="text-xs font-bold text-green-400 uppercase mb-2 flex items-center gap-2">
                                                             <TrendingUp size={14} />
-                                                            Why This Strategy works
+                                                            Why This Strategy Works
                                                         </h4>
                                                         <p className="text-sm text-gray-300 leading-relaxed">
                                                             {rec.recommendation.note.split('⚠️')[0].replace('✅ Pros:', '').trim().replace(/\.$/, '')}
@@ -622,6 +627,19 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                                         </p>
                                                     </div>
                                                 )}
+                                            </div>
+                                        )}
+                                        {!isSpread(rec) && (rec as SingleLegRecommendation).recommendation?.note && (
+                                            <div className="mb-6">
+                                                <div className="bg-green-500/5 border border-green-500/20 p-4 rounded-xl">
+                                                    <h4 className="text-xs font-bold text-green-400 uppercase mb-2 flex items-center gap-2">
+                                                        <TrendingUp size={14} />
+                                                        Why This Option Is a Good Choice
+                                                    </h4>
+                                                    <p className="text-sm text-gray-300 leading-relaxed">
+                                                        {(rec as SingleLegRecommendation).recommendation!.note!.replace(/^✅\s*/, '').trim()}
+                                                    </p>
+                                                </div>
                                             </div>
                                         )}
                                         {isSpread(rec) ? (

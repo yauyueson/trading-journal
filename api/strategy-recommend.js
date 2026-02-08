@@ -136,7 +136,8 @@ function detectRegime(iv30, iv90, rv20) {
             ivRatio: 1.0,
             ivRvRatio: null,
             mode: 'NEUTRAL',
-            advice: 'Insufficient Data for IV Ratio. Defaulting to Neutral.'
+            advice: 'Insufficient Data for IV Ratio. Defaulting to Neutral.',
+            adviceDetail: 'Not enough options data to compute IV term structure (IV30/IV90). Without it we cannot favor credit vs debit; use the scores on each strategy tab to pick.'
         };
     }
 
@@ -145,51 +146,54 @@ function detectRegime(iv30, iv90, rv20) {
 
     let mode = 'NEUTRAL';
     let advice = 'Neutral IV: Either strategy viable, compare scores';
+    let adviceDetail = 'IV30 and IV90 are close (ratio near 1), so the term structure is flat. Neither selling nor buying volatility has a clear edge from term structure alone. Compare the scores and metrics (EV, ROI, POP, R:R) across Credit Spreads, Debit Spreads, and Long Options to choose.';
 
     if (termRatio > 1.05) {
         mode = 'CREDIT';
         advice = 'Backwardation (Expensive near-term): Sell Credit Spreads';
+        adviceDetail = 'Near-term implied volatility (IV30) is higher than longer-term (IV90)—this is backwardation. Short-dated options are priced rich relative to longer-dated ones, so selling premium (credit spreads) is favored: you receive more for the same risk. Combined with IV/RV above 1, the market is paying a volatility premium; credit spreads let you collect that premium while limiting risk with a long leg. Prefer 30–45 DTE to balance theta decay and gamma risk.';
     } else if (termRatio < 0.95) {
         mode = 'DEBIT';
         advice = 'Contango (Cheap near-term IV): Buy Debit Spreads';
+        adviceDetail = 'Near-term IV (IV30) is lower than IV90—contango. Near-term options are relatively cheap, so buying them (debit spreads) is favored over selling. If IV/RV is below 1, realized volatility has been higher than what’s implied, so long options can benefit from a potential vol or directional move without overpaying. Debit spreads reduce cost and cap risk versus a single long option while keeping leverage (lambda) and positive delta.';
     }
 
-    return { ivRatio: termRatio, ivRvRatio, mode, advice };
+    return { ivRatio: termRatio, ivRvRatio, mode, advice, adviceDetail };
 }
 
 function generateStrategyNote(strategyType, metrics) {
     const pros = [];
     const cons = [];
 
-    // Common Metrics
-    if (metrics.ev && metrics.ev > 20) pros.push("High Expected Value (+EV)");
-    if (metrics.pop && metrics.pop > 70) pros.push("High Probability of Profit");
-    if (metrics.roi && metrics.roi > 30) pros.push("Excellent ROI (>30%)");
+    // Common Metrics — full sentences for clarity
+    if (metrics.ev && metrics.ev > 20) pros.push("Expected value is meaningfully positive, so the trade has a statistical edge over many repetitions.");
+    if (metrics.pop && metrics.pop > 70) pros.push("Probability of profit is high (above 70%), which supports a premium-selling or defined-risk approach.");
+    if (metrics.roi && metrics.roi > 30) pros.push("Return on capital at risk is strong (ROI > 30%), making the risk/reward attractive for the capital deployed.");
 
     // Credit Specific
     if (strategyType === 'CREDIT') {
-        if (metrics.theta && metrics.theta > 0.1) pros.push("Strong Theta Decay");
-        if (metrics.skewBonus > 0) pros.push("Volatility Skew Edge (Overpriced)");
-        if (metrics.ivRvRatio > 1.25) pros.push("High Volatility Premium");
+        if (metrics.theta && metrics.theta > 0.1) pros.push("Theta decay is favorable: time works in your favor as the short option loses value.");
+        if (metrics.skewBonus > 0) pros.push("Volatility skew favors this side: the options you are selling are relatively overpriced vs the hedge.");
+        if (metrics.ivRvRatio > 1.25) pros.push("Implied volatility is elevated vs recent realized vol, so you are being well compensated for selling premium.");
 
-        if (metrics.gammaPenalty < 0) cons.push("High Gamma Risk (Short DTE)");
-        if (metrics.slippageImpact > 0.15) cons.push("Low Liquidity / High Slippage");
-        if (metrics.earningsRisk) cons.push("Earnings Event Risk");
+        if (metrics.gammaPenalty < 0) cons.push("Gamma risk is elevated (typical for short-dated shorts); price moves can accelerate against you near expiry.");
+        if (metrics.slippageImpact > 0.15) cons.push("Bid-ask spread or liquidity may cost a meaningful part of the credit; consider limit orders and size.");
+        if (metrics.earningsRisk) cons.push("Earnings fall within the option life; consider avoiding or using a different expiration to reduce event risk.");
     }
 
     // Debit Specific
     if (strategyType === 'DEBIT') {
-        if (metrics.lambda > 8) pros.push("High Leverage (Lambda > 8)");
-        if (metrics.ivRvRatio < 0.85) pros.push("Cheap Volatility (Undervalued)");
-        if (metrics.deltaBonus > 0) pros.push("Good Directional Exposure");
+        if (metrics.lambda > 8) pros.push("Leverage (lambda) is high, so a small move in the underlying can produce a proportionally larger P&L.");
+        if (metrics.ivRvRatio < 0.85) pros.push("Volatility is cheap relative to recent realized; long options are not overpaying for vol.");
+        if (metrics.deltaBonus > 0) pros.push("Delta exposure is well aligned with your direction, giving good participation in the underlying move.");
 
-        if (metrics.slippageImpact > 0.15) cons.push("Wide Spread / Slippage Drag");
-        if (metrics.theta && metrics.theta < -0.1) cons.push("High Theta Decay (Time Risk)");
+        if (metrics.slippageImpact > 0.15) cons.push("Wide bid-ask or low liquidity can add slippage to the debit; use limit orders and check volume/OI.");
+        if (metrics.theta && metrics.theta < -0.1) cons.push("Time decay is meaningful; the position loses value if the underlying does not move enough before expiry.");
     }
 
     let note = "";
-    if (pros.length > 0) note += `✅ Pros: ${pros.join(', ')}. `;
-    if (cons.length > 0) note += `⚠️ Cons: ${cons.join(', ')}.`;
+    if (pros.length > 0) note += `✅ Pros: ${pros.join(' ')}`;
+    if (cons.length > 0) note += (note ? ' ' : '') + `⚠️ Cons: ${cons.join(' ')}`;
 
     return note.trim();
 }
@@ -487,6 +491,12 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
     const scores = normalizeLOQScoresWithDynamicBaseline(rawScores);
     return processed.map((p, i) => {
         const score = scores[i];
+        const whyThis = `λ=${p.lambda.toFixed(1)}, Δ=${Math.abs(p.opt.delta).toFixed(2)}${ivRvRatio && ivRvRatio < 0.85 ? ', Cheap Vol (Ref)' : ''}`;
+        const noteParts = [];
+        if (p.lambda >= 8) noteParts.push('High leverage (lambda) gives strong participation in the underlying move for limited capital.');
+        if (ivRvRatio != null && ivRvRatio < 0.9) noteParts.push('Implied volatility is cheap vs recent realized vol, so you are not overpaying for the option.');
+        noteParts.push(`Delta around ${Math.abs(p.opt.delta).toFixed(2)} offers a balance between direction and cost; gamma/theta are scored relative to peers in the chain.`);
+        const note = '✅ ' + noteParts.join(' ');
 
         return {
             type: `Long ${type}`,
@@ -504,7 +514,8 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
             volume: p.opt.volume,
             openInterest: p.opt.openInterest,
             score,
-            whyThis: `λ=${p.lambda.toFixed(1)}, Δ=${Math.abs(p.opt.delta).toFixed(2)}${ivRvRatio && ivRvRatio < 0.85 ? ', Cheap Vol (Ref)' : ''}`
+            whyThis,
+            recommendation: { action: 'BUY (Open)', note }
         };
     }).sort((a, b) => b.score - a.score).slice(0, 5);
 }
@@ -605,7 +616,8 @@ export default async function handler(req, res) {
                 rv30: rv30 ? Number(rv30.toFixed(1)) : null,
                 ivRvRatio: regime.ivRvRatio ? Number(regime.ivRvRatio.toFixed(3)) : null,
                 mode: regime.mode,
-                advice: regime.advice
+                advice: regime.advice,
+                adviceDetail: regime.adviceDetail || null
             },
             recommendedStrategy,
             strategies: {
