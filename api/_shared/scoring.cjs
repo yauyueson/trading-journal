@@ -70,6 +70,60 @@ const getBreakevenPenalty = (breakevenMove, dte) => {
 };
 
 // ────────────────────────────────────────────────────────────────
+// Volatility Skew (v2.3)
+// ────────────────────────────────────────────────────────────────
+
+const calculateSkew = (chain, currentPrice, targetDTE = 30) => {
+    // Skew = (25d Put IV - 25d Call IV) / 50d ATM IV
+    // Simplification: Use OTM Puts (Delta ~0.25) vs OTM Calls (Delta ~0.25)
+    const targetChain = chain.filter(o => Math.abs(o.dte - targetDTE) < 15); // strict DTE window
+    if (targetChain.length < 10) return 0;
+
+    const puts = targetChain.filter(o => o.type === 'Put' && Math.abs(o.delta + 0.25) < 0.10); // Look for -0.25 delta
+    const calls = targetChain.filter(o => o.type === 'Call' && Math.abs(o.delta - 0.25) < 0.10); // Look for +0.25 delta
+
+    // Fallback: use wider delta range if no match
+    const put = puts.length ? puts.reduce((prev, curr) => Math.abs(curr.delta + 0.25) < Math.abs(prev.delta + 0.25) ? curr : prev) : null;
+    const call = calls.length ? calls.reduce((prev, curr) => Math.abs(curr.delta - 0.25) < Math.abs(prev.delta - 0.25) ? curr : prev) : null;
+
+    if (!put || !call) return 0;
+
+    // Use IV if available
+    if (put.iv > 0 && call.iv > 0) {
+        return (put.iv - call.iv) / ((put.iv + call.iv) / 2);
+    }
+    return 0;
+};
+
+// ────────────────────────────────────────────────────────────────
+// Slippage Modeling (v2.3)
+// ────────────────────────────────────────────────────────────────
+
+const estimateSlippage = (bid, ask) => {
+    const spread = ask - bid;
+    // Conservative: assume we lose 10% of the spread width in slippage from the mid
+    return spread * 0.10;
+};
+
+// ────────────────────────────────────────────────────────────────
+// Gamma Risk (v2.3)
+// ────────────────────────────────────────────────────────────────
+
+const getGammaRiskPenalty = (gamma, theta, dte) => {
+    if (dte > 14) return 0; // Only punitive for < 14 DTE
+    // Gamma risk is high when Gamma is high relative to Theta income
+    // Or just absolute Gamma is too high (explosion risk)
+
+    // Normalized check: if Gamma is huge (0.15+ for e.g. SPY is massive, but for small stocks 0.15 is low)
+    // Better to use Gamma/Theta ratio or just penalize low DTE if Gamma is rising
+
+    // Simple logic: if < 5 DTE, severe penalty. 5-14 DTE, mild penalty.
+    if (dte <= 5) return -25;
+    if (dte <= 10) return -10;
+    return 0;
+};
+
+// ────────────────────────────────────────────────────────────────
 // Gamma/Theta Ratio (v2.2 — cost of gamma)
 // ────────────────────────────────────────────────────────────────
 
@@ -416,4 +470,7 @@ module.exports = {
     LOQ_WEIGHTS,
     LOQ_DT_WEIGHTS,
     CSQ_WEIGHTS,
+    calculateSkew,
+    estimateSlippage,
+    getGammaRiskPenalty
 };

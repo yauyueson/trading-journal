@@ -7,7 +7,7 @@
 let compressLambda, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
     calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, getIVRiskFactor,
     calculateLOQRaw, normalizeScoreTo100, normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct,
-    getCleanATM_IV, calculateTargetIV, parseChain;
+    getCleanATM_IV, calculateTargetIV, parseChain, calculateSkew, estimateSlippage, getGammaRiskPenalty;
 let saveTickerIVSnapshot;
 let _scoringLoaded = false;
 
@@ -35,13 +35,16 @@ async function ensureScoring() {
     getCleanATM_IV = scoring.getCleanATM_IV;
     calculateTargetIV = scoring.calculateTargetIV;
     parseChain = scoring.parseChain;
+    calculateSkew = scoring.calculateSkew;
+    estimateSlippage = scoring.estimateSlippage;
+    getGammaRiskPenalty = scoring.getGammaRiskPenalty;
     try {
         const ivUrl = new URL('./_shared/ivHistory.cjs', import.meta.url).href;
         const ivMod = await import(ivUrl);
         const iv = ivMod.default ?? ivMod;
         saveTickerIVSnapshot = iv.saveTickerIVSnapshot;
     } catch (_) {
-        saveTickerIVSnapshot = async () => {};
+        saveTickerIVSnapshot = async () => { };
     }
     _scoringLoaded = true;
 }
@@ -50,15 +53,15 @@ async function ensureScoring() {
 // DATA FETCHING UTILITIES
 // =============================================================================
 
-async function fetchRV20(ticker) {
+async function fetchRV30(ticker) {
     try {
         const toDate = new Date();
         const fromDate = new Date();
-        fromDate.setDate(toDate.getDate() - 45);
+        fromDate.setDate(toDate.getDate() - 60); // Fetch 60 days to ensure enough trading days for 30-day window
         const toStr = toDate.toISOString().split('T')[0];
         const fromStr = fromDate.toISOString().split('T')[0];
 
-        const url = `https://api.nasdaq.com/api/quote/${ticker.toUpperCase()}/historical?assetclass=stocks&fromdate=${fromStr}&todate=${toStr}&limit=40`;
+        const url = `https://api.nasdaq.com/api/quote/${ticker.toUpperCase()}/historical?assetclass=stocks&fromdate=${fromStr}&todate=${toStr}&limit=60`;
         const response = await fetch(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -154,15 +157,48 @@ function detectRegime(iv30, iv90, rv20) {
     return { ivRatio: termRatio, ivRvRatio, mode, advice };
 }
 
+function generateStrategyNote(strategyType, metrics) {
+    const pros = [];
+    const cons = [];
+
+    // Common Metrics
+    if (metrics.ev && metrics.ev > 20) pros.push("High Expected Value (+EV)");
+    if (metrics.pop && metrics.pop > 70) pros.push("High Probability of Profit");
+    if (metrics.roi && metrics.roi > 30) pros.push("Excellent ROI (>30%)");
+
+    // Credit Specific
+    if (strategyType === 'CREDIT') {
+        if (metrics.theta && metrics.theta > 0.1) pros.push("Strong Theta Decay");
+        if (metrics.skewBonus > 0) pros.push("Volatility Skew Edge (Overpriced)");
+        if (metrics.ivRvRatio > 1.25) pros.push("High Volatility Premium");
+
+        if (metrics.gammaPenalty < 0) cons.push("High Gamma Risk (Short DTE)");
+        if (metrics.slippageImpact > 0.15) cons.push("Low Liquidity / High Slippage");
+        if (metrics.earningsRisk) cons.push("Earnings Event Risk");
+    }
+
+    // Debit Specific
+    if (strategyType === 'DEBIT') {
+        if (metrics.lambda > 8) pros.push("High Leverage (Lambda > 8)");
+        if (metrics.ivRvRatio < 0.85) pros.push("Cheap Volatility (Undervalued)");
+        if (metrics.deltaBonus > 0) pros.push("Good Directional Exposure");
+
+        if (metrics.slippageImpact > 0.15) cons.push("Wide Spread / Slippage Drag");
+        if (metrics.theta && metrics.theta < -0.1) cons.push("High Theta Decay (Time Risk)");
+    }
+
+    let note = "";
+    if (pros.length > 0) note += `✅ Pros: ${pros.join(', ')}. `;
+    if (cons.length > 0) note += `⚠️ Cons: ${cons.join(', ')}.`;
+
+    return note.trim();
+}
+
 // =============================================================================
 // STRATEGY BUILDERS
 // =============================================================================
 
-function calculateMaxContracts(maxRisk) {
-    const ACCOUNT_RISK_LIMIT = 57; // 1% of $5,700
-    if (maxRisk <= 0) return 0;
-    return Math.floor(ACCOUNT_RISK_LIMIT / (maxRisk * 100));
-}
+
 
 /** Get delta at or near targetStrike from chain (same type & expiration). Interpolates between strikes for POP-from-breakeven. */
 function getDeltaAtStrike(chain, optionType, expiration, targetStrike) {
@@ -178,7 +214,7 @@ function getDeltaAtStrike(chain, optionType, expiration, targetStrike) {
     return a.delta + t * (b.delta - a.delta);
 }
 
-function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings) {
+function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew) {
     const results = [];
     const widths = [5, 10];
 
@@ -225,14 +261,39 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             const earningsRisk = includesEarnings && daysUntilEarnings <= 10;
             if (earningsRisk) continue;
 
-            // Scoring (v2.2 — EV-enhanced)
-            const ev = calculateExpectedValue(pop, credit, maxRisk);
-            const evRatio = credit > 0 ? ev / credit : 0;
+            // 4. Slippage Modeling (New)
+            // Instead of hard filter > 0.15, we penalize the credit
+            const slippage1 = estimateSlippage(shortLeg.bid, shortLeg.ask);
+            const slippage2 = estimateSlippage(longLeg.bid, longLeg.ask);
+            const totalSlippage = slippage1 + slippage2;
+            const effectiveCredit = credit - totalSlippage; // Real-world fill
+
+            if (effectiveCredit <= 0) continue; // If slippage eats all profit, skip
+
+            const effectiveMaxRisk = width - effectiveCredit;
+            const effectiveROI = (effectiveCredit / effectiveMaxRisk) * 100;
+
+            // Hard filter relaxed from 0.15 to 0.30 to allow wider spreads if EV is good
+            if (spreadPct > 0.30) continue;
+
+            // Scoring (v2.2 — EV-enhanced + Slippage)
+            const ev = calculateExpectedValue(pop, effectiveCredit, effectiveMaxRisk);
+            const evRatio = effectiveCredit > 0 ? ev / effectiveCredit : 0;
             const scoreEV = Math.max(0, Math.min(100, 50 + evRatio * 100));
 
-            const scoreROI = Math.min(roi * 4, 100);
+            const scoreROI = Math.min(effectiveROI * 4, 100);
             const scorePOP = pop * 100;
             const scoreDistance = Math.min(distance * 1000, 100);
+
+            // 5. Gamma Risk (New)
+            const gammaPenalty = getGammaRiskPenalty(shortLeg.gamma, shortLeg.theta, dte);
+
+            // 2. Skew Adjustment (New)
+            let skewBonus = 0;
+            // If Skew is positive (Puts > Calls), Credit Put Spreads are favored
+            if (skew > 0.05 && type === 'Put') skewBonus = 10;
+            // If Skew is negative (Calls > Puts), Credit Call Spreads are favored
+            if (skew < -0.05 && type === 'Call') skewBonus = 10;
 
             let scoreDTE = 50;
             if (dte >= 30 && dte <= 45) scoreDTE = 100;
@@ -240,19 +301,31 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             else if (dte > 45 && dte <= 60) scoreDTE = 80;
             else if (dte < 21) scoreDTE = 20;
 
-            let finalScore = (0.20 * scoreEV) + (0.20 * scoreROI) + (0.20 * scorePOP) + (0.15 * scoreDistance) + (0.25 * scoreDTE);
+            let finalScore = (0.20 * scoreEV) + (0.20 * scoreROI) + (0.20 * scorePOP) + (0.15 * scoreDistance) + (0.25 * scoreDTE) + skewBonus + gammaPenalty;
             if (includesEarnings) finalScore -= 25;
 
-            if (roi < 15) continue;
+            if (effectiveROI < 10) continue; // Lowered ROI floor because we are using net effective ROI now
 
-            const maxContracts = calculateMaxContracts(maxRisk);
+            const maxContracts = calculateMaxContracts(effectiveMaxRisk);
 
             const whyThisParts = [];
             if (ev > 0) whyThisParts.push(`+EV $${ev.toFixed(2)}`);
-            if (roi > 20) whyThisParts.push(`${roi.toFixed(0)}% ROI`);
-            if (ivRvRatio && ivRvRatio > 1.25) whyThisParts.push('High IV Premium (Ref)');
+            if (effectiveROI > 15) whyThisParts.push(`${effectiveROI.toFixed(0)}% ROI (Adj)`);
+            if (ivRvRatio && ivRvRatio > 1.25) whyThisParts.push('High IV Premium');
             if (scoreDTE >= 75) whyThisParts.push('Theta Zone');
-            if (maxContracts > 0) whyThisParts.push(`Max size: ${maxContracts}`);
+            if (skewBonus > 0) whyThisParts.push('Skew Edge');
+            if (gammaPenalty < 0) whyThisParts.push('Gamma Risk');
+
+            const note = generateStrategyNote('CREDIT', {
+                ev,
+                pop: pop * 100,
+                roi: effectiveROI,
+                skewBonus,
+                ivRvRatio,
+                gammaPenalty,
+                slippageImpact: totalSlippage / credit, // % of credit lost to slippage
+                dte
+            });
 
             results.push({
                 type: type === 'Put' ? 'Credit Put Spread' : 'Credit Call Spread',
@@ -270,8 +343,8 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
                 score: Math.min(100, Math.max(0, Math.round(finalScore))),
                 whyThis: whyThisParts.join(', ') || 'Balanced Risk/Reward',
                 recommendation: {
-                    maxContracts,
-                    action: "SELL (Open)"
+                    action: "SELL (Open)",
+                    note
                 }
             });
         }
@@ -314,22 +387,41 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
             const spreadPctVal = (longLeg.ask - longLeg.bid) / mid;
 
             if (debit >= width * 0.55) continue;
-            if (riskReward < 1.5) continue;
-            if (spreadPctVal > 0.15) continue;
+            if (debit >= width * 0.55) continue;
+            // if (riskReward < 1.5) continue; // Relaxed in favor of EV check
+            if (spreadPctVal > 0.30) continue; // Relaxed filter for slippage model
+
+            // 4. Slippage (Debit)
+            const slippage1 = estimateSlippage(longLeg.bid, longLeg.ask);
+            const slippage2 = estimateSlippage(shortLeg.bid, shortLeg.ask);
+            const totalSlippage = slippage1 + slippage2;
+            const effectiveDebit = debit + totalSlippage; // Higher cost
+            const effectiveMaxProfit = width - effectiveDebit;
+
+            if (effectiveDebit >= width * 0.70) continue; // Too expensive after slippage
 
             // Scoring
             const lambda = Math.abs(longLeg.delta) * (currentPrice / mid);
             const compLambda = compressLambda(lambda);
             const deltaBonus = getDeltaBonus(longLeg.delta);
             const pop = Math.abs(longLeg.delta) - 0.05;
-            const expectedValue = (maxProfit * pop) - (maxRisk * (1 - pop));
+            const expectedValue = (effectiveMaxProfit * pop) - (effectiveDebit * (1 - pop));
 
             const lambdaScore = Math.min((compLambda / 20) * 100, 100);
             const rrScore = Math.min((riskReward / 3) * 100, 100);
             const deltaScore = 50 + deltaBonus * 12.5;
 
             const finalScore = (0.4 * lambdaScore) + (0.35 * rrScore) + (0.25 * deltaScore);
-            const maxContracts = calculateMaxContracts(maxRisk);
+            const finalScore = (0.4 * lambdaScore) + (0.35 * rrScore) + (0.25 * deltaScore);
+
+            const note = generateStrategyNote('DEBIT', {
+                ev: expectedValue,
+                pop: pop * 100,
+                lambda,
+                ivRvRatio,
+                slippageImpact: totalSlippage / debit,
+                deltaBonus
+            });
 
             results.push({
                 type: type === 'Call' ? 'Debit Call Spread' : 'Debit Put Spread',
@@ -347,8 +439,8 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
                 score: Math.min(100, Math.max(0, Math.round(finalScore))),
                 whyThis: `R/R ${riskReward.toFixed(1)}:1, λ=${lambda.toFixed(1)}${ivRvRatio && ivRvRatio < 0.85 ? ', Cheap Vol (Ref)' : ''}`,
                 recommendation: {
-                    maxContracts,
-                    action: "BUY (Open)"
+                    action: "BUY (Open)",
+                    note
                 }
             });
         }
@@ -451,7 +543,7 @@ export default async function handler(req, res) {
         // 1. Parallel Fetching
         const [cboeRes, rv30, daysUntilEarnings] = await Promise.all([
             fetch(cboeUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then(r => r.ok ? r.json() : null),
-            fetchRV20(upperTicker),
+            fetchRV30(upperTicker),
             fetchEarnings(upperTicker)
         ]);
 
@@ -468,6 +560,9 @@ export default async function handler(req, res) {
         const iv30 = calculateTargetIV(fullChain, 30, currentPrice);
         const iv90 = calculateTargetIV(fullChain, 90, currentPrice);
 
+        // Calculate Skew (v2.3)
+        const skew = calculateSkew(fullChain, currentPrice, 30);
+
         const regime = detectRegime(iv30, iv90, rv30);
 
         if (iv30 != null) {
@@ -479,7 +574,7 @@ export default async function handler(req, res) {
         const legStrat = isBull ? 'Call' : 'Put';
 
         // 2. Build Strategies (regime uses IV Ratio + IV/RV only; no IV Rank/Percentile)
-        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings);
+        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew);
         const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio);
         const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice);
 
@@ -520,7 +615,8 @@ export default async function handler(req, res) {
             strategies: {
                 CREDIT_SPREAD: creditSpreads,
                 DEBIT_SPREAD: debitSpreads,
-                SINGLE_LEG: singleLegs
+                SINGLE_LEG: singleLegs,
+                _regimeMeta: { skew }
             }
         });
 

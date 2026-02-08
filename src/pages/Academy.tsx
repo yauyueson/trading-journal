@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { BookOpen, Search, Info, Brain, Zap, Clock, Shield, BarChart2, TrendingUp, AlertTriangle } from 'lucide-react';
+import { BookOpen, Search, Info, Brain, Zap, Clock, Shield, BarChart2, TrendingUp, AlertTriangle, Layers, Percent, Divide, Activity } from 'lucide-react';
 
 interface GlossaryItem {
     id: string;
     term: string;
-    category: 'Metric' | 'Concept' | 'Structure';
+    category: 'Metric' | 'Concept' | 'Structure' | 'Greek' | 'Strategy' | 'Risk';
     explanation: string;
     formula?: string;
     whyItMatters: string;
@@ -12,6 +12,7 @@ interface GlossaryItem {
 }
 
 const GLOSSARY: GlossaryItem[] = [
+    // --- METRICS ---
     {
         id: 'oss',
         term: 'OSS (Options Scoring System)',
@@ -25,7 +26,7 @@ const GLOSSARY: GlossaryItem[] = [
         term: 'Lambda (Λ) - 真杠杆率',
         category: 'Metric',
         icon: Zap,
-        formula: 'Lambda = |Delta| × (股价 ÷ 期权价格)',
+        formula: 'Lambda = |Delta| × (Stock Price ÷ Option Price)',
         explanation: '它反映了你的期权头寸“以小博大”的能力。例如 Lambda 为 10，意味着标的股票波动 1%，你的期权头寸大概会波动 10%。',
         whyItMatters: '高 Lambda 意味着资金效率极高，但也意味着价格波动极剧烈。买家通常寻找高 Lambda (8-15) 以获取爆发力。'
     },
@@ -34,7 +35,7 @@ const GLOSSARY: GlossaryItem[] = [
         term: 'Gamma Efficiency - 爆发效率',
         category: 'Metric',
         icon: TrendingUp,
-        formula: 'Γeff = Gamma ÷ 期权价格',
+        formula: 'Γeff = Gamma ÷ Option Price',
         explanation: 'Delta 告诉我们现在能赚多少，Gamma 告诉我们随着股价继续涨，利润加速的速度。Gamma Efficiency 衡量的是每一美金成本能带来的这种“加速潜力”。',
         whyItMatters: '对于寻找快速翻倍机会的交易者来说，这是寻找“快马”的核心指标。'
     },
@@ -43,7 +44,7 @@ const GLOSSARY: GlossaryItem[] = [
         term: 'Theta Burn - 时间损耗率',
         category: 'Metric',
         icon: Clock,
-        formula: 'TB = |Theta| ÷ 期权价格',
+        formula: 'TB = |Theta| ÷ Option Price',
         explanation: '期权每一天都会流失价值。Theta Burn 告诉你每天损耗的价格占你总成本的比例。',
         whyItMatters: '如果你是买家，TB 高于 5% 意味着你每天在亏掉 5% 的本金，必须尽快平仓。如果你是卖家，TB 是你的利润来源。'
     },
@@ -52,66 +53,138 @@ const GLOSSARY: GlossaryItem[] = [
         term: 'IV / RV Ratio - 波动率风险溢价',
         category: 'Metric',
         icon: Shield,
-        formula: 'Ratio = 隐含波动率(IV) ÷ 20日实际波动率(RV)',
-        explanation: '隐含波动率(IV)是市场对未来的“恐惧度”，实际波动率(RV)是过去20天的“真实波幅”。如果比率 > 1.25，说明市场过度恐慌，期权被卖贵了。',
-        whyItMatters: '这是期权卖家（Sell Side）的生存之本。利用市场的虚高恐惧赚取多出来的保费。'
-    },
-    {
-        id: 'iv-ratio',
-        term: 'IV Ratio (30d/90d) - 时间结构',
-        category: 'Structure',
-        icon: BarChart2,
-        formula: 'Ratio = 30天IV ÷ 90天IV',
-        explanation: '比较短期风险和长期风险的差异。它可以判断当前的恐慌是暂时的尖峰，还是长期的看空。',
-        whyItMatters: '帮助你决定买近期的还是远期的。如果近期极贵 (Ratio > 1.1)，适合卖出近期收保费。'
-    },
-    {
-        id: 'backwardation',
-        term: 'Backwardation (倒挂)',
-        category: 'Concept',
-        icon: AlertTriangle,
-        explanation: '一种异常的市场状态，短期 IV 显著高于长期 IV (IV Ratio > 1.0)。这通常发生在暴跌或重大利空传闻时。',
-        whyItMatters: '这是卖家的黄金期。短期期权由于恐慌被定价极高，时间损耗极快。'
-    },
-    {
-        id: 'contango (正向市场)',
-        term: 'Contango (正向)',
-        category: 'Concept',
-        icon: TrendingUp,
-        explanation: '市场的常态。远期由于不确定性更大，比近期贵 (IV Ratio < 1.0)。',
-        whyItMatters: '对买家友好。时间流逝在远端比较慢，可以进行中长线布局。'
+        formula: 'Ratio = Implied Volatility (IV) ÷ Realized Volatility (RV)',
+        explanation: '隐含波动率(IV)是市场对未来的“恐惧度”，实际波动率(RV)是过去30天的“真实波幅”。',
+        whyItMatters: 'Ratio > 1.25 说明期权被恐惧情绪推高，适合卖出（做空波动率）。Ratio < 1.0 说明期权便宜，适合买入（做多波动率）。'
     },
     {
         id: 'pop',
         term: 'POP (Probability of Profit)',
         category: 'Metric',
         icon: Shield,
-        formula: 'POP ≈ 1 - |Delta|',
+        formula: 'POP ≈ 1 - |Delta| (for OTM options)',
         explanation: '赚钱的概率。如果一个看跌期权的 Delta 是 -0.20，意味着它到期变废纸的概率约 80%，如果你是卖出它，你的胜率就是 80%。',
-        whyItMatters: '核心胜率指标。卖家追求高 POP，买家则在牺牲 POP 换取高 Lambda（以小博大）。'
+        whyItMatters: '核心胜率指标。卖家追求高 POP (>65%)，买家则在牺牲 POP 换取高 Lambda（以小博大）。'
     },
     {
         id: 'seller-edge',
-        term: 'Seller\'s Edge - 期望值',
+        term: 'Seller\'s Edge - 期望值 (EV)',
         category: 'Metric',
         icon: Brain,
-        formula: 'Expected Value = POP × 权利金 - (1-POP) × 最大损失',
-        explanation: '综合胜率和收益，算出你每做一比交易理论上能赚多少钱。',
-        whyItMatters: '职业玩家的标尺。只要 Edge 为正，长期重复交易必胜。'
+        formula: 'EV = (POP × Credit) - ((1-POP) × Max Loss)',
+        explanation: '综合胜率和收益，算出你每做一笔交易理论上能赚多少钱。',
+        whyItMatters: '职业玩家的标尺。只要 EV 为正，长期重复交易必胜。'
+    },
+
+    // --- GREEKS ---
+    {
+        id: 'delta',
+        term: 'Delta (Δ) - 方向敏感度',
+        category: 'Greek',
+        icon: Activity,
+        formula: 'Δ = ∂Price / ∂Underlying',
+        explanation: '衡量期权价格对股票价格变动的敏感度。它也是期权到期即实值 (ITM) 的近似概率。',
+        whyItMatters: 'Delta 就是你的持仓股数。Delta 0.50 意味着你的风险敞口相当于持有 50 股正股。'
     },
     {
-        id: 'theta-pain',
-        term: 'Theta Pain Curve - 惩罚机制',
-        category: 'Concept',
+        id: 'gamma',
+        term: 'Gamma (Γ) - 加速度',
+        category: 'Greek',
+        icon: Zap,
+        formula: 'Γ = ∂Delta / ∂Underlying',
+        explanation: '衡量 Delta 变化的快慢。Gamma 越高，Delta 变化越快，盈亏波动越剧烈。',
+        whyItMatters: 'Gamma 是卖家的敌人（因为一旦出错亏损会加速扩大），是买家的朋友（因为做对了利润会加速增长）。'
+    },
+    {
+        id: 'theta',
+        term: 'Theta (Θ) - 时间衰减',
+        category: 'Greek',
+        icon: Clock,
+        formula: 'Θ = ∂Price / ∂Time',
+        explanation: '期权每过一天损失的价值。通常是负数。',
+        whyItMatters: '时间是期权买家的敌人，卖家的朋友。最后 30 天的时间衰减会呈指数级加速。'
+    },
+    {
+        id: 'vega',
+        term: 'Vega (ν) - 波动率敏感度',
+        category: 'Greek',
+        icon: BarChart2,
+        formula: 'ν = ∂Price / ∂Volatility',
+        explanation: '衡量期权价格对隐含波动率 (IV) 变化的敏感度。',
+        whyItMatters: '如果 Vega 是 0.10，意味着 IV 每涨 1%，期权价格涨 $0.10。长久期期权 Vega 最大。'
+    },
+
+    // --- CONCEPTS ---
+    {
+        id: 'iv-rank',
+        term: 'IV Rank - 波动率排位',
+        category: 'Metric',
+        icon: BarChart2,
+        formula: 'IV Rank = (Current IV - Low IV) ÷ (High IV - Low IV)',
+        explanation: '告诉你当前的 IV 在过去一年中处于什么水平。IV 50% 对特斯拉算低，对可口可乐算高，IV Rank 标准化了这种差异。',
+        whyItMatters: '卖方应该在 IV Rank 高 (>50) 时入场，买方应该在 IV Rank 低 (<20) 时入场。'
+    },
+    {
+        id: 'skew',
+        term: 'Volatility Skew - 波动率偏度',
+        category: 'Metric',
+        icon: Divide,
+        formula: 'Skew = IV(Put) - IV(Call)',
+        explanation: '衡量虚值 Put 和虚值 Call 的贵贱差异。通常 Put 更贵（Smirk），因为市场更害怕暴跌。',
+        whyItMatters: '顺势而为。如果 Skew 很高，说明 Put 极贵，此时构建 Bull Put Spread (卖Put) 胜率和赔率更佳。'
+    },
+    {
+        id: 'backwardation',
+        term: 'Backwardation (倒挂)',
+        category: 'Structure',
         icon: AlertTriangle,
-        explanation: '算法内部的一个调节器。当期权距离到期太近（如 3-5 天），时间损耗会呈指数级加速，此时算法会给出巨额减分。',
-        whyItMatters: '防止新手因为便宜而购买末日期权，这些期权看似便宜实则每天损耗巨大。'
+        explanation: '一种异常的市场状态，短期 IV 显著高于长期 IV (IV Ratio > 1.0)。这通常发生在暴跌或重大利空传闻时。',
+        whyItMatters: '卖家的黄金期。短期期权由于恐慌被定价极高，时间损耗极快。'
+    },
+    {
+        id: 'contango',
+        term: 'Contango (正向)',
+        category: 'Structure',
+        icon: TrendingUp,
+        explanation: '市场的常态。远期不确定性更大，比近期贵 (IV Ratio < 1.0)。',
+        whyItMatters: '对买家友好。时间流逝在远端比较慢，适合中长线布局。'
+    },
+
+    // --- STRATEGIES ---
+    {
+        id: 'credit-spread',
+        term: 'Credit Spread - 信用价差',
+        category: 'Strategy',
+        icon: Layers,
+        formula: 'Profit = Credit Received',
+        explanation: '卖出一个昂贵的期权，买入一个便宜的期权保护。你预先收到权利金 (Credit)。',
+        whyItMatters: '高胜率策略。你的盈利不依赖股价大涨，只要股价“不跌破”或“不涨破”某个点位，你就能赢。利用时间 (Theta) 和波动率下降 (Vega) 获利。'
+    },
+    {
+        id: 'debit-spread',
+        term: 'Debit Spread - 借方价差',
+        category: 'Strategy',
+        icon: Layers,
+        formula: 'Max Profit = Width - Debit',
+        explanation: '买入一个昂贵的期权，卖出一个便宜的期权降低成本。你预先支付权利金 (Debit)。',
+        whyItMatters: '比单纯买 Call/Put 更稳健。虽然限制了最大利润，但大幅降低了成本和盈亏平衡点，提高了胜率。'
+    },
+    {
+        id: 'kelly',
+        term: 'Kelly Criterion - 凯利公式',
+        category: 'Strategy',
+        icon: Percent,
+        formula: 'f* = (p(b+1) - 1) ÷ b',
+        explanation: '资金管理的圣杯。根据胜率 (p) 和赔率 (b) 计算出最佳仓位比例，以最大化长期复利增长。',
+        whyItMatters: '很多交易员死于重仓。凯利公式告诉你：即使你有 99% 的胜率，如果在这一次梭哈，你最终破产的概率也是 100%。通常使用 "Half-Kelly" 来控制风险。'
     }
 ];
 
 export const Academy: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+    const categories = ['Metric', 'Greek', 'Strategy', 'Concept', 'Structure'];
 
     const filteredGlossary = GLOSSARY.filter(item => {
         const matchesSearch = item.term.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -143,14 +216,14 @@ export const Academy: React.FC = () => {
                     />
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
                 </div>
-                <div className="flex gap-2">
-                    {['Metric', 'Concept', 'Structure'].map(cat => (
+                <div className="flex gap-2 flex-wrap">
+                    {categories.map(cat => (
                         <button
                             key={cat}
                             onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                            className={`px-6 py-2 rounded-xl text-sm font-bold border transition-all ${selectedCategory === cat
-                                    ? 'bg-accent-green text-black border-accent-green'
-                                    : 'bg-[#1C1C1E] text-gray-400 border-[#2A2A2A] hover:border-gray-600'
+                            className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${selectedCategory === cat
+                                ? 'bg-accent-green text-black border-accent-green'
+                                : 'bg-[#1C1C1E] text-gray-400 border-[#2A2A2A] hover:border-gray-600'
                                 }`}
                         >
                             {cat}
@@ -178,8 +251,10 @@ export const Academy: React.FC = () => {
                                     <div className="flex flex-wrap items-center gap-3 mb-2">
                                         <h3 className="text-xl font-bold text-white tracking-wide">{item.term}</h3>
                                         <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded border ${item.category === 'Metric' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
-                                                item.category === 'Concept' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
-                                                    'bg-orange-500/10 text-orange-400 border-orange-500/30'
+                                                item.category === 'Greek' ? 'bg-pink-500/10 text-pink-400 border-pink-500/30' :
+                                                    item.category === 'Strategy' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                                                        item.category === 'Concept' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
+                                                            'bg-orange-500/10 text-orange-400 border-orange-500/30'
                                             }`}>
                                             {item.category}
                                         </span>
@@ -190,7 +265,7 @@ export const Academy: React.FC = () => {
                                     </p>
 
                                     {item.formula && (
-                                        <div className="bg-black/40 rounded-xl p-4 mb-4 border border-white/5 font-mono text-sm">
+                                        <div className="bg-black/40 rounded-xl p-4 mb-4 border border-white/5 font-mono text-sm group-hover:border-accent-green/20 transition-colors">
                                             <div className="text-gray-500 text-[10px] uppercase font-bold mb-1 tracking-widest">Formula</div>
                                             <div className="text-accent-green font-bold text-base">{item.formula}</div>
                                         </div>
