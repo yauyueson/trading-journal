@@ -1,5 +1,5 @@
 /**
- * Options Scoring System (OSS) v2.1
+ * Options Scoring System (OSS) v2.2
  * ═══════════════════════════════════════════════════════════════
  * Re-exports core algorithms from oss-core.ts and provides
  * higher-level batch scoring + IV term structure analysis.
@@ -26,9 +26,13 @@ export {
     calculateLambda,
     calculateGammaEfficiency,
     calculateThetaBurn,
+    calculateGammaThetaRatio,
+    calculateBreakevenMove,
+    getBreakevenPenalty,
     getThetaPenalty,
     calculatePOP,
     calculateSellerEdge,
+    calculateExpectedValue,
     calculateSpreadPct,
 
     // Delta Bonus (LERP v2.1)
@@ -65,6 +69,9 @@ import {
     calculateLambda as _calculateLambda,
     calculateGammaEfficiency as _calculateGammaEfficiency,
     calculateThetaBurn as _calculateThetaBurn,
+    calculateGammaThetaRatio as _calculateGammaThetaRatio,
+    calculateBreakevenMove as _calculateBreakevenMove,
+    getBreakevenPenalty as _getBreakevenPenalty,
     calculatePOP as _calculatePOP,
     calculateSellerEdge as _calculateSellerEdge,
     calculateSpreadPct as _calculateSpreadPct,
@@ -102,6 +109,8 @@ export interface RawMetrics {
     lambda: number;
     gammaEfficiency: number;
     thetaBurn: number;
+    gammaThetaRatio: number;
+    breakevenMove: number;
 }
 
 export interface SellerMetrics {
@@ -207,6 +216,8 @@ export interface ScoredResult {
         lambda?: number;
         gammaEff?: number;
         thetaBurn?: number;
+        gammaThetaRatio?: number;
+        breakevenMove?: number;
         pop?: number;
         edge?: number;
         spreadPct: number;
@@ -241,6 +252,8 @@ interface ProcessedLong extends ProcessedBase {
     lambda: number;
     gammaEff: number;
     thetaBurn: number;
+    gammaThetaRatio: number;
+    breakevenMove: number;
 }
 
 interface ProcessedShort extends ProcessedBase {
@@ -314,6 +327,8 @@ export function scoreOptionsChain(
                 lambda: _calculateLambda(opt.delta, currentPrice, mid),
                 gammaEff: _calculateGammaEfficiency(opt.gamma, mid),
                 thetaBurn: _calculateThetaBurn(opt.theta, mid),
+                gammaThetaRatio: _calculateGammaThetaRatio(opt.gamma, opt.theta),
+                breakevenMove: _calculateBreakevenMove(mid, opt.delta, currentPrice),
             });
         } else {
             const pop = _calculatePOP(opt.delta);
@@ -350,16 +365,19 @@ export function scoreOptionsChain(
         const compressedLambdas = longItems.map(p => _compressLambda(p.lambda));
         const gammas = longItems.map(p => p.gammaEff);
         const thetas = longItems.map(p => p.thetaBurn);
+        const gtRatios = longItems.map(p => p.gammaThetaRatio);
 
         const zLambdas = _normalizeToZScores(compressedLambdas);
         const zGammas = _normalizeToZScores(gammas);
         const zThetas = _normalizeToZScores(thetas);
+        const zGTRatios = _normalizeToZScores(gtRatios);
 
         scored = longItems.map((p, i) => {
             const deltaBonus = _getDeltaBonus(p.opt.delta);
+            const bePenalty = _getBreakevenPenalty(p.breakevenMove, p.opt.dte);
             const rawScore = _calculateLOQRaw(
                 zLambdas[i], zGammas[i], zThetas[i],
-                ivAdjustment, deltaBonus, p.thetaBurn, isDayTrade
+                ivAdjustment, deltaBonus, p.thetaBurn, isDayTrade, zGTRatios[i], bePenalty
             );
             const score = _normalizeScoreTo100(rawScore);
 
@@ -375,6 +393,8 @@ export function scoreOptionsChain(
                     lambda: p.lambda,
                     gammaEff: p.gammaEff,
                     thetaBurn: p.thetaBurn,
+                    gammaThetaRatio: p.gammaThetaRatio,
+                    breakevenMove: p.breakevenMove,
                     spreadPct: p.spreadPct
                 },
                 greeks: {

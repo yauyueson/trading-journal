@@ -390,13 +390,25 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                 <div>
                                     <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center justify-end gap-1">
                                         IV/RV Ratio
-                                        <Tooltip label="" explanation="Volatility Risk Premium (IV30 / RV20). > 1.25 = Seller's Edge (Options overpriced). < 0.85 = Buyer's Territory (Options cheap relative to move)." />
+                                        <Tooltip label="" explanation="Volatility Risk Premium (IV30 / RV30). > 1.25 = Seller's Edge (Options overpriced). < 0.85 = Buyer's Territory (Options cheap relative to move)." />
                                     </div>
                                     <div className={`text-3xl font-mono font-bold mb-1 ${(result.regime.ivRvRatio ?? 0) > 1.2 ? 'text-accent-green' : (result.regime.ivRvRatio ?? 0) < 0.8 ? 'text-blue-400' : 'text-white'}`}>
                                         {result.regime.ivRvRatio?.toFixed(3) ?? 'N/A'}
                                     </div>
                                     <div className="text-[10px] text-gray-500 font-mono">
-                                        IV: {result.regime.iv30}% | RV20: {result.regime.rv30 ?? 'N/A'}%
+                                        IV: {result.regime.iv30}% | RV30: {result.regime.rv30 ?? 'N/A'}%
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center justify-end gap-1">
+                                        IV Rank
+                                        <Tooltip label="" explanation="Current IV vs 1-Year Range. Low (<20) = Buy Options. High (>50) = Sell Options." />
+                                    </div>
+                                    <div className={`text-3xl font-mono font-bold mb-1 ${(result.regime.rvPercentile ?? 0) > 50 ? 'text-accent-green' : (result.regime.rvPercentile ?? 0) < 20 ? 'text-blue-400' : 'text-white'}`}>
+                                        {result.regime.rvPercentile ?? 'N/A'}
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 font-mono">
+                                        Percentile
                                     </div>
                                 </div>
                             </div>
