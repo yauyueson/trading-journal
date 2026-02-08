@@ -22,7 +22,6 @@ function sendJson(res, status, obj) {
 export default async function handler(req, res) {
   if (!res || typeof res.writeHead !== 'function') return;
 
-  try {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
