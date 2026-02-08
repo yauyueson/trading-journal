@@ -2,16 +2,52 @@
  * 定时检查：Active 持仓是否触及止损或目标价，触及则发 Discord 提醒。
  * 由 Vercel Cron 或外部 Cron 定期调用（如每 15 分钟）。
  *
- * 环境变量：
- *   CRON_SECRET          - 鉴权密钥，与请求 ?secret= 一致
- *   DISCORD_WEBHOOK_URL  - Discord Webhook URL
- *   SUPABASE_URL / VITE_SUPABASE_URL
- *   SUPABASE_ANON_KEY / VITE_SUPABASE_ANON_KEY
- *   VERCEL_URL           - 部署域名，用于内调 option-price（Vercel 自动注入）
+ * 直接调用 CBOE 延迟行情 API 获取当前价，不再自引用 /api/option-price。
  *
- * 不使用 @supabase/supabase-js SDK，直接调 Supabase REST API (PostgREST)
- * 以避免 Vercel serverless function 的 ESM import 兼容性问题。
+ * 环境变量：
+ *   CRON_SECRET, DISCORD_WEBHOOK_URL, SUPABASE_URL, SUPABASE_ANON_KEY
  */
+
+/** Generate OCC symbol for CBOE lookup. */
+function generateOCCSymbol(symbol, expiration, type, strike) {
+  try {
+    const paddedSymbol = symbol.toUpperCase().padEnd(6, ' ');
+    const parts = expiration.split('-');
+    if (parts.length !== 3) return null;
+    const dateStr = parts[0].slice(2) + parts[1].padStart(2, '0') + parts[2].padStart(2, '0');
+    const typeCode = (type.toLowerCase().includes('call') || type.toLowerCase() === 'c') ? 'C' : 'P';
+    const strikeStr = Math.round(parseFloat(strike) * 1000).toString().padStart(8, '0');
+    return paddedSymbol + dateStr + typeCode + strikeStr;
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Find an option's mid price from a CBOE options array. Returns number | null. */
+function findOptionPrice(options, ticker, expiration, strike, type) {
+  if (!options || !expiration || strike == null) return null;
+  const occ = generateOCCSymbol(ticker, expiration, type || 'Call', strike);
+  if (!occ) return null;
+  const cboeSymbol = occ.replace(/\s/g, '');
+
+  let match = options.find(o => o.option === cboeSymbol);
+
+  if (!match) {
+    const expDateStr = expiration.replace(/-/g, '').slice(2);
+    const typeCode = (type || 'Call').toLowerCase().includes('call') ? 'C' : 'P';
+    const strikeStr = Math.round(parseFloat(strike) * 1000).toString().padStart(8, '0');
+    match = options.find(o => {
+      if (!o.option) return false;
+      const sym = o.option.replace(/\s/g, '');
+      return sym.includes(expDateStr) && sym.charAt(12) === typeCode && sym.endsWith(strikeStr);
+    });
+  }
+
+  if (!match) return null;
+  if (match.bid > 0 && match.ask > 0) return (match.bid + match.ask) / 2;
+  if (match.last_trade_price > 0) return match.last_trade_price;
+  return null;
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,7 +62,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // 1. 鉴权：仅允许带正确 secret 的调用（Cron 或你自己）
   const secret = req.query.secret || req.headers['authorization']?.replace('Bearer ', '');
   const expectedSecret = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
   if (!expectedSecret || secret !== expectedSecret) {
@@ -44,11 +79,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Supabase env not set' });
   }
 
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : process.env.BASE_URL || 'http://localhost:3000';
-
-  // Helper: call Supabase REST API directly via fetch
   async function supabaseQuery(table, queryParams = '') {
     const url = `${supabaseUrl}/rest/v1/${table}${queryParams ? '?' + queryParams : ''}`;
     const resp = await fetch(url, {
@@ -66,14 +96,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 2. 拉取所有 Active 持仓
     const positions = await supabaseQuery('positions', 'status=eq.active&select=*');
 
     if (!positions || positions.length === 0) {
       return res.status(200).json({ ok: true, message: 'No active positions', sent: 0 });
     }
 
-    // 3. 拉取所有 transactions（用于算入场价、是否部分止盈）
     const transactions = await supabaseQuery('transactions', 'select=*');
 
     const txnsByPos = (transactions || []).reduce((acc, t) => {
@@ -82,10 +110,28 @@ export default async function handler(req, res) {
       return acc;
     }, {});
 
+    // Fetch CBOE chains once per unique ticker
+    const uniqueTickers = [...new Set(positions.map(p => (p.ticker || '').toUpperCase()).filter(Boolean))];
+    const cboeChains = {};
+    await Promise.all(uniqueTickers.map(async (ticker) => {
+      try {
+        const resp = await fetch(
+          'https://cdn.cboe.com/api/global/delayed_quotes/options/' + ticker + '.json',
+          { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }
+        );
+        if (resp.ok) {
+          const data = await resp.json();
+          cboeChains[ticker] = (data && data.data && data.data.options) || [];
+        }
+      } catch (e) {
+        console.warn('CBOE fetch failed for', ticker, e.message);
+      }
+    }));
+
     let sent = 0;
 
     for (const pos of positions) {
-      // 仅处理单腿仓位（价差后续可扩展）
+      // Skip multi-leg for now (alerts for spreads can be added later)
       const legs = pos.legs || [];
       if (legs.length >= 2) continue;
 
@@ -95,31 +141,22 @@ export default async function handler(req, res) {
       if (!entryPrice) continue;
 
       const hasTakenProfit = posTxns.some(t => t.type === 'Take Profit');
-      const isCreditStrategy = legs.length >= 2; // 单腿视为 debit
+      const isCreditStrategy = legs.length >= 2;
       const calculatedStopLoss = isCreditStrategy
         ? entryPrice * 1.5
         : (hasTakenProfit ? entryPrice * 0.75 : entryPrice * 0.5);
       const currentStopLoss = pos.stop_price ?? calculatedStopLoss;
-
       const targetPrice = pos.target_price || (isCreditStrategy ? entryPrice * 0.5 : entryPrice * 1.25);
 
-      // 4. 获取当前价（调用自己的 option-price API）
-      const optionPriceUrl = `${baseUrl}/api/option-price?ticker=${encodeURIComponent(pos.ticker)}&expiration=${encodeURIComponent(pos.expiration)}&strike=${pos.strike}&type=${encodeURIComponent(pos.type || 'Call')}`;
-      let currentPrice = null;
-      try {
-        const priceRes = await fetch(optionPriceUrl);
-        if (priceRes.ok) {
-          const priceData = await priceRes.json();
-          currentPrice = priceData.price ?? priceData.mid ?? null;
-        }
-      } catch (e) {
-        console.warn('option-price fetch failed for', pos.ticker, pos.strike, e.message);
-        continue;
-      }
+      // Look up current price from cached CBOE chain
+      const ticker = (pos.ticker || '').toUpperCase();
+      const chain = cboeChains[ticker] || [];
+      const expStr = typeof pos.expiration === 'string' ? pos.expiration.slice(0, 10) : '';
+      const currentPrice = findOptionPrice(chain, ticker, expStr, pos.strike, pos.type || 'Call');
 
       if (currentPrice == null) continue;
 
-      let triggered = null; // 'stop' | 'target'
+      let triggered = null;
 
       if (isCreditStrategy) {
         if (currentPrice >= currentStopLoss) triggered = 'stop';
@@ -131,20 +168,18 @@ export default async function handler(req, res) {
 
       if (!triggered) continue;
 
-      // 5. 发 Discord
-      const ticker = pos.ticker || '';
       const strike = pos.strike || '';
       const type = (pos.type || 'Call').toUpperCase().slice(0, 1);
-      const title = triggered === 'stop' ? '🛑 触及止损' : '🎯 触及目标价';
+      const title = triggered === 'stop' ? '🛑 Stop Hit' : '🎯 Target Hit';
       const color = triggered === 'stop' ? 0xef4444 : 0x22c55e;
-      const level = triggered === 'stop' ? '止损' : '目标';
+      const level = triggered === 'stop' ? 'stop' : 'target';
       const levelPrice = triggered === 'stop' ? currentStopLoss : targetPrice;
 
       const body = {
         content: null,
         embeds: [{
           title,
-          description: `${ticker} ${strike}${type} · 当前价 **$${Number(currentPrice).toFixed(2)}** 已触及${level} **$${Number(levelPrice).toFixed(2)}**`,
+          description: `${ticker} ${strike}${type} · Current **$${Number(currentPrice).toFixed(2)}** hit ${level} **$${Number(levelPrice).toFixed(2)}**`,
           color,
           footer: { text: 'Trading Journal' },
           timestamp: new Date().toISOString(),
