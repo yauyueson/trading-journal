@@ -171,7 +171,9 @@ export default async function handler(req, res) {
       const targetPrice = pos.target_price || (isCreditStrategy ? entryPrice * 0.5 : entryPrice * 1.25);
 
       let currentPrice = null;
-      const expStr = pos.expiration ? (typeof pos.expiration === 'string' ? pos.expiration : pos.expiration.toISOString?.()?.slice(0, 10) : '') : '';
+      const expStr = typeof pos.expiration === 'string'
+        ? pos.expiration.slice(0, 10)
+        : (pos.expiration?.toISOString?.()?.slice(0, 10) || '');
       if (pos.ticker && expStr && pos.strike != null) {
         try {
           const optionPriceUrl = `${baseUrl}/api/option-price?ticker=${encodeURIComponent(pos.ticker)}&expiration=${encodeURIComponent(expStr)}&strike=${pos.strike}&type=${encodeURIComponent(pos.type || 'Call')}`;
