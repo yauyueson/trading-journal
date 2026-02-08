@@ -441,6 +441,97 @@ const parseChain = (options, currentPrice, targetDTE = null) => {
 };
 
 // ────────────────────────────────────────────────────────────────
+// Unified Cross-Strategy Scoring
+// ────────────────────────────────────────────────────────────────
+
+/** Map EV/Risk ratio to 0-100 using fixed anchors (not pool-relative). */
+const normalizeEVRisk = (evRiskRatio) => {
+    // EV/Risk typically ranges from -0.5 (bad) to +0.5 (excellent)
+    const clamped = Math.max(-0.5, Math.min(0.5, evRiskRatio));
+    return (clamped + 0.5) * 100;
+};
+
+/** Liquidity score: 70% bid-ask tightness + 30% volume/OI. Returns 0-100. */
+const calculateLiquidityScore = (bid, ask, volume, openInterest) => {
+    const mid = (bid + ask) / 2;
+    if (mid <= 0) return 0;
+    const spreadPct = (ask - bid) / mid;
+    const spreadScore = Math.max(0, Math.min(100, 100 - spreadPct * 500));
+    const volumeBonus = Math.min(50, (volume || 0) / 20);
+    const oiBonus = Math.min(50, (openInterest || 0) / 100);
+    const liqBonus = (volumeBonus + oiBonus) / 2;
+    return 0.7 * spreadScore + 0.3 * liqBonus;
+};
+
+/** Regime alignment bonus. Returns raw 0-20. */
+const calculateRegimeBonus = (strategyCategory, regimeMode, ivRvRatio) => {
+    let bonus = 0;
+    if (regimeMode === 'CREDIT') {
+        if (strategyCategory === 'CREDIT_SPREAD') bonus += 15;
+    } else if (regimeMode === 'DEBIT') {
+        if (strategyCategory === 'DEBIT_SPREAD') bonus += 10;
+        if (strategyCategory === 'SINGLE_LEG') bonus += 10;
+    }
+    if (ivRvRatio != null) {
+        if (ivRvRatio > 1.2 && strategyCategory === 'CREDIT_SPREAD') bonus += 5;
+        if (ivRvRatio < 0.85 && (strategyCategory === 'DEBIT_SPREAD' || strategyCategory === 'SINGLE_LEG')) bonus += 5;
+    }
+    return bonus;
+};
+
+/**
+ * Unified cross-strategy score. Comparable across Credit Spread, Debit Spread, and Long Option.
+ * Uses EV/Risk (40%), POP (20%), Regime alignment (25%), Liquidity (15%).
+ */
+const calculateUnifiedScore = (candidate, strategyCategory, regimeMode, ivRvRatio) => {
+    let evRiskRatio, pop, liqScore;
+
+    if (strategyCategory === 'CREDIT_SPREAD') {
+        const maxRisk = candidate.maxRisk;
+        const ev = candidate.expectedValue;
+        evRiskRatio = maxRisk > 0 ? ev / maxRisk : 0;
+        pop = (candidate.pop || 0) / 100;
+        const sVol = (candidate.shortLeg?.volume || 0) + (candidate.longLeg?.volume || 0);
+        const sOI = (candidate.shortLeg?.openInterest || 0) + (candidate.longLeg?.openInterest || 0);
+        const sBid = candidate.shortLeg?.price || 0;
+        const sAsk = candidate.shortLeg?.price || 0;
+        liqScore = calculateLiquidityScore(sBid, sAsk, sVol, sOI);
+    } else if (strategyCategory === 'DEBIT_SPREAD') {
+        const maxRisk = candidate.maxRisk;
+        const ev = candidate.expectedValue;
+        evRiskRatio = maxRisk > 0 ? ev / maxRisk : 0;
+        pop = (candidate.pop || 0) / 100;
+        const sVol = (candidate.shortLeg?.volume || 0) + (candidate.longLeg?.volume || 0);
+        const sOI = (candidate.shortLeg?.openInterest || 0) + (candidate.longLeg?.openInterest || 0);
+        const lBid = candidate.longLeg?.price || 0;
+        const lAsk = candidate.longLeg?.price || 0;
+        liqScore = calculateLiquidityScore(lBid, lAsk, sVol, sOI);
+    } else {
+        // SINGLE_LEG: compute EV with maxProfit capped at 2x premium
+        const price = candidate.price;
+        const maxRisk = price;
+        const maxProfitCapped = 2 * price;
+        const popRaw = Math.abs(candidate.delta) - 0.05;
+        pop = Math.max(0, Math.min(1, popRaw));
+        const ev = (pop * maxProfitCapped) - ((1 - pop) * maxRisk);
+        evRiskRatio = maxRisk > 0 ? ev / maxRisk : 0;
+        liqScore = calculateLiquidityScore(
+            candidate.bid || 0, candidate.ask || 0,
+            candidate.volume || 0, candidate.openInterest || 0
+        );
+    }
+
+    const normEVRisk = normalizeEVRisk(evRiskRatio);
+    const normPOP = Math.max(0, Math.min(100, pop * 100));
+    const regimeBonus = calculateRegimeBonus(strategyCategory, regimeMode, ivRvRatio);
+    const normRegime = Math.min(100, regimeBonus * 5);
+    const normLiquidity = Math.max(0, Math.min(100, liqScore));
+
+    const raw = (0.40 * normEVRisk) + (0.20 * normPOP) + (0.25 * normRegime) + (0.15 * normLiquidity);
+    return Math.max(0, Math.min(100, Math.round(raw)));
+};
+
+// ────────────────────────────────────────────────────────────────
 // Exports
 // ────────────────────────────────────────────────────────────────
 
@@ -472,5 +563,9 @@ module.exports = {
     CSQ_WEIGHTS,
     calculateSkew,
     estimateSlippage,
-    getGammaRiskPenalty
+    getGammaRiskPenalty,
+    normalizeEVRisk,
+    calculateLiquidityScore,
+    calculateRegimeBonus,
+    calculateUnifiedScore
 };

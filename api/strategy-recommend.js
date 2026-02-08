@@ -7,7 +7,8 @@
 let compressLambda, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
     calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, getIVRiskFactor,
     calculateLOQRaw, normalizeScoreTo100, normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct,
-    getCleanATM_IV, calculateTargetIV, parseChain, calculateSkew, estimateSlippage, getGammaRiskPenalty;
+    getCleanATM_IV, calculateTargetIV, parseChain, calculateSkew, estimateSlippage, getGammaRiskPenalty,
+    calculateUnifiedScore;
 let saveTickerIVSnapshot;
 let _scoringLoaded = false;
 
@@ -38,6 +39,7 @@ async function ensureScoring() {
     calculateSkew = scoring.calculateSkew;
     estimateSlippage = scoring.estimateSlippage;
     getGammaRiskPenalty = scoring.getGammaRiskPenalty;
+    calculateUnifiedScore = scoring.calculateUnifiedScore;
     try {
         const ivUrl = new URL('./_shared/ivHistory.cjs', import.meta.url).href;
         const ivMod = await import(ivUrl);
@@ -513,6 +515,8 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
             thetaBurn: p.thetaBurn,
             volume: p.opt.volume,
             openInterest: p.opt.openInterest,
+            bid: p.opt.bid,
+            ask: p.opt.ask,
             score,
             whyThis,
             recommendation: { action: 'BUY (Open)', note }
@@ -585,20 +589,48 @@ export default async function handler(req, res) {
         const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio);
         const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice);
 
-        let recommendedStrategy = 'CREDIT_SPREAD';
-
-        // 3. Strategy Selection based on Regime & Scores
-        if (regime.mode === 'DEBIT') {
-            recommendedStrategy = 'DEBIT_SPREAD';
-        } else if (regime.mode === 'NEUTRAL') {
-            const topCredit = creditSpreads[0]?.score || 0;
-            const topDebit = debitSpreads[0]?.score || 0;
-            if (topDebit > topCredit) recommendedStrategy = 'DEBIT_SPREAD';
+        // 3. Unified Cross-Strategy Scoring — Top Picks
+        const topPicks = [];
+        for (const rec of creditSpreads) {
+            topPicks.push({
+                ...rec,
+                strategyCategory: 'CREDIT_SPREAD',
+                unifiedScore: calculateUnifiedScore(rec, 'CREDIT_SPREAD', regime.mode, regime.ivRvRatio),
+            });
         }
+        for (const rec of debitSpreads) {
+            topPicks.push({
+                ...rec,
+                strategyCategory: 'DEBIT_SPREAD',
+                unifiedScore: calculateUnifiedScore(rec, 'DEBIT_SPREAD', regime.mode, regime.ivRvRatio),
+            });
+        }
+        for (const rec of singleLegs) {
+            topPicks.push({
+                ...rec,
+                strategyCategory: 'SINGLE_LEG',
+                unifiedScore: calculateUnifiedScore(rec, 'SINGLE_LEG', regime.mode, regime.ivRvRatio),
+            });
+        }
+        topPicks.sort((a, b) => b.unifiedScore - a.unifiedScore);
 
-        if (recommendedStrategy === 'CREDIT_SPREAD' && creditSpreads.length === 0) recommendedStrategy = 'DEBIT_SPREAD';
-        if (recommendedStrategy === 'DEBIT_SPREAD' && debitSpreads.length === 0) recommendedStrategy = 'SINGLE_LEG';
-        if (recommendedStrategy === 'SINGLE_LEG' && singleLegs.length === 0 && creditSpreads.length > 0) recommendedStrategy = 'CREDIT_SPREAD';
+        // 4. Strategy Selection — driven by unified score (replaces flawed cross-score comparison)
+        let recommendedStrategy = 'CREDIT_SPREAD';
+        if (topPicks.length > 0) {
+            recommendedStrategy = topPicks[0].strategyCategory;
+        } else if (regime.mode === 'DEBIT') {
+            recommendedStrategy = 'DEBIT_SPREAD';
+        }
+        // Safety fallbacks for empty arrays
+        if (recommendedStrategy === 'CREDIT_SPREAD' && creditSpreads.length === 0) {
+            recommendedStrategy = debitSpreads.length > 0 ? 'DEBIT_SPREAD' : 'SINGLE_LEG';
+        }
+        if (recommendedStrategy === 'DEBIT_SPREAD' && debitSpreads.length === 0) {
+            recommendedStrategy = singleLegs.length > 0 ? 'SINGLE_LEG' : 'CREDIT_SPREAD';
+        }
+        if (recommendedStrategy === 'SINGLE_LEG' && singleLegs.length === 0) {
+            recommendedStrategy = creditSpreads.length > 0 ? 'CREDIT_SPREAD' : 'DEBIT_SPREAD';
+        }
 
         return res.status(200).json({
             success: true,
@@ -624,6 +656,7 @@ export default async function handler(req, res) {
                 CREDIT_SPREAD: creditSpreads,
                 DEBIT_SPREAD: debitSpreads,
                 SINGLE_LEG: singleLegs,
+                TOP_PICKS: topPicks,
                 _regimeMeta: { skew }
             }
         });

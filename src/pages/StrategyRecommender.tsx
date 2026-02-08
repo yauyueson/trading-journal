@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark, Trophy } from 'lucide-react';
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
 import type {
@@ -8,6 +8,8 @@ import type {
     Recommendation,
     StrategyResult,
     WatchlistItem,
+    UnifiedCandidateType,
+    StrategyCategory,
 } from '../lib/types';
 
 
@@ -162,7 +164,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
     const [error, setError] = useState('');
     const [result, setResult] = useState<StrategyResult | null>(null);
     const [expandedCard, setExpandedCard] = useState<number | null>(null);
-    const [selectedTab, setSelectedTab] = useState<'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SINGLE_LEG' | 'RECOMMENDED'>('RECOMMENDED');
+    const [selectedTab, setSelectedTab] = useState<'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SINGLE_LEG' | 'TOP_PICKS'>('TOP_PICKS');
 
     const handleAnalyze = async () => {
         if (!ticker) return;
@@ -192,7 +194,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
             }
             const resultData = data as StrategyResult;
             setResult(resultData);
-            setSelectedTab(resultData.recommendedStrategy); // Default to recommended
+            setSelectedTab('TOP_PICKS');
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : 'Unknown error';
             setError(msg);
@@ -210,6 +212,14 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
         if (score >= 60) return 'text-yellow-400';
         if (score >= 45) return 'text-orange-400';
         return 'text-red-400';
+    };
+
+    const getCategoryBadge = (category: StrategyCategory) => {
+        switch (category) {
+            case 'CREDIT_SPREAD': return { label: 'Credit', color: 'bg-red-500/20 text-red-400 border-red-500/30' };
+            case 'DEBIT_SPREAD': return { label: 'Debit', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
+            case 'SINGLE_LEG': return { label: 'Long', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' };
+        }
     };
 
     const handleAddToWatchlist = async (rec: Recommendation) => {
@@ -427,6 +437,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                     {/* Strategy Tabs */}
                     <div className="flex border-b border-[#2A2A2A] gap-6">
                         {([
+                            { id: 'TOP_PICKS' as const, label: 'Top Picks' },
                             { id: 'CREDIT_SPREAD' as const, label: 'Credit Spreads' },
                             { id: 'DEBIT_SPREAD' as const, label: 'Debit Spreads' },
                             { id: 'SINGLE_LEG' as const, label: 'Long Options' }
@@ -437,10 +448,13 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                 className={`pb-3 text-sm font-bold relative transition-colors ${selectedTab === tab.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
                                     }`}
                             >
-                                {tab.label}
-                                {result.recommendedStrategy === tab.id && (
+                                <span className="flex items-center gap-1.5">
+                                    {tab.id === 'TOP_PICKS' && <Trophy size={14} />}
+                                    {tab.label}
+                                </span>
+                                {tab.id !== 'TOP_PICKS' && result.recommendedStrategy === tab.id && (
                                     <span className="ml-2 bg-accent-green/20 text-accent-green text-[10px] px-1.5 py-0.5 rounded-sm border border-accent-green/30">
-                                        ⭐ Recommended
+                                        Regime Pick
                                     </span>
                                 )}
                                 {selectedTab === tab.id && (
@@ -451,15 +465,24 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                     </div>
 
                     {/* Recommendations List */}
+                    {(() => {
+                        const isTopPicks = selectedTab === 'TOP_PICKS';
+                        const recs: Recommendation[] = isTopPicks
+                            ? (result.strategies.TOP_PICKS as unknown as Recommendation[]) || []
+                            : (result.strategies[selectedTab as keyof typeof result.strategies] as Recommendation[]) || [];
+                        return (
                     <div className="space-y-4">
-                        {(result.strategies[selectedTab as keyof typeof result.strategies] as Recommendation[] | undefined)?.length === 0 && (
+                        {recs.length === 0 && (
                             <div className="text-center py-10 text-gray-500">
                                 <Search size={32} className="mx-auto mb-2 opacity-20" />
                                 No results found for this strategy with current filters.
                             </div>
                         )}
 
-                        {(result.strategies[selectedTab as keyof typeof result.strategies] as Recommendation[])?.map((rec: Recommendation, idx: number) => (
+                        {recs.map((rec: Recommendation, idx: number) => {
+                            const displayScore = isTopPicks ? (rec as unknown as UnifiedCandidateType).unifiedScore : rec.score;
+                            const category = isTopPicks ? (rec as unknown as UnifiedCandidateType).strategyCategory : null;
+                            return (
                             <div
                                 key={idx}
                                 className={`bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl overflow-hidden transition-all duration-300 ${expandedCard === idx ? 'ring-1 ring-accent-green/50 shadow-lg shadow-green-900/10' : 'hover:border-[#444]'
@@ -472,10 +495,21 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                 >
                                     <div className="flex-1">
                                         <div className="flex items-center gap-3 mb-1">
-                                            <div className={`text-4xl font-black ${getScoreColor(rec.score)}`}>{rec.score}</div>
+                                            <div className={`text-4xl font-black ${getScoreColor(displayScore)}`}>{displayScore}</div>
                                             <div>
                                                 <div className="font-bold text-lg text-white flex items-center gap-2">
                                                     {rec.type}
+                                                    {category && (() => {
+                                                        const badge = getCategoryBadge(category);
+                                                        return (
+                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${badge.color}`}>
+                                                                {badge.label}
+                                                            </span>
+                                                        );
+                                                    })()}
+                                                    {isTopPicks && (
+                                                        <span className="text-xs text-gray-500 font-mono">(cat: {rec.score})</span>
+                                                    )}
                                                     {isSpread(rec) && (
                                                         <span className="text-sm font-mono text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/10">
                                                             ${rec.shortLeg?.strike} / ${rec.longLeg?.strike}
@@ -752,8 +786,9 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                     </div>
                                 )}
                             </div>
-                        ))}
+                        ); })}
                     </div>
+                        ); })()}
                 </div>
             )}
 

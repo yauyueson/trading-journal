@@ -166,10 +166,26 @@ export interface SingleLegRecommendation {
     thetaBurn: number;
     volume: number;
     openInterest: number;
+    bid?: number;
+    ask?: number;
     recommendation?: { action: string; note?: string };
 }
 
 export type Recommendation = SpreadRecommendation | SingleLegRecommendation;
+
+export type StrategyCategory = 'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SINGLE_LEG';
+
+export type UnifiedSpreadCandidate = SpreadRecommendation & {
+    strategyCategory: StrategyCategory;
+    unifiedScore: number;
+};
+
+export type UnifiedSingleLegCandidate = SingleLegRecommendation & {
+    strategyCategory: StrategyCategory;
+    unifiedScore: number;
+};
+
+export type UnifiedCandidateType = UnifiedSpreadCandidate | UnifiedSingleLegCandidate;
 
 export interface StrategyResult {
     success: boolean;
@@ -180,6 +196,7 @@ export interface StrategyResult {
         CREDIT_SPREAD: SpreadRecommendation[];
         DEBIT_SPREAD: SpreadRecommendation[];
         SINGLE_LEG: SingleLegRecommendation[];
+        TOP_PICKS: UnifiedCandidateType[];
     };
 }
 
