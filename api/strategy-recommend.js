@@ -306,8 +306,6 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
 
             if (effectiveROI < 10) continue; // Lowered ROI floor because we are using net effective ROI now
 
-            const maxContracts = calculateMaxContracts(effectiveMaxRisk);
-
             const whyThisParts = [];
             if (ev > 0) whyThisParts.push(`+EV $${ev.toFixed(2)}`);
             if (effectiveROI > 15) whyThisParts.push(`${effectiveROI.toFixed(0)}% ROI (Adj)`);
