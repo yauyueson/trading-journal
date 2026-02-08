@@ -7,6 +7,16 @@
  */
 
 export default async function handler(req, res) {
+  const safeJson = (obj) => {
+    try {
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(500).json(obj);
+    } catch (_) {
+      try { res.status(500).end('Internal error'); } catch (__) {}
+    }
+  };
+
+  try {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -19,7 +29,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const secret = req.query.secret || req.headers['authorization']?.replace('Bearer ', '');
+  const secret = (req.query && req.query.secret) || (req.headers && req.headers['authorization'] && String(req.headers['authorization']).replace('Bearer ', ''));
   const expectedSecret = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
   if (!expectedSecret || secret !== expectedSecret) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -38,7 +48,7 @@ export default async function handler(req, res) {
 
   const baseUrl = process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`
-    : process.env.BASE_URL || 'http://localhost:3000';
+    : (process.env.BASE_URL || 'http://localhost:3000');
 
   async function supabaseQuery(table, queryParams = '') {
     const url = `${supabaseUrl}/rest/v1/${table}${queryParams ? '?' + queryParams : ''}`;
@@ -57,18 +67,28 @@ export default async function handler(req, res) {
   }
 
   try {
-    const positions = await supabaseQuery('positions', 'status=eq.active&select=*');
-    const transactions = await supabaseQuery('transactions', 'select=*');
+    const positionsRaw = await supabaseQuery('positions', 'status=eq.active&select=*');
+    const positions = Array.isArray(positionsRaw) ? positionsRaw : [];
+    const transactionsRaw = await supabaseQuery('transactions', 'select=*');
+    const transactions = Array.isArray(transactionsRaw) ? transactionsRaw : [];
 
-    const txnsByPos = (transactions || []).reduce((acc, t) => {
-      if (!acc[t.position_id]) acc[t.position_id] = [];
-      acc[t.position_id].push(t);
+    const txnsByPos = transactions.reduce((acc, t) => {
+      if (t && t.position_id) {
+        if (!acc[t.position_id]) acc[t.position_id] = [];
+        acc[t.position_id].push(t);
+      }
       return acc;
     }, {});
 
     const rows = [];
     let totalPnl = 0;
     const maxFields = 25;
+    const MAX_FIELD_NAME = 256;
+    const MAX_FIELD_VALUE = 1024;
+    function truncate(s, max) {
+      const str = s != null ? String(s) : '';
+      return str.length > max ? str.slice(0, max - 3) + '...' : str;
+    }
 
     function formatExp(exp) {
       if (exp == null) return '';
@@ -94,7 +114,8 @@ export default async function handler(req, res) {
       return [];
     }
 
-    for (const pos of positions || []) {
+    for (const pos of positions) {
+      if (!pos || typeof pos !== 'object') continue;
       try {
       const legs = parseLegs(pos.legs);
       if (legs.length >= 2) {
@@ -200,7 +221,11 @@ export default async function handler(req, res) {
         timestamp: new Date().toISOString(),
       };
     } else {
-      const fields = rows.slice(0, maxFields).map(r => ({ name: r.name, value: r.value, inline: false }));
+      const fields = rows.slice(0, maxFields).map(r => ({
+        name: truncate(r.name, MAX_FIELD_NAME),
+        value: truncate(r.value, MAX_FIELD_VALUE),
+        inline: false,
+      }));
       if (rows.length > maxFields) {
         fields.push({
           name: '—',
@@ -210,7 +235,7 @@ export default async function handler(req, res) {
       }
       embed = {
         title: `📋 Daily Position Recap · ${dateStr}`,
-        description: `**Total P&L: ${totalPnlStr}** · ${rows.length} position(s)`,
+        description: truncate(`**Total P&L: ${totalPnlStr}** · ${rows.length} position(s)`, 4096),
         color,
         fields,
         footer: { text: 'Trading Journal' },
@@ -239,7 +264,15 @@ export default async function handler(req, res) {
       sent: true,
     });
   } catch (err) {
-    console.error('daily-recap error:', err);
-    return res.status(500).json({ error: 'Internal error', message: err.message });
+    const msg = err && (err.message || (typeof err.toString === 'function' ? err.toString() : String(err))) || 'Unknown error';
+    try {
+      return res.status(500).json({ error: 'Internal error', message: String(msg).slice(0, 500) });
+    } catch (_) {
+      try { res.status(500).end('Internal error'); } catch (__) {}
+    }
+  }
+  } catch (topErr) {
+    const msg = topErr && (topErr.message || (typeof topErr.toString === 'function' ? topErr.toString() : String(topErr))) || 'Unknown error';
+    safeJson({ error: 'Internal error', message: String(msg).slice(0, 500) });
   }
 }
