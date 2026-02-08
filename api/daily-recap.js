@@ -6,65 +6,77 @@
  *   CRON_SECRET, DISCORD_WEBHOOK_URL, SUPABASE_*, VERCEL_URL
  */
 
-export default async function handler(req, res) {
-  const safeJson = (obj) => {
+function sendJson(res, status, obj) {
+  try {
+    const body = JSON.stringify(obj);
+    res.writeHead(status, { 'Content-Type': 'application/json' });
+    res.end(body);
+  } catch (_) {
     try {
-      res.setHeader('Content-Type', 'application/json');
-      return res.status(500).json(obj);
-    } catch (_) {
-      try { res.status(500).end('Internal error'); } catch (__) {}
-    }
-  };
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Internal error');
+    } catch (__) {}
+  }
+}
+
+export default async function handler(req, res) {
+  if (!res || typeof res.writeHead !== 'function') return;
 
   try {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const secret = (req.query && req.query.secret) || (req.headers && req.headers['authorization'] && String(req.headers['authorization']).replace('Bearer ', ''));
-  const expectedSecret = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
-  if (!expectedSecret || secret !== expectedSecret) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) {
-    return res.status(500).json({ error: 'DISCORD_WEBHOOK_URL not set' });
-  }
-
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) {
-    return res.status(500).json({ error: 'Supabase env not set' });
-  }
-
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : (process.env.BASE_URL || 'http://localhost:3000');
-
-  async function supabaseQuery(table, queryParams = '') {
-    const url = `${supabaseUrl}/rest/v1/${table}${queryParams ? '?' + queryParams : ''}`;
-    const resp = await fetch(url, {
-      headers: {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(`Supabase ${table} query failed: ${resp.status} ${text}`);
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200);
+      return res.end();
     }
-    return resp.json();
-  }
+
+    if (req.method !== 'GET') {
+      sendJson(res, 405, { error: 'Method not allowed' });
+      return;
+    }
+
+    const secret = (req.query && req.query.secret) || (req.headers && req.headers['authorization'] && String(req.headers['authorization']).replace('Bearer ', ''));
+    const expectedSecret = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
+    if (!expectedSecret || secret !== expectedSecret) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+
+    const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+    if (!webhookUrl) {
+      sendJson(res, 500, { error: 'DISCORD_WEBHOOK_URL not set' });
+      return;
+    }
+
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      sendJson(res, 500, { error: 'Supabase env not set' });
+      return;
+    }
+
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : (process.env.BASE_URL || 'http://localhost:3000');
+
+    async function supabaseQuery(table, queryParams) {
+      const url = `${supabaseUrl}/rest/v1/${table}${queryParams ? '?' + queryParams : ''}`;
+      const resp = await fetch(url, {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': 'Bearer ' + supabaseKey,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error('Supabase ' + table + ' failed: ' + resp.status);
+      }
+      const data = await resp.json().catch(function () { throw new Error('Supabase ' + table + ' invalid JSON'); });
+      return data;
+    }
 
   try {
     const positionsRaw = await supabaseQuery('positions', 'status=eq.active&select=*');
@@ -253,26 +265,14 @@ export default async function handler(req, res) {
     });
 
     if (!discordRes.ok) {
-      console.warn('Discord webhook failed', discordRes.status, await discordRes.text());
-      return res.status(502).json({ error: 'Discord send failed', status: discordRes.status });
+      await discordRes.text().catch(function () {});
+      sendJson(res, 502, { error: 'Discord send failed', status: discordRes.status });
+      return;
     }
 
-    return res.status(200).json({
-      ok: true,
-      positions: rows.length,
-      totalPnl,
-      sent: true,
-    });
+    sendJson(res, 200, { ok: true, positions: rows.length, totalPnl, sent: true });
   } catch (err) {
-    const msg = err && (err.message || (typeof err.toString === 'function' ? err.toString() : String(err))) || 'Unknown error';
-    try {
-      return res.status(500).json({ error: 'Internal error', message: String(msg).slice(0, 500) });
-    } catch (_) {
-      try { res.status(500).end('Internal error'); } catch (__) {}
-    }
-  }
-  } catch (topErr) {
-    const msg = topErr && (topErr.message || (typeof topErr.toString === 'function' ? topErr.toString() : String(topErr))) || 'Unknown error';
-    safeJson({ error: 'Internal error', message: String(msg).slice(0, 500) });
+    const msg = (err && (err.message || (typeof err.toString === 'function' ? err.toString() : String(err)))) || 'Unknown error';
+    sendJson(res, 500, { error: 'Internal error', message: String(msg).slice(0, 500) });
   }
 }
