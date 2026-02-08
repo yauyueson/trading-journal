@@ -2,7 +2,9 @@
 // Returns IV Rank and IV Percentile for a ticker (from ticker_iv_snapshots).
 // Requires Supabase table ticker_iv_snapshots. See docs/04_数据库设计.md.
 
-const { getIVRank } = require('./_shared/ivHistory.js');
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { getIVRank } = require('./_shared/ivHistory.cjs');
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');

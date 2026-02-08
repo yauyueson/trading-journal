@@ -13,7 +13,7 @@ let _scoringLoaded = false;
 
 async function ensureScoring() {
     if (_scoringLoaded) return;
-    const scoringUrl = new URL('./_shared/scoring.js', import.meta.url).href;
+    const scoringUrl = new URL('./_shared/scoring.cjs', import.meta.url).href;
     const scoringMod = await import(scoringUrl);
     const scoring = scoringMod.default ?? scoringMod;
     if (!scoring || typeof scoring.compressLambda !== 'function') {
@@ -36,7 +36,7 @@ async function ensureScoring() {
     calculateTargetIV = scoring.calculateTargetIV;
     parseChain = scoring.parseChain;
     try {
-        const ivUrl = new URL('./_shared/ivHistory.js', import.meta.url).href;
+        const ivUrl = new URL('./_shared/ivHistory.cjs', import.meta.url).href;
         const ivMod = await import(ivUrl);
         const iv = ivMod.default ?? ivMod;
         saveTickerIVSnapshot = iv.saveTickerIVSnapshot;

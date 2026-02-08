@@ -2,6 +2,9 @@
 // OSS v2.1 Scanner - Vercel Serverless Function
 // Uses shared scoring module (Single Source of Truth)
 
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
 const {
     compressLambda,
     calculateGammaThetaRatio,
@@ -19,8 +22,8 @@ const {
     getCleanATM_IV,
     calculateTargetIV,
     parseChain,
-} = require('./_shared/scoring.js');
-const { saveTickerIVSnapshot, getIVRank } = require('./_shared/ivHistory.js');
+} = require('./_shared/scoring.cjs');
+const { saveTickerIVSnapshot, getIVRank } = require('./_shared/ivHistory.cjs');
 
 // ---------------------------------------------------------
 // Main Handler
