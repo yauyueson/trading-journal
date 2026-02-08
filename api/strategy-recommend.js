@@ -13,6 +13,7 @@ const {
     getDeltaBonus,
     zScores,
     getIVRiskFactor,
+    getIVRankAdjustment,
     calculateLOQRaw,
     normalizeScoreTo100,
     calculateSpreadPct,
@@ -20,6 +21,7 @@ const {
     calculateTargetIV,
     parseChain,
 } = require('./_shared/scoring.js');
+const { saveTickerIVSnapshot, getIVRank } = require('./_shared/ivHistory.js');
 
 // =============================================================================
 // DATA FETCHING UTILITIES
@@ -315,7 +317,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
-function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
+function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRank = null) {
     const filtered = chain.filter(o =>
         o.type === type &&
         Math.abs(o.delta) >= 0.25 &&
@@ -349,10 +351,11 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
     const zT = zScores(thetas);
     const zGT = zScores(gtRatios);
 
+    const ivRankAdj = getIVRankAdjustment(ivRank, 'long');
     return processed.map((p, i) => {
         const deltaBonus = getDeltaBonus(p.opt.delta);
         const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
-        const rawScore = calculateLOQRaw(zL[i], zG[i], zT[i], 0, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty);
+        const rawScore = calculateLOQRaw(zL[i], zG[i], zT[i], ivRankAdj, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty);
         const score = normalizeScoreTo100(rawScore);
 
         return {
@@ -424,6 +427,14 @@ export default async function handler(req, res) {
 
         const regime = detectRegime(iv30, iv90, rv30);
 
+        if (iv30 != null) {
+            await saveTickerIVSnapshot(upperTicker, iv30, iv90);
+            const rankInfo = await getIVRank(upperTicker);
+            regime.ivRank = rankInfo.ivRank;
+            regime.ivPercentile = rankInfo.ivPercentile;
+            regime.ivRankSampleDays = rankInfo.sampleDays;
+        }
+
         const creditStrat = isBull ? 'Put' : 'Call';
         const debitStrat = isBull ? 'Call' : 'Put';
         const legStrat = isBull ? 'Call' : 'Put';
@@ -431,7 +442,7 @@ export default async function handler(req, res) {
         // 2. Build Strategies
         const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings);
         const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio);
-        const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice);
+        const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice, regime.ivRank);
 
         let recommendedStrategy = 'CREDIT_SPREAD';
 
@@ -463,6 +474,9 @@ export default async function handler(req, res) {
                 iv90: iv90 ? Number((iv90 * 100).toFixed(1)) : null,
                 rv30: rv30 ? Number(rv30.toFixed(1)) : null,
                 ivRvRatio: regime.ivRvRatio ? Number(regime.ivRvRatio.toFixed(3)) : null,
+                ivRank: regime.ivRank != null ? Number(regime.ivRank.toFixed(3)) : null,
+                ivPercentile: regime.ivPercentile != null ? Number(regime.ivPercentile.toFixed(3)) : null,
+                ivRankSampleDays: regime.ivRankSampleDays ?? null,
                 mode: regime.mode,
                 advice: regime.advice
             },

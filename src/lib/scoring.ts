@@ -44,6 +44,7 @@ export {
     // IV
     getIVRiskFactor,
     getIVAdjustment,
+    getIVRankAdjustment,
 
     // LOQ / CSQ scoring
     LOQ_WEIGHTS,

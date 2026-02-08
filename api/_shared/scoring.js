@@ -129,6 +129,18 @@ const getIVAdjustment = (ivRatio, strategy) => {
     return (riskFactor - 1) * 5;
 };
 
+const getIVRankAdjustment = (ivRank, strategy) => {
+    if (ivRank == null || ivRank < 0 || ivRank > 1) return 0;
+    if (strategy === 'long') {
+        if (ivRank < 0.3) return 0.5;
+        if (ivRank > 0.7) return -0.5;
+        return 0;
+    }
+    if (ivRank < 0.3) return -0.3;
+    if (ivRank > 0.7) return 0.5;
+    return 0;
+};
+
 // ────────────────────────────────────────────────────────────────
 // LOQ / CSQ Raw Score
 // ────────────────────────────────────────────────────────────────
@@ -136,31 +148,44 @@ const getIVAdjustment = (ivRatio, strategy) => {
 const LOQ_WEIGHTS = { lambda: 0.30, gammaEff: 0.20, gammaThetaRatio: 0.15, thetaBurn: -0.10, deltaBonus: 0.15, breakevenPenalty: 0.10 };
 const LOQ_DT_WEIGHTS = { lambda: 0.30, gammaEff: 0.35, gammaThetaRatio: 0.20, thetaBurn: -0.05, breakevenPenalty: 0.05, penaltyMult: 0.2 };
 
-const calculateLOQRaw = (zLambda, zGammaEff, zThetaBurn, ivAdjustment, deltaBonus = 0, thetaBurn = 0, isDayTrade = false, zGammaThetaRatio = 0, breakevenPenalty = 0) => {
-    const thetaPenalty = getThetaPenalty(thetaBurn);
-
-    if (isDayTrade) {
-        return (
-            LOQ_DT_WEIGHTS.lambda * zLambda +
-            LOQ_DT_WEIGHTS.gammaEff * zGammaEff +
-            LOQ_DT_WEIGHTS.gammaThetaRatio * zGammaThetaRatio +
-            LOQ_DT_WEIGHTS.thetaBurn * zThetaBurn +
-            LOQ_WEIGHTS.deltaBonus * deltaBonus +
-            LOQ_DT_WEIGHTS.breakevenPenalty * breakevenPenalty +
-            ivAdjustment -
-            thetaPenalty * LOQ_DT_WEIGHTS.penaltyMult
-        );
+const getLOQWeightsForDTE = (dte) => {
+    const deltaBonus = LOQ_WEIGHTS.deltaBonus;
+    if (dte <= 5) {
+        return { ...LOQ_DT_WEIGHTS, deltaBonus };
     }
+    if (dte >= 15) {
+        return { ...LOQ_WEIGHTS, penaltyMult: 1 };
+    }
+    const t = (dte - 5) / 10;
+    const mix = (a, b) => a + (b - a) * t;
+    return {
+        lambda: mix(LOQ_DT_WEIGHTS.lambda, LOQ_WEIGHTS.lambda),
+        gammaEff: mix(LOQ_DT_WEIGHTS.gammaEff, LOQ_WEIGHTS.gammaEff),
+        gammaThetaRatio: mix(LOQ_DT_WEIGHTS.gammaThetaRatio, LOQ_WEIGHTS.gammaThetaRatio),
+        thetaBurn: mix(LOQ_DT_WEIGHTS.thetaBurn, LOQ_WEIGHTS.thetaBurn),
+        deltaBonus,
+        breakevenPenalty: mix(LOQ_DT_WEIGHTS.breakevenPenalty, LOQ_WEIGHTS.breakevenPenalty),
+        penaltyMult: mix(LOQ_DT_WEIGHTS.penaltyMult, 1),
+    };
+};
+
+const calculateLOQRaw = (zLambda, zGammaEff, zThetaBurn, ivAdjustment, deltaBonus = 0, thetaBurn = 0, isDayTrade = false, zGammaThetaRatio = 0, breakevenPenalty = 0, dte = null) => {
+    const thetaPenalty = getThetaPenalty(thetaBurn);
+    const w = dte != null
+        ? getLOQWeightsForDTE(dte)
+        : isDayTrade
+            ? { ...LOQ_DT_WEIGHTS, deltaBonus: LOQ_WEIGHTS.deltaBonus }
+            : { ...LOQ_WEIGHTS, penaltyMult: 1 };
 
     return (
-        LOQ_WEIGHTS.lambda * zLambda +
-        LOQ_WEIGHTS.gammaEff * zGammaEff +
-        LOQ_WEIGHTS.gammaThetaRatio * zGammaThetaRatio +
-        LOQ_WEIGHTS.thetaBurn * zThetaBurn +
-        LOQ_WEIGHTS.deltaBonus * deltaBonus +
-        LOQ_WEIGHTS.breakevenPenalty * breakevenPenalty +
+        w.lambda * zLambda +
+        w.gammaEff * zGammaEff +
+        w.gammaThetaRatio * zGammaThetaRatio +
+        w.thetaBurn * zThetaBurn +
+        w.deltaBonus * deltaBonus +
+        w.breakevenPenalty * breakevenPenalty +
         ivAdjustment -
-        thetaPenalty
+        thetaPenalty * w.penaltyMult
     );
 };
 
@@ -359,6 +384,8 @@ module.exports = {
     zScores,
     getIVRiskFactor,
     getIVAdjustment,
+    getIVRankAdjustment,
+    getLOQWeightsForDTE,
     calculateLOQRaw,
     calculateCSQRaw,
     normalizeScoreTo100,

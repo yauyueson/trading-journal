@@ -279,6 +279,27 @@ export function getIVAdjustment(ivRatio: number, strategy: Strategy): number {
     return (riskFactor - 1) * 5;
 }
 
+/**
+ * IV Rank Adjustment - Historical IV context (v2.2).
+ *
+ * ivRank in [0, 1]: where current IV sits vs 52-week min/max.
+ * - Low rank (< 0.3): IV cheap → favor buyers, penalize sellers
+ * - High rank (> 0.7): IV expensive → favor sellers, penalize buyers
+ *
+ * Returns 0 if ivRank is null (no history). Add this on top of getIVAdjustment.
+ */
+export function getIVRankAdjustment(ivRank: number | null, strategy: Strategy): number {
+    if (ivRank == null || ivRank < 0 || ivRank > 1) return 0;
+    if (strategy === 'long') {
+        if (ivRank < 0.3) return 0.5;
+        if (ivRank > 0.7) return -0.5;
+        return 0;
+    }
+    if (ivRank < 0.3) return -0.3;
+    if (ivRank > 0.7) return 0.5;
+    return 0;
+}
+
 // ────────────────────────────────────────────────────────────────
 // LOQ Weights & Score
 // ────────────────────────────────────────────────────────────────
@@ -303,11 +324,65 @@ export const LOQ_DT_WEIGHTS = {
     penaltyMult: 0.2,
 } as const;
 
+export interface LOQWeightsForDTE {
+    lambda: number;
+    gammaEff: number;
+    gammaThetaRatio: number;
+    thetaBurn: number;
+    deltaBonus: number;
+    breakevenPenalty: number;
+    penaltyMult: number;
+}
+
 /**
- * Calculate raw LOQ score (v2.2 — G/T Ratio + Breakeven Penalty).
+ * Get LOQ weights by DTE — smooth transition instead of binary Day Trade vs Standard (v2.2).
  *
- * Supports both Standard and Day-Trade mode via `isDayTrade` flag.
- * breakevenPenalty is an additive LERP term (not Z-scored), similar to deltaBonus.
+ * DTE ≤ 5:  full day-trade weights (gamma heavy, theta/BE light)
+ * DTE 5–15: lerp from DT → Standard (no score jump at 6 DTE)
+ * DTE ≥ 15: standard weights
+ */
+export function getLOQWeightsForDTE(dte: number): LOQWeightsForDTE {
+    const deltaBonus = LOQ_WEIGHTS.deltaBonus;
+    if (dte <= 5) {
+        return {
+            lambda: LOQ_DT_WEIGHTS.lambda,
+            gammaEff: LOQ_DT_WEIGHTS.gammaEff,
+            gammaThetaRatio: LOQ_DT_WEIGHTS.gammaThetaRatio,
+            thetaBurn: LOQ_DT_WEIGHTS.thetaBurn,
+            deltaBonus,
+            breakevenPenalty: LOQ_DT_WEIGHTS.breakevenPenalty,
+            penaltyMult: LOQ_DT_WEIGHTS.penaltyMult,
+        };
+    }
+    if (dte >= 15) {
+        return {
+            lambda: LOQ_WEIGHTS.lambda,
+            gammaEff: LOQ_WEIGHTS.gammaEff,
+            gammaThetaRatio: LOQ_WEIGHTS.gammaThetaRatio,
+            thetaBurn: LOQ_WEIGHTS.thetaBurn,
+            deltaBonus,
+            breakevenPenalty: LOQ_WEIGHTS.breakevenPenalty,
+            penaltyMult: 1,
+        };
+    }
+    const t = (dte - 5) / 10;
+    const mix = (a: number, b: number) => a + (b - a) * t;
+    return {
+        lambda: mix(LOQ_DT_WEIGHTS.lambda, LOQ_WEIGHTS.lambda),
+        gammaEff: mix(LOQ_DT_WEIGHTS.gammaEff, LOQ_WEIGHTS.gammaEff),
+        gammaThetaRatio: mix(LOQ_DT_WEIGHTS.gammaThetaRatio, LOQ_WEIGHTS.gammaThetaRatio),
+        thetaBurn: mix(LOQ_DT_WEIGHTS.thetaBurn, LOQ_WEIGHTS.thetaBurn),
+        deltaBonus,
+        breakevenPenalty: mix(LOQ_DT_WEIGHTS.breakevenPenalty, LOQ_WEIGHTS.breakevenPenalty),
+        penaltyMult: mix(LOQ_DT_WEIGHTS.penaltyMult, 1),
+    };
+}
+
+/**
+ * Calculate raw LOQ score (v2.2 — G/T + Breakeven + DTE‑continuous weights).
+ *
+ * When `dte` is provided, uses getLOQWeightsForDTE(dte) and ignores `isDayTrade`.
+ * Otherwise uses legacy isDayTrade (true = DT weights, false = Standard).
  */
 export function calculateLOQRaw(
     zLambda: number,
@@ -319,31 +394,32 @@ export function calculateLOQRaw(
     isDayTrade: boolean = false,
     zGammaThetaRatio: number = 0,
     breakevenPenalty: number = 0,
+    dte: number | null = null,
 ): number {
     const thetaPenalty = getThetaPenalty(thetaBurn);
-
-    if (isDayTrade) {
-        return (
-            LOQ_DT_WEIGHTS.lambda * zLambda +
-            LOQ_DT_WEIGHTS.gammaEff * zGammaEff +
-            LOQ_DT_WEIGHTS.gammaThetaRatio * zGammaThetaRatio +
-            LOQ_DT_WEIGHTS.thetaBurn * zThetaBurn +
-            LOQ_WEIGHTS.deltaBonus * deltaBonus +
-            LOQ_DT_WEIGHTS.breakevenPenalty * breakevenPenalty +
-            ivAdjustment -
-            thetaPenalty * LOQ_DT_WEIGHTS.penaltyMult
-        );
-    }
+    const w =
+        dte != null
+            ? getLOQWeightsForDTE(dte)
+            : isDayTrade
+              ? {
+                    ...LOQ_DT_WEIGHTS,
+                    deltaBonus: LOQ_WEIGHTS.deltaBonus,
+                    penaltyMult: LOQ_DT_WEIGHTS.penaltyMult,
+                }
+              : {
+                    ...LOQ_WEIGHTS,
+                    penaltyMult: 1,
+                };
 
     return (
-        LOQ_WEIGHTS.lambda * zLambda +
-        LOQ_WEIGHTS.gammaEff * zGammaEff +
-        LOQ_WEIGHTS.gammaThetaRatio * zGammaThetaRatio +
-        LOQ_WEIGHTS.thetaBurn * zThetaBurn +
-        LOQ_WEIGHTS.deltaBonus * deltaBonus +
-        LOQ_WEIGHTS.breakevenPenalty * breakevenPenalty +
+        w.lambda * zLambda +
+        w.gammaEff * zGammaEff +
+        w.gammaThetaRatio * zGammaThetaRatio +
+        w.thetaBurn * zThetaBurn +
+        w.deltaBonus * deltaBonus +
+        w.breakevenPenalty * breakevenPenalty +
         ivAdjustment -
-        thetaPenalty
+        thetaPenalty * w.penaltyMult
     );
 }
 
@@ -421,7 +497,7 @@ export function calculateSingleLOQ(
 
     const deltaBonus = getDeltaBonus(delta);
     const ivAdjustment = getIVAdjustment(ivRatio, 'long');
-    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, ivAdjustment, deltaBonus, thetaBurn, false, zGT, bePenalty);
+    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, ivAdjustment, deltaBonus, thetaBurn, false, zGT, bePenalty, dte);
 
     return normalizeScoreTo100(rawScore);
 }
