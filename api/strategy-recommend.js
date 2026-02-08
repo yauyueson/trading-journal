@@ -387,7 +387,6 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
             const spreadPctVal = (longLeg.ask - longLeg.bid) / mid;
 
             if (debit >= width * 0.55) continue;
-            if (debit >= width * 0.55) continue;
             // if (riskReward < 1.5) continue; // Relaxed in favor of EV check
             if (spreadPctVal > 0.30) continue; // Relaxed filter for slippage model
 
@@ -411,7 +410,6 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
             const rrScore = Math.min((riskReward / 3) * 100, 100);
             const deltaScore = 50 + deltaBonus * 12.5;
 
-            const finalScore = (0.4 * lambdaScore) + (0.35 * rrScore) + (0.25 * deltaScore);
             const finalScore = (0.4 * lambdaScore) + (0.35 * rrScore) + (0.25 * deltaScore);
 
             const note = generateStrategyNote('DEBIT', {
