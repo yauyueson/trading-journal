@@ -172,14 +172,34 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
         setExpandedCard(null);
 
         try {
-            const res = await fetch(`/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}`);
-            const data = await res.json();
+            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}`;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/137ba6e0-38b1-42b1-9ed2-dd177adfbbbb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StrategyRecommender.tsx:fetch',message:'Strategy API request',data:{url,ticker,direction,targetDte},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+            // #endregion
+            const res = await fetch(url);
+            const text = await res.text();
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/137ba6e0-38b1-42b1-9ed2-dd177adfbbbb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StrategyRecommender.tsx:afterFetch',message:'Strategy API response',data:{ok:res.ok,status:res.status,bodyStart:(text||'').slice(0,80)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+            // #endregion
+            let data: unknown;
+            try {
+                data = text ? JSON.parse(text) : {};
+            } catch (parseErr) {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/137ba6e0-38b1-42b1-9ed2-dd177adfbbbb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StrategyRecommender.tsx:jsonParse',message:'JSON parse failed',data:{bodyStart:(text||'').slice(0,80)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+                // #endregion
+                throw parseErr;
+            }
 
-            if (!res.ok) throw new Error(data.error || 'Failed to fetch recommendations');
+            if (!res.ok) throw new Error((data as { error?: string })?.error || 'Failed to fetch recommendations');
             setResult(data);
             setSelectedTab(data.recommendedStrategy); // Default to recommended
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Unknown error');
+            const msg = err instanceof Error ? err.message : 'Unknown error';
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/137ba6e0-38b1-42b1-9ed2-dd177adfbbbb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'StrategyRecommender.tsx:catch',message:'Strategy fetch error',data:{message:msg},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+            // #endregion
+            setError(msg);
         } finally {
             setLoading(false);
         }

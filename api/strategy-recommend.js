@@ -383,6 +383,10 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRank = null) {
 // MAIN HANDLER
 // =============================================================================
 
+const DEBUG_LOG = (loc, msg, data, hyp) => {
+    fetch('http://127.0.0.1:7242/ingest/137ba6e0-38b1-42b1-9ed2-dd177adfbbbb', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: loc, message: msg, data: data || {}, timestamp: Date.now(), hypothesisId: hyp }) }).catch(() => {});
+};
+
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -393,6 +397,9 @@ export default async function handler(req, res) {
     }
 
     const { ticker, direction = 'BULL', targetDte } = req.query;
+    // #region agent log
+    DEBUG_LOG('strategy-recommend.js:handler', 'handler start', { ticker, direction, targetDte }, 'H2');
+    // #endregion
 
     if (!ticker) {
         return res.status(400).json({ error: 'Missing ticker parameter' });
@@ -428,8 +435,14 @@ export default async function handler(req, res) {
         const regime = detectRegime(iv30, iv90, rv30);
 
         if (iv30 != null) {
+            // #region agent log
+            DEBUG_LOG('strategy-recommend.js:beforeIV', 'before IV snapshot/rank', { upperTicker }, 'H3');
+            // #endregion
             await saveTickerIVSnapshot(upperTicker, iv30, iv90);
             const rankInfo = await getIVRank(upperTicker);
+            // #region agent log
+            DEBUG_LOG('strategy-recommend.js:afterIV', 'after getIVRank', { ivRank: rankInfo.ivRank, sampleDays: rankInfo.sampleDays }, 'H3');
+            // #endregion
             regime.ivRank = rankInfo.ivRank;
             regime.ivPercentile = rankInfo.ivPercentile;
             regime.ivRankSampleDays = rankInfo.sampleDays;
@@ -459,6 +472,9 @@ export default async function handler(req, res) {
         if (recommendedStrategy === 'DEBIT_SPREAD' && debitSpreads.length === 0) recommendedStrategy = 'SINGLE_LEG';
         if (recommendedStrategy === 'SINGLE_LEG' && singleLegs.length === 0 && creditSpreads.length > 0) recommendedStrategy = 'CREDIT_SPREAD';
 
+        // #region agent log
+        DEBUG_LOG('strategy-recommend.js:success', 'sending 200 JSON', { recommendedStrategy }, 'H2');
+        // #endregion
         return res.status(200).json({
             success: true,
             context: {
@@ -489,7 +505,11 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
-        console.error('Strategy API Error:', error.message);
-        return res.status(500).json({ error: 'Internal Server Error', message: error.message });
+        const errMsg = error && typeof error.message === 'string' ? error.message : String(error);
+        // #region agent log
+        DEBUG_LOG('strategy-recommend.js:catch', 'handler error', { message: errMsg }, 'H2');
+        // #endregion
+        console.error('Strategy API Error:', errMsg);
+        return res.status(500).json({ error: 'Internal Server Error', message: errMsg });
     }
 }
