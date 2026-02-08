@@ -2,38 +2,43 @@
 // Strategy Recommender API - Intelligent Options Strategy Selection
 // Based on IV Regime and User Direction (BULL/BEAR)
 // Uses shared scoring module (Single Source of Truth)
+// Modules loaded inside handler via dynamic import() so failures return JSON on Vercel.
 
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
+let compressLambda, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
+    calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, getIVRiskFactor,
+    getIVRankAdjustment, calculateLOQRaw, normalizeScoreTo100, calculateSpreadPct,
+    getCleanATM_IV, calculateTargetIV, parseChain;
+let saveTickerIVSnapshot, getIVRank;
+let _scoringLoaded = false;
 
-const {
-    compressLambda,
-    calculateGammaThetaRatio,
-    calculateBreakevenMove,
-    getBreakevenPenalty,
-    calculateExpectedValue,
-    getThetaPenalty,
-    getDeltaBonus,
-    zScores,
-    getIVRiskFactor,
-    getIVRankAdjustment,
-    calculateLOQRaw,
-    normalizeScoreTo100,
-    calculateSpreadPct,
-    getCleanATM_IV,
-    calculateTargetIV,
-    parseChain,
-} = require('./_shared/scoring.js');
-
-let saveTickerIVSnapshot;
-let getIVRank;
-try {
-    const ivHistory = require('./_shared/ivHistory.js');
-    saveTickerIVSnapshot = ivHistory.saveTickerIVSnapshot;
-    getIVRank = ivHistory.getIVRank;
-} catch (_) {
-    saveTickerIVSnapshot = async () => {};
-    getIVRank = async () => ({ ivRank: null, ivPercentile: null, currentIv30: null, minIv: null, maxIv: null, sampleDays: 0 });
+async function ensureScoring() {
+    if (_scoringLoaded) return;
+    const scoring = (await import('./_shared/scoring.js')).default;
+    compressLambda = scoring.compressLambda;
+    calculateGammaThetaRatio = scoring.calculateGammaThetaRatio;
+    calculateBreakevenMove = scoring.calculateBreakevenMove;
+    getBreakevenPenalty = scoring.getBreakevenPenalty;
+    calculateExpectedValue = scoring.calculateExpectedValue;
+    getThetaPenalty = scoring.getThetaPenalty;
+    getDeltaBonus = scoring.getDeltaBonus;
+    zScores = scoring.zScores;
+    getIVRiskFactor = scoring.getIVRiskFactor;
+    getIVRankAdjustment = scoring.getIVRankAdjustment;
+    calculateLOQRaw = scoring.calculateLOQRaw;
+    normalizeScoreTo100 = scoring.normalizeScoreTo100;
+    calculateSpreadPct = scoring.calculateSpreadPct;
+    getCleanATM_IV = scoring.getCleanATM_IV;
+    calculateTargetIV = scoring.calculateTargetIV;
+    parseChain = scoring.parseChain;
+    try {
+        const iv = (await import('./_shared/ivHistory.js')).default;
+        saveTickerIVSnapshot = iv.saveTickerIVSnapshot;
+        getIVRank = iv.getIVRank;
+    } catch (_) {
+        saveTickerIVSnapshot = async () => {};
+        getIVRank = async () => ({ ivRank: null, ivPercentile: null, currentIv30: null, minIv: null, maxIv: null, sampleDays: 0 });
+    }
+    _scoringLoaded = true;
 }
 
 // =============================================================================
@@ -423,6 +428,7 @@ export default async function handler(req, res) {
     const dteTarget = targetDte ? parseInt(targetDte) : 30;
 
     try {
+        await ensureScoring();
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
         // 1. Parallel Fetching
