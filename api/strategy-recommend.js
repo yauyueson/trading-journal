@@ -355,7 +355,7 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRank = null) {
     return processed.map((p, i) => {
         const deltaBonus = getDeltaBonus(p.opt.delta);
         const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
-        const rawScore = calculateLOQRaw(zL[i], zG[i], zT[i], ivRankAdj, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty);
+        const rawScore = calculateLOQRaw(zL[i], zG[i], zT[i], ivRankAdj, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty, p.opt.dte);
         const score = normalizeScoreTo100(rawScore);
 
         return {

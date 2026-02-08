@@ -49,6 +49,8 @@ export {
     // LOQ / CSQ scoring
     LOQ_WEIGHTS,
     LOQ_DT_WEIGHTS,
+    getLOQWeightsForDTE,
+    type LOQWeightsForDTE,
     CSQ_WEIGHTS,
     calculateLOQRaw,
     calculateCSQRaw,
@@ -378,7 +380,7 @@ export function scoreOptionsChain(
             const bePenalty = _getBreakevenPenalty(p.breakevenMove, p.opt.dte);
             const rawScore = _calculateLOQRaw(
                 zLambdas[i], zGammas[i], zThetas[i],
-                ivAdjustment, deltaBonus, p.thetaBurn, isDayTrade, zGTRatios[i], bePenalty
+                ivAdjustment, deltaBonus, p.thetaBurn, isDayTrade, zGTRatios[i], bePenalty, p.opt.dte
             );
             const score = _normalizeScoreTo100(rawScore);
 
