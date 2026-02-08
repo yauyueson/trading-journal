@@ -71,23 +71,42 @@ export default async function handler(req, res) {
     const maxFields = 25;
 
     function formatExp(exp) {
-      if (!exp) return '';
-      const s = typeof exp === 'string' ? exp : (exp && exp.toISOString ? exp.toISOString().slice(0, 10) : '');
-      if (!s || s.length < 10) return s;
+      if (exp == null) return '';
+      let s = '';
+      if (typeof exp === 'string') s = exp.slice(0, 10);
+      else if (exp && typeof exp.toISOString === 'function') s = exp.toISOString().slice(0, 10);
+      if (!s || s.length < 10) return '';
       const d = new Date(s);
+      if (Number.isNaN(d.getTime())) return s;
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
     }
 
+    function parseLegs(legs) {
+      if (Array.isArray(legs)) return legs;
+      if (typeof legs === 'string') {
+        try {
+          const parsed = JSON.parse(legs);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (_) {
+          return [];
+        }
+      }
+      return [];
+    }
+
     for (const pos of positions || []) {
-      const legs = pos.legs || [];
+      try {
+      const legs = parseLegs(pos.legs);
       if (legs.length >= 2) {
         const stopPrice = pos.stop_price;
         const tgtPrice = pos.target_price;
-        const setup = pos.setup || '—';
+        const setup = (pos.setup != null && pos.setup !== '') ? String(pos.setup) : '—';
         const legsSummary = legs.map(l => {
-          const t = (l.type || 'Call').toString().toUpperCase().slice(0, 1);
-          const s = (l.side || 'long').toString().toLowerCase().slice(0, 1);
-          return `${l.strike}${t}${s}`;
+          if (!l || typeof l !== 'object') return '?';
+          const t = (l.type != null ? String(l.type) : 'Call').toUpperCase().slice(0, 1);
+          const s = (l.side != null ? String(l.side) : 'long').toLowerCase().slice(0, 1);
+          const strike = l.strike != null ? l.strike : '?';
+          return `${strike}${t}${s}`;
         }).join(' / ');
         const stopStr = stopPrice != null ? `$${Number(stopPrice).toFixed(2)}` : '—';
         const tgtStr = tgtPrice != null ? `$${Number(tgtPrice).toFixed(2)}` : '—';
@@ -157,6 +176,14 @@ export default async function handler(req, res) {
         value: `Entry ${entryStr} → Now ${nowStr}\nP&L ${pnlStr}\n${stopStr}`,
         pnl,
       });
+      } catch (posErr) {
+        console.warn('daily-recap skip position', pos?.id || pos?.ticker, posErr?.message || posErr);
+        rows.push({
+          name: `${pos?.ticker || '?'} (error)`,
+          value: `Could not load: ${posErr?.message || 'unknown'}`,
+          pnl: 0,
+        });
+      }
     }
 
     const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
