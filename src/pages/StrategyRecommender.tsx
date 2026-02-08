@@ -196,8 +196,9 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
             }
 
             if (!res.ok) throw new Error((data as { error?: string })?.error || 'Failed to fetch recommendations');
-            setResult(data);
-            setSelectedTab(data.recommendedStrategy); // Default to recommended
+            const resultData = data as StrategyResult;
+            setResult(resultData);
+            setSelectedTab(resultData.recommendedStrategy); // Default to recommended
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : 'Unknown error';
             // #region agent log
