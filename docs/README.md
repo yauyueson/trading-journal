@@ -1,6 +1,6 @@
 # Trading Journal - 文档总览
 
-> 最后更新: 2026年2月7日
+> 最后更新: 2026年2月8日
 
 欢迎来到Trading Journal项目文档中心！这里包含了项目的完整技术文档和使用指南。
 
@@ -121,15 +121,16 @@
 
 ---
 
-### 7️⃣ [止损与目标价短信提醒方案](./07_止损与目标价短信提醒方案.md)
-**适合**: 需要「价格触及止损/目标时收短信」的用户、开发者
+### 7️⃣ [止损与目标价提醒方案](./07_止损与目标价短信提醒方案.md) ✅ 已上线
+**适合**: 需要「价格触及止损/目标时收 Discord 推送」的用户、开发者
 
 **内容**:
 - 为何必须用服务端定时任务
 - 现有数据（target_price、止损公式）与可选补齐（stop_price）
-- 短信服务选型（Twilio / AWS SNS）
-- `/api/check-alerts` 设计与 Vercel Cron / 外部 Cron
-- 实现步骤与安全、成本注意点
+- 通知渠道选型（Discord Webhook 免费 / Twilio 付费）
+- `/api/check-alerts` 实现（Supabase REST API + Discord Webhook）
+- 外部 Cron（cron-job.org）配置（Vercel Hobby 不支持高频 Cron）
+- 安全、成本注意点
 
 **阅读时间**: 10分钟
 
@@ -224,6 +225,12 @@ docs/
 
 ## 🔄 文档更新日志
 
+### 2026-02-08
+- ✅ **Discord 自动提醒上线**: 新增 `api/check-alerts.js`（止损/目标价 Discord 推送）、`api/health.js`（健康检查）。
+- ✅ **部署修复**: 移除 `vercel.json` 中的 `crons` 配置（Vercel Hobby 计划不支持高频 Cron，会导致部署失败）；改用 cron-job.org 外部定时触发。
+- ✅ **基础设施**: `.gitignore` 增加 `dist/`、`.env`、`.env.local`；从 Git 移除 `dist/` 目录；新增 Deploy Hook 备选部署方式。
+- ✅ **文档更新**: 更新 TECHNICAL_DOCUMENTATION（架构图、文件结构、部署方式、Discord 提醒、故障排除）；更新 API 文档（check-alerts、health 端点）；更新技术路径（外部 Cron、Hobby 限制）；更新 PRD（Discord 提醒为 P1 功能）；更新提醒方案文档（反映实际实现）。
+
 ### 2026-02-07
 - ✅ **PRD 总览**: 新增 [00_PRD_总览.md](./00_PRD_总览.md)，产品愿景、用户场景、功能优先级、范围边界与依赖约束。
 - ✅ **技术文档**: 更新 TECHNICAL_DOCUMENTATION.md — OSS 单点事实架构（oss-core + api/_shared）、文件结构、重构说明（LERP/Theta 上限/Lambda 压缩/Day Trade/类型与边界）。
@@ -265,4 +272,4 @@ docs/
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年2月7日*
+*最后更新: 2026年2月8日*

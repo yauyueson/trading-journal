@@ -1,6 +1,6 @@
 # Trading Journal - 产品需求文档（PRD）总览
 
-> 版本 1.0 · 最后更新: 2026年2月7日
+> 版本 1.1 · 最后更新: 2026年2月8日
 
 ---
 
@@ -76,7 +76,8 @@
 | P1 | Greeks 历史 | IV/Delta 历史记录与图表 | ✅ |
 | P2 | Roll | 平旧仓开新仓（Roll 流程） | ✅ |
 | P2 | Academy | 内嵌学习/说明内容 | ✅ |
-| 后续 | 导出、推送、多账户等 | 见「未来规划」 | 规划中 |
+| P1 | Discord 自动提醒 | 止损/目标价触及时自动发 Discord 推送 | ✅ |
+| 后续 | 导出、短信提醒、多账户等 | 见「未来规划」 | 规划中 |
 
 ---
 
@@ -129,7 +130,9 @@
 - **CBOE**：延迟期权链与报价，免费、无 API Key，15 分钟延迟。
 - **Nasdaq**：历史价格（RV）、财报日期等，通过公开 API。
 - **Supabase**：数据库、Auth、Realtime。
-- **Vercel**：前端托管与 Serverless API。
+- **Vercel**：前端托管与 Serverless API（Hobby 计划）。
+- **Discord Webhook**：止损/目标价自动提醒通知渠道。
+- **cron-job.org**：外部定时任务，每 15 分钟触发提醒检查。
 
 ### 6.2 技术约束
 
@@ -148,8 +151,9 @@
 | [04_数据库设计](./04_数据库设计.md) | 表结构、RLS、索引 |
 | [05_API文档](./05_API文档.md) | 各 API 端点、参数、响应格式 |
 | [06_用户工作流](./06_用户工作流.md) | 从扫描到平仓的端到端流程 |
+| [07_止损与目标价提醒方案](./07_止损与目标价短信提醒方案.md) | Discord 自动提醒实现方案（已上线） |
 | [TECHNICAL_DOCUMENTATION.md](../TECHNICAL_DOCUMENTATION.md) | 技术文档总稿（架构、部署、重构说明） |
 
 ---
 
-*文档维护：Trading Journal Team · 2026年2月7日*
+*文档维护：Trading Journal Team · 2026年2月8日*

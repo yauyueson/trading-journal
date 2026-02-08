@@ -1,6 +1,6 @@
 # Trading Journal - API文档
 
-> 最后更新: 2026年2月7日
+> 最后更新: 2026年2月8日
 
 ## 📋 目录
 
@@ -34,6 +34,8 @@ Supabase PostgreSQL (数据存储)
 | `/api/strategy-recommend` | GET | 策略推荐引擎（价差/组合策略专用） | ✅ 生产 |
 | `/api/underlying-rv` | GET | 标的已实现波动率（Nasdaq 历史） | ✅ 生产 |
 | `/api/earnings` | GET | 获取财报日期（通过 Nasdaq API） | ✅ 生产 |
+| `/api/check-alerts` | GET | 止损/目标价 Discord 自动提醒（需 CRON_SECRET 鉴权） | ✅ 生产 |
+| `/api/health` | GET | 健康检查，返回 `{ ok: true, time: ... }` | ✅ 生产 |
 
 **评分逻辑统一**：`/api/scan-options` 与 `/api/strategy-recommend` 均引用 `api/_shared/scoring.js`，与前端 `src/lib/oss-core.ts` 逻辑镜像，保证扫描结果、策略推荐与持仓卡片 OSS 分数一致。
 
@@ -445,6 +447,97 @@ GET /api/earnings
 
 ---
 
+## 🔔 止损/目标价提醒 API (Check Alerts)
+
+### 端点
+
+```
+GET /api/check-alerts
+```
+
+### 用途
+
+定时检查所有 Active 持仓是否触及止损或目标价，触及则发送 Discord Webhook 提醒。由外部 Cron 服务（cron-job.org）每 15 分钟调用。
+
+### 鉴权
+
+| 方式 | 说明 |
+|------|------|
+| Query Parameter | `?secret=你的CRON_SECRET` |
+| Header | `Authorization: Bearer 你的CRON_SECRET` |
+
+无有效 secret → 返回 `401 Unauthorized`。
+
+### 响应
+
+**200 OK - 正常执行**:
+```json
+{
+  "ok": true,
+  "checked": 5,
+  "sent": 1
+}
+```
+
+**200 OK - 无活跃持仓**:
+```json
+{
+  "ok": true,
+  "message": "No active positions",
+  "sent": 0
+}
+```
+
+**401 Unauthorized - 鉴权失败**:
+```json
+{ "error": "Unauthorized" }
+```
+
+**500 Internal Server Error - 环境变量缺失**:
+```json
+{ "error": "DISCORD_WEBHOOK_URL not set" }
+```
+
+### 实现细节
+
+- **不使用 `@supabase/supabase-js` SDK**：直接用 `fetch` 调 Supabase REST API（PostgREST），避免 Vercel Serverless 的 ESM import 兼容问题。
+- **止损计算**：Debit 策略 = 入场价 × 0.5（或 0.75 如有部分止盈）；Credit 策略 = 入场价 × 1.5。
+- **目标价**：优先使用 `positions.target_price`；缺失时 Debit 默认 × 1.25，Credit 默认 × 0.5。
+- **当前价**：通过内部调用 `/api/option-price` 获取。
+- **仅处理单腿仓位**：价差仓位（legs ≥ 2）暂跳过，后续可扩展。
+
+### 所需环境变量
+
+| 变量 | 说明 |
+|------|------|
+| `CRON_SECRET` | 鉴权密钥 |
+| `DISCORD_WEBHOOK_URL` | Discord Webhook URL |
+| `SUPABASE_URL` / `VITE_SUPABASE_URL` | Supabase 项目 URL |
+| `SUPABASE_ANON_KEY` / `VITE_SUPABASE_ANON_KEY` | Supabase Anon Key |
+| `VERCEL_URL` | 部署域名（Vercel 自动注入） |
+
+---
+
+## ✅ 健康检查 API (Health)
+
+### 端点
+
+```
+GET /api/health
+```
+
+### 用途
+
+验证 Vercel 部署是否成功。无需鉴权。
+
+### 响应
+
+```json
+{ "ok": true, "time": "2026-02-08T00:53:27.326Z" }
+```
+
+---
+
 ## 🗄️ Supabase REST API
 
 ### 概述
@@ -782,4 +875,4 @@ describe('Option Price API', () => {
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年2月4日*
+*最后更新: 2026年2月8日*

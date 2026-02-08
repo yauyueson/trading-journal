@@ -1,6 +1,6 @@
 # Trading Journal - 技术文档
 
-> 最后更新: 2026年2月7日
+> 最后更新: 2026年2月8日
 
 ## 项目概述
 
@@ -36,7 +36,15 @@
 │  /api/scan-options.js    → OSS 扫描器 (引用 _shared/scoring)     │
 │  /api/strategy-recommend.js → 策略推荐 (引用 _shared/scoring)     │
 │  /api/underlying-rv.js   → 标的 RV；/api/earnings.js → 财报日期   │
+│  /api/check-alerts.js    → 止损/目标价 Discord 提醒（外部 Cron 触发）│
+│  /api/health.js          → 健康检查                               │
 └─────────────────────────────┬───────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                 外部服务 & 定时任务                                │
+│  cron-job.org (每15分钟) → /api/check-alerts → Discord Webhook   │
+└─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
@@ -249,22 +257,47 @@ trading-journal/
     ├── scan-options.js      # OSS 扫描器，引用 _shared/scoring
     ├── strategy-recommend.js
     ├── underlying-rv.js
-    └── earnings.js
+    ├── earnings.js
+    ├── check-alerts.js      # 止损/目标价 Discord 提醒（外部 Cron 触发）
+    └── health.js            # 健康检查端点
 ```
 
 ### 当前部署
 
 ```
-网址: https://trading-journal-git-main-chans-projects-332f0497.vercel.app
-Hosting: Vercel
+网址: https://trading-journal-yuchen.vercel.app
+Hosting: Vercel (Hobby Plan)
 GitHub: https://github.com/yauyueson/trading-journal
 ```
 
 ### 更新流程
 
-1. 修改文件
-2. 上传到 GitHub 仓库
-3. Vercel 自动重新部署
+> ⚠️ **注意**：GitHub → Vercel 的自动部署 Webhook 目前不稳定，新代码推送后可能不会自动触发 Vercel 部署。
+
+**推荐部署方式**（按优先级）：
+
+1. **Vercel CLI**（最可靠）：本地运行 `npx vercel --prod`，直接从本地代码构建并部署。
+2. **Deploy Hook**：通过 POST 请求触发 Vercel 从最新 `main` 分支构建。
+3. **Vercel Dashboard**：在 Deployments 页面手动触发。
+
+**Deploy Hook URL**（POST 请求即可触发部署）：
+```
+https://api.vercel.com/v1/integrations/deploy/prj_Q27dySs80ReT8IwzjuVlMtePI2xu/s0lgHBX591
+```
+
+### Vercel 环境变量
+
+| 变量名 | 说明 |
+|--------|------|
+| `VITE_SUPABASE_URL` | Supabase 项目 URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase Anon Key |
+| `CRON_SECRET` | check-alerts API 鉴权密钥 |
+| `DISCORD_WEBHOOK_URL` | Discord Webhook URL（提醒发送目标） |
+
+### Vercel Hobby 计划限制
+
+- **Cron Jobs**：Hobby 计划仅支持**每日一次**的 Cron。`*/15 * * * *`（每 15 分钟）会导致部署失败。因此 `vercel.json` 中**不能包含高频 crons 配置**，改用外部 cron 服务。
+- **Serverless Function Timeout**：默认 10s，最大可配置 60s。
 
 ---
 
@@ -301,6 +334,59 @@ GitHub: https://github.com/yauyueson/trading-journal
 - `scan-options.js` 单遍完成过滤与指标计算，减少多轮遍历。
 - 流动性：显式要求 `bid > 0 && ask > 0`，并在解析阶段做 DTE/行权价预过滤。
 
+### Discord 自动提醒 (2026-02-08)
+- 新增 `api/check-alerts.js`：定时检查 Active 持仓是否触及止损/目标价，触及则发 Discord Embed 提醒。
+- 使用 Supabase REST API（PostgREST）直接 fetch，不引入 `@supabase/supabase-js` SDK，避免 Vercel Serverless ESM 兼容问题。
+- 定时触发由外部 cron-job.org 完成（每 15 分钟），而非 Vercel Cron（Hobby 计划不支持高频）。
+
+### 部署与基础设施 (2026-02-08)
+- 修复 `.gitignore`：排除 `dist/`、`.env`、`.env.local`，防止构建产物污染仓库。
+- 从 Git 中移除已提交的 `dist/` 目录。
+- 移除 `vercel.json` 中的 `crons` 配置（Hobby 计划限制，此配置会导致部署失败）。
+- 新增 Deploy Hook 用于手动触发 Vercel 部署（GitHub Webhook 不稳定时的备选方案）。
+- 新增 `api/health.js` 健康检查端点，用于验证部署是否成功。
+
+---
+
+## Discord 自动提醒系统
+
+### 概述
+
+当 Active 持仓的当前价格触及**止损**或**目标价**时，系统自动发送 Discord 推送提醒。
+
+### 架构
+
+```
+cron-job.org (每 15 分钟 GET)
+    ↓
+/api/check-alerts?secret=CRON_SECRET
+    ↓
+1. 鉴权（CRON_SECRET）
+2. Supabase REST API 查询 Active 持仓 + 交易记录
+3. 逐笔调用 /api/option-price 获取当前价
+4. 按止损/目标价规则判断是否触及
+5. 触及 → Discord Webhook POST（Embed 格式）
+```
+
+### 止损规则
+
+| 策略类型 | 止损价计算 | 触发条件 |
+|----------|-----------|----------|
+| Debit（买方） | 入场价 × 0.5（无部分止盈）或 × 0.75（有部分止盈） | 当前价 ≤ 止损价 |
+| Credit（卖方） | 入场价 × 1.5 | 当前价 ≥ 止损价 |
+
+### 技术实现
+
+- **`api/check-alerts.js`**：不依赖 `@supabase/supabase-js` SDK，直接用 `fetch` 调 Supabase REST API（PostgREST），避免 Vercel Serverless 的 ESM import 兼容问题。
+- **鉴权**：通过 `?secret=` 查询参数或 `Authorization: Bearer` 头部与环境变量 `CRON_SECRET` 比对。
+- **外部 Cron**：使用 [cron-job.org](https://cron-job.org)（免费），每 15 分钟 GET 调用一次。
+
+### 配置步骤
+
+1. Discord：建服务器 → 建 #alerts 频道 → 创建 Webhook → 复制 URL
+2. Vercel：Settings → Environment Variables → 设置 `DISCORD_WEBHOOK_URL` 和 `CRON_SECRET`
+3. cron-job.org：新建 Job → URL 填 `https://trading-journal-yuchen.vercel.app/api/check-alerts?secret=你的密钥` → 间隔 15 分钟
+
 ---
 
 ## 故障排除
@@ -319,6 +405,15 @@ GitHub: https://github.com/yauyueson/trading-journal
 | "Option contract not found" | 合约不存在或已过期 | 检查到期日 |
 | "CBOE API error: 404" | Ticker 不支持 | 确认是美股期权 |
 | Network error | 网络问题 | 检查连接 |
+
+### 部署问题
+
+| 问题 | 原因 | 解决 |
+|------|------|------|
+| 推送后 Vercel 没有自动部署 | GitHub → Vercel Webhook 断连 | 用 Deploy Hook 或 `npx vercel --prod` 手动部署 |
+| Vercel 部署报 "Hobby accounts are limited to daily cron jobs" | `vercel.json` 包含高频 crons 配置 | 删除 `crons` 配置，改用外部 cron 服务 |
+| 新 API 端点 404 但旧端点正常 | Vercel 仍在使用旧的成功部署 | 确认最新部署是 Ready 状态；如不是，查看 Build Logs |
+| `dist/` 被提交到 Git | `.gitignore` 缺少 `dist` | 已修复：`dist`、`.env`、`.env.local` 已加入 `.gitignore` |
 
 ---
 
