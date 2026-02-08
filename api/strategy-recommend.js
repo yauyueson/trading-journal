@@ -13,7 +13,12 @@ let _scoringLoaded = false;
 
 async function ensureScoring() {
     if (_scoringLoaded) return;
-    const scoring = (await import('./_shared/scoring.js')).default;
+    const scoringUrl = new URL('./_shared/scoring.js', import.meta.url).href;
+    const scoringMod = await import(scoringUrl);
+    const scoring = scoringMod.default ?? scoringMod;
+    if (!scoring || typeof scoring.compressLambda !== 'function') {
+        throw new Error('Scoring module load failed: missing exports');
+    }
     compressLambda = scoring.compressLambda;
     calculateGammaThetaRatio = scoring.calculateGammaThetaRatio;
     calculateBreakevenMove = scoring.calculateBreakevenMove;
@@ -31,7 +36,9 @@ async function ensureScoring() {
     calculateTargetIV = scoring.calculateTargetIV;
     parseChain = scoring.parseChain;
     try {
-        const iv = (await import('./_shared/ivHistory.js')).default;
+        const ivUrl = new URL('./_shared/ivHistory.js', import.meta.url).href;
+        const ivMod = await import(ivUrl);
+        const iv = ivMod.default ?? ivMod;
         saveTickerIVSnapshot = iv.saveTickerIVSnapshot;
         getIVRank = iv.getIVRank;
     } catch (_) {

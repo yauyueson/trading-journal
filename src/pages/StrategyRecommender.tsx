@@ -195,7 +195,10 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                 throw new Error(friendly);
             }
 
-            if (!res.ok) throw new Error((data as { error?: string })?.error || 'Failed to fetch recommendations');
+            if (!res.ok) {
+                const errPayload = data as { message?: string; error?: string };
+                throw new Error(errPayload?.message || errPayload?.error || 'Failed to fetch recommendations');
+            }
             const resultData = data as StrategyResult;
             setResult(resultData);
             setSelectedTab(resultData.recommendedStrategy); // Default to recommended
