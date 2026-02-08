@@ -70,12 +70,31 @@ export default async function handler(req, res) {
     let totalPnl = 0;
     const maxFields = 25;
 
+    function formatExp(exp) {
+      if (!exp) return '';
+      const s = typeof exp === 'string' ? exp : (exp && exp.toISOString ? exp.toISOString().slice(0, 10) : '');
+      if (!s || s.length < 10) return s;
+      const d = new Date(s);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+    }
+
     for (const pos of positions || []) {
       const legs = pos.legs || [];
       if (legs.length >= 2) {
+        const stopPrice = pos.stop_price;
+        const tgtPrice = pos.target_price;
+        const setup = pos.setup || '—';
+        const legsSummary = legs.map(l => {
+          const t = (l.type || 'Call').toString().toUpperCase().slice(0, 1);
+          const s = (l.side || 'long').toString().toLowerCase().slice(0, 1);
+          return `${l.strike}${t}${s}`;
+        }).join(' / ');
+        const stopStr = stopPrice != null ? `$${Number(stopPrice).toFixed(2)}` : '—';
+        const tgtStr = tgtPrice != null ? `$${Number(tgtPrice).toFixed(2)}` : '—';
+        const value = `Setup: ${setup}\nLegs: ${legsSummary}\nStop ${stopStr} · Target ${tgtStr}`;
         rows.push({
-          name: `${pos.ticker || '?'} (多腿)`,
-          value: '—',
+          name: `${pos.ticker || '?'} (多腿 · ${legs.length} legs)`,
+          value,
           pnl: 0,
         });
         continue;
@@ -101,15 +120,18 @@ export default async function handler(req, res) {
       const targetPrice = pos.target_price || (isCreditStrategy ? entryPrice * 0.5 : entryPrice * 1.25);
 
       let currentPrice = null;
-      try {
-        const optionPriceUrl = `${baseUrl}/api/option-price?ticker=${encodeURIComponent(pos.ticker)}&expiration=${encodeURIComponent(pos.expiration)}&strike=${pos.strike}&type=${encodeURIComponent(pos.type || 'Call')}`;
-        const priceRes = await fetch(optionPriceUrl);
-        if (priceRes.ok) {
-          const priceData = await priceRes.json();
-          currentPrice = priceData.price ?? priceData.mid ?? null;
+      const expStr = pos.expiration ? (typeof pos.expiration === 'string' ? pos.expiration : pos.expiration.toISOString?.()?.slice(0, 10) : '') : '';
+      if (pos.ticker && expStr && pos.strike != null) {
+        try {
+          const optionPriceUrl = `${baseUrl}/api/option-price?ticker=${encodeURIComponent(pos.ticker)}&expiration=${encodeURIComponent(expStr)}&strike=${pos.strike}&type=${encodeURIComponent(pos.type || 'Call')}`;
+          const priceRes = await fetch(optionPriceUrl);
+          if (priceRes.ok) {
+            const priceData = await priceRes.json();
+            currentPrice = priceData.price ?? priceData.mid ?? null;
+          }
+        } catch (e) {
+          console.warn('option-price fetch failed for', pos.ticker, pos.strike, e.message);
         }
-      } catch (e) {
-        console.warn('option-price fetch failed for', pos.ticker, pos.strike, e.message);
       }
 
       const ticker = pos.ticker || '';
@@ -123,14 +145,15 @@ export default async function handler(req, res) {
       totalPnl += pnl;
 
       const entryStr = entryPrice ? `$${Number(entryPrice).toFixed(2)}` : '—';
-      const nowStr = currentPrice != null ? `$${Number(currentPrice).toFixed(2)}` : '—';
+      const nowStr = currentPrice != null ? `$${Number(currentPrice).toFixed(2)}` : '— (price unavailable)';
       const pnlStr = currentPrice != null && entryPrice
         ? `${pnl >= 0 ? '+' : ''}$${Number(pnl).toFixed(2)} (${qty} contract${qty !== 1 ? 's' : ''})`
         : '—';
       const stopStr = `Stop $${Number(currentStopLoss).toFixed(2)} · Target $${Number(targetPrice).toFixed(2)}`;
+      const expLabel = formatExp(pos.expiration) ? ` · ${formatExp(pos.expiration)}` : '';
 
       rows.push({
-        name: `${ticker} ${strike}${typeChar}${qty !== 1 ? ` ×${qty}` : ''}`,
+        name: `${ticker} ${strike}${typeChar}${expLabel}${qty !== 1 ? ` ×${qty}` : ''}`,
         value: `Entry ${entryStr} → Now ${nowStr}\nP&L ${pnlStr}\n${stopStr}`,
         pnl,
       });
