@@ -8,11 +8,10 @@
  *   SUPABASE_URL / VITE_SUPABASE_URL
  *   SUPABASE_ANON_KEY / VITE_SUPABASE_ANON_KEY
  *   VERCEL_URL           - 部署域名，用于内调 option-price（Vercel 自动注入）
+ *
+ * 不使用 @supabase/supabase-js SDK，直接调 Supabase REST API (PostgREST)
+ * 以避免 Vercel serverless function 的 ESM import 兼容性问题。
  */
-
-import { createClient } from '@supabase/supabase-js';
-
-const CONTRACT_MULTIPLIER = 100;
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -45,35 +44,38 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Supabase env not set' });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
   const baseUrl = process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`
     : process.env.BASE_URL || 'http://localhost:3000';
 
+  // Helper: call Supabase REST API directly via fetch
+  async function supabaseQuery(table, queryParams = '') {
+    const url = `${supabaseUrl}/rest/v1/${table}${queryParams ? '?' + queryParams : ''}`;
+    const resp = await fetch(url, {
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Supabase ${table} query failed: ${resp.status} ${text}`);
+    }
+    return resp.json();
+  }
+
   try {
     // 2. 拉取所有 Active 持仓
-    const { data: positions, error: posErr } = await supabase
-      .from('positions')
-      .select('*')
-      .eq('status', 'active');
+    const positions = await supabaseQuery('positions', 'status=eq.active&select=*');
 
-    if (posErr) {
-      console.error('Supabase positions error:', posErr);
-      return res.status(500).json({ error: 'Failed to fetch positions' });
-    }
     if (!positions || positions.length === 0) {
       return res.status(200).json({ ok: true, message: 'No active positions', sent: 0 });
     }
 
     // 3. 拉取所有 transactions（用于算入场价、是否部分止盈）
-    const { data: transactions, error: txnErr } = await supabase
-      .from('transactions')
-      .select('*');
+    const transactions = await supabaseQuery('transactions', 'select=*');
 
-    if (txnErr) {
-      console.error('Supabase transactions error:', txnErr);
-      return res.status(500).json({ error: 'Failed to fetch transactions' });
-    }
     const txnsByPos = (transactions || []).reduce((acc, t) => {
       if (!acc[t.position_id]) acc[t.position_id] = [];
       acc[t.position_id].push(t);
