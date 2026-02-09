@@ -424,43 +424,43 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     return (
         <div className={`${cardClass} p-5 fade-in`}>
             {/* Header */}
-            <div className="flex justify-between items-start mb-4">
-                <div>
-                    <div className="flex items-center gap-3 mb-1">
-                        <span className="text-2xl font-bold">{position.ticker}</span>
+            <div className="flex justify-between items-start gap-3 mb-4">
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
+                        <span className="text-xl sm:text-2xl font-bold">{position.ticker}</span>
                         {isSpread ? (
-                            <div className="flex items-center gap-2 text-sm text-text-secondary font-medium uppercase tracking-wide">
+                            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-text-secondary font-medium uppercase tracking-wide">
                                 <span className="text-text-primary">
                                     ${position.legs?.find(l => l.side === 'short')?.strike}{position.legs?.[0]?.type?.charAt(0)}
-                                    <span className="mx-1.5">/</span>
+                                    <span className="mx-1">/</span>
                                     ${position.legs?.find(l => l.side === 'long')?.strike}{position.legs?.[0]?.type?.charAt(0)}
                                 </span>
-                                <span className="text-[15.5px]">{position.legs?.[0]?.type} {isCreditStrategy ? 'Credit' : 'Debit'} Spread</span>
+                                <span className="hidden sm:inline text-[15.5px]">{position.legs?.[0]?.type} {isCreditStrategy ? 'Credit' : 'Debit'} Spread</span>
+                                <span className="sm:hidden">{isCreditStrategy ? 'Cr' : 'Dr'}</span>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2 text-sm text-text-secondary font-medium uppercase tracking-wide">
+                            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-text-secondary font-medium uppercase tracking-wide">
                                 <span className="text-text-primary font-mono">${position.strike}</span>
-                                <span className={`text-[15.5px] ${position.type?.toLowerCase().includes('call') ? 'text-accent-green' : 'text-accent-red'}`}>
+                                <span className={`${position.type?.toLowerCase().includes('call') ? 'text-accent-green' : 'text-accent-red'}`}>
                                     {position.type}
                                 </span>
                             </div>
                         )}
                     </div>
-                    <div className="text-text-secondary">
-
+                    <div className="text-text-secondary text-xs sm:text-sm flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                         <span>{formatDate(position.expiration)}</span>
-                        <span className="mx-2">·</span>
-                        <span>{totalQty} contract{totalQty !== 1 ? 's' : ''}</span>
+                        <span>·</span>
+                        <span>{totalQty}x</span>
                         {singleTradeRiskPct != null && (
                             <>
-                                <span className="mx-2">·</span>
+                                <span>·</span>
                                 <span className="font-mono text-text-primary" title="Max risk at stop-out: $ and % of portfolio">
-                                    Risk: {formatCurrency(positionRiskAtStopOutDollars)} ({singleTradeRiskPct.toFixed(1)}% of portfolio)
+                                    {formatCurrency(positionRiskAtStopOutDollars)} <span className="text-text-tertiary">({singleTradeRiskPct.toFixed(1)}%)</span>
                                 </span>
                             </>
                         )}
                         {liveData.ivRatio !== undefined && (
-                            <span className="ml-3 px-2 py-0.5 rounded text-xs font-mono font-medium bg-bg-tertiary border border-border-default/50 text-text-secondary" title="IV Ratio">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-mono font-medium bg-bg-tertiary border border-border-default/50 text-text-secondary" title="IV Ratio">
                                 IVR: <span className={liveData.ivRatio > 1.05 ? 'text-accent-green' : liveData.ivRatio < 0.95 ? 'text-accent-red' : 'text-text-primary'}>
                                     {liveData.ivRatio.toFixed(2)}
                                 </span>
@@ -468,15 +468,15 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         )}
                     </div>
                 </div>
-                <div className="text-right">
-                    <div className={`big-number ${pnlColor}`}>
+                <div className="text-right shrink-0">
+                    <div className={`text-2xl sm:text-3xl font-bold tracking-tight leading-none ${pnlColor}`}>
                         {formatPercent(unrealizedPnLPct)}
                     </div>
-                    <div className={`text-sm font-mono ${pnlColor} mb-1`}>
+                    <div className={`text-xs sm:text-sm font-mono ${pnlColor} mb-1`}>
                         {unrealizedPnL >= 0 ? '+' : ''}{formatCurrency(unrealizedPnL)}
                     </div>
-                    <div className={`text-xs font-mono font-medium ${realizedPnL > 0 ? 'text-accent-green' : realizedPnL < 0 ? 'text-accent-red' : 'text-text-tertiary'} flex items-center justify-end gap-1`}>
-                        <span className="text-text-tertiary text-[10px] uppercase tracking-wider">Realized</span>
+                    <div className={`text-[10px] sm:text-xs font-mono font-medium ${realizedPnL > 0 ? 'text-accent-green' : realizedPnL < 0 ? 'text-accent-red' : 'text-text-tertiary'} flex items-center justify-end gap-1`}>
+                        <span className="text-text-tertiary text-[10px] uppercase tracking-wider hidden sm:inline">Realized</span>
                         {realizedPnL !== 0 ? (realizedPnL > 0 ? '+' : '') + formatCurrency(realizedPnL) : '—'}
                     </div>
                 </div>
@@ -720,13 +720,13 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
             </div>
 
             {/* Setup info */}
-            <div className="text-sm text-text-secondary mb-4 flex flex-wrap gap-x-2 gap-y-1">
+            <div className="text-xs sm:text-sm text-text-secondary mb-4 flex flex-wrap gap-x-2 gap-y-1">
                 <span><span className="text-text-tertiary">Setup:</span> {position.setup}</span>
                 {position.stop_reason && (
-                    <span className="flex items-center gap-2 min-w-0">
+                    <span className="flex items-center gap-1.5 min-w-0">
                         <span className="text-text-tertiary">·</span>
                         <span className="text-text-tertiary shrink-0">Exit if:</span>
-                        <span className="truncate max-w-[200px] sm:max-w-[300px]" title={position.stop_reason}>{position.stop_reason}</span>
+                        <span className="truncate max-w-[160px] sm:max-w-[300px]" title={position.stop_reason}>{position.stop_reason}</span>
                     </span>
                 )}
             </div>
@@ -754,21 +754,21 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
 
             {/* Action Buttons */}
             {!actionMode ? (
-                <div className="flex gap-2">
-                    <button onClick={fetchGreeksAndPrice} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-2 cursor-pointer" aria-label="Refresh price">
-                        {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={16} />}
-                        <span className="hidden sm:inline">Refresh</span>
+                <div className="flex gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide">
+                    <button onClick={fetchGreeksAndPrice} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-1.5 cursor-pointer shrink-0 px-2.5 sm:px-3" aria-label="Refresh price">
+                        {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={15} />}
+                        <span className="hidden sm:inline text-sm">Refresh</span>
                     </button>
-                    <button onClick={() => setActionMode('Add')} className="action-btn btn-secondary">+ Add</button>
-                    <button onClick={() => setActionMode('TakeProfit')} className="action-btn btn-secondary">Profit</button>
+                    <button onClick={() => setActionMode('Add')} className="action-btn btn-secondary shrink-0 text-sm">+ Add</button>
+                    <button onClick={() => setActionMode('TakeProfit')} className="action-btn btn-secondary shrink-0 text-sm">Profit</button>
                     {onRollClick && (
-                        <button onClick={() => onRollClick(totalQty)} className="action-btn btn-secondary text-text-secondary hover:text-white flex items-center gap-1">
+                        <button onClick={() => onRollClick(totalQty)} className="action-btn btn-secondary text-text-secondary hover:text-white flex items-center gap-1 shrink-0 text-sm">
                             <ArrowRightLeft size={14} /> Roll
                         </button>
                     )}
-                    <button onClick={() => setActionMode('Close')} className="action-btn btn-secondary text-text-secondary hover:text-accent-red hover:bg-accent-red/10">Close</button>
-                    <button onClick={() => onDelete(position.id)} className="action-btn btn-secondary text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 px-3" aria-label="Delete Position">
-                        <Trash2 size={16} />
+                    <button onClick={() => setActionMode('Close')} className="action-btn btn-secondary text-text-secondary hover:text-accent-red hover:bg-accent-red/10 shrink-0 text-sm">Close</button>
+                    <button onClick={() => onDelete(position.id)} className="action-btn btn-secondary text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 px-2.5 shrink-0" aria-label="Delete Position">
+                        <Trash2 size={15} />
                     </button>
                 </div>
             ) : (

@@ -110,56 +110,58 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
         <div className="fade-in pb-24 sm:pb-0 space-y-6">
             {/* Header */}
             <div className="space-y-4">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-text-primary to-text-secondary bg-clip-text text-transparent">
-                            Portfolio
-                        </h1>
-                        <p className="text-text-secondary mt-1">Manage open positions and track performance</p>
-                        {activePositions.length > 0 && portfolioTotal > 0 && (
-                            <p className="text-sm text-text-tertiary mt-2 font-mono">
-                                Total risk: <span className={totalRiskPct > 10 ? 'text-accent-red font-semibold' : 'text-text-primary'}>{formatCurrency(totalRiskDollars)}</span>
-                                {' '}(<span className={totalRiskPct > 10 ? 'text-accent-red font-semibold' : ''}>{totalRiskPct.toFixed(1)}%</span> of portfolio)
-                            </p>
-                        )}
+                <div className="flex flex-col gap-4">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-text-primary to-text-secondary bg-clip-text text-transparent">
+                                Portfolio
+                            </h1>
+                            <p className="text-text-secondary text-sm mt-1 hidden sm:block">Manage open positions and track performance</p>
+                            {activePositions.length > 0 && portfolioTotal > 0 && (
+                                <p className="text-xs sm:text-sm text-text-tertiary mt-1.5 sm:mt-2 font-mono">
+                                    Risk: <span className={totalRiskPct > 10 ? 'text-accent-red font-semibold' : 'text-text-primary'}>{formatCurrency(totalRiskDollars)}</span>
+                                    {' '}<span className={totalRiskPct > 10 ? 'text-accent-red font-semibold' : ''}>({totalRiskPct.toFixed(1)}%)</span>
+                                </p>
+                            )}
+                        </div>
+                        {/* Mobile: only add button. Desktop: full row */}
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            <button
+                                onClick={refreshAllPrices}
+                                disabled={refreshing}
+                                className={`
+                                    relative overflow-hidden group flex items-center gap-2 p-2.5 sm:px-4 sm:py-2 rounded-xl border border-border-default/50
+                                    bg-bg-secondary/30 backdrop-blur-sm hover:bg-bg-secondary transition-all duration-200
+                                    ${refreshing ? 'opacity-70 cursor-not-allowed text-text-tertiary' : 'text-text-secondary hover:text-text-primary hover:border-text-secondary/30'}
+                                `}
+                                aria-label="Refresh all prices"
+                            >
+                                <RefreshCw size={18} className={`transition-transform duration-500 ${refreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
+                                <span className="font-medium text-sm hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh All'}</span>
+                            </button>
+                            <button
+                                onClick={() => setShowForm(!showForm)}
+                                className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2.5 sm:py-2 rounded-xl font-medium text-sm text-white shadow-lg transition-all duration-200 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:-translate-y-0.5"
+                            >
+                                <span className="text-lg leading-none">+</span>
+                                <span className="hidden sm:inline">Add Position</span>
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setShowAccountSettings(!showAccountSettings)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border-default/50 bg-bg-secondary/30 hover:bg-bg-secondary text-text-secondary hover:text-text-primary text-sm font-medium transition-colors"
-                            aria-expanded={showAccountSettings}
-                        >
-                            <Settings2 size={16} className="text-accent-green" />
-                            <span className="font-mono">
-                                Portfolio {formatCurrency(portfolioTotal)} · Risk {riskPct}% · Stop {stopOutPct}% · Cap {formatCurrency(maxRiskPerTrade)}/trade
-                            </span>
-                            <ChevronDown size={16} className={`text-gray-500 transition-transform ${showAccountSettings ? 'rotate-180' : ''}`} />
-                        </button>
-                        <button
-                            onClick={refreshAllPrices}
-                            disabled={refreshing}
-                            className={`
-                                relative overflow-hidden group flex items-center gap-2 px-4 py-2 rounded-xl border border-border-default/50 
-                                bg-bg-secondary/30 backdrop-blur-sm hover:bg-bg-secondary transition-all duration-200
-                                ${refreshing ? 'opacity-70 cursor-not-allowed text-text-tertiary' : 'text-text-secondary hover:text-text-primary hover:border-text-secondary/30'}
-                            `}
-                        >
-                            <RefreshCw size={18} className={`transition-transform duration-500 ${refreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
-                            <span className="font-medium text-sm">{refreshing ? 'Refreshing...' : 'Refresh All'}</span>
-                        </button>
-                        <button
-                            onClick={() => setShowForm(!showForm)}
-                            className={`
-                                flex items-center gap-2 px-5 py-2 rounded-xl font-medium text-sm text-white shadow-lg transition-all duration-200
-                                bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500
-                                shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:-translate-y-0.5
-                            `}
-                        >
-                            <span className="text-lg leading-none mb-0.5">+</span>
-                            <span>Add Position</span>
-                        </button>
-                    </div>
+                    {/* Settings toggle - full width on mobile */}
+                    <button
+                        type="button"
+                        onClick={() => setShowAccountSettings(!showAccountSettings)}
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border border-border-default/50 bg-bg-secondary/30 hover:bg-bg-secondary text-text-secondary hover:text-text-primary text-xs sm:text-sm font-medium transition-colors w-full sm:w-auto"
+                        aria-expanded={showAccountSettings}
+                    >
+                        <Settings2 size={16} className="text-accent-green shrink-0" />
+                        <span className="font-mono truncate">
+                            <span className="hidden sm:inline">Portfolio {formatCurrency(portfolioTotal)} · Risk {riskPct}% · Stop {stopOutPct}% · Cap {formatCurrency(maxRiskPerTrade)}/trade</span>
+                            <span className="sm:hidden">{formatCurrency(portfolioTotal)} · {riskPct}% risk · {formatCurrency(maxRiskPerTrade)}/trade</span>
+                        </span>
+                        <ChevronDown size={16} className={`text-gray-500 transition-transform shrink-0 ${showAccountSettings ? 'rotate-180' : ''}`} />
+                    </button>
                 </div>
                 {/* Collapsible Account & Risk Settings */}
                 {showAccountSettings && (

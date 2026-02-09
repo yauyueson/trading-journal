@@ -196,32 +196,32 @@ export const Academy: React.FC = () => {
     return (
         <div className="fade-in pb-20 sm:pb-10 font-sans max-w-5xl mx-auto">
             {/* Header section with glass effect */}
-            <div className="mb-10 text-center">
-                <div className="inline-block p-3 bg-accent-green/10 rounded-2xl mb-4 border border-accent-green/20">
-                    <BookOpen className="text-accent-green w-8 h-8" />
+            <div className="mb-6 sm:mb-10 text-center">
+                <div className="inline-block p-3 bg-accent-green/10 rounded-2xl mb-3 sm:mb-4 border border-accent-green/20">
+                    <BookOpen className="text-accent-green w-7 h-7 sm:w-8 sm:h-8" />
                 </div>
-                <h1 className="text-4xl font-extrabold text-white mb-2 tracking-tight">Trading Academy</h1>
-                <p className="text-gray-400 text-lg">Master the OSS algorithms and trade like a professional.</p>
+                <h1 className="text-2xl sm:text-4xl font-extrabold text-white mb-2 tracking-tight">Trading Academy</h1>
+                <p className="text-gray-400 text-sm sm:text-lg">Master the OSS algorithms and trade like a professional.</p>
             </div>
 
             {/* Search and Filters */}
-            <div className="flex flex-col md:flex-row gap-4 mb-8">
-                <div className="relative flex-1">
+            <div className="flex flex-col gap-4 mb-8">
+                <div className="relative">
                     <input
                         type="text"
-                        placeholder="Search for terms, formulas or concepts..."
+                        placeholder="Search terms, formulas or concepts..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-[#1C1C1E] border border-[#2A2A2A] text-white rounded-xl pl-12 pr-4 py-4 focus:outline-none focus:border-accent-green transition-all shadow-xl"
+                        className="w-full bg-[#1C1C1E] border border-[#2A2A2A] text-white rounded-xl pl-12 pr-4 py-3.5 sm:py-4 focus:outline-none focus:border-accent-green transition-all shadow-xl text-sm sm:text-base"
                     />
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
                 </div>
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
                     {categories.map(cat => (
                         <button
                             key={cat}
                             onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                            className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${selectedCategory === cat
+                            className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold border transition-all shrink-0 ${selectedCategory === cat
                                 ? 'bg-accent-green text-black border-accent-green'
                                 : 'bg-[#1C1C1E] text-gray-400 border-[#2A2A2A] hover:border-gray-600'
                                 }`}

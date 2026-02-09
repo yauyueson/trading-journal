@@ -87,30 +87,30 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transaction
                         const { pnl, pnlPct, holdDays } = getStats(p);
                         const isWin = pnl >= 0;
                         return (
-                            <div key={p.id} className="card p-5 fade-in">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-1">
-                                            <span className="text-xl font-bold">{p.ticker}</span>
+                            <div key={p.id} className="card p-4 sm:p-5 fade-in">
+                                <div className="flex justify-between items-start gap-3">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
+                                            <span className="text-lg sm:text-xl font-bold">{p.ticker}</span>
                                             <span className={`badge ${p.type === 'Call' ? 'badge-green' : 'badge-red'}`}>{p.type}</span>
                                             <span className={`badge ${isWin ? 'badge-green' : 'badge-red'} flex items-center gap-1`}>
                                                 {isWin ? <><Check size={12} /> Win</> : 'Loss'}
                                             </span>
                                         </div>
-                                        <div className="text-text-secondary text-sm">
+                                        <div className="text-text-secondary text-xs sm:text-sm">
                                             <span className="font-mono">${p.strike}</span>
-                                            <span className="mx-2">·</span>
+                                            <span className="mx-1.5 sm:mx-2">·</span>
                                             <span>{p.setup}</span>
-                                            <span className="mx-2">·</span>
-                                            <span>{holdDays}d held</span>
+                                            <span className="mx-1.5 sm:mx-2">·</span>
+                                            <span>{holdDays}d</span>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col items-end gap-3">
+                                    <div className="flex flex-col items-end gap-2 sm:gap-3 shrink-0">
                                         <div className="text-right">
-                                            <div className={`big-number ${isWin ? 'text-accent-green' : 'text-accent-red'}`}>
+                                            <div className={`text-2xl sm:text-3xl font-bold tracking-tight leading-none ${isWin ? 'text-accent-green' : 'text-accent-red'}`}>
                                                 {formatPercent(pnlPct)}
                                             </div>
-                                            <div className={`text-sm font-mono ${isWin ? 'text-accent-green' : 'text-accent-red'}`}>
+                                            <div className={`text-xs sm:text-sm font-mono ${isWin ? 'text-accent-green' : 'text-accent-red'}`}>
                                                 {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
                                             </div>
                                         </div>
@@ -123,7 +123,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transaction
                                             title="Delete Record"
                                         >
                                             <Trash2 size={14} />
-                                            <span>Delete</span>
+                                            <span className="hidden sm:inline">Delete</span>
                                         </button>
                                     </div>
                                 </div>

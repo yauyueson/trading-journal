@@ -11,6 +11,12 @@
         @apply bg-bg-primary text-text-primary min-h-screen m-0 p-0;
         font-feature-settings: 'ss01' on, 'ss02' on;
         -webkit-font-smoothing: antialiased;
+        overscroll-behavior: none;
+    }
+
+    /* Prevent iOS rubber-band overscroll on fixed elements */
+    html {
+        overscroll-behavior: none;
     }
 
     /* Accessibility: Focus-visible ring for keyboard navigation */
@@ -139,6 +145,16 @@
 }
 
 @layer utilities {
+    /* Hide scrollbar but keep scroll functionality */
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+
     .fade-in {
         animation: fadeIn 0.3s ease-out;
     }

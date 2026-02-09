@@ -8,7 +8,8 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nFix daily-recap.js syntax errors causing FUNCTION_INVOCATION_FAILED\n\n- Remove orphaned try block without catch/finally \\(line 25\\)\n- Fix nested ternary syntax error with 3 colons / 2 question marks \\(line 174\\)\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git push:*)",
       "Bash(npx vercel:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(wc:*)"
     ]
   }
 }

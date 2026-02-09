@@ -403,21 +403,21 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
             {result && (
                 <div className="space-y-6 animate-fade-in">
                     {/* Regime Card */}
-                    <div className={`border rounded-xl p-5 relative overflow-hidden ${result.regime.mode === 'CREDIT' ? 'bg-red-900/10 border-red-500/30' :
+                    <div className={`border rounded-xl p-4 sm:p-5 relative overflow-hidden ${result.regime.mode === 'CREDIT' ? 'bg-red-900/10 border-red-500/30' :
                         result.regime.mode === 'DEBIT' ? 'bg-green-900/10 border-green-500/30' :
                             'bg-[#1C1C1E] border-[#2A2A2A]'
                         }`}>
-                        <div className="flex justify-between items-start relative z-10">
-                            <div>
-                                <h2 className="text-2xl font-black text-white flex items-center gap-3">
+                        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 relative z-10">
+                            <div className="min-w-0">
+                                <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 sm:gap-3 flex-wrap">
                                     {result.context.ticker}
-                                    <span className="text-lg font-normal text-gray-400 font-mono">${result.context.currentPrice.toFixed(2)}</span>
+                                    <span className="text-base sm:text-lg font-normal text-gray-400 font-mono">${result.context.currentPrice.toFixed(2)}</span>
                                     <span className={`text-xs font-bold px-2 py-0.5 rounded border ${result.context.direction === 'BULL' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'
                                         }`}>
                                         {result.context.direction} {result.context.direction === 'BULL' ? '🐂' : '🐻'}
                                     </span>
                                 </h2>
-                                <p className={`mt-2 font-medium flex items-center gap-2 ${result.regime.mode === 'CREDIT' ? 'text-red-400' :
+                                <p className={`mt-2 font-medium flex items-center gap-2 text-sm sm:text-base ${result.regime.mode === 'CREDIT' ? 'text-red-400' :
                                     result.regime.mode === 'DEBIT' ? 'text-green-400' : 'text-gray-300'
                                     }`}>
                                     {result.regime.mode === 'CREDIT' && <TrendingDown size={18} />}
@@ -425,30 +425,30 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                     {result.regime.advice}
                                 </p>
                                 {result.regime.adviceDetail && (
-                                    <p className="mt-3 text-sm text-gray-400 leading-relaxed max-w-2xl">
+                                    <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-gray-400 leading-relaxed max-w-2xl">
                                         {result.regime.adviceDetail}
                                     </p>
                                 )}
                             </div>
-                            <div className="flex gap-8 text-right">
-                                <div>
-                                    <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center justify-end gap-1">
+                            <div className="flex gap-6 sm:gap-8 w-full sm:w-auto">
+                                <div className="flex-1 sm:flex-none sm:text-right">
+                                    <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center sm:justify-end gap-1">
                                         IV Ratio
                                         <Tooltip label="" explanation="IV30/IV90 term structure. &lt;1 = contango (short vol friendly), &gt;1 = backwardation (long vol friendly)." />
                                     </div>
-                                    <div className={`text-3xl font-mono font-bold mb-1 ${(result.regime.ivRatio ?? 1) < 0.95 ? 'text-emerald-400' : (result.regime.ivRatio ?? 1) > 1.05 ? 'text-amber-400' : 'text-white'}`}>
+                                    <div className={`text-2xl sm:text-3xl font-mono font-bold mb-1 ${(result.regime.ivRatio ?? 1) < 0.95 ? 'text-emerald-400' : (result.regime.ivRatio ?? 1) > 1.05 ? 'text-amber-400' : 'text-white'}`}>
                                         {result.regime.ivRatio != null ? result.regime.ivRatio.toFixed(2) : 'N/A'}
                                     </div>
                                     <div className="text-[10px] text-gray-500 font-mono">
                                         {result.regime.iv30 != null ? `IV30: ${result.regime.iv30}%` : ''} {result.regime.iv90 != null ? ` · IV90: ${result.regime.iv90}%` : ''}
                                     </div>
                                 </div>
-                                <div>
-                                    <div className="text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center justify-end gap-1">
-                                        IV / RV Ratio
+                                <div className="flex-1 sm:flex-none sm:text-right">
+                                    <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center sm:justify-end gap-1">
+                                        IV / RV
                                         <Tooltip label="" explanation="IV30 vs 20d realized vol. &gt;1 = implied expensive vs recent realized; &lt;1 = implied cheap. Drives regime (credit vs debit)." />
                                     </div>
-                                    <div className={`text-3xl font-mono font-bold mb-1 ${(result.regime.ivRvRatio ?? 1) > 1.1 ? 'text-amber-400' : (result.regime.ivRvRatio ?? 1) < 0.9 ? 'text-emerald-400' : 'text-white'}`}>
+                                    <div className={`text-2xl sm:text-3xl font-mono font-bold mb-1 ${(result.regime.ivRvRatio ?? 1) > 1.1 ? 'text-amber-400' : (result.regime.ivRvRatio ?? 1) < 0.9 ? 'text-emerald-400' : 'text-white'}`}>
                                         {result.regime.ivRvRatio != null ? result.regime.ivRvRatio.toFixed(2) : 'N/A'}
                                     </div>
                                     <div className="text-[10px] text-gray-500 font-mono">
@@ -460,26 +460,27 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                     </div>
 
                     {/* Strategy Tabs */}
-                    <div className="flex border-b border-[#2A2A2A] gap-6">
+                    <div className="flex border-b border-[#2A2A2A] gap-3 sm:gap-6 overflow-x-auto scrollbar-hide">
                         {([
-                            { id: 'TOP_PICKS' as const, label: 'Top Picks' },
-                            { id: 'CREDIT_SPREAD' as const, label: 'Credit Spreads' },
-                            { id: 'DEBIT_SPREAD' as const, label: 'Debit Spreads' },
-                            { id: 'SINGLE_LEG' as const, label: 'Long Options' }
+                            { id: 'TOP_PICKS' as const, label: 'Top Picks', mobileLabel: 'Top' },
+                            { id: 'CREDIT_SPREAD' as const, label: 'Credit Spreads', mobileLabel: 'Credit' },
+                            { id: 'DEBIT_SPREAD' as const, label: 'Debit Spreads', mobileLabel: 'Debit' },
+                            { id: 'SINGLE_LEG' as const, label: 'Long Options', mobileLabel: 'Long' }
                         ]).map(tab => (
                             <button
                                 key={tab.id}
                                 onClick={() => { setSelectedTab(tab.id); setExpandedCard(null); }}
-                                className={`pb-3 text-sm font-bold relative transition-colors ${selectedTab === tab.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                                className={`pb-3 text-xs sm:text-sm font-bold relative transition-colors shrink-0 whitespace-nowrap ${selectedTab === tab.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
                                     }`}
                             >
                                 <span className="flex items-center gap-1.5">
                                     {tab.id === 'TOP_PICKS' && <Trophy size={14} />}
-                                    {tab.label}
+                                    <span className="sm:hidden">{tab.mobileLabel}</span>
+                                    <span className="hidden sm:inline">{tab.label}</span>
                                 </span>
                                 {tab.id !== 'TOP_PICKS' && result.recommendedStrategy === tab.id && (
-                                    <span className="ml-2 bg-accent-green/20 text-accent-green text-[10px] px-1.5 py-0.5 rounded-sm border border-accent-green/30">
-                                        Regime Pick
+                                    <span className="ml-1 sm:ml-2 bg-accent-green/20 text-accent-green text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded-sm border border-accent-green/30">
+                                        Regime
                                     </span>
                                 )}
                                 {selectedTab === tab.id && (
@@ -515,33 +516,33 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                             >
                                 {/* Card Header (Clickable) */}
                                 <div
-                                    className="p-5 cursor-pointer flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+                                    className="p-4 sm:p-5 cursor-pointer flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4"
                                     onClick={() => setExpandedCard(expandedCard === idx ? null : idx)}
                                 >
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-3 mb-1">
-                                            <div className={`text-4xl font-black ${getScoreColor(displayScore)}`}>{displayScore}</div>
-                                            <div>
-                                                <div className="font-bold text-lg text-white flex items-center gap-2">
-                                                    {rec.type}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 sm:gap-3 mb-1">
+                                            <div className={`text-3xl sm:text-4xl font-black ${getScoreColor(displayScore)}`}>{displayScore}</div>
+                                            <div className="min-w-0">
+                                                <div className="font-bold text-base sm:text-lg text-white flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                                    <span className="truncate">{rec.type}</span>
                                                     {category && (() => {
                                                         const badge = getCategoryBadge(category);
                                                         return (
-                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${badge.color}`}>
+                                                            <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded border shrink-0 ${badge.color}`}>
                                                                 {badge.label}
                                                             </span>
                                                         );
                                                     })()}
                                                     {isTopPicks && (
-                                                        <span className="text-xs text-gray-500 font-mono">(cat: {rec.score})</span>
+                                                        <span className="text-[10px] sm:text-xs text-gray-500 font-mono shrink-0">(cat: {rec.score})</span>
                                                     )}
                                                     {isSpread(rec) && (
-                                                        <span className="text-sm font-mono text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                                                        <span className="text-xs sm:text-sm font-mono text-gray-400 bg-white/5 px-1.5 sm:px-2 py-0.5 rounded border border-white/10 shrink-0">
                                                             ${rec.shortLeg?.strike} / ${rec.longLeg?.strike}
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div className="text-sm text-gray-400 font-mono">
+                                                <div className="text-xs sm:text-sm text-gray-400 font-mono">
                                                     {isSpread(rec) ? (
                                                         <span className="flex items-center gap-2">
                                                             {rec.shortLeg?.expiration || rec.longLeg?.expiration}
@@ -556,7 +557,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                         </div>
 
                                         {/* Key Metrics Row */}
-                                        <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3 text-sm">
+                                        <div className="flex flex-wrap gap-x-4 sm:gap-x-6 gap-y-2 mt-3 text-xs sm:text-sm">
                                             {isSpread(rec) ? (
                                                 <>
                                                     {rec.netCredit && (
@@ -652,17 +653,18 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                 </div>
 
                                 {/* Review "Why This" Banner */}
-                                <div className="bg-[#2C2C2E] px-5 py-2 border-t border-[#3A3A3C] space-y-1">
-                                    <div className="flex items-center gap-2">
-                                        <Info size={14} className="text-yellow-500 shrink-0" />
-                                        <span className="text-sm text-gray-300 italic">{rec.whyThis}</span>
+                                <div className="bg-[#2C2C2E] px-3 sm:px-5 py-2 border-t border-[#3A3A3C] space-y-1">
+                                    <div className="flex items-start gap-2">
+                                        <Info size={14} className="text-yellow-500 shrink-0 mt-0.5" />
+                                        <span className="text-xs sm:text-sm text-gray-300 italic">{rec.whyThis}</span>
                                     </div>
                                     {(() => {
                                         const sizing = getSuggestedContracts(rec, portfolioTotal, riskPct, { useKelly: true, stopOutFraction });
                                         return (
-                                            <div className="text-xs text-gray-400 font-mono pl-6">
-                                                Suggested size: <span className="text-accent-green font-bold">{sizing.suggestedContracts}</span> contracts
-                                                {' '}(risk cap: {formatCurrency(sizing.riskCapDollars)}, stop-out/contract: {formatCurrency(sizing.riskPerContractAtStopOutDollars)} at {stopOutPct}% loss, max loss/contract: {formatCurrency(sizing.maxLossPerContractDollars)})
+                                            <div className="text-[10px] sm:text-xs text-gray-400 font-mono pl-6 leading-relaxed">
+                                                Size: <span className="text-accent-green font-bold">{sizing.suggestedContracts}</span> contracts
+                                                <span className="hidden sm:inline">{' '}(risk cap: {formatCurrency(sizing.riskCapDollars)}, stop-out: {formatCurrency(sizing.riskPerContractAtStopOutDollars)} at {stopOutPct}%, max loss: {formatCurrency(sizing.maxLossPerContractDollars)})</span>
+                                                <span className="sm:hidden"> · cap {formatCurrency(sizing.riskCapDollars)}</span>
                                             </div>
                                         );
                                     })()}

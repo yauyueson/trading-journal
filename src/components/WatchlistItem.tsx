@@ -87,17 +87,17 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
     const hasEarningsSoon = earnings.days !== null && earnings.days >= 0 && earnings.days <= 7;
 
     return (
-        <div className={`card p-5 fade-in ${isGoodEntry ? 'card-success' : ''}`}>
-            <div className="flex justify-between items-start">
-                <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-1 flex-wrap">
-                        <span className="text-xl font-bold">{item.ticker}</span>
+        <div className={`card p-4 sm:p-5 fade-in ${isGoodEntry ? 'card-success' : ''}`}>
+            <div className="flex justify-between items-start gap-3">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
+                        <span className="text-lg sm:text-xl font-bold">{item.ticker}</span>
                         {isSpread ? (
-                            <div className="flex items-center gap-3">
-                                <span className="badge badge-purple">
+                            <div className="flex items-center gap-2">
+                                <span className="badge badge-purple text-[10px] sm:text-xs">
                                     {item.type}
                                 </span>
-                                <span className="font-mono text-xs text-[#8E8E93] bg-[#1C1C1E] px-2 py-0.5 rounded border border-[#2A2A2A]">
+                                <span className="font-mono text-[10px] sm:text-xs text-[#8E8E93] bg-[#1C1C1E] px-1.5 py-0.5 rounded border border-[#2A2A2A]">
                                     {item.legs?.find(l => l.side === 'short')?.strike} / {item.legs?.find(l => l.side === 'long')?.strike}
                                 </span>
                             </div>
@@ -114,15 +114,15 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
                             </span>
                         )}
                     </div>
-                    <div className="text-text-secondary text-sm mb-3">
+                    <div className="text-text-secondary text-xs sm:text-sm mb-2 sm:mb-3">
                         {!isSpread && (
                             <span className="font-mono">${item.strike} · </span>
                         )}
                         <span>{formatDate(item.expiration)}</span>
-                        <span className="mx-2">·</span>
+                        <span className="mx-1 sm:mx-2">·</span>
                         <span>{item.setup}</span>
                     </div>
-                    <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm">
                         <div>
                             <span className="text-text-tertiary">Now: </span>
                             <span className="font-mono font-medium">
@@ -137,34 +137,34 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
                         )}
                         {priceDiff !== null && (
                             <span className={`font-mono ${item.type.includes('Credit')
-                                ? (priceDiff >= 0 ? 'text-accent-green' : 'text-accent-red') // Credit: More is better
-                                : (priceDiff <= 0 ? 'text-accent-green' : 'text-accent-red') // Debit: Less is better
+                                ? (priceDiff >= 0 ? 'text-accent-green' : 'text-accent-red')
+                                : (priceDiff <= 0 ? 'text-accent-green' : 'text-accent-red')
                                 }`}>
                                 ({priceDiff >= 0 ? '+' : ''}{priceDiff.toFixed(1)}%)
                             </span>
                         )}
                     </div>
-                    {item.stop_reason && <div className="text-sm text-text-tertiary mt-2 line-clamp-2" title={item.stop_reason}>Exit if: {item.stop_reason}</div>}
+                    {item.stop_reason && <div className="text-xs sm:text-sm text-text-tertiary mt-2 line-clamp-2" title={item.stop_reason}>Exit if: {item.stop_reason}</div>}
                 </div>
-                <div className="flex flex-col gap-2 ml-4">
-                    <button onClick={() => onMoveToActive(item)} className="btn-primary px-5 py-2 rounded-lg cursor-pointer">
+                <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
+                    <button onClick={() => onMoveToActive(item)} className="btn-primary px-4 sm:px-5 py-2 rounded-lg cursor-pointer text-sm">
                         Buy
                     </button>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1.5 sm:gap-2">
                         <button
                             onClick={fetchPrice}
                             disabled={loading}
                             className="btn-secondary flex-1 py-2 rounded-lg text-sm flex items-center justify-center cursor-pointer"
                             aria-label="Refresh price"
                         >
-                            {loading ? '...' : <RefreshCw size={16} />}
+                            {loading ? '...' : <RefreshCw size={15} />}
                         </button>
                         <button
                             onClick={() => onDelete(item.id)}
-                            className="btn-secondary px-3 py-2 rounded-lg text-sm flex items-center justify-center cursor-pointer hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-colors"
+                            className="btn-secondary px-2.5 py-2 rounded-lg text-sm flex items-center justify-center cursor-pointer hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-colors"
                             aria-label="Delete from watchlist"
                         >
-                            <Trash2 size={16} />
+                            <Trash2 size={15} />
                         </button>
                     </div>
                 </div>

@@ -156,7 +156,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                 </div>
 
                 {/* Filters */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4">
                     <div>
                         <label className="text-xs text-gray-400 font-medium mb-1.5 block">DTE Range</label>
                         <div className="flex gap-2">
@@ -164,14 +164,14 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                                 type="number"
                                 value={dteMin}
                                 onChange={(e) => setDteMin(Number(e.target.value))}
-                                className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent-green"
+                                className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-2 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:border-accent-green"
                             />
                             <span className="text-gray-500 self-center">-</span>
                             <input
                                 type="number"
                                 value={dteMax}
                                 onChange={(e) => setDteMax(Number(e.target.value))}
-                                className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent-green"
+                                className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-2 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:border-accent-green"
                             />
                         </div>
                     </div>
@@ -183,7 +183,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                                 step="0.05"
                                 value={deltaMin}
                                 onChange={(e) => setDeltaMin(Number(e.target.value))}
-                                className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent-green"
+                                className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-2 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:border-accent-green"
                             />
                             <span className="text-gray-500 self-center">-</span>
                             <input
@@ -191,7 +191,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                                 step="0.05"
                                 value={deltaMax}
                                 onChange={(e) => setDeltaMax(Number(e.target.value))}
-                                className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent-green"
+                                className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-2 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:border-accent-green"
                             />
                         </div>
                     </div>
@@ -201,7 +201,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                             type="number"
                             value={minVolume}
                             onChange={(e) => setMinVolume(Number(e.target.value))}
-                            className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-accent-green"
+                            className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-3 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:border-accent-green"
                         />
                     </div>
                 </div>
@@ -260,21 +260,21 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
             )}
 
             {/* Results Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 animate-fade-in">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 animate-fade-in">
                 {results.map((res, idx) => (
-                    <div key={`${res.symbol}-${idx}`} className="group bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl p-4 hover:border-accent-green/30 transition-all hover:shadow-[0_4px_20px_-10px_rgba(208,253,62,0.1)] relative">
+                    <div key={`${res.symbol}-${idx}`} className="group bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl p-3.5 sm:p-4 hover:border-accent-green/30 transition-all hover:shadow-[0_4px_20px_-10px_rgba(208,253,62,0.1)] relative">
                         {/* Header */}
                         <div className="flex justify-between items-start mb-3">
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <span className={`text-lg font-bold ${res.type === 'Call' ? 'text-green-400' : 'text-red-400'}`}>
+                                    <span className={`text-base sm:text-lg font-bold ${res.type === 'Call' ? 'text-green-400' : 'text-red-400'}`}>
                                         {res.strike} {res.type === 'Call' ? 'C' : 'P'}
                                     </span>
-                                    <span className="text-xs font-mono text-gray-500 bg-[#2C2C2E] px-1.5 py-0.5 rounded">
+                                    <span className="text-[10px] sm:text-xs font-mono text-gray-500 bg-[#2C2C2E] px-1.5 py-0.5 rounded">
                                         {res.expiration}
                                     </span>
                                 </div>
-                                <div className="text-xs text-gray-400 flex items-center gap-1.5 mt-0.5">
+                                <div className="text-[10px] sm:text-xs text-gray-400 flex items-center gap-1.5 mt-0.5">
                                     <span>{res.dte} DTE</span>
                                     <span>•</span>
                                     <span>Vol: {res.liquidity.volume}</span>
@@ -283,10 +283,10 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                                 </div>
                             </div>
                             <div className="text-right">
-                                <div className={`text-2xl font-black ${getScoreColor(res.score)}`}>
+                                <div className={`text-xl sm:text-2xl font-black ${getScoreColor(res.score)}`}>
                                     {res.score}
                                 </div>
-                                <div className="text-[10px] text-gray-500 uppercase font-medium">OSS Score</div>
+                                <div className="text-[9px] sm:text-[10px] text-gray-500 uppercase font-medium">OSS</div>
                             </div>
                         </div>
 
