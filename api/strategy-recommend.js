@@ -237,9 +237,9 @@ function getDeltaAtStrike(chain, optionType, expiration, targetStrike) {
     return a.delta + t * (b.delta - a.delta);
 }
 
-function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew) {
+function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth) {
     const results = [];
-    const widths = [5, 10];
+    const widths = customWidth ? [customWidth] : [5, 10];
 
     const shorts = chain.filter(o =>
         o.type === type &&
@@ -373,9 +373,9 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
-function buildDebitSpreads(chain, type, currentPrice, ivRvRatio) {
+function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth) {
     const results = [];
-    const widths = [2.5, 5];
+    const widths = customWidth ? [customWidth] : [2.5, 5];
 
     const longs = chain.filter(o =>
         o.type === type &&
@@ -564,7 +564,7 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const { ticker, direction = 'BULL', targetDte } = req.query;
+    const { ticker, direction = 'BULL', targetDte, spreadWidth } = req.query;
 
     if (!ticker) {
         return res.status(400).json({ error: 'Missing ticker parameter' });
@@ -573,6 +573,7 @@ export default async function handler(req, res) {
     const upperTicker = ticker.toUpperCase();
     const isBull = direction.toUpperCase() === 'BULL';
     const dteTarget = targetDte ? parseInt(targetDte) : 30;
+    const widthParam = spreadWidth ? parseFloat(spreadWidth) : null;
 
     try {
         await ensureScoring();
@@ -612,8 +613,8 @@ export default async function handler(req, res) {
         const legStrat = isBull ? 'Call' : 'Put';
 
         // 2. Build Strategies (regime uses IV Ratio + IV/RV only; no IV Rank/Percentile)
-        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew);
-        const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio);
+        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam);
+        const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio, widthParam);
         const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice);
 
         // 3. Unified Cross-Strategy Scoring — Top Picks

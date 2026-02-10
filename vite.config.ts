@@ -760,6 +760,8 @@ function localApiPlugin(): Plugin {
         const direction = url.searchParams.get('direction') || 'BULL';
         const targetDteParam = url.searchParams.get('targetDte');
         const targetDte = targetDteParam ? parseInt(targetDteParam) : 30;
+        const spreadWidthParam = url.searchParams.get('spreadWidth');
+        const customWidth = spreadWidthParam ? parseFloat(spreadWidthParam) : null;
 
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -895,9 +897,9 @@ function localApiPlugin(): Plugin {
             return a.delta + t * (b.delta - a.delta);
           };
 
-          const buildCreditSpreads = (chain: any[], spreadType: string) => {
+          const buildCreditSpreads = (chain: any[], spreadType: string, widthOverride: number | null = null) => {
             const results: any[] = [];
-            const widths = [5, 10];
+            const widths = widthOverride ? [widthOverride] : [5, 10];
             const shorts = chain.filter((o: any) => o.type === spreadType && Math.abs(o.delta) >= 0.20 && Math.abs(o.delta) <= 0.40);
 
             for (const shortLeg of shorts) {
@@ -939,9 +941,9 @@ function localApiPlugin(): Plugin {
             return results.sort((a, b) => b.score - a.score).slice(0, 5);
           };
 
-          const buildDebitSpreads = (chain: any[], spreadType: string) => {
+          const buildDebitSpreads = (chain: any[], spreadType: string, widthOverride: number | null = null) => {
             const results: any[] = [];
-            const widths = [2.5, 5];
+            const widths = widthOverride ? [widthOverride] : [2.5, 5];
 
             // Relaxed Delta Filter
             const longs = chain.filter((o: any) => o.type === spreadType && Math.abs(o.delta) >= 0.40 && Math.abs(o.delta) <= 0.70);
@@ -1046,8 +1048,8 @@ function localApiPlugin(): Plugin {
           const debitStrat = isBull ? 'Call' : 'Put';
           const legStrat = isBull ? 'Call' : 'Put';
 
-          const creditSpreads = buildCreditSpreads(strategyChain, creditStrat);
-          const debitSpreads = buildDebitSpreads(strategyChain, debitStrat);
+          const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, customWidth);
+          const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, customWidth);
           const singleLegs = scoreSingleLegs(strategyChain, legStrat);
 
           // Determine Recommended Strategy

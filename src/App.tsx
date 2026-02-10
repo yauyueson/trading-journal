@@ -131,7 +131,8 @@ function App() {
             current_score: item.entry_score,
             score_updated_at: new Date().toISOString(),
             notes: item.ticker + ' ' + item.type,
-            stop_reason: item.stop_reason
+            stop_reason: item.stop_reason,
+            legs: item.legs || null
         }]).select();
 
         if (data && data[0]) {

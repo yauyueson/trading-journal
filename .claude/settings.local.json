@@ -9,7 +9,9 @@
       "Bash(git push:*)",
       "Bash(npx vercel:*)",
       "Bash(git commit:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(npm run dev:*)",
+      "Bash(dir:*)"
     ]
   }
 }

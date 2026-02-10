@@ -171,6 +171,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
     const [expandedCard, setExpandedCard] = useState<number | null>(null);
     const [selectedTab, setSelectedTab] = useState<'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SINGLE_LEG' | 'TOP_PICKS'>('TOP_PICKS');
     const [showSettings, setShowSettings] = useState(false);
+    const [spreadWidth, setSpreadWidth] = useState(5);
 
     const handleAnalyze = async () => {
         if (!ticker) return;
@@ -180,7 +181,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
         setExpandedCard(null);
 
         try {
-            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}`;
+            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}`;
             const res = await fetch(url);
             const text = await res.text();
             let data: unknown;
@@ -350,7 +351,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                         </div>
                     </div>
 
-                    {/* Bottom Row: DTE & Analyze */}
+                    {/* Bottom Row: DTE, Spread Width & Analyze */}
                     <div className="flex flex-col md:flex-row gap-6 items-end">
                         <div className="w-full md:flex-1">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Target Expiration (DTE)</label>
@@ -373,6 +374,29 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                             <span>{opt.label}</span>
                                             <span className="text-[10px] font-normal opacity-70">{opt.text}</span>
                                         </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="w-full md:w-56">
+                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Spread Width</label>
+                            <div className="grid grid-cols-4 gap-2 bg-[#000] p-1 rounded-lg border border-[#333]">
+                                {[
+                                    { label: '$2.5', val: 2.5 },
+                                    { label: '$5', val: 5 },
+                                    { label: '$10', val: 10 },
+                                    { label: '$20', val: 20 }
+                                ].map((opt) => (
+                                    <button
+                                        key={opt.val}
+                                        onClick={() => setSpreadWidth(opt.val)}
+                                        className={`py-2.5 rounded px-2 text-xs font-bold transition-all ${spreadWidth === opt.val
+                                            ? 'bg-[#3A3A3C] text-white shadow-sm'
+                                            : 'text-gray-500 hover:text-gray-300'
+                                            }`}
+                                    >
+                                        {opt.label}
                                     </button>
                                 ))}
                             </div>

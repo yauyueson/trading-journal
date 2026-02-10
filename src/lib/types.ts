@@ -94,6 +94,7 @@ export interface DirectAddItem {
     stop_reason?: string;
     quantity: number;
     entry_price: number;
+    legs?: PositionLeg[];
 }
 
 // ────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, ChevronDown, Settings2 } from 'lucide-react';
-import { Position, Transaction, PositionAction, DirectAddItem, RollData } from '../lib/types';
+import { Position, Transaction, PositionAction, DirectAddItem, RollData, PositionLeg } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PositionCard } from '../components/PositionCard';
 import { RollModal } from '../components/RollModal';
@@ -32,7 +32,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     const [refreshing, setRefreshing] = useState(false);
     const [rollingPosition, setRollingPosition] = useState<{ position: Position, qty: number } | null>(null);
     const [sortBy] = useState('expiration');
-    const [form, setForm] = useState({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: '1', entry_price: '' });
+    const [positionType, setPositionType] = useState<'single' | 'credit' | 'debit'>('single');
+    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: '1', entry_price: '' });
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
 
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -88,19 +89,50 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSubmitting(true);
-        await onAddDirect({
-            ticker: form.ticker,
-            strike: parseFloat(form.strike),
-            type: form.type,
-            expiration: form.expiration,
-            setup: form.setup,
-            entry_score: parseInt(form.entry_score),
-            stop_reason: form.stop_reason,
-            quantity: parseInt(form.quantity),
-            entry_price: parseFloat(form.entry_price)
-        });
+
+        if (positionType === 'single') {
+            await onAddDirect({
+                ticker: form.ticker,
+                strike: parseFloat(form.strike),
+                type: form.type,
+                expiration: form.expiration,
+                setup: form.setup,
+                entry_score: parseInt(form.entry_score),
+                stop_reason: form.stop_reason,
+                quantity: parseInt(form.quantity),
+                entry_price: parseFloat(form.entry_price)
+            });
+        } else {
+            const shortStrike = parseFloat(form.strike);
+            const longStrike = parseFloat(form.strike2);
+            const isCredit = positionType === 'credit';
+            const typeName = isCredit
+                ? `Credit ${form.type} Spread`
+                : `Debit ${form.type} Spread`;
+            const anchorStrike = isCredit ? shortStrike : longStrike;
+
+            const legs: PositionLeg[] = [
+                { strike: shortStrike, type: form.type, side: 'short', expiration: form.expiration },
+                { strike: longStrike, type: form.type, side: 'long', expiration: form.expiration }
+            ];
+
+            await onAddDirect({
+                ticker: form.ticker,
+                strike: anchorStrike,
+                type: typeName,
+                expiration: form.expiration,
+                setup: form.setup,
+                entry_score: parseInt(form.entry_score),
+                stop_reason: form.stop_reason,
+                quantity: parseInt(form.quantity),
+                entry_price: parseFloat(form.entry_price),
+                legs
+            });
+        }
+
         setSubmitting(false);
-        setForm({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: '1', entry_price: '' });
+        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: '1', entry_price: '' });
+        setPositionType('single');
         setShowForm(false);
     };
 
@@ -190,6 +222,28 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-8">
+                        {/* Position Type Toggle */}
+                        <div className="grid grid-cols-3 gap-2">
+                            {([
+                                ['single', 'Single Leg'],
+                                ['credit', 'Credit Spread'],
+                                ['debit', 'Debit Spread']
+                            ] as const).map(([value, label]) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => setPositionType(value)}
+                                    className={`px-3 py-3 rounded-lg text-sm font-medium transition-all ${
+                                        positionType === value
+                                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                            : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                    }`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+
                         {/* Row 1: Basic Info */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             <div className="space-y-1.5">
@@ -204,32 +258,76 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <label htmlFor="strike">Strike</label>
-                                    <input
-                                        id="strike"
-                                        type="number"
-                                        placeholder="0.00"
-                                        className="input-field"
-                                        value={form.strike}
-                                        onChange={e => setForm({ ...form, strike: e.target.value })}
-                                        required
-                                    />
+                            {positionType === 'single' ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="strike">Strike</label>
+                                        <input
+                                            id="strike"
+                                            type="number"
+                                            inputMode="decimal"
+                                            placeholder="0.00"
+                                            className="input-field"
+                                            value={form.strike}
+                                            onChange={e => setForm({ ...form, strike: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="type">Type</label>
+                                        <select
+                                            id="type"
+                                            className="input-field"
+                                            value={form.type}
+                                            onChange={e => setForm({ ...form, type: e.target.value })}
+                                        >
+                                            <option value="Call">Call</option>
+                                            <option value="Put">Put</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <div className="space-y-1.5">
-                                    <label htmlFor="type">Type</label>
-                                    <select
-                                        id="type"
-                                        className="input-field"
-                                        value={form.type}
-                                        onChange={e => setForm({ ...form, type: e.target.value })}
-                                    >
-                                        <option value="Call">Call</option>
-                                        <option value="Put">Put</option>
-                                    </select>
+                            ) : (
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:col-span-1 lg:col-span-2">
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="strike">Short Strike</label>
+                                        <input
+                                            id="strike"
+                                            type="number"
+                                            inputMode="decimal"
+                                            placeholder="0.00"
+                                            className="input-field"
+                                            value={form.strike}
+                                            onChange={e => setForm({ ...form, strike: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="strike2">Long Strike</label>
+                                        <input
+                                            id="strike2"
+                                            type="number"
+                                            inputMode="decimal"
+                                            placeholder="0.00"
+                                            className="input-field"
+                                            value={form.strike2}
+                                            onChange={e => setForm({ ...form, strike2: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5 col-span-2 md:col-span-1">
+                                        <label htmlFor="type">Type</label>
+                                        <select
+                                            id="type"
+                                            className="input-field"
+                                            value={form.type}
+                                            onChange={e => setForm({ ...form, type: e.target.value })}
+                                        >
+                                            <option value="Call">Call</option>
+                                            <option value="Put">Put</option>
+                                        </select>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             <div className="space-y-1.5">
                                 <label htmlFor="expiration">Expiration</label>
@@ -243,18 +341,37 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                                 />
                             </div>
 
-                            <div className="space-y-1.5">
-                                <label htmlFor="setup">Setup Strategy</label>
-                                <select
-                                    id="setup"
-                                    className="input-field"
-                                    value={form.setup}
-                                    onChange={e => setForm({ ...form, setup: e.target.value })}
-                                >
-                                    {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
+                            {positionType === 'single' && (
+                                <div className="space-y-1.5">
+                                    <label htmlFor="setup">Setup Strategy</label>
+                                    <select
+                                        id="setup"
+                                        className="input-field"
+                                        value={form.setup}
+                                        onChange={e => setForm({ ...form, setup: e.target.value })}
+                                    >
+                                        {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                            )}
                         </div>
+
+                        {/* Setup row for spreads (needs its own row since strikes take more space) */}
+                        {positionType !== 'single' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <div className="space-y-1.5">
+                                    <label htmlFor="setup">Setup Strategy</label>
+                                    <select
+                                        id="setup"
+                                        className="input-field"
+                                        value={form.setup}
+                                        onChange={e => setForm({ ...form, setup: e.target.value })}
+                                    >
+                                        {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Row 2: Analysis & Execution */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -295,7 +412,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             </div>
 
                             <div className="space-y-1.5">
-                                <label htmlFor="price">Entry Price</label>
+                                <label htmlFor="price">{positionType === 'credit' ? 'Net Credit' : positionType === 'debit' ? 'Net Debit' : 'Entry Price'}</label>
                                 <div className="relative">
                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary select-none">$</span>
                                     <input
