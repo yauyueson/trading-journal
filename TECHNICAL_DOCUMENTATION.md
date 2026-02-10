@@ -1,6 +1,6 @@
 # Trading Journal - 技术文档
 
-> 最后更新: 2026年2月8日
+> 最后更新: 2026年2月9日
 
 ## 项目概述
 
@@ -164,8 +164,8 @@ API Key (publishable): sb_publishable_STPE7Kl1Pnlwm6a-mCa-9g_U7hvret6
 CREATE TABLE positions (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     ticker VARCHAR(20) NOT NULL,           -- 股票代码 e.g. "QQQ"
-    strike DECIMAL(10,2) NOT NULL,         -- 行权价 e.g. 630.00
-    type VARCHAR(10) NOT NULL,             -- "Call" 或 "Put"
+    strike DECIMAL(10,2) NOT NULL,         -- 行权价 e.g. 630.00（价差时=锚定腿）
+    type VARCHAR(10) NOT NULL,             -- "Call"/"Put" 或价差类型 e.g. "Credit Put Spread"
     expiration DATE NOT NULL,              -- 到期日
     status VARCHAR(20) NOT NULL DEFAULT 'watchlist',  -- watchlist/active/closed
     setup VARCHAR(50),                     -- 交易设置类型
@@ -176,11 +176,28 @@ CREATE TABLE positions (
     current_price DECIMAL(10,2),           -- 当前期权价格
     stop_reason TEXT,                      -- 技术止损条件 e.g. "MB flips red"
     target_price DECIMAL(10,2),            -- 目标价
+    stop_price DECIMAL(10,2),             -- 手动止损价（如设置则覆盖计算值）
     notes TEXT,                            -- 交易笔记
+    legs JSONB,                           -- 价差腿信息 [{strike, type, side, expiration}, ...]
     created_at TIMESTAMPTZ DEFAULT NOW(),  -- 创建时间
     closed_at TIMESTAMPTZ                  -- 平仓时间
 );
 ```
+
+**`legs` JSONB 结构**（价差持仓使用，单腿为 `null`）:
+```json
+[
+  { "strike": 580, "type": "Put", "side": "short", "expiration": "2026-03-21" },
+  { "strike": 575, "type": "Put", "side": "long",  "expiration": "2026-03-21" }
+]
+```
+
+**`type` 字段命名约定**（与 StrategyRecommender / PositionCard 一致）:
+- 单腿: `"Call"`, `"Put"`
+- 信用价差: `"Credit Put Spread"`, `"Credit Call Spread"`
+- 借记价差: `"Debit Call Spread"`, `"Debit Put Spread"`
+
+`PositionCard` 通过 `position.legs?.length > 0` 判断是否价差，通过 `position.type.includes('Credit')` 判断信用/借记。
 
 #### transactions 表
 
@@ -202,6 +219,14 @@ CREATE TABLE transactions (
 
 ### Portfolio 页面
 
+**Quick Add Position 表单**:
+- 支持三种持仓类型切换：**Single Leg** / **Credit Spread** / **Debit Spread**
+- Single Leg: Strike + Type（Call/Put）两列布局
+- Spread: Short Strike + Long Strike + Type 布局（移动端 Short/Long 并排，Type 独占一行）
+- Entry Price 标签根据类型动态变化：Entry Price / Net Credit / Net Debit
+- 提交价差时自动构建 `legs` 数组，设置 `type` 为 `"Credit Put Spread"` 等，`strike` 锚定为信用=Short Strike / 借记=Long Strike
+- iOS 优化：所有 input 设置 `text-base`（16px）防止 Safari 自动缩放，数字输入添加 `inputMode="decimal"` 显示小数键盘，触控按钮最小 44px
+
 **自动价格更新**:
 - 🔄 **Refresh Prices** - 批量更新所有持仓价格
 - 🔄 **Auto Price** - 单个持仓自动获取价格
@@ -214,6 +239,7 @@ CREATE TABLE transactions (
 - Entry Score, Current Score
 - Setup, Technical Exit 条件
 - 警告标签
+- 价差持仓显示双腿信息（Short/Long Strikes, Net Greeks）
 
 ### 警告系统
 
@@ -328,7 +354,7 @@ https://api.vercel.com/v1/integrations/deploy/prj_Q27dySs80ReT8IwzjuVlMtePI2xu/s
 - **Day Trade 模式**：扫描器与前端 `scoreOptionsChain` 均支持日交易权重（Gamma 提高、Theta 惩罚系数降低）。
 
 ### 类型与边界
-- 新增/统一类型：`WatchlistItem`、`DirectAddItem`、`StrategyResult`、`SpreadRecommendation`、`SingleLegRecommendation`、`PositionAction`、`RollData`、`StrategyCategory`、`UnifiedCandidateType` 等，消除评分与页面中的 `any`。
+- 新增/统一类型：`WatchlistItem`、`DirectAddItem`（含可选 `legs?: PositionLeg[]`）、`StrategyResult`、`SpreadRecommendation`、`SingleLegRecommendation`、`PositionAction`、`RollData`、`StrategyCategory`、`UnifiedCandidateType`、`PositionLeg` 等，消除评分与页面中的 `any`。
 - 数学与数据边界：`lerp` 防除零、`sigmoid` 输入裁剪、`normalizeToZScores` 在 n&lt;2 或 std=0 时的防护、DTE≤0 过滤、低价期权 Lambda 防护。
 
 ### 扫描器性能
@@ -385,6 +411,39 @@ Long Option 的 maxProfit 封顶在 2 × premium（100% 回报情景），避免
 | `api/strategy-recommend.js` | 构建 `TOP_PICKS` 数组、修复 `recommendedStrategy` 逻辑 |
 | `src/lib/types.ts` | 新增 `StrategyCategory`、`UnifiedCandidateType`；`StrategyResult.strategies` 增加 `TOP_PICKS` |
 | `src/pages/StrategyRecommender.tsx` | 新增 Top Picks Tab、类别徽章、统一分数展示 |
+
+### Portfolio 价差快速添加 & 策略推荐 Spread Width (2026-02-09)
+
+**Portfolio Quick Add Spread 支持**：
+
+原 "Quick Add Position" 表单仅支持单腿期权。新增信用/借记价差直接添加能力。
+
+| 文件 | 变更 |
+|------|------|
+| `src/lib/types.ts` | `DirectAddItem` 新增 `legs?: PositionLeg[]` 字段 |
+| `src/pages/Portfolio.tsx` | 新增 `positionType` 状态（single/credit/debit）、`strike2` 表单字段、Position Type 三按钮切换、条件式 Strike 布局、动态 Entry Price 标签、`handleSubmit` 构建 legs |
+| `src/App.tsx` | `onAddDirect` Supabase insert 新增 `legs: item.legs \|\| null` |
+
+**数据流**：Portfolio 表单 → `DirectAddItem`（含 legs）→ `App.onAddDirect` → Supabase `positions` 表（legs JSONB）→ `PositionCard` 自动识别价差
+
+**策略推荐 Spread Width 可配置**：
+
+原策略推荐器的 spread width 硬编码为 Credit `[5, 10]` / Debit `[2.5, 5]`。新增前端选择器和 API 参数。
+
+| 文件 | 变更 |
+|------|------|
+| `src/pages/StrategyRecommender.tsx` | 新增 `spreadWidth` 状态（默认 $5）、4 按钮选择器（$2.5 / $5 / $10 / $20）、API URL 传 `&spreadWidth=` |
+| `api/strategy-recommend.js` | 接收 `spreadWidth` query param、`buildCreditSpreads` / `buildDebitSpreads` 支持 `customWidth` 参数 |
+| `vite.config.ts` | 本地 dev 的 `buildCreditSpreads` / `buildDebitSpreads` 同步支持 `widthOverride` 参数 |
+
+**注意**：本地开发时 `/api/strategy-recommend` 由 `vite.config.ts` 中的 `localApiPlugin` 处理（非 `api/strategy-recommend.js`），两处逻辑需同步维护。
+
+**iOS / 移动端优化 (2026-02-09)**：
+- `.input-field` CSS 类添加 `text-base`（16px），防止 iOS Safari 对 <16px 输入框自动缩放
+- 价差 Strike 字段：移动端 `grid-cols-2`（Short/Long 并排，Type 全宽），桌面端 `grid-cols-3`
+- Position Type 切换按钮：`py-3` 确保 ≥44px 触控目标
+- 数字输入添加 `inputMode="decimal"` 显示 iOS 小数键盘
+- 策略推荐 Spread Width 按钮：`py-2.5 px-2`、容器 `md:w-56`
 
 ### 部署与基础设施 (2026-02-08)
 - 修复 `.gitignore`：排除 `dist/`、`.env`、`.env.local`，防止构建产物污染仓库。
@@ -478,7 +537,7 @@ CREATE TABLE positions (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     ticker VARCHAR(20) NOT NULL,
     strike DECIMAL(10,2) NOT NULL,
-    type VARCHAR(10) NOT NULL CHECK (type IN ('Call', 'Put')),
+    type VARCHAR(50) NOT NULL,             -- "Call"/"Put" 或 "Credit Put Spread" 等
     expiration DATE NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'watchlist' CHECK (status IN ('watchlist', 'active', 'closed')),
     setup VARCHAR(50),
@@ -489,7 +548,9 @@ CREATE TABLE positions (
     current_price DECIMAL(10,2),
     stop_reason TEXT,
     target_price DECIMAL(10,2),
+    stop_price DECIMAL(10,2),             -- 手动止损价
     notes TEXT,
+    legs JSONB,                           -- 价差腿: [{strike, type, side, expiration}, ...]
     created_at TIMESTAMPTZ DEFAULT NOW(),
     closed_at TIMESTAMPTZ
 );

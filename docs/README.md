@@ -1,6 +1,6 @@
 # Trading Journal - 文档总览
 
-> 最后更新: 2026年2月8日
+> 最后更新: 2026年2月9日
 
 欢迎来到Trading Journal项目文档中心！这里包含了项目的完整技术文档和使用指南。
 
@@ -224,6 +224,14 @@ docs/
 ---
 
 ## 🔄 文档更新日志
+
+### 2026-02-09
+- ✅ **Portfolio 价差快速添加**: Quick Add 表单支持 Single Leg / Credit Spread / Debit Spread 切换，自动构建 `legs` JSONB 并写入 Supabase。
+- ✅ **策略推荐 Spread Width 可配置**: 新增 $2.5/$5/$10/$20 宽度选择器，替代硬编码的 `[5,10]`/`[2.5,5]`，同步更新 `api/strategy-recommend.js` 和 `vite.config.ts` 本地 dev。
+- ✅ **iOS/移动端优化**: `.input-field` 添加 `text-base`（16px）防 Safari 缩放；价差 Strike 响应式布局（移动 2 列 / 桌面 3 列）；所有按钮 ≥44px 触控目标；数字输入 `inputMode="decimal"`。
+- ✅ **数据库 Schema 更新**: `positions` 表新增 `legs JSONB`、`stop_price DECIMAL`；`type` 列拓宽至 `VARCHAR(50)` 支持价差类型字符串。
+- ✅ **类型更新**: `DirectAddItem` 新增 `legs?: PositionLeg[]`；`App.onAddDirect` 传递 legs 至 Supabase。
+- ✅ **文档同步**: TECHNICAL_DOCUMENTATION、04_数据库设计、05_API文档 反映最新 Schema、API 参数和前端功能。
 
 ### 2026-02-08
 - ✅ **Discord 自动提醒上线**: 新增 `api/check-alerts.js`（止损/目标价 Discord 推送）、`api/health.js`（健康检查）。

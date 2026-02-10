@@ -190,33 +190,31 @@ GET /api/strategy-recommend
 ```
 
 ### 用途
-智能生成复杂的价差策略（Vertical Spreads, Iron Condors 等），并基于风险回报比、POP 和杠杆率进行评估。
+基于 IV 环境（IV30/IV90 期限结构、IV/RV 比）和用户方向偏好，智能生成 Credit Spread、Debit Spread 和 Long Option 策略，并统一评分排序（Top Picks）。
 
 ### 参数
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| ticker | string | 股票代码 |
-| dteMin | number | 最小 DTE |
-| dteMax | number | 最大 DTE |
-| credit | boolean| 是否搜索信用价差 |
+| 参数 | 类型 | 必填 | 说明 | 默认 |
+|------|------|------|------|------|
+| ticker | string | ✅ | 股票代码 | - |
+| direction | string | | 方向偏好 `BULL` 或 `BEAR` | `BULL` |
+| targetDte | number | | 目标 DTE 档位（14/30/45/90） | `30` |
+| spreadWidth | number | | 价差宽度（美元），如 2.5/5/10/20 | 不传=Credit `[5,10]` / Debit `[2.5,5]` |
+
+当传入 `spreadWidth` 时，Credit 和 Debit 均只使用该单一宽度（而非默认的多宽度组合）。
 
 ### 响应格式
-返回一个包含多种策略组合的数组，每个结果包含 `score`, `whyThis`, `legs` 以及组合 Greeks。
-
 ```json
 {
   "success": true,
-  "results": [
-    {
-      "strategy": "Credit Put Spread",
-      "score": 73,
-      "legs": [...],
-      "netCredit": 1.01,
-      "maxRisk": 3.99,
-      "roi": 0.253,
-      "pop": 0.683
-    }
-  ]
+  "context": { "ticker": "SPY", "currentPrice": 600.50, "direction": "BULL", "targetDte": 30, "daysUntilEarnings": null },
+  "regime": { "ivRatio": 0.982, "iv30": 18.5, "iv90": 18.8, "rv30": 15.2, "ivRvRatio": 1.217, "mode": "NEUTRAL", "advice": "...", "adviceDetail": "..." },
+  "recommendedStrategy": "CREDIT_SPREAD",
+  "strategies": {
+    "CREDIT_SPREAD": [ { "type": "Credit Put Spread", "shortLeg": {...}, "longLeg": {...}, "width": 5, "netCredit": 1.01, "maxRisk": 3.99, "roi": 25.3, "pop": 68.3, "expectedValue": 0.42, "breakeven": 578.99, "score": 73, "whyThis": "..." } ],
+    "DEBIT_SPREAD": [...],
+    "SINGLE_LEG": [...],
+    "TOP_PICKS": [{ "...同上字段...", "strategyCategory": "CREDIT_SPREAD", "unifiedScore": 78 }]
+  }
 }
 ```
 
