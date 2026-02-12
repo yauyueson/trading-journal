@@ -1,5 +1,5 @@
 /**
- * OSS Core - Options Scoring System v2.2
+ * OSS Core - Options Scoring System v2.3
  * ═══════════════════════════════════════════════════════════════
  * SINGLE SOURCE OF TRUTH for all scoring algorithms.
  *
@@ -18,6 +18,22 @@
 // ────────────────────────────────────────────────────────────────
 // Types
 // ────────────────────────────────────────────────────────────────
+
+export const HARD_FILTER_DEFAULTS = {
+    minMid: 0.15,
+    minOpenInterest: 200,
+    maxSpreadPctCeiling: 0.12,
+} as const;
+
+export const DTE_BUCKETS = [
+    { label: '0-14',   min: 0,   max: 14  },
+    { label: '15-30',  min: 15,  max: 30  },
+    { label: '31-60',  min: 31,  max: 60  },
+    { label: '61-120', min: 61,  max: 120 },
+    { label: '121+',   min: 121, max: Infinity },
+] as const;
+
+export const MIN_BUCKET_SIZE = 3;
 
 export type Strategy = 'long' | 'short';
 
@@ -126,17 +142,20 @@ export function calculateGammaThetaRatio(gamma: number, theta: number): number {
 }
 
 /**
- * Breakeven Move % - How far the stock must move for the buyer to break even (v2.2).
+ * Breakeven Move % - True expiration breakeven (v2.3).
  *
- * Formula: OptionPrice / (|Delta| × StockPrice)
+ * Call: BE = K + premium   → Move% = |BE − S| / S
+ * Put:  BE = K − premium   → Move% = |BE − S| / S
  *
  * Returns a decimal (0.05 = 5% move needed).
- * Guards against near-zero delta (returns 1.0 = 100% = unrealistic).
+ * Guards against stockPrice ≤ 0 (returns 1.0 = unrealistic).
  */
-export function calculateBreakevenMove(optionPrice: number, delta: number, stockPrice: number): number {
-    const absDelta = Math.abs(delta);
-    if (absDelta < 0.01 || stockPrice <= 0) return 1;
-    return optionPrice / (absDelta * stockPrice);
+export function calculateBreakevenMove(
+    strike: number, premium: number, stockPrice: number, optionType: 'Call' | 'Put'
+): number {
+    if (stockPrice <= 0) return 1;
+    const breakeven = optionType === 'Call' ? strike + premium : strike - premium;
+    return Math.abs(breakeven - stockPrice) / stockPrice;
 }
 
 /**
@@ -247,6 +266,52 @@ export function normalizeToZScores(values: number[]): number[] {
     const mean = values.reduce((s, v) => s + v, 0) / n;
     const std = Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / n) || 1;
     return values.map(v => (v - mean) / std);
+}
+
+/**
+ * Normalize values to Z-Scores within DTE buckets.
+ * Items are grouped by DTE bucket; z-scores are computed per bucket.
+ * Falls back to pool-wide stats if a bucket has fewer than minBucketSize items.
+ */
+export function normalizeToZScoresByBucket(
+    values: number[], dtes: number[], minBucketSize: number = MIN_BUCKET_SIZE
+): number[] {
+    const n = values.length;
+    if (n < 2) return values.map(() => 0);
+
+    // Pool-wide stats (fallback)
+    const poolMean = values.reduce((s, v) => s + v, 0) / n;
+    const poolStd = Math.sqrt(values.reduce((s, v) => s + (v - poolMean) ** 2, 0) / n) || 1;
+
+    // Assign each item to a bucket index
+    const bucketIndex = dtes.map(dte => {
+        for (let b = 0; b < DTE_BUCKETS.length; b++) {
+            if (dte >= DTE_BUCKETS[b].min && dte <= DTE_BUCKETS[b].max) return b;
+        }
+        return DTE_BUCKETS.length - 1; // fallback to last bucket
+    });
+
+    // Compute per-bucket stats
+    const bucketStats: Map<number, { mean: number; std: number }> = new Map();
+    for (let b = 0; b < DTE_BUCKETS.length; b++) {
+        const indices: number[] = [];
+        for (let i = 0; i < n; i++) {
+            if (bucketIndex[i] === b) indices.push(i);
+        }
+        if (indices.length >= minBucketSize) {
+            const bMean = indices.reduce((s, idx) => s + values[idx], 0) / indices.length;
+            const bStd = Math.sqrt(indices.reduce((s, idx) => s + (values[idx] - bMean) ** 2, 0) / indices.length) || 1;
+            bucketStats.set(b, { mean: bMean, std: bStd });
+        }
+    }
+
+    // Compute z-scores using bucket stats or pool-wide fallback
+    return values.map((v, i) => {
+        const stats = bucketStats.get(bucketIndex[i]);
+        const mean = stats ? stats.mean : poolMean;
+        const std = stats ? stats.std : poolStd;
+        return (v - mean) / std;
+    });
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -492,6 +557,7 @@ export function normalizeLOQScoresWithDynamicBaseline(rawScores: number[]): numb
  * Calculate LOQ for a single position without a comparison pool.
  * Uses reference baselines and applies Lambda compression.
  * v2.2: includes G/T Ratio and Breakeven Penalty.
+ * v2.3: uses true expiration breakeven when strike/optionType are provided.
  */
 export function calculateSingleLOQ(
     delta: number,
@@ -501,13 +567,17 @@ export function calculateSingleLOQ(
     optionPrice: number,
     ivRatio: number = 1.0,
     dte: number = 30,
+    strike?: number,
+    optionType?: 'Call' | 'Put',
 ): number {
     const rawLambda = calculateLambda(delta, stockPrice, optionPrice);
     const compLambda = compressLambda(rawLambda);
     const gammaEff = calculateGammaEfficiency(gamma, optionPrice);
     const thetaBurn = calculateThetaBurn(theta, optionPrice);
     const gtRatio = calculateGammaThetaRatio(gamma, theta);
-    const beMove = calculateBreakevenMove(optionPrice, delta, stockPrice);
+    const beMove = strike != null && optionType
+        ? calculateBreakevenMove(strike, optionPrice, stockPrice, optionType)
+        : (Math.abs(delta) < 0.01 || stockPrice <= 0) ? 1 : optionPrice / (Math.abs(delta) * stockPrice);
     const bePenalty = getBreakevenPenalty(beMove, dte);
 
     // Reference baselines (no pool available)

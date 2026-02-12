@@ -34,6 +34,7 @@ interface PositionCardProps {
     onUpdateTarget: (id: string, target: number) => Promise<void>;
     onUpdateStop?: (id: string, stopPrice: number) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
+    onUpdateOwner?: (id: string, owner: 'Yuchen' | 'Annie' | null) => Promise<void>;
     onDataUpdate?: (timestamp: string) => void;
     refreshTrigger?: number;
     index?: number;
@@ -42,7 +43,7 @@ interface PositionCardProps {
     portfolioTotal?: number;
 }
 
-export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onDelete, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick, portfolioTotal: portfolioTotalProp }) => {
+export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onDelete, onUpdateOwner, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick, portfolioTotal: portfolioTotalProp }) => {
     const settings = usePortfolioSettings();
     const portfolioTotal = portfolioTotalProp ?? settings.portfolioTotal;
     const stopOutFraction = settings.stopOutFraction;
@@ -428,6 +429,23 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
                         <span className="text-xl sm:text-2xl font-bold">{position.ticker}</span>
+                        {position.owner && (
+                            <button
+                                onClick={() => {
+                                    if (!onUpdateOwner) return;
+                                    const next = position.owner === 'Yuchen' ? 'Annie' : 'Yuchen';
+                                    onUpdateOwner(position.id, next);
+                                }}
+                                className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold cursor-pointer transition-colors ${
+                                    position.owner === 'Yuchen'
+                                        ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                                        : 'bg-pink-500/20 text-pink-400 hover:bg-pink-500/30'
+                                }`}
+                                title={`Owner: ${position.owner}. Click to change.`}
+                            >
+                                {position.owner}
+                            </button>
+                        )}
                         {isSpread ? (
                             <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-text-secondary font-medium uppercase tracking-wide">
                                 <span className="text-text-primary">

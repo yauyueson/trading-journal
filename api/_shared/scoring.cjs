@@ -1,5 +1,5 @@
 /**
- * OSS Core - Options Scoring System v2.2 (API Mirror)
+ * OSS Core - Options Scoring System v2.3 (API Mirror)
  * ═══════════════════════════════════════════════════════════════
  * MIRROR of src/lib/oss-core.ts for Vercel Serverless Functions.
  *
@@ -52,10 +52,10 @@ const getThetaPenalty = (thetaBurn) => {
 // Breakeven Move & Penalty (v2.2)
 // ────────────────────────────────────────────────────────────────
 
-const calculateBreakevenMove = (optionPrice, delta, stockPrice) => {
-    const absDelta = Math.abs(delta);
-    if (absDelta < 0.01 || stockPrice <= 0) return 1;
-    return optionPrice / (absDelta * stockPrice);
+const calculateBreakevenMove = (strike, premium, stockPrice, optionType) => {
+    if (stockPrice <= 0) return 1;
+    const breakeven = optionType === 'Call' ? strike + premium : strike - premium;
+    return Math.abs(breakeven - stockPrice) / stockPrice;
 };
 
 const getBreakevenPenalty = (breakevenMove, dte) => {
@@ -161,6 +161,61 @@ const zScores = (values) => {
     const mean = values.reduce((s, v) => s + v, 0) / n;
     const std = Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / n) || 1;
     return values.map((v) => (v - mean) / std);
+};
+
+// ────────────────────────────────────────────────────────────────
+// Hard Filter Defaults & DTE Buckets
+// ────────────────────────────────────────────────────────────────
+
+const HARD_FILTER_DEFAULTS = {
+    minMid: 0.15,
+    minOpenInterest: 200,
+    maxSpreadPctCeiling: 0.12,
+};
+
+const DTE_BUCKETS = [
+    { label: '0-14',   min: 0,   max: 14  },
+    { label: '15-30',  min: 15,  max: 30  },
+    { label: '31-60',  min: 31,  max: 60  },
+    { label: '61-120', min: 61,  max: 120 },
+    { label: '121+',   min: 121, max: Infinity },
+];
+
+const MIN_BUCKET_SIZE = 3;
+
+const zScoresByBucket = (values, dtes, minBucketSize = MIN_BUCKET_SIZE) => {
+    const n = values.length;
+    if (n < 2) return values.map(() => 0);
+
+    const poolMean = values.reduce((s, v) => s + v, 0) / n;
+    const poolStd = Math.sqrt(values.reduce((s, v) => s + (v - poolMean) ** 2, 0) / n) || 1;
+
+    const bucketIndex = dtes.map((dte) => {
+        for (let b = 0; b < DTE_BUCKETS.length; b++) {
+            if (dte >= DTE_BUCKETS[b].min && dte <= DTE_BUCKETS[b].max) return b;
+        }
+        return DTE_BUCKETS.length - 1;
+    });
+
+    const bucketStats = new Map();
+    for (let b = 0; b < DTE_BUCKETS.length; b++) {
+        const indices = [];
+        for (let i = 0; i < n; i++) {
+            if (bucketIndex[i] === b) indices.push(i);
+        }
+        if (indices.length >= minBucketSize) {
+            const bMean = indices.reduce((s, idx) => s + values[idx], 0) / indices.length;
+            const bStd = Math.sqrt(indices.reduce((s, idx) => s + (values[idx] - bMean) ** 2, 0) / indices.length) || 1;
+            bucketStats.set(b, { mean: bMean, std: bStd });
+        }
+    }
+
+    return values.map((v, i) => {
+        const stats = bucketStats.get(bucketIndex[i]);
+        const mean = stats ? stats.mean : poolMean;
+        const std = stats ? stats.std : poolStd;
+        return (v - mean) / std;
+    });
 };
 
 // ────────────────────────────────────────────────────────────────
@@ -545,6 +600,10 @@ module.exports = {
     getBreakevenPenalty,
     getDeltaBonus,
     zScores,
+    zScoresByBucket,
+    HARD_FILTER_DEFAULTS,
+    DTE_BUCKETS,
+    MIN_BUCKET_SIZE,
     getIVRiskFactor,
     getIVAdjustment,
     getIVRankAdjustment,

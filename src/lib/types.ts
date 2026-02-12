@@ -20,6 +20,7 @@ export interface Position {
     created_at?: string;
     closed_at?: string;
     legs?: PositionLeg[];
+    owner?: 'Yuchen' | 'Annie' | null;
 }
 
 export interface PositionLeg {
@@ -78,6 +79,7 @@ export interface WatchlistItem {
     stop_reason?: string;
     notes?: string;
     legs?: PositionLeg[];
+    owner?: 'Yuchen' | 'Annie' | null;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -95,6 +97,7 @@ export interface DirectAddItem {
     quantity: number;
     entry_price: number;
     legs?: PositionLeg[];
+    owner?: 'Yuchen' | 'Annie' | null;
 }
 
 // ────────────────────────────────────────────────────────────────

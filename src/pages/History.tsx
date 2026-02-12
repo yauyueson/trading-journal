@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { History, Check, Trash2 } from 'lucide-react';
 import { Position, Transaction } from '../lib/types';
 import { formatCurrency, formatPercent, CONTRACT_MULTIPLIER } from '../lib/utils';
@@ -9,10 +9,13 @@ interface HistoryPageProps {
     transactions: Transaction[];
     loading: boolean;
     onDelete: (id: string) => Promise<void>;
+    onUpdateOwner?: (id: string, owner: 'Yuchen' | 'Annie' | null) => Promise<void>;
 }
 
-export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transactions, loading, onDelete }) => {
-    const closedPositions = positions.filter(p => p.status === 'closed');
+export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transactions, loading, onDelete, onUpdateOwner }) => {
+    const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
+    const allClosedPositions = positions.filter(p => p.status === 'closed');
+    const closedPositions = ownerFilter === 'All' ? allClosedPositions : allClosedPositions.filter(p => p.owner === ownerFilter);
     const getStats = (position: Position) => {
         const txns = transactions.filter(t => t.position_id === position.id);
         let totalQtyBought = 0, totalCostBasis = 0, totalProceeds = 0;
@@ -72,6 +75,28 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transaction
                 </div>
             )}
 
+            {/* Owner Filter */}
+            <div className="flex items-center gap-1.5 mb-4">
+                {(['All', 'Yuchen', 'Annie'] as const).map(value => (
+                    <button
+                        key={value}
+                        type="button"
+                        onClick={() => setOwnerFilter(value)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            ownerFilter === value
+                                ? value === 'Yuchen'
+                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                    : value === 'Annie'
+                                        ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
+                                        : 'bg-white/10 text-text-primary border border-white/20'
+                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                        }`}
+                    >
+                        {value}
+                    </button>
+                ))}
+            </div>
+
             <h2 className="text-2xl font-bold mb-6">Trade History</h2>
 
             {closedPositions.length === 0 ? (
@@ -92,6 +117,23 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transaction
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
                                             <span className="text-lg sm:text-xl font-bold">{p.ticker}</span>
+                                            {p.owner && (
+                                                <button
+                                                    onClick={() => {
+                                                        if (!onUpdateOwner) return;
+                                                        const next = p.owner === 'Yuchen' ? 'Annie' : 'Yuchen';
+                                                        onUpdateOwner(p.id, next);
+                                                    }}
+                                                    className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold cursor-pointer transition-colors ${
+                                                        p.owner === 'Yuchen'
+                                                            ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                                                            : 'bg-pink-500/20 text-pink-400 hover:bg-pink-500/30'
+                                                    }`}
+                                                    title={`Owner: ${p.owner}`}
+                                                >
+                                                    {p.owner}
+                                                </button>
+                                            )}
                                             <span className={`badge ${p.type === 'Call' ? 'badge-green' : 'badge-red'}`}>{p.type}</span>
                                             <span className={`badge ${isWin ? 'badge-green' : 'badge-red'} flex items-center gap-1`}>
                                                 {isWin ? <><Check size={12} /> Win</> : 'Loss'}

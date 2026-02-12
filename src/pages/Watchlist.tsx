@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { List } from 'lucide-react';
 import { Position, WatchlistItem as WatchlistItemType } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -17,6 +17,7 @@ interface WatchlistPageProps {
 export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddToWatchlist, onMoveToActive, onDelete, loading }) => {
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [form, setForm] = useState({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const watchlistItems = positions.filter(p => p.status === 'watchlist');
@@ -30,7 +31,8 @@ export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddTo
                 strike: parseFloat(form.strike),
                 entry_score: form.entry_score ? parseInt(form.entry_score) : null,
                 ideal_entry: form.ideal_entry ? parseFloat(form.ideal_entry) : null,
-                target_price: form.target_price ? parseFloat(form.target_price) : null
+                target_price: form.target_price ? parseFloat(form.target_price) : null,
+                owner: formOwner
             });
             setForm({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
             setShowForm(false);
@@ -74,6 +76,25 @@ export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddTo
                         <input type="number" step="0.01" placeholder="Target $" value={form.target_price} onChange={e => setForm({ ...form, target_price: e.target.value })} className="px-4 py-3 rounded-xl font-mono" aria-label="Target price" />
                     </div>
                     <input type="text" placeholder="Exit if... (e.g., MB flips red)" value={form.stop_reason} onChange={e => setForm({ ...form, stop_reason: e.target.value })} className="w-full px-4 py-3 rounded-xl" aria-label="Exit condition" />
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-text-tertiary">Owner:</span>
+                        {(['Yuchen', 'Annie'] as const).map(name => (
+                            <button
+                                key={name}
+                                type="button"
+                                onClick={() => setFormOwner(name)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                    formOwner === name
+                                        ? name === 'Yuchen'
+                                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                            : 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
+                                        : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                }`}
+                            >
+                                {name}
+                            </button>
+                        ))}
+                    </div>
                     <button type="submit" disabled={submitting} className="btn-primary w-full py-4 rounded-xl text-lg cursor-pointer">
                         {submitting ? 'Adding...' : 'Add to Watchlist'}
                     </button>

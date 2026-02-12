@@ -1,6 +1,6 @@
 # Trading Journal - API文档
 
-> 最后更新: 2026年2月8日
+> 最后更新: 2026年2月10日
 
 ## 📋 目录
 
@@ -361,7 +361,7 @@ GET /api/scan-options
 
 ### 用途
 
-根据 OSS v2.1 算法扫描全链期权，返回经过数学评估后的最佳契约。
+根据 OSS v2.3 算法扫描全链期权，返回经过数学评估后的最佳契约。v2.3 新增候选池 Hard Filters、DTE 分桶 Z-Score、真实到期 Breakeven。
 
 ### 参数
 
@@ -378,6 +378,15 @@ GET /api/scan-options
 | direction | string | ❌ | 方向 ('all', 'call', 'put') | 'all' |
 | dayTrade | boolean| ❌ | 是否开启日内模式 (权重优化) | false |
 | minVolume | number | ❌ | 最小成交量限制 | 50 |
+
+**v2.3 Hard Filters（内置，不可配置）**:
+| 过滤器 | 值 | 说明 |
+|--------|-----|------|
+| minMid | $0.15 | mid price 低于此值的合约直接丢弃 |
+| minOpenInterest | 200 | OI 低于此值的合约直接丢弃 |
+| maxSpreadPctCeiling | 12% | spread% 硬上限（不论 maxSpreadPct 参数如何） |
+
+**v2.3 Bucketed Z-Scores**: Z-Score 归一化在 DTE 分桶 (0–14 / 15–30 / 31–60 / 61–120 / 121+) 内计算。桶内不足 3 个时回退全池。
 
 ### 响应示例
 
@@ -873,4 +882,4 @@ describe('Option Price API', () => {
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年2月8日*
+*最后更新: 2026年2月10日*

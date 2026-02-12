@@ -1,5 +1,5 @@
 /**
- * Options Scoring System (OSS) v2.2
+ * Options Scoring System (OSS) v2.3
  * ═══════════════════════════════════════════════════════════════
  * Re-exports core algorithms from oss-core.ts and provides
  * higher-level batch scoring + IV term structure analysis.
@@ -40,6 +40,12 @@ export {
 
     // Z-Score
     normalizeToZScores,
+    normalizeToZScoresByBucket,
+
+    // Hard filter defaults & DTE buckets
+    HARD_FILTER_DEFAULTS,
+    DTE_BUCKETS,
+    MIN_BUCKET_SIZE,
 
     // IV
     getIVRiskFactor,
@@ -81,6 +87,8 @@ import {
     calculateSpreadPct as _calculateSpreadPct,
     getDeltaBonus as _getDeltaBonus,
     normalizeToZScores as _normalizeToZScores,
+    normalizeToZScoresByBucket as _normalizeToZScoresByBucket,
+    HARD_FILTER_DEFAULTS as _HARD_FILTER_DEFAULTS,
     getIVAdjustment as _getIVAdjustment,
     calculateLOQRaw as _calculateLOQRaw,
     calculateCSQRaw as _calculateCSQRaw,
@@ -280,6 +288,8 @@ export interface ScanFilters {
     minVolume?: number;
     maxSpreadPct?: number;
     isDayTrade?: boolean;
+    minMid?: number;
+    minOpenInterest?: number;
 }
 
 /**
@@ -300,7 +310,11 @@ export function scoreOptionsChain(
         minVolume = 50,
         maxSpreadPct = 0.10,
         isDayTrade = false,
+        minMid = _HARD_FILTER_DEFAULTS.minMid,
+        minOpenInterest = _HARD_FILTER_DEFAULTS.minOpenInterest,
     } = filters;
+
+    const effectiveMaxSpreadPct = Math.min(maxSpreadPct, _HARD_FILTER_DEFAULTS.maxSpreadPctCeiling);
 
     const ivResult = calculateIVRatio(chain, currentPrice);
     const ivAdjustment = _getIVAdjustment(ivResult.ivRatio, strategy);
@@ -319,9 +333,11 @@ export function scoreOptionsChain(
 
         const mid = (opt.bid + opt.ask) / 2;
         if (mid <= 0) continue;
+        if (mid < minMid) continue;
+        if (opt.openInterest < minOpenInterest) continue;
 
         const spreadPct = _calculateSpreadPct(opt.bid, opt.ask);
-        if (spreadPct > maxSpreadPct) continue;
+        if (spreadPct > effectiveMaxSpreadPct) continue;
 
         if (strategy === 'long') {
             processed.push({
@@ -333,7 +349,7 @@ export function scoreOptionsChain(
                 gammaEff: _calculateGammaEfficiency(opt.gamma, mid),
                 thetaBurn: _calculateThetaBurn(opt.theta, mid),
                 gammaThetaRatio: _calculateGammaThetaRatio(opt.gamma, opt.theta),
-                breakevenMove: _calculateBreakevenMove(mid, opt.delta, currentPrice),
+                breakevenMove: _calculateBreakevenMove(opt.strike, mid, currentPrice, opt.type),
             });
         } else {
             const pop = _calculatePOP(opt.delta);
@@ -371,11 +387,12 @@ export function scoreOptionsChain(
         const gammas = longItems.map(p => p.gammaEff);
         const thetas = longItems.map(p => p.thetaBurn);
         const gtRatios = longItems.map(p => p.gammaThetaRatio);
+        const dtes = longItems.map(p => p.opt.dte);
 
-        const zLambdas = _normalizeToZScores(compressedLambdas);
-        const zGammas = _normalizeToZScores(gammas);
-        const zThetas = _normalizeToZScores(thetas);
-        const zGTRatios = _normalizeToZScores(gtRatios);
+        const zLambdas = _normalizeToZScoresByBucket(compressedLambdas, dtes);
+        const zGammas = _normalizeToZScoresByBucket(gammas, dtes);
+        const zThetas = _normalizeToZScoresByBucket(thetas, dtes);
+        const zGTRatios = _normalizeToZScoresByBucket(gtRatios, dtes);
 
         const rawScores = longItems.map((p, i) => {
             const deltaBonus = _getDeltaBonus(p.opt.delta);
@@ -427,10 +444,11 @@ export function scoreOptionsChain(
         const edges = shortItems.map(p => p.edge);
         const pops = shortItems.map(p => p.pop);
         const spreads = shortItems.map(p => p.spreadPct);
+        const dtes = shortItems.map(p => p.opt.dte);
 
-        const zEdges = _normalizeToZScores(edges);
-        const zPops = _normalizeToZScores(pops);
-        const zSpreads = _normalizeToZScores(spreads);
+        const zEdges = _normalizeToZScoresByBucket(edges, dtes);
+        const zPops = _normalizeToZScoresByBucket(pops, dtes);
+        const zSpreads = _normalizeToZScoresByBucket(spreads, dtes);
 
         scored = shortItems.map((p, i) => {
             const rawScore = _calculateCSQRaw(zEdges[i], zPops[i], zSpreads[i], ivAdjustment);

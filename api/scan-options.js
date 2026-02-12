@@ -13,6 +13,8 @@ const {
     getThetaPenalty,
     getDeltaBonus,
     zScores,
+    zScoresByBucket,
+    HARD_FILTER_DEFAULTS,
     getIVAdjustment,
     calculateLOQRaw,
     calculateCSQRaw,
@@ -111,9 +113,12 @@ export default async function handler(req, res) {
             if (opt.bid <= 0 || opt.ask <= 0) continue;
             const mid = (opt.bid + opt.ask) / 2;
             if (mid <= 0) continue;
+            if (mid < HARD_FILTER_DEFAULTS.minMid) continue;
+            if (opt.openInterest < HARD_FILTER_DEFAULTS.minOpenInterest) continue;
 
+            const effectiveMaxSpreadPct = Math.min(maxSpreadPctNum, HARD_FILTER_DEFAULTS.maxSpreadPctCeiling);
             const spreadPct = calculateSpreadPct(opt.bid, opt.ask);
-            if (spreadPct > maxSpreadPctNum) continue;
+            if (spreadPct > effectiveMaxSpreadPct) continue;
 
             // Volume filter
             if (opt.volume < minVolumeNum) continue;
@@ -128,7 +133,7 @@ export default async function handler(req, res) {
                 const gammaEff = opt.gamma / mid;
                 const thetaBurn = Math.abs(opt.theta) / mid;
                 const gammaThetaRatio = calculateGammaThetaRatio(opt.gamma, opt.theta);
-                const breakevenMove = calculateBreakevenMove(mid, opt.delta, currentPrice);
+                const breakevenMove = calculateBreakevenMove(opt.strike, mid, currentPrice, opt.type);
                 processed.push({ opt, mid, spreadPct, lambda, gammaEff, thetaBurn, gammaThetaRatio, breakevenMove });
             } else {
                 const pop = 1 - Math.abs(opt.delta);
@@ -178,10 +183,11 @@ export default async function handler(req, res) {
             const gammas = processed.map((p) => p.gammaEff);
             const thetas = processed.map((p) => p.thetaBurn);
             const gtRatios = processed.map((p) => p.gammaThetaRatio);
-            const zL = zScores(compressedLambdas);
-            const zG = zScores(gammas);
-            const zT = zScores(thetas);
-            const zGT = zScores(gtRatios);
+            const dtes = processed.map((p) => p.opt.dte);
+            const zL = zScoresByBucket(compressedLambdas, dtes);
+            const zG = zScoresByBucket(gammas, dtes);
+            const zT = zScoresByBucket(thetas, dtes);
+            const zGT = zScoresByBucket(gtRatios, dtes);
 
             const rawScores = processed.map((p, i) => {
                 const deltaBonus = getDeltaBonus(p.opt.delta);
@@ -228,9 +234,10 @@ export default async function handler(req, res) {
             const edges = processed.map((p) => p.edge);
             const pops = processed.map((p) => p.pop);
             const spreads = processed.map((p) => p.spreadPct);
-            const zE = zScores(edges);
-            const zP = zScores(pops);
-            const zS = zScores(spreads);
+            const dtes = processed.map((p) => p.opt.dte);
+            const zE = zScoresByBucket(edges, dtes);
+            const zP = zScoresByBucket(pops, dtes);
+            const zS = zScoresByBucket(spreads, dtes);
 
             results = processed.map((p, i) => {
                 const rawScore = calculateCSQRaw(zE[i], zP[i], zS[i], ivAdjustment);

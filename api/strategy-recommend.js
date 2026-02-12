@@ -5,7 +5,8 @@
 // Modules loaded inside handler via dynamic import() so failures return JSON on Vercel.
 
 let compressLambda, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
-    calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, getIVRiskFactor,
+    calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, zScoresByBucket, HARD_FILTER_DEFAULTS,
+    getIVRiskFactor,
     calculateLOQRaw, normalizeScoreTo100, normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct,
     getCleanATM_IV, calculateTargetIV, parseChain, calculateSkew, estimateSlippage, getGammaRiskPenalty,
     calculateUnifiedScore;
@@ -28,6 +29,8 @@ async function ensureScoring() {
     getThetaPenalty = scoring.getThetaPenalty;
     getDeltaBonus = scoring.getDeltaBonus;
     zScores = scoring.zScores;
+    zScoresByBucket = scoring.zScoresByBucket;
+    HARD_FILTER_DEFAULTS = scoring.HARD_FILTER_DEFAULTS;
     getIVRiskFactor = scoring.getIVRiskFactor;
     calculateLOQRaw = scoring.calculateLOQRaw;
     normalizeScoreTo100 = scoring.normalizeScoreTo100;
@@ -260,6 +263,12 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
 
             // Liquidity Guard (Composite)
             if (shortLeg.bid <= 0 || longLeg.ask <= 0) continue;
+
+            // Hard filters on both legs
+            const shortMid = (shortLeg.bid + shortLeg.ask) / 2;
+            const longMid = (longLeg.bid + longLeg.ask) / 2;
+            if (shortMid < HARD_FILTER_DEFAULTS.minMid || longMid < HARD_FILTER_DEFAULTS.minMid) continue;
+            if (shortLeg.openInterest < HARD_FILTER_DEFAULTS.minOpenInterest || longLeg.openInterest < HARD_FILTER_DEFAULTS.minOpenInterest) continue;
             const spreadBid = shortLeg.bid - longLeg.ask;
             const spreadAsk = shortLeg.ask - longLeg.bid;
             const spreadMid = (spreadBid + spreadAsk) / 2;
@@ -394,6 +403,12 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth) {
 
             if (!shortLeg) continue;
 
+            // Hard filters on both legs
+            const longMidDS = (longLeg.bid + longLeg.ask) / 2;
+            const shortMidDS = (shortLeg.bid + shortLeg.ask) / 2;
+            if (longMidDS < HARD_FILTER_DEFAULTS.minMid || shortMidDS < HARD_FILTER_DEFAULTS.minMid) continue;
+            if (longLeg.openInterest < HARD_FILTER_DEFAULTS.minOpenInterest || shortLeg.openInterest < HARD_FILTER_DEFAULTS.minOpenInterest) continue;
+
             const debit = longLeg.ask - shortLeg.bid;
             const maxProfit = width - debit;
             const maxRisk = debit;
@@ -491,12 +506,15 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
     for (const opt of filtered) {
         const mid = (opt.bid + opt.ask) / 2;
         if (mid <= 0) continue;
+        if (mid < HARD_FILTER_DEFAULTS.minMid) continue;
+        if (opt.openInterest < HARD_FILTER_DEFAULTS.minOpenInterest) continue;
+        const spreadPctVal = (opt.ask - opt.bid) / mid;
+        if (spreadPctVal > HARD_FILTER_DEFAULTS.maxSpreadPctCeiling) continue;
         const lambda = Math.abs(opt.delta) * (currentPrice / mid);
         const gammaEff = opt.gamma / mid;
         const thetaBurn = Math.abs(opt.theta) / mid;
         const gammaThetaRatio = calculateGammaThetaRatio(opt.gamma, opt.theta);
-        const breakevenMove = calculateBreakevenMove(mid, opt.delta, currentPrice);
-        const spreadPctVal = (opt.ask - opt.bid) / mid;
+        const breakevenMove = calculateBreakevenMove(opt.strike, mid, currentPrice, opt.type);
         processed.push({ opt, mid, lambda, gammaEff, thetaBurn, gammaThetaRatio, breakevenMove, spreadPct: spreadPctVal });
     }
 
@@ -506,10 +524,11 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
     const gammas = processed.map(p => p.gammaEff);
     const thetas = processed.map(p => p.thetaBurn);
     const gtRatios = processed.map(p => p.gammaThetaRatio);
-    const zL = zScores(compressedLambdas);
-    const zG = zScores(gammas);
-    const zT = zScores(thetas);
-    const zGT = zScores(gtRatios);
+    const dtes = processed.map(p => p.opt.dte);
+    const zL = zScoresByBucket(compressedLambdas, dtes);
+    const zG = zScoresByBucket(gammas, dtes);
+    const zT = zScoresByBucket(thetas, dtes);
+    const zGT = zScoresByBucket(gtRatios, dtes);
 
     const ivRankAdj = 0; // IV Rank/Percentile removed; regime uses IV Ratio + IV/RV only
     const rawScores = processed.map((p, i) => {

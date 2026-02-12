@@ -1,6 +1,6 @@
-# OSS v2.2 算法改进总览
+# OSS v2.2 → v2.3 算法改进总览
 
-本文档总结我们执行的**八项改动**如何提升期权评分与策略推荐算法（OSS）。前七项已落地，第八项为长期规划。
+本文档总结我们执行的**十项改动**如何提升期权评分与策略推荐算法（OSS）。前九项已落地，第十项为长期规划。
 
 ---
 
@@ -26,13 +26,20 @@
 
 ---
 
-## 3. Breakeven Move % 指标加入 LOQ
+## 3. Breakeven Move % 指标加入 LOQ（v2.3 升级为真实到期 breakeven）
 
-**改动**：在单腿 LOQ 中引入「Breakeven Move」（权利金 / (|delta| × 股价)），并按 DTE 做 sqrt(DTE/30) 归一化后，映射为 breakevenPenalty（利好小 move、惩罚大 move），参与 LOQ raw 计算。
+**v2.2 改动**：在单腿 LOQ 中引入「Breakeven Move」，并按 DTE 做 sqrt(DTE/30) 归一化后，映射为 breakevenPenalty（利好小 move、惩罚大 move），参与 LOQ raw 计算。
+
+**v2.3 改动**：公式从 delta 线性近似 `premium / (|Δ| × S)` 改为 **真实到期 breakeven**：
+- Call: `BE = K + premium` → `Move% = |BE − S| / S`
+- Put: `BE = K − premium` → `Move% = |BE − S| / S`
+
+旧公式对深 OTM / 高 gamma 区严重失真（如 SPY 650 Call mid=$0.50 delta=0.05: 旧=1.67%，新=8.42%），导致彩票合约被误判"回本容易"。新公式直接用 strike，精确无误。
 
 **提升**：
 - **风险维度更完整**：不仅看 lambda、theta、gamma，还看「标的需要动多少才能回本」。
 - **与期限匹配**：同一 breakeven move，短期限更敏感、长期限更宽容，通过 dte 因子体现。
+- **精确打击彩票**：深 OTM 合约不再被低 delta 近似"洗白"，真实回本距离暴露无遗。
 - **结果**：单腿分数能区分「便宜但需要大涨大跌才回本」与「贵一点但 breakeven 更近」的合约，买方体验更合理。
 
 ---
@@ -91,7 +98,34 @@
 
 ---
 
-## 8. IV Skew（长期规划）
+## 8. 候选池治理 — Hard Filters (v2.3 新增)
+
+**改动**：在 Z-Score 评分之前，统一增加硬过滤器移除噪音合约：
+- `minMid = $0.15`：mid < $0.15 直接丢弃
+- `minOpenInterest = 200`：OI < 200 直接丢弃
+- `maxSpreadPctCeiling = 12%`：spread% 硬上限（即使用户传更宽也不超过 12%）
+
+扫描器 (`scan-options`)、前端评分 (`scoreOptionsChain`)、策略推荐器 (`strategy-recommend`) 统一应用。
+
+**提升**：
+- **消除噪音**：超便宜、低 OI、宽 spread 的合约不再污染池的 mean/variance。
+- **排名稳定**：噪音导致 Z-Score 分布日间跳变；清洗后分布更稳定。
+- **结果**：用户看到的候选合约全部具备基本流动性和交易价值，不再被垃圾合约干扰视线。
+
+---
+
+## 9. DTE 分桶 Z-Score (v2.3 新增)
+
+**改动**：Z-Score 归一化从「全池」改为「DTE 同行组内」。5 个 DTE 桶：0–14 / 15–30 / 31–60 / 61–120 / 121+。桶内不足 3 个时回退全池统计。
+
+**提升**：
+- **公平比较**：7-DTE 极端 Gamma/Price 不再与 45-DTE 在同一个分布里竞争，避免跨 DTE 扭曲。
+- **优雅退化**：窄 DTE 扫描（如 30–45）全部落入同一桶 → 行为等价于旧版；小结果集 → 自动回退全池。
+- **结果**：宽 DTE 扫描时评分更公平，窄 DTE 扫描时无感知变化。
+
+---
+
+## 10. IV Skew（长期规划）
 
 **改动**：尚未实现；规划为在链上利用不同 strike 的 IV 差异（如 25Δ put vs ATM 的 skew、或 put–call skew），用于定价合理性、风险提示或策略选择。
 
@@ -104,15 +138,17 @@
 
 ## 小结表
 
-| # | 改动 | 核心提升 |
-|---|------|----------|
-| 1 | G/T Ratio 纳入 LOQ | 单腿区分「gamma 性价比」，日交 vs 持仓更合理。 |
-| 2 | CSQ 用完整 EV | Credit 排序更偏正期望、可重复，而非单纯高权利金。 |
-| 3 | Breakeven Move 进 LOQ | 单腿多一个「回本难度」维度，与 DTE 匹配。 |
-| 4 | IV Ratio + IV/RV Ratio（无 IV Rank/Percentile） | 仅用期限结构与 IV/RV 截面指标，regime 与评分一致、可复现。 |
-| 5 | DTE 连续权重 | 消除 5/15 DTE 附近分数跳变，过渡平滑。 |
-| 6 | Single LOQ 动态基线 | 跨标分数可比，消除高波标的系统性高分。 |
-| 7 | POP 基于 Breakeven | Credit spread 的 POP/EV 更贴近真实盈亏概率。 |
-| 8 | IV Skew（规划） | 更细定价与尾部风险，长期增强推荐与风控。 |
+| # | 改动 | 版本 | 核心提升 |
+|---|------|------|----------|
+| 1 | G/T Ratio 纳入 LOQ | v2.2 | 单腿区分「gamma 性价比」，日交 vs 持仓更合理。 |
+| 2 | CSQ 用完整 EV | v2.2 | Credit 排序更偏正期望、可重复，而非单纯高权利金。 |
+| 3 | Breakeven Move → 真实到期 BE | v2.2→v2.3 | strike-based 公式替代 delta 近似，彻底打击深 OTM 彩票。 |
+| 4 | IV Ratio + IV/RV Ratio（无 IV Rank/Percentile） | v2.2 | 仅用期限结构与 IV/RV 截面指标，regime 与评分一致、可复现。 |
+| 5 | DTE 连续权重 | v2.2 | 消除 5/15 DTE 附近分数跳变，过渡平滑。 |
+| 6 | Single LOQ 动态基线 | v2.2 | 跨标分数可比，消除高波标的系统性高分。 |
+| 7 | POP 基于 Breakeven | v2.2 | Credit spread 的 POP/EV 更贴近真实盈亏概率。 |
+| 8 | Hard Filters 候选池治理 | v2.3 | 移除噪音合约（$0.15/OI 200/spread 12%），排名稳定。 |
+| 9 | DTE 分桶 Z-Score | v2.3 | 同行比同行，避免跨 DTE 扭曲 Z-Score。 |
+| 10 | IV Skew（规划） | — | 更细定价与尾部风险，长期增强推荐与风控。 |
 
-整体上，这八项让 OSS 从「截面、单点、固定刻度」走向「纵向历史、多维度、相对池内、概率更准」，在策略推荐与扫描中的一致性和可解释性都有明显提升。
+整体上，这十项让 OSS 从「截面、单点、固定刻度」走向「纵向历史、多维度、分桶归一化、概率更准」，在策略推荐与扫描中的一致性和可解释性都有明显提升。v2.3 重点解决候选池质量（Hard Filters）、跨 DTE 公平性（分桶 Z-Score）和回本指标真实性（strike-based BE）。

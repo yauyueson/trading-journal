@@ -119,6 +119,11 @@ function App() {
         fetchData();
     };
 
+    const onUpdateOwner = async (id: string, owner: 'Yuchen' | 'Annie' | null) => {
+        await supabase.from('positions').update({ owner }).eq('id', id);
+        setPositions(prev => prev.map(p => p.id === id ? { ...p, owner } : p));
+    };
+
     const onAddDirect = async (item: DirectAddItem) => {
         const { data, error } = await supabase.from('positions').insert([{
             ticker: item.ticker,
@@ -132,7 +137,8 @@ function App() {
             score_updated_at: new Date().toISOString(),
             notes: item.ticker + ' ' + item.type,
             stop_reason: item.stop_reason,
-            legs: item.legs || null
+            legs: item.legs || null,
+            owner: item.owner || null
         }]).select();
 
         if (data && data[0]) {
@@ -210,7 +216,8 @@ function App() {
             current_score: originalPos.current_score,
             score_updated_at: new Date().toISOString(),
             notes: `Rolled from ${originalPos.ticker} $${originalPos.strike} ${formatDate(originalPos.expiration)}`,
-            stop_reason: originalPos.stop_reason // Inherit
+            stop_reason: originalPos.stop_reason, // Inherit
+            owner: originalPos.owner || null
         }]).select();
 
         if (newPosData && newPosData[0]) {
@@ -239,7 +246,8 @@ function App() {
             target_price: item.target_price,
             stop_reason: item.stop_reason,
             notes: item.notes,
-            legs: item.legs
+            legs: item.legs,
+            owner: item.owner || null
         }]);
 
         if (error) {
@@ -308,6 +316,7 @@ function App() {
                         onUpdatePrice={onUpdatePrice}
                         onUpdateTarget={onUpdateTarget}
                         onUpdateStop={onUpdateStop}
+                        onUpdateOwner={onUpdateOwner}
                         onAddDirect={onAddDirect}
                         onRoll={onRoll}
                         onDelete={onDelete}
@@ -335,6 +344,7 @@ function App() {
                         transactions={transactions}
                         loading={loading}
                         onDelete={onDelete}
+                        onUpdateOwner={onUpdateOwner}
                     />
                 )}
                 {activeTab === 'stats' && (

@@ -18,13 +18,14 @@ interface PortfolioPageProps {
     onUpdatePrice: (id: string, price: number) => Promise<void>;
     onUpdateTarget: (id: string, target: number) => Promise<void>;
     onUpdateStop: (id: string, stopPrice: number) => Promise<void>;
+    onUpdateOwner: (id: string, owner: 'Yuchen' | 'Annie' | null) => Promise<void>;
     onAddDirect: (item: DirectAddItem) => Promise<void>;
     onRoll: (originalPositionId: string, rollData: RollData) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
     loading: boolean;
 }
 
-export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onAddDirect, onRoll, onDelete, loading }) => {
+export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onUpdateOwner, onAddDirect, onRoll, onDelete, loading }) => {
     const { portfolioTotal, riskPct, stopOutPct, stopOutFraction, maxRiskPerTrade } = usePortfolioSettings();
     const [showForm, setShowForm] = useState(false);
     const [showAccountSettings, setShowAccountSettings] = useState(false);
@@ -33,12 +34,15 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     const [rollingPosition, setRollingPosition] = useState<{ position: Position, qty: number } | null>(null);
     const [sortBy] = useState('expiration');
     const [positionType, setPositionType] = useState<'single' | 'credit' | 'debit'>('single');
+    const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
+    const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
     const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: '1', entry_price: '' });
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
 
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-    const activePositions = positions.filter(p => p.status === 'active');
+    const allActivePositions = positions.filter(p => p.status === 'active');
+    const activePositions = ownerFilter === 'All' ? allActivePositions : allActivePositions.filter(p => p.owner === ownerFilter);
 
     const totalRiskDollars = activePositions.reduce((sum, position) => {
         const posTxns = transactions.filter(t => t.position_id === position.id);
@@ -100,7 +104,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 entry_score: parseInt(form.entry_score),
                 stop_reason: form.stop_reason,
                 quantity: parseInt(form.quantity),
-                entry_price: parseFloat(form.entry_price)
+                entry_price: parseFloat(form.entry_price),
+                owner: formOwner
             });
         } else {
             const shortStrike = parseFloat(form.strike);
@@ -126,7 +131,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 stop_reason: form.stop_reason,
                 quantity: parseInt(form.quantity),
                 entry_price: parseFloat(form.entry_price),
-                legs
+                legs,
+                owner: formOwner
             });
         }
 
@@ -195,6 +201,28 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                         <ChevronDown size={16} className={`text-gray-500 transition-transform shrink-0 ${showAccountSettings ? 'rotate-180' : ''}`} />
                     </button>
                 </div>
+                {/* Owner Filter */}
+                <div className="flex items-center gap-1.5">
+                    {(['All', 'Yuchen', 'Annie'] as const).map(value => (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => setOwnerFilter(value)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                ownerFilter === value
+                                    ? value === 'Yuchen'
+                                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                        : value === 'Annie'
+                                            ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
+                                            : 'bg-white/10 text-text-primary border border-white/20'
+                                    : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                            }`}
+                        >
+                            {value}
+                        </button>
+                    ))}
+                </div>
+
                 {/* Collapsible Account & Risk Settings */}
                 {showAccountSettings && (
                     <div className="rounded-xl border border-border-default/50 bg-bg-secondary/20 p-6">
@@ -223,25 +251,46 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
 
                     <form onSubmit={handleSubmit} className="space-y-8">
                         {/* Position Type Toggle */}
-                        <div className="grid grid-cols-3 gap-2">
-                            {([
-                                ['single', 'Single Leg'],
-                                ['credit', 'Credit Spread'],
-                                ['debit', 'Debit Spread']
-                            ] as const).map(([value, label]) => (
-                                <button
-                                    key={value}
-                                    type="button"
-                                    onClick={() => setPositionType(value)}
-                                    className={`px-3 py-3 rounded-lg text-sm font-medium transition-all ${
-                                        positionType === value
-                                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                            : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                                    }`}
-                                >
-                                    {label}
-                                </button>
-                            ))}
+                        <div className="flex items-center gap-4">
+                            <div className="grid grid-cols-3 gap-2 flex-1">
+                                {([
+                                    ['single', 'Single Leg'],
+                                    ['credit', 'Credit Spread'],
+                                    ['debit', 'Debit Spread']
+                                ] as const).map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setPositionType(value)}
+                                        className={`px-3 py-3 rounded-lg text-sm font-medium transition-all ${
+                                            positionType === value
+                                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                            {/* Owner Toggle */}
+                            <div className="flex gap-1.5">
+                                {(['Yuchen', 'Annie'] as const).map(name => (
+                                    <button
+                                        key={name}
+                                        type="button"
+                                        onClick={() => setFormOwner(name)}
+                                        className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                                            formOwner === name
+                                                ? name === 'Yuchen'
+                                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                                    : 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
+                                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                        }`}
+                                    >
+                                        {name}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
                         {/* Row 1: Basic Info */}
@@ -476,6 +525,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             onUpdatePrice={onUpdatePrice}
                             onUpdateTarget={onUpdateTarget}
                             onUpdateStop={onUpdateStop}
+                            onUpdateOwner={onUpdateOwner}
                             onDelete={onDelete}
                             onDataUpdate={setLastTimestamp}
                             refreshTrigger={refreshTrigger}
