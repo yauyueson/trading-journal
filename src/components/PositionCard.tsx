@@ -429,21 +429,24 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
                         <span className="text-xl sm:text-2xl font-bold">{position.ticker}</span>
-                        {position.owner && (
+                        {onUpdateOwner && (
                             <button
                                 onClick={() => {
-                                    if (!onUpdateOwner) return;
-                                    const next = position.owner === 'Yuchen' ? 'Annie' : 'Yuchen';
+                                    const next = position.owner === 'Yuchen' ? 'Annie'
+                                        : position.owner === 'Annie' ? null
+                                        : 'Yuchen';
                                     onUpdateOwner(position.id, next);
                                 }}
                                 className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold cursor-pointer transition-colors ${
                                     position.owner === 'Yuchen'
                                         ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
-                                        : 'bg-pink-500/20 text-pink-400 hover:bg-pink-500/30'
+                                        : position.owner === 'Annie'
+                                            ? 'bg-pink-500/20 text-pink-400 hover:bg-pink-500/30'
+                                            : 'bg-white/5 text-text-tertiary border border-dashed border-border-default hover:bg-white/10'
                                 }`}
-                                title={`Owner: ${position.owner}. Click to change.`}
+                                title={position.owner ? `Owner: ${position.owner}. Click to change.` : 'Unassigned. Click to set owner.'}
                             >
-                                {position.owner}
+                                {position.owner || '?'}
                             </button>
                         )}
                         {isSpread ? (
