@@ -14,7 +14,9 @@
       "Bash(dir:*)",
       "Bash(grep:*)",
       "Bash(timeout:*)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)"
     ]
   }
 }

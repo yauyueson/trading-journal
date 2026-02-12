@@ -430,24 +430,24 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
                         <span className="text-xl sm:text-2xl font-bold">{position.ticker}</span>
                         {onUpdateOwner && (
-                            <button
-                                onClick={() => {
-                                    const next = position.owner === 'Yuchen' ? 'Annie'
-                                        : position.owner === 'Annie' ? null
-                                        : 'Yuchen';
-                                    onUpdateOwner(position.id, next);
+                            <select
+                                value={position.owner || ''}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    onUpdateOwner(position.id, val === '' ? null : val as 'Yuchen' | 'Annie');
                                 }}
-                                className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold cursor-pointer transition-colors ${
+                                className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold cursor-pointer transition-colors appearance-none bg-transparent border-0 outline-none ${
                                     position.owner === 'Yuchen'
-                                        ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                                        ? 'bg-blue-500/20 text-blue-400'
                                         : position.owner === 'Annie'
-                                            ? 'bg-pink-500/20 text-pink-400 hover:bg-pink-500/30'
-                                            : 'bg-white/5 text-text-tertiary border border-dashed border-border-default hover:bg-white/10'
+                                            ? 'bg-pink-500/20 text-pink-400'
+                                            : 'bg-white/5 text-text-tertiary'
                                 }`}
-                                title={position.owner ? `Owner: ${position.owner}. Click to change.` : 'Unassigned. Click to set owner.'}
                             >
-                                {position.owner || '?'}
-                            </button>
+                                <option value="" className="bg-bg-primary text-text-tertiary">—</option>
+                                <option value="Yuchen" className="bg-bg-primary text-blue-400">Yuchen</option>
+                                <option value="Annie" className="bg-bg-primary text-pink-400">Annie</option>
+                            </select>
                         )}
                         {isSpread ? (
                             <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-text-secondary font-medium uppercase tracking-wide">
