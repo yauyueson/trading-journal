@@ -70,24 +70,73 @@ export default async function handler(req, res) {
         const upperTicker = ticker.toUpperCase();
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
-        const response = await fetch(cboeUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        const dataSource = process.env.DATA_SOURCE || 'CBOE';
+        let options = [];
+        let currentPrice = 0;
+        let cboeTimestamp = null;
+
+        if (dataSource === 'MARKET_DATA') {
+            const { getOptionChain } = await import('./market-data-client.js');
+            console.log(`Scanning ${upperTicker} via MarketData.app`);
+
+            // Optimize: Pass filters directly to API
+            // Note: Scanner uses strict filters that map well to MarketData params
+            const filters = {
+                minDte: dteMinNum,
+                maxDte: dteMaxNum,
+                // Delta filtering (absolute in scanner, but API needs raw)
+                // Scanner uses abs(delta) min/max. 
+                // MarketData delta param is signed range.
+                // We need to fetch both positive and negative ranges if direction is 'all'.
+                // Or just fetch wide delta range and filter locally.
+                // 
+                // Strategy: Fetched ALL deltas is safer for now to ensure we get both sides, 
+                // OR construct complex query if API supports it (API usually takes one range).
+                // Let's fetch strict DTE + Side (if specified) + wide strike?
+                // Strike range is relative to current price (which we don't know yet).
+                // So we can't filter strike server-side easily without a quote first.
+                //
+                // Best fit: Filter by DTE and Side.
+                minDte: dteMinNum,
+                maxDte: dteMaxNum
+            };
+
+            if (direction === 'call') filters.side = 'call';
+            if (direction === 'put') filters.side = 'put';
+
+            const chainData = await getOptionChain(upperTicker, filters);
+
+            if (chainData && chainData.length > 0) {
+                options = chainData;
+                // Infer current price
+                const valid = chainData.find(o => o.underlyingPrice > 0);
+                currentPrice = valid ? valid.underlyingPrice : 0;
+            } else {
+                return res.status(200).json({ success: true, results: [], context: { note: 'No data from MarketData' } });
             }
-        });
 
-        if (!response.ok) {
-            return res.status(response.status).json({ error: 'CBOE API error', status: response.status });
+        } else {
+            // CBOE Legacy
+            const response = await fetch(cboeUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            });
+
+            if (!response.ok) {
+                return res.status(response.status).json({ error: 'CBOE API error', status: response.status });
+            }
+
+            const data = await response.json();
+
+            if (!data.data?.options) {
+                return res.status(404).json({ error: 'No options data found' });
+            }
+
+            currentPrice = data.data.current_price;
+            options = data.data.options;
+            cboeTimestamp = data.timestamp;
         }
-
-        const data = await response.json();
-
-        if (!data.data?.options) {
-            return res.status(404).json({ error: 'No options data found' });
-        }
-
-        const currentPrice = data.data.current_price;
-        const options = data.data.options;
 
         // Parse full chain for IV calculation
         const fullChain = parseChain(options, currentPrice, null);

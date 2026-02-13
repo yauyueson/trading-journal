@@ -8,7 +8,7 @@ let compressLambda, calculateGammaThetaRatio, calculateBreakevenMove, getBreakev
     calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, zScoresByBucket, HARD_FILTER_DEFAULTS,
     getIVRiskFactor,
     calculateLOQRaw, normalizeScoreTo100, normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct,
-    getCleanATM_IV, calculateTargetIV, parseChain, calculateSkew, estimateSlippage, getGammaRiskPenalty,
+    getCleanATM_IV, calculateTargetIV, buildIVTermStructure, parseChain, calculateSkew, estimateSlippage, getGammaRiskPenalty,
     calculateUnifiedScore;
 let saveTickerIVSnapshot;
 let _scoringLoaded = false;
@@ -38,6 +38,7 @@ async function ensureScoring() {
     calculateSpreadPct = scoring.calculateSpreadPct;
     getCleanATM_IV = scoring.getCleanATM_IV;
     calculateTargetIV = scoring.calculateTargetIV;
+    buildIVTermStructure = scoring.buildIVTermStructure;
     parseChain = scoring.parseChain;
     calculateSkew = scoring.calculateSkew;
     estimateSlippage = scoring.estimateSlippage;
@@ -598,30 +599,105 @@ export default async function handler(req, res) {
         await ensureScoring();
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
-        // 1. Parallel Fetching
-        const [cboeRes, rv30, daysUntilEarnings] = await Promise.all([
-            fetch(cboeUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then(r => r.ok ? r.json() : null),
-            fetchRV30(upperTicker),
-            fetchEarnings(upperTicker)
-        ]);
+        const dataSource = process.env.DATA_SOURCE || 'CBOE';
+        let allOptions = [];
+        let currentPrice = 0;
+        let cboeRes = null;
+        let rv30 = null;
+        let daysUntilEarnings = null;
 
-        if (!cboeRes?.data?.options) {
-            return res.status(404).json({ error: 'No options data found or API error' });
+        if (dataSource === 'MARKET_DATA') {
+            console.log(`Using MarketData.app for ${upperTicker}`);
+            const { getOptionChain } = await import('./market-data-client.js');
+
+            // Parallel fetch for ancillary data
+            [rv30, daysUntilEarnings] = await Promise.all([
+                fetchRV30(upperTicker),
+                fetchEarnings(upperTicker)
+            ]);
+
+            try {
+                // Fetch chain with broad filters to get enough data for surface
+                // We need 30d and 90d for IV Regime
+                // Strategy recommend usually targets ~30-45 DTE
+                // So let's get a wide DTE range: 10 to 120
+                // And strike range roughly +/- 20%
+                // BUT currentPrice is needed for strike range. 
+                // We can get quote first OR just get a wide chain.
+                // MarketData chain endpoint returns underlyingPrice in rows usually.
+
+                // Let's rely on MarketData's robust backend.
+                // Fetching ALL strikes for DTE 15-100 might be okay, or filter slightly.
+
+                // First, need current price. Can get from a quick quote or simply fetch chain with no strike filter first?
+                // Best practice: Fetch Quote implies 1 credit. Fetch Chain implies credits? 
+                // MarketData Chain is efficient.
+
+                // Let's try fetching chain with DTE filter only first.
+                // Or fetching a simple quote for underlying? 
+                // MarketData Stocks API? 
+                // Let's assume we can fetch chain with DTE 15-120.
+
+                const chainData = await getOptionChain(upperTicker, {
+                    minDte: 10,
+                    maxDte: 120
+                });
+
+                if (chainData && chainData.length > 0) {
+                    allOptions = chainData;
+                    // Infer current price from the first option's underlyingPrice
+                    // OR compute average from ATM options
+                    const valid = chainData.find(o => o.underlyingPrice > 0);
+                    currentPrice = valid ? valid.underlyingPrice : 0;
+                } else {
+                    console.warn('MarketData returned empty chain, falling back to CBOE');
+                    throw new Error('Empty MarketData chain');
+                }
+
+            } catch (err) {
+                console.error('MarketData fetch failed:', err);
+                // Fallback to CBOE logic below if possible or just error out
+                // Re-throw to trigger CBOE fallback if we implement it, or just let error handle
+                // For now, let's allow fallback to CBOE if configured?
+                // No, simpler to just error if configured to use MD.
+                throw err;
+            }
+
+        } else {
+            // CBOE Legacy
+            // 1. Parallel Fetching
+            [cboeRes, rv30, daysUntilEarnings] = await Promise.all([
+                fetch(cboeUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then(r => r.ok ? r.json() : null),
+                fetchRV30(upperTicker),
+                fetchEarnings(upperTicker)
+            ]);
+
+            if (!cboeRes?.data?.options) {
+                return res.status(404).json({ error: 'No options data found or API error' });
+            }
+
+            currentPrice = cboeRes.data.current_price;
+            allOptions = cboeRes.data.options;
         }
-
-        const currentPrice = cboeRes.data.current_price;
-        const allOptions = cboeRes.data.options;
 
         const fullChain = parseChain(allOptions, currentPrice, null);
         const strategyChain = parseChain(allOptions, currentPrice, dteTarget);
 
-        const iv30 = calculateTargetIV(fullChain, 30, currentPrice);
-        const iv90 = calculateTargetIV(fullChain, 90, currentPrice);
+        // Build complete IV Term Structure (v2.4 - MarketData upgrade)
+        const ivSurface = buildIVTermStructure(fullChain, currentPrice);
+        const iv30 = ivSurface.iv30;
+        const iv90 = ivSurface.iv90;
 
         // Calculate Skew (v2.3)
         const skew = calculateSkew(fullChain, currentPrice, 30);
 
         const regime = detectRegime(iv30, iv90, rv30);
+
+        // Enhance regime advice with anomaly detection
+        if (ivSurface.anomaly) {
+            regime.advice = '⚠️ IV Spike Detected: Potential Earnings Event';
+            regime.adviceDetail = `Near-term IV is ${ivSurface.anomalyRatio.toFixed(2)}x higher than 30-day IV, suggesting an upcoming catalyst (likely earnings). Consider: (1) Avoid selling premium near-term, (2) Use post-event expirations, or (3) Size smaller if trading through the event.`;
+        }
 
         if (iv30 != null) {
             await saveTickerIVSnapshot(upperTicker, iv30, iv90);
@@ -696,7 +772,17 @@ export default async function handler(req, res) {
                 ivRvRatio: regime.ivRvRatio ? Number(regime.ivRvRatio.toFixed(3)) : null,
                 mode: regime.mode,
                 advice: regime.advice,
-                adviceDetail: regime.adviceDetail || null
+                adviceDetail: regime.adviceDetail || null,
+                ivSurface: {
+                    iv7: ivSurface.iv7 ? Number((ivSurface.iv7 * 100).toFixed(1)) : null,
+                    iv14: ivSurface.iv14 ? Number((ivSurface.iv14 * 100).toFixed(1)) : null,
+                    iv30: ivSurface.iv30 ? Number((ivSurface.iv30 * 100).toFixed(1)) : null,
+                    iv60: ivSurface.iv60 ? Number((ivSurface.iv60 * 100).toFixed(1)) : null,
+                    iv90: ivSurface.iv90 ? Number((ivSurface.iv90 * 100).toFixed(1)) : null,
+                    iv120: ivSurface.iv120 ? Number((ivSurface.iv120 * 100).toFixed(1)) : null,
+                    anomaly: ivSurface.anomaly || false,
+                    anomalyRatio: ivSurface.anomalyRatio ? Number(ivSurface.anomalyRatio.toFixed(2)) : null
+                }
             },
             recommendedStrategy,
             strategies: {

@@ -23,9 +23,32 @@ function generateOCCSymbol(symbol, expiration, type, strike) {
   }
 }
 
-/** Find an option's mid price from a CBOE options array. Returns number | null. */
+/** Find an option's mid price from an options array (CBOE or MarketData format). Returns number | null. */
 function findOptionPrice(options, ticker, expiration, strike, type) {
   if (!options || !expiration || strike == null) return null;
+
+  // Detect format
+  const isMarketData = options.length > 0 && options[0].symbol !== undefined && options[0].strike !== undefined;
+
+  if (isMarketData) {
+    // MarketData format: direct field matching
+    const targetStrike = parseFloat(strike);
+    const targetType = (type || 'Call').toLowerCase().includes('call') ? 'Call' : 'Put';
+    const expStr = expiration.slice(0, 10); // YYYY-MM-DD
+
+    const match = options.find(opt =>
+      Math.abs(opt.strike - targetStrike) < 0.01 &&
+      opt.type === targetType &&
+      opt.expiration === expStr
+    );
+
+    if (!match) return null;
+    if (match.bid > 0 && match.ask > 0) return (match.bid + match.ask) / 2;
+    if (match.last > 0) return match.last;
+    return null;
+  }
+
+  // CBOE format: OCC symbol matching
   const occ = generateOCCSymbol(ticker, expiration, type || 'Call', strike);
   if (!occ) return null;
   const cboeSymbol = occ.replace(/\s/g, '');
@@ -110,23 +133,49 @@ export default async function handler(req, res) {
       return acc;
     }, {});
 
-    // Fetch CBOE chains once per unique ticker
+    // Fetch option chains once per unique ticker
     const uniqueTickers = [...new Set(positions.map(p => (p.ticker || '').toUpperCase()).filter(Boolean))];
-    const cboeChains = {};
-    await Promise.all(uniqueTickers.map(async (ticker) => {
+    const dataSource = process.env.DATA_SOURCE || 'CBOE';
+    const optionChains = {};
+
+    if (dataSource === 'MARKET_DATA') {
+      // Use MarketData.app for real-time quotes
       try {
-        const resp = await fetch(
-          'https://cdn.cboe.com/api/global/delayed_quotes/options/' + ticker + '.json',
-          { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }
-        );
-        if (resp.ok) {
-          const data = await resp.json();
-          cboeChains[ticker] = (data && data.data && data.data.options) || [];
-        }
-      } catch (e) {
-        console.warn('CBOE fetch failed for', ticker, e.message);
+        const { getOptionChain } = await import('./market-data-client.js');
+
+        await Promise.all(uniqueTickers.map(async (ticker) => {
+          try {
+            // Fetch all expirations for this ticker (no DTE filter for alerts)
+            const chain = await getOptionChain(ticker, {});
+            optionChains[ticker] = chain || [];
+          } catch (e) {
+            console.warn('MarketData fetch failed for', ticker, e.message);
+            optionChains[ticker] = [];
+          }
+        }));
+      } catch (importErr) {
+        console.error('Failed to import market-data-client:', importErr);
+        // Fall back to CBOE below
       }
-    }));
+    }
+
+    // CBOE fallback if MarketData not configured or failed
+    if (dataSource === 'CBOE' || Object.keys(optionChains).length === 0) {
+      await Promise.all(uniqueTickers.map(async (ticker) => {
+        try {
+          const resp = await fetch(
+            'https://cdn.cboe.com/api/global/delayed_quotes/options/' + ticker + '.json',
+            { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }
+          );
+          if (resp.ok) {
+            const data = await resp.json();
+            optionChains[ticker] = (data && data.data && data.data.options) || [];
+          }
+        } catch (e) {
+          console.warn('CBOE fetch failed for', ticker, e.message);
+        }
+      }));
+    }
 
     let sent = 0;
 
@@ -148,9 +197,9 @@ export default async function handler(req, res) {
       const currentStopLoss = pos.stop_price ?? calculatedStopLoss;
       const targetPrice = pos.target_price || (isCreditStrategy ? entryPrice * 0.5 : entryPrice * 1.25);
 
-      // Look up current price from cached CBOE chain
+      // Look up current price from cached option chain
       const ticker = (pos.ticker || '').toUpperCase();
-      const chain = cboeChains[ticker] || [];
+      const chain = optionChains[ticker] || [];
       const expStr = typeof pos.expiration === 'string' ? pos.expiration.slice(0, 10) : '';
       const currentPrice = findOptionPrice(chain, ticker, expStr, pos.strike, pos.type || 'Call');
 

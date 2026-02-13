@@ -5,6 +5,16 @@ import path from 'path'
 // ---------------------------------------------------------
 // Local API Plugin - handles /api routes in development
 // ---------------------------------------------------------
+// 
+// ⚠️ IMPORTANT: These inline API handlers use hardcoded CBOE for simplicity.
+// For full MarketData.app integration testing:
+//   1. Deploy to Vercel (uses real api/ files)
+//   2. OR run: vercel dev (uses real api/ files)
+//   3. OR test API directly: node _test_strategy.js
+//
+// The real API files in /api folder support MarketData via DATA_SOURCE env var.
+// This Vite dev server is for quick frontend iteration only.
+// ---------------------------------------------------------
 
 // === Scoring Helper Functions ===
 

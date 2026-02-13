@@ -174,11 +174,11 @@ const HARD_FILTER_DEFAULTS = {
 };
 
 const DTE_BUCKETS = [
-    { label: '0-14',   min: 0,   max: 14  },
-    { label: '15-30',  min: 15,  max: 30  },
-    { label: '31-60',  min: 31,  max: 60  },
-    { label: '61-120', min: 61,  max: 120 },
-    { label: '121+',   min: 121, max: Infinity },
+    { label: '0-14', min: 0, max: 14 },
+    { label: '15-30', min: 15, max: 30 },
+    { label: '31-60', min: 31, max: 60 },
+    { label: '61-120', min: 61, max: 120 },
+    { label: '121+', min: 121, max: Infinity },
 ];
 
 const MIN_BUCKET_SIZE = 3;
@@ -413,17 +413,48 @@ const calculateTargetIV = (allOptions, targetDTE, currentPrice) => {
     const ivNear = getCleanATM_IV(chainNear, currentPrice);
     const ivFar = getCleanATM_IV(chainFar, currentPrice);
 
+
     if (ivNear === null || ivFar === null) return null;
 
     return lerp(targetDTE, nearDTE, farDTE, ivNear, ivFar);
 };
+
+/**
+ * Build complete IV Term Structure for visualization and regime detection.
+ * Returns: { iv7, iv14, iv30, iv60, iv90, iv120, anomaly }
+ * anomaly: true if IV7/IV30 > 1.3 (potential earnings spike)
+ */
+const buildIVTermStructure = (allOptions, currentPrice) => {
+    const structure = {
+        iv7: calculateTargetIV(allOptions, 7, currentPrice),
+        iv14: calculateTargetIV(allOptions, 14, currentPrice),
+        iv30: calculateTargetIV(allOptions, 30, currentPrice),
+        iv60: calculateTargetIV(allOptions, 60, currentPrice),
+        iv90: calculateTargetIV(allOptions, 90, currentPrice),
+        iv120: calculateTargetIV(allOptions, 120, currentPrice),
+        anomaly: false
+    };
+
+    // Anomaly detection: IV7/IV30 > 1.3 suggests near-term event (earnings)
+    if (structure.iv7 && structure.iv30 && structure.iv30 > 0) {
+        const ratio = structure.iv7 / structure.iv30;
+        if (ratio > 1.3) {
+            structure.anomaly = true;
+            structure.anomalyRatio = ratio;
+        }
+    }
+
+    return structure;
+};
+
 
 // ────────────────────────────────────────────────────────────────
 // OCC Symbol Parser
 // ────────────────────────────────────────────────────────────────
 
 /**
- * Parse raw CBOE options array into a normalized chain.
+ * Parse raw options array into a normalized chain.
+ * Supports both CBOE (OCC symbol parsing) and MarketData.app (pre-normalized) formats.
  * Optionally filters by DTE bucket via targetDTE.
  */
 const parseChain = (options, currentPrice, targetDTE = null) => {
@@ -436,31 +467,71 @@ const parseChain = (options, currentPrice, targetDTE = null) => {
     const result = [];
 
     for (const opt of options) {
-        const symbol = opt.option || '';
-        const dateMatch = symbol.match(/(\d{6})[CP]/);
-        let dte = 30;
-        let expiration = '';
+        let symbol, strike, type, expiration, dte;
+        let bid, ask, delta, gamma, theta, vega, iv, volume, openInterest;
 
-        if (dateMatch) {
-            const dateStr = dateMatch[1];
-            const yy = parseInt(dateStr.slice(0, 2));
-            const mm = parseInt(dateStr.slice(2, 4));
-            const dd = parseInt(dateStr.slice(4, 6));
-            const expDate = new Date(2000 + yy, mm - 1, dd);
-            dte = Math.ceil((expDate.getTime() - today.getTime()) / 86400000);
-            expiration = `${2000 + yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+        // Detect format: CBOE has 'option' field (OCC symbol), MarketData has 'symbol' + direct fields
+        const isCBOE = opt.option !== undefined;
+        const isMarketData = opt.symbol !== undefined && opt.strike !== undefined;
+
+        if (isMarketData) {
+            // MarketData format: already normalized by market-data-client.js
+            symbol = opt.symbol;
+            strike = opt.strike;
+            type = opt.type; // 'Call' or 'Put'
+            expiration = opt.expiration; // YYYY-MM-DD
+            dte = opt.dte;
+            bid = opt.bid || 0;
+            ask = opt.ask || 0;
+            delta = opt.delta || 0;
+            gamma = opt.gamma || 0;
+            theta = opt.theta || 0;
+            vega = opt.vega || 0;
+            iv = opt.iv || 0;
+            volume = opt.volume || 0;
+            openInterest = opt.openInterest || 0;
+
+        } else if (isCBOE) {
+            // CBOE format: parse OCC symbol
+            symbol = opt.option || '';
+            const dateMatch = symbol.match(/(\d{6})[CP]/);
+            dte = 30;
+            expiration = '';
+
+            if (dateMatch) {
+                const dateStr = dateMatch[1];
+                const yy = parseInt(dateStr.slice(0, 2));
+                const mm = parseInt(dateStr.slice(2, 4));
+                const dd = parseInt(dateStr.slice(4, 6));
+                const expDate = new Date(2000 + yy, mm - 1, dd);
+                dte = Math.ceil((expDate.getTime() - today.getTime()) / 86400000);
+                expiration = `${2000 + yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+            }
+
+            // Skip expired options
+            if (dte <= 0) continue;
+
+            const strikeMatch = symbol.match(/[CP](\d{8})$/);
+            strike = strikeMatch ? parseInt(strikeMatch[1]) / 1000 : 0;
+
+            type = symbol.includes('C') && symbol.match(/\d{6}C/) ? 'Call' : 'Put';
+
+            bid = opt.bid || 0;
+            ask = opt.ask || 0;
+            delta = opt.delta || 0;
+            gamma = opt.gamma || 0;
+            theta = opt.theta || 0;
+            vega = opt.vega || 0;
+            iv = opt.iv || 0;
+            volume = opt.volume || 0;
+            openInterest = opt.open_interest || 0;
+        } else {
+            // Unknown format, skip
+            continue;
         }
-
-        // Skip expired options
-        if (dte <= 0) continue;
-
-        const strikeMatch = symbol.match(/[CP](\d{8})$/);
-        const strike = strikeMatch ? parseInt(strikeMatch[1]) / 1000 : 0;
 
         // Early strike range filter
         if (strike < minStrike || strike > maxStrike) continue;
-
-        const type = symbol.includes('C') && symbol.match(/\d{6}C/) ? 'Call' : 'Put';
 
         // DTE bucket filter
         if (targetDTE !== null) {
@@ -480,15 +551,15 @@ const parseChain = (options, currentPrice, targetDTE = null) => {
             type,
             expiration,
             dte,
-            bid: opt.bid || 0,
-            ask: opt.ask || 0,
-            delta: opt.delta || 0,
-            gamma: opt.gamma || 0,
-            theta: opt.theta || 0,
-            vega: opt.vega || 0,
-            iv: opt.iv || 0,
-            volume: opt.volume || 0,
-            openInterest: opt.open_interest || 0,
+            bid,
+            ask,
+            delta,
+            gamma,
+            theta,
+            vega,
+            iv,
+            volume,
+            openInterest,
         });
     }
 
@@ -616,6 +687,7 @@ module.exports = {
     calculateExpectedValue,
     getCleanATM_IV,
     calculateTargetIV,
+    buildIVTermStructure,
     parseChain,
     LOQ_WEIGHTS,
     LOQ_DT_WEIGHTS,

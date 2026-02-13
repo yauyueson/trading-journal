@@ -46,15 +46,75 @@ export default async function handler(req, res) {
   }
 
   const upperTicker = ticker.toUpperCase();
-  const occSymbol = generateOCCSymbol(upperTicker, expiration, type, strike);
+  const dataSource = process.env.DATA_SOURCE || 'CBOE';
 
-  // CBOE 格式的 symbol (无空格)
+  // Try MarketData first if configured
+  if (dataSource === 'MARKET_DATA') {
+    try {
+      const { getOptionChain } = await import('./market-data-client.js');
+
+      // Fetch specific expiration chain
+      const chainData = await getOptionChain(upperTicker, { expiration });
+
+      if (chainData && chainData.length > 0) {
+        // Find exact match
+        const targetStrike = parseFloat(strike);
+        const targetType = type.toLowerCase().includes('call') ? 'Call' : 'Put';
+
+        const match = chainData.find(opt =>
+          Math.abs(opt.strike - targetStrike) < 0.01 &&
+          opt.type === targetType
+        );
+
+        if (match) {
+          const price = (match.bid > 0 && match.ask > 0)
+            ? (match.bid + match.ask) / 2
+            : match.last || 0;
+
+          return res.status(200).json({
+            success: true,
+            symbol: match.symbol,
+            price: parseFloat(price.toFixed(2)),
+            priceSource: (match.bid > 0 && match.ask > 0) ? 'mid' : 'last',
+            bid: match.bid || null,
+            ask: match.ask || null,
+            lastPrice: match.last || null,
+            iv: match.iv || null,
+            delta: match.delta || null,
+            gamma: match.gamma || null,
+            theta: match.theta || null,
+            vega: match.vega || null,
+            rho: null, // MarketData doesn't provide rho
+            volume: match.volume || null,
+            openInterest: match.openInterest || null,
+            underlyingPrice: match.underlyingPrice || null,
+            dataSource: 'MarketData.app',
+            timestamp: Date.now(),
+            rawGreeks: {
+              delta: match.delta,
+              gamma: match.gamma,
+              theta: match.theta,
+              vega: match.vega,
+              iv: match.iv
+            }
+          });
+        }
+      }
+
+      console.log(`MarketData: No match found for ${upperTicker} ${strike}${type}, falling back to CBOE`);
+    } catch (err) {
+      console.error('MarketData fetch failed:', err.message);
+      // Fall through to CBOE
+    }
+  }
+
+  // CBOE fallback (original logic)
+  const occSymbol = generateOCCSymbol(upperTicker, expiration, type, strike);
   const cboeSymbol = occSymbol.replace(/\s/g, '');
 
   console.log(`🔍 Looking for: ${cboeSymbol}`);
 
   try {
-    // 使用 CBOE 免费 API
     const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
     const response = await fetch(cboeUrl, {
