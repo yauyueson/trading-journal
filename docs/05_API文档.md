@@ -345,7 +345,7 @@ vercel --prod
 
 - [09_Polygon集成.md](./09_Polygon集成.md) - Polygon 数据源集成与配置
 - [03_核心算法.md](./03_核心算法.md) - 算法详解
-- [TECHNICAL_DOCUMENTATION.md](../TECHNICAL_DOCUMENTATION.md) - 完整技术文档（架构/部署）
+- [02_技术路径](./02_技术路径.md) - 架构、部署与运维
 
 ---
 

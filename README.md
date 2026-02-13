@@ -110,9 +110,9 @@ vercel --prod
 - [数据库设计](docs/04_数据库设计.md) - 数据模型
 - [API 文档](docs/05_API文档.md) - API 端点说明
 
-### 数据源集成
+### 数据源与文档
 - [Polygon 集成](docs/09_Polygon集成.md) - 数据源配置与用量优化
-- [技术文档](TECHNICAL_DOCUMENTATION.md) - 架构、API、部署
+- [文档中心](docs/README.md) - 全部技术文档（架构、API、部署见 [02_技术路径](docs/02_技术路径.md)、[05_API文档](docs/05_API文档.md)）
 
 ---
 

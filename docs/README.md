@@ -219,7 +219,7 @@ docs/
 - [Polygon 集成](./09_Polygon集成.md)
 - [Supabase API](./05_API文档.md#supabase-rest-api)
 - [错误处理](./05_API文档.md#错误处理)
-- [完整技术文档（架构/API/部署）](../TECHNICAL_DOCUMENTATION.md)
+- 架构与部署见 [02_技术路径](./02_技术路径.md#部署与运维)，API 见 [05_API文档](./05_API文档.md)
 
 ### 使用指南
 - [日常交易流程](./06_用户工作流.md#日常交易流程)
@@ -252,9 +252,9 @@ docs/
 
 ### 2026-02-12（文档精简与数据源统一）
 - ✅ **技术文档与数据源一致化**：全项目文档统一为 **Polygon.io（主）+ CBOE（备）**；API 层已仅支持 POLYGON/CBOE，MarketData 已弃用。
-- ✅ **删除重复/过时**：删除 `docs/TECHNICAL_DOCUMENTATION.md`（与根目录重复，保留根目录一份）；删除 `MIGRATION_SUMMARY.md`（内容已入 CHANGELOG）。
-- ✅ **弃用说明**：`09_MarketData集成.md`、`MARKETDATA_DEV_GUIDE.md` 改为弃用重定向，指向 Polygon 集成与根目录技术文档。
-- ✅ **单点技术文档**：完整架构/API/部署见根目录 [TECHNICAL_DOCUMENTATION.md](../TECHNICAL_DOCUMENTATION.md)；docs 目录以 PRD/概览/算法/数据库/API/工作流/提醒/IV Rank/Polygon 为主。
+- ✅ **删除重复/过时**：曾删除 `docs/TECHNICAL_DOCUMENTATION.md`（与根目录重复）；删除 `MIGRATION_SUMMARY.md`（内容已入 CHANGELOG）。
+- ✅ **根目录 TECHNICAL_DOCUMENTATION 合并进 docs**：根目录 `TECHNICAL_DOCUMENTATION.md` 已删除，内容并入 [02_技术路径](./02_技术路径.md)（技术架构总览、部署与运维、故障排除、开发说明）、[01_项目概览](./01_项目概览.md)、[04_数据库设计](./04_数据库设计.md)（附录 SQL）、[05_API文档](./05_API文档.md)、[06_用户工作流](./06_用户工作流.md)、[07_止损与目标价短信提醒方案](./07_止损与目标价短信提醒方案.md)。
+- ✅ **弃用说明**：`09_MarketData集成.md`、`MARKETDATA_DEV_GUIDE.md` 改为弃用重定向，指向 Polygon 集成与 docs 内技术文档。
 - ✅ **05_API文档、01_项目概览、00_PRD、README**：数据源描述与环境变量统一为 Polygon + CBOE；端点表与故障排除更新。
 
 ### 2026-02-09
