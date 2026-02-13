@@ -1,7 +1,7 @@
 # 📊 Trading Journal - Options Trading Platform
 
 > 专业期权交易日志与策略推荐系统  
-> **最新更新**: MarketData.app 集成完成 (2026-02-12)
+> **数据源**: Polygon.io（主）/ CBOE（备）
 
 ---
 
@@ -43,8 +43,8 @@
 ### 后端
 - **Vercel Serverless Functions** - 无服务器 API
 - **Supabase** - PostgreSQL 数据库 + 实时订阅
-- **MarketData.app** - 实时期权数据 + 交易所级 Greeks
-- **CBOE API** - 备用数据源
+- **Polygon.io** - 实时期权数据 + Greeks + IV（主数据源）
+- **CBOE API** - 备用数据源（15 分钟延迟，免费）
 
 ### 核心算法
 - **OSS v2.3** - Options Scoring System
@@ -74,9 +74,9 @@ npm install
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-# 期权数据源（不设置时默认 CBOE；推荐使用 MarketData 获取实时 Greeks）
-DATA_SOURCE=MARKET_DATA
-MARKET_DATA_TOKEN=your_marketdata_token
+# 期权数据源（不设置时默认 CBOE；推荐 Polygon 获取实时 Greeks）
+DATA_SOURCE=POLYGON
+POLYGON_API_KEY=your_polygon_api_key
 
 # Discord 提醒 (可选)
 DISCORD_WEBHOOK_URL=your_discord_webhook_url
@@ -110,39 +110,22 @@ vercel --prod
 - [数据库设计](docs/04_数据库设计.md) - 数据模型
 - [API 文档](docs/05_API文档.md) - API 端点说明
 
-### MarketData 集成
-- [MarketData 集成](docs/09_MarketData集成.md) - 完整集成文档
-- [开发者测试指南](MARKETDATA_DEV_GUIDE.md) - 本地测试方法
+### 数据源集成
+- [Polygon 集成](docs/09_Polygon集成.md) - 数据源配置与用量优化
+- [技术文档](TECHNICAL_DOCUMENTATION.md) - 架构、API、部署
 
 ---
 
-## 🎯 MarketData.app 集成亮点
+## 🎯 数据源（Polygon.io）
 
-### 数据质量提升
-
-| 指标 | CBOE (旧) | MarketData (新) |
-|------|-----------|-----------------|
-| **Greeks 精度** | 全为 0 | 交易所级 |
+| 指标 | CBOE（备） | Polygon（主） |
+|------|------------|----------------|
+| **Greeks 精度** | 全为 0 | 完整 |
 | **价格延迟** | 15 分钟 | 实时 |
 | **IV 数据** | 不完整 | 完整曲线 |
-| **Skew 计算** | 不可用 | 精确 |
-| **Regime 准确度** | 低 | 高 |
+| **请求优化** | 全链 | 仅所需 DTE/行权 + 1 分钟缓存 |
 
-### 算法升级
-
-1. **真实 Greeks 集成** ✅
-   - Delta Bonus: LERP 插值计算
-   - Gamma/Theta: 真实交易所数据
-   - Lambda: 基于真实 delta 的杠杆率
-
-2. **IV Term Structure** ✅
-   - 完整 IV 曲线: IV7 → IV120
-   - 异常检测: Earnings Spike 识别
-   - Regime Detection: 精准 CREDIT/DEBIT 判断
-
-3. **Skew 精准化** ✅
-   - 真实 25-delta Put/Call Skew
-   - Skew-aware 策略选择
+配置 `DATA_SOURCE=POLYGON` 与 `POLYGON_API_KEY` 即可启用；详见 [docs/09_Polygon集成.md](docs/09_Polygon集成.md)。
 
 ---
 
@@ -174,7 +157,6 @@ trading-journal/
 ├── api/                      # Serverless Functions
 │   ├── _shared/
 │   │   └── scoring.cjs      # 共享评分逻辑
-│   ├── market-data-client.js # MarketData 客户端
 │   ├── strategy-recommend.js # 策略推荐
 │   ├── scan-options.js       # 期权扫描器
 │   ├── option-price.js       # 单合约报价
@@ -206,11 +188,11 @@ trading-journal/
 ## 🚧 开发路线图
 
 ### 已完成 ✅
-- [x] MarketData.app 集成
-- [x] IV Term Structure
+- [x] Polygon.io 数据源集成
+- [x] IV Term Structure + IV Rank
 - [x] Skew 精准化
 - [x] Regime Detection 增强
-- [x] 实时 Greeks 和报价
+- [x] 实时 Greeks 和报价（Polygon）
 
 ### 进行中 🔄
 - [ ] 前端 IV 曲线可视化

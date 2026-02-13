@@ -1,63 +1,8 @@
-# MarketData Integration - Development Guide
+# MarketData 集成 — 已弃用
 
-## Quick Reference
+> **状态**: 已弃用。主数据源已迁移至 **Polygon.io**。
 
-### Environment Variables
-```bash
-# .env.local
-DATA_SOURCE=MARKET_DATA
-MARKET_DATA_TOKEN=your_token_here
-```
+- **当前数据源与配置**: 见 [docs/09_Polygon集成.md](docs/09_Polygon集成.md)
+- **架构与 API**: 见 [TECHNICAL_DOCUMENTATION.md](TECHNICAL_DOCUMENTATION.md)
 
-### Testing MarketData Integration
-
-#### Option 1: Vercel Deployment (Recommended)
-```bash
-vercel --prod
-```
-- Uses real `/api` files
-- Full MarketData support
-- Complete `ivSurface` data
-
-#### Option 2: Vercel Dev Server
-```bash
-vercel dev
-```
-- Local testing with real API files
-- Requires Vercel CLI
-- May need `yarn` installed
-
-#### Option 3: Direct API Testing
-```bash
-node _test_strategy.js
-```
-- Tests API logic directly
-- Bypasses frontend
-- Quick verification
-
-### Vite Dev Server Limitation
-
-`npm run dev` uses inline API handlers in `vite.config.ts` that are hardcoded to CBOE for simplicity. This is intentional for quick frontend iteration.
-
-**What works in Vite dev:**
-- ✅ Frontend UI development
-- ✅ Component testing
-- ✅ Basic API responses
-
-**What requires Vercel:**
-- ⚠️ MarketData.app integration
-- ⚠️ `ivSurface` data
-- ⚠️ Real Greeks (non-zero)
-
-## File Status
-
-### ✅ MarketData Ready
-- `api/strategy-recommend.js`
-- `api/scan-options.js`
-- `api/option-price.js`
-- `api/check-alerts.js`
-- `api/daily-recap.js`
-- `api/_shared/scoring.cjs`
-
-### ℹ️ Development Only
-- `vite.config.ts` - CBOE hardcoded for dev speed
+本地/生产环境请使用 `DATA_SOURCE=POLYGON` 与 `POLYGON_API_KEY`。

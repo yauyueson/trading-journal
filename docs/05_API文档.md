@@ -1,7 +1,7 @@
 # Trading Journal - API文档
 
 > 最后更新: 2026年2月12日  
-> **数据源**: Polygon.io（主）/ MarketData.app / CBOE（备）；API 用量优化：仅请求所需 DTE/行权 + 1 分钟期权链缓存
+> **数据源**: Polygon.io（主）/ CBOE（备）；API 用量优化：仅请求所需 DTE/行权 + 1 分钟期权链缓存
 
 ## 📋 目录
 
@@ -25,24 +25,23 @@ Frontend (React)
     ↓
 Vercel Serverless Functions
     ├── Polygon.io (主数据源) - 实时报价 + Greeks + IV；仅请求所需 DTE/行权；1 分钟期权链缓存
-    ├── MarketData.app (可选) - 实时报价 + 交易所级 Greeks
-    └── CBOE (备用数据源) - 15分钟延迟
+    └── CBOE (备用数据源) - 15分钟延迟，免费
     ↓
 Supabase PostgreSQL (数据存储)
 ```
 
 ### 端点列表
 
-| 端点 | 方法 | 用途 | MarketData | 状态 |
-|------|------|------|------------|------|
-| `/api/option-price` | GET | 获取单份期权价格、Greeks 及 OSS 评分 | ✅ | ✅ 生产 |
-| `/api/scan-options` | GET | OSS v2.3 扫描器，获取高分单腿合约列表 | ✅ | ✅ 生产 |
-| `/api/strategy-recommend` | GET | 策略推荐引擎（价差/组合策略专用） | ✅ | ✅ 生产 |
-| `/api/check-alerts` | GET | 止损/目标价 Discord 自动提醒 | ✅ | ✅ 生产 |
-| `/api/daily-recap` | GET | 每日持仓汇总 Discord 消息 | ✅ | ✅ 生产 |
-| `/api/underlying-rv` | GET | 标的已实现波动率（Nasdaq 历史） | - | ✅ 生产 |
-| `/api/earnings` | GET | 获取财报日期（通过 Nasdaq API） | - | ✅ 生产 |
-| `/api/health` | GET | 健康检查，返回 `{ ok: true, time: ... }` | - | ✅ 生产 |
+| 端点 | 方法 | 用途 | 状态 |
+|------|------|------|------|
+| `/api/option-price` | GET | 获取单份期权价格、Greeks 及 OSS 评分 | ✅ 生产 |
+| `/api/scan-options` | GET | OSS v2.3 扫描器，获取高分单腿合约列表 | ✅ 生产 |
+| `/api/strategy-recommend` | GET | 策略推荐引擎（价差/组合策略专用） | ✅ 生产 |
+| `/api/check-alerts` | GET | 止损/目标价 Discord 自动提醒 | ✅ 生产 |
+| `/api/daily-recap` | GET | 每日持仓汇总 Discord 消息 | ✅ 生产 |
+| `/api/underlying-rv` | GET | 标的已实现波动率（Nasdaq 历史） | ✅ 生产 |
+| `/api/earnings` | GET | 获取财报日期（通过 Nasdaq API） | ✅ 生产 |
+| `/api/health` | GET | 健康检查，返回 `{ ok: true, time: ... }` | ✅ 生产 |
 
 **评分逻辑统一**：所有 API 均引用 `api/_shared/scoring.cjs`，与前端 `src/lib/oss-core.ts` 逻辑镜像，保证扫描结果、策略推荐与持仓卡片 OSS 分数一致。
 
@@ -52,7 +51,7 @@ Supabase PostgreSQL (数据存储)
 
 ### 环境变量
 
-**说明**：未设置 `DATA_SOURCE` 时，代码默认使用 CBOE。配置为 `POLYGON` 时使用 Polygon.io（推荐）；配置为 `MARKET_DATA` 时使用 MarketData.app。
+**说明**：未设置 `DATA_SOURCE` 时，代码默认使用 CBOE。配置为 `POLYGON` 时使用 Polygon.io（推荐）。
 
 **开发环境** (`.env.local`):
 ```bash
@@ -60,34 +59,31 @@ Supabase PostgreSQL (数据存储)
 DATA_SOURCE=POLYGON
 POLYGON_API_KEY=your_polygon_api_key_here
 
-# 或：MarketData.app
-# DATA_SOURCE=MARKET_DATA
-# MARKET_DATA_TOKEN=your_api_token_here
+# 不设置或 DATA_SOURCE=CBOE 时使用 CBOE 免费延迟数据
 ```
 
 **生产环境** (Vercel Dashboard):
 ```
 Settings → Environment Variables
-├── DATA_SOURCE = POLYGON        # 推荐；或 MARKET_DATA / 不设（CBOE）
-├── POLYGON_API_KEY = ...       # DATA_SOURCE=POLYGON 时必填
-└── MARKET_DATA_TOKEN = ...     # DATA_SOURCE=MARKET_DATA 时必填
+├── DATA_SOURCE = POLYGON   # 推荐；不设则 CBOE
+└── POLYGON_API_KEY = ...   # DATA_SOURCE=POLYGON 时必填
 ```
 
 **API 用量优化（Polygon）**：`/api/scan-options` 与 `/api/strategy-recommend` 在 Polygon 下先取标的价，再仅请求会用到的到期日与行权范围；同一 ticker 的期权链按参数做 **1 分钟内存缓存**，重复请求命中缓存。详见 `docs/09_Polygon集成.md`。
 
 ### 数据源对比
 
-| 特性 | Polygon.io | MarketData.app | CBOE |
-|------|------------|----------------|------|
-| **Greeks 精度** | 完整 | 交易所级 | 全为 0 |
-| **价格延迟** | 实时 | 实时 | 15 分钟 |
-| **IV 数据** | 完整 | 完整曲线 | 不完整 |
-| **请求优化** | 仅 DTE/行权 + 缓存 | 全链 | 全链 |
-| **成本** | 付费 | 付费 | 免费 |
+| 特性 | Polygon.io | CBOE |
+|------|------------|------|
+| **Greeks 精度** | 完整 | 全为 0 |
+| **价格延迟** | 实时 | 15 分钟 |
+| **IV 数据** | 完整 | 不完整 |
+| **请求优化** | 仅 DTE/行权 + 1 分钟缓存 | 全链 |
+| **成本** | 付费（需 API Key） | 免费 |
 
-### 数据格式
+### 数据格式（Polygon / CBOE 统一标准化后）
 
-**MarketData 格式**:
+**示例**:
 ```json
 {
   "symbol": "SPY260320C00680000",
@@ -137,7 +133,7 @@ GET /api/option-price
 
 ### 用途
 
-获取指定期权合约的实时价格、Greeks和流动性数据。**优先使用 MarketData.app**，失败时自动降级到 CBOE。
+获取指定期权合约的实时价格、Greeks和流动性数据。**优先使用 Polygon.io**（当 `DATA_SOURCE=POLYGON`），失败时自动降级到 CBOE。
 
 ### 参数
 
@@ -156,7 +152,7 @@ GET /api/option-price
   "success": true,
   "symbol": "QQQ260220C00630000",
   "price": 7.36,
-  "dataSource": "MarketData.app",
+  "dataSource": "Polygon",
   "bid": 7.32,
   "ask": 7.39,
   "lastPrice": 7.35,
@@ -176,12 +172,12 @@ GET /api/option-price
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| dataSource | string | 数据来源：`MarketData.app`（主）或 `CBOE`（备） |
-| delta | number | Delta值（-1到1）**MarketData 提供真实值** |
-| gamma | number | Gamma值 **MarketData 提供真实值** |
-| theta | number | Theta值（每日衰减）**MarketData 提供真实值** |
-| vega | number | Vega值（IV敏感度）**MarketData 提供真实值** |
-| iv | number | 隐含波动率（小数形式）**MarketData 提供真实值** |
+| dataSource | string | 数据来源：`Polygon`（主）或 `CBOE`（备） |
+| delta | number | Delta值（-1到1）；Polygon 提供真实值，CBOE 为 0 |
+| gamma | number | Gamma值；Polygon 提供真实值 |
+| theta | number | Theta值（每日衰减）；Polygon 提供真实值 |
+| vega | number | Vega值（IV敏感度）；Polygon 提供真实值 |
+| iv | number | 隐含波动率（小数形式）；Polygon 提供真实值 |
 
 ---
 
@@ -195,7 +191,7 @@ GET /api/scan-options
 
 ### 用途
 
-根据 OSS v2.3 算法扫描全链期权，返回经过数学评估后的最佳契约。**Polygon 或 MarketData 提供真实 Greeks**。
+根据 OSS v2.3 算法扫描全链期权，返回经过数学评估后的最佳契约。**Polygon 提供真实 Greeks**；CBOE 下 Greeks 为 0。
 
 ### 数据源与用量优化（Polygon）
 
@@ -225,9 +221,9 @@ GET /api/strategy-recommend
 
 ### 用途
 
-基于 IV 环境和用户方向偏好，智能生成 Credit Spread、Debit Spread 和 Long Option 策略。**使用 MarketData.app 构建完整 IV Term Structure**。
+基于 IV 环境和用户方向偏好，智能生成 Credit Spread、Debit Spread 和 Long Option 策略。**使用 Polygon 构建完整 IV Term Structure**。
 
-### MarketData 增强功能
+### 响应字段（IV 与 Regime）
 
 **新增响应字段** - `regime.ivSurface`、`regime.ivRank`、`regime.slope`、`regime.slopeTier`：
 ```json
@@ -289,12 +285,10 @@ GET /api/strategy-recommend
 GET /api/check-alerts
 ```
 
-### MarketData 集成
-
-**实时价格监控**:
-- ✅ 使用 MarketData.app 获取当前价格（无延迟）
+**实时价格监控**（Polygon / CBOE）:
+- ✅ Polygon 下获取当前价格（无延迟）；CBOE 为 15 分钟延迟
 - ✅ 支持多腿策略的 Net Value 计算
-- ✅ 自动降级到 CBOE（如果 MarketData 失败）
+- ✅ Polygon 失败时自动降级到 CBOE
 
 ---
 
@@ -306,12 +300,10 @@ GET /api/check-alerts
 GET /api/daily-recap
 ```
 
-### MarketData 集成
-
-**Discord 每日报告增强**:
-- ✅ 实时持仓价格（非 15 分钟延迟）
+**Discord 每日报告**（Polygon / CBOE）:
+- ✅ Polygon 下实时持仓价格；CBOE 为 15 分钟延迟
 - ✅ 精确 P&L 计算
-- ✅ 支持 CBOE 备用数据源
+- ✅ Polygon 失败时自动降级 CBOE
 
 ---
 
@@ -324,18 +316,18 @@ GET /api/daily-recap
 node _test_strategy.js
 ```
 
-**验证项**:
-- ✅ `dataSource: "MarketData.app"`
+**验证项**（当 `DATA_SOURCE=POLYGON`）:
+- ✅ `dataSource: "Polygon"`
 - ✅ Greeks 非零
 - ✅ `ivSurface` 对象存在
 
 ### Vite 开发环境限制
 
 ```bash
-npm run dev  # ⚠️ 使用简化的 CBOE 处理器
+npm run dev  # ⚠️ 使用简化的 CBOE 处理器，无 Polygon 集成
 ```
 
-**注意**: Vite dev 不包含 MarketData 集成。完整测试需要部署到 Vercel。
+**注意**: 完整 Polygon 集成测试需使用 `vercel dev` 或部署到 Vercel。
 
 ### Vercel 部署测试
 
@@ -351,9 +343,9 @@ vercel --prod
 
 ## 📚 相关文档
 
-- [09_MarketData集成.md](./09_MarketData集成.md) - MarketData 集成详解
-- [MARKETDATA_DEV_GUIDE.md](../MARKETDATA_DEV_GUIDE.md) - 开发者测试指南
+- [09_Polygon集成.md](./09_Polygon集成.md) - Polygon 数据源集成与配置
 - [03_核心算法.md](./03_核心算法.md) - 算法详解
+- [TECHNICAL_DOCUMENTATION.md](../TECHNICAL_DOCUMENTATION.md) - 完整技术文档（架构/部署）
 
 ---
 

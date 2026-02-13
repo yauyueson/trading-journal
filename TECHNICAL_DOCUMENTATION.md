@@ -78,7 +78,7 @@
 **OSS v2.4 — Vega 纳入评分**：  
 - **买方 (LOQ)**：使用「Vega 效率」`vega/权利金` 在池内做 DTE 分桶 Z-Score；IV 偏低（contango）时对高 vega 效率加分（+0.05×z），IV 偏高时对高 vega 轻微扣分（-0.03×z），避免买在 IV 极高且 vega 又大的合约。  
 - **卖方 (CSQ)**：对 `vega/权利金` 的池内 Z-Score 施加温和惩罚（-0.05×z），卖权时高 vega 对波动率更敏感，分数略降。  
-- 数据来源：Polygon/MarketData 提供的 per-contract vega，`parseChain` 与各 API 已解析并返回，直接用于评分。
+- 数据来源：Polygon 提供的 per-contract vega，`parseChain` 与各 API 已解析并返回，直接用于评分。
 
 **IV Rank / IV Percentile（策略推荐）**：`api/strategy-recommend.js` 在 Single-leg LOQ、Credit Spread、Debit Spread 中均使用 `getIVRank(ticker)`（读 `ticker_iv_snapshots`）与 `getIVRankAdjustment(ivRank, strategy)` 进行微调——买方（long）：IV Rank 高略降分、低略加分；卖方（short）：IV Rank 高略加分、低略减分。当日 iv30 来自 `buildIVTermStructure`，先 `saveTickerIVSnapshot` 再 `getIVRank`，与 backfill 同源，IV Rank 随时间积累变准。API 返回 `regime.ivRank`、`regime.ivPercentile`；**策略推荐页**（StrategyRecommender）同时展示 **IV Rank** 与 **IV Percentile**（同色阶：低=绿/便宜、高=黄/贵），并显示样本天数与回填入口。
 
@@ -114,7 +114,7 @@ GET /api/option-price?ticker=QQQ&expiration=2026-02-20&strike=630&type=Call
 
 ### 返回数据
 
-当 `DATA_SOURCE=POLYGON` 或 `MARKET_DATA` 且可用时，返回示例：
+当 `DATA_SOURCE=POLYGON` 且可用时，返回示例：
 
 ```json
 {
@@ -133,7 +133,7 @@ GET /api/option-price?ticker=QQQ&expiration=2026-02-20&strike=630&type=Call
   "volume": 6485,
   "openInterest": 29600,
   "underlyingPrice": 620.24,
-  "dataSource": "MarketData.app",
+  "dataSource": "Polygon",
   "timestamp": 1769901862738
 }
 ```
@@ -149,8 +149,8 @@ GET /api/option-price?ticker=QQQ&expiration=2026-02-20&strike=630&type=Call
 | price | 计算后的价格（优先用 mid price） |
 | priceSource | 价格来源：mid（买卖中间价）或 last（最后成交价） |
 | dataSource | 实际数据来源：`"MarketData.app"` 或 `"CBOE"` |
-| iv | 隐含波动率；MarketData 为真实值，CBOE 可能不完整 |
-| delta, gamma, theta, vega | Greeks；仅 MarketData 提供交易所级非零值 |
+| iv | 隐含波动率；Polygon 为真实值，CBOE 可能不完整 |
+| delta, gamma, theta, vega | Greeks；仅 Polygon 提供非零值，CBOE 为 0 |
 | volume | 当日成交量 |
 | openInterest | 未平仓合约数 |
 | underlyingPrice | 标的股票当前价格 |

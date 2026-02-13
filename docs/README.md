@@ -141,16 +141,17 @@
 
 ---
 
-### 9️⃣ [MarketData 集成](./09_MarketData集成.md)
+### 9️⃣ [Polygon 集成](./09_Polygon集成.md)
 **适合**: 开发者、运维
 
 **内容**:
-- 双数据源架构（MarketData 主 / CBOE 备）
-- MarketData.app API 客户端与数据格式标准化
-- IV Term Structure、Skew、Regime Detection 算法升级
-- 已集成端点、测试方案、安全配置
+- 期权数据源架构（Polygon 主 / CBOE 备）
+- Polygon.io API 客户端、数据格式与用量优化（仅请求所需 DTE/行权 + 1 分钟缓存）
+- 环境变量、配置步骤与故障排除
 
 **阅读时间**: 15分钟
+
+> 原 MarketData.app 集成已弃用，见 [09_MarketData集成.md](./09_MarketData集成.md) 仅作重定向。
 
 ---
 
@@ -188,7 +189,8 @@ docs/
 ├── 06_用户工作流.md           # 使用指南和最佳实践
 ├── 07_止损与目标价短信提醒方案.md  # 短信提醒实现方案
 ├── 08_IV_Rank_上线步骤.md     # IV Rank 上线步骤
-└── 09_MarketData集成.md       # MarketData 双数据源集成
+├── 09_Polygon集成.md           # Polygon 数据源集成（主）
+└── 09_MarketData集成.md       # [已弃用] 重定向至 09_Polygon集成
 ```
 
 ---
@@ -214,9 +216,10 @@ docs/
 ### API和集成
 - [数据源配置](./05_API文档.md#数据源配置)
 - [期权价格API](./05_API文档.md#期权价格api)
-- [MarketData 集成](./09_MarketData集成.md)
+- [Polygon 集成](./09_Polygon集成.md)
 - [Supabase API](./05_API文档.md#supabase-rest-api)
 - [错误处理](./05_API文档.md#错误处理)
+- [完整技术文档（架构/API/部署）](../TECHNICAL_DOCUMENTATION.md)
 
 ### 使用指南
 - [日常交易流程](./06_用户工作流.md#日常交易流程)
