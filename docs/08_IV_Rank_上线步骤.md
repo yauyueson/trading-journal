@@ -99,7 +99,7 @@ node api/setup-iv-rank.js
 ## 验证
 
 - **Scanner**：选一个标的扫一次，看返回的 `context` 里是否有 `ivRank`、`ivPercentile`、`ivRankSampleDays`。首日或新标的多为 `ivRank: null`、`sampleDays: 1`，多扫几天后会逐渐有历史。
-- **Strategy Recommender**：看返回的 `regime.ivRank`、`regime.ivPercentile`。IV Rank 已参与打分：**Single-leg (LOQ)**、**Credit Spread**、**Debit Spread** 三类策略均通过 `getIVRankAdjustment(ivRank, strategy)` 微调——买方（LOQ、Debit）：IV Rank 高略降分、低略加分；卖方（Credit）：IV Rank 高略加分、低略减分。
+- **Strategy Recommender**：看返回的 `regime.ivRank`、`regime.ivPercentile`；**页面上**在 regime 区域同时展示 **IV Rank** 与 **IV Percentile**（Rank XX%、%ile XX%，同色阶）。IV Rank 已参与打分：**Single-leg (LOQ)**、**Credit Spread**、**Debit Spread** 三类策略均通过 `getIVRankAdjustment(ivRank, strategy)` 微调——买方（LOQ、Debit）：IV Rank 高略降分、低略加分；卖方（Credit）：IV Rank 高略加分、低略减分。
 - **直接查 IV Rank**：浏览器或 Postman 请求  
   `GET https://你的域名/api/iv-rank?ticker=QQQ`  
   有历史时会出现 `ivRank`、`ivPercentile` 等；无历史时 `ivRank` 为 `null`。

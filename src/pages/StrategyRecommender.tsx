@@ -457,11 +457,16 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                             <div className="flex flex-wrap gap-6 sm:gap-8 w-full sm:w-auto">
                                 <div className="flex-1 min-w-[100px] sm:flex-none sm:text-right">
                                     <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center sm:justify-end gap-1">
-                                        IV Rank
-                                        <Tooltip label="" explanation="Current IV30 vs past 252 trading days (0–100%). Low = IV cheap (good for buyers); high = IV expensive (good for sellers). N/A until enough history (run backfill once)." />
+                                        IV Rank / IV %ile
+                                        <Tooltip label="" explanation="IV Rank: current IV30 in 252d min–max range (0–100%). IV Percentile: % of past days with IV30 below current. Low = IV cheap (buyers); high = IV expensive (sellers). N/A until enough history (run backfill once)." />
                                     </div>
-                                    <div className={`text-2xl sm:text-3xl font-mono font-bold mb-1 ${result.regime.ivRank != null ? (result.regime.ivRank < 0.3 ? 'text-emerald-400' : result.regime.ivRank > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
-                                        {result.regime.ivRank != null ? `${(result.regime.ivRank * 100).toFixed(0)}%` : 'N/A'}
+                                    <div className="flex flex-col gap-0.5 mb-1">
+                                        <div className={`text-xl sm:text-2xl font-mono font-bold ${result.regime.ivRank != null ? (result.regime.ivRank < 0.3 ? 'text-emerald-400' : result.regime.ivRank > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
+                                            {result.regime.ivRank != null ? `Rank ${(result.regime.ivRank * 100).toFixed(0)}%` : 'Rank N/A'}
+                                        </div>
+                                        <div className={`text-lg sm:text-xl font-mono font-semibold ${result.regime.ivPercentile != null ? (result.regime.ivPercentile < 0.3 ? 'text-emerald-400' : result.regime.ivPercentile > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
+                                            {result.regime.ivPercentile != null ? `%ile ${(result.regime.ivPercentile * 100).toFixed(0)}%` : '%ile N/A'}
+                                        </div>
                                     </div>
                                     <div className="text-[10px] text-gray-500 font-mono">
                                         {result.regime.ivRankSampleDays != null && result.regime.ivRankSampleDays > 0 ? `${result.regime.ivRankSampleDays}d` : ''}

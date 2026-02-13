@@ -620,6 +620,19 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, iv
     const scores = normalizeLOQScoresWithDynamicBaseline(rawScores);
     return processed.map((p, i) => {
         const score = scores[i];
+        // POP = probability of profit at expiry (same definition as debit spread: breakeven-based)
+        const breakeven = type === 'Call' ? p.opt.strike + p.mid : p.opt.strike - p.mid;
+        const probITMAtBE = getProbITMAtStrike(chain, type, p.opt.expiration, breakeven);
+        const deltaAtBE = getDeltaAtStrike(chain, type, p.opt.expiration, breakeven);
+        let pop;
+        if (probITMAtBE != null && probITMAtBE > 0) {
+            pop = probITMAtBE; // P(S>BE) for call, P(S<BE) for put
+        } else if (deltaAtBE != null) {
+            pop = type === 'Call' ? Math.max(0, Math.min(1, deltaAtBE)) : Math.max(0, Math.min(1, -deltaAtBE));
+        } else {
+            pop = Math.max(0, Math.min(1, Math.abs(p.opt.delta) - 0.05));
+        }
+
         const whyThis = `λ=${p.lambda.toFixed(1)}, Δ=${Math.abs(p.opt.delta).toFixed(2)}${ivRvRatio && ivRvRatio < 0.85 ? ', Cheap Vol (Ref)' : ''}`;
         const noteParts = [];
         if (p.lambda >= 8) noteParts.push('High leverage (lambda) gives strong participation in the underlying move for limited capital.');
@@ -644,6 +657,7 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, iv
             openInterest: p.opt.openInterest,
             bid: p.opt.bid,
             ask: p.opt.ask,
+            pop: Number((pop * 100).toFixed(1)),
             score,
             whyThis,
             recommendation: { action: 'BUY (Open)', note }

@@ -1,6 +1,6 @@
 # Trading Journal - 技术文档
 
-> 最后更新: 2026年2月12日（含 OSS v2.4 Vega、Skew 细粒度、策略推荐 IV Rank；API 用量优化：仅请求所需到期/行权 + 1 分钟期权链缓存）
+> 最后更新: 2026年2月12日（含 OSS v2.4 Vega、Skew 细粒度、策略推荐 IV Rank/IV Percentile 双展示、**单腿 POP 与价差一致**；API 用量优化：仅请求所需到期/行权 + 1 分钟期权链缓存）
 
 ## 项目概述
 
@@ -80,7 +80,7 @@
 - **卖方 (CSQ)**：对 `vega/权利金` 的池内 Z-Score 施加温和惩罚（-0.05×z），卖权时高 vega 对波动率更敏感，分数略降。  
 - 数据来源：Polygon/MarketData 提供的 per-contract vega，`parseChain` 与各 API 已解析并返回，直接用于评分。
 
-**IV Rank（策略推荐）**：`api/strategy-recommend.js` 在 Single-leg LOQ、Credit Spread、Debit Spread 中均使用 `getIVRank(ticker)`（读 `ticker_iv_snapshots`）与 `getIVRankAdjustment(ivRank, strategy)` 进行微调——买方（long）：IV Rank 高略降分、低略加分；卖方（short）：IV Rank 高略加分、低略减分。当日 iv30 来自 `buildIVTermStructure`，先 `saveTickerIVSnapshot` 再 `getIVRank`，与 backfill 同源，IV Rank 随时间积累变准。
+**IV Rank / IV Percentile（策略推荐）**：`api/strategy-recommend.js` 在 Single-leg LOQ、Credit Spread、Debit Spread 中均使用 `getIVRank(ticker)`（读 `ticker_iv_snapshots`）与 `getIVRankAdjustment(ivRank, strategy)` 进行微调——买方（long）：IV Rank 高略降分、低略加分；卖方（short）：IV Rank 高略加分、低略减分。当日 iv30 来自 `buildIVTermStructure`，先 `saveTickerIVSnapshot` 再 `getIVRank`，与 backfill 同源，IV Rank 随时间积累变准。API 返回 `regime.ivRank`、`regime.ivPercentile`；**策略推荐页**（StrategyRecommender）同时展示 **IV Rank** 与 **IV Percentile**（同色阶：低=绿/便宜、高=黄/贵），并显示样本天数与回填入口。
 
 ### 技术选择理由
 
@@ -423,10 +423,15 @@ UnifiedScore = 0.40 × norm(EV/Risk)     // 风险调整后期望收益
 |------|---------------|--------------|-------------|
 | maxRisk | width - credit | debit | premium |
 | maxProfit | credit | width - debit | **2 × premium（封顶）** |
-| POP | 1 - \|delta@BE\| | \|delta\| - 0.05 | \|delta\| - 0.05 |
+| POP | 1 - probITM@BE | probITM@BE（或 delta@BE） | **probITM@BE**（与价差一致，见下） |
 | EV | POP × profit - (1-POP) × risk | 同左 | 同左 |
 
 Long Option 的 maxProfit 封顶在 2 × premium（100% 回报情景），避免理论无限利润导致 EV 虚高。
+
+**为何单腿（Long Option）曾在统一分中常高于价差（Greeks/数据层面）**（2026-02-12）：
+- **POP 定义不一致**：价差用「盈亏平衡点处的 probITM / delta@BE」算 POP；单腿此前用 `POP = |Δ| - 0.05`。对 Long Call，真实 POP = P(S_T > strike + premium)，即 **breakeven 以上概率**，通常 **低于** 以 delta 近似「价内概率」的 |Δ| - 0.05（delta 近似 P(S>K)，不是 P(S>K+premium)）。因此单腿在统一分里 **POP 被高估**，进而 EV/Risk 和 norm(POP) 都偏高。
+- **EV/Risk**：单腿 EV = pop×(2×premium) − (1−pop)×premium ⇒ EV/Risk = 3×pop − 1。POP 被高估时，EV/Risk 随之偏高；价差 EV 还受 slippage（effectiveDebit / effectiveMaxProfit）压制，往往更保守。
+- **修复（数据一致）**：单腿与价差使用同一 POP 定义。在 `scoreSingleLegs` 中按 **breakeven**（call: strike+mid, put: strike−mid）计算 `getProbITMAtStrike(chain, type, exp, breakeven)` 得到 POP；无 probITM 时用 delta@BE 或 |Δ|−0.05 回退。将 `pop` 写入单腿候选，`calculateUnifiedScore` 中 SINGLE_LEG 优先使用 `candidate.pop`，从而 EV/Risk 与 POP 与价差可比，单腿不再因 POP 高估而系统性领先。
 
 **Regime Bonus 规则**：
 - Backwardation (IV30 > IV90)：Credit +15
@@ -449,8 +454,8 @@ Long Option 的 maxProfit 封顶在 2 × premium（100% 回报情景），避免
 **文件变更**：
 | 文件 | 变更 |
 |------|------|
-| `api/_shared/scoring.cjs` | 新增 `normalizeEVRisk`、`calculateLiquidityScore`、`calculateRegimeBonus(strategyCategory, regimeMode, ivRvRatio, termStrength)`、`calculateUnifiedScore(..., opts)`；opts 含 `anomaly`/`termStrength`/`skew`/`creditSpreadType`；anomaly 时短期 Credit 降权 |
-| `api/strategy-recommend.js` | `detectRegime` 返回 `slope`、`slopeTier`；CREDIT/DEBIT 建议文案区分 strong 档；Top Picks 传入 `unifiedOpts`（anomaly、termStrength）及 credit 的 skew/creditSpreadType |
+| `api/_shared/scoring.cjs` | 新增 `normalizeEVRisk`、`calculateLiquidityScore`、`calculateRegimeBonus`、`calculateUnifiedScore(..., opts)`；opts 含 `anomaly`/`termStrength`/`skew`/`creditSpreadType`；anomaly 时短期 Credit 降权。**2026-02-12**：SINGLE_LEG 优先使用 `candidate.pop`（breakeven-based，与价差 POP 定义一致），无则回退 abs(Δ)−0.05 |
+| `api/strategy-recommend.js` | `detectRegime` 返回 `slope`、`slopeTier`；Top Picks 传入 `unifiedOpts`。**2026-02-12**：`scoreSingleLegs` 中按 breakeven（call: strike+mid, put: strike−mid）调用 `getProbITMAtStrike`/`getDeltaAtStrike` 计算 POP，写入单腿候选 `pop` 字段 |
 | `src/lib/types.ts` | 新增 `StrategyCategory`、`UnifiedCandidateType`；`StrategyResult.strategies` 增加 `TOP_PICKS` |
 | `src/pages/StrategyRecommender.tsx` | 新增 Top Picks Tab、类别徽章、统一分数展示 |
 

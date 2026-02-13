@@ -263,7 +263,7 @@ GET /api/strategy-recommend
 - **slope**：期限结构斜率 `(IV30−IV90)/IV90`，正值表示 backwardation，负值表示 contango。
 - **slopeTier**：档位，用于微调 Regime Bonus。取值：`strong_backwardation`、`backwardation`、`flat`、`contango`、`strong_contango`。
 
-**IV Rank 与评分**：`ivRank`、`ivPercentile` 来自表 `ticker_iv_snapshots`（252 日窗口）。策略推荐中 Credit Spread、Debit Spread、Single-leg 均使用 `getIVRankAdjustment(ivRank, strategy)` 参与打分，详见 [03_核心算法.md](./03_核心算法.md)。
+**IV Rank 与 IV Percentile**：`ivRank`、`ivPercentile` 来自表 `ticker_iv_snapshots`（252 日窗口）。策略推荐中 Credit Spread、Debit Spread、Single-leg 均使用 `getIVRankAdjustment(ivRank, strategy)` 参与打分，详见 [03_核心算法.md](./03_核心算法.md)。**策略推荐页**（StrategyRecommender）在 regime 区域同时展示 **IV Rank** 与 **IV Percentile**（同色阶：低=便宜/绿、高=贵/黄），并显示样本天数与回填入口。
 
 **异常检测与统一分**:
 - 当 `ivSurface.anomaly = true` 时，表示检测到短期 IV 异常飙升（IV7/IV30 > 1.3，如财报前）
