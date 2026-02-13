@@ -1,5 +1,5 @@
-// api/test-bulk.js
-import handler from './option-prices-bulk.js';
+// scripts/test-bulk.js - run from project root: node scripts/test-bulk.js
+import handler from '../api/option-prices-bulk.js';
 
 // Mock Req/Res
 const req = {

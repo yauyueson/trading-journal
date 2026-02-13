@@ -4,7 +4,7 @@
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { getIVRank } = require('./_shared/ivHistory.cjs');
+const { getIVRank } = require('../lib/_shared/ivHistory.cjs');
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');

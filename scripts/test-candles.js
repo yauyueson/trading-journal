@@ -1,5 +1,5 @@
-// api/test-candles.js
-import { getCandles } from './market-data-client.js';
+// scripts/test-candles.js - run from project root: node scripts/test-candles.js
+import { getCandles } from '../lib/market-data-client.js';
 
 import fs from 'fs';
 import path from 'path';

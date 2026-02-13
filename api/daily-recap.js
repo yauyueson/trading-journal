@@ -164,7 +164,7 @@ export default async function handler(req, res) {
     // Use Polygon.io for real-time quotes
     if (dataSource === 'POLYGON') {
       try {
-        const { getOptionChain } = await import('./polygon-client.js');
+        const { getOptionChain } = await import('../lib/polygon-client.js');
 
         await Promise.all(uniqueTickers.map(async function (ticker) {
           try {
@@ -176,7 +176,7 @@ export default async function handler(req, res) {
           }
         }));
       } catch (importErr) {
-        console.error('Failed to import polygon-client:', importErr);
+        console.error('Failed to import polygon-client (lib):', importErr);
         // Fall back to CBOE below
       }
     }

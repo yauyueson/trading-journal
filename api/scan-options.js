@@ -26,8 +26,8 @@ const {
     getCleanATM_IV,
     calculateTargetIV,
     parseChain,
-} = require('./_shared/scoring.cjs');
-const { saveTickerIVSnapshot } = require('./_shared/ivHistory.cjs');
+} = require('../lib/_shared/scoring.cjs');
+const { saveTickerIVSnapshot } = require('../lib/_shared/ivHistory.cjs');
 
 // ---------------------------------------------------------
 // Main Handler
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
         let cboeTimestamp = null;
 
         if (dataSource === 'POLYGON') {
-            const { getOptionChain, getUnderlyingPrice } = await import('./polygon-client.js');
+            const { getOptionChain, getUnderlyingPrice } = await import('../lib/polygon-client.js');
             console.log(`Scanning ${upperTicker} via Polygon.io`);
 
             // Get underlying price first so we request only the strike range we use (reduces payload/API)

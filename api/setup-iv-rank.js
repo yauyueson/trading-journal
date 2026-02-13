@@ -2,7 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getCandles } from './polygon-client.js';
+import { getCandles } from '../lib/polygon-client.js';
 
 // ---- Environment Loading ----
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

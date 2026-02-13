@@ -15,7 +15,7 @@ let _scoringLoaded = false;
 
 async function ensureScoring() {
     if (_scoringLoaded) return;
-    const scoringUrl = new URL('./_shared/scoring.cjs', import.meta.url).href;
+    const scoringUrl = new URL('../lib/_shared/scoring.cjs', import.meta.url).href;
     const scoringMod = await import(scoringUrl);
     const scoring = scoringMod.default ?? scoringMod;
     if (!scoring || typeof scoring.compressLambda !== 'function') {
@@ -50,7 +50,7 @@ async function ensureScoring() {
     getSkewBonusForCreditSpread = scoring.getSkewBonusForCreditSpread;
     calculateUnifiedScore = scoring.calculateUnifiedScore;
     try {
-        const ivUrl = new URL('./_shared/ivHistory.cjs', import.meta.url).href;
+        const ivUrl = new URL('../lib/_shared/ivHistory.cjs', import.meta.url).href;
         const ivMod = await import(ivUrl);
         const iv = ivMod.default ?? ivMod;
         saveTickerIVSnapshot = iv.saveTickerIVSnapshot;
@@ -688,7 +688,7 @@ export default async function handler(req, res) {
 
         if (dataSource === 'POLYGON') {
             console.log(`Using Polygon.io for ${upperTicker}`);
-            const { getOptionChain, getUnderlyingPrice } = await import('./polygon-client.js');
+            const { getOptionChain, getUnderlyingPrice } = await import('../lib/polygon-client.js');
 
             // Parallel fetch: ancillary data + underlying price (for strike-range filter to reduce payload)
             const [rv30, daysUntilEarnings, underlyingPrice] = await Promise.all([

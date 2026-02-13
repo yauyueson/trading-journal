@@ -115,7 +115,7 @@ export default async function handler(req, res) {
 
     for (const t of tickers) {
         try {
-            const { getCandles } = await import('./polygon-client.js');
+            const { getCandles } = await import('../lib/polygon-client.js');
 
             // 2. Calculate date range
             const today = new Date();

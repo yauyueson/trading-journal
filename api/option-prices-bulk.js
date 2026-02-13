@@ -2,7 +2,7 @@
 // Bulk Fetcher for Options
 // Accepts a list of option descriptors, returns map of data.
 
-import { generateOCCSymbol, normalizeExpiration } from './_shared/utils.js';
+import { generateOCCSymbol, normalizeExpiration } from '../lib/_shared/utils.js';
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { getOptionSnapshot } = await import('./polygon-client.js');
+        const { getOptionSnapshot } = await import('../lib/polygon-client.js');
 
         // 1. Build request map
         const requestMap = new Map(); // occ -> { underlying, legs[] }

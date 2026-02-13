@@ -4,7 +4,7 @@
 // ---------------------------------------------------------
 // 🛠️ 辅助：生成 OCC 代码
 // ---------------------------------------------------------
-import { generateOCCSymbol } from './_shared/utils.js';
+import { generateOCCSymbol } from '../lib/_shared/utils.js';
 
 // ---------------------------------------------------------
 // 🛠️ 辅助：生成 OCC 代码
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   // Try Polygon.io first if configured
   if (dataSource === 'POLYGON') {
     try {
-      const { getOptionChain } = await import('./polygon-client.js');
+      const { getOptionChain } = await import('../lib/polygon-client.js');
 
       // Fetch specific expiration chain
       const chainData = await getOptionChain(upperTicker, { expiration });
