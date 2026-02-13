@@ -51,6 +51,8 @@ Supabase PostgreSQL (数据存储)
 
 ### 环境变量
 
+**说明**：未设置 `DATA_SOURCE` 时，代码默认使用 CBOE。配置为 `MARKET_DATA` 时可获得实时报价与交易所级 Greeks。
+
 **开发环境** (`.env.local`):
 ```bash
 DATA_SOURCE=MARKET_DATA
@@ -60,7 +62,7 @@ MARKET_DATA_TOKEN=your_api_token_here
 **生产环境** (Vercel Dashboard):
 ```
 Settings → Environment Variables
-├── DATA_SOURCE = MARKET_DATA
+├── DATA_SOURCE = MARKET_DATA   # 可选，不设则默认 CBOE
 └── MARKET_DATA_TOKEN = your_production_token
 ```
 
@@ -145,7 +147,7 @@ GET /api/option-price
   "success": true,
   "symbol": "QQQ260220C00630000",
   "price": 7.36,
-  "dataSource": "MARKET_DATA",
+  "dataSource": "MarketData.app",
   "bid": 7.32,
   "ask": 7.39,
   "lastPrice": 7.35,
@@ -165,7 +167,7 @@ GET /api/option-price
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| dataSource | string | 数据来源：'MARKET_DATA' 或 'CBOE' |
+| dataSource | string | 数据来源：`MarketData.app`（主）或 `CBOE`（备） |
 | delta | number | Delta值（-1到1）**MarketData 提供真实值** |
 | gamma | number | Gamma值 **MarketData 提供真实值** |
 | theta | number | Theta值（每日衰减）**MarketData 提供真实值** |
@@ -302,7 +304,7 @@ node _test_strategy.js
 ```
 
 **验证项**:
-- ✅ `dataSource: "MARKET_DATA"`
+- ✅ `dataSource: "MarketData.app"`
 - ✅ Greeks 非零
 - ✅ `ivSurface` 对象存在
 

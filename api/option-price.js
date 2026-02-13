@@ -33,10 +33,10 @@ export default async function handler(req, res) {
   const upperTicker = ticker.toUpperCase();
   const dataSource = process.env.DATA_SOURCE || 'CBOE';
 
-  // Try MarketData first if configured
-  if (dataSource === 'MARKET_DATA') {
+  // Try Polygon.io first if configured
+  if (dataSource === 'POLYGON') {
     try {
-      const { getOptionChain } = await import('./market-data-client.js');
+      const { getOptionChain } = await import('./polygon-client.js');
 
       // Fetch specific expiration chain
       const chainData = await getOptionChain(upperTicker, { expiration });
@@ -69,11 +69,11 @@ export default async function handler(req, res) {
             gamma: match.gamma || null,
             theta: match.theta || null,
             vega: match.vega || null,
-            rho: null, // MarketData doesn't provide rho
+            rho: null, // Polygon doesn't provide rho
             volume: match.volume || null,
             openInterest: match.openInterest || null,
             underlyingPrice: match.underlyingPrice || null,
-            dataSource: 'MarketData.app',
+            dataSource: 'Polygon.io',
             timestamp: Date.now(),
             rawGreeks: {
               delta: match.delta,
@@ -86,9 +86,9 @@ export default async function handler(req, res) {
         }
       }
 
-      console.log(`MarketData: No match found for ${upperTicker} ${strike}${type}, falling back to CBOE`);
+      console.log(`Polygon: No match found for ${upperTicker} ${strike}${type}, falling back to CBOE`);
     } catch (err) {
-      console.error('MarketData fetch failed:', err.message);
+      console.error('Polygon fetch failed:', err.message);
       // Fall through to CBOE
     }
   }

@@ -1,6 +1,6 @@
 # Trading Journal - 技术文档
 
-> 最后更新: 2026年2月9日
+> 最后更新: 2026年2月12日（含 OSS v2.4 Vega 评分）
 
 ## 项目概述
 
@@ -14,7 +14,7 @@
 | 出场靠情绪（亏70%才割肉） | Stop Loss 规则 + 视觉警告 |
 | 时间漂移（短线变长线） | 到期日警告 + 持仓天数追踪 |
 | 记录难坚持（Notion用几天就放弃） | 30秒快速操作 + 手机友好 |
-| 手动更新价格麻烦 | **自动获取期权价格 (CBOE API)** |
+| 手动更新价格麻烦 | **自动获取期权价格（MarketData.app 主 / CBOE 备用）** |
 
 ---
 
@@ -31,12 +31,14 @@
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │               Vercel Serverless Functions                        │
-│  api/_shared/scoring.js  ← 与 oss-core.ts 镜像，单点事实         │
-│  /api/option-price.js    → 单合约价格 + Greeks                   │
+│  api/_shared/scoring.cjs ← 与 oss-core.ts 镜像，单点事实         │
+│  api/market-data-client.js ← MarketData.app 客户端（DATA_SOURCE） │
+│  /api/option-price.js    → 单合约价格 + Greeks（MarketData 优先）│
 │  /api/scan-options.js    → OSS 扫描器 (引用 _shared/scoring)     │
 │  /api/strategy-recommend.js → 策略推荐 (引用 _shared/scoring)     │
 │  /api/underlying-rv.js   → 标的 RV；/api/earnings.js → 财报日期   │
 │  /api/check-alerts.js    → 止损/目标价 Discord 提醒（外部 Cron 触发）│
+│  /api/daily-recap.js     → 每日汇总 Discord 消息                  │
 │  /api/health.js          → 健康检查                               │
 └─────────────────────────────┬───────────────────────────────────┘
                               │
@@ -54,8 +56,10 @@
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│            External: CBOE Delayed API + Nasdaq API               │
-│  cdn.cboe.com (期权链/报价) | api.nasdaq.com (历史/财报)          │
+│            期权数据源（由环境变量 DATA_SOURCE 控制）                 │
+│  主: MarketData.app — 实时报价 + 交易所级 Greeks + 完整 IV 曲线    │
+│  备: CBOE 延迟 API — 15 分钟延迟，Greeks 为 0，免费               │
+│  api.nasdaq.com — 历史/财报（与 DATA_SOURCE 无关）                │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -63,12 +67,17 @@
 
 | 层级 | 文件 | 职责 |
 |------|------|------|
-| **规范源** | `src/lib/oss-core.ts` | 所有 LOQ/CSQ/Delta Bonus/Theta 惩罚/Lambda 压缩/Z-Score/价差评分；LERP、Sigmoid、边缘情况防护 |
+| **规范源** | `src/lib/oss-core.ts` | 所有 LOQ/CSQ/Delta Bonus/Theta 惩罚/Lambda 压缩/Z-Score/价差评分；**v2.4 Vega**（LOQ Vega 效率、CSQ Vega 惩罚）；LERP、Sigmoid、边缘情况防护 |
 | **前端复用** | `src/lib/scoring.ts` | 从 oss-core  re-export；额外提供批量 `scoreOptionsChain`、IV 期限结构 `calculateIVRatio` |
 | **API 镜像** | `api/_shared/scoring.cjs` | 与 oss-core 逻辑同步的 JS 实现，供 `scan-options.js`、`strategy-recommend.js` 引用 |
 | **跨策略统一** | `api/_shared/scoring.cjs` | `calculateUnifiedScore` — 跨 Credit/Debit/Long 的统一评分，仅后端使用 |
 
 **原则**：不在此三处以外重复实现评分公式，避免前后端/扫描器与持仓卡片分数不一致。统一评分仅在 API 层计算后传给前端，前端不重复实现。
+
+**OSS v2.4 — Vega 纳入评分**：  
+- **买方 (LOQ)**：使用「Vega 效率」`vega/权利金` 在池内做 DTE 分桶 Z-Score；IV 偏低（contango）时对高 vega 效率加分（+0.05×z），IV 偏高时对高 vega 轻微扣分（-0.03×z），避免买在 IV 极高且 vega 又大的合约。  
+- **卖方 (CSQ)**：对 `vega/权利金` 的池内 Z-Score 施加温和惩罚（-0.05×z），卖权时高 vega 对波动率更敏感，分数略降。  
+- 数据来源：MarketData 提供的 per-contract vega，`parseChain` 与各 API 已解析并返回，直接用于评分。
 
 ### 技术选择理由
 
@@ -79,7 +88,7 @@
 | Tailwind CSS | 快速styling，dark mode友好 |
 | Supabase | 免费tier够用，PostgreSQL可靠，实时同步 |
 | Vercel | 免费，自动HTTPS，全球CDN，Serverless Functions |
-| **CBOE API** | 官方数据源，免费，无速率限制，包含Greeks |
+| **期权数据** | MarketData.app（主）：实时 + 交易所级 Greeks；CBOE（备）：15 分钟延迟、免费。见「数据源配置」。 |
 
 ---
 
@@ -102,10 +111,12 @@ GET /api/option-price?ticker=QQQ&expiration=2026-02-20&strike=630&type=Call
 
 ### 返回数据
 
+当 `DATA_SOURCE=MARKET_DATA` 且可用时，返回示例：
+
 ```json
 {
   "success": true,
-  "symbol": "QQQ   260220C00630000",
+  "symbol": "QQQ260220C00630000",
   "price": 7.36,
   "priceSource": "mid",
   "bid": 7.32,
@@ -113,13 +124,18 @@ GET /api/option-price?ticker=QQQ&expiration=2026-02-20&strike=630&type=Call
   "lastPrice": 7.35,
   "iv": 0.1778,
   "delta": 0.3999,
+  "gamma": 0.0123,
+  "theta": -0.0456,
+  "vega": 0.0789,
   "volume": 6485,
   "openInterest": 29600,
   "underlyingPrice": 620.24,
-  "dataSource": "CBOE",
+  "dataSource": "MarketData.app",
   "timestamp": 1769901862738
 }
 ```
+
+降级到 CBOE 时 `dataSource` 为 `"CBOE"`，且 gamma/theta/vega 可能为 0。
 
 ### 数据字段说明
 
@@ -127,23 +143,30 @@ GET /api/option-price?ticker=QQQ&expiration=2026-02-20&strike=630&type=Call
 |------|------|
 | price | 计算后的价格（优先用 mid price） |
 | priceSource | 价格来源：mid（买卖中间价）或 last（最后成交价） |
-| iv | 隐含波动率 (Implied Volatility) |
-| delta | Delta 值（期权敏感度） |
+| dataSource | 实际数据来源：`"MarketData.app"` 或 `"CBOE"` |
+| iv | 隐含波动率；MarketData 为真实值，CBOE 可能不完整 |
+| delta, gamma, theta, vega | Greeks；仅 MarketData 提供交易所级非零值 |
 | volume | 当日成交量 |
 | openInterest | 未平仓合约数 |
 | underlyingPrice | 标的股票当前价格 |
 
-### 数据源
+### 数据源配置
 
-使用 CBOE (Chicago Board Options Exchange) 官方延迟数据 API：
-```
-https://cdn.cboe.com/api/global/delayed_quotes/options/{TICKER}.json
-```
+期权价格由环境变量 `DATA_SOURCE` 控制，**未设置时默认为 CBOE**。
 
-- **延迟**: 15分钟
-- **成本**: 免费
-- **限制**: 无严格速率限制
-- **覆盖**: 所有美股期权
+| 配置 | 行为 |
+|------|------|
+| `DATA_SOURCE=MARKET_DATA` | 优先调用 MarketData.app（需 `MARKET_DATA_TOKEN`）；失败时自动降级 CBOE |
+| `DATA_SOURCE=CBOE` 或未设置 | 仅使用 CBOE 延迟 API |
+
+**MarketData.app**（主）：
+- 实时报价，交易所级 Delta/Gamma/Theta/Vega/IV
+- 完整 IV 曲线，支持 Regime Detection、Skew
+- 需配置 `MARKET_DATA_TOKEN`
+
+**CBOE**（备）：
+- 端点：`https://cdn.cboe.com/api/global/delayed_quotes/options/{TICKER}.json`
+- 15 分钟延迟，免费，Greeks 在 API 中全为 0，易遇 429
 
 ---
 
@@ -318,6 +341,8 @@ https://api.vercel.com/v1/integrations/deploy/prj_Q27dySs80ReT8IwzjuVlMtePI2xu/s
 |--------|------|
 | `VITE_SUPABASE_URL` | Supabase 项目 URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase Anon Key |
+| `DATA_SOURCE` | 期权数据源：`MARKET_DATA`（主）或 `CBOE`（备）；未设置时默认 CBOE |
+| `MARKET_DATA_TOKEN` | MarketData.app API Token（当 `DATA_SOURCE=MARKET_DATA` 时必填） |
 | `CRON_SECRET` | check-alerts API 鉴权密钥 |
 | `DISCORD_WEBHOOK_URL` | Discord Webhook URL（提醒发送目标） |
 
@@ -501,8 +526,9 @@ cron-job.org (每 15 分钟 GET)
 
 1. 检查网络连接
 2. 确认 ticker/expiration/strike/type 参数正确
-3. CBOE API 可能暂时不可用，稍后重试
-4. 使用手动输入作为备用
+3. 若使用 MarketData：检查 `DATA_SOURCE=MARKET_DATA` 与 `MARKET_DATA_TOKEN` 已配置；失败时会自动降级 CBOE
+4. CBOE 备用可能暂时不可用或返回 429，稍后重试
+5. 使用手动输入作为备用
 
 ### 常见错误
 
@@ -510,6 +536,8 @@ cron-job.org (每 15 分钟 GET)
 |------|------|------|
 | "Option contract not found" | 合约不存在或已过期 | 检查到期日 |
 | "CBOE API error: 404" | Ticker 不支持 | 确认是美股期权 |
+| MarketData 返回 401/403 | Token 无效或过期 | 检查 `MARKET_DATA_TOKEN` |
+| 响应中 Greeks 全为 0 | 当前使用 CBOE 或 MarketData 未配置 | 配置 `DATA_SOURCE` 与 `MARKET_DATA_TOKEN` 后部署 |
 | Network error | 网络问题 | 检查连接 |
 
 ### 部署问题

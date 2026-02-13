@@ -110,6 +110,12 @@ export interface StrategyRegime {
     iv90: number | null;
     rv30: number | null;
     ivRvRatio: number | null;
+    /** IV Rank: current IV30 percentile in 252d range (0–1). null when insufficient history. */
+    ivRank: number | null;
+    /** IV Percentile: fraction of past days with IV30 below current (0–1). */
+    ivPercentile: number | null;
+    /** Number of days in ticker_iv_snapshots used to compute IV Rank. */
+    ivRankSampleDays?: number;
     mode: 'CREDIT' | 'DEBIT' | 'NEUTRAL';
     advice: string;
     /** Longer explanation of why this regime favors Credit/Debit/Neutral and what to do. */

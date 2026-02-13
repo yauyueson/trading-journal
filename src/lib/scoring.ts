@@ -52,9 +52,12 @@ export {
     getIVAdjustment,
     getIVRankAdjustment,
 
-    // LOQ / CSQ scoring
+    // LOQ / CSQ scoring (v2.4 Vega)
     LOQ_WEIGHTS,
     LOQ_DT_WEIGHTS,
+    LOQ_VEGA_EFF_WEIGHT_POS,
+    LOQ_VEGA_EFF_WEIGHT_NEG,
+    CSQ_VEGA_PENALTY_WEIGHT,
     getLOQWeightsForDTE,
     type LOQWeightsForDTE,
     CSQ_WEIGHTS,
@@ -388,18 +391,20 @@ export function scoreOptionsChain(
         const thetas = longItems.map(p => p.thetaBurn);
         const gtRatios = longItems.map(p => p.gammaThetaRatio);
         const dtes = longItems.map(p => p.opt.dte);
+        const vegaEfficiencies = longItems.map(p => (p.opt.vega ?? 0) / (p.mid || 0.01));
 
         const zLambdas = _normalizeToZScoresByBucket(compressedLambdas, dtes);
         const zGammas = _normalizeToZScoresByBucket(gammas, dtes);
         const zThetas = _normalizeToZScoresByBucket(thetas, dtes);
         const zGTRatios = _normalizeToZScoresByBucket(gtRatios, dtes);
+        const zVegaEff = _normalizeToZScoresByBucket(vegaEfficiencies, dtes);
 
         const rawScores = longItems.map((p, i) => {
             const deltaBonus = _getDeltaBonus(p.opt.delta);
             const bePenalty = _getBreakevenPenalty(p.breakevenMove, p.opt.dte);
             return _calculateLOQRaw(
                 zLambdas[i], zGammas[i], zThetas[i],
-                ivAdjustment, deltaBonus, p.thetaBurn, isDayTrade, zGTRatios[i], bePenalty, p.opt.dte
+                ivAdjustment, deltaBonus, p.thetaBurn, isDayTrade, zGTRatios[i], bePenalty, p.opt.dte, zVegaEff[i]
             );
         });
         const loqScores = _normalizeLOQScoresWithDynamicBaseline(rawScores);
@@ -445,13 +450,16 @@ export function scoreOptionsChain(
         const pops = shortItems.map(p => p.pop);
         const spreads = shortItems.map(p => p.spreadPct);
         const dtes = shortItems.map(p => p.opt.dte);
+        const vegaEfficiencies = shortItems.map(p => (p.opt.vega ?? 0) / (p.mid || 0.01));
 
         const zEdges = _normalizeToZScoresByBucket(edges, dtes);
         const zPops = _normalizeToZScoresByBucket(pops, dtes);
         const zSpreads = _normalizeToZScoresByBucket(spreads, dtes);
+        const zVegaEff = _normalizeToZScoresByBucket(vegaEfficiencies, dtes);
 
         scored = shortItems.map((p, i) => {
-            const rawScore = _calculateCSQRaw(zEdges[i], zPops[i], zSpreads[i], ivAdjustment);
+            const vegaPenalty = -0.05 * zVegaEff[i];
+            const rawScore = _calculateCSQRaw(zEdges[i], zPops[i], zSpreads[i], ivAdjustment, vegaPenalty);
             const score = _normalizeScoreTo100(rawScore);
 
             return {

@@ -454,8 +454,30 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                     </p>
                                 )}
                             </div>
-                            <div className="flex gap-6 sm:gap-8 w-full sm:w-auto">
-                                <div className="flex-1 sm:flex-none sm:text-right">
+                            <div className="flex flex-wrap gap-6 sm:gap-8 w-full sm:w-auto">
+                                <div className="flex-1 min-w-[100px] sm:flex-none sm:text-right">
+                                    <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center sm:justify-end gap-1">
+                                        IV Rank
+                                        <Tooltip label="" explanation="Current IV30 vs past 252 trading days (0–100%). Low = IV cheap (good for buyers); high = IV expensive (good for sellers). N/A until enough history (run backfill once)." />
+                                    </div>
+                                    <div className={`text-2xl sm:text-3xl font-mono font-bold mb-1 ${result.regime.ivRank != null ? (result.regime.ivRank < 0.3 ? 'text-emerald-400' : result.regime.ivRank > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
+                                        {result.regime.ivRank != null ? `${(result.regime.ivRank * 100).toFixed(0)}%` : 'N/A'}
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 font-mono">
+                                        {result.regime.ivRankSampleDays != null && result.regime.ivRankSampleDays > 0 ? `${result.regime.ivRankSampleDays}d` : ''}
+                                        {result.regime.ivRank == null && (
+                                            <a
+                                                href={`/api/backfill-iv-history?ticker=${encodeURIComponent(result.context.ticker)}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-accent-green/80 hover:text-accent-green ml-1 underline"
+                                            >
+                                                回填
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex-1 min-w-[100px] sm:flex-none sm:text-right">
                                     <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center sm:justify-end gap-1">
                                         IV Ratio
                                         <Tooltip label="" explanation="IV30/IV90 term structure. &lt;1 = contango (short vol friendly), &gt;1 = backwardation (long vol friendly)." />
@@ -467,7 +489,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                         {result.regime.iv30 != null ? `IV30: ${result.regime.iv30}%` : ''} {result.regime.iv90 != null ? ` · IV90: ${result.regime.iv90}%` : ''}
                                     </div>
                                 </div>
-                                <div className="flex-1 sm:flex-none sm:text-right">
+                                <div className="flex-1 min-w-[100px] sm:flex-none sm:text-right">
                                     <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center sm:justify-end gap-1">
                                         IV / RV
                                         <Tooltip label="" explanation="IV30 vs 20d realized vol. &gt;1 = implied expensive vs recent realized; &lt;1 = implied cheap. Drives regime (credit vs debit)." />

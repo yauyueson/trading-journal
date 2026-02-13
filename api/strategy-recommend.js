@@ -6,11 +6,11 @@
 
 let compressLambda, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
     calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, zScoresByBucket, HARD_FILTER_DEFAULTS,
-    getIVRiskFactor,
+    getIVRiskFactor, getIVAdjustment, getIVRankAdjustment,
     calculateLOQRaw, normalizeScoreTo100, normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct,
     getCleanATM_IV, calculateTargetIV, buildIVTermStructure, parseChain, calculateSkew, estimateSlippage, getGammaRiskPenalty,
     calculateUnifiedScore;
-let saveTickerIVSnapshot;
+let saveTickerIVSnapshot, getIVRank;
 let _scoringLoaded = false;
 
 async function ensureScoring() {
@@ -32,6 +32,8 @@ async function ensureScoring() {
     zScoresByBucket = scoring.zScoresByBucket;
     HARD_FILTER_DEFAULTS = scoring.HARD_FILTER_DEFAULTS;
     getIVRiskFactor = scoring.getIVRiskFactor;
+    getIVAdjustment = scoring.getIVAdjustment;
+    getIVRankAdjustment = scoring.getIVRankAdjustment;
     calculateLOQRaw = scoring.calculateLOQRaw;
     normalizeScoreTo100 = scoring.normalizeScoreTo100;
     normalizeLOQScoresWithDynamicBaseline = scoring.normalizeLOQScoresWithDynamicBaseline;
@@ -49,8 +51,10 @@ async function ensureScoring() {
         const ivMod = await import(ivUrl);
         const iv = ivMod.default ?? ivMod;
         saveTickerIVSnapshot = iv.saveTickerIVSnapshot;
+        getIVRank = iv.getIVRank;
     } catch (_) {
         saveTickerIVSnapshot = async () => { };
+        getIVRank = async () => ({ ivRank: null, ivPercentile: null, sampleDays: 0 });
     }
     _scoringLoaded = true;
 }
@@ -534,7 +538,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth) {
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
-function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
+function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, ivRank = null) {
     const filtered = chain.filter(o =>
         o.type === type &&
         Math.abs(o.delta) >= 0.25 &&
@@ -567,16 +571,19 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice) {
     const thetas = processed.map(p => p.thetaBurn);
     const gtRatios = processed.map(p => p.gammaThetaRatio);
     const dtes = processed.map(p => p.opt.dte);
+    const vegaEfficiencies = processed.map(p => (p.opt.vega || 0) / (p.mid || 0.01));
     const zL = zScoresByBucket(compressedLambdas, dtes);
     const zG = zScoresByBucket(gammas, dtes);
     const zT = zScoresByBucket(thetas, dtes);
     const zGT = zScoresByBucket(gtRatios, dtes);
+    const zVegaEff = zScoresByBucket(vegaEfficiencies, dtes);
 
-    const ivRankAdj = 0; // IV Rank/Percentile removed; regime uses IV Ratio + IV/RV only
+    const ivAdjustment = getIVAdjustment(ivRatio ?? 1.0, 'long');
+    const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'long');
     const rawScores = processed.map((p, i) => {
         const deltaBonus = getDeltaBonus(p.opt.delta);
         const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
-        return calculateLOQRaw(zL[i], zG[i], zT[i], ivRankAdj, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty, p.opt.dte);
+        return calculateLOQRaw(zL[i], zG[i], zT[i], ivAdjustment + ivRankAdj, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty, p.opt.dte, zVegaEff[i]);
     });
     const scores = normalizeLOQScoresWithDynamicBaseline(rawScores);
     return processed.map((p, i) => {
@@ -647,9 +654,9 @@ export default async function handler(req, res) {
         let rv30 = null;
         let daysUntilEarnings = null;
 
-        if (dataSource === 'MARKET_DATA') {
-            console.log(`Using MarketData.app for ${upperTicker}`);
-            const { getOptionChain } = await import('./market-data-client.js');
+        if (dataSource === 'POLYGON') {
+            console.log(`Using Polygon.io for ${upperTicker}`);
+            const { getOptionChain } = await import('./polygon-client.js');
 
             // Parallel fetch for ancillary data
             [rv30, daysUntilEarnings] = await Promise.all([
@@ -658,49 +665,34 @@ export default async function handler(req, res) {
             ]);
 
             try {
-                // Fetch chain with broad filters to get enough data for surface
-                // We need 30d and 90d for IV Regime
-                // Strategy recommend usually targets ~30-45 DTE
-                // So let's get a wide DTE range: 10 to 120
-                // And strike range roughly +/- 20%
-                // BUT currentPrice is needed for strike range. 
-                // We can get quote first OR just get a wide chain.
-                // MarketData chain endpoint returns underlyingPrice in rows usually.
-
-                // Let's rely on MarketData's robust backend.
-                // Fetching ALL strikes for DTE 15-100 might be okay, or filter slightly.
-
-                // First, need current price. Can get from a quick quote or simply fetch chain with no strike filter first?
-                // Best practice: Fetch Quote implies 1 credit. Fetch Chain implies credits? 
-                // MarketData Chain is efficient.
-
-                // Let's try fetching chain with DTE filter only first.
-                // Or fetching a simple quote for underlying? 
-                // MarketData Stocks API? 
-                // Let's assume we can fetch chain with DTE 15-120.
-
-                const chainData = await getOptionChain(upperTicker, {
-                    minDte: 10,
-                    maxDte: 120
-                });
-
-                if (chainData && chainData.length > 0) {
+                // Fetch two specific DTE ranges to avoid excessive API calls
+                const [chain30, chain90] = await Promise.all([
+                    getOptionChain(upperTicker, { dte: 30 }),
+                    getOptionChain(upperTicker, { dte: 90 })
+                ]);
+                const seen = new Set();
+                let chainData = [];
+                for (const o of [...(chain30 || []), ...(chain90 || [])]) {
+                    if (o?.symbol && !seen.has(o.symbol)) {
+                        seen.add(o.symbol);
+                        chainData.push(o);
+                    }
+                }
+                if (!chainData.length) {
+                    console.warn('Polygon chain empty with dte 30/90, trying without DTE...');
+                    chainData = await getOptionChain(upperTicker, {}) || [];
+                }
+                if (chainData.length > 0) {
                     allOptions = chainData;
-                    // Infer current price from the first option's underlyingPrice
-                    // OR compute average from ATM options
                     const valid = chainData.find(o => o.underlyingPrice > 0);
                     currentPrice = valid ? valid.underlyingPrice : 0;
                 } else {
-                    console.warn('MarketData returned empty chain, falling back to CBOE');
-                    throw new Error('Empty MarketData chain');
+                    console.warn('Polygon returned empty chain');
+                    throw new Error('Empty Polygon chain');
                 }
 
             } catch (err) {
-                console.error('MarketData fetch failed:', err);
-                // Fallback to CBOE logic below if possible or just error out
-                // Re-throw to trigger CBOE fallback if we implement it, or just let error handle
-                // For now, let's allow fallback to CBOE if configured?
-                // No, simpler to just error if configured to use MD.
+                console.error('Polygon fetch failed:', err);
                 throw err;
             }
 
@@ -744,14 +736,19 @@ export default async function handler(req, res) {
             await saveTickerIVSnapshot(upperTicker, iv30, iv90);
         }
 
+        const ivRankResult = await getIVRank(upperTicker);
+        const ivRank = ivRankResult?.ivRank ?? null;
+        const ivPercentile = ivRankResult?.ivPercentile ?? null;
+        const ivRankSampleDays = ivRankResult?.sampleDays ?? 0;
+
         const creditStrat = isBull ? 'Put' : 'Call';
         const debitStrat = isBull ? 'Call' : 'Put';
         const legStrat = isBull ? 'Call' : 'Put';
 
-        // 2. Build Strategies (regime uses IV Ratio + IV/RV only; no IV Rank/Percentile)
+        // 2. Build Strategies (regime includes IV Rank for LOQ single-leg scoring)
         const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam);
         const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio, widthParam);
-        const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice);
+        const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice, regime.ivRatio, ivRank);
 
         // 3. Unified Cross-Strategy Scoring — Top Picks
         const topPicks = [];
@@ -811,6 +808,9 @@ export default async function handler(req, res) {
                 iv90: iv90 ? Number((iv90 * 100).toFixed(1)) : null,
                 rv30: rv30 ? Number(rv30.toFixed(1)) : null,
                 ivRvRatio: regime.ivRvRatio ? Number(regime.ivRvRatio.toFixed(3)) : null,
+                ivRank: ivRank != null ? Number(ivRank.toFixed(3)) : null,
+                ivPercentile: ivPercentile != null ? Number(ivPercentile.toFixed(3)) : null,
+                ivRankSampleDays: ivRankSampleDays,
                 mode: regime.mode,
                 advice: regime.advice,
                 adviceDetail: regime.adviceDetail || null,

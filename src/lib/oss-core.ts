@@ -445,8 +445,16 @@ export function getLOQWeightsForDTE(dte: number): LOQWeightsForDTE {
     };
 }
 
+/** Vega efficiency weight when IV is low (long-friendly): reward high vega/premium. */
+export const LOQ_VEGA_EFF_WEIGHT_POS = 0.05;
+/** Vega efficiency weight when IV is high: mild penalty to avoid buying highest vega. */
+export const LOQ_VEGA_EFF_WEIGHT_NEG = -0.03;
+/** CSQ: mild penalty weight for high vega/premium (seller more sensitive to vol). */
+export const CSQ_VEGA_PENALTY_WEIGHT = -0.05;
+
 /**
  * Calculate raw LOQ score (v2.2 — G/T + Breakeven + DTE‑continuous weights).
+ * v2.4: optional vegaZ (z-score of vega/premium); IV low → bonus for high vega, IV high → mild penalty.
  *
  * When `dte` is provided, uses getLOQWeightsForDTE(dte) and ignores `isDayTrade`.
  * Otherwise uses legacy isDayTrade (true = DT weights, false = Standard).
@@ -462,6 +470,7 @@ export function calculateLOQRaw(
     zGammaThetaRatio: number = 0,
     breakevenPenalty: number = 0,
     dte: number | null = null,
+    vegaZ: number = 0,
 ): number {
     const thetaPenalty = getThetaPenalty(thetaBurn);
     const w =
@@ -478,6 +487,10 @@ export function calculateLOQRaw(
                     penaltyMult: 1,
                 };
 
+    const vegaWeight =
+        ivAdjustment > 0 ? LOQ_VEGA_EFF_WEIGHT_POS : ivAdjustment < 0 ? LOQ_VEGA_EFF_WEIGHT_NEG : 0;
+    const vegaBonus = vegaWeight * vegaZ;
+
     return (
         w.lambda * zLambda +
         w.gammaEff * zGammaEff +
@@ -486,7 +499,8 @@ export function calculateLOQRaw(
         w.deltaBonus * deltaBonus +
         w.breakevenPenalty * breakevenPenalty +
         ivAdjustment -
-        thetaPenalty * w.penaltyMult
+        thetaPenalty * w.penaltyMult +
+        vegaBonus
     );
 }
 
@@ -502,18 +516,21 @@ export const CSQ_WEIGHTS = {
 
 /**
  * Calculate raw CSQ score.
+ * v2.4: optional vegaPenalty — mild penalty for high vega/premium (seller more sensitive to vol).
  */
 export function calculateCSQRaw(
     zEdge: number,
     zPOP: number,
     zSpread: number,
     ivAdjustment: number,
+    vegaPenalty: number = 0,
 ): number {
     return (
         CSQ_WEIGHTS.edge * zEdge +
         CSQ_WEIGHTS.pop * zPOP +
         CSQ_WEIGHTS.spread * zSpread +
-        ivAdjustment
+        ivAdjustment +
+        vegaPenalty
     );
 }
 

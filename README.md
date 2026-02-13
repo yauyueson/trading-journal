@@ -74,7 +74,7 @@ npm install
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-# MarketData.app (推荐)
+# 期权数据源（不设置时默认 CBOE；推荐使用 MarketData 获取实时 Greeks）
 DATA_SOURCE=MARKET_DATA
 MARKET_DATA_TOKEN=your_marketdata_token
 

@@ -278,13 +278,20 @@ const getLOQWeightsForDTE = (dte) => {
     };
 };
 
-const calculateLOQRaw = (zLambda, zGammaEff, zThetaBurn, ivAdjustment, deltaBonus = 0, thetaBurn = 0, isDayTrade = false, zGammaThetaRatio = 0, breakevenPenalty = 0, dte = null) => {
+const LOQ_VEGA_EFF_WEIGHT_POS = 0.05;
+const LOQ_VEGA_EFF_WEIGHT_NEG = -0.03;
+const CSQ_VEGA_PENALTY_WEIGHT = -0.05;
+
+const calculateLOQRaw = (zLambda, zGammaEff, zThetaBurn, ivAdjustment, deltaBonus = 0, thetaBurn = 0, isDayTrade = false, zGammaThetaRatio = 0, breakevenPenalty = 0, dte = null, vegaZ = 0) => {
     const thetaPenalty = getThetaPenalty(thetaBurn);
     const w = dte != null
         ? getLOQWeightsForDTE(dte)
         : isDayTrade
             ? { ...LOQ_DT_WEIGHTS, deltaBonus: LOQ_WEIGHTS.deltaBonus }
             : { ...LOQ_WEIGHTS, penaltyMult: 1 };
+
+    const vegaWeight = ivAdjustment > 0 ? LOQ_VEGA_EFF_WEIGHT_POS : (ivAdjustment < 0 ? LOQ_VEGA_EFF_WEIGHT_NEG : 0);
+    const vegaBonus = vegaWeight * vegaZ;
 
     return (
         w.lambda * zLambda +
@@ -294,14 +301,15 @@ const calculateLOQRaw = (zLambda, zGammaEff, zThetaBurn, ivAdjustment, deltaBonu
         w.deltaBonus * deltaBonus +
         w.breakevenPenalty * breakevenPenalty +
         ivAdjustment -
-        thetaPenalty * w.penaltyMult
+        thetaPenalty * w.penaltyMult +
+        vegaBonus
     );
 };
 
 const CSQ_WEIGHTS = { edge: 0.50, pop: 0.30, spread: -0.20 };
 
-const calculateCSQRaw = (zEdge, zPOP, zSpread, ivAdjustment) => {
-    return CSQ_WEIGHTS.edge * zEdge + CSQ_WEIGHTS.pop * zPOP + CSQ_WEIGHTS.spread * zSpread + ivAdjustment;
+const calculateCSQRaw = (zEdge, zPOP, zSpread, ivAdjustment, vegaPenalty = 0) => {
+    return CSQ_WEIGHTS.edge * zEdge + CSQ_WEIGHTS.pop * zPOP + CSQ_WEIGHTS.spread * zSpread + ivAdjustment + vegaPenalty;
 };
 
 // ────────────────────────────────────────────────────────────────

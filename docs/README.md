@@ -1,6 +1,6 @@
 # Trading Journal - 文档总览
 
-> 最后更新: 2026年2月9日
+> 最后更新: 2026年2月12日
 
 欢迎来到Trading Journal项目文档中心！这里包含了项目的完整技术文档和使用指南。
 
@@ -92,10 +92,9 @@
 **适合**: 前端开发者、API集成者
 
 **内容**:
-- 期权价格API详解
-  - 端点、参数、响应格式
-  - OCC Symbol生成算法
-  - 价格计算逻辑
+- 数据源配置（DATA_SOURCE：MarketData.app 主 / CBOE 备）
+- 期权价格API详解（端点、参数、响应格式、dataSource 字段）
+- OCC Symbol、价格计算逻辑
 - Supabase REST API使用
 - 错误处理和重试机制
 - 安全性和CORS配置
@@ -136,6 +135,25 @@
 
 ---
 
+### 8️⃣ [IV Rank 上线步骤](./08_IV_Rank_上线步骤.md)
+**适合**: 需要 IV Rank 功能的开发者  
+**内容**: IV Rank 功能上线步骤与数据准备。
+
+---
+
+### 9️⃣ [MarketData 集成](./09_MarketData集成.md)
+**适合**: 开发者、运维
+
+**内容**:
+- 双数据源架构（MarketData 主 / CBOE 备）
+- MarketData.app API 客户端与数据格式标准化
+- IV Term Structure、Skew、Regime Detection 算法升级
+- 已集成端点、测试方案、安全配置
+
+**阅读时间**: 15分钟
+
+---
+
 ## 🚀 快速开始
 
 ### 新用户
@@ -166,9 +184,11 @@ docs/
 ├── 02_技术路径.md             # 技术栈和实现细节
 ├── 03_核心算法.md             # 评分算法详解
 ├── 04_数据库设计.md           # 数据模型和SQL
-├── 05_API文档.md              # API接口文档
+├── 05_API文档.md              # API 接口与数据源配置
 ├── 06_用户工作流.md           # 使用指南和最佳实践
-└── 07_止损与目标价短信提醒方案.md  # 短信提醒实现方案
+├── 07_止损与目标价短信提醒方案.md  # 短信提醒实现方案
+├── 08_IV_Rank_上线步骤.md     # IV Rank 上线步骤
+└── 09_MarketData集成.md       # MarketData 双数据源集成
 ```
 
 ---
@@ -192,7 +212,9 @@ docs/
 - [P&L计算](./03_核心算法.md#pl计算算法)
 
 ### API和集成
+- [数据源配置](./05_API文档.md#数据源配置)
 - [期权价格API](./05_API文档.md#期权价格api)
+- [MarketData 集成](./09_MarketData集成.md)
 - [Supabase API](./05_API文档.md#supabase-rest-api)
 - [错误处理](./05_API文档.md#错误处理)
 
@@ -224,6 +246,14 @@ docs/
 ---
 
 ## 🔄 文档更新日志
+
+### 2026-02-12
+- ✅ **技术文档与数据源一致化**：根据代码更新全部技术文档，统一反映 MarketData.app（主）+ CBOE（备）双数据源架构。
+- ✅ **TECHNICAL_DOCUMENTATION.md**：架构图、期权数据源层、数据源配置（DATA_SOURCE/MARKET_DATA_TOKEN）、API 返回示例（dataSource: MarketData.app/CBOE）、Vercel 环境变量、故障排除。
+- ✅ **01_项目概览.md**：架构图与外部数据层、技术栈表「期权数据源」行。
+- ✅ **02_技术路径.md**：API 端点列表（scoring.cjs、market-data-client.js、daily-recap）、数据源逻辑示例、Scanner 数据流、API 集成小节（双源 + CBOE 格式说明）、环境变量示例。
+- ✅ **00_PRD_总览.md**：数据与评分依赖、外部依赖（MarketData/CBOE）、In Scope 行情描述、性能与安全表述。
+- ✅ **docs/README.md**：目录增加 08/09、API 文档描述与按主题查找、文档结构列表。
 
 ### 2026-02-09
 - ✅ **Portfolio 价差快速添加**: Quick Add 表单支持 Single Leg / Credit Spread / Debit Spread 切换，自动构建 `legs` JSONB 并写入 Supabase。
@@ -280,4 +310,4 @@ docs/
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年2月8日*
+*最后更新: 2026年2月12日*

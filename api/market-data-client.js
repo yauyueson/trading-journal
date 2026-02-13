@@ -102,10 +102,11 @@ function formatExpiration(unixTimestamp) {
 export async function getExpirations(ticker) {
     try {
         const data = await fetchMarketData(`/options/expirations/${ticker.toUpperCase()}/`);
-        // API usually returns { s: "ok", expirations: ["2023-01-01", ...] } or just list
-        if (Array.isArray(data)) return data;
-        if (data.expirations && Array.isArray(data.expirations)) return data.expirations;
-        return [];
+        if (!data || data.s === 'error') return [];
+        const raw = Array.isArray(data) ? data : (data.expirations || data.expirationDates || data.dates);
+        if (!raw || !Array.isArray(raw) || raw.length === 0) return [];
+        // Normalize: Unix (seconds) -> YYYY-MM-DD; already string -> keep
+        return raw.map((d) => (typeof d === 'number' ? new Date(d * 1000).toISOString().slice(0, 10) : String(d)));
     } catch (e) {
         console.warn("getExpirations error:", e);
         return [];

@@ -32,9 +32,9 @@ CBOE 免费 API 存在以下限制：
 ### 1. 双数据源架构
 
 ```
-环境变量 DATA_SOURCE
-    ├── MARKET_DATA (默认) → MarketData.app API
-    └── CBOE (备用)        → CBOE 免费 API
+环境变量 DATA_SOURCE（未设置时默认为 CBOE）
+    ├── MARKET_DATA → MarketData.app API（推荐，需 MARKET_DATA_TOKEN）
+    └── CBOE        → CBOE 免费 API（备用或默认）
 ```
 
 **配置方式**:
@@ -365,7 +365,7 @@ vercel --prod
 
 ### 中期 (可选)
 - [ ] 服务端预过滤优化
-- [ ] Vega 加权评分
+- [x] Vega 加权评分（v2.4：LOQ Vega 效率 + CSQ Vega 惩罚，见 03_核心算法.md）
 - [ ] 前端 IV 曲线可视化
 - [ ] 缓存策略优化
 

@@ -96,6 +96,15 @@ export default async function handler(req, res) {
     const { ticker } = req.query;
     if (!ticker) return res.status(400).json({ error: 'Missing ticker (e.g. ?ticker=SPY or ?ticker=SPY,QQQ,AAPL)' });
 
+    const apiKey = process.env.POLYGON_API_KEY;
+    if (!apiKey) {
+        return res.status(400).json({
+            error: 'Polygon API token not set',
+            message: 'Set POLYGON_API_KEY in environment',
+            ticker: ticker.toUpperCase()
+        });
+    }
+
     const { url: supabaseUrl, key: supabaseKey } = getSupabase();
     if (!supabaseUrl || !supabaseKey) {
         return res.status(500).json({ error: 'Supabase not configured (SUPABASE_URL / SUPABASE_ANON_KEY)' });
@@ -106,12 +115,38 @@ export default async function handler(req, res) {
 
     for (const t of tickers) {
         try {
-            const points = await fetchAllHistorical(t);
-            if (points.length < ROLLING_DAYS + 1) {
-                results.push({ ticker: t.toUpperCase(), status: 'skipped', reason: `Need ${ROLLING_DAYS + 1}+ days, got ${points.length}` });
+            const { getCandles } = await import('./polygon-client.js');
+
+            // 2. Calculate date range
+            const today = new Date();
+            const from = new Date(today);
+            from.setDate(today.getDate() - 400); // sufficient buffer for ~252 trading days, adjusted from 60 to match original intent
+
+            const fromStr = from.toISOString().split('T')[0];
+            const toStr = today.toISOString().split('T')[0];
+
+            console.log(`Fetching candles for ${t} from ${fromStr} to ${toStr}...`);
+
+            // 3. Fetch candles via Polygon
+            const points = await getCandles(t, fromStr, toStr, 'day'); // Renamed 'candles' to 'points' to match original variable name for RV calculation
+
+            if (!points || points.length === 0) {
+                const reason = points === null
+                    ? 'No candle data (check POLYGON_API_KEY and Polygon API / network)'
+                    : `Need ${ROLLING_DAYS + 1}+ days, got ${points.length}`;
+                results.push({ ticker: t.toUpperCase(), status: 'skipped', reason });
                 continue;
             }
-            const snapshots = computeRollingRV(points);
+            // Sort just in case, though API usually returns sorted
+            const sortedPoints = points.sort((a, b) => a.date.localeCompare(b.date));
+
+            if (sortedPoints.length < ROLLING_DAYS + 1) {
+                const reason = `Need ${ROLLING_DAYS + 1}+ days, got ${sortedPoints.length}`;
+                results.push({ ticker: t.toUpperCase(), status: 'skipped', reason });
+                continue;
+            }
+
+            const snapshots = computeRollingRV(sortedPoints);
             await upsertSnapshots(supabaseUrl, supabaseKey, t, snapshots);
             results.push({ ticker: t.toUpperCase(), status: 'ok', daysBackfilled: snapshots.length });
         } catch (e) {

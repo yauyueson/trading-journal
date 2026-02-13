@@ -41,15 +41,15 @@ function generateOCCSymbol(symbol, expiration, type, strike) {
   }
 }
 
-/** Find an option's mid price from an options array (CBOE or MarketData format). Returns number | null. */
-function findOptionPrice(options, ticker, expiration, strike, type) {
-  if (!options || !expiration || strike == null) return null;
+/** Find an option's mid price from an options array (CBOE or Polygon format). Returns number | null. */
+function findOptionMid(options, ticker, expiration, strike, type) {
+  if (!options || !Array.isArray(options) || options.length === 0) return null;
 
   // Detect format
-  const isMarketData = options.length > 0 && options[0].symbol !== undefined && options[0].strike !== undefined;
+  const isPolygon = options.length > 0 && options[0].symbol !== undefined && options[0].strike !== undefined;
 
-  if (isMarketData) {
-    // MarketData format: direct field matching
+  if (isPolygon) {
+    // Polygon format: direct field matching
     const targetStrike = parseFloat(strike);
     const targetType = (type || 'Call').toLowerCase().includes('call') ? 'Call' : 'Put';
     const expStr = expiration.slice(0, 10); // YYYY-MM-DD
@@ -71,10 +71,8 @@ function findOptionPrice(options, ticker, expiration, strike, type) {
   if (!occ) return null;
   const cboeSymbol = occ.replace(/\s/g, '');
 
-  // Exact match
   let match = options.find(function (o) { return o.option === cboeSymbol; });
 
-  // Fuzzy match
   if (!match) {
     const expDateStr = expiration.replace(/-/g, '').slice(2);
     const typeCode = (type || 'Call').toLowerCase().includes('call') ? 'C' : 'P';
@@ -163,28 +161,26 @@ export default async function handler(req, res) {
     const dataSource = process.env.DATA_SOURCE || 'CBOE';
     const optionChains = {};
 
-    if (dataSource === 'MARKET_DATA') {
-      // Use MarketData.app for real-time quotes
+    // Use Polygon.io for real-time quotes
+    if (dataSource === 'POLYGON') {
       try {
-        const { getOptionChain } = await import('./market-data-client.js');
+        const { getOptionChain } = await import('./polygon-client.js');
 
         await Promise.all(uniqueTickers.map(async function (ticker) {
           try {
-            // Fetch all expirations for this ticker (no DTE filter for daily recap)
             const chain = await getOptionChain(ticker, {});
             optionChains[ticker] = chain || [];
           } catch (e) {
-            console.warn('MarketData fetch failed for', ticker, e.message);
+            console.warn('Polygon fetch failed for', ticker, e.message);
             optionChains[ticker] = [];
           }
         }));
       } catch (importErr) {
-        console.error('Failed to import market-data-client:', importErr);
+        console.error('Failed to import polygon-client:', importErr);
         // Fall back to CBOE below
       }
     }
 
-    // CBOE fallback if MarketData not configured or failed
     if (dataSource === 'CBOE' || Object.keys(optionChains).length === 0) {
       await Promise.all(uniqueTickers.map(async function (ticker) {
         try {
@@ -277,7 +273,7 @@ export default async function handler(req, res) {
             if (!leg || leg.strike == null) { allFound = false; break; }
             const legExp = leg.expiration ? String(leg.expiration).slice(0, 10) : expStr;
             const legType = leg.type || 'Call';
-            const legPrice = findOptionPrice(chain, ticker, legExp, leg.strike, legType);
+            const legPrice = findOptionMid(chain, ticker, legExp, leg.strike, legType);
             if (legPrice == null) { allFound = false; break; }
             // long leg = positive value, short leg = negative value
             const side = (leg.side || 'long').toLowerCase();
@@ -298,7 +294,7 @@ export default async function handler(req, res) {
         } else {
           // Single-leg
           if (pos.ticker && expStr && pos.strike != null) {
-            currentPrice = findOptionPrice(chain, ticker, expStr, pos.strike, pos.type || 'Call');
+            currentPrice = findOptionMid(chain, ticker, expStr, pos.strike, pos.type || 'Call');
           }
           const pnlPerContract = (currentPrice != null && entryPrice)
             ? (isCredit ? entryPrice - currentPrice : currentPrice - entryPrice)

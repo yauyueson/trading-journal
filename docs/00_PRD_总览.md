@@ -18,7 +18,7 @@
 | 出场靠情绪 | 亏很多才割肉，赚一点就跑 | 止损规则 + 多级视觉警告（危险/警告/信息） |
 | 时间漂移 | 短线单拿成长期 | 到期日提醒、持仓天数、短 DTE 惩罚（Theta Pain） |
 | 记录难坚持 | 工具重、步骤多，用几天就弃 | 30 秒内完成关键操作、移动端友好、自动拉价 |
-| 价格更新麻烦 | 手动查行情再填表 | CBOE/Nasdaq API 自动获取价格与 Greeks |
+| 价格更新麻烦 | 手动查行情再填表 | MarketData.app / CBOE API 自动获取价格与 Greeks |
 
 ### 1.3 成功指标（可观测）
 
@@ -56,7 +56,7 @@
 │  Scanner    │  Watchlist  │  Portfolio  │  Strategy   │ History │
 │  (OSS 扫描)  │  (计划入场)  │  (持仓管理)  │  Recommender│ /Stats  │
 ├─────────────┴─────────────┴─────────────┴─────────────┴─────────┤
-│  数据与评分：CBOE/Nasdaq API · OSS (oss-core + api/_shared)       │
+│  数据与评分：MarketData.app(主)/CBOE(备) + Nasdaq · OSS (oss-core + api/_shared) │
 │  持久化：Supabase (positions, transactions, greeks_history)       │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -70,7 +70,7 @@
 | P0 | Watchlist | 计划入场、理想价/止损/目标、转 Active | ✅ |
 | P0 | 价格与 Greeks | 单合约 API（option-price）+ 批量刷新 | ✅ |
 | P0 | Scanner | OSS v2.1 扫描（Long/Short + Day Trade），Top N 结果 | ✅ |
-| P0 | OSS 单点事实 | oss-core.ts + api/_shared/scoring.js，前后端分数一致 | ✅ |
+| P0 | OSS 单点事实 | oss-core.ts + api/_shared/scoring.cjs，前后端分数一致 | ✅ |
 | P1 | Strategy Recommender | IV  regime + Credit/Debit/Single Leg 推荐 | ✅ |
 | P1 | History / Stats | 已平仓记录、胜率、Setup 分析 | ✅ |
 | P1 | Greeks 历史 | IV/Delta 历史记录与图表 | ✅ |
@@ -85,7 +85,7 @@
 
 ### 4.1 性能
 
-- 扫描单次请求：在合理 DTE/Strike/Volume 过滤下，返回 Top 20  within 可接受延迟（依赖 CBOE 响应）。
+- 扫描单次请求：在合理 DTE/Strike/Volume 过滤下，返回 Top 20 within 可接受延迟（依赖期权数据源：MarketData 或 CBOE 响应）。
 - 前端：首屏与列表滚动流畅；价格/Score 更新不阻塞主流程。
 
 ### 4.2 可用性与一致性
@@ -96,7 +96,7 @@
 ### 4.3 安全与合规
 
 - 认证与行级数据隔离（Supabase RLS）。
-- API 密钥与敏感配置不进入前端；CBOE/Nasdaq 调用在 Serverless 内完成。
+- API 密钥与敏感配置不进入前端；期权数据（MarketData/CBOE）与 Nasdaq 调用在 Serverless 内完成。
 
 ### 4.4 兼容与部署
 
@@ -111,13 +111,13 @@
 
 - 期权计划、持仓、历史记录与基础统计。
 - OSS 评分（LOQ/CSQ、价差评分）与 IV 期限结构驱动的策略建议。
-- 延迟行情（CBOE 15 分钟延迟）下的价格与 Greeks 展示与更新。
+- 期权价格与 Greeks 展示与更新（主源 MarketData.app 实时；备用 CBOE 15 分钟延迟）。
 - 单用户、单账户的纪律执行与复盘。
 
 ### 5.2 Out of Scope（明确不做或后续）
 
 - **实盘下单**：不连接券商，不执行真实订单。
-- **实时行情**：当前仅用延迟数据；实时需另接付费数据源。
+- **实时行情**：可选；配置 MarketData.app 为实时，未配置时使用 CBOE 延迟数据。
 - **多用户协作**：无多账户、无分享仓位。
 - **合规/税务建议**：不提供税务或法律建议，仅提供记录与统计。
 
@@ -127,7 +127,7 @@
 
 ### 6.1 外部依赖
 
-- **CBOE**：延迟期权链与报价，免费、无 API Key，15 分钟延迟。
+- **期权数据**：由 `DATA_SOURCE` 控制。**MarketData.app**（主）：实时期权链与报价、交易所级 Greeks，需 API Token；**CBOE**（备）：延迟期权链与报价，免费、无 API Key，15 分钟延迟。
 - **Nasdaq**：历史价格（RV）、财报日期等，通过公开 API。
 - **Supabase**：数据库、Auth、Realtime。
 - **Vercel**：前端托管与 Serverless API（Hobby 计划）。

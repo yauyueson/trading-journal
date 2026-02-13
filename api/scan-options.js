@@ -75,28 +75,12 @@ export default async function handler(req, res) {
         let currentPrice = 0;
         let cboeTimestamp = null;
 
-        if (dataSource === 'MARKET_DATA') {
-            const { getOptionChain } = await import('./market-data-client.js');
-            console.log(`Scanning ${upperTicker} via MarketData.app`);
+        if (dataSource === 'POLYGON') {
+            const { getOptionChain } = await import('./polygon-client.js');
+            console.log(`Scanning ${upperTicker} via Polygon.io`);
 
             // Optimize: Pass filters directly to API
-            // Note: Scanner uses strict filters that map well to MarketData params
             const filters = {
-                minDte: dteMinNum,
-                maxDte: dteMaxNum,
-                // Delta filtering (absolute in scanner, but API needs raw)
-                // Scanner uses abs(delta) min/max. 
-                // MarketData delta param is signed range.
-                // We need to fetch both positive and negative ranges if direction is 'all'.
-                // Or just fetch wide delta range and filter locally.
-                // 
-                // Strategy: Fetched ALL deltas is safer for now to ensure we get both sides, 
-                // OR construct complex query if API supports it (API usually takes one range).
-                // Let's fetch strict DTE + Side (if specified) + wide strike?
-                // Strike range is relative to current price (which we don't know yet).
-                // So we can't filter strike server-side easily without a quote first.
-                //
-                // Best fit: Filter by DTE and Side.
                 minDte: dteMinNum,
                 maxDte: dteMaxNum
             };
@@ -112,7 +96,7 @@ export default async function handler(req, res) {
                 const valid = chainData.find(o => o.underlyingPrice > 0);
                 currentPrice = valid ? valid.underlyingPrice : 0;
             } else {
-                return res.status(200).json({ success: true, results: [], context: { note: 'No data from MarketData' } });
+                return res.status(200).json({ success: true, results: [], context: { note: 'No data from Polygon.io' } });
             }
 
         } else {
@@ -233,15 +217,17 @@ export default async function handler(req, res) {
             const thetas = processed.map((p) => p.thetaBurn);
             const gtRatios = processed.map((p) => p.gammaThetaRatio);
             const dtes = processed.map((p) => p.opt.dte);
+            const vegaEfficiencies = processed.map((p) => (p.opt.vega || 0) / (p.mid || 0.01));
             const zL = zScoresByBucket(compressedLambdas, dtes);
             const zG = zScoresByBucket(gammas, dtes);
             const zT = zScoresByBucket(thetas, dtes);
             const zGT = zScoresByBucket(gtRatios, dtes);
+            const zVegaEff = zScoresByBucket(vegaEfficiencies, dtes);
 
             const rawScores = processed.map((p, i) => {
                 const deltaBonus = getDeltaBonus(p.opt.delta);
                 const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
-                return calculateLOQRaw(zL[i], zG[i], zT[i], ivAdjustment, deltaBonus, p.thetaBurn, isDayTradeMode, zGT[i], bePenalty, p.opt.dte);
+                return calculateLOQRaw(zL[i], zG[i], zT[i], ivAdjustment, deltaBonus, p.thetaBurn, isDayTradeMode, zGT[i], bePenalty, p.opt.dte, zVegaEff[i]);
             });
             const loqScores = normalizeLOQScoresWithDynamicBaseline(rawScores);
 
@@ -284,12 +270,15 @@ export default async function handler(req, res) {
             const pops = processed.map((p) => p.pop);
             const spreads = processed.map((p) => p.spreadPct);
             const dtes = processed.map((p) => p.opt.dte);
+            const vegaEfficiencies = processed.map((p) => (p.opt.vega || 0) / (p.mid || 0.01));
             const zE = zScoresByBucket(edges, dtes);
             const zP = zScoresByBucket(pops, dtes);
             const zS = zScoresByBucket(spreads, dtes);
+            const zVegaEff = zScoresByBucket(vegaEfficiencies, dtes);
 
             results = processed.map((p, i) => {
-                const rawScore = calculateCSQRaw(zE[i], zP[i], zS[i], ivAdjustment);
+                const vegaPenalty = -0.05 * zVegaEff[i];
+                const rawScore = calculateCSQRaw(zE[i], zP[i], zS[i], ivAdjustment, vegaPenalty);
                 const score = normalizeScoreTo100(rawScore);
 
                 return {

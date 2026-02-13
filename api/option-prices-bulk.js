@@ -26,12 +26,12 @@ export default async function handler(req, res) {
 
     const dataSource = process.env.DATA_SOURCE || 'CBOE';
 
-    // Group by source (MarketData vs CBOE)
-    // Currently only MarketData supports true bulk efficiently via this endpoint's design
-    // But we can fallback to parallel fetch for CBOE if needed (though dangerous for rate limits)
+    // Group by source (Polygon vs CBOE)
+    // Polygon doesn't support true bulk in one call like MarketData did
+    // We need to make concurrent individual requests
 
-    if (dataSource !== 'MARKET_DATA') {
-        // Fallback: This endpoint is primarily for MarketData optimization.
+    if (dataSource !== 'POLYGON') {
+        // Fallback: This endpoint is primarily for optimization.
         // If stuck on CBOE, frontend should probably assume legacy behavior or we loop here.
         // For now, let's just return error or implement loop.
         // Implementing loop to keep frontend logic simple.
@@ -39,69 +39,75 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { getQuotes } = await import('./market-data-client.js');
+        const { getOptionSnapshot } = await import('./polygon-client.js');
 
-        // 1. Generate OCC Symbols
-        const symbolMap = new Map(); // occ -> [legParams...] (one OCC might be used by multiple positions?)
-        const occList = [];
+        // 1. Build request map
+        const requestMap = new Map(); // occ -> { underlying, legs[] }
 
         legs.forEach(leg => {
             const exp = normalizeExpiration(leg.expiration);
             const occ = generateOCCSymbol(leg.ticker, exp, leg.type, leg.strike);
             if (occ) {
-                if (!symbolMap.has(occ)) {
-                    symbolMap.set(occ, []);
-                    occList.push(occ);
+                if (!requestMap.has(occ)) {
+                    requestMap.set(occ, {
+                        underlying: leg.ticker.toUpperCase(),
+                        occ: occ,
+                        legs: []
+                    });
                 }
-                symbolMap.get(occ).push(leg);
+                requestMap.get(occ).legs.push(leg);
             }
         });
 
-        if (occList.length === 0) {
+        if (requestMap.size === 0) {
             return res.json({ success: true, results: [] });
         }
 
-        // 2. Fetch Bulk
-        console.log(`[Bulk] Fetching ${occList.length} symbols via MarketData...`);
-        const quotes = await getQuotes(occList);
-
-        // 3. Map Results
+        // 2. Fetch in chunks (Polygon doesn't support bulk, need concurrent individual calls)
+        console.log(`[Bulk] Fetching ${requestMap.size} symbols via Polygon.io...`);
+        const CHUNK_SIZE = 10;
+        const entries = Array.from(requestMap.values());
         const results = [];
 
-        // quotes is array of normalized option objects
-        quotes.forEach(quote => {
-            // Find request legs matching this quote
-            // MarketData quote has 'symbol' which matches our OCC (hopefully)
-            // But we can also match by attributes if needed.
-            // normalizeOption returns 'symbol' as OCC found in API.
+        for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
+            const chunk = entries.slice(i, i + CHUNK_SIZE);
 
-            // Try direct match
-            const occ = quote.symbol;
-            const requests = symbolMap.get(occ);
+            const promises = chunk.map(async ({ underlying, occ, legs: reqLegs }) => {
+                try {
+                    const snapshot = await getOptionSnapshot(underlying, occ);
 
-            if (requests) {
-                requests.forEach(reqLeg => {
-                    results.push({
-                        ...reqLeg, // include original identifying info (id, etc)
-                        price: quote.last > 0 ? quote.last : (quote.mid > 0 ? quote.mid : 0),
-                        data: quote,
-                        success: true
-                    });
-                });
-                symbolMap.delete(occ); // Mark handled
-            }
-        });
-
-        // Handle missing/failed
-        symbolMap.forEach((requests, occ) => {
-            requests.forEach(reqLeg => {
-                results.push({
-                    ...reqLeg,
-                    success: false,
-                    error: 'Not found'
-                });
+                    if (snapshot) {
+                        // Map to all requesting legs
+                        return reqLegs.map(reqLeg => ({
+                            ...reqLeg,
+                            price: snapshot.last > 0 ? snapshot.last : ((snapshot.bid + snapshot.ask) / 2 || 0),
+                            data: snapshot,
+                            success: true
+                        }));
+                    } else {
+                        return reqLegs.map(reqLeg => ({
+                            ...reqLeg,
+                            success: false,
+                            error: 'No snapshot data'
+                        }));
+                    }
+                } catch (e) {
+                    console.error(`Error fetching ${occ}:`, e.message);
+                    return reqLegs.map(reqLeg => ({
+                        ...reqLeg,
+                        success: false,
+                        error: e.message
+                    }));
+                }
             });
-        });
+
+            const chunkResults = await Promise.all(promises);
+            chunkResults.forEach(legResults => {
+                if (Array.isArray(legResults)) {
+                    results.push(...legResults);
+                }
+            });
+        }
 
         return res.status(200).json({
             success: true,

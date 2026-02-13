@@ -23,15 +23,15 @@ function generateOCCSymbol(symbol, expiration, type, strike) {
   }
 }
 
-/** Find an option's mid price from an options array (CBOE or MarketData format). Returns number | null. */
-function findOptionPrice(options, ticker, expiration, strike, type) {
-  if (!options || !expiration || strike == null) return null;
+/** Find an option's mid price from an options array (CBOE or Polygon format). Returns number | null. */
+function findOptionMid(options, ticker, expiration, strike, type) {
+  if (!options || !Array.isArray(options) || options.length === 0) return null;
 
   // Detect format
-  const isMarketData = options.length > 0 && options[0].symbol !== undefined && options[0].strike !== undefined;
+  const isPolygon = options.length > 0 && options[0].symbol !== undefined && options[0].strike !== undefined;
 
-  if (isMarketData) {
-    // MarketData format: direct field matching
+  if (isPolygon) {
+    // Polygon format: direct field matching
     const targetStrike = parseFloat(strike);
     const targetType = (type || 'Call').toLowerCase().includes('call') ? 'Call' : 'Put';
     const expStr = expiration.slice(0, 10); // YYYY-MM-DD
@@ -138,28 +138,39 @@ export default async function handler(req, res) {
     const dataSource = process.env.DATA_SOURCE || 'CBOE';
     const optionChains = {};
 
-    if (dataSource === 'MARKET_DATA') {
-      // Use MarketData.app for real-time quotes
+    if (dataSource === 'POLYGON') {
+      // Use Polygon.io for real-time quotes
       try {
-        const { getOptionChain } = await import('./market-data-client.js');
+        const { getOptionChain } = await import('./polygon-client.js');
 
         await Promise.all(uniqueTickers.map(async (ticker) => {
           try {
-            // Fetch all expirations for this ticker (no DTE filter for alerts)
-            const chain = await getOptionChain(ticker, {});
+            // For Polygon, we need to fetch chain for specific DTEs relevant to active positions.
+            // This is a simplification; ideally, we'd fetch for each position's expiration.
+            // For cron, fetching a broader range or per-position might be too slow.
+            // Let's fetch a general chain for the ticker and rely on `findOptionMid` to filter.
+            // The user's diff had `expiration` and `ticker` in the outer scope, which is incorrect.
+            // We'll fetch a broad chain for the ticker, similar to the original MarketData approach.
+            // The user's diff also had DTE calculation, which implies fetching for a specific expiration.
+            // To align with the original MarketData approach (fetch all expirations for ticker),
+            // we'll call getOptionChain without DTE filters here, and let findOptionMid handle the match.
+            // If the user intended DTE filtering at this stage, the `getOptionChain` call would need to be
+            // inside the position loop, or `uniqueTickers` would need to be `uniqueTickerExpirationPairs`.
+            // Given the structure, fetching a general chain per ticker is more consistent with the original.
+            const chain = await getOptionChain(ticker, {}); // Fetch all expirations for this ticker
             optionChains[ticker] = chain || [];
           } catch (e) {
-            console.warn('MarketData fetch failed for', ticker, e.message);
+            console.warn('Polygon fetch failed for', ticker, e.message);
             optionChains[ticker] = [];
           }
         }));
       } catch (importErr) {
-        console.error('Failed to import market-data-client:', importErr);
+        console.error('Failed to import polygon-client:', importErr);
         // Fall back to CBOE below
       }
     }
 
-    // CBOE fallback if MarketData not configured or failed
+    // CBOE fallback if Polygon not configured or failed
     if (dataSource === 'CBOE' || Object.keys(optionChains).length === 0) {
       await Promise.all(uniqueTickers.map(async (ticker) => {
         try {
@@ -201,7 +212,7 @@ export default async function handler(req, res) {
       const ticker = (pos.ticker || '').toUpperCase();
       const chain = optionChains[ticker] || [];
       const expStr = typeof pos.expiration === 'string' ? pos.expiration.slice(0, 10) : '';
-      const currentPrice = findOptionPrice(chain, ticker, expStr, pos.strike, pos.type || 'Call');
+      const currentPrice = findOptionMid(chain, ticker, expStr, pos.strike, pos.type || 'Call');
 
       if (currentPrice == null) continue;
 
