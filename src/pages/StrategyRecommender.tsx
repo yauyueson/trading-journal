@@ -479,7 +479,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                 </div>
                                 <div className="flex-1 min-w-[100px] sm:flex-none sm:text-right">
                                     <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center sm:justify-end gap-1">
-                                        IV %ile
+                                        IV %
                                         <Tooltip label="" explanation="IV Percentile: % of past days with IV30 below current. Low = IV cheap (buyers); high = IV expensive (sellers). N/A until enough history (run backfill once)." />
                                     </div>
                                     <div className={`text-xl sm:text-2xl font-mono font-bold mb-1 ${result.regime.ivPercentile != null ? (result.regime.ivPercentile < 0.3 ? 'text-emerald-400' : result.regime.ivPercentile > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>

@@ -148,7 +148,7 @@ GET /api/option-price?ticker=QQQ&expiration=2026-02-20&strike=630&type=Call
 |------|------|
 | price | 计算后的价格（优先用 mid price） |
 | priceSource | 价格来源：mid（买卖中间价）或 last（最后成交价） |
-| dataSource | 实际数据来源：`"MarketData.app"` 或 `"CBOE"` |
+| dataSource | 实际数据来源：`"Polygon"` 或 `"CBOE"` |
 | iv | 隐含波动率；Polygon 为真实值，CBOE 可能不完整 |
 | delta, gamma, theta, vega | Greeks；仅 Polygon 提供非零值，CBOE 为 0 |
 | volume | 当日成交量 |
@@ -162,7 +162,6 @@ GET /api/option-price?ticker=QQQ&expiration=2026-02-20&strike=630&type=Call
 | 配置 | 行为 |
 |------|------|
 | `DATA_SOURCE=POLYGON` | 优先调用 Polygon.io（需 `POLYGON_API_KEY`）；仅请求所需 DTE/行权；1 分钟期权链缓存 |
-| `DATA_SOURCE=MARKET_DATA` | 优先调用 MarketData.app（需 `MARKET_DATA_TOKEN`）；失败时自动降级 CBOE |
 | `DATA_SOURCE=CBOE` 或未设置 | 仅使用 CBOE 延迟 API |
 
 **Polygon.io**（主，推荐）：
@@ -347,9 +346,8 @@ https://api.vercel.com/v1/integrations/deploy/prj_Q27dySs80ReT8IwzjuVlMtePI2xu/s
 |--------|------|
 | `VITE_SUPABASE_URL` | Supabase 项目 URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase Anon Key |
-| `DATA_SOURCE` | 期权数据源：`POLYGON`（主）、`MARKET_DATA` 或 `CBOE`（备）；未设置时默认 CBOE |
+| `DATA_SOURCE` | 期权数据源：`POLYGON`（主）或 `CBOE`（备）；未设置时默认 CBOE |
 | `POLYGON_API_KEY` | Polygon.io API Key（当 `DATA_SOURCE=POLYGON` 时必填） |
-| `MARKET_DATA_TOKEN` | MarketData.app API Token（当 `DATA_SOURCE=MARKET_DATA` 时必填） |
 | `CRON_SECRET` | check-alerts API 鉴权密钥 |
 | `DISCORD_WEBHOOK_URL` | Discord Webhook URL（提醒发送目标） |
 
@@ -552,7 +550,7 @@ cron-job.org (每 15 分钟 GET)
 1. 检查网络连接
 2. 确认 ticker/expiration/strike/type 参数正确
 3. 若使用 Polygon：检查 `DATA_SOURCE=POLYGON` 与 `POLYGON_API_KEY` 已配置；详见 `docs/09_Polygon集成.md`
-4. 若使用 MarketData：检查 `DATA_SOURCE=MARKET_DATA` 与 `MARKET_DATA_TOKEN` 已配置；失败时会自动降级 CBOE
+4. 若使用 Polygon：检查 `DATA_SOURCE=POLYGON` 与 `POLYGON_API_KEY` 已配置；失败时会自动降级 CBOE
 5. CBOE 备用可能暂时不可用或返回 429，稍后重试
 6. 使用手动输入作为备用
 
@@ -563,7 +561,7 @@ cron-job.org (每 15 分钟 GET)
 | "Option contract not found" | 合约不存在或已过期 | 检查到期日 |
 | "CBOE API error: 404" | Ticker 不支持 | 确认是美股期权 |
 | Polygon 返回 401/403 | API Key 无效或过期 | 检查 `POLYGON_API_KEY` |
-| MarketData 返回 401/403 | Token 无效或过期 | 检查 `MARKET_DATA_TOKEN` |
+| Polygon 返回 401/403 | API Key 无效或过期 | 检查 `POLYGON_API_KEY` |
 | 响应中 Greeks 全为 0 | 当前使用 CBOE 或主数据源未配置 | 配置 `DATA_SOURCE` 与对应 API Key/Token 后部署 |
 | Network error | 网络问题 | 检查连接 |
 

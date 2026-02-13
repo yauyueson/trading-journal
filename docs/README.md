@@ -250,13 +250,12 @@ docs/
 
 ## 🔄 文档更新日志
 
-### 2026-02-12
-- ✅ **技术文档与数据源一致化**：根据代码更新全部技术文档，统一反映 MarketData.app（主）+ CBOE（备）双数据源架构。
-- ✅ **TECHNICAL_DOCUMENTATION.md**：架构图、期权数据源层、数据源配置（DATA_SOURCE/MARKET_DATA_TOKEN）、API 返回示例（dataSource: MarketData.app/CBOE）、Vercel 环境变量、故障排除。
-- ✅ **01_项目概览.md**：架构图与外部数据层、技术栈表「期权数据源」行。
-- ✅ **02_技术路径.md**：API 端点列表（scoring.cjs、market-data-client.js、daily-recap）、数据源逻辑示例、Scanner 数据流、API 集成小节（双源 + CBOE 格式说明）、环境变量示例。
-- ✅ **00_PRD_总览.md**：数据与评分依赖、外部依赖（MarketData/CBOE）、In Scope 行情描述、性能与安全表述。
-- ✅ **docs/README.md**：目录增加 08/09、API 文档描述与按主题查找、文档结构列表。
+### 2026-02-12（文档精简与数据源统一）
+- ✅ **技术文档与数据源一致化**：全项目文档统一为 **Polygon.io（主）+ CBOE（备）**；API 层已仅支持 POLYGON/CBOE，MarketData 已弃用。
+- ✅ **删除重复/过时**：删除 `docs/TECHNICAL_DOCUMENTATION.md`（与根目录重复，保留根目录一份）；删除 `MIGRATION_SUMMARY.md`（内容已入 CHANGELOG）。
+- ✅ **弃用说明**：`09_MarketData集成.md`、`MARKETDATA_DEV_GUIDE.md` 改为弃用重定向，指向 Polygon 集成与根目录技术文档。
+- ✅ **单点技术文档**：完整架构/API/部署见根目录 [TECHNICAL_DOCUMENTATION.md](../TECHNICAL_DOCUMENTATION.md)；docs 目录以 PRD/概览/算法/数据库/API/工作流/提醒/IV Rank/Polygon 为主。
+- ✅ **05_API文档、01_项目概览、00_PRD、README**：数据源描述与环境变量统一为 Polygon + CBOE；端点表与故障排除更新。
 
 ### 2026-02-09
 - ✅ **Portfolio 价差快速添加**: Quick Add 表单支持 Single Leg / Credit Spread / Debit Spread 切换，自动构建 `legs` JSONB 并写入 Supabase。
