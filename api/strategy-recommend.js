@@ -66,42 +66,47 @@ async function ensureScoring() {
 // DATA FETCHING UTILITIES
 // =============================================================================
 
-async function fetchRV30(ticker) {
+/**
+ * Calculate 30-day Realized Volatility from Polygon candles
+ * Uses population standard deviation of log returns, annualized to %
+ * @param {string} ticker Stock symbol
+ * @returns {Promise<number|null>} RV30 as annualized % (e.g., 25.5 = 25.5%) or null on failure
+ */
+async function calculateRV30FromPolygon(ticker) {
     try {
+        // Import getCandles from polygon-client
+        const polygonUrl = new URL('../lib/polygon-client.js', import.meta.url).href;
+        const polygonMod = await import(polygonUrl);
+        const { getCandles } = polygonMod;
+
         const toDate = new Date();
         const fromDate = new Date();
-        fromDate.setDate(toDate.getDate() - 60); // Fetch 60 days to ensure enough trading days for 30-day window
+        fromDate.setDate(toDate.getDate() - 60); // Fetch 60 days to ensure enough trading days
         const toStr = toDate.toISOString().split('T')[0];
         const fromStr = fromDate.toISOString().split('T')[0];
 
-        const url = `https://api.nasdaq.com/api/quote/${ticker.toUpperCase()}/historical?assetclass=stocks&fromdate=${fromStr}&todate=${toStr}&limit=60`;
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-        });
+        const candles = await getCandles(ticker, fromStr, toStr, 'day');
+        if (!candles || candles.length < 10) return null;
 
-        if (!response.ok) return null;
-        const data = await response.json();
-        const rows = data?.data?.tradesTable?.rows || [];
-        if (rows.length < 5) return null;
-
-        const prices = rows
-            .map(row => parseFloat(row.close.replace('$', '').replace(',', '')))
-            .filter(price => !isNaN(price))
-            .reverse();
-
+        // Calculate log returns
+        const closes = candles.map(c => c.close);
         const returns = [];
-        for (let i = 1; i < prices.length; i++) {
-            returns.push(Math.log(prices[i] / prices[i - 1]));
+        for (let i = 1; i < closes.length; i++) {
+            returns.push(Math.log(closes[i] / closes[i - 1]));
         }
 
+        // Use most recent 30 returns
         const recentReturns = returns.slice(-30);
+        if (recentReturns.length < 10) return null;
+
+        // Population standard deviation (divide by N, not N-1)
         const mean = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
-        const variance = recentReturns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentReturns.length;
-        return Math.sqrt(variance) * Math.sqrt(252) * 100;
+        const variance = recentReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / recentReturns.length;
+
+        // Annualize: sqrt(variance) * sqrt(252) * 100 to get %
+        return Math.sqrt(variance * 252) * 100;
     } catch (e) {
-        console.error("RV Fetch Error:", e);
+        console.error("RV30 Calculation Error (Polygon):", e);
         return null;
     }
 }
@@ -366,8 +371,8 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             const effectiveMaxRisk = width - effectiveCredit;
             const effectiveROI = (effectiveCredit / effectiveMaxRisk) * 100;
 
-            // Hard filter relaxed from 0.15 to 0.30 to allow wider spreads if EV is good
-            if (spreadPct > 0.30) continue;
+            // Use consistent spread ceiling across all strategies
+            if (spreadPct > HARD_FILTER_DEFAULTS.maxSpreadPctCeiling) continue;
 
             // Scoring (v2.2 — EV-enhanced + Slippage)
             const ev = calculateExpectedValue(pop, effectiveCredit, effectiveMaxRisk);
@@ -486,7 +491,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
 
             if (debit >= width * 0.55) continue;
             // if (riskReward < 1.5) continue; // Relaxed in favor of EV check
-            if (spreadPctVal > 0.30) continue; // Relaxed filter for slippage model
+            if (spreadPctVal > HARD_FILTER_DEFAULTS.maxSpreadPctCeiling) continue; // Consistent with credit spreads
 
             // 4. Slippage (Debit)
             const slippage1 = estimateSlippage(longLeg.bid, longLeg.ask);
@@ -497,7 +502,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
 
             if (effectiveDebit >= width * 0.70) continue; // Too expensive after slippage
 
-            // Scoring
+            // Scoring (Enhanced v2.3 — 6 dimensions aligned with LOQ)
             const lambda = Math.abs(longLeg.delta) * (currentPrice / mid);
             const compLambda = compressLambda(lambda);
             const deltaBonus = getDeltaBonus(longLeg.delta);
@@ -517,11 +522,30 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
             }
             const expectedValue = (effectiveMaxProfit * pop) - (effectiveDebit * (1 - pop));
 
+            // 1. Lambda score (leverage)
             const lambdaScore = Math.min((compLambda / 20) * 100, 100);
+
+            // 2. Risk/Reward score
             const rrScore = Math.min((riskReward / 3) * 100, 100);
+
+            // 3. Delta score (moneyness)
             const deltaScore = 50 + deltaBonus * 12.5;
 
-            let finalScore = (0.4 * lambdaScore) + (0.35 * rrScore) + (0.25 * deltaScore);
+            // 4. Theta decay penalty (NEW)
+            const thetaBurn = Math.abs(longLeg.theta || 0) / effectiveDebit;
+            const thetaPenalty = getThetaPenalty(thetaBurn);
+
+            // 5. Breakeven penalty (NEW)
+            const beMove = calculateBreakevenMove(longLeg.strike, effectiveDebit, currentPrice, type);
+            const bePenalty = getBreakevenPenalty(beMove, longLeg.dte || 30);
+
+            // 6. EV score (NEW)
+            const evRatio = effectiveDebit > 0 ? expectedValue / effectiveDebit : 0;
+            const evScore = Math.max(0, Math.min(100, 50 + evRatio * 50));
+
+            // Weighted scoring: lambda(25%) + R:R(25%) + delta(15%) + EV(20%) + BE(10%) + theta(-5%)
+            let finalScore = (0.25 * lambdaScore) + (0.25 * rrScore) + (0.15 * deltaScore) +
+                (0.20 * evScore) + (0.10 * (50 + bePenalty * 12.5)) - (0.05 * thetaPenalty);
             finalScore += ivRankAdj * 2;
 
             // When IV/RV > 1.10 (contango but paying VRP), favor more selective debits: R:R ≥ 1.5, DTE 30–45, delta 0.50–0.65
@@ -706,7 +730,7 @@ export default async function handler(req, res) {
 
             // Parallel fetch: ancillary data + underlying price (for strike-range filter to reduce payload)
             const [rv30, daysUntilEarnings, underlyingPrice] = await Promise.all([
-                fetchRV30(upperTicker),
+                calculateRV30FromPolygon(upperTicker),
                 fetchEarnings(upperTicker),
                 getUnderlyingPrice(upperTicker)
             ]);

@@ -26,11 +26,11 @@ export const HARD_FILTER_DEFAULTS = {
 } as const;
 
 export const DTE_BUCKETS = [
-    { label: '0-14',   min: 0,   max: 14  },
-    { label: '15-30',  min: 15,  max: 30  },
-    { label: '31-60',  min: 31,  max: 60  },
-    { label: '61-120', min: 61,  max: 120 },
-    { label: '121+',   min: 121, max: Infinity },
+    { label: '0-14', min: 0, max: 14 },
+    { label: '15-30', min: 15, max: 30 },
+    { label: '31-60', min: 31, max: 60 },
+    { label: '61-120', min: 61, max: 120 },
+    { label: '121+', min: 121, max: Infinity },
 ] as const;
 
 export const MIN_BUCKET_SIZE = 3;
@@ -83,13 +83,12 @@ export function sigmoid(x: number): number {
 
 /**
  * Compress extreme Lambda values to prevent Z-Score explosion.
- * Lambda ≤ 20: pass-through. Lambda > 20: soft log-linear decay.
+ * Uses log2 compression: lambda=1 → 1.0, lambda=20 → 4.4, lambda=100 → 6.7, lambda=500 → 9.0
  */
 export function compressLambda(lambda: number): number {
-    const THRESHOLD = 20;
-    const DECAY_RATE = 0.1;
-    if (lambda <= THRESHOLD) return lambda;
-    return THRESHOLD + (lambda - THRESHOLD) * DECAY_RATE;
+    const MIN_LAMBDA = 1;
+    const clamped = Math.max(MIN_LAMBDA, lambda);
+    return Math.log2(1 + clamped);
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -410,9 +409,9 @@ export const LOQ_WEIGHTS = {
     lambda: 0.30,
     gammaEff: 0.20,
     gammaThetaRatio: 0.15,
-    thetaBurn: -0.10,
+    thetaBurn: 0,
     deltaBonus: 0.15,
-    breakevenPenalty: 0.10,
+    breakevenPenalty: 0.15,
 } as const;
 
 /** Day-trade mode weights (DTE ≤ 5, v2.2 — G/T emphasized, BE de-emphasized) */
@@ -420,7 +419,7 @@ export const LOQ_DT_WEIGHTS = {
     lambda: 0.30,
     gammaEff: 0.35,
     gammaThetaRatio: 0.20,
-    thetaBurn: -0.05,
+    thetaBurn: 0,
     breakevenPenalty: 0.05,
     penaltyMult: 0.2,
 } as const;
@@ -511,12 +510,12 @@ export function calculateLOQRaw(
         dte != null
             ? getLOQWeightsForDTE(dte)
             : isDayTrade
-              ? {
+                ? {
                     ...LOQ_DT_WEIGHTS,
                     deltaBonus: LOQ_WEIGHTS.deltaBonus,
                     penaltyMult: LOQ_DT_WEIGHTS.penaltyMult,
                 }
-              : {
+                : {
                     ...LOQ_WEIGHTS,
                     penaltyMult: 1,
                 };
