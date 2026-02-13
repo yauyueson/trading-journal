@@ -26,10 +26,8 @@ const res = {
 
 async function run() {
     console.log("--- Running Bulk Test ---");
-    // Mock process.env
-    process.env.DATA_SOURCE = 'MARKET_DATA';
-    // You might need to set MARKET_DATA_TOKEN in your environment or rely on .env file loading if running via node directly 
-    // (Note: pure node execution won't load .env.local automatically unless we use dotenv)
+    // Mock process.env（Polygon 或 CBOE；需 POLYGON_API_KEY 时请先加载 .env.local）
+    process.env.DATA_SOURCE = process.env.DATA_SOURCE || 'POLYGON';
 
     // Attempt to run handler
     try {

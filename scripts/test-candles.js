@@ -1,5 +1,5 @@
 // scripts/test-candles.js - run from project root: node scripts/test-candles.js
-import { getCandles } from '../lib/market-data-client.js';
+import { getCandles } from '../lib/polygon-client.js';
 
 import fs from 'fs';
 import path from 'path';

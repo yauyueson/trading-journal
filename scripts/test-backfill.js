@@ -1,8 +1,8 @@
-// Simple test script to diagnose backfill issues
+// Simple test script to diagnose backfill issues (uses Polygon)
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getCandles } from '../lib/market-data-client.js';
+import { getCandles } from '../lib/polygon-client.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.resolve(__dirname, '../.env.local');
@@ -29,15 +29,15 @@ if (fs.existsSync(envPath)) {
     process.exit(1);
 }
 
-console.log('\nStep 2: Checking MARKET_DATA_TOKEN...');
-const token = process.env.MARKET_DATA_TOKEN;
+console.log('\nStep 2: Checking POLYGON_API_KEY...');
+const token = process.env.POLYGON_API_KEY;
 if (!token) {
-    console.error('✗ MARKET_DATA_TOKEN not found in environment');
+    console.error('✗ POLYGON_API_KEY not found in environment');
     process.exit(1);
 }
-console.log(`✓ Token found: ${token.substring(0, 10)}...`);
+console.log(`✓ Key found: ${token.substring(0, 10)}...`);
 
-console.log('\nStep 3: Testing MarketData API with TSLA...');
+console.log('\nStep 3: Testing Polygon API with TSLA...');
 const toDate = new Date();
 const fromDate = new Date();
 fromDate.setDate(toDate.getDate() - 30);
@@ -48,7 +48,7 @@ const toStr = toDate.toISOString().split('T')[0];
 console.log(`  Fetching TSLA candles from ${fromStr} to ${toStr}...`);
 
 try {
-    const candles = await getCandles('TSLA', fromStr, toStr, 'D');
+    const candles = await getCandles('TSLA', fromStr, toStr, 'day');
     console.log(`✓ Success! Got ${candles.length} candles`);
     if (candles.length > 0) {
         console.log('  Sample:', candles[0]);
@@ -59,4 +59,4 @@ try {
     process.exit(1);
 }
 
-console.log('\n✓ All tests passed! MarketData integration is working.');
+console.log('\n✓ All tests passed! Polygon integration is working.');

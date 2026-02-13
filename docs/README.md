@@ -92,7 +92,7 @@
 **适合**: 前端开发者、API集成者
 
 **内容**:
-- 数据源配置（DATA_SOURCE：MarketData.app 主 / CBOE 备）
+- 数据源配置（DATA_SOURCE：Polygon 主 / CBOE 备）
 - 期权价格API详解（端点、参数、响应格式、dataSource 字段）
 - OCC Symbol、价格计算逻辑
 - Supabase REST API使用
@@ -151,8 +151,6 @@
 
 **阅读时间**: 15分钟
 
-> 原 MarketData.app 集成已弃用，见 [09_MarketData集成.md](./09_MarketData集成.md) 仅作重定向。
-
 ---
 
 ## 🚀 快速开始
@@ -189,8 +187,7 @@ docs/
 ├── 06_用户工作流.md           # 使用指南和最佳实践
 ├── 07_止损与目标价短信提醒方案.md  # 短信提醒实现方案
 ├── 08_IV_Rank_上线步骤.md     # IV Rank 上线步骤
-├── 09_Polygon集成.md           # Polygon 数据源集成（主）
-└── 09_MarketData集成.md       # [已弃用] 重定向至 09_Polygon集成
+└── 09_Polygon集成.md           # Polygon 数据源集成
 ```
 
 ---
@@ -254,7 +251,7 @@ docs/
 - ✅ **技术文档与数据源一致化**：全项目文档统一为 **Polygon.io（主）+ CBOE（备）**；API 层已仅支持 POLYGON/CBOE，MarketData 已弃用。
 - ✅ **删除重复/过时**：曾删除 `docs/TECHNICAL_DOCUMENTATION.md`（与根目录重复）；删除 `MIGRATION_SUMMARY.md`（内容已入 CHANGELOG）。
 - ✅ **根目录 TECHNICAL_DOCUMENTATION 合并进 docs**：根目录 `TECHNICAL_DOCUMENTATION.md` 已删除，内容并入 [02_技术路径](./02_技术路径.md)（技术架构总览、部署与运维、故障排除、开发说明）、[01_项目概览](./01_项目概览.md)、[04_数据库设计](./04_数据库设计.md)（附录 SQL）、[05_API文档](./05_API文档.md)、[06_用户工作流](./06_用户工作流.md)、[07_止损与目标价短信提醒方案](./07_止损与目标价短信提醒方案.md)。
-- ✅ **弃用说明**：`09_MarketData集成.md`、`MARKETDATA_DEV_GUIDE.md` 改为弃用重定向，指向 Polygon 集成与 docs 内技术文档。
+- ✅ **删除 MarketData**：移除 `lib/market-data-client.js`、`docs/09_MarketData集成.md`、`MARKETDATA_DEV_GUIDE.md`、`debug-polygon.js`；脚本改为使用 Polygon。
 - ✅ **05_API文档、01_项目概览、00_PRD、README**：数据源描述与环境变量统一为 Polygon + CBOE；端点表与故障排除更新。
 
 ### 2026-02-09
