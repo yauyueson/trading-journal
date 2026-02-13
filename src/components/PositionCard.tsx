@@ -39,11 +39,11 @@ interface PositionCardProps {
     refreshTrigger?: number;
     index?: number;
     onRollClick?: (qty: number) => void;
-    /** If set, show single-trade risk as % of portfolio */
-    portfolioTotal?: number;
+    /** Array of leg data from bulk fetch */
+    initialData?: any[];
 }
 
-export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onDelete, onUpdateOwner, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick, portfolioTotal: portfolioTotalProp }) => {
+export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onDelete, onUpdateOwner, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick, portfolioTotal: portfolioTotalProp, initialData }) => {
     const settings = usePortfolioSettings();
     const portfolioTotal = portfolioTotalProp ?? settings.portfolioTotal;
     const stopOutFraction = settings.stopOutFraction;
@@ -89,16 +89,44 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     }, [position.ticker]);
 
     // Fetch Greeks and price
-    const fetchGreeksAndPrice = useCallback(async () => {
-        setLoading(true);
+    const fetchGreeksAndPrice = useCallback(async (useBulkData = false) => {
+        // If we have initialData and useBulkData is true (first load or bulk refresh), use it.
+        // Otherwise fetch fresh.
+        // NOTE: initialData changes when parent refreshes.
+
+        const effectiveData = useBulkData ? initialData : null;
+
+        if (!effectiveData) setLoading(true); // only show loading if fetching
+
         try {
             if (isSpread && position.legs) {
-                const promises = position.legs.map(async (leg) => {
-                    const params = new URLSearchParams({ ticker: position.ticker, expiration: normalizeExpiration(leg.expiration), strike: leg.strike.toString(), type: leg.type });
-                    const res = await fetch(`/api/option-price?${params}`);
-                    return res.ok ? await res.json() : null;
-                });
-                const results = await Promise.all(promises);
+                let results;
+
+                if (effectiveData && effectiveData.length > 0) {
+                    // Map initialData back to legs order
+                    results = position.legs.map(leg => {
+                        // Find matching data in effectiveData
+                        // effectiveData array has items with { expiration, strike, type, ...data }
+                        return effectiveData.find(d =>
+                            d.expiration === leg.expiration &&
+                            d.strike === leg.strike &&
+                            d.type === leg.type
+                        )?.data || null; // .data contains the mapped response format from API
+
+                        // Note: Bulk API returns result.data as the formatted option object.
+                        // But option-price.js returns it at root.
+                        // My bulk API implementation returns: { ...leg, data: { ...optionObj } }
+                        // So here we want `d.data`.
+                    });
+                    console.log(`[Card] Using Bulk Data for ${position.ticker}`);
+                } else {
+                    const promises = position.legs.map(async (leg) => {
+                        const params = new URLSearchParams({ ticker: position.ticker, expiration: normalizeExpiration(leg.expiration), strike: leg.strike.toString(), type: leg.type });
+                        const res = await fetch(`/api/option-price?${params}`);
+                        return res.ok ? await res.json() : null;
+                    });
+                    results = await Promise.all(promises);
+                }
 
                 // Prevent partial data update (wiping Greeks) if some requests failed
                 if (results.some(r => r === null)) {
@@ -231,15 +259,28 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 }
 
             } else {
-                const expNorm = normalizeExpiration(position.expiration);
-                const params = new URLSearchParams({ ticker: position.ticker, expiration: expNorm, strike: position.strike.toString(), type: position.type });
-                const response = await fetch(`/api/option-price?${params}`);
-                if (response.ok) {
-                    const data = await response.json();
+                let data;
+
+                if (effectiveData && effectiveData.length > 0) {
+                    // Single position, effectiveData array should have one item with .data
+                    // Or match by attributes if array has multiples (unlikely for single pos ID but safe)
+                    data = effectiveData[0].data || null;
+                } else {
+                    const expNorm = normalizeExpiration(position.expiration);
+                    const params = new URLSearchParams({ ticker: position.ticker, expiration: expNorm, strike: position.strike.toString(), type: position.type });
+                    const response = await fetch(`/api/option-price?${params}`);
+                    if (response.ok) {
+                        data = await response.json();
+                    }
+                }
+
+                if (data) {
                     // Current = mid (bid+ask)/2，与 API 返回的 price 一致
                     const price = data.price ?? 0;
                     if (price || data.bid != null || data.ask != null) {
-                        await onUpdatePrice(position.id, price);
+                        if (Math.abs((position.current_price || 0) - price) > 0.01) {
+                            await onUpdatePrice(position.id, price);
+                        }
                         if (data.cboeTimestamp && onDataUpdate) {
                             onDataUpdate(data.cboeTimestamp);
                         }
@@ -270,20 +311,31 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
             }
         } catch (e) { console.error(e); }
         setLoading(false);
-    }, [position.id, position.ticker, position.expiration, position.strike, position.type, isSpread, isCreditStrategy, position.legs, onUpdatePrice]);
+    }, [position.id, position.ticker, position.expiration, position.strike, position.type, isSpread, isCreditStrategy, position.legs, onUpdatePrice, initialData]);
 
     useEffect(() => {
-        fetchGreeksAndPrice();
-    }, [fetchGreeksAndPrice]);
+        // Initial load? Try using bulk data if available, otherwise fetch.
+        // If initialData is present, it means parent likely fetched already.
+        if (initialData) {
+            fetchGreeksAndPrice(true);
+        } else {
+            fetchGreeksAndPrice(false);
+        }
+    }, [initialData]); // Re-run when initialData updates (bulk refresh)
 
     useEffect(() => {
-        if (refreshTrigger > 0) {
+        if (refreshTrigger > 0 && !initialData) {
+            // Only trigger individual fetch if NO bulk data was provided
+            // OR if the refresh trigger is meant to force fallback
+            // But Portfolio logic says: if bulk fails, trigger incremented.
+            // If bulk succeeds, initialData updates, triggering above effect.
+            // So this handles fallback only.
             const delay = index * 200;
             setTimeout(() => {
-                fetchGreeksAndPrice();
+                fetchGreeksAndPrice(false);
             }, delay);
         }
-    }, [refreshTrigger, index, fetchGreeksAndPrice]);
+    }, [refreshTrigger, index, fetchGreeksAndPrice, initialData]);
 
     useEffect(() => {
         if (isExpanded && historyData.length === 0) {
@@ -436,13 +488,12 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                                     const val = e.target.value;
                                     onUpdateOwner(position.id, val === '' ? null : val as 'Yuchen' | 'Annie');
                                 }}
-                                className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold cursor-pointer transition-colors appearance-none bg-transparent border-0 outline-none ${
-                                    position.owner === 'Yuchen'
-                                        ? 'bg-blue-500/20 text-blue-400'
-                                        : position.owner === 'Annie'
-                                            ? 'bg-pink-500/20 text-pink-400'
-                                            : 'bg-white/5 text-text-tertiary'
-                                }`}
+                                className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold cursor-pointer transition-colors appearance-none bg-transparent border-0 outline-none ${position.owner === 'Yuchen'
+                                    ? 'bg-blue-500/20 text-blue-400'
+                                    : position.owner === 'Annie'
+                                        ? 'bg-pink-500/20 text-pink-400'
+                                        : 'bg-white/5 text-text-tertiary'
+                                    }`}
                             >
                                 <option value="" className="bg-bg-primary text-text-tertiary">—</option>
                                 <option value="Yuchen" className="bg-bg-primary text-blue-400">Yuchen</option>

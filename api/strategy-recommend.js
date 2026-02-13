@@ -241,6 +241,24 @@ function getDeltaAtStrike(chain, optionType, expiration, targetStrike) {
     return a.delta + t * (b.delta - a.delta);
 }
 
+/** Get Probability ITM at or near targetStrike. Interpolates. */
+function getProbITMAtStrike(chain, optionType, expiration, targetStrike) {
+    const same = chain.filter(o => o.type === optionType && o.expiration === expiration);
+    if (same.length === 0) return null;
+    same.sort((a, b) => a.strike - b.strike);
+    const below = same.filter(o => o.strike <= targetStrike);
+    const above = same.filter(o => o.strike > targetStrike);
+    const a = below.length ? below[below.length - 1] : same[0];
+    const b = above.length ? above[0] : same[same.length - 1];
+
+    // Check if probITM is available
+    if (typeof a.probabilityITM !== 'number') return null;
+
+    if (a.strike === b.strike) return a.probabilityITM;
+    const t = (targetStrike - a.strike) / (b.strike - a.strike);
+    return a.probabilityITM + t * (b.probabilityITM - a.probabilityITM);
+}
+
 function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth) {
     const results = [];
     const widths = customWidth ? [customWidth] : [5, 10];
@@ -284,7 +302,17 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             const maxRisk = width - credit;
             const breakeven = type === 'Put' ? shortLeg.strike - credit : shortLeg.strike + credit;
             const deltaAtBE = getDeltaAtStrike(chain, type, shortLeg.expiration, breakeven);
-            const pop = deltaAtBE != null ? 1 - Math.abs(deltaAtBE) : 1 - Math.abs(shortLeg.delta);
+            const probITMAtBE = getProbITMAtStrike(chain, type, shortLeg.expiration, breakeven);
+
+            // Prioritize Probability of ITM field if available, else derive from Delta at BE, else fallback to short leg delta
+            let pop;
+            if (probITMAtBE != null && probITMAtBE > 0) {
+                pop = 1 - probITMAtBE;
+            } else if (deltaAtBE != null) {
+                pop = 1 - Math.abs(deltaAtBE);
+            } else {
+                pop = 1 - Math.abs(shortLeg.delta);
+            }
             const roi = (credit / maxRisk) * 100;
             const distance = Math.abs(currentPrice - shortLeg.strike) / currentPrice;
             const dte = shortLeg.dte;
@@ -440,7 +468,20 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth) {
             const lambda = Math.abs(longLeg.delta) * (currentPrice / mid);
             const compLambda = compressLambda(lambda);
             const deltaBonus = getDeltaBonus(longLeg.delta);
-            const pop = Math.abs(longLeg.delta) - 0.05;
+
+            const breakeven = type === 'Call' ? longLeg.strike + debit : longLeg.strike - debit;
+            const deltaAtBE = getDeltaAtStrike(chain, type, longLeg.expiration, breakeven);
+            const probITMAtBE = getProbITMAtStrike(chain, type, longLeg.expiration, breakeven);
+
+            // Debit Spread POP: Probability ITM at Breakeven
+            let pop;
+            if (probITMAtBE != null && probITMAtBE > 0) {
+                pop = probITMAtBE;
+            } else if (deltaAtBE != null) {
+                pop = Math.abs(deltaAtBE);
+            } else {
+                pop = Math.abs(longLeg.delta) - 0.05; // Fallback heuristic
+            }
             const expectedValue = (effectiveMaxProfit * pop) - (effectiveDebit * (1 - pop));
 
             const lambdaScore = Math.min((compLambda / 20) * 100, 100);

@@ -37,13 +37,14 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
     const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: '1', entry_price: '' });
+    const [bulkData, setBulkData] = useState<Record<string, any>>({});
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
-
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     const allActivePositions = positions.filter(p => p.status === 'active');
     const activePositions = ownerFilter === 'All' ? allActivePositions : allActivePositions.filter(p => p.owner === ownerFilter);
 
+    // ... (risk calc unchanged)
     const totalRiskDollars = activePositions.reduce((sum, position) => {
         const posTxns = transactions.filter(t => t.position_id === position.id);
         let totalQtyBought = 0, totalQtySold = 0, entryPrice = 0;
@@ -76,18 +77,77 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
 
     const refreshAllPrices = async () => {
         setRefreshing(true);
-        // Increment trigger to signal children to fetch
-        setRefreshTrigger(prev => prev + 1);
+        // Collect all legs
+        const legsToFetch: any[] = [];
 
-        // Simulating the loading state for UI feedback
-        // The actual fetching happens in the children
-        await new Promise(r => setTimeout(r, activePositions.length * 200 + 500));
+        activePositions.forEach(pos => {
+            if (pos.legs && pos.legs.length > 0) {
+                pos.legs.forEach(leg => {
+                    legsToFetch.push({
+                        ticker: pos.ticker,
+                        expiration: leg.expiration,
+                        strike: leg.strike,
+                        type: leg.type,
+                        id: pos.id // Map back to position
+                    });
+                });
+            } else {
+                legsToFetch.push({
+                    ticker: pos.ticker,
+                    expiration: pos.expiration,
+                    strike: pos.strike,
+                    type: pos.type,
+                    id: pos.id
+                });
+            }
+        });
+
+        if (legsToFetch.length === 0) {
+            setRefreshing(false);
+            return;
+        }
+
+        try {
+            console.log("Fetching bulk data for", legsToFetch.length, "legs");
+            const res = await fetch('/api/option-prices-bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ legs: legsToFetch })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && data.results) {
+                    // Group results by Position ID
+                    // structure: { "posId": [ {leg1data}, {leg2data} ] }
+                    const newBulkData: Record<string, any[]> = {};
+
+                    data.results.forEach((r: any) => {
+                        if (r.id) {
+                            if (!newBulkData[r.id]) newBulkData[r.id] = [];
+                            newBulkData[r.id].push(r);
+                        }
+                    });
+
+                    setBulkData(prev => ({ ...prev, ...newBulkData }));
+                    setLastTimestamp(new Date().toISOString());
+                }
+            } else {
+                console.error("Bulk fetch failed", await res.text());
+                // Fallback: Increment trigger to signal children to fetch individually
+                setRefreshTrigger(prev => prev + 1);
+            }
+        } catch (e) {
+            console.error("Bulk fetch error", e);
+            setRefreshTrigger(prev => prev + 1);
+        }
 
         setRefreshing(false);
     };
 
     useEffect(() => {
         refreshAllPrices();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -208,15 +268,14 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             key={value}
                             type="button"
                             onClick={() => setOwnerFilter(value)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                                ownerFilter === value
-                                    ? value === 'Yuchen'
-                                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                        : value === 'Annie'
-                                            ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
-                                            : 'bg-white/10 text-text-primary border border-white/20'
-                                    : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                            }`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${ownerFilter === value
+                                ? value === 'Yuchen'
+                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                    : value === 'Annie'
+                                        ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
+                                        : 'bg-white/10 text-text-primary border border-white/20'
+                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                }`}
                         >
                             {value}
                         </button>
@@ -262,11 +321,10 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                                         key={value}
                                         type="button"
                                         onClick={() => setPositionType(value)}
-                                        className={`px-3 py-3 rounded-lg text-sm font-medium transition-all ${
-                                            positionType === value
-                                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                                        }`}
+                                        className={`px-3 py-3 rounded-lg text-sm font-medium transition-all ${positionType === value
+                                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                            : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                            }`}
                                     >
                                         {label}
                                     </button>
@@ -279,13 +337,12 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                                         key={name}
                                         type="button"
                                         onClick={() => setFormOwner(name)}
-                                        className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-                                            formOwner === name
-                                                ? name === 'Yuchen'
-                                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                                    : 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
-                                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                                        }`}
+                                        className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${formOwner === name
+                                            ? name === 'Yuchen'
+                                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                                : 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
+                                            : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                            }`}
                                     >
                                         {name}
                                     </button>
@@ -532,6 +589,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             index={index}
                             onRollClick={(qty) => setRollingPosition({ position, qty })}
                             portfolioTotal={portfolioTotal}
+                            initialData={bulkData[position.id]}
                         />
                     ))}
                 </div>

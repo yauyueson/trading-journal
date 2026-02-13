@@ -4,6 +4,14 @@
 
 const BASE_URL = 'https://api.marketdata.app/v1';
 
+// Simple In-Memory Cache
+const cache = new Map();
+const CACHE_TTL_MS = 5000; // 5 seconds
+
+function getCacheKey(endpoint, params) {
+    return `${endpoint}?${new URLSearchParams(params).toString()}`;
+}
+
 /**
  * Get the API token from environment variables.
  * @returns {string|null}
@@ -13,14 +21,26 @@ function getToken() {
 }
 
 /**
- * Fetch data from MarketData.app
+ * Fetch data from MarketData.app with Caching
  * @param {string} endpoint 
  * @param {object} params 
+ * @param {boolean} useCache
  */
-async function fetchMarketData(endpoint, params = {}) {
+async function fetchMarketData(endpoint, params = {}, useCache = true) {
     const token = getToken();
     if (!token) {
         throw new Error('MARKET_DATA_TOKEN not configured');
+    }
+
+    const cacheKey = getCacheKey(endpoint, params);
+    if (useCache && cache.has(cacheKey)) {
+        const { timestamp, data } = cache.get(cacheKey);
+        if (Date.now() - timestamp < CACHE_TTL_MS) {
+            // console.log(`[Cache Hit] ${cacheKey}`);
+            return data;
+        } else {
+            cache.delete(cacheKey);
+        }
     }
 
     const url = new URL(`${BASE_URL}${endpoint}`);
@@ -54,6 +74,10 @@ async function fetchMarketData(endpoint, params = {}) {
             throw new Error(`MarketData API returned status: ${data.s} - ${data.errmsg || 'Unknown error'}`);
         }
 
+        if (useCache) {
+            cache.set(cacheKey, { timestamp: Date.now(), data });
+        }
+
         return data;
     } catch (error) {
         console.error(`Fetch error for ${endpoint}:`, error.message);
@@ -84,6 +108,27 @@ export async function getExpirations(ticker) {
         return [];
     } catch (e) {
         console.warn("getExpirations error:", e);
+        return [];
+    }
+}
+
+/**
+ * Get Bulk Quotes for multiple Option Symbols
+ * @param {string[]} occSymbols Array of OCC strings
+ */
+export async function getQuotes(occSymbols) {
+    if (!occSymbols || occSymbols.length === 0) return [];
+
+    // Split into chunks if necessary (API might limit URL length or count)
+    // For now assuming Reasonable count (< 20)
+    const symbolsJoined = occSymbols.join(',');
+
+    try {
+        // Endpoint: /v1/options/quotes?optionSymbol=A,B,C
+        const data = await fetchMarketData('/options/quotes/', { optionSymbol: symbolsJoined });
+        return mapResponseToInternal(data);
+    } catch (e) {
+        console.error("getQuotes error:", e);
         return [];
     }
 }
@@ -193,6 +238,44 @@ export async function getOptionChain(ticker, filters = {}) {
     return mapResponseToInternal(data);
 }
 
+/**
+ * Fetch historical candles
+ * @param {string} ticker 
+ * @param {string} from YYYY-MM-DD
+ * @param {string} to YYYY-MM-DD
+ * @param {string} resolution 'D', 'W', 'M', '1', '5', '15', '60'
+ */
+export async function getCandles(ticker, from, to, resolution = 'D') {
+    try {
+        const params = {
+            from,
+            to,
+            resolution
+        };
+        const data = await fetchMarketData(`/stocks/candles/${resolution}/${ticker.toUpperCase()}/`, params);
+
+        // MarketData returns { s: "ok", t: [], o: [], h: [], l: [], c: [], v: [] }
+        if (data.s !== 'ok' || !Array.isArray(data.t)) return [];
+
+        const count = data.t.length;
+        const results = [];
+        for (let i = 0; i < count; i++) {
+            results.push({
+                date: new Date(data.t[i] * 1000).toISOString().split('T')[0],
+                open: Number(data.o[i]),
+                high: Number(data.h[i]),
+                low: Number(data.l[i]),
+                close: Number(data.c[i]),
+                volume: Number(data.v[i])
+            });
+        }
+        return results;
+    } catch (e) {
+        console.error("getCandles error:", e);
+        return [];
+    }
+}
+
 function mapResponseToInternal(data) {
     if (!data) return [];
 
@@ -233,7 +316,8 @@ function mapResponseToInternal(data) {
                 theta: get('theta', i),
                 vega: get('vega', i),
                 underlyingPrice: get('underlyingPrice', i),
-                inTheMoney: get('inTheMoney', i)
+                inTheMoney: get('inTheMoney', i),
+                probabilityITM: get('probabilityITM', i) ?? get('probITM', i) ?? get('probability_itm', i)
             };
             results.push(normalizeOption(opt));
         }
@@ -261,6 +345,7 @@ function normalizeOption(apiOpt) {
         theta: Number(apiOpt.theta || 0),
         vega: Number(apiOpt.vega || 0),
         underlyingPrice: Number(apiOpt.underlyingPrice || 0),
-        inTheMoney: apiOpt.inTheMoney
+        inTheMoney: apiOpt.inTheMoney,
+        probabilityITM: Number(apiOpt.probabilityITM || apiOpt.probITM || apiOpt.probability_itm || 0)
     };
 }

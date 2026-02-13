@@ -4,28 +4,13 @@
 // ---------------------------------------------------------
 // 🛠️ 辅助：生成 OCC 代码
 // ---------------------------------------------------------
-function generateOCCSymbol(symbol, expiration, type, strike) {
-  try {
-    const paddedSymbol = symbol.toUpperCase().padEnd(6, ' ');
-    const parts = expiration.split('-');
-    if (parts.length !== 3) throw new Error('Invalid date format');
+import { generateOCCSymbol } from './_shared/utils.js';
 
-    const yy = parts[0].slice(2);
-    const mm = parts[1].padStart(2, '0');
-    const dd = parts[2].padStart(2, '0');
-    const dateStr = `${yy}${mm}${dd}`;
+// ---------------------------------------------------------
+// 🛠️ 辅助：生成 OCC 代码
+// ---------------------------------------------------------
+// REFACTORED: Now using shared utility
 
-    const loweredType = type.toLowerCase();
-    const typeCode = (loweredType.includes('call') || loweredType === 'c') ? 'C' : 'P';
-    const strikeNum = Math.round(parseFloat(strike) * 1000);
-    const strikeStr = strikeNum.toString().padStart(8, '0');
-
-    return `${paddedSymbol}${dateStr}${typeCode}${strikeStr}`;
-  } catch (e) {
-    console.error("OCC Generation Error:", e);
-    return null;
-  }
-}
 
 // ---------------------------------------------------------
 // 🚀 Main Handler
