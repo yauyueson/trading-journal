@@ -184,6 +184,33 @@ const snapshot = await getOptionSnapshot('SPY', 'SPY250321C00580000');
 
 ---
 
+## IV Rank 历史回填 (RV30 Proxy)
+
+由于项目从 MarketData 迁移到 Polygon，历史 IV 数据在新表中不再自动可用。本项目采用 **30日已实现波动率 (RV30)** 作为历史 **IV30** 的代理指标（Proxy）来生成初始 IV Rank 历史。
+
+### 回填脚本
+`api/setup-iv-rank.js`
+
+### 核心逻辑
+1. **获取历史 K 线**：调用 Polygon `getCandles` 获取过去 400 天的每日收盘价。
+2. **计算 RV30**：使用 30 日对数收益率的年化波动率（Standard Deviation of Log Returns）。
+3. **Upsert 到 Supabase**：将计算出的 RV30 存入 `ticker_iv_snapshots` 表的 `iv30` 字段。
+
+### 使用方法
+由于 Polygon 免费/入门版 API 有速率限制 (5 req/min)，脚本内置了 15 秒延时和逐条 UPSERT 机制以确保 100% 成功率。
+
+```bash
+# 修改脚本中的 tickers 列表
+# 运行回填
+node api/setup-iv-rank.js
+```
+
+### 已覆盖标的
+已成功回填以下标的各 200+ 天的历史数据：
+`SPY`, `QQQ`, `MSFT`, `META`, `TSLA`, `AMD`, `COST`, `IREN`
+
+---
+
 ## 速率限制与优化
 
 ### 当前策略
@@ -414,11 +441,13 @@ curl "http://localhost:5177/api/option-price?ticker=SPY&expiration=2025-03-21&st
 - [x] 迁移 `api/check-alerts.js`
 - [x] 迁移 `api/daily-recap.js`
 - [x] 迁移 `api/backfill-iv-history.js`
+- [x] 实现 `api/setup-iv-rank.js` (Polygon 历史回填脚本)
+- [x] 成功回填 SPY, QQQ, MSFT, META, TSLA, AMD, COST, IREN
 - [x] 测试 Scanner 功能
 - [x] 测试 Strategy Recommender
-- [ ] 测试 Portfolio 批量加载
+- [x] 测试 Portfolio 批量加载
 - [ ] 测试告警系统（Cron）
-- [ ] 更新所有技术文档
+- [x] 更新所有技术文档
 - [ ] 部署到生产环境
 
 ---

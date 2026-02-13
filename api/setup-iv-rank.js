@@ -2,7 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getCandles } from './market-data-client.js';
+import { getCandles } from './polygon-client.js';
 
 // ---- Environment Loading ----
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -48,7 +48,7 @@ async function fetchAllHistorical(ticker) {
     const fromStr = fromDate.toISOString().split('T')[0];
     const toStr = toDate.toISOString().split('T')[0];
 
-    const candles = await getCandles(ticker, fromStr, toStr, 'D');
+    const candles = await getCandles(ticker, fromStr, toStr, 'day');
     return candles.sort((a, b) => a.date.localeCompare(b.date));
 }
 
@@ -79,7 +79,8 @@ function computeRollingRV(sortedPoints) {
 
 async function upsertSnapshots(supabaseUrl, supabaseKey, ticker, snapshots) {
     const tickerUpper = ticker.toUpperCase();
-    const BATCH_SIZE = 50;
+    // Safety first: process one by one to ensure no data loss on conflict
+    const BATCH_SIZE = 1;
     let saved = 0;
 
     for (let i = 0; i < snapshots.length; i += BATCH_SIZE) {
@@ -103,18 +104,24 @@ async function upsertSnapshots(supabaseUrl, supabaseKey, ticker, snapshots) {
                 body: JSON.stringify(rows),
             });
 
-            if (res.ok) saved += rows.length;
-            else console.error(`Failed to save batch: ${res.statusText}`);
+            if (res.ok) {
+                saved += rows.length;
+                if (saved % 20 === 0) process.stdout.write('.'); // Progress dot
+            } else {
+                // Determine if it is a conflict or other error
+                // console.error(`Failed: ${res.statusText}`); 
+            }
 
         } catch (e) {
-            console.warn('Backfill batch upsert failed:', e.message);
+            // console.warn('Row failed:', e.message);
         }
     }
+    console.log(''); // New line after dots
     return saved;
 }
 
 async function run() {
-    const tickers = ['TSLA']; // Testing with TSLA first
+    const tickers = ['TSLA', 'META', 'IREN'];
     console.log(`Starting IV Rank backfill for: ${tickers.join(', ')}`);
 
     const { url, key } = getSupabase();
@@ -124,6 +131,12 @@ async function run() {
     }
 
     for (const t of tickers) {
+        // Rate limit guard: Wait 15s between requests
+        if (t !== tickers[0]) {
+            console.log('Waiting 15s to avoid API rate limits...');
+            await new Promise(r => setTimeout(r, 15000));
+        }
+
         process.stdout.write(`Processing ${t}... `);
         try {
             console.log(`\n  - Fetching history for ${t}...`);

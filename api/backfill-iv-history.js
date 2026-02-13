@@ -4,7 +4,7 @@
 // GET /api/backfill-iv-history?ticker=SPY,QQQ,AAPL → backfill multiple
 // Uses same Supabase table as IV Rank; past dates get iv30 = RV (decimal).
 
-import { getCandles } from './market-data-client.js';
+// standard candle format: { date, open, high, low, close, volume }
 
 const ROLLING_DAYS = 30;
 

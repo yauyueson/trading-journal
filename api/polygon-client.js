@@ -227,50 +227,39 @@ export async function getOptionChain(ticker, filters = {}) {
  * Enrich contract data with snapshot data (prices, Greeks, IV)
  */
 async function enrichWithSnapshots(underlying, contracts) {
-    // Polygon snapshot endpoint can handle multiple contracts
-    // But we need to make multiple calls for large chains
-    const CHUNK_SIZE = 50;
+    if (!contracts || contracts.length === 0) return [];
+
     const results = [];
+    try {
+        // 1. Fetch the entire chain snapshot once (high-performance bulk endpoint)
+        const snapshotData = await fetchPolygon(`/v3/snapshot/options/${underlying.toUpperCase()}`);
 
-    for (let i = 0; i < contracts.length; i += CHUNK_SIZE) {
-        const chunk = contracts.slice(i, i + CHUNK_SIZE);
-
-        try {
-            // Use the chain snapshot endpoint
-            const snapshotData = await fetchPolygon(`/v3/snapshot/options/${underlying.toUpperCase()}`);
-
-            if (snapshotData.results && snapshotData.results.length > 0) {
-                // Create a map for quick lookup
-                const snapshotMap = new Map();
-                snapshotData.results.forEach(result => {
-                    if (result.details && result.details.ticker) {
-                        snapshotMap.set(result.details.ticker, result);
-                    }
-                });
-
-                // Merge contract info with snapshot data
-                chunk.forEach(contract => {
-                    const snapshot = snapshotMap.get(contract.ticker);
-                    if (snapshot) {
-                        results.push(mergeContractAndSnapshot(contract, snapshot));
-                    } else {
-                        // If no snapshot, use contract data only (will have no prices/greeks)
-                        results.push(normalizeContractOnly(contract));
-                    }
-                });
-            } else {
-                // No snapshots available, use contract data only
-                chunk.forEach(contract => {
-                    results.push(normalizeContractOnly(contract));
-                });
-            }
-        } catch (e) {
-            console.error("Error fetching snapshots:", e);
-            // Fallback to contract data only
-            chunk.forEach(contract => {
-                results.push(normalizeContractOnly(contract));
+        // 2. Map snapshots by their ticker (OCC symbol)
+        const snapshotMap = new Map();
+        if (snapshotData.results && snapshotData.results.length > 0) {
+            snapshotData.results.forEach(result => {
+                if (result.details && result.details.ticker) {
+                    snapshotMap.set(result.details.ticker, result);
+                }
             });
         }
+
+        // 3. Merge each contract with its snapshot data
+        contracts.forEach(contract => {
+            const snapshot = snapshotMap.get(contract.ticker);
+            if (snapshot) {
+                results.push(mergeContractAndSnapshot(contract, snapshot));
+            } else {
+                // If no snapshot, use contract data only (will have no prices/greeks)
+                results.push(normalizeContractOnly(contract));
+            }
+        });
+    } catch (e) {
+        console.error("Error in enrichWithSnapshots:", e);
+        // Fallback: Return what we can with contract data only
+        contracts.forEach(contract => {
+            results.push(normalizeContractOnly(contract));
+        });
     }
 
     return results;

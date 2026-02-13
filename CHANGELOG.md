@@ -4,6 +4,70 @@
 
 ---
 
+## [2.1.0] - 2026-02-12
+
+### 🔄 重大更新: MarketData.app → Polygon.io 数据源迁移
+
+#### 核心变更
+- ✅ **Polygon.io (MASSIVE) 集成**
+  - 完全替换 MarketData.app 作为主要数据源
+  - 高质量实时期权数据 + Greeks + IV
+  - 企业级 API 稳定性和可靠性
+
+#### 技术实现
+- **新增文件**
+  - `api/polygon-client.js` - Polygon.io 客户端模块（替换 market-data-client.js）
+  - `docs/09_Polygon集成.md` - 完整集成文档
+
+- **更新的 API 端点** (7个)
+  - `api/option-price.js` - 单个期权定价
+  - `api/scan-options.js` - Scanner 扫描器
+  - `api/strategy-recommend.js` - 策略推荐
+  - `api/option-prices-bulk.js` - 批量定价（并发优化）
+  - `api/check-alerts.js` - 告警检查
+  - `api/daily-recap.js` - 每日汇总
+  - `api/backfill-iv-history.js` - IV 历史回填
+
+#### API 功能映射
+| 功能 | Polygon.io 端点 |
+|------|----------------|
+| 期权链 | `/v3/reference/options/contracts` |
+| 期权快照 | `/v3/snapshot/options/{underlying}/{contract}` |
+| 历史K线 | `/v2/aggs/ticker/{ticker}/range/{timespan}` |
+
+#### 数据格式适配
+- 响应格式从 MarketData 的列式数组转为 Polygon 的嵌套对象
+- Greeks 字段映射：`greeks.delta/gamma/theta/vega`
+- IV 路径更新：`greeks.implied_volatility`
+- 自动计算 DTE (Days To Expiration)
+
+#### 性能优化
+- 批量请求分块处理（CHUNK_SIZE = 10）
+- 5 秒内存缓存机制
+- CBOE fallback 保留为备用数据源
+
+#### 配置变更
+- **环境变量更新**:
+  - ~~`MARKET_DATA_TOKEN`~~ → `POLYGON_API_KEY`
+  - `DATA_SOURCE=MARKET_DATA` → `DATA_SOURCE=POLYGON`
+
+#### 文档更新
+- ✅ 更新 `docs/00_PRD_总览.md` - 数据源引用
+- ✅ 新增 `docs/09_Polygon集成.md` - 完整迁移指南
+- ✅ 更新 CHANGELOG.md
+
+#### 验证测试
+- ✅ Scanner API 测试通过（AAPL, 46 results, Greeks 完整）
+- ✅ Option Price API 正常工作
+- ⚠️ 需求：Polygon subscription 需包含 Options Advanced features
+
+#### 迁移影响
+- **向后兼容**: CBOE fallback 保留，未配置 Polygon 时自动降级
+- **成本变化**: Polygon.io Starter plan ($99/月) vs MarketData.app
+- **速率限制**: 需监控 API 使用量，避免触发 429 错误
+
+---
+
 ## [2.0.0] - 2026-02-12
 
 ### 🎉 重大更新: MarketData.app 集成
