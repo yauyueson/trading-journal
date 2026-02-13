@@ -51,6 +51,8 @@ export {
     getIVRiskFactor,
     getIVAdjustment,
     getIVRankAdjustment,
+    getRelativeIVAdjustmentLOQ,
+    getRelativeIVAdjustmentCSQ,
 
     // LOQ / CSQ scoring (v2.4 Vega)
     LOQ_WEIGHTS,
@@ -93,6 +95,8 @@ import {
     normalizeToZScoresByBucket as _normalizeToZScoresByBucket,
     HARD_FILTER_DEFAULTS as _HARD_FILTER_DEFAULTS,
     getIVAdjustment as _getIVAdjustment,
+    getRelativeIVAdjustmentLOQ as _getRelativeIVAdjustmentLOQ,
+    getRelativeIVAdjustmentCSQ as _getRelativeIVAdjustmentCSQ,
     calculateLOQRaw as _calculateLOQRaw,
     calculateCSQRaw as _calculateCSQRaw,
     normalizeScoreTo100 as _normalizeScoreTo100,
@@ -400,11 +404,13 @@ export function scoreOptionsChain(
         const zVegaEff = _normalizeToZScoresByBucket(vegaEfficiencies, dtes);
 
         const rawScores = longItems.map((p, i) => {
+            const atmIV = getATMIV(chain, currentPrice, p.opt.dte);
+            const relIvAdj = _getRelativeIVAdjustmentLOQ(p.opt.iv, atmIV);
             const deltaBonus = _getDeltaBonus(p.opt.delta);
             const bePenalty = _getBreakevenPenalty(p.breakevenMove, p.opt.dte);
             return _calculateLOQRaw(
                 zLambdas[i], zGammas[i], zThetas[i],
-                ivAdjustment, deltaBonus, p.thetaBurn, isDayTrade, zGTRatios[i], bePenalty, p.opt.dte, zVegaEff[i]
+                ivAdjustment + relIvAdj, deltaBonus, p.thetaBurn, isDayTrade, zGTRatios[i], bePenalty, p.opt.dte, zVegaEff[i]
             );
         });
         const loqScores = _normalizeLOQScoresWithDynamicBaseline(rawScores);
@@ -458,8 +464,10 @@ export function scoreOptionsChain(
         const zVegaEff = _normalizeToZScoresByBucket(vegaEfficiencies, dtes);
 
         scored = shortItems.map((p, i) => {
+            const atmIV = getATMIV(chain, currentPrice, p.opt.dte);
+            const relIvAdj = _getRelativeIVAdjustmentCSQ(p.opt.iv, atmIV);
             const vegaPenalty = -0.05 * zVegaEff[i];
-            const rawScore = _calculateCSQRaw(zEdges[i], zPops[i], zSpreads[i], ivAdjustment, vegaPenalty);
+            const rawScore = _calculateCSQRaw(zEdges[i], zPops[i], zSpreads[i], ivAdjustment + relIvAdj, vegaPenalty);
             const score = _normalizeScoreTo100(rawScore);
 
             return {

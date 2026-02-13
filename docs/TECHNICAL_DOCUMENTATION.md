@@ -140,7 +140,7 @@ GET /api/option-price?ticker=QQQ&expiration=2026-02-20&strike=630&type=Call
 
 降级到 CBOE 时 `dataSource` 为 `"CBOE"`，且 gamma/theta/vega 可能为 0。
 
-**API 用量优化（Polygon）**：`strategy-recommend` 与 `scan-options` 在 Polygon 下先调用 `getUnderlyingPrice(ticker)` 获取标的价，再仅请求会用到的到期日与行权范围（strategy-recommend：DTE 30/90 + 行权 ±20%；scan-options：dteMin～dteMax + strikeRange），减少 payload 与 API 用量。同一 ticker 的期权链按「ticker + 筛选参数」做 **1 分钟内存缓存**，短时间重复请求直接命中缓存，降低成本并保持算法一致。详见 `api/polygon-client.js` 与 `docs/09_Polygon集成.md`。
+**API 用量优化（Polygon）**：`strategy-recommend` 与 `scan-options` 在 Polygon 下先 `getUnderlyingPrice(ticker)`，再仅请求会用到的到期日与行权范围；同一 ticker 的期权链按 (ticker + 参数) 做 **1 分钟内存缓存**。详见 `api/polygon-client.js` 与 `docs/09_Polygon集成.md`。
 
 ### 数据字段说明
 
@@ -165,10 +165,7 @@ GET /api/option-price?ticker=QQQ&expiration=2026-02-20&strike=630&type=Call
 | `DATA_SOURCE=MARKET_DATA` | 优先调用 MarketData.app（需 `MARKET_DATA_TOKEN`）；失败时自动降级 CBOE |
 | `DATA_SOURCE=CBOE` 或未设置 | 仅使用 CBOE 延迟 API |
 
-**Polygon.io**（主，推荐）：
-- 实时报价，Greeks、IV；`getUnderlyingPrice` + 到期/行权过滤，减少 payload
-- 期权链按 (ticker + 参数) 1 分钟内存缓存，重复请求降成本
-- 需配置 `POLYGON_API_KEY`，详见 `docs/09_Polygon集成.md`
+**Polygon.io**（主，推荐）：实时报价 + Greeks + IV；仅请求所需到期/行权 + 1 分钟缓存。需 `POLYGON_API_KEY`，详见 `docs/09_Polygon集成.md`。
 
 **CBOE**（备）：
 - 端点：`https://cdn.cboe.com/api/global/delayed_quotes/options/{TICKER}.json`
@@ -394,8 +391,8 @@ https://api.vercel.com/v1/integrations/deploy/prj_Q27dySs80ReT8IwzjuVlMtePI2xu/s
 - 流动性：显式要求 `bid > 0 && ask > 0`，并在解析阶段做 DTE/行权价预过滤。
 
 ### API 用量优化 (2026-02-12)
-- **strategy-recommend / scan-options（Polygon）**：仅请求会用到的到期日与行权范围。先 `getUnderlyingPrice(ticker)` 取标的价，再按 DTE 与 strike 范围调用 `getOptionChain`（strategy-recommend：DTE 30/90 + 行权 ±20%；scan-options：dteMin～dteMax + strikeRange），减少 payload 与 API 用量。
-- **期权链短期缓存**：`api/polygon-client.js` 对同一 (ticker, 筛选参数) 的期权链结果做 **1 分钟内存缓存**，同一用户短时间重复请求直接命中缓存，降低成本并保持算法一致。
+- **strategy-recommend / scan-options（Polygon）**：仅请求会用到的到期日与行权范围；先 `getUnderlyingPrice(ticker)`，再按 DTE 与 strike 范围调用 `getOptionChain`（strategy-recommend：DTE 30/90 + 行权 ±20%；scan-options：dteMin～dteMax + strikeRange）。
+- **期权链短期缓存**：`api/polygon-client.js` 对同一 (ticker, 筛选参数) 的期权链结果做 **1 分钟内存缓存**，短时间重复请求命中缓存，降低成本并保持算法一致。
 - **长期规划**：历史 IV 回测与多数据源聚合见 CHANGELOG「长期 (Long-term)」。
 
 ### Discord 自动提醒 (2026-02-08)
@@ -546,8 +543,8 @@ cron-job.org (每 15 分钟 GET)
 
 1. 检查网络连接
 2. 确认 ticker/expiration/strike/type 参数正确
-3. 若使用 Polygon：检查 `DATA_SOURCE=POLYGON` 与 `POLYGON_API_KEY` 已配置；详见 `docs/09_Polygon集成.md`
-4. 若使用 MarketData：检查 `DATA_SOURCE=MARKET_DATA` 与 `MARKET_DATA_TOKEN` 已配置；失败时会自动降级 CBOE
+3. 若使用 Polygon：检查 `DATA_SOURCE=POLYGON` 与 `POLYGON_API_KEY`；详见 `docs/09_Polygon集成.md`
+4. 若使用 MarketData：检查 `DATA_SOURCE=MARKET_DATA` 与 `MARKET_DATA_TOKEN`；失败时会自动降级 CBOE
 5. CBOE 备用可能暂时不可用或返回 429，稍后重试
 6. 使用手动输入作为备用
 

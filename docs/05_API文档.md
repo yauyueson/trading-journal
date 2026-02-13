@@ -1,7 +1,7 @@
 # Trading Journal - API文档
 
 > 最后更新: 2026年2月12日  
-> **重大更新**: MarketData.app 集成完成
+> **数据源**: Polygon.io（主）/ MarketData.app / CBOE（备）；API 用量优化：仅请求所需 DTE/行权 + 1 分钟期权链缓存
 
 ## 📋 目录
 
@@ -24,7 +24,8 @@
 Frontend (React)
     ↓
 Vercel Serverless Functions
-    ├── MarketData.app (主数据源) - 实时报价 + 交易所级 Greeks
+    ├── Polygon.io (主数据源) - 实时报价 + Greeks + IV；仅请求所需 DTE/行权；1 分钟期权链缓存
+    ├── MarketData.app (可选) - 实时报价 + 交易所级 Greeks
     └── CBOE (备用数据源) - 15分钟延迟
     ↓
 Supabase PostgreSQL (数据存储)
@@ -51,30 +52,38 @@ Supabase PostgreSQL (数据存储)
 
 ### 环境变量
 
-**说明**：未设置 `DATA_SOURCE` 时，代码默认使用 CBOE。配置为 `MARKET_DATA` 时可获得实时报价与交易所级 Greeks。
+**说明**：未设置 `DATA_SOURCE` 时，代码默认使用 CBOE。配置为 `POLYGON` 时使用 Polygon.io（推荐）；配置为 `MARKET_DATA` 时使用 MarketData.app。
 
 **开发环境** (`.env.local`):
 ```bash
-DATA_SOURCE=MARKET_DATA
-MARKET_DATA_TOKEN=your_api_token_here
+# 推荐：Polygon.io（仅请求所需 DTE/行权 + 1 分钟缓存）
+DATA_SOURCE=POLYGON
+POLYGON_API_KEY=your_polygon_api_key_here
+
+# 或：MarketData.app
+# DATA_SOURCE=MARKET_DATA
+# MARKET_DATA_TOKEN=your_api_token_here
 ```
 
 **生产环境** (Vercel Dashboard):
 ```
 Settings → Environment Variables
-├── DATA_SOURCE = MARKET_DATA   # 可选，不设则默认 CBOE
-└── MARKET_DATA_TOKEN = your_production_token
+├── DATA_SOURCE = POLYGON        # 推荐；或 MARKET_DATA / 不设（CBOE）
+├── POLYGON_API_KEY = ...       # DATA_SOURCE=POLYGON 时必填
+└── MARKET_DATA_TOKEN = ...     # DATA_SOURCE=MARKET_DATA 时必填
 ```
+
+**API 用量优化（Polygon）**：`/api/scan-options` 与 `/api/strategy-recommend` 在 Polygon 下先取标的价，再仅请求会用到的到期日与行权范围；同一 ticker 的期权链按参数做 **1 分钟内存缓存**，重复请求命中缓存。详见 `docs/09_Polygon集成.md`。
 
 ### 数据源对比
 
-| 特性 | MarketData.app | CBOE |
-|------|----------------|------|
-| **Greeks 精度** | 交易所级 | 全为 0 |
-| **价格延迟** | 实时 | 15 分钟 |
-| **IV 数据** | 完整曲线 | 不完整 |
-| **速率限制** | 稳定 | 429 频繁 |
-| **成本** | 付费 | 免费 |
+| 特性 | Polygon.io | MarketData.app | CBOE |
+|------|------------|----------------|------|
+| **Greeks 精度** | 完整 | 交易所级 | 全为 0 |
+| **价格延迟** | 实时 | 实时 | 15 分钟 |
+| **IV 数据** | 完整 | 完整曲线 | 不完整 |
+| **请求优化** | 仅 DTE/行权 + 缓存 | 全链 | 全链 |
+| **成本** | 付费 | 付费 | 免费 |
 
 ### 数据格式
 
@@ -186,15 +195,13 @@ GET /api/scan-options
 
 ### 用途
 
-根据 OSS v2.3 算法扫描全链期权，返回经过数学评估后的最佳契约。**使用 MarketData.app 获取真实 Greeks**。
+根据 OSS v2.3 算法扫描全链期权，返回经过数学评估后的最佳契约。**Polygon 或 MarketData 提供真实 Greeks**。
 
-### 数据源优势
+### 数据源与用量优化（Polygon）
 
-使用 MarketData 后，扫描器获得：
-- ✅ **真实 Delta Bonus**: 精确的 ATM 奖励计算
-- ✅ **精准 Lambda**: 基于真实 delta 的杠杆率
-- ✅ **准确 Gamma/Theta**: 不再是估算值
-- ✅ **完整 IV 数据**: 支持 IV Ratio 计算
+当 `DATA_SOURCE=POLYGON` 时：
+- 先调用 `getUnderlyingPrice(ticker)` 获取标的价，再按 `dteMin`/`dteMax` 与 `strikeRange` 仅请求会用到的到期与行权范围，减少 payload。
+- 同一 (ticker, 参数) 的期权链结果 **1 分钟内存缓存**，短时间重复请求直接命中，降低成本。
 
 ### 参数
 
@@ -222,15 +229,23 @@ GET /api/strategy-recommend
 
 ### MarketData 增强功能
 
-**新增响应字段** - `regime.ivSurface`:
+**新增响应字段** - `regime.ivSurface`、`regime.ivRank`、`regime.slope`、`regime.slopeTier`：
 ```json
 {
   "regime": {
     "ivRatio": 0.982,
+    "slope": -0.018,
+    "slopeTier": "flat",
     "iv30": 18.5,
     "iv90": 18.8,
+    "rv30": 17.6,
+    "ivRvRatio": 1.05,
+    "ivRank": 0.42,
+    "ivPercentile": 0.38,
+    "ivRankSampleDays": 120,
     "mode": "NEUTRAL",
     "advice": "...",
+    "adviceDetail": null,
     "ivSurface": {
       "iv7": 17.7,
       "iv14": 18.2,
@@ -245,10 +260,16 @@ GET /api/strategy-recommend
 }
 ```
 
-**异常检测**:
-- 当 `ivSurface.anomaly = true` 时，表示检测到短期 IV 异常飙升
+- **slope**：期限结构斜率 `(IV30−IV90)/IV90`，正值表示 backwardation，负值表示 contango。
+- **slopeTier**：档位，用于微调 Regime Bonus。取值：`strong_backwardation`、`backwardation`、`flat`、`contango`、`strong_contango`。
+
+**IV Rank 与评分**：`ivRank`、`ivPercentile` 来自表 `ticker_iv_snapshots`（252 日窗口）。策略推荐中 Credit Spread、Debit Spread、Single-leg 均使用 `getIVRankAdjustment(ivRank, strategy)` 参与打分，详见 [03_核心算法.md](./03_核心算法.md)。
+
+**异常检测与统一分**:
+- 当 `ivSurface.anomaly = true` 时，表示检测到短期 IV 异常飙升（IV7/IV30 > 1.3，如财报前）
 - 可能原因：即将到来的财报或重大事件
 - `anomalyRatio`: IV7/IV30 比率（> 1.3 触发异常）
+- **统一分降权**：当 `anomaly = true` 时，对「短期卖权」在**统一分**中降权：CREDIT_SPREAD 且 DTE ≤ 30 的候选，其 Regime 分量乘以 0.55，而不仅是 advice 文案提示；Top Picks 排序会相应下移短期信用价差。
 
 ### 参数
 

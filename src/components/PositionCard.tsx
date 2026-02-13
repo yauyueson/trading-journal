@@ -39,6 +39,8 @@ interface PositionCardProps {
     refreshTrigger?: number;
     index?: number;
     onRollClick?: (qty: number) => void;
+    /** Portfolio total for risk %; falls back to context if omitted */
+    portfolioTotal?: number;
     /** Array of leg data from bulk fetch */
     initialData?: any[];
 }
@@ -827,7 +829,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
             {/* Action Buttons */}
             {!actionMode ? (
                 <div className="flex gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide">
-                    <button onClick={fetchGreeksAndPrice} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-1.5 cursor-pointer shrink-0 px-2.5 sm:px-3" aria-label="Refresh price">
+                    <button onClick={() => void fetchGreeksAndPrice()} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-1.5 cursor-pointer shrink-0 px-2.5 sm:px-3" aria-label="Refresh price">
                         {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={15} />}
                         <span className="hidden sm:inline text-sm">Refresh</span>
                     </button>

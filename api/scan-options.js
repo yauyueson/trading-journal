@@ -16,6 +16,8 @@ const {
     zScoresByBucket,
     HARD_FILTER_DEFAULTS,
     getIVAdjustment,
+    getRelativeIVAdjustmentLOQ,
+    getRelativeIVAdjustmentCSQ,
     calculateLOQRaw,
     calculateCSQRaw,
     normalizeScoreTo100,
@@ -76,15 +78,22 @@ export default async function handler(req, res) {
         let cboeTimestamp = null;
 
         if (dataSource === 'POLYGON') {
-            const { getOptionChain } = await import('./polygon-client.js');
+            const { getOptionChain, getUnderlyingPrice } = await import('./polygon-client.js');
             console.log(`Scanning ${upperTicker} via Polygon.io`);
 
-            // Optimize: Pass filters directly to API
+            // Get underlying price first so we request only the strike range we use (reduces payload/API)
+            const underlyingPrice = await getUnderlyingPrice(upperTicker);
+            const minStrike = underlyingPrice > 0 ? underlyingPrice * (1 - strikeRangeNum) : undefined;
+            const maxStrike = underlyingPrice > 0 ? underlyingPrice * (1 + strikeRangeNum) : undefined;
+
             const filters = {
                 minDte: dteMinNum,
                 maxDte: dteMaxNum
             };
-
+            if (minStrike != null && maxStrike != null) {
+                filters.minStrike = minStrike;
+                filters.maxStrike = maxStrike;
+            }
             if (direction === 'call') filters.side = 'call';
             if (direction === 'put') filters.side = 'put';
 
@@ -92,9 +101,8 @@ export default async function handler(req, res) {
 
             if (chainData && chainData.length > 0) {
                 options = chainData;
-                // Infer current price
                 const valid = chainData.find(o => o.underlyingPrice > 0);
-                currentPrice = valid ? valid.underlyingPrice : 0;
+                currentPrice = valid ? valid.underlyingPrice : (underlyingPrice || 0);
             } else {
                 return res.status(200).json({ success: true, results: [], context: { note: 'No data from Polygon.io' } });
             }
@@ -225,9 +233,11 @@ export default async function handler(req, res) {
             const zVegaEff = zScoresByBucket(vegaEfficiencies, dtes);
 
             const rawScores = processed.map((p, i) => {
+                const atmIV = calculateTargetIV(fullChain, p.opt.dte, currentPrice);
+                const relIvAdj = getRelativeIVAdjustmentLOQ(p.opt.iv, atmIV);
                 const deltaBonus = getDeltaBonus(p.opt.delta);
                 const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
-                return calculateLOQRaw(zL[i], zG[i], zT[i], ivAdjustment, deltaBonus, p.thetaBurn, isDayTradeMode, zGT[i], bePenalty, p.opt.dte, zVegaEff[i]);
+                return calculateLOQRaw(zL[i], zG[i], zT[i], ivAdjustment + relIvAdj, deltaBonus, p.thetaBurn, isDayTradeMode, zGT[i], bePenalty, p.opt.dte, zVegaEff[i]);
             });
             const loqScores = normalizeLOQScoresWithDynamicBaseline(rawScores);
 
@@ -277,8 +287,10 @@ export default async function handler(req, res) {
             const zVegaEff = zScoresByBucket(vegaEfficiencies, dtes);
 
             results = processed.map((p, i) => {
+                const atmIV = calculateTargetIV(fullChain, p.opt.dte, currentPrice);
+                const relIvAdj = getRelativeIVAdjustmentCSQ(p.opt.iv, atmIV);
                 const vegaPenalty = -0.05 * zVegaEff[i];
-                const rawScore = calculateCSQRaw(zE[i], zP[i], zS[i], ivAdjustment, vegaPenalty);
+                const rawScore = calculateCSQRaw(zE[i], zP[i], zS[i], ivAdjustment + relIvAdj, vegaPenalty);
                 const score = normalizeScoreTo100(rawScore);
 
                 return {
@@ -327,7 +339,7 @@ export default async function handler(req, res) {
                 strategy,
                 totalOptions: options.length,
                 filteredCount: processed.length,
-                cboeTimestamp: data.timestamp || null
+                cboeTimestamp: cboeTimestamp ?? null
             },
             results
         });

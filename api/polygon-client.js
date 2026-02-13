@@ -4,9 +4,13 @@
 
 const BASE_URL = 'https://api.polygon.io';
 
-// Simple In-Memory Cache
+// Simple In-Memory Cache (generic Polygon fetches)
 const cache = new Map();
 const CACHE_TTL_MS = 5000; // 5 seconds
+
+// Per-ticker option chain cache: same ticker within TTL reuses result (reduces API cost, keeps algo consistent)
+const optionChainCache = new Map();
+const OPTION_CHAIN_CACHE_TTL_MS = 60 * 1000; // 1 minute
 
 function getCacheKey(endpoint, params) {
     return `${endpoint}?${new URLSearchParams(params).toString()}`;
@@ -83,6 +87,40 @@ async function fetchPolygon(endpoint, params = {}, useCache = true) {
 }
 
 /**
+ * Get underlying (stock) price for strike-range filtering without full chain fetch.
+ * Uses Polygon stocks snapshot; fallback to prevDay close if no live quote.
+ * @param {string} ticker Stock symbol (e.g. SPY)
+ * @returns {Promise<number|null>} Price or null on failure
+ */
+export async function getUnderlyingPrice(ticker) {
+    try {
+        const data = await fetchPolygon(
+            `/v2/snapshot/locale/us/markets/stocks/tickers/${ticker.toUpperCase()}`,
+            {},
+            true
+        );
+        const t = data?.ticker;
+        if (!t) return null;
+        const lastTrade = t.lastTrade?.price ?? t.lastTrade?.p;
+        if (typeof lastTrade === 'number' && lastTrade > 0) return lastTrade;
+        const lastQuote = t.lastQuote;
+        if (lastQuote && (lastQuote.bid != null || lastQuote.ask != null)) {
+            const bid = Number(lastQuote.bid ?? lastQuote.bid_price ?? 0);
+            const ask = Number(lastQuote.ask ?? lastQuote.ask_price ?? 0);
+            if (bid > 0 && ask > 0) return (bid + ask) / 2;
+            if (bid > 0) return bid;
+            if (ask > 0) return ask;
+        }
+        const prevClose = t.prevDay?.c ?? t.prevDay?.close;
+        if (typeof prevClose === 'number' && prevClose > 0) return prevClose;
+        return null;
+    } catch (e) {
+        console.warn('getUnderlyingPrice error:', e?.message);
+        return null;
+    }
+}
+
+/**
  * Get list of expirations for a ticker
  * @param {string} ticker 
  */
@@ -153,12 +191,31 @@ export async function getQuotes(occSymbols) {
     return results;
 }
 
+function optionChainCacheKey(ticker, filters) {
+    const f = filters || {};
+    const parts = [
+        ticker.toUpperCase(),
+        f.minDte ?? '', f.maxDte ?? '', f.dte ?? '',
+        f.expiration ?? '',
+        f.side ?? '',
+        f.minStrike ?? '', f.maxStrike ?? ''
+    ];
+    return parts.join('|');
+}
+
 /**
  * Fetch Option Chain with filters
+ * Uses 1-minute per-(ticker, filters) cache to reduce API usage and keep algorithm consistent for repeated requests.
  * @param {string} ticker 
- * @param {object} filters 
+ * @param {object} filters { minDte, maxDte, dte, expiration, side, minStrike, maxStrike }
  */
 export async function getOptionChain(ticker, filters = {}) {
+    const cacheKey = optionChainCacheKey(ticker, filters);
+    const cached = optionChainCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < OPTION_CHAIN_CACHE_TTL_MS) {
+        return cached.chain;
+    }
+
     const params = {
         underlying_ticker: ticker.toUpperCase(),
         limit: 1000
@@ -215,8 +272,9 @@ export async function getOptionChain(ticker, filters = {}) {
         if (!data.results || data.results.length === 0) return [];
 
         // Now fetch snapshots for these contracts to get real-time prices and Greeks
-        return await enrichWithSnapshots(ticker, data.results);
-
+        const chain = await enrichWithSnapshots(ticker, data.results);
+        optionChainCache.set(cacheKey, { timestamp: Date.now(), chain });
+        return chain;
     } catch (e) {
         console.error("getOptionChain error:", e);
         return [];

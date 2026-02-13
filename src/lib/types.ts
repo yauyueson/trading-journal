@@ -104,8 +104,14 @@ export interface DirectAddItem {
 // Strategy Recommender Types
 // ────────────────────────────────────────────────────────────────
 
+/** Term structure slope tier for fine-tuning regime (strong contango/backwardation). */
+export type SlopeTier = 'strong_backwardation' | 'backwardation' | 'flat' | 'contango' | 'strong_contango';
+
 export interface StrategyRegime {
     ivRatio: number | null;
+    /** Term structure slope (IV30−IV90)/IV90. Positive = backwardation, negative = contango. */
+    slope: number | null;
+    slopeTier: SlopeTier | null;
     iv30: number | null;
     iv90: number | null;
     rv30: number | null;

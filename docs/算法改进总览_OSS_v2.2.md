@@ -44,18 +44,18 @@
 
 ---
 
-## 4. 波动率 regime：IV Ratio + IV/RV Ratio（不含 IV Rank/IV Percentile）
+## 4. 波动率 regime：IV Ratio + IV/RV Ratio + IV Rank（中期恢复）
 
 **改动**：  
-- 策略与扫描的 regime 仅基于 **IV Ratio**（iv30/iv90 期限结构）和 **IV/RV Ratio**（iv30 与近期已实现波动率之比）；  
-- 每日仍将 iv30/iv90 写入 `ticker_iv_snapshots`（供日后扩展或 backfill 使用）；  
-- **不再使用 IV Rank / IV Percentile**（因无真实历史 IV 数据源，此前用 RV 近似不具可比性）；  
-- LOQ/CSQ 的 IV 维度仅用 **getIVAdjustment(ivRatio, strategy)**（截面 IV 贵/便宜），不再叠加 IV Rank 微调。
+- 策略与扫描的 regime 基于 **IV Ratio**（iv30/iv90 期限结构）和 **IV/RV Ratio**（iv30 与近期已实现波动率之比）；  
+- 每日将 iv30/iv90 写入 `ticker_iv_snapshots`，并在此基础上有 **IV Rank**（当前 IV 在 252 日内的分位）。  
+- **IV Rank 已恢复并打通**（中期）：Strategy Recommender 中 **Single-leg (LOQ)**、**Credit Spread**、**Debit Spread** 均使用 `getIVRankAdjustment(ivRank, strategy)` 参与打分——买方：IV Rank 高略降分、低略加分；卖方：IV Rank 高略加分、低略减分。  
+- IV 维度同时使用 **getIVAdjustment(ivRatio, strategy)**（截面期限结构）与 **getIVRankAdjustment(ivRank, strategy)**（纵向分位微调）；无历史时 ivRank 为 null，调整为 0。
 
 **提升**：
-- **指标可解释、可复现**：IV Ratio 与 IV/RV 均来自当日链与行情，无需历史 IV 库。
-- **策略与估值一致**：IV Ratio &gt;1（backwardation）偏 long vol；IV/RV &gt;1 偏 credit、&lt;1 偏 debit，与现有 regime 逻辑一致。
-- **结果**：UI 与 API 统一展示 IV Ratio、IV/RV Ratio；算法仅依赖这两项，逻辑更清晰。
+- **指标可解释、可复现**：IV Ratio 与 IV/RV 来自当日链与行情；IV Rank 来自同一数据源写入的 `ticker_iv_snapshots`，backfill 与日常请求同源后随时间变准。
+- **策略与估值一致**：IV Ratio &gt;1 偏 long vol；IV/RV &gt;1 偏 credit、&lt;1 偏 debit；IV Rank 高更利于卖、低更利于买。
+- **结果**：UI 与 API 展示 IV Ratio、IV/RV、IV Rank；策略推荐三类策略均纳入 IV Rank 微调，逻辑一致。
 
 ---
 

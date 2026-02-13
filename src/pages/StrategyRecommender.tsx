@@ -488,6 +488,11 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                     <div className="text-[10px] text-gray-500 font-mono">
                                         {result.regime.iv30 != null ? `IV30: ${result.regime.iv30}%` : ''} {result.regime.iv90 != null ? ` · IV90: ${result.regime.iv90}%` : ''}
                                     </div>
+                                    {result.regime.slope != null && result.regime.slopeTier && result.regime.slopeTier !== 'flat' && (
+                                        <div className="text-[10px] text-gray-500 mt-0.5">
+                                            Slope {(result.regime.slope * 100).toFixed(1)}% · {result.regime.slopeTier.replace(/_/g, ' ')}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex-1 min-w-[100px] sm:flex-none sm:text-right">
                                     <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center sm:justify-end gap-1">

@@ -6,6 +6,29 @@
 
 ## [2.1.0] - 2026-02-12
 
+### 策略推荐 / 扫描器：仅请求所需到期与行权范围 + 期权链短期缓存
+
+- **strategy-recommend**（Polygon）：先请求标的价 `getUnderlyingPrice`，再仅拉取 **DTE 30 / 90** 与 **行权价 ±20%** 的期权链，减少 payload 与 API 用量。
+- **scan-options**（Polygon）：先请求标的价，再按 `strikeRange` 传 **minStrike/maxStrike** 给 Polygon，只拉会用到的行权范围。
+- **polygon-client**：同一 ticker 的期权链按 **(ticker + 筛选参数)** 做 **1 分钟内存缓存**，同一用户短时间重复请求直接命中缓存，降低成本并保持算法一致。
+- 修复：scan-options 在 Polygon 路径下返回 `cboeTimestamp` 时不再引用未定义的 `data`。
+
+### 长期 (Long-term)
+
+- **历史 IV 回测与多数据源**：计划支持历史 IV 曲线回测（如按日存储的 IV 分位数、期限结构），以及聚合多数据源（Polygon + CBOE 或其它）做冗余与成本优化。当前 IV Rank 已基于单数据源历史快照；后续可扩展为多源比对与回测框架。
+
+---
+
+### 策略推荐 IV Rank 恢复（中期）
+
+- **strategy-recommend** 中 **Credit Spread**、**Debit Spread**、**Single-leg (LOQ)** 均接入 IV Rank 调整。
+- 买方（LOQ、Debit Spread）使用 `getIVRankAdjustment(ivRank, 'long')`：IV Rank 高略降分、低略加分。
+- 卖方（Credit Spread）使用 `getIVRankAdjustment(ivRank, 'short')`：IV Rank 高略加分、低略减分。
+- 数据流：请求时 `buildIVTermStructure` → `saveTickerIVSnapshot(iv30, iv90)` → `getIVRank(ticker)`，与 backfill 同源，IV Rank 随时间积累变准。
+- 技术文档已更新：`docs/03_核心算法.md`、`docs/08_IV_Rank_上线步骤.md`、`docs/04_数据库设计.md`、`docs/05_API文档.md`、`docs/算法改进总览_OSS_v2.2.md`、`TECHNICAL_DOCUMENTATION.md`。
+
+---
+
 ### 🔄 重大更新: MarketData.app → Polygon.io 数据源迁移
 
 #### 核心变更

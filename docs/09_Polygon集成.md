@@ -66,12 +66,35 @@ Polygon.io 通过以下端点提供期权数据：
 
 ---
 
+## API 用量优化（仅请求所需到期/行权 + 缓存）
+
+为减少 payload 与 API 调用量，以下行为已落地：
+
+| API | 行为 |
+|-----|------|
+| **strategy-recommend** | 先 `getUnderlyingPrice(ticker)`，再仅请求 **DTE 30** 与 **DTE 90** 两段 + **行权价 ±20%**（minStrike/maxStrike），满足 IV 期限结构与策略构建即可。 |
+| **scan-options** | 先 `getUnderlyingPrice(ticker)`，再按 `dteMin`/`dteMax` 与 `strikeRange` 传 **minStrike/maxStrike** 给 `getOptionChain`，只拉会用到的行权范围。 |
+| **期权链缓存** | `getOptionChain` 对同一 `(ticker, filters)` 结果做 **1 分钟内存缓存**，同一用户短时间重复请求直接命中，降低成本并保持算法一致。 |
+
+详见 `api/polygon-client.js`（`getUnderlyingPrice`、`optionChainCache`、`OPTION_CHAIN_CACHE_TTL_MS`）。
+
+---
+
 ## 客户端实现
 
 ### 文件路径
 `api/polygon-client.js`
 
 ### 主要函数
+
+#### `getUnderlyingPrice(ticker)`
+获取标的股票当前价格，用于在请求期权链前计算行权范围，从而**仅请求会用到的合约**，减少 payload 与 API 用量。
+
+**实现**：调用 Polygon 股票快照 `GET /v2/snapshot/locale/us/markets/stocks/tickers/{ticker}`，优先使用 `lastTrade` / `lastQuote`，否则使用 `prevDay.close`。
+
+**使用场景**：`strategy-recommend` 与 `scan-options` 在 Polygon 路径下先调用此函数，再按 `minStrike` / `maxStrike` 调用 `getOptionChain`。
+
+---
 
 #### `getExpirations(ticker)`
 获取指定股票的所有期权到期日列表。
@@ -107,9 +130,11 @@ const expirations = await getExpirations('AAPL');
 ```
 
 **数据增强**：
-- 基础数据来自 contracts API
+- 基础数据来自 contracts API（可按 minDte/maxDte、minStrike/maxStrike 过滤）
 - 调用 snapshot API 获取实时价格和 Greeks
 - 自动计算 DTE（距离到期天数）
+
+**期权链缓存（1 分钟）**：同一 `(ticker, filters)` 的请求结果在内存中缓存 60 秒。同一用户短时间重复请求（如同一 ticker 多次扫描/策略推荐）直接命中缓存，减少 API 调用并保持算法一致。缓存键为 ticker + minDte/maxDte/dte/expiration/side/minStrike/maxStrike。
 
 **示例**：
 ```javascript

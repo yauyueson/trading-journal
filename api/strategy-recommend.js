@@ -6,10 +6,10 @@
 
 let compressLambda, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
     calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, zScoresByBucket, HARD_FILTER_DEFAULTS,
-    getIVRiskFactor, getIVAdjustment, getIVRankAdjustment,
+    getIVRiskFactor, getIVAdjustment, getIVRankAdjustment, getRelativeIVAdjustmentLOQ, getRelativeIVAdjustmentCSQ,
     calculateLOQRaw, normalizeScoreTo100, normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct,
     getCleanATM_IV, calculateTargetIV, buildIVTermStructure, parseChain, calculateSkew, estimateSlippage, getGammaRiskPenalty,
-    calculateUnifiedScore;
+    getSkewBonusForCreditSpread, calculateUnifiedScore;
 let saveTickerIVSnapshot, getIVRank;
 let _scoringLoaded = false;
 
@@ -34,6 +34,8 @@ async function ensureScoring() {
     getIVRiskFactor = scoring.getIVRiskFactor;
     getIVAdjustment = scoring.getIVAdjustment;
     getIVRankAdjustment = scoring.getIVRankAdjustment;
+    getRelativeIVAdjustmentLOQ = scoring.getRelativeIVAdjustmentLOQ;
+    getRelativeIVAdjustmentCSQ = scoring.getRelativeIVAdjustmentCSQ;
     calculateLOQRaw = scoring.calculateLOQRaw;
     normalizeScoreTo100 = scoring.normalizeScoreTo100;
     normalizeLOQScoresWithDynamicBaseline = scoring.normalizeLOQScoresWithDynamicBaseline;
@@ -45,6 +47,7 @@ async function ensureScoring() {
     calculateSkew = scoring.calculateSkew;
     estimateSlippage = scoring.estimateSlippage;
     getGammaRiskPenalty = scoring.getGammaRiskPenalty;
+    getSkewBonusForCreditSpread = scoring.getSkewBonusForCreditSpread;
     calculateUnifiedScore = scoring.calculateUnifiedScore;
     try {
         const ivUrl = new URL('./_shared/ivHistory.cjs', import.meta.url).href;
@@ -140,10 +143,18 @@ async function fetchEarnings(ticker) {
     }
 }
 
+/** Term structure slope = (IV30 - IV90) / IV90. Positive = backwardation, negative = contango. */
+const SLOPE_STRONG_BACK = 0.15;   // termRatio > 1.15
+const SLOPE_BACK = 0.05;         // termRatio > 1.05
+const SLOPE_FLAT_LO = -0.05;     // termRatio >= 0.95
+const SLOPE_CONTANGO = -0.15;    // termRatio < 0.95
+
 function detectRegime(iv30, iv90, rv20) {
     if (!iv30 || !iv90 || iv90 === 0) {
         return {
             ivRatio: 1.0,
+            slope: null,
+            slopeTier: 'flat',
             ivRvRatio: null,
             mode: 'NEUTRAL',
             advice: 'Insufficient Data for IV Ratio. Defaulting to Neutral.',
@@ -152,7 +163,14 @@ function detectRegime(iv30, iv90, rv20) {
     }
 
     const termRatio = iv30 / iv90;
+    const slope = (iv30 - iv90) / iv90;
     const ivRvRatio = rv20 ? (iv30 * 100) / rv20 : null;
+
+    let slopeTier = 'flat';
+    if (slope >= SLOPE_STRONG_BACK) slopeTier = 'strong_backwardation';
+    else if (slope >= SLOPE_BACK) slopeTier = 'backwardation';
+    else if (slope <= SLOPE_CONTANGO) slopeTier = 'strong_contango';
+    else if (slope < SLOPE_FLAT_LO) slopeTier = 'contango';
 
     let mode = 'NEUTRAL';
     let advice = 'Neutral IV: Either strategy viable, compare scores';
@@ -160,8 +178,12 @@ function detectRegime(iv30, iv90, rv20) {
 
     if (termRatio > 1.05) {
         mode = 'CREDIT';
-        advice = 'Backwardation (Expensive near-term): Sell Credit Spreads';
-        adviceDetail = 'Near-term IV (IV30) is higher than IV90—backwardation. Short-dated options are priced rich vs longer-dated, so selling premium (credit spreads) is favored. ';
+        advice = slopeTier === 'strong_backwardation'
+            ? 'Strong Backwardation: Favor Credit Spreads'
+            : 'Backwardation (Expensive near-term): Sell Credit Spreads';
+        adviceDetail = slopeTier === 'strong_backwardation'
+            ? 'Term structure slope is strongly positive (IV30 well above IV90)—short-dated options are rich vs longer-dated. Selling premium (credit spreads) has a clear term-structure edge. '
+            : 'Near-term IV (IV30) is higher than IV90—backwardation. Short-dated options are priced rich vs longer-dated, so selling premium (credit spreads) is favored. ';
         if (ivRvRatio != null) {
             if (ivRvRatio > 1.05) {
                 adviceDetail += `IV/RV is ${ivRvRatio.toFixed(2)} (above 1): the market is paying a volatility premium vs recent realized; credit spreads let you collect that premium with defined risk. `;
@@ -172,8 +194,12 @@ function detectRegime(iv30, iv90, rv20) {
         adviceDetail += 'Prefer 30–45 DTE to balance theta decay and gamma risk.';
     } else if (termRatio < 0.95) {
         mode = 'DEBIT';
-        advice = 'Contango (Cheap near-term IV): Buy Debit Spreads';
-        adviceDetail = 'IV30 is lower than IV90—contango. Near-term options are relatively cheap vs far-term (no big near-term event premium). ';
+        advice = slopeTier === 'strong_contango'
+            ? 'Strong Contango: Favor Debit Spreads / Long Options'
+            : 'Contango (Cheap near-term IV): Buy Debit Spreads';
+        adviceDetail = slopeTier === 'strong_contango'
+            ? 'Term structure slope is strongly negative (IV30 well below IV90)—near-term options are cheap vs far-term. Buying premium (debit spreads, long options) is favored by term structure. '
+            : 'IV30 is lower than IV90—contango. Near-term options are relatively cheap vs far-term (no big near-term event premium). ';
         if (ivRvRatio != null) {
             if (ivRvRatio < 1) {
                 adviceDetail += `IV/RV is ${ivRvRatio.toFixed(2)} (below 1): realized vol has been higher than implied, so long options can benefit from a vol or directional move without overpaying. Debit spreads reduce cost and cap risk vs a single long while keeping leverage. `;
@@ -184,7 +210,7 @@ function detectRegime(iv30, iv90, rv20) {
         adviceDetail += 'Debit spreads cap risk and keep positive delta with lower capital than a naked long.';
     }
 
-    return { ivRatio: termRatio, ivRvRatio, mode, advice, adviceDetail };
+    return { ivRatio: termRatio, slope, slopeTier, ivRvRatio, mode, advice, adviceDetail };
 }
 
 function generateStrategyNote(strategyType, metrics) {
@@ -263,9 +289,11 @@ function getProbITMAtStrike(chain, optionType, expiration, targetStrike) {
     return a.probabilityITM + t * (b.probabilityITM - a.probabilityITM);
 }
 
-function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth) {
+function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null) {
     const results = [];
     const widths = customWidth ? [customWidth] : [5, 10];
+    const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short');
+    const atmIV = getCleanATM_IV(chain, currentPrice);
 
     const shorts = chain.filter(o =>
         o.type === type &&
@@ -353,12 +381,11 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             // 5. Gamma Risk (New)
             const gammaPenalty = getGammaRiskPenalty(shortLeg.gamma, shortLeg.theta, dte);
 
-            // 2. Skew Adjustment (New)
-            let skewBonus = 0;
-            // If Skew is positive (Puts > Calls), Credit Put Spreads are favored
-            if (skew > 0.05 && type === 'Put') skewBonus = 10;
-            // If Skew is negative (Calls > Puts), Credit Call Spreads are favored
-            if (skew < -0.05 && type === 'Call') skewBonus = 10;
+            // Relative IV (same-DTE ATM): sell expensive vol → small bonus; vega penalty already limits vol crush exposure
+            const relativeIVBonus = getRelativeIVAdjustmentCSQ(shortLeg.iv, atmIV) * 15;
+
+            // 2. Skew Adjustment: magnitude-based bonus (|skew| larger → same-direction bonus scales 5..15, capped)
+            const skewBonus = getSkewBonusForCreditSpread(skew, type);
 
             let scoreDTE = 50;
             if (dte >= 30 && dte <= 45) scoreDTE = 100;
@@ -366,7 +393,8 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             else if (dte > 45 && dte <= 60) scoreDTE = 80;
             else if (dte < 21) scoreDTE = 20;
 
-            let finalScore = (0.20 * scoreEV) + (0.20 * scoreROI) + (0.20 * scorePOP) + (0.15 * scoreDistance) + (0.25 * scoreDTE) + skewBonus + gammaPenalty;
+            let finalScore = (0.20 * scoreEV) + (0.20 * scoreROI) + (0.20 * scorePOP) + (0.15 * scoreDistance) + (0.25 * scoreDTE) + skewBonus + gammaPenalty + relativeIVBonus;
+            finalScore += ivRankAdj * 2;
             if (includesEarnings) finalScore -= 25;
 
             if (effectiveROI < 10) continue; // Lowered ROI floor because we are using net effective ROI now
@@ -415,9 +443,10 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
-function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth) {
+function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null) {
     const results = [];
     const widths = customWidth ? [customWidth] : [2.5, 5];
+    const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'long');
 
     const longs = chain.filter(o =>
         o.type === type &&
@@ -493,6 +522,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth) {
             const deltaScore = 50 + deltaBonus * 12.5;
 
             let finalScore = (0.4 * lambdaScore) + (0.35 * rrScore) + (0.25 * deltaScore);
+            finalScore += ivRankAdj * 2;
 
             // When IV/RV > 1.10 (contango but paying VRP), favor more selective debits: R:R ≥ 1.5, DTE 30–45, delta 0.50–0.65
             if (ivRvRatio != null && ivRvRatio > 1.10) {
@@ -578,12 +608,14 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, iv
     const zGT = zScoresByBucket(gtRatios, dtes);
     const zVegaEff = zScoresByBucket(vegaEfficiencies, dtes);
 
+    const atmIV = getCleanATM_IV(chain, currentPrice);
     const ivAdjustment = getIVAdjustment(ivRatio ?? 1.0, 'long');
     const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'long');
     const rawScores = processed.map((p, i) => {
+        const relIvAdj = getRelativeIVAdjustmentLOQ(p.opt.iv, atmIV);
         const deltaBonus = getDeltaBonus(p.opt.delta);
         const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
-        return calculateLOQRaw(zL[i], zG[i], zT[i], ivAdjustment + ivRankAdj, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty, p.opt.dte, zVegaEff[i]);
+        return calculateLOQRaw(zL[i], zG[i], zT[i], ivAdjustment + ivRankAdj + relIvAdj, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty, p.opt.dte, zVegaEff[i]);
     });
     const scores = normalizeLOQScoresWithDynamicBaseline(rawScores);
     return processed.map((p, i) => {
@@ -656,19 +688,25 @@ export default async function handler(req, res) {
 
         if (dataSource === 'POLYGON') {
             console.log(`Using Polygon.io for ${upperTicker}`);
-            const { getOptionChain } = await import('./polygon-client.js');
+            const { getOptionChain, getUnderlyingPrice } = await import('./polygon-client.js');
 
-            // Parallel fetch for ancillary data
-            [rv30, daysUntilEarnings] = await Promise.all([
+            // Parallel fetch: ancillary data + underlying price (for strike-range filter to reduce payload)
+            const [rv30, daysUntilEarnings, underlyingPrice] = await Promise.all([
                 fetchRV30(upperTicker),
-                fetchEarnings(upperTicker)
+                fetchEarnings(upperTicker),
+                getUnderlyingPrice(upperTicker)
             ]);
 
             try {
-                // Fetch two specific DTE ranges to avoid excessive API calls
+                // Only request DTE 30 and 90 (IV term structure) with strike range ±20% to reduce payload/API usage
+                const strikePadding = 0.20;
+                const minStrike = underlyingPrice && underlyingPrice > 0 ? underlyingPrice * (1 - strikePadding) : undefined;
+                const maxStrike = underlyingPrice && underlyingPrice > 0 ? underlyingPrice * (1 + strikePadding) : undefined;
+                const strikeFilter = (minStrike != null && maxStrike != null) ? { minStrike, maxStrike } : {};
+
                 const [chain30, chain90] = await Promise.all([
-                    getOptionChain(upperTicker, { dte: 30 }),
-                    getOptionChain(upperTicker, { dte: 90 })
+                    getOptionChain(upperTicker, { dte: 30, ...strikeFilter }),
+                    getOptionChain(upperTicker, { dte: 90, ...strikeFilter })
                 ]);
                 const seen = new Set();
                 let chainData = [];
@@ -746,31 +784,36 @@ export default async function handler(req, res) {
         const legStrat = isBull ? 'Call' : 'Put';
 
         // 2. Build Strategies (regime includes IV Rank for LOQ single-leg scoring)
-        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam);
-        const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio, widthParam);
+        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivRank);
+        const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio, widthParam, ivRank);
         const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice, regime.ivRatio, ivRank);
 
-        // 3. Unified Cross-Strategy Scoring — Top Picks
+        // 3. Unified Cross-Strategy Scoring — Top Picks (skew favor, termStrength, anomaly down-weight for short-term credit)
+        const unifiedOpts = {
+            anomaly: ivSurface.anomaly || false,
+            termStrength: regime.slopeTier || undefined
+        };
         const topPicks = [];
         for (const rec of creditSpreads) {
+            const creditSpreadType = rec.type && rec.type.includes('Put') ? 'Put' : 'Call';
             topPicks.push({
                 ...rec,
                 strategyCategory: 'CREDIT_SPREAD',
-                unifiedScore: calculateUnifiedScore(rec, 'CREDIT_SPREAD', regime.mode, regime.ivRvRatio),
+                unifiedScore: calculateUnifiedScore(rec, 'CREDIT_SPREAD', regime.mode, regime.ivRvRatio, { ...unifiedOpts, skew, creditSpreadType }),
             });
         }
         for (const rec of debitSpreads) {
             topPicks.push({
                 ...rec,
                 strategyCategory: 'DEBIT_SPREAD',
-                unifiedScore: calculateUnifiedScore(rec, 'DEBIT_SPREAD', regime.mode, regime.ivRvRatio),
+                unifiedScore: calculateUnifiedScore(rec, 'DEBIT_SPREAD', regime.mode, regime.ivRvRatio, unifiedOpts),
             });
         }
         for (const rec of singleLegs) {
             topPicks.push({
                 ...rec,
                 strategyCategory: 'SINGLE_LEG',
-                unifiedScore: calculateUnifiedScore(rec, 'SINGLE_LEG', regime.mode, regime.ivRvRatio),
+                unifiedScore: calculateUnifiedScore(rec, 'SINGLE_LEG', regime.mode, regime.ivRvRatio, unifiedOpts),
             });
         }
         topPicks.sort((a, b) => b.unifiedScore - a.unifiedScore);
@@ -804,6 +847,8 @@ export default async function handler(req, res) {
             },
             regime: {
                 ivRatio: regime.ivRatio ? Number(regime.ivRatio.toFixed(3)) : null,
+                slope: regime.slope != null ? Number(regime.slope.toFixed(3)) : null,
+                slopeTier: regime.slopeTier || null,
                 iv30: iv30 ? Number((iv30 * 100).toFixed(1)) : null,
                 iv90: iv90 ? Number((iv90 * 100).toFixed(1)) : null,
                 rv30: rv30 ? Number(rv30.toFixed(1)) : null,

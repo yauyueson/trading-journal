@@ -250,6 +250,28 @@ const getIVRankAdjustment = (ivRank, strategy) => {
     return 0;
 };
 
+/**
+ * Relative IV adjustment for LOQ: option IV vs same-DTE ATM IV.
+ * Cheap vol (ratio < 1) → bonus; expensive (ratio > 1) → penalty. Capped ±0.4.
+ */
+const getRelativeIVAdjustmentLOQ = (optionIv, atmIvSameDTE) => {
+    if (optionIv == null || atmIvSameDTE == null || atmIvSameDTE <= 0) return 0;
+    const ratio = optionIv / atmIvSameDTE;
+    const raw = (1 - ratio) * 0.5;
+    return Math.max(-0.4, Math.min(0.4, raw));
+};
+
+/**
+ * Relative IV adjustment for CSQ: option IV vs same-DTE ATM IV.
+ * Expensive vol (ratio > 1) → bonus (sell rich); cheap → penalty. Capped ±0.4.
+ */
+const getRelativeIVAdjustmentCSQ = (optionIv, atmIvSameDTE) => {
+    if (optionIv == null || atmIvSameDTE == null || atmIvSameDTE <= 0) return 0;
+    const ratio = optionIv / atmIvSameDTE;
+    const raw = (ratio - 1) * 0.5;
+    return Math.max(-0.4, Math.min(0.4, raw));
+};
+
 // ────────────────────────────────────────────────────────────────
 // LOQ / CSQ Raw Score
 // ────────────────────────────────────────────────────────────────
@@ -597,8 +619,12 @@ const calculateLiquidityScore = (bid, ask, volume, openInterest) => {
     return 0.7 * spreadScore + 0.3 * liqBonus;
 };
 
-/** Regime alignment bonus. Returns raw 0-20. */
-const calculateRegimeBonus = (strategyCategory, regimeMode, ivRvRatio) => {
+/**
+ * Regime alignment bonus. Returns raw 0-20.
+ * termStrength: 'strong_backwardation' | 'backwardation' | 'flat' | 'contango' | 'strong_contango' (optional)
+ * Strong contango/backwardation add a small extra bonus for aligned strategies.
+ */
+const calculateRegimeBonus = (strategyCategory, regimeMode, ivRvRatio, termStrength) => {
     let bonus = 0;
     if (regimeMode === 'CREDIT') {
         if (strategyCategory === 'CREDIT_SPREAD') bonus += 15;
@@ -610,14 +636,67 @@ const calculateRegimeBonus = (strategyCategory, regimeMode, ivRvRatio) => {
         if (ivRvRatio > 1.2 && strategyCategory === 'CREDIT_SPREAD') bonus += 5;
         if (ivRvRatio < 0.85 && (strategyCategory === 'DEBIT_SPREAD' || strategyCategory === 'SINGLE_LEG')) bonus += 5;
     }
+    if (termStrength === 'strong_backwardation' && regimeMode === 'CREDIT' && strategyCategory === 'CREDIT_SPREAD') bonus += 2;
+    if (termStrength === 'strong_contango' && regimeMode === 'DEBIT' && (strategyCategory === 'DEBIT_SPREAD' || strategyCategory === 'SINGLE_LEG')) bonus += 2;
     return bonus;
+};
+
+/**
+ * Skew bonus for credit spreads: scale by |skew| when direction favors the strategy, with cap.
+ * - Put credit: favored when skew > 0 (put IV rich). Bonus 5..15 as |skew| goes from 0.05 to 0.25.
+ * - Call credit: favored when skew < 0 (call IV rich). Same scaling.
+ * Future: could use skew to adjust spread width (e.g. steeper put skew → slightly wider put credit spread).
+ */
+const getSkewBonusForCreditSpread = (skew, type) => {
+    const absSkew = Math.abs(skew);
+    const THRESHOLD = 0.05;
+    const CAP_AT = 0.25;
+    const BONUS_MIN = 5;
+    const BONUS_MAX = 15;
+    if (type === 'Put' && skew > THRESHOLD) {
+        const t = Math.min(1, (absSkew - THRESHOLD) / (CAP_AT - THRESHOLD));
+        return BONUS_MIN + t * (BONUS_MAX - BONUS_MIN);
+    }
+    if (type === 'Call' && skew < -THRESHOLD) {
+        const t = Math.min(1, (absSkew - THRESHOLD) / (CAP_AT - THRESHOLD));
+        return BONUS_MIN + t * (BONUS_MAX - BONUS_MIN);
+    }
+    return 0;
+};
+
+/**
+ * Skew favor for Unified Score: 0–10 points when skew favors this strategy (credit spread only).
+ * Used so "Skew favors this side" candidates get a small boost in cross-strategy ranking.
+ */
+const getSkewFavorForUnifiedScore = (skew, strategyCategory, creditSpreadType) => {
+    if (strategyCategory !== 'CREDIT_SPREAD' || creditSpreadType == null) return 0;
+    const absSkew = Math.abs(skew);
+    const THRESHOLD = 0.05;
+    const CAP_AT = 0.25;
+    if (creditSpreadType === 'Put' && skew > THRESHOLD) {
+        const t = Math.min(1, (absSkew - THRESHOLD) / (CAP_AT - THRESHOLD));
+        return 5 + t * 5; // 5..10
+    }
+    if (creditSpreadType === 'Call' && skew < -THRESHOLD) {
+        const t = Math.min(1, (absSkew - THRESHOLD) / (CAP_AT - THRESHOLD));
+        return 5 + t * 5;
+    }
+    return 0;
 };
 
 /**
  * Unified cross-strategy score. Comparable across Credit Spread, Debit Spread, and Long Option.
  * Uses EV/Risk (40%), POP (20%), Regime alignment (25%), Liquidity (15%).
+ * opts: { skew?, creditSpreadType?, anomaly?, termStrength? }
+ * - skew/creditSpreadType: when skew favors this strategy, adds 0–10 points.
+ * - anomaly: when true and strategy is short-term credit (DTE <= 30), regime component is down-weighted (IV spike / earnings risk).
+ * - termStrength: passed to calculateRegimeBonus for strong contango/backwardation fine-tuning.
  */
-const calculateUnifiedScore = (candidate, strategyCategory, regimeMode, ivRvRatio) => {
+const calculateUnifiedScore = (candidate, strategyCategory, regimeMode, ivRvRatio, opts = null) => {
+    const anomaly = opts && opts.anomaly === true;
+    const termStrength = opts && opts.termStrength;
+    const dte = strategyCategory === 'SINGLE_LEG' ? (candidate.dte ?? null) : (candidate.shortLeg?.dte ?? null);
+
     let evRiskRatio, pop, liqScore;
 
     if (strategyCategory === 'CREDIT_SPREAD') {
@@ -657,11 +736,18 @@ const calculateUnifiedScore = (candidate, strategyCategory, regimeMode, ivRvRati
 
     const normEVRisk = normalizeEVRisk(evRiskRatio);
     const normPOP = Math.max(0, Math.min(100, pop * 100));
-    const regimeBonus = calculateRegimeBonus(strategyCategory, regimeMode, ivRvRatio);
-    const normRegime = Math.min(100, regimeBonus * 5);
+    const regimeBonus = calculateRegimeBonus(strategyCategory, regimeMode, ivRvRatio, termStrength);
+    let normRegime = Math.min(100, regimeBonus * 5);
+    if (anomaly && strategyCategory === 'CREDIT_SPREAD' && (dte == null || dte <= 30)) {
+        normRegime = normRegime * 0.55;
+    }
     const normLiquidity = Math.max(0, Math.min(100, liqScore));
 
-    const raw = (0.40 * normEVRisk) + (0.20 * normPOP) + (0.25 * normRegime) + (0.15 * normLiquidity);
+    let raw = (0.40 * normEVRisk) + (0.20 * normPOP) + (0.25 * normRegime) + (0.15 * normLiquidity);
+    if (opts && opts.skew != null) {
+        const creditSpreadType = opts.creditSpreadType || null;
+        raw += getSkewFavorForUnifiedScore(opts.skew, strategyCategory, creditSpreadType);
+    }
     return Math.max(0, Math.min(100, Math.round(raw)));
 };
 
@@ -686,6 +772,8 @@ module.exports = {
     getIVRiskFactor,
     getIVAdjustment,
     getIVRankAdjustment,
+    getRelativeIVAdjustmentLOQ,
+    getRelativeIVAdjustmentCSQ,
     getLOQWeightsForDTE,
     calculateLOQRaw,
     calculateCSQRaw,
@@ -706,5 +794,7 @@ module.exports = {
     normalizeEVRisk,
     calculateLiquidityScore,
     calculateRegimeBonus,
-    calculateUnifiedScore
+    calculateUnifiedScore,
+    getSkewBonusForCreditSpread,
+    getSkewFavorForUnifiedScore
 };

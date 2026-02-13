@@ -121,7 +121,7 @@ async function upsertSnapshots(supabaseUrl, supabaseKey, ticker, snapshots) {
 }
 
 async function run() {
-    const tickers = ['TSLA', 'META', 'IREN'];
+    const tickers = ['AMZN', 'LULU', 'HOOD', 'OKLO', 'CRWV', 'COIN', 'BMNR', 'MSTR', 'PLTR', 'NFLX', 'NVDA', 'GOOG', 'AVGO'];
     console.log(`Starting IV Rank backfill for: ${tickers.join(', ')}`);
 
     const { url, key } = getSupabase();

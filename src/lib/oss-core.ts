@@ -367,6 +367,40 @@ export function getIVRankAdjustment(ivRank: number | null, strategy: Strategy): 
     return 0;
 }
 
+/**
+ * Relative IV adjustment for LOQ (long options).
+ * Uses same-DTE ATM IV as benchmark: option IV vs ATM IV.
+ * - Ratio < 1 (cheap vol): small bonus (buy cheap volatility).
+ * - Ratio > 1 (expensive): small penalty (avoid overpaying).
+ * Capped ±0.4 so it does not dominate the score.
+ */
+export function getRelativeIVAdjustmentLOQ(
+    optionIv: number | null | undefined,
+    atmIvSameDTE: number | null | undefined
+): number {
+    if (optionIv == null || atmIvSameDTE == null || atmIvSameDTE <= 0) return 0;
+    const ratio = optionIv / atmIvSameDTE;
+    const raw = (1 - ratio) * 0.5;
+    return Math.max(-0.4, Math.min(0.4, raw));
+}
+
+/**
+ * Relative IV adjustment for CSQ (short options).
+ * Uses same-DTE ATM IV as benchmark.
+ * - Ratio > 1 (expensive vol): small bonus (sell expensive volatility).
+ * - Ratio < 1 (cheap): small penalty. Combined with vega penalty to avoid over-exposure to vol crush.
+ * Capped ±0.4.
+ */
+export function getRelativeIVAdjustmentCSQ(
+    optionIv: number | null | undefined,
+    atmIvSameDTE: number | null | undefined
+): number {
+    if (optionIv == null || atmIvSameDTE == null || atmIvSameDTE <= 0) return 0;
+    const ratio = optionIv / atmIvSameDTE;
+    const raw = (ratio - 1) * 0.5;
+    return Math.max(-0.4, Math.min(0.4, raw));
+}
+
 // ────────────────────────────────────────────────────────────────
 // LOQ Weights & Score
 // ────────────────────────────────────────────────────────────────
