@@ -1,13 +1,13 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
-import { PortfolioSettingsProvider } from './context/PortfolioSettingsContext.tsx'
+import { AppSettingsProvider } from './context/AppSettingsContext.tsx'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-        <PortfolioSettingsProvider>
+        <AppSettingsProvider>
             <App />
-        </PortfolioSettingsProvider>
+        </AppSettingsProvider>
     </React.StrictMode>,
 )
