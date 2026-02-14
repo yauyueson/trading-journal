@@ -7,7 +7,7 @@ import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER } from '../lib/utils';
 import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQ } from '../lib/scoring';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
-import { usePortfolioSettings } from '../context/PortfolioSettingsContext';
+import { useAppSettings } from '../context/AppSettingsContext';
 
 /** Normalize expiration to YYYY-MM-DD for option-price API (avoids wrong contract match). */
 function normalizeExpiration(exp: string): string {
@@ -46,9 +46,8 @@ interface PositionCardProps {
 }
 
 export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onDelete, onUpdateOwner, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick, portfolioTotal: portfolioTotalProp, initialData }) => {
-    const settings = usePortfolioSettings();
-    const portfolioTotal = portfolioTotalProp ?? settings.portfolioTotal;
-    const stopOutFraction = settings.stopOutFraction;
+    const { settings: appSettings, stopOutFraction } = useAppSettings();
+    const portfolioTotal = portfolioTotalProp ?? appSettings.portfolio.accountSize;
     const [loading, setLoading] = useState(false);
     const [liveData, setLiveData] = useState<LiveData>({ delta: undefined, iv: undefined, gamma: undefined, theta: undefined, vega: undefined, score: undefined });
     const [earnings, setEarnings] = useState<{ loading: boolean; date: string | null; days: number | null }>({ loading: true, date: null, days: null });
