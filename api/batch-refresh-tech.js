@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { calculateTechScore } from '../lib/tech-analysis.js';
 import { getCandles } from '../lib/polygon-client.js';
+import { getAppSettings } from './_shared/getAppSettings.js';
 
 // Initialize Supabase Client
 // function getSupabase() {
@@ -37,6 +38,11 @@ export default async function handler(req, res) {
         }
 
         const supabase = createClient(url, key);
+        const appSettings = await getAppSettings(supabase);
+        const techScoreOptions = {
+          ...appSettings.techScore.weights,
+          ...appSettings.techScore.periods,
+        };
 
         let positions = [];
 
@@ -119,7 +125,7 @@ export default async function handler(req, res) {
                 const lastPrice = lastCandle.close;
 
                 // Calculate Score
-                const scoreResult = calculateTechScore(candles);
+                const scoreResult = calculateTechScore(candles, techScoreOptions);
 
                 // Prepare Update
                 // We update ALL positions with this ticker
