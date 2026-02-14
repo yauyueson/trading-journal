@@ -462,8 +462,8 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                             IV Rank
                                             <Tooltip label="" explanation="IV Rank: current IV30 in 252d min–max range (0–100%). Low = IV cheap (buyers); high = IV expensive (sellers). N/A until enough history (run backfill once)." />
                                         </div>
-                                        <div className={`text-xl sm:text-2xl font-mono font-bold mb-1 ${result.regime.ivRank != null ? (result.regime.ivRank < 0.3 ? 'text-emerald-400' : result.regime.ivRank > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
-                                            {result.regime.ivRank != null ? `Rank ${(result.regime.ivRank * 100).toFixed(0)}%` : 'Rank N/A'}
+                                        <div className={`text-2xl sm:text-3xl font-mono font-bold mb-1 ${result.regime.ivRank != null ? (result.regime.ivRank < 0.3 ? 'text-emerald-400' : result.regime.ivRank > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
+                                            {result.regime.ivRank != null ? `${(result.regime.ivRank * 100).toFixed(0)}%` : 'N/A'}
                                         </div>
                                         <div className="text-[10px] text-gray-500 font-mono">
                                             {result.regime.ivRankSampleDays != null && result.regime.ivRankSampleDays > 0 ? `${result.regime.ivRankSampleDays}d` : ''}
@@ -484,7 +484,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                             IV %
                                             <Tooltip label="" explanation="IV Percentile: % of past days with IV30 below current. Low = IV cheap (buyers); high = IV expensive (sellers). N/A until enough history (run backfill once)." />
                                         </div>
-                                        <div className={`text-xl sm:text-2xl font-mono font-bold mb-1 ${result.regime.ivPercentile != null ? (result.regime.ivPercentile < 0.3 ? 'text-emerald-400' : result.regime.ivPercentile > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
+                                        <div className={`text-2xl sm:text-3xl font-mono font-bold mb-1 ${result.regime.ivPercentile != null ? (result.regime.ivPercentile < 0.3 ? 'text-emerald-400' : result.regime.ivPercentile > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
                                             {result.regime.ivPercentile != null ? `${(result.regime.ivPercentile * 100).toFixed(0)}%` : 'N/A'}
                                         </div>
                                     </div>
@@ -563,336 +563,338 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                             ? (result.strategies.TOP_PICKS as unknown as Recommendation[]) || []
                             : (result.strategies[selectedTab as keyof typeof result.strategies] as Recommendation[]) || [];
                         return (
-                    <div className="space-y-4">
-                        {recs.length === 0 && (
-                            <div className="text-center py-10 text-gray-500">
-                                <Search size={32} className="mx-auto mb-2 opacity-20" />
-                                No results found for this strategy with current filters.
-                            </div>
-                        )}
-
-                        {recs.map((rec: Recommendation, idx: number) => {
-                            const displayScore = isTopPicks ? (rec as unknown as UnifiedCandidateType).unifiedScore : rec.score;
-                            const category = isTopPicks ? (rec as unknown as UnifiedCandidateType).strategyCategory : null;
-                            return (
-                            <div
-                                key={idx}
-                                className={`bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl overflow-hidden transition-all duration-300 ${expandedCard === idx ? 'ring-1 ring-accent-green/50 shadow-lg shadow-green-900/10' : 'hover:border-[#444]'
-                                    }`}
-                            >
-                                {/* Card Header (Clickable) */}
-                                <div
-                                    className="p-4 sm:p-5 cursor-pointer flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4"
-                                    onClick={() => setExpandedCard(expandedCard === idx ? null : idx)}
-                                >
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 sm:gap-3 mb-1">
-                                            <div className={`text-3xl sm:text-4xl font-black ${getScoreColor(displayScore)}`}>{displayScore}</div>
-                                            <div className="min-w-0">
-                                                <div className="font-bold text-base sm:text-lg text-white flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                                    <span className="truncate">{rec.type}</span>
-                                                    {category && (() => {
-                                                        const badge = getCategoryBadge(category);
-                                                        return (
-                                                            <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded border shrink-0 ${badge.color}`}>
-                                                                {badge.label}
-                                                            </span>
-                                                        );
-                                                    })()}
-                                                    {isTopPicks && (
-                                                        <span className="text-[10px] sm:text-xs text-gray-500 font-mono shrink-0">(cat: {rec.score})</span>
-                                                    )}
-                                                    {isSpread(rec) && (
-                                                        <span className="text-xs sm:text-sm font-mono text-gray-400 bg-white/5 px-1.5 sm:px-2 py-0.5 rounded border border-white/10 shrink-0">
-                                                            ${rec.shortLeg?.strike} / ${rec.longLeg?.strike}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="text-xs sm:text-sm text-gray-400 font-mono">
-                                                    {isSpread(rec) ? (
-                                                        <span className="flex items-center gap-2">
-                                                            {rec.shortLeg?.expiration || rec.longLeg?.expiration}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="flex items-center gap-2">
-                                                            ${(rec as SingleLegRecommendation).strike} • {(rec as SingleLegRecommendation).expiration}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Key Metrics Row */}
-                                        <div className="flex flex-wrap gap-x-4 sm:gap-x-6 gap-y-2 mt-3 text-xs sm:text-sm">
-                                            {isSpread(rec) ? (
-                                                <>
-                                                    {rec.netCredit && (
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[10px] text-gray-500 uppercase font-bold">Credit</span>
-                                                            <span className="text-accent-green font-mono font-bold">${rec.netCredit}</span>
-                                                        </div>
-                                                    )}
-                                                    {rec.netDebit && (
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[10px] text-gray-500 uppercase font-bold">Debit</span>
-                                                            <span className="text-white font-mono font-bold">${rec.netDebit}</span>
-                                                        </div>
-                                                    )}
-                                                    {rec.roi && (
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[10px] text-gray-500 uppercase font-bold">ROI</span>
-                                                            <span className="text-accent-green font-mono font-bold">{rec.roi}%</span>
-                                                        </div>
-                                                    )}
-                                                    {rec.pop && (
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[10px] text-gray-500 uppercase font-bold">POP</span>
-                                                            <span className="text-white font-mono font-bold">{rec.pop}%</span>
-                                                        </div>
-                                                    )}
-                                                    {rec.riskReward && (
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[10px] text-gray-500 uppercase font-bold">R:R</span>
-                                                            <span className="text-accent-green font-mono font-bold">{rec.riskReward}</span>
-                                                        </div>
-                                                    )}
-                                                    {(rec as SpreadRecommendation).expectedValue !== undefined && (
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[10px] text-gray-500 uppercase font-bold">EV</span>
-                                                            <span className={`font-mono font-bold ${(rec as SpreadRecommendation).expectedValue! > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                ${(rec as SpreadRecommendation).expectedValue}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Max Risk</span>
-                                                        <span className="text-red-400 font-mono font-bold">${rec.maxRisk}</span>
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Price</span>
-                                                        <span className="text-white font-mono font-bold">${(rec as SingleLegRecommendation).price?.toFixed(2)}</span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Delta</span>
-                                                        <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).delta?.toFixed(2)}</span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Gamma</span>
-                                                        <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).gamma?.toFixed(4)}</span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Theta</span>
-                                                        <span className="text-red-400 font-mono font-bold">{(rec as SingleLegRecommendation).theta?.toFixed(3)}</span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Vega</span>
-                                                        <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).vega?.toFixed(3)}</span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Lambda</span>
-                                                        <span className="text-accent-green font-mono font-bold">{(rec as SingleLegRecommendation).lambda?.toFixed(1)}</span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Volume</span>
-                                                        <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).volume}</span>
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">OI</span>
-                                                        <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).openInterest}</span>
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="text-right flex flex-col items-end gap-2">
-                                        <div className={`text-2xl transition-transform ${expandedCard === idx ? 'rotate-180' : ''}`}>
-                                            <ChevronDown size={24} className="text-gray-500" />
-                                        </div>
-                                        {isSpread(rec) && (
-                                            <div className="text-xs text-gray-500 font-mono">Width: ${rec.width}</div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Review "Why This" Banner */}
-                                <div className="bg-[#2C2C2E] px-3 sm:px-5 py-2 border-t border-[#3A3A3C] space-y-1">
-                                    <div className="flex items-start gap-2">
-                                        <Info size={14} className="text-yellow-500 shrink-0 mt-0.5" />
-                                        <span className="text-xs sm:text-sm text-gray-300 italic">{rec.whyThis}</span>
-                                    </div>
-                                    {(() => {
-                                        const sizing = getSuggestedContracts(rec, portfolioTotal, riskPct, { useKelly: true, stopOutFraction });
-                                        return (
-                                            <div className="text-[10px] sm:text-xs text-gray-400 font-mono pl-6 leading-relaxed">
-                                                Size: <span className="text-accent-green font-bold">{sizing.suggestedContracts}</span> contracts
-                                                <span className="hidden sm:inline">{' '}(risk cap: {formatCurrency(sizing.riskCapDollars)}, stop-out: {formatCurrency(sizing.riskPerContractAtStopOutDollars)} at {stopOutPct}%, max loss: {formatCurrency(sizing.maxLossPerContractDollars)})</span>
-                                                <span className="sm:hidden"> · cap {formatCurrency(sizing.riskCapDollars)}</span>
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-
-                                {/* Expanded Details */}
-                                {expandedCard === idx && (
-                                    <div className="p-5 border-t border-[#3A3A3C] bg-black/20">
-                                        {/* Analysis Section: Why this strategy/option is a good choice */}
-                                        {isSpread(rec) && rec.recommendation?.note && (
-                                            <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                {rec.recommendation.note.includes('✅') && (
-                                                    <div className="bg-green-500/5 border border-green-500/20 p-4 rounded-xl">
-                                                        <h4 className="text-xs font-bold text-green-400 uppercase mb-2 flex items-center gap-2">
-                                                            <TrendingUp size={14} />
-                                                            Why This Strategy Works
-                                                        </h4>
-                                                        <p className="text-sm text-gray-300 leading-relaxed">
-                                                            {rec.recommendation.note.split('⚠️')[0].replace('✅ Pros:', '').trim().replace(/\.$/, '')}
-                                                        </p>
-                                                    </div>
-                                                )}
-
-                                                {rec.recommendation.note.includes('⚠️') && (
-                                                    <div className="bg-red-500/5 border border-red-500/20 p-4 rounded-xl">
-                                                        <h4 className="text-xs font-bold text-red-400 uppercase mb-2 flex items-center gap-2">
-                                                            <AlertCircle size={14} />
-                                                            Risks & Drawbacks
-                                                        </h4>
-                                                        <p className="text-sm text-gray-300 leading-relaxed">
-                                                            {rec.recommendation.note.split('⚠️ Cons:')[1]?.trim() || ''}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        {!isSpread(rec) && (rec as SingleLegRecommendation).recommendation?.note && (
-                                            <div className="mb-6">
-                                                <div className="bg-green-500/5 border border-green-500/20 p-4 rounded-xl">
-                                                    <h4 className="text-xs font-bold text-green-400 uppercase mb-2 flex items-center gap-2">
-                                                        <TrendingUp size={14} />
-                                                        Why This Option Is a Good Choice
-                                                    </h4>
-                                                    <p className="text-sm text-gray-300 leading-relaxed">
-                                                        {(rec as SingleLegRecommendation).recommendation!.note!.replace(/^✅\s*/, '').trim()}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {isSpread(rec) ? (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                <div>
-                                                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-4">Payoff at Expiration</h4>
-                                                    <PayoffDiagram
-                                                        recommendation={rec}
-                                                        currentPrice={result.context.currentPrice}
-                                                        isCredit={rec.type.includes('Credit')}
-                                                    />
-                                                </div>
-                                                <div className="space-y-4">
-                                                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Leg Details</h4>
-
-                                                    {/* Legs Logic (Handle Credit vs Debit leg ordering) */}
-                                                    {/* Generally Short is Sell, Long is Buy */}
-                                                    {rec.shortLeg && (
-                                                        <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-3">
-                                                            <div className="flex justify-between items-center mb-1">
-                                                                <span className="text-red-400 font-bold text-xs uppercase">Short (Sell)</span>
-                                                                <span className="font-mono text-white">${rec.shortLeg.strike}</span>
-                                                            </div>
-                                                            <div className="flex justify-between text-xs text-gray-400 mb-1">
-                                                                <span>Δ {rec.shortLeg.delta}</span>
-                                                                <span>Price: ${rec.shortLeg.price}</span>
-                                                            </div>
-                                                            <div className="flex justify-between text-xs text-gray-500 pt-1 border-t border-white/5">
-                                                                <span>Vol: {rec.shortLeg.volume}</span>
-                                                                <span>OI: {rec.shortLeg.openInterest}</span>
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {rec.longLeg && (
-                                                        <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3">
-                                                            <div className="flex justify-between items-center mb-1">
-                                                                <span className="text-green-400 font-bold text-xs uppercase">Long (Buy)</span>
-                                                                <span className="font-mono text-white">${rec.longLeg.strike}</span>
-                                                            </div>
-                                                            <div className="flex justify-between text-xs text-gray-400 mb-1">
-                                                                <span>Δ {rec.longLeg.delta}</span>
-                                                                <span>Price: ${rec.longLeg.price}</span>
-                                                            </div>
-                                                            <div className="flex justify-between text-xs text-gray-500 pt-1 border-t border-white/5">
-                                                                <span>Vol: {rec.longLeg.volume}</span>
-                                                                <span>OI: {rec.longLeg.openInterest}</span>
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    <div className="pt-2 border-t border-white/5 flex justify-between items-center">
-                                                        <span className="text-sm text-gray-400">Breakeven</span>
-                                                        <span className="text-white font-mono font-bold">${rec.breakeven.toFixed(2)}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                {/* Delta, Gamma, Theta, Vega */}
-                                                <div className="p-3 bg-[#222] rounded-lg">
-                                                    <div className="text-gray-500 text-[10px] uppercase">Delta</div>
-                                                    <div className="text-white font-mono">{(rec as SingleLegRecommendation).delta?.toFixed(2)}</div>
-                                                </div>
-                                                <div className="p-3 bg-[#222] rounded-lg">
-                                                    <div className="text-gray-500 text-[10px] uppercase">Gamma</div>
-                                                    <div className="text-white font-mono">{(rec as SingleLegRecommendation).gamma?.toFixed(4)}</div>
-                                                </div>
-                                                <div className="p-3 bg-[#222] rounded-lg">
-                                                    <div className="text-gray-500 text-[10px] uppercase">Theta</div>
-                                                    <div className="text-red-400 font-mono">{(rec as SingleLegRecommendation).theta?.toFixed(4)}</div>
-                                                </div>
-                                                <div className="p-3 bg-[#222] rounded-lg">
-                                                    <div className="text-gray-500 text-[10px] uppercase">Vega</div>
-                                                    <div className="text-white font-mono">{(rec as SingleLegRecommendation).vega?.toFixed(4)}</div>
-                                                </div>
-                                                {/* Vol / OI / Gamma Eff */}
-                                                <div className="p-3 bg-[#222] rounded-lg col-span-2 md:col-span-4">
-                                                    <div className="flex justify-between items-center">
-                                                        <div>
-                                                            <div className="text-gray-500 text-[10px] uppercase">Volume</div>
-                                                            <div className="text-white font-mono">{(rec as SingleLegRecommendation).volume}</div>
-                                                        </div>
-                                                        <div>
-                                                            <div className="text-gray-500 text-[10px] uppercase">Open Int</div>
-                                                            <div className="text-white font-mono">{(rec as SingleLegRecommendation).openInterest}</div>
-                                                        </div>
-                                                        <div>
-                                                            <div className="text-gray-500 text-[10px] uppercase">Gamma Eff</div>
-                                                            <div className="text-accent-green font-mono">{(rec as SingleLegRecommendation).gammaEff?.toFixed(4)}</div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Action Buttons */}
-                                        <div className="mt-6 pt-4 border-t border-[#3A3A3C] flex justify-end">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleAddToWatchlist(rec);
-                                                }}
-                                                className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg text-sm font-bold transition-all border border-blue-500/30 hover:border-blue-500/50"
-                                            >
-                                                <Bookmark size={16} />
-                                                Add to Watchlist
-                                            </button>
-                                        </div>
+                            <div className="space-y-4">
+                                {recs.length === 0 && (
+                                    <div className="text-center py-10 text-gray-500">
+                                        <Search size={32} className="mx-auto mb-2 opacity-20" />
+                                        No results found for this strategy with current filters.
                                     </div>
                                 )}
+
+                                {recs.map((rec: Recommendation, idx: number) => {
+                                    const displayScore = isTopPicks ? (rec as unknown as UnifiedCandidateType).unifiedScore : rec.score;
+                                    const category = isTopPicks ? (rec as unknown as UnifiedCandidateType).strategyCategory : null;
+                                    return (
+                                        <div
+                                            key={idx}
+                                            className={`bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl overflow-hidden transition-all duration-300 ${expandedCard === idx ? 'ring-1 ring-accent-green/50 shadow-lg shadow-green-900/10' : 'hover:border-[#444]'
+                                                }`}
+                                        >
+                                            {/* Card Header (Clickable) */}
+                                            <div
+                                                className="p-4 sm:p-5 cursor-pointer flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4"
+                                                onClick={() => setExpandedCard(expandedCard === idx ? null : idx)}
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 sm:gap-3 mb-1">
+                                                        <div className={`text-3xl sm:text-4xl font-black ${getScoreColor(displayScore)}`}>{displayScore}</div>
+                                                        <div className="min-w-0">
+                                                            <div className="font-bold text-base sm:text-lg text-white flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                                                <span className="truncate">{rec.type}</span>
+                                                                {category && (() => {
+                                                                    const badge = getCategoryBadge(category);
+                                                                    return (
+                                                                        <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded border shrink-0 ${badge.color}`}>
+                                                                            {badge.label}
+                                                                        </span>
+                                                                    );
+                                                                })()}
+                                                                {isTopPicks && (
+                                                                    <span className="text-[10px] sm:text-xs text-gray-500 font-mono shrink-0">(cat: {rec.score})</span>
+                                                                )}
+                                                                {isSpread(rec) && (
+                                                                    <span className="text-xs sm:text-sm font-mono text-gray-400 bg-white/5 px-1.5 sm:px-2 py-0.5 rounded border border-white/10 shrink-0">
+                                                                        ${rec.shortLeg?.strike} / ${rec.longLeg?.strike}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-xs sm:text-sm text-gray-400 font-mono">
+                                                                {isSpread(rec) ? (
+                                                                    <span className="flex items-center gap-2">
+                                                                        {rec.shortLeg?.expiration || rec.longLeg?.expiration}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="flex items-center gap-2">
+                                                                        ${(rec as SingleLegRecommendation).strike} • {(rec as SingleLegRecommendation).expiration}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Key Metrics Row */}
+                                                    <div className="flex flex-wrap gap-x-4 sm:gap-x-6 gap-y-2 mt-3 text-xs sm:text-sm">
+                                                        {isSpread(rec) ? (
+                                                            <>
+                                                                {rec.netCredit && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Credit</span>
+                                                                        <span className="text-accent-green font-mono font-bold">${rec.netCredit}</span>
+                                                                    </div>
+                                                                )}
+                                                                {rec.netDebit && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Debit</span>
+                                                                        <span className="text-white font-mono font-bold">${rec.netDebit}</span>
+                                                                    </div>
+                                                                )}
+                                                                {rec.roi && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">ROI</span>
+                                                                        <span className="text-accent-green font-mono font-bold">{rec.roi}%</span>
+                                                                    </div>
+                                                                )}
+                                                                {rec.pop && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">POP</span>
+                                                                        <span className="text-white font-mono font-bold">{rec.pop}%</span>
+                                                                    </div>
+                                                                )}
+                                                                {rec.riskReward && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">R:R</span>
+                                                                        <span className="text-accent-green font-mono font-bold">{rec.riskReward}</span>
+                                                                    </div>
+                                                                )}
+                                                                {(rec as SpreadRecommendation).expectedValue !== undefined && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">EV</span>
+                                                                        <span className={`font-mono font-bold ${(rec as SpreadRecommendation).expectedValue! > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                            ${(rec as SpreadRecommendation).expectedValue}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] text-gray-500 uppercase font-bold">Max Risk</span>
+                                                                    <span className="text-red-400 font-mono font-bold">${rec.maxRisk}</span>
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] text-gray-500 uppercase font-bold">Price</span>
+                                                                    <span className="text-white font-mono font-bold">${(rec as SingleLegRecommendation).price?.toFixed(2)}</span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] text-gray-500 uppercase font-bold">Delta</span>
+                                                                    <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).delta?.toFixed(2)}</span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] text-gray-500 uppercase font-bold">Gamma</span>
+                                                                    <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).gamma?.toFixed(4)}</span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] text-gray-500 uppercase font-bold">Theta</span>
+                                                                    <span className="text-red-400 font-mono font-bold">{(rec as SingleLegRecommendation).theta?.toFixed(3)}</span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] text-gray-500 uppercase font-bold">Vega</span>
+                                                                    <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).vega?.toFixed(3)}</span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] text-gray-500 uppercase font-bold">Lambda</span>
+                                                                    <span className="text-accent-green font-mono font-bold">{(rec as SingleLegRecommendation).lambda?.toFixed(1)}</span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] text-gray-500 uppercase font-bold">Volume</span>
+                                                                    <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).volume}</span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] text-gray-500 uppercase font-bold">OI</span>
+                                                                    <span className="text-white font-mono font-bold">{(rec as SingleLegRecommendation).openInterest}</span>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="text-right flex flex-col items-end gap-2">
+                                                    <div className={`text-2xl transition-transform ${expandedCard === idx ? 'rotate-180' : ''}`}>
+                                                        <ChevronDown size={24} className="text-gray-500" />
+                                                    </div>
+                                                    {isSpread(rec) && (
+                                                        <div className="text-xs text-gray-500 font-mono">Width: ${rec.width}</div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Review "Why This" Banner */}
+                                            <div className="bg-[#2C2C2E] px-3 sm:px-5 py-2 border-t border-[#3A3A3C] space-y-1">
+                                                <div className="flex items-start gap-2">
+                                                    <Info size={14} className="text-yellow-500 shrink-0 mt-0.5" />
+                                                    <span className="text-xs sm:text-sm text-gray-300 italic">{rec.whyThis}</span>
+                                                </div>
+                                                {(() => {
+                                                    const sizing = getSuggestedContracts(rec, portfolioTotal, riskPct, { useKelly: true, stopOutFraction });
+                                                    return (
+                                                        <div className="text-[10px] sm:text-xs text-gray-400 font-mono pl-6 leading-relaxed">
+                                                            Size: <span className="text-accent-green font-bold">{sizing.suggestedContracts}</span> contracts
+                                                            <span className="hidden sm:inline">{' '}(risk cap: {formatCurrency(sizing.riskCapDollars)}, stop-out: {formatCurrency(sizing.riskPerContractAtStopOutDollars)} at {stopOutPct}%, max loss: {formatCurrency(sizing.maxLossPerContractDollars)})</span>
+                                                            <span className="sm:hidden"> · cap {formatCurrency(sizing.riskCapDollars)}</span>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+
+                                            {/* Expanded Details */}
+                                            {expandedCard === idx && (
+                                                <div className="p-5 border-t border-[#3A3A3C] bg-black/20">
+                                                    {/* Analysis Section: Why this strategy/option is a good choice */}
+                                                    {isSpread(rec) && rec.recommendation?.note && (
+                                                        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            {rec.recommendation.note.includes('✅') && (
+                                                                <div className="bg-green-500/5 border border-green-500/20 p-4 rounded-xl">
+                                                                    <h4 className="text-xs font-bold text-green-400 uppercase mb-2 flex items-center gap-2">
+                                                                        <TrendingUp size={14} />
+                                                                        Why This Strategy Works
+                                                                    </h4>
+                                                                    <p className="text-sm text-gray-300 leading-relaxed">
+                                                                        {rec.recommendation.note.split('⚠️')[0].replace('✅ Pros:', '').trim().replace(/\.$/, '')}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+
+                                                            {rec.recommendation.note.includes('⚠️') && (
+                                                                <div className="bg-red-500/5 border border-red-500/20 p-4 rounded-xl">
+                                                                    <h4 className="text-xs font-bold text-red-400 uppercase mb-2 flex items-center gap-2">
+                                                                        <AlertCircle size={14} />
+                                                                        Risks & Drawbacks
+                                                                    </h4>
+                                                                    <p className="text-sm text-gray-300 leading-relaxed">
+                                                                        {rec.recommendation.note.split('⚠️ Cons:')[1]?.trim() || ''}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {!isSpread(rec) && (rec as SingleLegRecommendation).recommendation?.note && (
+                                                        <div className="mb-6">
+                                                            <div className="bg-green-500/5 border border-green-500/20 p-4 rounded-xl">
+                                                                <h4 className="text-xs font-bold text-green-400 uppercase mb-2 flex items-center gap-2">
+                                                                    <TrendingUp size={14} />
+                                                                    Why This Option Is a Good Choice
+                                                                </h4>
+                                                                <p className="text-sm text-gray-300 leading-relaxed">
+                                                                    {(rec as SingleLegRecommendation).recommendation!.note!.replace(/^✅\s*/, '').trim()}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {isSpread(rec) ? (
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                            <div>
+                                                                <h4 className="text-xs font-bold text-gray-500 uppercase mb-4">Payoff at Expiration</h4>
+                                                                <PayoffDiagram
+                                                                    recommendation={rec}
+                                                                    currentPrice={result.context.currentPrice}
+                                                                    isCredit={rec.type.includes('Credit')}
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-4">
+                                                                <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Leg Details</h4>
+
+                                                                {/* Legs Logic (Handle Credit vs Debit leg ordering) */}
+                                                                {/* Generally Short is Sell, Long is Buy */}
+                                                                {rec.shortLeg && (
+                                                                    <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-3">
+                                                                        <div className="flex justify-between items-center mb-1">
+                                                                            <span className="text-red-400 font-bold text-xs uppercase">Short (Sell)</span>
+                                                                            <span className="font-mono text-white">${rec.shortLeg.strike}</span>
+                                                                        </div>
+                                                                        <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                                                            <span>Δ {rec.shortLeg.delta}</span>
+                                                                            <span>Price: ${rec.shortLeg.price}</span>
+                                                                        </div>
+                                                                        <div className="flex justify-between text-xs text-gray-500 pt-1 border-t border-white/5">
+                                                                            <span>Vol: {rec.shortLeg.volume}</span>
+                                                                            <span>OI: {rec.shortLeg.openInterest}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                {rec.longLeg && (
+                                                                    <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3">
+                                                                        <div className="flex justify-between items-center mb-1">
+                                                                            <span className="text-green-400 font-bold text-xs uppercase">Long (Buy)</span>
+                                                                            <span className="font-mono text-white">${rec.longLeg.strike}</span>
+                                                                        </div>
+                                                                        <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                                                            <span>Δ {rec.longLeg.delta}</span>
+                                                                            <span>Price: ${rec.longLeg.price}</span>
+                                                                        </div>
+                                                                        <div className="flex justify-between text-xs text-gray-500 pt-1 border-t border-white/5">
+                                                                            <span>Vol: {rec.longLeg.volume}</span>
+                                                                            <span>OI: {rec.longLeg.openInterest}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                <div className="pt-2 border-t border-white/5 flex justify-between items-center">
+                                                                    <span className="text-sm text-gray-400">Breakeven</span>
+                                                                    <span className="text-white font-mono font-bold">${rec.breakeven.toFixed(2)}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                            {/* Delta, Gamma, Theta, Vega */}
+                                                            <div className="p-3 bg-[#222] rounded-lg">
+                                                                <div className="text-gray-500 text-[10px] uppercase">Delta</div>
+                                                                <div className="text-white font-mono">{(rec as SingleLegRecommendation).delta?.toFixed(2)}</div>
+                                                            </div>
+                                                            <div className="p-3 bg-[#222] rounded-lg">
+                                                                <div className="text-gray-500 text-[10px] uppercase">Gamma</div>
+                                                                <div className="text-white font-mono">{(rec as SingleLegRecommendation).gamma?.toFixed(4)}</div>
+                                                            </div>
+                                                            <div className="p-3 bg-[#222] rounded-lg">
+                                                                <div className="text-gray-500 text-[10px] uppercase">Theta</div>
+                                                                <div className="text-red-400 font-mono">{(rec as SingleLegRecommendation).theta?.toFixed(4)}</div>
+                                                            </div>
+                                                            <div className="p-3 bg-[#222] rounded-lg">
+                                                                <div className="text-gray-500 text-[10px] uppercase">Vega</div>
+                                                                <div className="text-white font-mono">{(rec as SingleLegRecommendation).vega?.toFixed(4)}</div>
+                                                            </div>
+                                                            {/* Vol / OI / Gamma Eff */}
+                                                            <div className="p-3 bg-[#222] rounded-lg col-span-2 md:col-span-4">
+                                                                <div className="flex justify-between items-center">
+                                                                    <div>
+                                                                        <div className="text-gray-500 text-[10px] uppercase">Volume</div>
+                                                                        <div className="text-white font-mono">{(rec as SingleLegRecommendation).volume}</div>
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="text-gray-500 text-[10px] uppercase">Open Int</div>
+                                                                        <div className="text-white font-mono">{(rec as SingleLegRecommendation).openInterest}</div>
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="text-gray-500 text-[10px] uppercase">Gamma Eff</div>
+                                                                        <div className="text-accent-green font-mono">{(rec as SingleLegRecommendation).gammaEff?.toFixed(4)}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Action Buttons */}
+                                                    <div className="mt-6 pt-4 border-t border-[#3A3A3C] flex justify-end">
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleAddToWatchlist(rec);
+                                                            }}
+                                                            className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg text-sm font-bold transition-all border border-blue-500/30 hover:border-blue-500/50"
+                                                        >
+                                                            <Bookmark size={16} />
+                                                            Add to Watchlist
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        ); })}
-                    </div>
-                        ); })()}
+                        );
+                    })()}
                 </div>
             )}
 

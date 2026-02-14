@@ -154,7 +154,7 @@ const SLOPE_BACK = 0.05;         // termRatio > 1.05
 const SLOPE_FLAT_LO = -0.05;     // termRatio >= 0.95
 const SLOPE_CONTANGO = -0.15;    // termRatio < 0.95
 
-function detectRegime(iv30, iv90, rv20) {
+function detectRegime(iv30, iv90, rv30) {
     if (!iv30 || !iv90 || iv90 === 0) {
         return {
             ivRatio: 1.0,
@@ -169,7 +169,7 @@ function detectRegime(iv30, iv90, rv20) {
 
     const termRatio = iv30 / iv90;
     const slope = (iv30 - iv90) / iv90;
-    const ivRvRatio = rv20 ? (iv30 * 100) / rv20 : null;
+    const ivRvRatio = rv30 ? (iv30 * 100) / rv30 : null;
 
     let slopeTier = 'flat';
     if (slope >= SLOPE_STRONG_BACK) slopeTier = 'strong_backwardation';
