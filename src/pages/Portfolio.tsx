@@ -6,7 +6,7 @@ import { PositionCard } from '../components/PositionCard';
 import { RollModal } from '../components/RollModal';
 import { DataFooter } from '../components/DataFooter';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
-import { usePortfolioSettings } from '../context/PortfolioSettingsContext';
+import { useAppSettings } from '../context/AppSettingsContext';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
 import { SETUPS, formatCurrency } from '../lib/utils';
 
@@ -26,7 +26,8 @@ interface PortfolioPageProps {
 }
 
 export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onUpdateOwner, onAddDirect, onRoll, onDelete, loading }) => {
-    const { portfolioTotal, riskPct, stopOutPct, stopOutFraction, maxRiskPerTrade } = usePortfolioSettings();
+    const { settings, maxRiskPerTrade, stopOutFraction } = useAppSettings();
+    const { accountSize: portfolioTotal, riskPct, stopOutPct } = settings.portfolio;
     const [showForm, setShowForm] = useState(false);
     const [showAccountSettings, setShowAccountSettings] = useState(false);
     const [submitting, setSubmitting] = useState(false);
