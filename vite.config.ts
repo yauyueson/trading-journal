@@ -1083,12 +1083,26 @@ function localApiPlugin(): Plugin {
           try {
             const polygonClient = await import('./lib/polygon-client.js');
             const techAnalysis = await import('./lib/tech-analysis.js');
+            // Fetch app settings for tech score options
+            let techScoreOptions = {};
+            try {
+              const { createClient } = await import('@supabase/supabase-js');
+              const supabaseUrl = process.env.VITE_SUPABASE_URL;
+              const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+              if (supabaseUrl && supabaseKey) {
+                const sb = createClient(supabaseUrl, supabaseKey);
+                const { data } = await sb.from('app_settings').select('settings').eq('id', 1).single();
+                if (data?.settings?.techScore) {
+                  techScoreOptions = { ...data.settings.techScore.weights, ...data.settings.techScore.periods };
+                }
+              }
+            } catch (_) {}
             const toDate = new Date();
             const fromDate = new Date();
             fromDate.setDate(toDate.getDate() - 600);
             const candles = await polygonClient.getCandles(upperTicker, fromDate.toISOString().split('T')[0], toDate.toISOString().split('T')[0], 'day');
             if (candles && candles.length >= 50) {
-              const scoreResult = techAnalysis.calculateTechScore(candles);
+              const scoreResult = techAnalysis.calculateTechScore(candles, techScoreOptions);
               tech = { techScore: scoreResult.techScore, setup: scoreResult.setup, signal: scoreResult.signal, type: scoreResult.type, confidence: scoreResult.confidence };
             }
           } catch (_) {}
