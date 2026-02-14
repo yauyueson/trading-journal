@@ -804,8 +804,11 @@ export default async function handler(req, res) {
         // Calculate Skew (v2.3)
         const skew = calculateSkew(fullChain, currentPrice, 30);
 
-        console.log(`[Strategy Recommend] RV30 for ${upperTicker}:`, rv30);
+        console.log(`[Strategy Recommend] ${upperTicker}: fullChain=${fullChain.length}, strategyChain=${strategyChain.length}, allOptions=${allOptions.length}`);
+        console.log(`[Strategy Recommend] ${upperTicker}: IV30=${iv30}, IV90=${iv90}, RV30=${rv30}`);
+        console.log(`[Strategy Recommend] ${upperTicker}: DTE buckets in fullChain: ${[...new Set(fullChain.map(o => o.dte))].sort((a, b) => a - b).join(', ')}`);
         const regime = detectRegime(iv30, iv90, rv30);
+        console.log(`[Strategy Recommend] ${upperTicker}: regime=${regime.mode}, ivRvRatio=${regime.ivRvRatio}`);
 
         // Enhance regime advice with anomaly detection
         if (ivSurface.anomaly) {
@@ -889,13 +892,13 @@ export default async function handler(req, res) {
                 daysUntilEarnings
             },
             regime: {
-                ivRatio: regime.ivRatio ? Number(regime.ivRatio.toFixed(3)) : null,
+                ivRatio: regime.ivRatio != null ? Number(regime.ivRatio.toFixed(3)) : null,
                 slope: regime.slope != null ? Number(regime.slope.toFixed(3)) : null,
                 slopeTier: regime.slopeTier || null,
-                iv30: iv30 ? Number((iv30 * 100).toFixed(1)) : null,
-                iv90: iv90 ? Number((iv90 * 100).toFixed(1)) : null,
-                rv30: rv30 ? Number(rv30.toFixed(1)) : null,
-                ivRvRatio: regime.ivRvRatio ? Number(regime.ivRvRatio.toFixed(3)) : null,
+                iv30: iv30 != null ? Number((iv30 * 100).toFixed(1)) : null,
+                iv90: iv90 != null ? Number((iv90 * 100).toFixed(1)) : null,
+                rv30: rv30 != null ? Number(rv30.toFixed(1)) : null,
+                ivRvRatio: regime.ivRvRatio != null ? Number(regime.ivRvRatio.toFixed(3)) : null,
                 ivRank: ivRank != null ? Number(ivRank.toFixed(3)) : null,
                 ivPercentile: ivPercentile != null ? Number(ivPercentile.toFixed(3)) : null,
                 ivRankSampleDays: ivRankSampleDays,
