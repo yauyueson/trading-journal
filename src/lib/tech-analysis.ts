@@ -32,6 +32,10 @@ export interface TechScoreOptions {
     w_ema?: number;
     w_mom?: number;
     sc_mb_len?: number;
+    /** Smoothing period for HA (o2/c2). Scanner default 7. */
+    sc_mb_smoothing?: number;
+    /** Oscillator smooth period (ema(osc, n)). Scanner default 7. */
+    sc_osc_len?: number;
     sc_bx_s1?: number;
     sc_bx_s2?: number;
     sc_bx_s3?: number;
@@ -41,16 +45,18 @@ export interface TechScoreOptions {
 
 const DEFAULT_OPTIONS: Required<TechScoreOptions> = {
     w_mb: 30,
-    w_bxs: 25,
-    w_bxl: 20,
+    w_bxs: 30,
+    w_bxl: 15,
     w_ema: 15,
     w_mom: 10,
-    sc_mb_len: 100,
+    sc_mb_len: 20,
+    sc_mb_smoothing: 7,
+    sc_osc_len: 7,
     sc_bx_s1: 5,
     sc_bx_s2: 20,
-    sc_bx_s3: 15,
+    sc_bx_s3: 5,
     sc_bx_l1: 20,
-    sc_bx_l2: 15
+    sc_bx_l2: 5
 };
 
 /**
@@ -100,15 +106,15 @@ export function calculateTechScore(
     const haOpens = haCandles.map(c => c.open);
     const haCloses = haCandles.map(c => c.close);
 
-    const haLen2 = opts.sc_mb_len;
+    const haLen2 = opts.sc_mb_smoothing;
     const o2 = ema(haOpens, haLen2);
     const c2 = ema(haCloses, haLen2);
 
     // Osc = 100 * (c2 - o2)
     const osc = c2.map((c, i) => 100 * (c - o2[i]));
 
-    // sm = ema(osc, 7)
-    const oscSmooth = ema(osc, 7);
+    // sm = ema(osc, sc_osc_len)
+    const oscSmooth = ema(osc, opts.sc_osc_len);
 
     const currOsc = osc[len - 1] || 0;
     const currSm = oscSmooth[len - 1] || 0;
