@@ -777,7 +777,7 @@ export default async function handler(req, res) {
             // 1. Parallel Fetching
             [cboeRes, rv30, daysUntilEarnings] = await Promise.all([
                 fetch(cboeUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then(r => r.ok ? r.json() : null),
-                fetchRV30(upperTicker),
+                calculateRV30FromPolygon(upperTicker),
                 fetchEarnings(upperTicker)
             ]);
 
