@@ -26,6 +26,21 @@ DATA_SOURCE=POLYGON
 POLYGON_API_KEY=your_polygon_api_key_here
 ```
 
+### 3. 本地开发环境加载 (dotenv)
+为了在本地运行 API 测试脚本或回填脚本时能够读取环境变量，本项目在 `api/polygon-client.js` 等核心逻辑中集成了 `dotenv`。
+
+**依赖安装**:
+```bash
+npm install dotenv
+```
+
+**逻辑实现**:
+```javascript
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
+dotenv.config(); // 兼容标准 .env
+```
+
 > **重要提示**：
 > - 确保您的 subscription plan 包含 **Options Advanced Features** (Greeks、IV)
 > - 查看您的速率限制，避免在高频场景下触发限流
@@ -459,12 +474,13 @@ curl "http://localhost:5177/api/option-price?ticker=SPY&expiration=2025-03-21&st
 
 - [x] 创建 `api/polygon-client.js`
 - [x] 更新 `.env.local` 配置
-- [x] 迁移 `api/option-price.js`
+- [x] 迁移 `api/option-prices.js` (合并单腿与批量)
 - [x] 迁移 `api/scan-options.js`
 - [x] 迁移 `api/strategy-recommend.js`
-- [x] 迁移 `api/option-prices-bulk.js`
 - [x] 迁移 `api/check-alerts.js`
 - [x] 迁移 `api/daily-recap.js`
+- [x] 迁移 `api/batch-refresh-tech.js` (新增)
+- [x] 实施 `api/_retired/` 归档以优化 Vercel 部署
 - [x] 迁移 `api/backfill-iv-history.js`
 - [x] 实现 `api/setup-iv-rank.js` (Polygon 历史回填脚本)
 - [x] 成功回填 SPY, QQQ, MSFT, META, TSLA, AMD, COST, IREN
@@ -485,4 +501,4 @@ curl "http://localhost:5177/api/option-price?ticker=SPY&expiration=2025-03-21&st
 
 ---
 
-*最后更新：2026-02-12*
+*最后更新：2026-02-14*

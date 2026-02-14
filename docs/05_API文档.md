@@ -1,6 +1,6 @@
 # Trading Journal - API文档
 
-> 最后更新: 2026年2月12日  
+> 最后更新: 2026年2月14日  
 > **数据源**: Polygon.io（主）/ CBOE（备）；API 用量优化：仅请求所需 DTE/行权 + 1 分钟期权链缓存
 
 ## 📋 目录
@@ -34,14 +34,14 @@ Supabase PostgreSQL (数据存储)
 
 | 端点 | 方法 | 用途 | 状态 |
 |------|------|------|------|
-| `/api/option-price` | GET | 获取单份期权价格、Greeks 及 OSS 评分 | ✅ 生产 |
+| `/api/option-prices` | GET/POST | 通用价格 API：支持单腿 GET 或多腿 POST 批量获取 | ✅ 生产 |
 | `/api/scan-options` | GET | OSS v2.3 扫描器，获取高分单腿合约列表 | ✅ 生产 |
 | `/api/strategy-recommend` | GET | 策略推荐引擎（价差/组合策略专用） | ✅ 生产 |
 | `/api/check-alerts` | GET | 止损/目标价 Discord 自动提醒 | ✅ 生产 |
 | `/api/daily-recap` | GET | 每日持仓汇总 Discord 消息 | ✅ 生产 |
+| `/api/batch-refresh-tech` | GET/POST | 批量刷新技术面评分（Tech Score 自动化） | ✅ 生产 |
 | `/api/underlying-rv` | GET | 标的已实现波动率（Nasdaq 历史） | ✅ 生产 |
 | `/api/earnings` | GET | 获取财报日期（通过 Nasdaq API） | ✅ 生产 |
-| `/api/health` | GET | 健康检查，返回 `{ ok: true, time: ... }` | ✅ 生产 |
 
 **评分逻辑统一**：所有 API 均引用 `api/_shared/scoring.cjs`，与前端 `src/lib/oss-core.ts` 逻辑镜像，保证扫描结果、策略推荐与持仓卡片 OSS 分数一致。
 
@@ -123,26 +123,33 @@ Settings → Environment Variables
 
 ---
 
-## 📊 期权价格API
-
 ### 端点
-
 ```
-GET /api/option-price
+GET  /api/option-prices (单个)
+POST /api/option-prices (批量)
 ```
 
 ### 用途
+通用价格获取接口。支持通过查询参数获取单份合约，或通过 POST Body 批量获取多份合约的价格与 Greeks。
 
-获取指定期权合约的实时价格、Greeks和流动性数据。**优先使用 Polygon.io**（当 `DATA_SOURCE=POLYGON`），失败时自动降级到 CBOE。
-
-### 参数
-
+### 参数 (GET - 单个)
 | 参数 | 类型 | 必填 | 说明 | 示例 |
 |------|------|------|------|------|
-| ticker | string | ✅ | 股票代码（大写） | QQQ, SPY, AAPL |
-| expiration | string | ✅ | 到期日（YYYY-MM-DD） | 2026-02-20 |
+| ticker | string | ✅ | 股票代码 | QQQ |
+| expiration | string | ✅ | 到期日 | 2026-02-20 |
 | strike | number | ✅ | 行权价 | 630 |
-| type | string | ✅ | 期权类型 | Call 或 Put |
+| type | string | ✅ | 类型 | Call |
+
+### 参数 (POST - 批量)
+Body 格式:
+```json
+{
+  "legs": [
+    { "ticker": "SPY", "expiration": "2026-03-20", "strike": 600, "type": "Call" },
+    { "ticker": "SPY", "expiration": "2026-03-20", "strike": 610, "type": "Call" }
+  ]
+}
+```
 
 ### 响应格式
 
@@ -306,6 +313,24 @@ GET /api/daily-recap
 - ✅ Polygon 失败时自动降级 CBOE
 
 ---
+
+## 📈 批量刷新技术面 API (Tech Score)
+
+### 端点
+```
+GET/POST /api/batch-refresh-tech
+```
+
+### 用途
+触发持仓或观察列表中标的的技术面快速刷新（Tech Score）。
+
+### 参数
+- `scope`: `active` (默认, 仅同步持仓), `watchlist`, `all`
+- `force`: `true` (忽略纽约时间冷却检查)
+
+### 特性
+- **冷却机制**: 默认情况下，如果标的今天（NY Time）已更新过，则不再重复调用 Polygon Aggregates API，节省用量。
+- **自动化**: 位于前端 `Portfolio.tsx` 页面加载时静默触发。
 
 ## 🧪 测试指南
 
