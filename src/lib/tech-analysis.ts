@@ -1,5 +1,5 @@
 
-import { sma, ema, rsi, t3_smooth, heikinAshi } from './indicators';
+import { ema, rsi, t3_smooth, heikinAshi } from './indicators';
 
 export interface TechScoreResult {
     techScore: number;

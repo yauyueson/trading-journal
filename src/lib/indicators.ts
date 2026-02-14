@@ -128,17 +128,6 @@ export function rsi(values: number[], period: number): number[] {
  * T3 = c1*xe6 + c2*xe5 + c3*xe4 + c4*xe3
  */
 export function t3_smooth(values: number[], period: number, b: number = 0.7): number[] {
-    const xe1 = ema(values, period);
-    const xe2 = ema(xe1, period); // Note: ema handles NaNs by propagating them or restarting? 
-    // Our EMA above returns NaNs during warmup. Need to handle that.
-    // If input has NaNs, EMA should ideally continue returning NaNs until valid data.
-
-    // Since our EMA implementation returns NaNs for the first `period-1` elements,
-    // chaining them will result in growing NaN prefixes.
-    // e.g. xe1 has P-1 NaNs. xe2 has (P-1) + (P-1) NaNs? 
-    // Actually, `ema` implementation above needs `values.length >= period`.
-    // If we pass an array with leading NaNs, we need to handle it.
-
     // Let's make a robust EMA that skips/preserves leading NaNs.
     const robustEma = (vals: number[], len: number) => {
         // Find first non-NaN index
