@@ -120,33 +120,45 @@ export function rsi(values: number[], period: number): number[] {
 
 
 /**
+ * EMA that propagates NaNs bar-by-bar on the full series (no slice).
+ * Matches Pine's ta.ema(series, len) when series has leading NaNs:
+ * output is NaN until a valid value is seen; then use that as seed and continue.
+ */
+function emaFullSeries(values: number[], period: number): number[] {
+    const result: number[] = [];
+    if (values.length === 0) return result;
+    const k = 2 / (period + 1);
+
+    result[0] = values[0]; // may be NaN
+    for (let i = 1; i < values.length; i++) {
+        const v = values[i];
+        const prev = result[i - 1];
+        if (typeof v !== 'number' || isNaN(v)) {
+            result.push(NaN);
+        } else if (typeof prev !== 'number' || isNaN(prev)) {
+            result.push(v); // seed with current
+        } else {
+            result.push((v - prev) * k + prev);
+        }
+    }
+    return result;
+}
+
+/**
  * T3 Smoothing (Tillson T3 Moving Average)
  * Formula from User's PineScript:
  * xe1 = ema(src, len), xe2 = ema(xe1, len), ... xe6 = ema(xe5, len)
  * b = 0.7
- * c1...c4 (coefficients)
  * T3 = c1*xe6 + c2*xe5 + c3*xe4 + c4*xe3
+ * Uses full-series EMA with NaN propagation so last-bar T3 matches Pine.
  */
 export function t3_smooth(values: number[], period: number, b: number = 0.7): number[] {
-    // Let's make a robust EMA that skips/preserves leading NaNs.
-    const robustEma = (vals: number[], len: number) => {
-        // Find first non-NaN index
-        let firstValidIdx = vals.findIndex(v => !isNaN(v));
-        if (firstValidIdx === -1) return vals.map(_ => NaN);
-
-        const validVals = vals.slice(firstValidIdx);
-        const emaVals = ema(validVals, len);
-
-        // Prepend the skipped NaNs
-        return [...vals.slice(0, firstValidIdx), ...emaVals];
-    };
-
-    const e1 = robustEma(values, period);
-    const e2 = robustEma(e1, period);
-    const e3 = robustEma(e2, period);
-    const e4 = robustEma(e3, period);
-    const e5 = robustEma(e4, period);
-    const e6 = robustEma(e5, period);
+    const e1 = emaFullSeries(values, period);
+    const e2 = emaFullSeries(e1, period);
+    const e3 = emaFullSeries(e2, period);
+    const e4 = emaFullSeries(e3, period);
+    const e5 = emaFullSeries(e4, period);
+    const e6 = emaFullSeries(e5, period);
 
     const c1 = -b * b * b;
     const c2 = 3 * b * b + 3 * b * b * b;

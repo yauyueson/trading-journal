@@ -24,11 +24,45 @@ export interface TechScoreResult {
     };
 }
 
+/** Optional weights and criteria periods (Pine Scanner defaults). Omit to use defaults. */
+export interface TechScoreOptions {
+    w_mb?: number;
+    w_bxs?: number;
+    w_bxl?: number;
+    w_ema?: number;
+    w_mom?: number;
+    sc_mb_len?: number;
+    sc_bx_s1?: number;
+    sc_bx_s2?: number;
+    sc_bx_s3?: number;
+    sc_bx_l1?: number;
+    sc_bx_l2?: number;
+}
+
+const DEFAULT_OPTIONS: Required<TechScoreOptions> = {
+    w_mb: 30,
+    w_bxs: 25,
+    w_bxl: 20,
+    w_ema: 15,
+    w_mom: 10,
+    sc_mb_len: 100,
+    sc_bx_s1: 5,
+    sc_bx_s2: 20,
+    sc_bx_s3: 15,
+    sc_bx_l1: 20,
+    sc_bx_l2: 15
+};
+
 /**
  * Calculate Tech Score based on user's PineScript logic ("MB+DFP + Options Scanner").
  * @param candles Daily candles (Open, High, Low, Close). Expects ~300+ candles.
+ * @param options Optional weights and criteria periods (match Pine Scanner inputs when set).
  */
-export function calculateTechScore(candles: { open: number; high: number; low: number; close: number }[]): TechScoreResult {
+export function calculateTechScore(
+    candles: { open: number; high: number; low: number; close: number }[],
+    options?: TechScoreOptions
+): TechScoreResult {
+    const opts = { ...DEFAULT_OPTIONS, ...options };
     const closes = candles.map(c => c.close);
     const opens = candles.map(c => c.open);
     const highs = candles.map(c => c.high);
@@ -48,9 +82,8 @@ export function calculateTechScore(candles: { open: number; high: number; low: n
         };
     }
 
-    // --- 1. Market Bias (30%) ---
-    // Rule: EMA(OHLC, 100) -> Heikin Ashi -> EMA(HA, 100) -> Oscillator
-    const haLen = 100;
+    // --- 1. Market Bias ---
+    const haLen = opts.sc_mb_len;
     const mb_o = ema(opens, haLen);
     const mb_c = ema(closes, haLen);
     const mb_h = ema(highs, haLen);
@@ -67,9 +100,7 @@ export function calculateTechScore(candles: { open: number; high: number; low: n
     const haOpens = haCandles.map(c => c.open);
     const haCloses = haCandles.map(c => c.close);
 
-    // Smooth HA
-    // o2 = ema(haopen, ha_len2), c2 = ema(haclose, ha_len2)
-    const haLen2 = 100;
+    const haLen2 = opts.sc_mb_len;
     const o2 = ema(haOpens, haLen2);
     const c2 = ema(haCloses, haLen2);
 
@@ -101,10 +132,9 @@ export function calculateTechScore(candles: { open: number; high: number; low: n
     sc_mb += (iss ? 20 : 5);
 
 
-    // --- 2. B-Xtrender (Short & Long) (25% + 20%) ---
-    // s_calc_bx(c, s_l1=5, s_l2=20, s_l3=15, l_l1=20, l_l2=15)
-    const s_l1 = 5, s_l2 = 20, s_l3 = 15;
-    const l_l1 = 20, l_l2 = 15;
+    // --- 2. B-Xtrender (Short & Long) ---
+    const s_l1 = opts.sc_bx_s1, s_l2 = opts.sc_bx_s2, s_l3 = opts.sc_bx_s3;
+    const l_l1 = opts.sc_bx_l1, l_l2 = opts.sc_bx_l2;
 
     // Short Term: RSI(EMA(c, 5) - EMA(c, 20), 15) - 50
     const ema5 = ema(closes, s_l1);
@@ -194,9 +224,8 @@ export function calculateTechScore(candles: { open: number; high: number; low: n
 
 
     // --- 5. Total Score ---
-    // Weights: w1=30, w2=25, w3=20, w4=15, w5=10
-    const w_mb = 30, w_bxs = 25, w_bxl = 20, w_ema = 15, w_mom = 10;
-    const totalW = w_mb + w_bxs + w_bxl + w_ema + w_mom; // 100
+    const w_mb = opts.w_mb, w_bxs = opts.w_bxs, w_bxl = opts.w_bxl, w_ema = opts.w_ema, w_mom = opts.w_mom;
+    const totalW = w_mb + w_bxs + w_bxl + w_ema + w_mom;
 
     // NaN Protection (nz(..., 50))
     const f_mb = isNaN(sc_mb) ? 50 : sc_mb;
