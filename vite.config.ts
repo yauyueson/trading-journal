@@ -1078,12 +1078,28 @@ function localApiPlugin(): Plugin {
           if (recommendedStrategy === 'DEBIT_SPREAD' && debitSpreads.length === 0) recommendedStrategy = 'SINGLE_LEG';
           if (recommendedStrategy === 'SINGLE_LEG' && singleLegs.length === 0 && creditSpreads.length > 0) recommendedStrategy = 'CREDIT_SPREAD';
 
+          // Tech Score (Pine-aligned) for Recommender display
+          let tech: { techScore: number; setup: string; signal: string; type: 'CALL' | 'PUT' | 'NEUTRAL'; confidence: number } | null = null;
+          try {
+            const polygonClient = await import('./lib/polygon-client.js');
+            const techAnalysis = await import('./lib/tech-analysis.js');
+            const toDate = new Date();
+            const fromDate = new Date();
+            fromDate.setDate(toDate.getDate() - 600);
+            const candles = await polygonClient.getCandles(upperTicker, fromDate.toISOString().split('T')[0], toDate.toISOString().split('T')[0], 'day');
+            if (candles && candles.length >= 50) {
+              const scoreResult = techAnalysis.calculateTechScore(candles);
+              tech = { techScore: scoreResult.techScore, setup: scoreResult.setup, signal: scoreResult.signal, type: scoreResult.type, confidence: scoreResult.confidence };
+            }
+          } catch (_) {}
+
           res.statusCode = 200;
           res.end(JSON.stringify({
             success: true,
             context: { ticker: upperTicker, currentPrice, direction: isBull ? 'BULL' : 'BEAR', targetDte },
             regime: { ivRatio: +ivRatio.toFixed(3), iv30: iv30 ? +(iv30 * 100).toFixed(1) : null, iv90: iv90 ? +(iv90 * 100).toFixed(1) : null, mode: regimeMode, advice },
             recommendedStrategy,
+            tech,
             strategies: {
               CREDIT_SPREAD: creditSpreads,
               DEBIT_SPREAD: debitSpreads,

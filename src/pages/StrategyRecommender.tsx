@@ -521,6 +521,40 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                         </div>
                                     </div>
                                 </div>
+                                {/* Row 3: Tech Score + Setup (Pine-aligned) */}
+                                {result.tech != null && (
+                                    <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 mt-4 pt-4 border-t border-[#333]">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                Tech Score
+                                                <Tooltip label="" explanation="0–100 technical score from daily OHLC (Market Bias, B-Xtrender, EMA Stack, Momentum). Aligned with Pine Script MB+DFP Scanner. High = bullish structure, low = bearish." />
+                                            </div>
+                                            <div className={`text-2xl sm:text-3xl font-mono font-bold ${result.tech.techScore >= 70 ? 'text-emerald-400' : result.tech.techScore >= 60 ? 'text-amber-400' : 'text-gray-400'}`}>
+                                                {result.tech.techScore}
+                                            </div>
+                                            <div className="text-xs text-gray-500 mt-0.5">
+                                                {result.tech.signal}
+                                                {result.tech.type !== 'NEUTRAL' && (
+                                                    <span className={`ml-1.5 font-medium ${result.tech.type === 'CALL' ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {result.tech.type}
+                                                    </span>
+                                                )}
+                                                {result.tech.confidence > 0 && (
+                                                    <span className="ml-1 text-gray-400"> · {result.tech.confidence}★</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1">Setup</div>
+                                            <div className="text-sm sm:text-base font-medium text-white">
+                                                {result.tech.setup}
+                                            </div>
+                                            <div className="text-[10px] text-gray-500 mt-0.5">
+                                                Same logic as Scanner (Perfect Storm, Pullback, Breakout, etc.)
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

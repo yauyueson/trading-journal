@@ -212,11 +212,22 @@ export type UnifiedSingleLegCandidate = SingleLegRecommendation & {
 
 export type UnifiedCandidateType = UnifiedSpreadCandidate | UnifiedSingleLegCandidate;
 
+/** Tech Score slice returned by strategy-recommend for display in Recommender. */
+export interface StrategyResultTech {
+    techScore: number;
+    setup: string;
+    signal: string;
+    type: 'CALL' | 'PUT' | 'NEUTRAL';
+    confidence: number;
+}
+
 export interface StrategyResult {
     success: boolean;
     context: StrategyContext;
     regime: StrategyRegime;
     recommendedStrategy: 'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SINGLE_LEG';
+    /** Tech Score and setup from daily OHLC (Pine-aligned). Present when candles available. */
+    tech?: StrategyResultTech | null;
     strategies: {
         CREDIT_SPREAD: SpreadRecommendation[];
         DEBIT_SPREAD: SpreadRecommendation[];

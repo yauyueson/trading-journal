@@ -896,6 +896,29 @@ export default async function handler(req, res) {
         const ivPercentile = ivRankResult?.ivPercentile ?? null;
         const ivRankSampleDays = ivRankResult?.sampleDays ?? 0;
 
+        // Tech Score (Pine-aligned): daily candles → techScore, setup, signal
+        let tech = null;
+        try {
+            const { getCandles } = await import('../lib/polygon-client.js');
+            const { calculateTechScore } = await import('../lib/tech-analysis.js');
+            const toDate = new Date();
+            const fromDate = new Date();
+            fromDate.setDate(toDate.getDate() - 600);
+            const candles = await getCandles(upperTicker, fromDate.toISOString().split('T')[0], toDate.toISOString().split('T')[0], 'day');
+            if (candles && candles.length >= 50) {
+                const scoreResult = calculateTechScore(candles);
+                tech = {
+                    techScore: scoreResult.techScore,
+                    setup: scoreResult.setup,
+                    signal: scoreResult.signal,
+                    type: scoreResult.type,
+                    confidence: scoreResult.confidence
+                };
+            }
+        } catch (e) {
+            console.warn(`[Strategy Recommend] ${upperTicker}: Tech Score skipped`, e?.message || e);
+        }
+
         const creditStrat = isBull ? 'Put' : 'Call';
         const debitStrat = isBull ? 'Call' : 'Put';
         const legStrat = isBull ? 'Call' : 'Put';
@@ -988,6 +1011,7 @@ export default async function handler(req, res) {
                 }
             },
             recommendedStrategy,
+            tech: tech,
             strategies: {
                 CREDIT_SPREAD: creditSpreads,
                 DEBIT_SPREAD: debitSpreads,
