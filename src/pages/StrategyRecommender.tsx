@@ -3,7 +3,7 @@ import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Sea
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
-import { usePortfolioSettings } from '../context/PortfolioSettingsContext';
+import { useAppSettings } from '../context/AppSettingsContext';
 import { getSuggestedContracts } from '../lib/riskSizing';
 import { formatCurrency } from '../lib/utils';
 import type {
@@ -161,7 +161,8 @@ interface StrategyRecommenderProps {
 }
 
 export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddToWatchlist }) => {
-    const { portfolioTotal, riskPct, stopOutFraction, stopOutPct } = usePortfolioSettings();
+    const { settings, stopOutFraction } = useAppSettings();
+    const { accountSize: portfolioTotal, riskPct, stopOutPct } = settings.portfolio;
     const [ticker, setTicker] = useState('SPY');
     const [direction, setDirection] = useState<'BULL' | 'BEAR'>('BULL');
     const [targetDte, setTargetDte] = useState(30);
