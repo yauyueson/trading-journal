@@ -104,7 +104,9 @@ async function calculateRV30FromPolygon(ticker) {
         const variance = recentReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / recentReturns.length;
 
         // Annualize: sqrt(variance) * sqrt(252) * 100 to get %
-        return Math.sqrt(variance * 252) * 100;
+        const rv30 = Math.sqrt(variance * 252) * 100;
+        console.log(`[RV30 Calc] ${ticker}: ${rv30.toFixed(2)}% (from ${recentReturns.length} returns)`);
+        return rv30;
     } catch (e) {
         console.error("RV30 Calculation Error (Polygon):", e);
         return null;
@@ -729,11 +731,13 @@ export default async function handler(req, res) {
             const { getOptionChain, getUnderlyingPrice } = await import('../lib/polygon-client.js');
 
             // Parallel fetch: ancillary data + underlying price (for strike-range filter to reduce payload)
-            const [rv30, daysUntilEarnings, underlyingPrice] = await Promise.all([
+            const [rv30Result, daysUntilEarningsResult, underlyingPrice] = await Promise.all([
                 calculateRV30FromPolygon(upperTicker),
                 fetchEarnings(upperTicker),
                 getUnderlyingPrice(upperTicker)
             ]);
+            rv30 = rv30Result;
+            daysUntilEarnings = daysUntilEarningsResult;
 
             try {
                 // Only request DTE 30 and 90 (IV term structure) with strike range ±20% to reduce payload/API usage
@@ -800,6 +804,7 @@ export default async function handler(req, res) {
         // Calculate Skew (v2.3)
         const skew = calculateSkew(fullChain, currentPrice, 30);
 
+        console.log(`[Strategy Recommend] RV30 for ${upperTicker}:`, rv30);
         const regime = detectRegime(iv30, iv90, rv30);
 
         // Enhance regime advice with anomaly detection
