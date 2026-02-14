@@ -11,6 +11,7 @@ import { StrategyRecommender } from './pages/StrategyRecommender';
 import { HistoryPage } from './pages/History';
 import { StatsPage } from './pages/Stats';
 import { Academy } from './pages/Academy';
+import { AppSettingsPage } from './pages/AppSettings';
 import { BuyModal } from './components/BuyModal';
 import type { Session } from '@supabase/supabase-js';
 
@@ -361,6 +362,7 @@ function App() {
                 {activeTab === 'academy' && (
                     <Academy />
                 )}
+                {activeTab === 'settings' && <AppSettingsPage />}
             </div>
 
 
