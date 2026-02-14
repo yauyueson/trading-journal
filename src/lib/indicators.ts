@@ -239,7 +239,7 @@ export function heikinAshiPine(
     const n = mb_o.length;
     const haOpens: number[] = [];
     const haCloses: number[] = [];
-    let xhaopenPrev: number, haclosePrev: number;
+    let xhaopenPrev = 0, haclosePrev = 0; // only used when i >= 1
     for (let i = 0; i < n; i++) {
         const haclose = (mb_o[i] + mb_h[i] + mb_l[i] + mb_c[i]) / 4;
         const xhaopen = (mb_o[i] + mb_c[i]) / 2;
