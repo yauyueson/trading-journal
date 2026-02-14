@@ -929,9 +929,9 @@ export default async function handler(req, res) {
             const fromDay = new Date(toDate);
             fromDay.setDate(toDate.getDate() - 600);
             const from1h = new Date(toDate);
-            from1h.setDate(toDate.getDate() - 30);
+            from1h.setDate(toDate.getDate() - 90); // ~90 days → ~585 1H bars; sufficient for sc_mb_len up to 100
             const from4h = new Date(toDate);
-            from4h.setDate(toDate.getDate() - 120); // enough 4H bars for 100-period MB (need ~100+ bars)
+            from4h.setDate(toDate.getDate() - 180); // ~180 days → ~293 4H bars; sufficient for sc_mb_len up to 100
             const [candles1d, candles1h, candles4h] = await Promise.all([
                 getCandles(upperTicker, fromDay.toISOString().split('T')[0], toStr, 'day'),
                 getCandles(upperTicker, from1h.toISOString().split('T')[0], toStr, 'hour'),

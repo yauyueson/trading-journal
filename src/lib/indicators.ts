@@ -124,7 +124,7 @@ export function rsi(values: number[], period: number): number[] {
  * Matches Pine's ta.ema(series, len) when series has leading NaNs:
  * output is NaN until a valid value is seen; then use that as seed and continue.
  */
-function emaFullSeries(values: number[], period: number): number[] {
+export function emaFullSeries(values: number[], period: number): number[] {
     const result: number[] = [];
     if (values.length === 0) return result;
     const k = 2 / (period + 1);

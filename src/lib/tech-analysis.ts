@@ -1,5 +1,5 @@
 
-import { ema, rsi, t3_smooth, heikinAshiPine } from './indicators';
+import { ema, emaFullSeries, rsi, t3_smooth, heikinAshiPine } from './indicators';
 
 export interface TechScoreResult {
     techScore: number;
@@ -99,9 +99,12 @@ export function calculateTechScore(
     const { haOpens, haCloses } = heikinAshiPine(mb_o, mb_h, mb_l, mb_c);
 
     // Pine: o2 = ta.ema(haopen, ha_len2), c2 = ta.ema(haclose, ha_len2) with ha_len2 = len
+    // emaFullSeries is used here (not ema) because haOpens/haCloses have leading NaNs from
+    // the first EMA chain. emaFullSeries seeds from the first non-NaN value, matching Pine's
+    // ta.ema() behavior and preventing NaN from propagating to osc.
     const haLen2 = opts.sc_mb_len;
-    const o2 = ema(haOpens, haLen2);
-    const c2 = ema(haCloses, haLen2);
+    const o2 = emaFullSeries(haOpens, haLen2);
+    const c2 = emaFullSeries(haCloses, haLen2);
 
     // Osc = 100 * (c2 - o2)
     const osc = c2.map((c, i) => 100 * (c - o2[i]));
