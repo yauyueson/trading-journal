@@ -31,6 +31,10 @@
     "include": [
         "src"
     ],
+    "exclude": [
+        "src/test_runner.ts",
+        "src/test_tech_score.ts"
+    ],
     "references": [
         {
             "path": "./tsconfig.node.json"
