@@ -382,7 +382,7 @@ function localApiPlugin(): Plugin {
                 const message = event.message || '';
                 const match = message.match(/Earnings Date\s*:\s*(.+)/i);
                 if (match) {
-                  const dateStr = match[1].trim();
+                  const dateStr = match[1].trim().replace(/\s*(AMC|BMO)$/i, '');
                   const parsedDate = new Date(dateStr);
 
                   if (!isNaN(parsedDate.getTime())) {
@@ -1119,11 +1119,12 @@ function localApiPlugin(): Plugin {
             const d = toTech(candles1d);
             const h1 = toTech(candles1h);
             const h4 = toTech(candles4h);
-            if (d) {
-              tech = d;
-              techByTimeframe = { '1h': h1 ?? null, '4h': h4 ?? null, '1d': d };
+            const primaryTech = d ?? h4 ?? h1 ?? null;
+            if (primaryTech) {
+              tech = primaryTech;
+              techByTimeframe = { '1h': h1 ?? null, '4h': h4 ?? null, '1d': d ?? null };
             } else {
-              console.warn(`[Strategy Recommend] ${upperTicker}: Tech Score not shown (need 50+ daily bars). 1d=${candles1d?.length ?? 0}, 1h=${candles1h?.length ?? 0}, 4h=${candles4h?.length ?? 0}. Check POLYGON_API_KEY in .env.local if all are 0.`);
+              console.warn(`[Strategy Recommend] ${upperTicker}: Tech Score not shown (need 50+ bars). 1d=${candles1d?.length ?? 0}, 1h=${candles1h?.length ?? 0}, 4h=${candles4h?.length ?? 0}. Check POLYGON_API_KEY in .env.local if all are 0.`);
               try {
                 const logDir = path.join(process.cwd(), '.cursor');
                 if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });

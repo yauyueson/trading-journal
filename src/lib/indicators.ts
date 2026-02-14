@@ -77,43 +77,53 @@ export function ema(values: number[], period: number): number[] {
  * Relative Strength Index (RSI)
  */
 export function rsi(values: number[], period: number): number[] {
-    const result: number[] = [];
-    if (values.length < period + 1) return values.map(_ => NaN);
+    const len = values.length;
+    const result: number[] = new Array(len).fill(NaN);
 
-    let gains = 0;
-    let losses = 0;
+    // Find first index where we can compute a valid diff (both values[i] and values[i-1] are finite)
+    // Then collect `period` valid diffs to seed avgGain/avgLoss.
+    let seedGains = 0;
+    let seedLosses = 0;
+    let validDiffs = 0;
+    let seedEndIdx = -1;
 
-    // First RSI
-    for (let i = 1; i <= period; i++) {
+    for (let i = 1; i < len && validDiffs < period; i++) {
+        if (!isFinite(values[i]) || !isFinite(values[i - 1])) continue;
         const diff = values[i] - values[i - 1];
-        if (diff >= 0) gains += diff;
-        else losses += Math.abs(diff);
+        if (diff >= 0) seedGains += diff;
+        else seedLosses += Math.abs(diff);
+        validDiffs++;
+        seedEndIdx = i;
     }
 
-    let avgGain = gains / period;
-    let avgLoss = losses / period;
+    // Not enough valid pairs to seed
+    if (validDiffs < period) return result;
 
-    // Fill warmup
-    for (let i = 0; i < period; i++) result.push(NaN);
+    let avgGain = seedGains / period;
+    let avgLoss = seedLosses / period;
 
-    result.push(100 - (100 / (1 + avgGain / (avgLoss === 0 ? 1e-10 : avgLoss))));
+    result[seedEndIdx] = 100 - (100 / (1 + avgGain / (avgLoss === 0 ? 1e-10 : avgLoss)));
 
-    for (let i = period + 1; i < values.length; i++) {
-        const diff = values[i] - values[i - 1];
-        const gain = diff >= 0 ? diff : 0;
-        const loss = diff < 0 ? Math.abs(diff) : 0;
+    // Running phase
+    for (let i = seedEndIdx + 1; i < len; i++) {
+        const curr = values[i];
+        const prev = values[i - 1];
 
-        avgGain = ((avgGain * (period - 1)) + gain) / period;
-        avgLoss = ((avgLoss * (period - 1)) + loss) / period;
+        if (!isFinite(curr) || !isFinite(prev)) {
+            // NaN bar: decay averages (no new information, equivalent to shrinking window)
+            avgGain = avgGain * (period - 1) / period;
+            avgLoss = avgLoss * (period - 1) / period;
+        } else {
+            const diff = curr - prev;
+            const gain = diff >= 0 ? diff : 0;
+            const loss = diff < 0 ? Math.abs(diff) : 0;
+            avgGain = ((avgGain * (period - 1)) + gain) / period;
+            avgLoss = ((avgLoss * (period - 1)) + loss) / period;
+        }
 
         const rs = avgGain / (avgLoss === 0 ? 1e-10 : avgLoss);
-        result.push(100 - (100 / (1 + rs)));
+        result[i] = 100 - (100 / (1 + rs));
     }
-
-    // Pad the beginning to match input length (optional, but good for alignment)
-    // The loop above pushes `NaN` for warmup, but check length.
-    // We pushed `period` NaNs, then the first value at index `period`.
-    // So result[i] corresponds to values[i].
 
     return result;
 }

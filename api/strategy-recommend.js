@@ -208,7 +208,7 @@ async function fetchEarnings(ticker) {
                     const message = event.message || '';
                     const match = message.match(/Earnings Date\s*:\s*(.+)/i);
                     if (match) {
-                        const dateStr = match[1].trim();
+                        const dateStr = match[1].trim().replace(/\s*(AMC|BMO)$/i, '');
                         const parsedDate = new Date(dateStr);
                         if (!isNaN(parsedDate.getTime())) {
                             const today = new Date();
@@ -951,9 +951,10 @@ export default async function handler(req, res) {
             // #region agent log
             _dbg({ location: 'strategy-recommend.js:after toTech', message: 'toTech results', data: { ticker: upperTicker, d: !!d, h1: !!h1, h4: !!h4, score1d: d?.techScore ?? null }, hypothesisId: 'B' });
             // #endregion
-            if (d) {
-                tech = d;
-                techByTimeframe = { '1h': h1 || null, '4h': h4 || null, '1d': d };
+            const primaryTech = d || h4 || h1 || null;
+            if (primaryTech) {
+                tech = primaryTech;
+                techByTimeframe = { '1h': h1 || null, '4h': h4 || null, '1d': d || null };
             }
             // #region agent log
             _dbg({ location: 'strategy-recommend.js:tech set', message: 'tech assigned', data: { ticker: upperTicker, techSet: !!tech }, hypothesisId: 'D' });

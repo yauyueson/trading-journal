@@ -66,7 +66,7 @@ export default async function handler(req, res) {
           // 解析 "Earnings Date : Feb 5, 2026" 格式
           const match = message.match(/Earnings Date\s*:\s*(.+)/i);
           if (match) {
-            const dateStr = match[1].trim();
+            const dateStr = match[1].trim().replace(/\s*(AMC|BMO)$/i, '');
             const parsedDate = new Date(dateStr);
             
             if (!isNaN(parsedDate.getTime())) {

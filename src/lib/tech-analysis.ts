@@ -110,7 +110,7 @@ export function calculateTechScore(
     const osc = c2.map((c, i) => 100 * (c - o2[i]));
 
     // sm = ema(osc, sc_osc_len)
-    const oscSmooth = ema(osc, opts.sc_osc_len);
+    const oscSmooth = emaFullSeries(osc, opts.sc_osc_len);
 
     const currOsc = osc[len - 1] || 0;
     const currSm = oscSmooth[len - 1] || 0;
@@ -197,12 +197,20 @@ export function calculateTechScore(
     const b_stack = currE8 > currE21 && currE21 > currE34;
     const br_stack = currE8 < currE21 && currE21 < currE34;
 
-    // Score EMA
-    // sc_ema = 50.0 + (((d8>0 and d21>0) or (d8<0 and d21<0))?25:10) + ((bstk or brstk)?25:5)
+    // Score EMA — continuous interpolation (avoids coarse 4-value step function)
     let sc_ema = 50.0;
-    const sameSign = (d8 > 0 && d21 > 0) || (d8 < 0 && d21 < 0);
-    sc_ema += (sameSign ? 25 : 10);
-    sc_ema += ((b_stack || br_stack) ? 25 : 5);
+    // Sign-alignment component [10..25]: when d8 & d21 agree, strength = weaker magnitude
+    const signAligned = (d8 > 0 && d21 > 0) || (d8 < 0 && d21 < 0);
+    const signStrength = signAligned ? Math.min(Math.abs(d8), Math.abs(d21)) : 0;
+    sc_ema += 10 + Math.min(signStrength / 2, 1) * 15; // 0%→10, ≥2%→25
+
+    // Stack-order component [5..25]: continuous gap between adjacent EMAs
+    const gap1 = currE8 - currE21;
+    const gap2 = currE21 - currE34;
+    const stackAligned = gap1 * gap2 > 0; // both same direction = ordered stack
+    const stackStrength = stackAligned
+        ? Math.min(Math.abs(gap1), Math.abs(gap2)) / currClose * 100 : 0;
+    sc_ema += 5 + Math.min(stackStrength / 0.5, 1) * 20; // 0%→5, ≥0.5%→25
 
 
     // --- 4. Momentum (10%) ---
@@ -216,13 +224,13 @@ export function calculateTechScore(
     const ch1 = ((currClose - prevClose1) / prevClose1) * 100;
     const ch3 = ((currClose - prevClose3) / prevClose3) * 100;
 
-    // sc_mom = 50.0 + (abs(ch1)>2?25:abs(ch1)>1?15:5) + (abs(ch3)>5?25:abs(ch3)>2?15:5)
+    // Momentum — continuous interpolation (avoids coarse ~5-value step function)
     let sc_mom = 50.0;
     const absCh1 = Math.abs(ch1);
     const absCh3 = Math.abs(ch3);
 
-    sc_mom += (absCh1 > 2 ? 25 : absCh1 > 1 ? 15 : 5);
-    sc_mom += (absCh3 > 5 ? 25 : absCh3 > 2 ? 15 : 5);
+    sc_mom += 5 + Math.min(absCh1 / 2, 1) * 20; // |ch1| [0%,2%] → [5,25]
+    sc_mom += 5 + Math.min(absCh3 / 5, 1) * 20; // |ch3| [0%,5%] → [5,25]
 
 
     // --- 5. Total Score ---
