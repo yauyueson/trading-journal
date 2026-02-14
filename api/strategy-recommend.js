@@ -4,7 +4,18 @@
 // Uses shared scoring module (Single Source of Truth)
 // Modules loaded inside handler via dynamic import() so failures return JSON on Vercel.
 
+import fs from 'fs';
+import path from 'path';
 import { getAppSettings } from './_shared/getAppSettings.js';
+
+// #region agent log
+function _dbg(payload) {
+    try {
+        const logPath = path.join(process.cwd(), '.cursor', 'debug.log');
+        fs.appendFileSync(logPath, JSON.stringify({ ...payload, timestamp: Date.now() }) + '\n');
+    } catch (_) {}
+}
+// #endregion
 
 let compressLambda, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
     calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, zScoresByBucket, HARD_FILTER_DEFAULTS,
@@ -926,6 +937,9 @@ export default async function handler(req, res) {
                 getCandles(upperTicker, from1h.toISOString().split('T')[0], toStr, 'hour'),
                 getCandles(upperTicker, from4h.toISOString().split('T')[0], toStr, 'hour', 4)
             ]);
+            // #region agent log
+            _dbg({ location: 'strategy-recommend.js:after getCandles', message: 'candle counts', data: { ticker: upperTicker, len1d: candles1d?.length ?? null, len1h: candles1h?.length ?? null, len4h: candles4h?.length ?? null }, hypothesisId: 'A' });
+            // #endregion
             const toTech = (candles) => {
                 if (!candles || candles.length < 50) return null;
                 const r = calculateTechScore(candles, techScoreOptions);
@@ -934,11 +948,20 @@ export default async function handler(req, res) {
             const d = toTech(candles1d);
             const h1 = toTech(candles1h);
             const h4 = toTech(candles4h);
+            // #region agent log
+            _dbg({ location: 'strategy-recommend.js:after toTech', message: 'toTech results', data: { ticker: upperTicker, d: !!d, h1: !!h1, h4: !!h4, score1d: d?.techScore ?? null }, hypothesisId: 'B' });
+            // #endregion
             if (d) {
                 tech = d;
                 techByTimeframe = { '1h': h1 || null, '4h': h4 || null, '1d': d };
             }
+            // #region agent log
+            _dbg({ location: 'strategy-recommend.js:tech set', message: 'tech assigned', data: { ticker: upperTicker, techSet: !!tech }, hypothesisId: 'D' });
+            // #endregion
         } catch (e) {
+            // #region agent log
+            _dbg({ location: 'strategy-recommend.js:catch', message: 'Tech Score error', data: { ticker: upperTicker, err: String(e?.message || e) }, hypothesisId: 'C' });
+            // #endregion
             console.warn(`[Strategy Recommend] ${upperTicker}: Tech Score skipped`, e?.message || e);
         }
 

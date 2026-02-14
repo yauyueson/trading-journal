@@ -1,6 +1,7 @@
 import { defineConfig, Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import fs from 'fs'
 
 // ---------------------------------------------------------
 // Local API Plugin - handles /api routes in development
@@ -1104,7 +1105,7 @@ function localApiPlugin(): Plugin {
             const from1h = new Date(toDate);
             from1h.setDate(toDate.getDate() - 30);
             const from4h = new Date(toDate);
-            from4h.setDate(toDate.getDate() - 60);
+            from4h.setDate(toDate.getDate() - 120); // match api/strategy-recommend: need 100+ bars for 4H
             const [candles1d, candles1h, candles4h] = await Promise.all([
               polygonClient.getCandles(upperTicker, fromDay.toISOString().split('T')[0], toStr, 'day'),
               polygonClient.getCandles(upperTicker, from1h.toISOString().split('T')[0], toStr, 'hour'),
@@ -1121,8 +1122,22 @@ function localApiPlugin(): Plugin {
             if (d) {
               tech = d;
               techByTimeframe = { '1h': h1 ?? null, '4h': h4 ?? null, '1d': d };
+            } else {
+              console.warn(`[Strategy Recommend] ${upperTicker}: Tech Score not shown (need 50+ daily bars). 1d=${candles1d?.length ?? 0}, 1h=${candles1h?.length ?? 0}, 4h=${candles4h?.length ?? 0}. Check POLYGON_API_KEY in .env.local if all are 0.`);
+              try {
+                const logDir = path.join(process.cwd(), '.cursor');
+                if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+                fs.appendFileSync(path.join(logDir, 'debug.log'), JSON.stringify({ location: 'vite.config.ts:tech no data', message: 'tech null', data: { ticker: upperTicker, len1d: candles1d?.length ?? 0, len1h: candles1h?.length ?? 0, len4h: candles4h?.length ?? 0 }, timestamp: Date.now() }) + '\n');
+              } catch (_) {}
             }
-          } catch (_) {}
+          } catch (e: any) {
+            console.warn(`[Strategy Recommend] ${upperTicker}: Tech Score skipped`, e?.message ?? e);
+            try {
+              const logDir = path.join(process.cwd(), '.cursor');
+              if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+              fs.appendFileSync(path.join(logDir, 'debug.log'), JSON.stringify({ location: 'vite.config.ts:tech catch', message: 'Tech Score error', data: { ticker: upperTicker, err: String(e?.message ?? e) }, timestamp: Date.now() }) + '\n');
+            } catch (_) {}
+          }
 
           res.statusCode = 200;
           res.end(JSON.stringify({
