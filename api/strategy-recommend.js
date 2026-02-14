@@ -898,8 +898,9 @@ export default async function handler(req, res) {
         const ivPercentile = ivRankResult?.ivPercentile ?? null;
         const ivRankSampleDays = ivRankResult?.sampleDays ?? 0;
 
-        // Tech Score (Pine-aligned): daily candles → techScore, setup, signal
+        // Tech Score (Pine-aligned): 1h, 4h, daily candles → techScore per timeframe
         let tech = null;
+        let techByTimeframe = null;
         try {
             const { getCandles } = await import('../lib/polygon-client.js');
             const { calculateTechScore } = await import('../lib/tech-analysis.js');
@@ -913,18 +914,29 @@ export default async function handler(req, res) {
               ...appSettings.techScore.periods,
             };
             const toDate = new Date();
-            const fromDate = new Date();
-            fromDate.setDate(toDate.getDate() - 600);
-            const candles = await getCandles(upperTicker, fromDate.toISOString().split('T')[0], toDate.toISOString().split('T')[0], 'day');
-            if (candles && candles.length >= 50) {
-                const scoreResult = calculateTechScore(candles, techScoreOptions);
-                tech = {
-                    techScore: scoreResult.techScore,
-                    setup: scoreResult.setup,
-                    signal: scoreResult.signal,
-                    type: scoreResult.type,
-                    confidence: scoreResult.confidence
-                };
+            const toStr = toDate.toISOString().split('T')[0];
+            const fromDay = new Date(toDate);
+            fromDay.setDate(toDate.getDate() - 600);
+            const from1h = new Date(toDate);
+            from1h.setDate(toDate.getDate() - 30);
+            const from4h = new Date(toDate);
+            from4h.setDate(toDate.getDate() - 60);
+            const [candles1d, candles1h, candles4h] = await Promise.all([
+                getCandles(upperTicker, fromDay.toISOString().split('T')[0], toStr, 'day'),
+                getCandles(upperTicker, from1h.toISOString().split('T')[0], toStr, 'hour'),
+                getCandles(upperTicker, from4h.toISOString().split('T')[0], toStr, 'hour', 4)
+            ]);
+            const toTech = (candles) => {
+                if (!candles || candles.length < 50) return null;
+                const r = calculateTechScore(candles, techScoreOptions);
+                return { techScore: r.techScore, setup: r.setup, signal: r.signal, type: r.type, confidence: r.confidence };
+            };
+            const d = toTech(candles1d);
+            const h1 = toTech(candles1h);
+            const h4 = toTech(candles4h);
+            if (d) {
+                tech = d;
+                techByTimeframe = { '1h': h1 || null, '4h': h4 || null, '1d': d };
             }
         } catch (e) {
             console.warn(`[Strategy Recommend] ${upperTicker}: Tech Score skipped`, e?.message || e);
@@ -1023,6 +1035,7 @@ export default async function handler(req, res) {
             },
             recommendedStrategy,
             tech: tech,
+            techByTimeframe: techByTimeframe || undefined,
             strategies: {
                 CREDIT_SPREAD: creditSpreads,
                 DEBIT_SPREAD: debitSpreads,

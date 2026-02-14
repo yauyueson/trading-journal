@@ -432,7 +432,8 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                         result.regime.mode === 'DEBIT' ? 'bg-green-900/10 border-green-500/30' :
                             'bg-[#1C1C1E] border-[#2A2A2A]'
                         }`}>
-                        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 relative z-10">
+                        <div className="flex flex-col gap-4 relative z-10">
+                            {/* Upper half: Ticker + explanation */}
                             <div className="min-w-0">
                                 <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 sm:gap-3 flex-wrap">
                                     {result.context.ticker}
@@ -455,15 +456,17 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                     </p>
                                 )}
                             </div>
-                            <div className="flex flex-col gap-4 w-full sm:w-auto">
-                                {/* Row 1: IV Rank + IV % */}
-                                <div className="flex gap-6 sm:gap-8">
-                                    <div className="flex-1 min-w-[100px] sm:flex-none sm:text-right">
-                                        <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center sm:justify-end gap-1">
+
+                            {/* Lower half: Technical indicators (IV + Tech Score) */}
+                            <div className="border-t border-[#333] pt-4 sm:pt-5 mt-2">
+                                <div className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-wider mb-3">Technical indicators</div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+                                    <div>
+                                        <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
                                             IV Rank
                                             <Tooltip label="" explanation="IV Rank: current IV30 in 252d min–max range (0–100%). Low = IV cheap (buyers); high = IV expensive (sellers). N/A until enough history (run backfill once)." />
                                         </div>
-                                        <div className={`text-2xl sm:text-3xl font-mono font-bold mb-1 ${result.regime.ivRank != null ? (result.regime.ivRank < 0.3 ? 'text-emerald-400' : result.regime.ivRank > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
+                                        <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${result.regime.ivRank != null ? (result.regime.ivRank < 0.3 ? 'text-emerald-400' : result.regime.ivRank > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
                                             {result.regime.ivRank != null ? `${(result.regime.ivRank * 100).toFixed(0)}%` : 'N/A'}
                                         </div>
                                         <div className="text-[10px] text-gray-500 font-mono">
@@ -480,24 +483,21 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                             )}
                                         </div>
                                     </div>
-                                    <div className="flex-1 min-w-[100px] sm:flex-none sm:text-right">
-                                        <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center sm:justify-end gap-1">
+                                    <div>
+                                        <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
                                             IV %
                                             <Tooltip label="" explanation="IV Percentile: % of past days with IV30 below current. Low = IV cheap (buyers); high = IV expensive (sellers). N/A until enough history (run backfill once)." />
                                         </div>
-                                        <div className={`text-2xl sm:text-3xl font-mono font-bold mb-1 ${result.regime.ivPercentile != null ? (result.regime.ivPercentile < 0.3 ? 'text-emerald-400' : result.regime.ivPercentile > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
+                                        <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${result.regime.ivPercentile != null ? (result.regime.ivPercentile < 0.3 ? 'text-emerald-400' : result.regime.ivPercentile > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
                                             {result.regime.ivPercentile != null ? `${(result.regime.ivPercentile * 100).toFixed(0)}%` : 'N/A'}
                                         </div>
                                     </div>
-                                </div>
-                                {/* Row 2: IV Ratio + IV / RV */}
-                                <div className="flex gap-6 sm:gap-8">
-                                    <div className="flex-1 min-w-[100px] sm:flex-none sm:text-right">
-                                        <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center sm:justify-end gap-1">
+                                    <div>
+                                        <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
                                             IV Ratio
                                             <Tooltip label="" explanation="IV30/IV90 term structure. &lt;1 = contango (short vol friendly), &gt;1 = backwardation (long vol friendly)." />
                                         </div>
-                                        <div className={`text-2xl sm:text-3xl font-mono font-bold mb-1 ${(result.regime.ivRatio ?? 1) < 0.95 ? 'text-emerald-400' : (result.regime.ivRatio ?? 1) > 1.05 ? 'text-amber-400' : 'text-white'}`}>
+                                        <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${(result.regime.ivRatio ?? 1) < 0.95 ? 'text-emerald-400' : (result.regime.ivRatio ?? 1) > 1.05 ? 'text-amber-400' : 'text-white'}`}>
                                             {result.regime.ivRatio != null ? result.regime.ivRatio.toFixed(2) : 'N/A'}
                                         </div>
                                         <div className="text-[10px] text-gray-500 font-mono">
@@ -509,12 +509,12 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                             </div>
                                         )}
                                     </div>
-                                    <div className="flex-1 min-w-[100px] sm:flex-none sm:text-right">
-                                        <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center sm:justify-end gap-1">
+                                    <div>
+                                        <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
                                             IV / RV
                                             <Tooltip label="" explanation="IV30 vs 20d realized vol. &gt;1 = implied expensive vs recent realized; &lt;1 = implied cheap. Drives regime (credit vs debit)." />
                                         </div>
-                                        <div className={`text-2xl sm:text-3xl font-mono font-bold mb-1 ${(result.regime.ivRvRatio ?? 1) > 1.1 ? 'text-amber-400' : (result.regime.ivRvRatio ?? 1) < 0.9 ? 'text-emerald-400' : 'text-white'}`}>
+                                        <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${(result.regime.ivRvRatio ?? 1) > 1.1 ? 'text-amber-400' : (result.regime.ivRvRatio ?? 1) < 0.9 ? 'text-emerald-400' : 'text-white'}`}>
                                             {result.regime.ivRvRatio != null ? result.regime.ivRvRatio.toFixed(2) : 'N/A'}
                                         </div>
                                         <div className="text-[10px] text-gray-500 font-mono">
@@ -522,17 +522,35 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                         </div>
                                     </div>
                                 </div>
-                                {/* Row 3: Tech Score + Setup (Pine-aligned) */}
+                                {/* Tech Score (1h / 4h / 1d) + Setup */}
                                 {result.tech != null && (
                                     <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 mt-4 pt-4 border-t border-[#333]">
                                         <div className="flex-1 min-w-0">
                                             <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
                                                 Tech Score
-                                                <Tooltip label="" explanation="0–100 technical score from daily OHLC (Market Bias, B-Xtrender, EMA Stack, Momentum). Aligned with Pine Script MB+DFP Scanner. High = bullish structure, low = bearish." />
+                                                <Tooltip label="" explanation="0–100 technical score from OHLC (Market Bias, B-Xtrender, EMA Stack, Momentum). Shown for 1h, 4h, and daily timeframes. Aligned with Pine Script MB+DFP Scanner. High = bullish structure, low = bearish." />
                                             </div>
-                                            <div className={`text-2xl sm:text-3xl font-mono font-bold ${result.tech.techScore >= 70 ? 'text-emerald-400' : result.tech.techScore >= 60 ? 'text-amber-400' : 'text-gray-400'}`}>
-                                                {result.tech.techScore}
-                                            </div>
+                                            {result.techByTimeframe != null ? (
+                                                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                                                    {(['1h', '4h', '1d'] as const).map(tf => {
+                                                        const t = result.techByTimeframe?.[tf];
+                                                        const score = t?.techScore ?? null;
+                                                        const color = score == null ? 'text-gray-500' : score >= 70 ? 'text-emerald-400' : score >= 60 ? 'text-amber-400' : 'text-gray-400';
+                                                        return (
+                                                            <span key={tf} className="flex items-baseline gap-1.5">
+                                                                <span className="text-[10px] sm:text-xs text-gray-500 font-medium">{tf}</span>
+                                                                <span className={`text-xl sm:text-2xl font-mono font-bold ${color}`}>
+                                                                    {score != null ? score : '—'}
+                                                                </span>
+                                                            </span>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <div className={`text-2xl sm:text-3xl font-mono font-bold ${result.tech.techScore >= 70 ? 'text-emerald-400' : result.tech.techScore >= 60 ? 'text-amber-400' : 'text-gray-400'}`}>
+                                                    {result.tech.techScore}
+                                                </div>
+                                            )}
                                             <div className="text-xs text-gray-500 mt-0.5">
                                                 {result.tech.signal}
                                                 {result.tech.type !== 'NEUTRAL' && (

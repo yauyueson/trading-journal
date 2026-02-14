@@ -228,6 +228,12 @@ export interface StrategyResult {
     recommendedStrategy: 'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SINGLE_LEG';
     /** Tech Score and setup from daily OHLC (Pine-aligned). Present when candles available. */
     tech?: StrategyResultTech | null;
+    /** Tech Score per timeframe (1h, 4h, 1d). Present when daily candles available. */
+    techByTimeframe?: {
+        '1h': StrategyResultTech | null;
+        '4h': StrategyResultTech | null;
+        '1d': StrategyResultTech;
+    } | null;
     strategies: {
         CREDIT_SPREAD: SpreadRecommendation[];
         DEBIT_SPREAD: SpreadRecommendation[];
