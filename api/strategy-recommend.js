@@ -65,19 +65,19 @@ async function ensureScoring() {
 // =============================================================================
 // DATA FETCHING UTILITIES
 // =============================================================================
+// RV (Realized Volatility): Polygon does NOT provide RV. We always compute it
+// ourselves from historical prices: fetch candles (or Nasdaq history), then
+// log returns → population variance → annualize (sqrt(252)*100).
 
 /**
- * Calculate 30-day Realized Volatility from Polygon candles
- * Uses population standard deviation of log returns, annualized to %
+ * Calculate 30-day Realized Volatility from our own computation using Polygon candles.
+ * Polygon gives us OHLCV bars only; we compute log returns and annualized vol.
  * @param {string} ticker Stock symbol
  * @returns {Promise<number|null>} RV30 as annualized % (e.g., 25.5 = 25.5%) or null on failure
  */
 async function calculateRV30FromPolygon(ticker) {
     try {
-        // Import getCandles from polygon-client
-        const polygonUrl = new URL('../lib/polygon-client.js', import.meta.url).href;
-        const polygonMod = await import(polygonUrl);
-        const { getCandles } = polygonMod;
+        const { getCandles } = await import('../lib/polygon-client.js');
 
         const toDate = new Date();
         const fromDate = new Date();
@@ -88,7 +88,7 @@ async function calculateRV30FromPolygon(ticker) {
         const candles = await getCandles(ticker, fromStr, toStr, 'day');
         if (!candles || candles.length < 10) return null;
 
-        // Calculate log returns
+        // Our RV calculation: log returns
         const closes = candles.map(c => c.close);
         const returns = [];
         for (let i = 1; i < closes.length; i++) {
@@ -109,6 +109,68 @@ async function calculateRV30FromPolygon(ticker) {
         return rv30;
     } catch (e) {
         console.error("RV30 Calculation Error (Polygon):", e);
+        return null;
+    }
+}
+
+/**
+ * Fallback: compute RV30 ourselves from Nasdaq historical prices (same formula as above).
+ * Used when Polygon is unavailable or returns no data. Still our own calculation, not an API RV field.
+ * Handles multiple response shapes (tradesTable.rows, close/Close).
+ * @param {string} ticker Stock symbol
+ * @returns {Promise<number|null>} RV30 as annualized % or null
+ */
+async function fetchRV30FromNasdaq(ticker) {
+    try {
+        const toDate = new Date();
+        const fromDate = new Date();
+        fromDate.setDate(toDate.getDate() - 45);
+        const toStr = toDate.toISOString().split('T')[0];
+        const fromStr = fromDate.toISOString().split('T')[0];
+        const url = `https://api.nasdaq.com/api/quote/${ticker.toUpperCase()}/historical?assetclass=stocks&fromdate=${fromStr}&todate=${toStr}&limit=40`;
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        });
+        if (!response.ok) {
+            console.warn(`[RV30 Nasdaq] ${ticker}: HTTP ${response.status}`);
+            return null;
+        }
+        const data = await response.json();
+        const rows = data?.data?.tradesTable?.rows || data?.data?.historicalPrices?.data || (Array.isArray(data?.data) ? data.data : []);
+        if (!Array.isArray(rows) || rows.length < 5) {
+            console.warn(`[RV30 Nasdaq] ${ticker}: insufficient rows (${rows?.length ?? 0})`);
+            return null;
+        }
+        const parseClose = (row) => {
+            const raw = row.close ?? row.Close ?? row.closePrice ?? row.value;
+            if (raw == null) return NaN;
+            const s = String(raw).replace(/\$/g, '').replace(/,/g, '').trim();
+            return parseFloat(s);
+        };
+        const prices = rows
+            .map(parseClose)
+            .filter(p => !isNaN(p) && p > 0);
+        if (prices.length < 5) {
+            console.warn(`[RV30 Nasdaq] ${ticker}: too few valid prices (${prices.length})`);
+            return null;
+        }
+        const returns = [];
+        for (let i = 1; i < prices.length; i++) {
+            returns.push(Math.log(prices[i] / prices[i - 1]));
+        }
+        const recentReturns = returns.slice(-30);
+        if (recentReturns.length < 10) return null;
+        const mean = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
+        const variance = recentReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / recentReturns.length;
+        const annualizedRV = Math.sqrt(variance * 252) * 100;
+        console.log(`[RV30 Nasdaq] ${ticker}: ${annualizedRV.toFixed(2)}% (from ${recentReturns.length} returns)`);
+        return Number(annualizedRV.toFixed(2));
+    } catch (e) {
+        console.error("RV30 Fallback (Nasdaq) Error:", e);
         return null;
     }
 }
@@ -791,6 +853,15 @@ export default async function handler(req, res) {
 
             currentPrice = cboeRes.data.current_price;
             allOptions = cboeRes.data.options;
+        }
+
+        // RV is always computed by us (Polygon gives candles only). Fallback to Nasdaq when Polygon fails.
+        if (rv30 == null) {
+            rv30 = await fetchRV30FromNasdaq(upperTicker);
+            if (rv30 != null) console.log(`[Strategy Recommend] ${upperTicker}: RV30 from Nasdaq fallback`);
+        }
+        if (rv30 == null) {
+            console.warn(`[Strategy Recommend] ${upperTicker}: RV30 N/A (Polygon and Nasdaq RV failed); IV/RV will show N/A`);
         }
 
         const fullChain = parseChain(allOptions, currentPrice, null);
