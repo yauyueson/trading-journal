@@ -21,6 +21,13 @@ export interface Position {
     closed_at?: string;
     legs?: PositionLeg[];
     owner?: 'Yuchen' | 'Annie' | null;
+    // Tech Score Automation
+    tech_score?: number;
+    tech_score_auto?: number;
+    tech_score_manual?: number;
+    tech_score_source?: 'auto' | 'manual';
+    tech_score_updated_at?: string;
+    tech_data?: any;
 }
 
 export interface PositionLeg {

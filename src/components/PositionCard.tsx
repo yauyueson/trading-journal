@@ -404,7 +404,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     });
 
     const daysToExp = daysUntil(position.expiration);
-    const currentScore = position.current_score || position.entry_score;
+    // const currentScore = position.current_score || position.entry_score; // Old logic
+    const effectiveScore = position.tech_score ?? (position.current_score || position.entry_score);
 
     const positionRiskAtStopOutDollars = getPositionRiskAtStopOutDollars(position, Math.max(0, totalQty), entryPrice, stopOutFraction);
     const singleTradeRiskPct = portfolioTotal && portfolioTotal > 0
@@ -413,7 +414,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
 
     let alertLevel: 'none' | 'danger' | 'warning' = 'none';
     const alerts: string[] = [];
-    if (currentScore < 60) { alerts.push('Low Score'); alertLevel = 'danger'; }
+    if (effectiveScore < 60) { alerts.push('Low Score'); alertLevel = 'danger'; }
     if (isCreditStrategy) {
         if (currentPrice && currentPrice >= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
     } else {
@@ -422,7 +423,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
 
     if (unrealizedPnLPct <= -50) { alerts.push('Heavy Loss'); alertLevel = 'danger'; }
     if (alertLevel !== 'danger') {
-        if (currentScore < 70) { alerts.push('Score Warning'); alertLevel = 'warning'; }
+        if (effectiveScore < 70) { alerts.push('Score Warning'); alertLevel = 'warning'; }
         if (daysToExp <= 7 && daysToExp > 0) { alerts.push(`${daysToExp}d left`); alertLevel = 'warning'; }
     }
 
@@ -689,7 +690,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         <div className="mb-1 flex items-center gap-1 h-5">
                             <Tooltip label="Tech Score" explanation="Manual Technical Analysis Score (0-100)." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                             <button
-                                onClick={() => { setIsEditingScore(true); setScoreInput(currentScore ? currentScore.toString() : ''); }}
+                                onClick={() => { setIsEditingScore(true); setScoreInput(effectiveScore ? effectiveScore.toString() : ''); }}
                                 className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
                                 aria-label="Edit score"
                             >
@@ -714,10 +715,64 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                             </div>
                         ) : (
                             <div className="flex flex-col">
-                                <span className={`metric-value ${currentScore ? (currentScore >= 70 ? 'text-accent-green' : currentScore >= 60 ? 'text-accent-yellow' : 'text-accent-red') : 'text-text-primary'}`}>
-                                    {currentScore || '—'}
-                                </span>
-                                {position.current_score && position.current_score !== position.entry_score && (
+                                <div className="flex items-center gap-1.5">
+                                    <span className={`metric-value ${effectiveScore ? (effectiveScore >= 70 ? 'text-accent-green' : effectiveScore >= 60 ? 'text-accent-yellow' : 'text-accent-red') : 'text-text-primary'}`}>
+                                        {effectiveScore || '—'}
+                                    </span>
+                                    {position.tech_score_source === 'manual' && (
+                                        <span className="text-[10px] uppercase font-bold text-text-tertiary bg-white/5 px-1 rounded tracking-wider" title="Manual Override">
+                                            Man
+                                        </span>
+                                    )}
+                                    {position.tech_score_source === 'auto' && (
+                                        <span className="text-[10px] uppercase font-bold text-blue-400 bg-blue-500/10 px-1 rounded tracking-wider" title="Auto Calculation">
+                                            Auto
+                                        </span>
+                                    )}
+                                </div>
+
+                                {position.tech_data && typeof position.tech_data === 'object' && (
+                                    <div className="text-[10px] text-text-tertiary mt-0.5 group relative cursor-help">
+                                        <span className="border-b border-dotted border-text-tertiary/50">Breakdown</span>
+                                        {/* Detailed Tooltip */}
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-bg-elevated border border-border-default rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-[10px]">
+                                            <div className="space-y-1">
+                                                <div className="flex justify-between">
+                                                    <span>Bias</span>
+                                                    <span className={position.tech_data.marketBias?.score === 30 ? 'text-accent-green' : 'text-text-secondary'}>
+                                                        {position.tech_data.marketBias?.score ?? '?'} / 30
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>Short-T</span>
+                                                    <span className={position.tech_data.bxtrenderShort?.score === 25 ? 'text-accent-green' : 'text-text-secondary'}>
+                                                        {position.tech_data.bxtrenderShort?.score ?? '?'} / 25
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>Long-T</span>
+                                                    <span className={position.tech_data.bxtrenderLong?.score === 20 ? 'text-accent-green' : 'text-text-secondary'}>
+                                                        {position.tech_data.bxtrenderLong?.score ?? '?'} / 20
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>EMA</span>
+                                                    <span className={position.tech_data.emaStack?.score === 15 ? 'text-accent-green' : 'text-text-secondary'}>
+                                                        {position.tech_data.emaStack?.score ?? '?'} / 15
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>Mom</span>
+                                                    <span className={position.tech_data.momentum?.score === 10 ? 'text-accent-green' : 'text-text-secondary'}>
+                                                        {position.tech_data.momentum?.score ?? '?'} / 10
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {(!position.tech_data && position.current_score && position.current_score !== position.entry_score) && (
                                     <span className="text-xs text-text-tertiary flex items-center">
                                         from {position.entry_score}
                                         {position.current_score < position.entry_score && <span className="ml-1 text-accent-red">↓</span>}

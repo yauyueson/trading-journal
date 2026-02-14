@@ -97,8 +97,12 @@ function App() {
 
     const onUpdateScore = async (id: string, score: number) => {
         await supabase.from('positions').update({
-            current_score: score,
-            score_updated_at: new Date().toISOString()
+            current_score: score, // Legacy compatibility
+            tech_score: score,
+            tech_score_manual: score,
+            tech_score_source: 'manual',
+            score_updated_at: new Date().toISOString(),
+            tech_score_updated_at: new Date().toISOString()
         }).eq('id', id);
         fetchData();
     };

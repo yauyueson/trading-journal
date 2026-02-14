@@ -147,6 +147,13 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
 
     useEffect(() => {
         refreshAllPrices();
+
+        // Trigger efficient background Tech Score update (checks staleness)
+        fetch('/api/batch-refresh-tech?scope=active')
+            .then(res => res.json())
+            .then(data => console.log("Tech Score Check:", data.message))
+            .catch(err => console.error("Tech Score Trigger Failed", err));
+
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
