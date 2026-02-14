@@ -4,6 +4,8 @@
 // Uses shared scoring module (Single Source of Truth)
 // Modules loaded inside handler via dynamic import() so failures return JSON on Vercel.
 
+import { getAppSettings } from './_shared/getAppSettings.js';
+
 let compressLambda, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
     calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, zScoresByBucket, HARD_FILTER_DEFAULTS,
     getIVRiskFactor, getIVAdjustment, getIVRankAdjustment, getRelativeIVAdjustmentLOQ, getRelativeIVAdjustmentCSQ,
@@ -901,12 +903,21 @@ export default async function handler(req, res) {
         try {
             const { getCandles } = await import('../lib/polygon-client.js');
             const { calculateTechScore } = await import('../lib/tech-analysis.js');
+            const { createClient } = await import('@supabase/supabase-js');
+            const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+            const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+            const supabase = createClient(supabaseUrl, supabaseKey);
+            const appSettings = await getAppSettings(supabase);
+            const techScoreOptions = {
+              ...appSettings.techScore.weights,
+              ...appSettings.techScore.periods,
+            };
             const toDate = new Date();
             const fromDate = new Date();
             fromDate.setDate(toDate.getDate() - 600);
             const candles = await getCandles(upperTicker, fromDate.toISOString().split('T')[0], toDate.toISOString().split('T')[0], 'day');
             if (candles && candles.length >= 50) {
-                const scoreResult = calculateTechScore(candles);
+                const scoreResult = calculateTechScore(candles, techScoreOptions);
                 tech = {
                     techScore: scoreResult.techScore,
                     setup: scoreResult.setup,
