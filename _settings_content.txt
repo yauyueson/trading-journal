@@ -1,0 +1,11 @@
+// src/pages/AppSettings.tsx
+import React, { useState } from "react";
+import { useAppSettings } from "../context/AppSettingsContext";
+import { AppSettings, DEFAULT_APP_SETTINGS, PORTFOLIO_BOUNDS } from "../lib/types/settings";
+import { formatCurrency } from "../lib/utils";
+
+const { MIN_RISK_PCT, MAX_RISK_PCT, MIN_STOP_OUT_PCT, MAX_STOP_OUT_PCT } = PORTFOLIO_BOUNDS;
+
+export const AppSettingsPage: React.FC = () => {
+  const { settings, updateSettings } = useAppSettings();
+  const [draft, setDraft] = useState<AppSettings>(settings);

@@ -1,5 +1,5 @@
 
-import { ema, emaFullSeries, rsi, t3_smooth, heikinAshiPine } from './indicators';
+import { emaFullSeries, rsi, t3_smooth, heikinAshiPine } from './indicators';
 
 export interface TechScoreResult {
     techScore: number;
@@ -90,18 +90,17 @@ export function calculateTechScore(
     }
 
     // --- 1. Market Bias (Pine s_calc_mb: ha_len2 = len, so same period for o2/c2) ---
+    // All EMA calls use emaFullSeries to match Pine's ta.ema() (seeds from bar 0, no NaN warmup).
+    // SMA-seeded ema() produces NaN for bars 0..period-1, polluting heikinAshiPine and downstream
+    // RSI seeds. For shorter datasets (1H/4H), these lost warmup bars are significant.
     const haLen = opts.sc_mb_len;
-    const mb_o = ema(opens, haLen);
-    const mb_c = ema(closes, haLen);
-    const mb_h = ema(highs, haLen);
-    const mb_l = ema(lows, haLen);
+    const mb_o = emaFullSeries(opens, haLen);
+    const mb_c = emaFullSeries(closes, haLen);
+    const mb_h = emaFullSeries(highs, haLen);
+    const mb_l = emaFullSeries(lows, haLen);
 
     const { haOpens, haCloses } = heikinAshiPine(mb_o, mb_h, mb_l, mb_c);
 
-    // Pine: o2 = ta.ema(haopen, ha_len2), c2 = ta.ema(haclose, ha_len2) with ha_len2 = len
-    // emaFullSeries is used here (not ema) because haOpens/haCloses have leading NaNs from
-    // the first EMA chain. emaFullSeries seeds from the first non-NaN value, matching Pine's
-    // ta.ema() behavior and preventing NaN from propagating to osc.
     const haLen2 = opts.sc_mb_len;
     const o2 = emaFullSeries(haOpens, haLen2);
     const c2 = emaFullSeries(haCloses, haLen2);
@@ -139,13 +138,13 @@ export function calculateTechScore(
     const l_l1 = opts.sc_bx_l1, l_l2 = opts.sc_bx_l2;
 
     // Short Term: RSI(EMA(c, 5) - EMA(c, 20), 15) - 50
-    const ema5 = ema(closes, s_l1);
-    const ema20 = ema(closes, s_l2);
+    const ema5 = emaFullSeries(closes, s_l1);
+    const ema20 = emaFullSeries(closes, s_l2);
     const shortDiff = ema5.map((v, i) => v - ema20[i]);
     const stX = rsi(shortDiff, s_l3).map(v => v - 50);
 
     // Long Term: RSI(EMA(c, 20), 15) - 50
-    const ema20_long = ema(closes, l_l1); // same as ema20 if period matches
+    const ema20_long = emaFullSeries(closes, l_l1);
     const ltX = rsi(ema20_long, l_l2).map(v => v - 50);
 
     // T3 Smooth of Short Term
@@ -179,10 +178,9 @@ export function calculateTechScore(
 
 
     // --- 3. EMA Stack (15%) ---
-    // e8, e21, e34
-    const e8 = ema(closes, 8);
-    const e21 = ema(closes, 21);
-    const e34 = ema(closes, 34);
+    const e8 = emaFullSeries(closes, 8);
+    const e21 = emaFullSeries(closes, 21);
+    const e34 = emaFullSeries(closes, 34);
 
     const currE8 = e8[len - 1] || 0;
     const currE21 = e21[len - 1] || 0;
