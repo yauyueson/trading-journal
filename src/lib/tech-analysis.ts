@@ -1,5 +1,5 @@
 
-import { ema, rsi, t3_smooth, heikinAshi } from './indicators';
+import { ema, rsi, t3_smooth, heikinAshiPine } from './indicators';
 
 export interface TechScoreResult {
     techScore: number;
@@ -32,7 +32,7 @@ export interface TechScoreOptions {
     w_ema?: number;
     w_mom?: number;
     sc_mb_len?: number;
-    /** Smoothing period for HA (o2/c2). Scanner default 7. */
+    /** In Pine Scanner, o2/c2 use same period as sc_mb_len (ha_len2=len). Kept for compatibility. */
     sc_mb_smoothing?: number;
     /** Oscillator smooth period (ema(osc, n)). Scanner default 7. */
     sc_osc_len?: number;
@@ -43,20 +43,21 @@ export interface TechScoreOptions {
     sc_bx_l2?: number;
 }
 
+// Aligned with Pine Script "Scanner: Criteria Periods" and "Scanner: Scoring" defaults
 const DEFAULT_OPTIONS: Required<TechScoreOptions> = {
     w_mb: 30,
-    w_bxs: 30,
-    w_bxl: 15,
+    w_bxs: 25,
+    w_bxl: 20,
     w_ema: 15,
     w_mom: 10,
-    sc_mb_len: 20,
-    sc_mb_smoothing: 7,
+    sc_mb_len: 100,
+    sc_mb_smoothing: 100,
     sc_osc_len: 7,
     sc_bx_s1: 5,
     sc_bx_s2: 20,
-    sc_bx_s3: 5,
+    sc_bx_s3: 15,
     sc_bx_l1: 20,
-    sc_bx_l2: 5
+    sc_bx_l2: 15
 };
 
 /**
@@ -88,25 +89,17 @@ export function calculateTechScore(
         };
     }
 
-    // --- 1. Market Bias ---
+    // --- 1. Market Bias (Pine s_calc_mb: ha_len2 = len, so same period for o2/c2) ---
     const haLen = opts.sc_mb_len;
     const mb_o = ema(opens, haLen);
     const mb_c = ema(closes, haLen);
     const mb_h = ema(highs, haLen);
     const mb_l = ema(lows, haLen);
 
-    // Construct "Heikin Ashi" from the smoothed values
-    // PineScript: haclose = (mb_o + mb_h + mb_l + mb_c) / 4 ...
-    // Note: We need to pass the *smoothed* arrays to heikinAshi? 
-    // No, standard HA takes raw arrays. But the script applies EMA *before* forming HA.
-    // So we treat mb_o/h/l/c as the inputs to HA generation.
-    const haCandles = heikinAshi(mb_o, mb_h, mb_l, mb_c);
+    const { haOpens, haCloses } = heikinAshiPine(mb_o, mb_h, mb_l, mb_c);
 
-    // Extract HA components
-    const haOpens = haCandles.map(c => c.open);
-    const haCloses = haCandles.map(c => c.close);
-
-    const haLen2 = opts.sc_mb_smoothing;
+    // Pine: o2 = ta.ema(haopen, ha_len2), c2 = ta.ema(haclose, ha_len2) with ha_len2 = len
+    const haLen2 = opts.sc_mb_len;
     const o2 = ema(haOpens, haLen2);
     const c2 = ema(haCloses, haLen2);
 

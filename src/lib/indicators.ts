@@ -224,3 +224,31 @@ export function heikinAshi(opens: number[], highs: number[], lows: number[], clo
 
     return result;
 }
+
+/**
+ * Heikin Ashi built exactly like Pine Script s_calc_mb:
+ * haclose = (mb_o+mb_h+mb_l+mb_c)/4, xhaopen = (mb_o+mb_c)/2,
+ * haopen = bar 0 ? (mb_o+mb_c)/2 : (xhaopen[1]+haclose[1])/2
+ */
+export function heikinAshiPine(
+    mb_o: number[],
+    mb_h: number[],
+    mb_l: number[],
+    mb_c: number[]
+): { haOpens: number[]; haCloses: number[] } {
+    const n = mb_o.length;
+    const haOpens: number[] = [];
+    const haCloses: number[] = [];
+    let xhaopenPrev: number, haclosePrev: number;
+    for (let i = 0; i < n; i++) {
+        const haclose = (mb_o[i] + mb_h[i] + mb_l[i] + mb_c[i]) / 4;
+        const xhaopen = (mb_o[i] + mb_c[i]) / 2;
+        const haopen =
+            i === 0 ? (mb_o[0] + mb_c[0]) / 2 : (xhaopenPrev + haclosePrev) / 2;
+        haCloses.push(haclose);
+        haOpens.push(haopen);
+        xhaopenPrev = xhaopen;
+        haclosePrev = haclose;
+    }
+    return { haOpens, haCloses };
+}

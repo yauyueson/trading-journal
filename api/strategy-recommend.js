@@ -920,7 +920,7 @@ export default async function handler(req, res) {
             const from1h = new Date(toDate);
             from1h.setDate(toDate.getDate() - 30);
             const from4h = new Date(toDate);
-            from4h.setDate(toDate.getDate() - 60);
+            from4h.setDate(toDate.getDate() - 120); // enough 4H bars for 100-period MB (need ~100+ bars)
             const [candles1d, candles1h, candles4h] = await Promise.all([
                 getCandles(upperTicker, fromDay.toISOString().split('T')[0], toStr, 'day'),
                 getCandles(upperTicker, from1h.toISOString().split('T')[0], toStr, 'hour'),
