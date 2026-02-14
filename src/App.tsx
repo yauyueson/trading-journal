@@ -13,6 +13,7 @@ import { StatsPage } from './pages/Stats';
 import { Academy } from './pages/Academy';
 import { AppSettingsPage } from './pages/AppSettings';
 import { BuyModal } from './components/BuyModal';
+import { Settings } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 
 function App() {
@@ -303,9 +304,19 @@ function App() {
             >
                 <div className={`mx-auto px-4 py-3 flex justify-between items-center max-w-5xl`}>
                     <h1 className="text-xl font-semibold">Trading Journal</h1>
-                    <button onClick={handleLogout} className="text-text-tertiary text-sm hover:text-text-secondary transition-colors">
-                        Logout
-                    </button>
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => setActiveTab('settings')}
+                            className="flex items-center gap-1.5 text-text-tertiary text-sm hover:text-text-secondary transition-colors"
+                            aria-label="Settings"
+                        >
+                            <Settings size={16} />
+                            Settings
+                        </button>
+                        <button onClick={handleLogout} className="text-text-tertiary text-sm hover:text-text-secondary transition-colors">
+                            Logout
+                        </button>
+                    </div>
                 </div>
             </div>
 

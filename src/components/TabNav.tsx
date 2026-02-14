@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { LayoutDashboard, List, History, BarChart3, Search, Target, BookOpen, Settings } from 'lucide-react';
+import { LayoutDashboard, List, History, BarChart3, Search, Target, BookOpen } from 'lucide-react';
 
 interface TabNavProps {
     activeTab: string;
@@ -14,8 +14,7 @@ export const TabNav: React.FC<TabNavProps> = ({ activeTab, setActiveTab }) => {
         { id: 'portfolio', label: 'Portfolio', mobileLabel: 'Portfolio', Icon: LayoutDashboard },
         { id: 'history', label: 'History', mobileLabel: 'History', Icon: History },
         { id: 'stats', label: 'Stats', mobileLabel: 'Stats', Icon: BarChart3 },
-        { id: 'academy', label: 'Academy', mobileLabel: 'Learn', Icon: BookOpen },
-        { id: 'settings', label: 'Settings', mobileLabel: 'Settings', Icon: Settings }
+        { id: 'academy', label: 'Academy', mobileLabel: 'Learn', Icon: BookOpen }
     ];
 
     const scrollRef = useRef<HTMLDivElement>(null);
