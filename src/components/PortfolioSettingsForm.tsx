@@ -1,6 +1,9 @@
 import React from 'react';
-import { usePortfolioSettings, MIN_RISK_PCT, MAX_RISK_PCT, MIN_STOP_OUT_PCT, MAX_STOP_OUT_PCT } from '../context/PortfolioSettingsContext';
+import { useAppSettings } from '../context/AppSettingsContext';
+import { PORTFOLIO_BOUNDS } from '../lib/types/settings';
 import { formatCurrency } from '../lib/utils';
+
+const { MIN_RISK_PCT, MAX_RISK_PCT, MIN_STOP_OUT_PCT, MAX_STOP_OUT_PCT } = PORTFOLIO_BOUNDS;
 
 interface PortfolioSettingsFormProps {
     /** Compact: single row with inputs. Full: labels above. */
@@ -9,7 +12,11 @@ interface PortfolioSettingsFormProps {
 }
 
 export const PortfolioSettingsForm: React.FC<PortfolioSettingsFormProps> = ({ variant = 'full', className = '' }) => {
-    const { portfolioTotal, riskPct, stopOutPct, setPortfolioTotal, setRiskPct, setStopOutPct, maxRiskPerTrade } = usePortfolioSettings();
+    const { settings, updateSettings, maxRiskPerTrade } = useAppSettings();
+    const { accountSize: portfolioTotal, riskPct, stopOutPct } = settings.portfolio;
+    const setPortfolioTotal = (v: number) => updateSettings({ portfolio: { ...settings.portfolio, accountSize: v } });
+    const setRiskPct = (v: number) => updateSettings({ portfolio: { ...settings.portfolio, riskPct: v } });
+    const setStopOutPct = (v: number) => updateSettings({ portfolio: { ...settings.portfolio, stopOutPct: v } });
 
     if (variant === 'compact') {
         return (
