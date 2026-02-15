@@ -1,6 +1,6 @@
 # Trading Journal - 文档总览
 
-> 最后更新: 2026年2月12日
+> 最后更新: 2026年2月14日
 
 欢迎来到Trading Journal项目文档中心！这里包含了项目的完整技术文档和使用指南。
 
@@ -177,17 +177,19 @@
 
 ```
 docs/
-├── README.md                 # 本文件（文档索引）
-├── 00_PRD_总览.md             # 产品需求文档总览
-├── 01_项目概览.md             # 项目简介和架构
-├── 02_技术路径.md             # 技术栈和实现细节
-├── 03_核心算法.md             # 评分算法详解
-├── 04_数据库设计.md           # 数据模型和SQL
-├── 05_API文档.md              # API 接口与数据源配置
-├── 06_用户工作流.md           # 使用指南和最佳实践
-├── 07_止损与目标价短信提醒方案.md  # 短信提醒实现方案
-├── 08_IV_Rank_上线步骤.md     # IV Rank 上线步骤
-└── 09_Polygon集成.md           # Polygon 数据源集成
+├── README.md                   # 本文件（文档索引）
+├── 00_PRD_总览.md               # 产品需求文档总览
+├── 01_项目概览.md               # 项目简介和架构
+├── 02_技术路径.md               # 技术栈和实现细节
+├── 03_核心算法.md               # 评分算法详解（OSS v2.5）
+├── 04_数据库设计.md             # 数据模型和SQL
+├── 05_API文档.md                # API 接口与数据源配置
+├── 06_用户工作流.md             # 使用指南和最佳实践
+├── 07_止损与目标价短信提醒方案.md  # Discord 提醒实现方案
+├── 08_IV_Rank_上线步骤.md       # IV Rank 上线步骤
+├── 09_Polygon集成.md            # Polygon 数据源集成
+├── 算法改进总览_OSS_v2.4.md     # OSS v2.4 改进记录（已合并精简）
+└── 算法改进总览_OSS_v2.2.md     # OSS v2.2 改进记录（历史）
 ```
 
 ---
@@ -246,6 +248,24 @@ docs/
 ---
 
 ## 🔄 文档更新日志
+
+### 2026-02-14（OSS v2.5 代码审查全面优化）
+- ✅ **BSM N(d2) POP 回退**：信用价差/借方价差/单腿 POP 从 `1-|delta|` 升级为 Black-Scholes N(d2)（`src/lib/bsm.ts` 新文件）
+- ✅ **EV 退出乘数 0.75**：`calculateExpectedValue` 引入 `exitMultiplier=0.75`，反映实际提前平仓的损失上限
+- ✅ **价差中间价定价**：信用/借方价差均改用 spread mid 而非 bid/ask 最差价，分数更贴近实际成交
+- ✅ **IV 期限结构线性插值**：`getATMIV` 从"最近到期"升级为插值重建精确 IV30/IV90
+- ✅ **IV 绝对水平 + VRP**：regime 新增 `ivLevel`（elevated/normal/suppressed）和 `vrp = IV30%−RV30`
+- ✅ **DTE 高斯评分曲线**：信用价差 DTE 分改为 `100×exp(-0.5×((DTE-37)/15)²)`，无离散锯齿
+- ✅ **OI 调整滑点**：`estimateSlippage` 新增流动性乘数，惩罚低 OI 合约
+- ✅ **DTE 自适应 Vega 权重**：`getLOQVegaWeight` 随 DTE 从 0.03→0.15 线性增长
+- ✅ **Earnings IV Premium**：跨财报日策略自动计算隐含财报移动幅度和事后 IV 估算
+- ✅ **Skew DTE 对齐**：`calculateSkew` 改用请求的 `dteTarget` 而非硬编码 30 天
+- ✅ **技术面多周期对齐奖惩**：1D+4H+1H 全对齐 +7，1H 逆向 -3，附加到 unifiedScore
+- ✅ **财报 API 去重缓存**：App.tsx 统一维护 4 小时 TTL 缓存，N×M 次降至每 ticker 1 次
+- ✅ **Greeks 历史单次加载**：`hasLoadedHistoryRef` 防止卡片展开重复拉取
+- ✅ **Watchlist 批量价格**：页面加载一次 POST，替代逐项 GET
+- ✅ **AppSettings 本地缓存**：5 分钟 TTL 跳过 Supabase 冷启动查询
+- ✅ **文档整合**：`OSS_v2.4_快速参考.md` + `OSS_v2.4_更新总结.md` 合并入 `算法改进总览_OSS_v2.4.md`；`03_核心算法.md` 更新至 v2.5
 
 ### 2026-02-12（文档精简与数据源统一）
 - ✅ **技术文档与数据源一致化**：全项目文档统一为 **Polygon.io（主）+ CBOE（备）**；API 层已仅支持 POLYGON/CBOE，MarketData 已弃用。
@@ -309,4 +329,4 @@ docs/
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年2月12日*
+*最后更新: 2026年2月14日*

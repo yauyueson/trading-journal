@@ -43,9 +43,11 @@ interface PositionCardProps {
     portfolioTotal?: number;
     /** Array of leg data from bulk fetch */
     initialData?: any[];
+    /** Cached earnings lookup — avoids duplicate API calls per ticker */
+    fetchEarningsForTicker?: (ticker: string) => Promise<{ daysUntil: number | null; date: string | null }>;
 }
 
-export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onDelete, onUpdateOwner, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick, portfolioTotal: portfolioTotalProp, initialData }) => {
+export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onDelete, onUpdateOwner, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick, portfolioTotal: portfolioTotalProp, initialData, fetchEarningsForTicker }) => {
     const { settings: appSettings, stopOutFraction } = useAppSettings();
     const portfolioTotal = portfolioTotalProp ?? appSettings.portfolio.accountSize;
     const [loading, setLoading] = useState(false);
@@ -67,27 +69,36 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
     const isSpread = !!position.legs && position.legs.length > 0;
     const isCreditStrategy = position.type.includes('Credit') || position.type.includes('Short');
 
-    // Fetch Earnings
+    // Fetch Earnings (uses cached lookup if provided, else falls back to direct API call)
     useEffect(() => {
         const fetchEarnings = async () => {
             try {
-                const response = await fetch(`/api/earnings?symbol=${position.ticker}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.hasUpcomingEarnings && data.daysUntilEarnings <= 14) {
-                        setEarnings({ loading: false, date: data.earningsDate, days: data.daysUntilEarnings });
+                if (fetchEarningsForTicker) {
+                    const result = await fetchEarningsForTicker(position.ticker);
+                    if (result.daysUntil != null && result.daysUntil <= 14) {
+                        setEarnings({ loading: false, date: result.date, days: result.daysUntil });
                     } else {
                         setEarnings({ loading: false, date: null, days: null });
                     }
                 } else {
-                    setEarnings({ loading: false, date: null, days: null });
+                    const response = await fetch(`/api/earnings?symbol=${position.ticker}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.hasUpcomingEarnings && data.daysUntilEarnings <= 14) {
+                            setEarnings({ loading: false, date: data.earningsDate, days: data.daysUntilEarnings });
+                        } else {
+                            setEarnings({ loading: false, date: null, days: null });
+                        }
+                    } else {
+                        setEarnings({ loading: false, date: null, days: null });
+                    }
                 }
             } catch (e) {
                 setEarnings({ loading: false, date: null, days: null });
             }
         };
         fetchEarnings();
-    }, [position.ticker]);
+    }, [position.ticker, fetchEarningsForTicker]);
 
     // Fetch Greeks and price
     const fetchGreeksAndPrice = useCallback(async (useBulkData = false) => {
@@ -338,8 +349,11 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         }
     }, [refreshTrigger, index, fetchGreeksAndPrice, initialData]);
 
+    const hasLoadedHistoryRef = React.useRef(false);
+
     useEffect(() => {
-        if (isExpanded && historyData.length === 0) {
+        if (isExpanded && !hasLoadedHistoryRef.current) {
+            hasLoadedHistoryRef.current = true;
             setHistoryLoading(true);
             fetchGreeksHistory(position.id).then(data => {
                 setHistoryData(data);

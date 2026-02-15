@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 import { AppSettings, DEFAULT_APP_SETTINGS } from '../lib/types/settings';
 
 const STORAGE_KEY = 'trading-journal-app-settings';
+const STORAGE_TS_KEY = 'trading-journal-app-settings-ts';
+const SETTINGS_FRESH_TTL = 5 * 60 * 1000; // 5 minutes
 
 function loadFromStorage(): AppSettings {
   try {
@@ -15,8 +17,21 @@ function loadFromStorage(): AppSettings {
   }
 }
 
+function isStorageFresh(): boolean {
+  try {
+    const ts = localStorage.getItem(STORAGE_TS_KEY);
+    if (!ts) return false;
+    return Date.now() - parseInt(ts, 10) < SETTINGS_FRESH_TTL;
+  } catch {
+    return false;
+  }
+}
+
 function saveToStorage(s: AppSettings) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (_) {}
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    localStorage.setItem(STORAGE_TS_KEY, String(Date.now()));
+  } catch (_) {}
 }
 
 interface AppSettingsContextValue {
@@ -34,8 +49,12 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [settings, setSettings] = useState<AppSettings>(loadFromStorage);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load from Supabase on mount
+  // Load from Supabase on mount — skip if localStorage has fresh data (< 5 min old)
   useEffect(() => {
+    if (isStorageFresh()) {
+      setIsLoading(false);
+      return;
+    }
     supabase
       .from('app_settings')
       .select('settings')

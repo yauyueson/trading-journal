@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { List } from 'lucide-react';
 import { Position, WatchlistItem as WatchlistItemType } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -12,15 +12,72 @@ interface WatchlistPageProps {
     onMoveToActive: (item: Position) => void;
     onDelete: (id: string) => Promise<void>;
     loading: boolean;
+    fetchEarningsForTicker?: (ticker: string) => Promise<{ daysUntil: number | null; date: string | null }>;
 }
 
-export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddToWatchlist, onMoveToActive, onDelete, loading }) => {
+export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddToWatchlist, onMoveToActive, onDelete, loading, fetchEarningsForTicker }) => {
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [form, setForm] = useState({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
+    const [bulkPrices, setBulkPrices] = useState<Record<string, number>>({});
     const watchlistItems = positions.filter(p => p.status === 'watchlist');
+
+    // Bulk fetch prices for all watchlist items on mount (one POST instead of N GETs)
+    useEffect(() => {
+        if (watchlistItems.length === 0) return;
+        const legs: any[] = [];
+        watchlistItems.forEach(item => {
+            const norm = (exp: string) => exp?.trim().replace(/^(\d{4})-(\d{1,2})-(\d{1,2})$/, (_, y, m, d) =>
+                `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
+            if (item.legs && item.legs.length > 0) {
+                item.legs.forEach(leg => legs.push({
+                    ticker: item.ticker, expiration: norm(leg.expiration),
+                    strike: leg.strike, type: leg.type, id: item.id, side: leg.side
+                }));
+            } else {
+                legs.push({
+                    ticker: item.ticker, expiration: norm(item.expiration),
+                    strike: item.strike, type: item.type, id: item.id
+                });
+            }
+        });
+        fetch('/api/option-prices-bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ legs })
+        })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!data?.success || !data.results) return;
+                // Compute net price per position id
+                const pricesByPos: Record<string, { short: number; long: number; single: number; isCreditType: boolean }> = {};
+                data.results.forEach((r: any) => {
+                    if (!r.id || !r.success) return;
+                    if (!pricesByPos[r.id]) {
+                        const item = watchlistItems.find(i => i.id === r.id);
+                        pricesByPos[r.id] = { short: 0, long: 0, single: 0, isCreditType: !!(item?.type?.includes('Credit') || item?.type?.includes('Short')) };
+                    }
+                    const p = r.price ?? 0;
+                    if (r.side === 'short') pricesByPos[r.id].short = p;
+                    else if (r.side === 'long') pricesByPos[r.id].long = p;
+                    else pricesByPos[r.id].single = p;
+                });
+                const prices: Record<string, number> = {};
+                Object.entries(pricesByPos).forEach(([id, v]) => {
+                    if (v.short || v.long) {
+                        prices[id] = v.isCreditType ? v.short - v.long : v.long - v.short;
+                    } else {
+                        prices[id] = v.single;
+                    }
+                });
+                setBulkPrices(prices);
+                setLastTimestamp(new Date().toISOString());
+            })
+            .catch(() => { /* fall back to individual fetches */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -117,6 +174,8 @@ export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddTo
                             onMoveToActive={onMoveToActive}
                             onDelete={onDelete}
                             onDataUpdate={setLastTimestamp}
+                            fetchEarningsForTicker={fetchEarningsForTicker}
+                            initialPrice={bulkPrices[item.id] ?? null}
                         />
                     ))}
                 </div>

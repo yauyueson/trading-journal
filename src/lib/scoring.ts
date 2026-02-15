@@ -158,33 +158,62 @@ export interface IVTermResult {
 }
 
 /**
- * Find ATM IV for a target DTE.
- * Uses Call-only with DTE tolerance and strike bracketing.
+ * Find ATM IV for a target DTE using linear interpolation between expirations.
+ *
+ * Instead of requiring an expiration within ±10 DTE (which fails for ~30% of tickers
+ * without weekly options), we find the two nearest expirations bracketing the target DTE
+ * and linearly interpolate IV between them.
+ *
+ * Example: expirations at 75 DTE (IV=28%) and 105 DTE (IV=24%)
+ *   IV90 = lerp(75→105, 28%→24%, target=90) ≈ 26.5%
  */
 function getATMIV(
     chain: OptionData[],
     currentPrice: number,
     targetDTE: number,
-    tolerance: number = 10
 ): number | null {
-    const candidates = chain.filter(
-        opt => opt.type === 'Call' && Math.abs(opt.dte - targetDTE) <= tolerance
-    );
-
-    if (candidates.length < 2) return null;
-
-    candidates.sort((a, b) => a.strike - b.strike);
-
-    for (let i = 0; i < candidates.length - 1; i++) {
-        if (candidates[i].strike <= currentPrice && candidates[i + 1].strike >= currentPrice) {
-            return (candidates[i].iv + candidates[i + 1].iv) / 2;
+    // Get ATM IV per unique expiration (using closest-to-ATM call strike)
+    const expirationMap = new Map<number, number>(); // dte → atm IV
+    const calls = chain.filter(opt => opt.type === 'Call');
+    // Group by DTE bucket (round to whole days to merge minor DTE rounding differences)
+    for (const opt of calls) {
+        const dte = Math.round(opt.dte);
+        if (!expirationMap.has(dte)) {
+            expirationMap.set(dte, Infinity); // sentinel
+        }
+        // Track the option closest to ATM for this expiration
+        const distCurrent = Math.abs(opt.strike - currentPrice);
+        const bestDistKey = `${dte}_dist`;
+        const stored = (expirationMap as any)[bestDistKey] ?? Infinity;
+        if (distCurrent < stored) {
+            (expirationMap as any)[bestDistKey] = distCurrent;
+            expirationMap.set(dte, opt.iv);
         }
     }
 
-    const closest = candidates.reduce((prev, curr) =>
-        Math.abs(curr.strike - currentPrice) < Math.abs(prev.strike - currentPrice) ? curr : prev
-    );
-    return closest.iv;
+    const sortedDTEs = Array.from(expirationMap.keys()).sort((a, b) => a - b);
+    if (sortedDTEs.length === 0) return null;
+
+    // Exact or very close match (within 3 days) — no need to interpolate
+    const exact = sortedDTEs.find(d => Math.abs(d - targetDTE) <= 3);
+    if (exact !== undefined) return expirationMap.get(exact) ?? null;
+
+    // Linear interpolation between the two bracketing expirations
+    const below = sortedDTEs.filter(d => d < targetDTE);
+    const above = sortedDTEs.filter(d => d > targetDTE);
+    if (below.length > 0 && above.length > 0) {
+        const d1 = below[below.length - 1];
+        const d2 = above[0];
+        const iv1 = expirationMap.get(d1)!;
+        const iv2 = expirationMap.get(d2)!;
+        // lerp: iv1 + (iv2 - iv1) * (target - d1) / (d2 - d1)
+        return iv1 + (iv2 - iv1) * (targetDTE - d1) / (d2 - d1);
+    }
+
+    // Extrapolation: use nearest available if target is outside the chain's DTE range
+    if (below.length > 0) return expirationMap.get(below[below.length - 1]) ?? null;
+    if (above.length > 0) return expirationMap.get(above[0]) ?? null;
+    return null;
 }
 
 /**

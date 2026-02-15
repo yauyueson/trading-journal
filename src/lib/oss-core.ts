@@ -208,15 +208,18 @@ export function calculateSellerEdge(pop: number, premium: number): number {
 }
 
 /**
- * Expected Value (EV) - Full risk-adjusted return for credit spreads (v2.2).
+ * Expected Value (EV) - Full risk-adjusted return for credit spreads (v2.3).
  *
- * EV = (POP × Credit) - ((1-POP) × MaxRisk)
+ * EV = (POP × Credit) - ((1-POP) × MaxRisk × exitMultiplier)
  *
- * Integrates both upside and downside into a single metric.
+ * exitMultiplier (default 0.75): empirical adjustment reflecting that most losing
+ * trades are managed and closed before reaching full max loss. Reduces the
+ * theoretical worst-case drawdown to a realistic expected loss.
+ *
  * Positive EV = edge in seller's favor; Negative EV = expected loss.
  */
-export function calculateExpectedValue(pop: number, credit: number, maxRisk: number): number {
-    return (pop * credit) - ((1 - pop) * maxRisk);
+export function calculateExpectedValue(pop: number, credit: number, maxRisk: number, exitMultiplier: number = 0.75): number {
+    return (pop * credit) - ((1 - pop) * maxRisk * exitMultiplier);
 }
 
 /**
@@ -478,9 +481,27 @@ export function getLOQWeightsForDTE(dte: number): LOQWeightsForDTE {
     };
 }
 
-/** Vega efficiency weight when IV is low (long-friendly): reward high vega/premium. */
+/**
+ * DTE-adaptive vega weight for LOQ (long options / buyers).
+ *
+ * For longer-dated options, vega is the primary risk driver — more important than gamma.
+ * Weight grows linearly from 0.03 (day-trade, DTE≤5) to 0.15 (long-dated, DTE≥60).
+ *
+ * ivAdjustment > 0 (low IV, buyer-friendly): positive vega weight (reward high-vega options when vol is cheap)
+ * ivAdjustment < 0 (high IV, buyer-unfriendly): negative weight (penalize overpaying for vega)
+ */
+export function getLOQVegaWeight(dte: number | null, ivAdjustment: number): number {
+    const d = dte ?? 30;
+    // Linearly interpolate weight: 0.03 at DTE≤5, 0.15 at DTE≥60
+    const baseWeight = Math.min(0.15, Math.max(0.03, 0.03 + (0.12 * Math.min(Math.max(d - 5, 0), 55)) / 55));
+    if (ivAdjustment > 0) return baseWeight;       // Low IV: positive vega exposure is good
+    if (ivAdjustment < 0) return -baseWeight * 0.6; // High IV: mild penalty (penalize less than the reward)
+    return 0;
+}
+
+/** @deprecated Use getLOQVegaWeight(dte, ivAdjustment) instead — flat constant no longer used internally. */
 export const LOQ_VEGA_EFF_WEIGHT_POS = 0.05;
-/** Vega efficiency weight when IV is high: mild penalty to avoid buying highest vega. */
+/** @deprecated Use getLOQVegaWeight(dte, ivAdjustment) instead. */
 export const LOQ_VEGA_EFF_WEIGHT_NEG = -0.03;
 /** CSQ: mild penalty weight for high vega/premium (seller more sensitive to vol). */
 export const CSQ_VEGA_PENALTY_WEIGHT = -0.05;
@@ -520,8 +541,8 @@ export function calculateLOQRaw(
                     penaltyMult: 1,
                 };
 
-    const vegaWeight =
-        ivAdjustment > 0 ? LOQ_VEGA_EFF_WEIGHT_POS : ivAdjustment < 0 ? LOQ_VEGA_EFF_WEIGHT_NEG : 0;
+    // DTE-adaptive vega weight: at long DTE vega is primary risk driver and should score higher
+    const vegaWeight = getLOQVegaWeight(dte, ivAdjustment);
     const vegaBonus = vegaWeight * vegaZ;
 
     return (

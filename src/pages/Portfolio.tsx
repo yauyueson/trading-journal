@@ -23,9 +23,10 @@ interface PortfolioPageProps {
     onRoll: (originalPositionId: string, rollData: RollData) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
     loading: boolean;
+    fetchEarningsForTicker?: (ticker: string) => Promise<{ daysUntil: number | null; date: string | null }>;
 }
 
-export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onUpdateOwner, onAddDirect, onRoll, onDelete, loading }) => {
+export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onUpdateOwner, onAddDirect, onRoll, onDelete, loading, fetchEarningsForTicker }) => {
     const { settings, maxRiskPerTrade, stopOutFraction } = useAppSettings();
     const { accountSize: portfolioTotal, riskPct, stopOutPct } = settings.portfolio;
     const [showForm, setShowForm] = useState(false);
@@ -120,22 +121,36 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 const data = await res.json();
                 if (data.success && data.results) {
                     // Group results by Position ID
-                    // structure: { "posId": [ {leg1data}, {leg2data} ] }
                     const newBulkData: Record<string, any[]> = {};
+                    const failedPositionIds = new Set<string>();
 
                     data.results.forEach((r: any) => {
-                        if (r.id) {
-                            if (!newBulkData[r.id]) newBulkData[r.id] = [];
+                        if (!r.id) return;
+                        if (!newBulkData[r.id]) newBulkData[r.id] = [];
+                        if (r.success === false) {
+                            failedPositionIds.add(r.id);
+                        } else {
                             newBulkData[r.id].push(r);
                         }
                     });
 
+                    // Apply successful partial results immediately
                     setBulkData(prev => ({ ...prev, ...newBulkData }));
                     setLastTimestamp(new Date().toISOString());
+
+                    // Only trigger individual re-fetch for positions whose legs all failed
+                    // (avoids blanket refreshTrigger that re-fetches every card)
+                    const partialFailIds = [...failedPositionIds].filter(
+                        id => !newBulkData[id] || newBulkData[id].length === 0
+                    );
+                    if (partialFailIds.length > 0) {
+                        console.warn(`[Portfolio] ${partialFailIds.length} position(s) had no bulk data — triggering selective fallback`);
+                        setRefreshTrigger(prev => prev + 1);
+                    }
                 }
             } else {
                 console.error("Bulk fetch failed", await res.text());
-                // Fallback: Increment trigger to signal children to fetch individually
+                // Full failure — fall back to individual fetches
                 setRefreshTrigger(prev => prev + 1);
             }
         } catch (e) {
@@ -598,6 +613,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             onRollClick={(qty) => setRollingPosition({ position, qty })}
                             portfolioTotal={portfolioTotal}
                             initialData={bulkData[position.id]}
+                            fetchEarningsForTicker={fetchEarningsForTicker}
                         />
                     ))}
                 </div>

@@ -8,10 +8,13 @@ interface WatchlistItemProps {
     onMoveToActive: (item: Position) => void;
     onDelete: (id: string) => Promise<void>;
     onDataUpdate?: (timestamp: string) => void;
+    fetchEarningsForTicker?: (ticker: string) => Promise<{ daysUntil: number | null; date: string | null }>;
+    /** Pre-fetched price from bulk load — skips the individual API call on mount */
+    initialPrice?: number | null;
 }
 
-export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActive, onDelete, onDataUpdate }) => {
-    const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActive, onDelete, onDataUpdate, fetchEarningsForTicker, initialPrice }) => {
+    const [currentPrice, setCurrentPrice] = useState<number | null>(initialPrice ?? null);
     const [loading, setLoading] = useState(false);
     const [earnings, setEarnings] = useState<{ date: string | null; days: number | null }>({ date: null, days: null });
 
@@ -67,14 +70,22 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
     };
 
     useEffect(() => {
-        fetchPrice();
+        // Skip individual fetch if bulk data was pre-loaded
+        if (initialPrice == null) fetchPrice();
         const fetchEarnings = async () => {
             try {
-                const response = await fetch(`/api/earnings?symbol=${item.ticker}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.hasUpcomingEarnings && data.daysUntilEarnings <= 14) {
-                        setEarnings({ date: data.earningsDate, days: data.daysUntilEarnings });
+                if (fetchEarningsForTicker) {
+                    const result = await fetchEarningsForTicker(item.ticker);
+                    if (result.daysUntil != null && result.daysUntil <= 14) {
+                        setEarnings({ date: result.date, days: result.daysUntil });
+                    }
+                } else {
+                    const response = await fetch(`/api/earnings?symbol=${item.ticker}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.hasUpcomingEarnings && data.daysUntilEarnings <= 14) {
+                            setEarnings({ date: data.earningsDate, days: data.daysUntilEarnings });
+                        }
                     }
                 }
             } catch (e) { /* ignore */ }

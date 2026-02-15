@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from './lib/supabase';
 import { Position, Transaction, WatchlistItem, DirectAddItem, PositionAction, RollData } from './lib/types';
 import { formatDate } from './lib/utils';
@@ -25,6 +25,35 @@ function App() {
     const [loading, setLoading] = useState(true);
     // State for the Buy Modal (Transition from Watchlist -> Active)
     const [buyingItem, setBuyingItem] = useState<Position | null>(null);
+
+    // Earnings cache: deduplicate API calls across all cards/watchlist items
+    // TTL: 4 hours. Map<ticker, { daysUntil: number | null; date: string | null; fetchedAt: number }>
+    const earningsCacheRef = useRef<Map<string, { daysUntil: number | null; date: string | null; fetchedAt: number }>>(new Map());
+
+    const fetchEarningsForTicker = useCallback(async (ticker: string): Promise<{ daysUntil: number | null; date: string | null }> => {
+        const EARNINGS_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+        const cached = earningsCacheRef.current.get(ticker);
+        if (cached && Date.now() - cached.fetchedAt < EARNINGS_CACHE_TTL) {
+            return { daysUntil: cached.daysUntil, date: cached.date };
+        }
+        try {
+            const response = await fetch(`/api/earnings?symbol=${ticker}`);
+            if (response.ok) {
+                const data = await response.json();
+                const result = {
+                    daysUntil: data.hasUpcomingEarnings ? data.daysUntilEarnings : null,
+                    date: data.hasUpcomingEarnings ? data.earningsDate : null,
+                };
+                earningsCacheRef.current.set(ticker, { ...result, fetchedAt: Date.now() });
+                return result;
+            }
+        } catch {
+            // ignore
+        }
+        const empty = { daysUntil: null, date: null };
+        earningsCacheRef.current.set(ticker, { ...empty, fetchedAt: Date.now() });
+        return empty;
+    }, []);
 
     // Check for existing session on mount
     useEffect(() => {
@@ -79,7 +108,7 @@ function App() {
         await supabase.auth.signOut();
     };
 
-    const onAction = async (id: string, action: PositionAction) => {
+    const onAction = useCallback(async (id: string, action: PositionAction) => {
         // Create transaction
         await supabase.from('transactions').insert([{
             position_id: id,
@@ -95,9 +124,9 @@ function App() {
                 await supabase.from('positions').update({ status: 'closed', closed_at: new Date().toISOString() }).eq('id', id);
             }
         }
-    };
+    }, []);
 
-    const onUpdateScore = async (id: string, score: number) => {
+    const onUpdateScore = useCallback(async (id: string, score: number) => {
         await supabase.from('positions').update({
             current_score: score, // Legacy compatibility
             tech_score: score,
@@ -107,30 +136,30 @@ function App() {
             tech_score_updated_at: new Date().toISOString()
         }).eq('id', id);
         fetchData();
-    };
+    }, [fetchData]);
 
-    const onUpdatePrice = async (id: string, price: number) => {
+    const onUpdatePrice = useCallback(async (id: string, price: number) => {
         await supabase.from('positions').update({ current_price: price }).eq('id', id);
         // Realtime subscription will trigger fetchData
-    };
+    }, []);
 
-    const onUpdateTarget = async (id: string, target: number) => {
+    const onUpdateTarget = useCallback(async (id: string, target: number) => {
         await supabase.from('positions').update({ target_price: target }).eq('id', id);
         fetchData();
-    };
+    }, [fetchData]);
 
-    const onUpdateStop = async (id: string, stopPrice: number) => {
+    const onUpdateStop = useCallback(async (id: string, stopPrice: number) => {
         await supabase.from('positions').update({ stop_price: stopPrice }).eq('id', id);
         setPositions(prev => prev.map(p => p.id === id ? { ...p, stop_price: stopPrice } : p));
         fetchData();
-    };
+    }, [fetchData]);
 
-    const onUpdateOwner = async (id: string, owner: 'Yuchen' | 'Annie' | null) => {
+    const onUpdateOwner = useCallback(async (id: string, owner: 'Yuchen' | 'Annie' | null) => {
         await supabase.from('positions').update({ owner }).eq('id', id);
         setPositions(prev => prev.map(p => p.id === id ? { ...p, owner } : p));
-    };
+    }, []);
 
-    const onAddDirect = async (item: DirectAddItem) => {
+    const onAddDirect = useCallback(async (item: DirectAddItem) => {
         const { data, error } = await supabase.from('positions').insert([{
             ticker: item.ticker,
             strike: item.strike,
@@ -158,9 +187,9 @@ function App() {
         } else if (error) {
             console.error(error);
         }
-    };
+    }, [fetchData]);
 
-    const onRoll = async (
+    const onRoll = useCallback(async (
         originalPositionId: string,
         rollData: RollData,
     ) => {
@@ -236,9 +265,9 @@ function App() {
             }]);
             fetchData();
         }
-    };
+    }, [fetchData, positions]);
 
-    const onAddToWatchlist = async (item: WatchlistItem) => {
+    const onAddToWatchlist = useCallback(async (item: WatchlistItem) => {
         console.log('Adding to watchlist:', item);
         const { error } = await supabase.from('positions').insert([{
             ticker: item.ticker,
@@ -263,13 +292,13 @@ function App() {
             console.log('Successfully added to watchlist');
             fetchData();
         }
-    };
+    }, [fetchData]);
 
-    const onMoveToActive = (item: Position) => {
+    const onMoveToActive = useCallback((item: Position) => {
         setBuyingItem(item);
-    };
+    }, []);
 
-    const onDelete = async (id: string) => {
+    const onDelete = useCallback(async (id: string) => {
         if (window.confirm('Are you sure you want to permanently delete this position? This cannot be undone.')) {
             console.log('Deleting position:', id);
             // Note: Transactions and History are set to CASCADE on delete in the DB schema
@@ -283,7 +312,7 @@ function App() {
                 fetchData();
             }
         }
-    };
+    }, [fetchData]);
 
     if (authLoading) {
         return (
@@ -337,6 +366,7 @@ function App() {
                         onRoll={onRoll}
                         onDelete={onDelete}
                         loading={loading}
+                        fetchEarningsForTicker={fetchEarningsForTicker}
                     />
                 )}
                 {activeTab === 'watchlist' && (
@@ -346,6 +376,7 @@ function App() {
                         onMoveToActive={onMoveToActive}
                         onDelete={onDelete}
                         loading={loading}
+                        fetchEarningsForTicker={fetchEarningsForTicker}
                     />
                 )}
                 {activeTab === 'scanner' && (

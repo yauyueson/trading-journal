@@ -8,6 +8,30 @@ import fs from 'fs';
 import path from 'path';
 import { getAppSettings } from './_shared/getAppSettings.js';
 
+// ── Inline BSM helper (no external dep) ──────────────────────────────────────
+// Normal CDF approximation (Abramowitz & Stegun, max error 7.5e-8)
+function _normCDF(x) {
+    if (x < -8) return 0;
+    if (x > 8) return 1;
+    const a1=0.254829592, a2=-0.284496736, a3=1.421413741, a4=-1.453152027, a5=1.061405429, p=0.3275911;
+    const sign = x < 0 ? -1 : 1;
+    const t = 1.0 / (1.0 + p * Math.abs(x));
+    const poly = t * (a1 + t * (a2 + t * (a3 + t * (a4 + t * a5))));
+    const cdf = 1.0 - poly * Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI);
+    return 0.5 * (1.0 + sign * (2 * cdf - 1));
+}
+/**
+ * BSM N(d2): risk-neutral probability a call expires ITM.
+ * For puts: P(ITM) = 1 - bsmN2(S, K, T, sigma)
+ * d2 = (ln(S/K) - 0.5*σ²*T) / (σ*√T)  [r≈0]
+ */
+function _bsmN2(S, K, T, sigma) {
+    if (T <= 0 || sigma <= 0 || S <= 0 || K <= 0) return 0.5;
+    const d2 = (Math.log(S / K) - 0.5 * sigma * sigma * T) / (sigma * Math.sqrt(T));
+    return _normCDF(d2);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // #region agent log
 function _dbg(payload) {
     try {
@@ -80,11 +104,31 @@ async function ensureScoring() {
 // =============================================================================
 // RV (Realized Volatility): Polygon does NOT provide RV. We always compute it
 // ourselves from historical prices: fetch candles (or Nasdaq history), then
-// log returns → population variance → annualize (sqrt(252)*100).
+// log returns → sample variance (÷N-1) → annualize (sqrt(252)*100).
+
+/**
+ * Shared RV30 computation from an array of closing prices.
+ * Uses sample variance (÷N-1) for unbiased estimation.
+ * @param {number[]} closes Array of closing prices (chronological order)
+ * @returns {number|null} Annualized RV as % (e.g., 25.5 = 25.5%), or null if insufficient data
+ */
+function _computeRV30(closes) {
+    if (!closes || closes.length < 11) return null; // Need at least 11 prices for 10 returns
+    const returns = [];
+    for (let i = 1; i < closes.length; i++) {
+        returns.push(Math.log(closes[i] / closes[i - 1]));
+    }
+    const recentReturns = returns.slice(-30);
+    if (recentReturns.length < 10) return null;
+    const n = recentReturns.length;
+    const mean = recentReturns.reduce((a, b) => a + b, 0) / n;
+    // Sample variance: ÷(N-1) for unbiased estimator
+    const variance = recentReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1);
+    return Math.sqrt(variance * 252) * 100;
+}
 
 /**
  * Calculate 30-day Realized Volatility from our own computation using Polygon candles.
- * Polygon gives us OHLCV bars only; we compute log returns and annualized vol.
  * @param {string} ticker Stock symbol
  * @returns {Promise<number|null>} RV30 as annualized % (e.g., 25.5 = 25.5%) or null on failure
  */
@@ -101,24 +145,9 @@ async function calculateRV30FromPolygon(ticker) {
         const candles = await getCandles(ticker, fromStr, toStr, 'day');
         if (!candles || candles.length < 10) return null;
 
-        // Our RV calculation: log returns
         const closes = candles.map(c => c.close);
-        const returns = [];
-        for (let i = 1; i < closes.length; i++) {
-            returns.push(Math.log(closes[i] / closes[i - 1]));
-        }
-
-        // Use most recent 30 returns
-        const recentReturns = returns.slice(-30);
-        if (recentReturns.length < 10) return null;
-
-        // Population standard deviation (divide by N, not N-1)
-        const mean = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
-        const variance = recentReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / recentReturns.length;
-
-        // Annualize: sqrt(variance) * sqrt(252) * 100 to get %
-        const rv30 = Math.sqrt(variance * 252) * 100;
-        console.log(`[RV30 Calc] ${ticker}: ${rv30.toFixed(2)}% (from ${recentReturns.length} returns)`);
+        const rv30 = _computeRV30(closes);
+        if (rv30 != null) console.log(`[RV30 Calc] ${ticker}: ${rv30.toFixed(2)}% (from Polygon)`);
         return rv30;
     } catch (e) {
         console.error("RV30 Calculation Error (Polygon):", e);
@@ -171,16 +200,9 @@ async function fetchRV30FromNasdaq(ticker) {
             console.warn(`[RV30 Nasdaq] ${ticker}: too few valid prices (${prices.length})`);
             return null;
         }
-        const returns = [];
-        for (let i = 1; i < prices.length; i++) {
-            returns.push(Math.log(prices[i] / prices[i - 1]));
-        }
-        const recentReturns = returns.slice(-30);
-        if (recentReturns.length < 10) return null;
-        const mean = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
-        const variance = recentReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / recentReturns.length;
-        const annualizedRV = Math.sqrt(variance * 252) * 100;
-        console.log(`[RV30 Nasdaq] ${ticker}: ${annualizedRV.toFixed(2)}% (from ${recentReturns.length} returns)`);
+        const annualizedRV = _computeRV30(prices);
+        if (annualizedRV == null) return null;
+        console.log(`[RV30 Nasdaq] ${ticker}: ${annualizedRV.toFixed(2)}% (from Nasdaq)`);
         return Number(annualizedRV.toFixed(2));
     } catch (e) {
         console.error("RV30 Fallback (Nasdaq) Error:", e);
@@ -246,7 +268,25 @@ function detectRegime(iv30, iv90, rv30) {
 
     const termRatio = iv30 / iv90;
     const slope = (iv30 - iv90) / iv90;
-    const ivRvRatio = rv30 ? (iv30 * 100) / rv30 : null;
+    const iv30Pct = iv30 * 100; // Convert to % for readability (iv30 stored as decimal, e.g. 0.30 = 30%)
+    const ivRvRatio = rv30 ? iv30Pct / rv30 : null;
+    // VRP = IV30(%) - RV30(%) — positive means market paying premium above realized vol (seller-friendly)
+    const vrp = rv30 != null ? iv30Pct - rv30 : null;
+
+    // Absolute IV level context
+    const ivLevel = iv30Pct >= 40 ? 'elevated' : iv30Pct <= 20 ? 'suppressed' : 'normal';
+    const ivLevelNote = ivLevel === 'elevated'
+        ? `IV30 is elevated (${iv30Pct.toFixed(1)}%): even in backwardation, buyers should be cautious of overpaying; size credit spreads carefully. `
+        : ivLevel === 'suppressed'
+        ? `IV30 is low (${iv30Pct.toFixed(1)}%): premiums are thin—credit spreads collect less; debit spreads are relatively cheap. `
+        : '';
+    const vrpNote = vrp != null
+        ? vrp > 5
+            ? `VRP is +${vrp.toFixed(1)}% (IV well above RV): strong seller's edge—market is paying meaningfully above recent realized vol. `
+            : vrp < 0
+            ? `VRP is ${vrp.toFixed(1)}% (IV below RV): vol is cheap vs recent realized—sellers have no premium edge; consider buyers or stay selective. `
+            : ''
+        : '';
 
     let slopeTier = 'flat';
     if (slope >= SLOPE_STRONG_BACK) slopeTier = 'strong_backwardation';
@@ -257,6 +297,8 @@ function detectRegime(iv30, iv90, rv30) {
     let mode = 'NEUTRAL';
     let advice = 'Neutral IV: Either strategy viable, compare scores';
     let adviceDetail = 'IV30 and IV90 are close (ratio near 1), so the term structure is flat. Neither selling nor buying volatility has a clear edge from term structure alone. Compare the scores and metrics (EV, ROI, POP, R:R) across Credit Spreads, Debit Spreads, and Long Options to choose.';
+    if (ivLevelNote) adviceDetail += ' ' + ivLevelNote;
+    if (vrpNote) adviceDetail += vrpNote;
 
     if (termRatio > 1.05) {
         mode = 'CREDIT';
@@ -266,9 +308,11 @@ function detectRegime(iv30, iv90, rv30) {
         adviceDetail = slopeTier === 'strong_backwardation'
             ? 'Term structure slope is strongly positive (IV30 well above IV90)—short-dated options are rich vs longer-dated. Selling premium (credit spreads) has a clear term-structure edge. '
             : 'Near-term IV (IV30) is higher than IV90—backwardation. Short-dated options are priced rich vs longer-dated, so selling premium (credit spreads) is favored. ';
-        if (ivRvRatio != null) {
+        if (ivLevelNote) adviceDetail += ivLevelNote;
+        if (vrpNote) adviceDetail += vrpNote;
+        else if (ivRvRatio != null) {
             if (ivRvRatio > 1.05) {
-                adviceDetail += `IV/RV is ${ivRvRatio.toFixed(2)} (above 1): the market is paying a volatility premium vs recent realized; credit spreads let you collect that premium with defined risk. `;
+                adviceDetail += `IV/RV is ${ivRvRatio.toFixed(2)}: the market is paying a volatility premium vs recent realized; credit spreads let you collect that premium with defined risk. `;
             } else if (ivRvRatio < 0.95) {
                 adviceDetail += `IV/RV is ${ivRvRatio.toFixed(2)} (below 1): implied is cheap vs realized, so the edge for selling premium is smaller; still consider credit if term structure and other metrics (EV, POP, distance) are strong. `;
             }
@@ -282,17 +326,19 @@ function detectRegime(iv30, iv90, rv30) {
         adviceDetail = slopeTier === 'strong_contango'
             ? 'Term structure slope is strongly negative (IV30 well below IV90)—near-term options are cheap vs far-term. Buying premium (debit spreads, long options) is favored by term structure. '
             : 'IV30 is lower than IV90—contango. Near-term options are relatively cheap vs far-term (no big near-term event premium). ';
-        if (ivRvRatio != null) {
+        if (ivLevelNote) adviceDetail += ivLevelNote;
+        if (vrpNote) adviceDetail += vrpNote;
+        else if (ivRvRatio != null) {
             if (ivRvRatio < 1) {
                 adviceDetail += `IV/RV is ${ivRvRatio.toFixed(2)} (below 1): realized vol has been higher than implied, so long options can benefit from a vol or directional move without overpaying. Debit spreads reduce cost and cap risk vs a single long while keeping leverage. `;
             } else {
-                adviceDetail += `IV/RV is ${ivRvRatio.toFixed(2)} (above 1): options are still priced above recent realized vol—you are paying volatility risk premium (VRP). So favor debit spreads only when selective: long-leg delta 0.50–0.65, risk/reward ≥ 1.5, DTE 30–45. If you have no strong direction and want to earn VRP, a small size credit spread (good distance, liquidity, avoid earnings) can also be appropriate since IV > RV is statistically seller-friendly. `;
+                adviceDetail += `IV/RV is ${ivRvRatio.toFixed(2)} (above 1): options are still priced above recent realized vol (VRP positive). Favor debit spreads selectively: long-leg delta 0.50–0.65, risk/reward ≥ 1.5, DTE 30–45. `;
             }
         }
         adviceDetail += 'Debit spreads cap risk and keep positive delta with lower capital than a naked long.';
     }
 
-    return { ivRatio: termRatio, slope, slopeTier, ivRvRatio, mode, advice, adviceDetail };
+    return { ivRatio: termRatio, slope, slopeTier, ivRvRatio, vrp, ivLevel, mode, advice, adviceDetail };
 }
 
 function generateStrategyNote(strategyType, metrics) {
@@ -331,6 +377,52 @@ function generateStrategyNote(strategyType, metrics) {
     if (cons.length > 0) note += (note ? ' ' : '') + `⚠️ Cons: ${cons.join(' ')}`;
 
     return note.trim();
+}
+
+// =============================================================================
+// EARNINGS IV PREMIUM ESTIMATE (Fix 3D)
+// =============================================================================
+
+/**
+ * Estimate the earnings-driven IV premium for options spanning an earnings event.
+ *
+ * The earnings component of implied vol is approximated by treating the event as a
+ * one-day jump and decomposing the option's total IV into "event" and "non-event" vol:
+ *
+ *   totalVar = earningsVar + (DTE - 1) × dailyVar
+ *   earningsVar = IV² × DTE/252 - dailyVar × (DTE - 1)
+ *   where dailyVar is estimated as (postEarningsIV)² / 252
+ *
+ * For a practical heuristic (when post-earnings IV is unknown), we derive:
+ *   postEarningsIV ≈ IV × sqrt((DTE - 1) / DTE)   (assumes 1 event-day of vol removed)
+ *   impliedEarningsMove ≈ IV × sqrt(1/252) × currentPrice  (one-standard-deviation 1-day move)
+ *
+ * Returns null if the option doesn't span earnings or IV is unavailable.
+ *
+ * @param {number|null} daysUntilEarnings
+ * @param {number} dte - Days to expiration of the option
+ * @param {number|null} iv - Implied volatility (decimal, e.g. 0.30 = 30%)
+ * @param {number} currentPrice - Underlying spot price
+ * @returns {{ impliedEarningsMove: number, earningsMovePct: number, postEarningsIVEstimate: number } | null}
+ */
+function estimateEarningsPremium(daysUntilEarnings, dte, iv, currentPrice) {
+    if (daysUntilEarnings == null || daysUntilEarnings < 0 || daysUntilEarnings > dte) return null;
+    if (!iv || iv <= 0 || !currentPrice || currentPrice <= 0 || dte <= 0) return null;
+
+    // 1-standard-deviation implied earnings move (1-day jump approximation)
+    const impliedEarningsMove = iv * Math.sqrt(1 / 252) * currentPrice;
+    const earningsMovePct = iv * Math.sqrt(1 / 252) * 100; // as % of stock price
+
+    // Post-earnings IV drops as the event risk is resolved:
+    // strip out 1 "event day" of variance from total variance
+    const postEarningsIVEstimate = dte > 1 ? iv * Math.sqrt((dte - 1) / dte) : iv * 0.7;
+
+    return {
+        impliedEarningsMove: Number(impliedEarningsMove.toFixed(2)),
+        earningsMovePct: Number(earningsMovePct.toFixed(2)),
+        postEarningsIVEstimate: Number((postEarningsIVEstimate * 100).toFixed(1)), // as %
+        daysUntilEarnings
+    };
 }
 
 // =============================================================================
@@ -411,21 +503,29 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             const spreadPct = spreadMid > 0 ? (spreadAsk - spreadBid) / spreadMid : 1.0;
             if (spreadPct > 0.15) continue;
 
-            // Key Metrics
-            const credit = spreadBid;
+            // Key Metrics — use mid-market fill for scoring (spreadBid is floor viability check above)
+            const credit = spreadMid;
             const maxRisk = width - credit;
             const breakeven = type === 'Put' ? shortLeg.strike - credit : shortLeg.strike + credit;
             const deltaAtBE = getDeltaAtStrike(chain, type, shortLeg.expiration, breakeven);
             const probITMAtBE = getProbITMAtStrike(chain, type, shortLeg.expiration, breakeven);
 
-            // Prioritize Probability of ITM field if available, else derive from Delta at BE, else fallback to short leg delta
+            // Prioritize Probability of ITM field if available, else derive from Delta at BE,
+            // else use BSM N(d2) at breakeven (more accurate than 1-|delta| for OTM options)
             let pop;
             if (probITMAtBE != null && probITMAtBE > 0) {
                 pop = 1 - probITMAtBE;
             } else if (deltaAtBE != null) {
                 pop = 1 - Math.abs(deltaAtBE);
             } else {
-                pop = 1 - Math.abs(shortLeg.delta);
+                const dte0 = shortLeg.dte || 30;
+                const iv0 = shortLeg.iv || 0.3;
+                const T = dte0 / 365;
+                // For credit spreads (put spread: breakeven below current price → put → POP = N(d2))
+                const pITM = type === 'Put'
+                    ? 1 - _bsmN2(currentPrice, breakeven, T, iv0)  // P(S < BE) for put
+                    : _bsmN2(currentPrice, breakeven, T, iv0);      // P(S > BE) for call
+                pop = 1 - pITM;
             }
             const roi = (credit / maxRisk) * 100;
             const distance = Math.abs(currentPrice - shortLeg.strike) / currentPrice;
@@ -436,10 +536,9 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             const earningsRisk = includesEarnings && daysUntilEarnings <= 10;
             if (earningsRisk) continue;
 
-            // 4. Slippage Modeling (New)
-            // Instead of hard filter > 0.15, we penalize the credit
-            const slippage1 = estimateSlippage(shortLeg.bid, shortLeg.ask);
-            const slippage2 = estimateSlippage(longLeg.bid, longLeg.ask);
+            // 4. Slippage Modeling — OI-adjusted (illiquid options penalized even with tight quoted spreads)
+            const slippage1 = estimateSlippage(shortLeg.bid, shortLeg.ask, shortLeg.openInterest);
+            const slippage2 = estimateSlippage(longLeg.bid, longLeg.ask, longLeg.openInterest);
             const totalSlippage = slippage1 + slippage2;
             const effectiveCredit = credit - totalSlippage; // Real-world fill
 
@@ -460,8 +559,8 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             const scorePOP = pop * 100;
             const scoreDistance = Math.min(distance * 1000, 100);
 
-            // 5. Gamma Risk (New)
-            const gammaPenalty = getGammaRiskPenalty(shortLeg.gamma, shortLeg.theta, dte);
+            // 5. Gamma Risk — pass spot and mid for proper normalization (avoids TSLA vs SPY price distortion)
+            const gammaPenalty = getGammaRiskPenalty(shortLeg.gamma, shortLeg.theta, dte, currentPrice, shortMid);
 
             // Relative IV (same-DTE ATM): sell expensive vol → small bonus; vega penalty already limits vol crush exposure
             const relativeIVBonus = getRelativeIVAdjustmentCSQ(shortLeg.iv, atmIV) * 15;
@@ -469,11 +568,9 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             // 2. Skew Adjustment: magnitude-based bonus (|skew| larger → same-direction bonus scales 5..15, capped)
             const skewBonus = getSkewBonusForCreditSpread(skew, type);
 
-            let scoreDTE = 50;
-            if (dte >= 30 && dte <= 45) scoreDTE = 100;
-            else if (dte >= 21 && dte < 30) scoreDTE = 75;
-            else if (dte > 45 && dte <= 60) scoreDTE = 80;
-            else if (dte < 21) scoreDTE = 20;
+            // Smooth Gaussian DTE curve: peak at DTE=37, σ=15
+            // DTE 37→100, 30→94, 21→70, 14→42, 60→80, 7→18 (no sharp cliffs)
+            const scoreDTE = Math.round(100 * Math.exp(-0.5 * Math.pow((dte - 37) / 15, 2)));
 
             let finalScore = (0.20 * scoreEV) + (0.20 * scoreROI) + (0.20 * scorePOP) + (0.15 * scoreDistance) + (0.25 * scoreDTE) + skewBonus + gammaPenalty + relativeIVBonus;
             finalScore += ivRankAdj * 2;
@@ -500,6 +597,10 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
                 dte
             });
 
+            const earningsPremium = includesEarnings
+                ? estimateEarningsPremium(daysUntilEarnings, dte, shortLeg.iv, currentPrice)
+                : null;
+
             results.push({
                 type: type === 'Put' ? 'Credit Put Spread' : 'Credit Call Spread',
                 shortLeg: { ...shortLeg, price: shortLeg.bid },
@@ -515,6 +616,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
                 breakeven,
                 score: Math.min(100, Math.max(0, Math.round(finalScore))),
                 whyThis: whyThisParts.join(', ') || 'Balanced Risk/Reward',
+                ...(earningsPremium ? { earningsPremium } : {}),
                 recommendation: {
                     action: "SELL (Open)",
                     note
@@ -525,7 +627,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
-function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null) {
+function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null, daysUntilEarnings = null) {
     const results = [];
     const widths = customWidth ? [customWidth] : [2.5, 5];
     const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'long');
@@ -553,7 +655,10 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
             if (longMidDS < HARD_FILTER_DEFAULTS.minMid || shortMidDS < HARD_FILTER_DEFAULTS.minMid) continue;
             if (longLeg.openInterest < HARD_FILTER_DEFAULTS.minOpenInterest || shortLeg.openInterest < HARD_FILTER_DEFAULTS.minOpenInterest) continue;
 
-            const debit = longLeg.ask - shortLeg.bid;
+            // Use mid-market fill for scoring; worst-case is longLeg.ask - shortLeg.bid
+            const debitBid = longLeg.bid - shortLeg.ask;
+            const debitAsk = longLeg.ask - shortLeg.bid;
+            const debit = (debitBid + debitAsk) / 2;
             const maxProfit = width - debit;
             const maxRisk = debit;
 
@@ -570,9 +675,9 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
             // if (riskReward < 1.5) continue; // Relaxed in favor of EV check
             if (spreadPctVal > HARD_FILTER_DEFAULTS.maxSpreadPctCeiling) continue; // Consistent with credit spreads
 
-            // 4. Slippage (Debit)
-            const slippage1 = estimateSlippage(longLeg.bid, longLeg.ask);
-            const slippage2 = estimateSlippage(shortLeg.bid, shortLeg.ask);
+            // 4. Slippage (Debit) — OI-adjusted
+            const slippage1 = estimateSlippage(longLeg.bid, longLeg.ask, longLeg.openInterest);
+            const slippage2 = estimateSlippage(shortLeg.bid, shortLeg.ask, shortLeg.openInterest);
             const totalSlippage = slippage1 + slippage2;
             const effectiveDebit = debit + totalSlippage; // Higher cost
             const effectiveMaxProfit = width - effectiveDebit;
@@ -589,13 +694,20 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
             const probITMAtBE = getProbITMAtStrike(chain, type, longLeg.expiration, breakeven);
 
             // Debit Spread POP: Probability ITM at Breakeven
+            // Prefer market-provided probability, then delta-at-BE, then BSM N(d2) fallback
             let pop;
             if (probITMAtBE != null && probITMAtBE > 0) {
                 pop = probITMAtBE;
             } else if (deltaAtBE != null) {
                 pop = Math.abs(deltaAtBE);
             } else {
-                pop = Math.abs(longLeg.delta) - 0.05; // Fallback heuristic
+                const dteDS = longLeg.dte || 30;
+                const ivDS = longLeg.iv || 0.3;
+                const TDS = dteDS / 365;
+                // P(profitable at expiry): call needs S > BE, put needs S < BE
+                pop = type === 'Call'
+                    ? _bsmN2(currentPrice, breakeven, TDS, ivDS)       // N(d2) for call
+                    : 1 - _bsmN2(currentPrice, breakeven, TDS, ivDS);  // 1-N(d2) for put
             }
             const expectedValue = (effectiveMaxProfit * pop) - (effectiveDebit * (1 - pop));
 
@@ -644,6 +756,13 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
                 deltaBonus
             });
 
+            // Earnings premium: for debit spreads spanning earnings, this is the key thesis
+            const dteDS = longLeg.dte || 30;
+            const includesEarningsDS = daysUntilEarnings !== null && daysUntilEarnings >= 0 && daysUntilEarnings <= dteDS;
+            const earningsPremiumDS = includesEarningsDS
+                ? estimateEarningsPremium(daysUntilEarnings, dteDS, longLeg.iv, currentPrice)
+                : null;
+
             results.push({
                 type: type === 'Call' ? 'Debit Call Spread' : 'Debit Put Spread',
                 longLeg: { ...longLeg, price: longLeg.ask },
@@ -659,6 +778,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
                 breakeven: type === 'Call' ? longLeg.strike + debit : longLeg.strike - debit,
                 score: Math.min(100, Math.max(0, Math.round(finalScore))),
                 whyThis: `R/R ${riskReward.toFixed(1)}:1, λ=${lambda.toFixed(1)}${ivRvRatio && ivRvRatio < 0.85 ? ', Cheap Vol (Ref)' : ''}`,
+                ...(earningsPremiumDS ? { earningsPremium: earningsPremiumDS } : {}),
                 recommendation: {
                     action: "BUY (Open)",
                     note
@@ -731,7 +851,12 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, iv
         } else if (deltaAtBE != null) {
             pop = type === 'Call' ? Math.max(0, Math.min(1, deltaAtBE)) : Math.max(0, Math.min(1, -deltaAtBE));
         } else {
-            pop = Math.max(0, Math.min(1, Math.abs(p.opt.delta) - 0.05));
+            // BSM N(d2) fallback: better than |delta|-0.05 for OTM options
+            const dteLO = p.opt.dte || 30;
+            const ivLO = p.opt.iv || 0.3;
+            const TLO = dteLO / 365;
+            const n2 = _bsmN2(currentPrice, breakeven, TLO, ivLO);
+            pop = Math.max(0, Math.min(1, type === 'Call' ? n2 : 1 - n2));
         }
 
         const whyThis = `λ=${p.lambda.toFixed(1)}, Δ=${Math.abs(p.opt.delta).toFixed(2)}${ivRvRatio && ivRvRatio < 0.85 ? ', Cheap Vol (Ref)' : ''}`;
@@ -878,15 +1003,18 @@ export default async function handler(req, res) {
         }
 
         const fullChain = parseChain(allOptions, currentPrice, null);
-        const strategyChain = parseChain(allOptions, currentPrice, dteTarget);
+        // Derive strategyChain by filtering fullChain in-memory (avoids double iteration of allOptions)
+        const strategyChain = dteTarget != null
+            ? fullChain.filter(o => Math.abs(o.dte - dteTarget) <= 5)
+            : fullChain;
 
         // Build complete IV Term Structure (v2.4 - MarketData upgrade)
         const ivSurface = buildIVTermStructure(fullChain, currentPrice);
         const iv30 = ivSurface.iv30;
         const iv90 = ivSurface.iv90;
 
-        // Calculate Skew (v2.3)
-        const skew = calculateSkew(fullChain, currentPrice, 30);
+        // Calculate Skew (v2.3) — use dteTarget so skew matches the strategy's expiration window
+        const skew = calculateSkew(fullChain, currentPrice, dteTarget);
 
         console.log(`[Strategy Recommend] ${upperTicker}: fullChain=${fullChain.length}, strategyChain=${strategyChain.length}, allOptions=${allOptions.length}`);
         console.log(`[Strategy Recommend] ${upperTicker}: IV30=${iv30}, IV90=${iv90}, RV30=${rv30}`);
@@ -970,10 +1098,13 @@ export default async function handler(req, res) {
         const debitStrat = isBull ? 'Call' : 'Put';
         const legStrat = isBull ? 'Call' : 'Put';
 
-        // 2. Build Strategies (regime includes IV Rank for LOQ single-leg scoring)
-        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivRank);
-        const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio, widthParam, ivRank);
-        const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice, regime.ivRatio, ivRank);
+        // 2. Build Strategies — use ivPercentile (% of days below current IV) for scoring adjustments;
+        //    more robust than ivRank (min/max) which is distorted by single outlier spikes.
+        //    Fall back to ivRank if ivPercentile is unavailable.
+        const ivScoreInput = ivPercentile ?? ivRank;
+        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput);
+        const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings);
+        const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput);
 
         // 3. Unified Cross-Strategy Scoring — Top Picks (skew favor, termStrength, anomaly down-weight for short-term credit)
         const unifiedOpts = {
@@ -1005,6 +1136,53 @@ export default async function handler(req, res) {
         }
         topPicks.sort((a, b) => b.unifiedScore - a.unifiedScore);
 
+        // 3b. Tech Timeframe Alignment — confidence bonus/penalty based on multi-TF agreement
+        // Checks if 1D + 4H agree with the trade direction; flags 1H disagreement as counter-trend risk.
+        let techAlignmentBonus = 0;
+        let techAlignmentNote = null;
+        if (techByTimeframe) {
+            const d = techByTimeframe['1d'];
+            const h4 = techByTimeframe['4h'];
+            const h1 = techByTimeframe['1h'];
+            const tradeDir = isBull ? 1 : -1; // +1 = bullish, -1 = bearish
+
+            const dirOf = (t) => {
+                if (!t) return 0;
+                if (t.signal === 'BUY' || t.type === 'Call' || t.setup?.includes('Bull')) return 1;
+                if (t.signal === 'SELL' || t.type === 'Put' || t.setup?.includes('Bear')) return -1;
+                return 0;
+            };
+            const dDir = dirOf(d);
+            const h4Dir = dirOf(h4);
+            const h1Dir = dirOf(h1);
+
+            const higherTFAgree = (dDir === tradeDir || dDir === 0) && (h4Dir === tradeDir || h4Dir === 0);
+            const h1Disagrees = h1Dir !== 0 && h1Dir !== tradeDir;
+
+            if (higherTFAgree && dDir === tradeDir && h4Dir === tradeDir) {
+                // 1D + 4H fully aligned
+                techAlignmentBonus = 5;
+                techAlignmentNote = `1D + 4H tech aligned (${isBull ? 'bullish' : 'bearish'}): higher-TF confirmation — confidence HIGH.`;
+                if (!h1Disagrees) techAlignmentBonus = 7; // All 3 TFs agree
+            } else if (higherTFAgree) {
+                techAlignmentBonus = 2;
+                techAlignmentNote = `Higher TFs lean ${isBull ? 'bullish' : 'bearish'} — moderate alignment.`;
+            }
+            if (h1Disagrees && techAlignmentBonus >= 0) {
+                techAlignmentBonus -= 3;
+                const suffix = ' ⚠️ 1H counter-trend — consider waiting for 1H confirmation or reduce size.';
+                techAlignmentNote = (techAlignmentNote || '') + suffix;
+            }
+
+            // Apply bonus to top picks' unifiedScore
+            if (techAlignmentBonus !== 0) {
+                for (const pick of topPicks) {
+                    pick.unifiedScore = (pick.unifiedScore || 0) + techAlignmentBonus;
+                }
+                topPicks.sort((a, b) => b.unifiedScore - a.unifiedScore);
+            }
+        }
+
         // 4. Strategy Selection — driven by unified score (replaces flawed cross-score comparison)
         let recommendedStrategy = 'CREDIT_SPREAD';
         if (topPicks.length > 0) {
@@ -1023,6 +1201,12 @@ export default async function handler(req, res) {
             recommendedStrategy = creditSpreads.length > 0 ? 'CREDIT_SPREAD' : 'DEBIT_SPREAD';
         }
 
+        // Compute top-level earnings premium for the requested DTE (informational — shown regardless of strategy type)
+        const contextIV = iv30 ?? null;
+        const earningsPremiumContext = contextIV && currentPrice > 0
+            ? estimateEarningsPremium(daysUntilEarnings, dteTarget, contextIV, currentPrice)
+            : null;
+
         return res.status(200).json({
             success: true,
             context: {
@@ -1030,7 +1214,8 @@ export default async function handler(req, res) {
                 currentPrice,
                 direction: isBull ? 'BULL' : 'BEAR',
                 targetDte: dteTarget,
-                daysUntilEarnings
+                daysUntilEarnings,
+                ...(earningsPremiumContext ? { earningsPremium: earningsPremiumContext } : {})
             },
             regime: {
                 ivRatio: regime.ivRatio != null ? Number(regime.ivRatio.toFixed(3)) : null,
@@ -1046,6 +1231,8 @@ export default async function handler(req, res) {
                 mode: regime.mode,
                 advice: regime.advice,
                 adviceDetail: regime.adviceDetail || null,
+                vrp: regime.vrp != null ? Number(regime.vrp.toFixed(1)) : null,
+                ivLevel: regime.ivLevel || null,
                 ivSurface: {
                     iv7: ivSurface.iv7 ? Number((ivSurface.iv7 * 100).toFixed(1)) : null,
                     iv14: ivSurface.iv14 ? Number((ivSurface.iv14 * 100).toFixed(1)) : null,
@@ -1060,6 +1247,7 @@ export default async function handler(req, res) {
             recommendedStrategy,
             tech: tech,
             techByTimeframe: techByTimeframe || undefined,
+            techAlignment: techAlignmentNote ? { note: techAlignmentNote, bonus: techAlignmentBonus } : null,
             strategies: {
                 CREDIT_SPREAD: creditSpreads,
                 DEBIT_SPREAD: debitSpreads,

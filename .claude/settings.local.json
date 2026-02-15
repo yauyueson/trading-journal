@@ -27,7 +27,10 @@
       "Bash(python3:*)",
       "Bash(git -C \"E:\\\\03_Projects_Active\\\\Coding\\\\trading-journal\" log --oneline -12)",
       "Bash(git -C \"E:\\\\03_Projects_Active\\\\Coding\\\\trading-journal\" status)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(Remove-Item \"E:\\\\03_Projects_Active\\\\Coding\\\\trading-journal\\\\docs\\\\OSS_v2.4_快速参考.md\" -Force)",
+      "Bash(Remove-Item \"E:\\\\03_Projects_Active\\\\Coding\\\\trading-journal\\\\docs\\\\OSS_v2.4_更新总结.md\" -Force)"
     ]
   }
 }
