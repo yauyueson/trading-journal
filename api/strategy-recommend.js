@@ -13,7 +13,7 @@ import { getAppSettings } from './_shared/getAppSettings.js';
 function _normCDF(x) {
     if (x < -8) return 0;
     if (x > 8) return 1;
-    const a1=0.254829592, a2=-0.284496736, a3=1.421413741, a4=-1.453152027, a5=1.061405429, p=0.3275911;
+    const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
     const sign = x < 0 ? -1 : 1;
     const t = 1.0 / (1.0 + p * Math.abs(x));
     const poly = t * (a1 + t * (a2 + t * (a3 + t * (a4 + t * a5))));
@@ -37,7 +37,7 @@ function _dbg(payload) {
     try {
         const logPath = path.join(process.cwd(), '.cursor', 'debug.log');
         fs.appendFileSync(logPath, JSON.stringify({ ...payload, timestamp: Date.now() }) + '\n');
-    } catch (_) {}
+    } catch (_) { }
 }
 // #endregion
 
@@ -278,14 +278,14 @@ function detectRegime(iv30, iv90, rv30) {
     const ivLevelNote = ivLevel === 'elevated'
         ? `IV30 is elevated (${iv30Pct.toFixed(1)}%): even in backwardation, buyers should be cautious of overpaying; size credit spreads carefully. `
         : ivLevel === 'suppressed'
-        ? `IV30 is low (${iv30Pct.toFixed(1)}%): premiums are thin—credit spreads collect less; debit spreads are relatively cheap. `
-        : '';
+            ? `IV30 is low (${iv30Pct.toFixed(1)}%): premiums are thin—credit spreads collect less; debit spreads are relatively cheap. `
+            : '';
     const vrpNote = vrp != null
         ? vrp > 5
             ? `VRP is +${vrp.toFixed(1)}% (IV well above RV): strong seller's edge—market is paying meaningfully above recent realized vol. `
             : vrp < 0
-            ? `VRP is ${vrp.toFixed(1)}% (IV below RV): vol is cheap vs recent realized—sellers have no premium edge; consider buyers or stay selective. `
-            : ''
+                ? `VRP is ${vrp.toFixed(1)}% (IV below RV): vol is cheap vs recent realized—sellers have no premium edge; consider buyers or stay selective. `
+                : ''
         : '';
 
     let slopeTier = 'flat';
@@ -1049,22 +1049,106 @@ export default async function handler(req, res) {
             const supabase = createClient(supabaseUrl, supabaseKey);
             const appSettings = await getAppSettings(supabase);
             const techScoreOptions = {
-              ...appSettings.techScore.weights,
-              ...appSettings.techScore.periods,
+                ...appSettings.techScore.weights,
+                ...appSettings.techScore.periods,
             };
             const toDate = new Date();
             const toStr = toDate.toISOString().split('T')[0];
             const fromDay = new Date(toDate);
             fromDay.setDate(toDate.getDate() - 600);
-            const from1h = new Date(toDate);
-            from1h.setDate(toDate.getDate() - 90); // ~90 days → ~585 1H bars; sufficient for sc_mb_len up to 100
-            const from4h = new Date(toDate);
-            from4h.setDate(toDate.getDate() - 180); // ~180 days → ~293 4H bars; sufficient for sc_mb_len up to 100
-            const [candles1d, candles1h, candles4h] = await Promise.all([
-                getCandles(upperTicker, fromDay.toISOString().split('T')[0], toStr, 'day'),
-                getCandles(upperTicker, from1h.toISOString().split('T')[0], toStr, 'hour'),
-                getCandles(upperTicker, from4h.toISOString().split('T')[0], toStr, 'hour', 4)
-            ]);
+            // Fetch 30m candles for intraday to properly aggregate RTH
+            // 90 days of 30m candles = ~1170 bars, sufficient for 1H (~585) and 4H (~146)
+            // Need slightly more history for 4H to reach 50+ bars: 180 days
+            const fromIntraday = new Date(toDate);
+            fromIntraday.setDate(toDate.getDate() - 170);
+
+            // Helper to aggregate 30m candles into RTH-aligned hours
+            // Market Hours: 09:30 - 16:00 ET
+            const aggregateRTH = (baseCandles, hoursPerBar) => {
+                if (!baseCandles || baseCandles.length === 0) return [];
+                const aggs = [];
+                let currentBar = null;
+
+                // Parse a candle's time in ET
+                const getET = (ts) => {
+                    const d = new Date(ts);
+                    // Create formatted string in ET
+                    const parts = new Intl.DateTimeFormat('en-US', {
+                        timeZone: 'America/New_York',
+                        hour: 'numeric',
+                        minute: 'numeric',
+                        hour12: false
+                    }).formatToParts(d);
+                    const h = parseInt(parts.find(p => p.type === 'hour').value);
+                    const m = parseInt(parts.find(p => p.type === 'minute').value);
+                    return { h: h === 24 ? 0 : h, m };
+                };
+
+                for (const c of baseCandles) {
+                    const { h, m } = getET(c.timestamp);
+                    // Filter RTH: 09:30 <= time < 16:00
+                    const tVal = h * 100 + m;
+                    if (tVal < 930 || tVal >= 1600) continue;
+
+                    // Determine session start for this day
+                    // Simplification: We assume contiguous RTH blocks. 
+                    // New day detection:
+                    let isNewBar = false;
+
+                    if (!currentBar) {
+                        isNewBar = true;
+                    } else {
+                        // Check if same day
+                        const d1 = new Date(currentBar.timestamp).getDate();
+                        const d2 = new Date(c.timestamp).getDate();
+                        if (d1 !== d2) {
+                            isNewBar = true;
+                        } else {
+                            // Same day, check time bucket
+                            const startTime = getET(currentBar.timestamp);
+                            const startVal = startTime.h * 60 + startTime.m;
+                            const currVal = h * 60 + m;
+                            const diffMinutes = currVal - startVal;
+
+                            if (diffMinutes >= h * 60 + m - (h * 60 + m) + hoursPerBar * 60) {
+                                // Logic check: simpler way -> bucket index
+                                // 1h buckets relative to 9:30: 0, 60, 120...
+                                // 9:30=0, 10:00=30, 10:30=60
+                                const minutesFromOpen = (h * 60 + m) - (9 * 60 + 30);
+                                const barIdx = Math.floor(minutesFromOpen / (hoursPerBar * 60));
+
+                                const startMinutesFromOpen = (startTime.h * 60 + startTime.m) - (9 * 60 + 30);
+                                const startBarIdx = Math.floor(startMinutesFromOpen / (hoursPerBar * 60));
+
+                                if (barIdx !== startBarIdx) isNewBar = true;
+                            }
+                        }
+                    }
+
+                    if (isNewBar) {
+                        if (currentBar) aggs.push(currentBar);
+                        currentBar = {
+                            timestamp: c.timestamp,
+                            open: c.open,
+                            high: c.high,
+                            low: c.low,
+                            close: c.close,
+                            volume: c.volume
+                        };
+                    } else {
+                        // Update current bar
+                        currentBar.high = Math.max(currentBar.high, c.high);
+                        currentBar.low = Math.min(currentBar.low, c.low);
+                        currentBar.close = c.close;
+                        currentBar.volume += c.volume;
+                    }
+                }
+                if (currentBar) aggs.push(currentBar);
+                return aggs;
+            };
+
+            const candles1h = aggregateRTH(candles30m, 1);
+            const candles4h = aggregateRTH(candles30m, 4);
             // #region agent log
             _dbg({ location: 'strategy-recommend.js:after getCandles', message: 'candle counts', data: { ticker: upperTicker, len1d: candles1d?.length ?? null, len1h: candles1h?.length ?? null, len4h: candles4h?.length ?? null }, hypothesisId: 'A' });
             // #endregion
