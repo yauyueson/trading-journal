@@ -629,6 +629,56 @@ export function normalizeLOQScoresWithDynamicBaseline(rawScores: number[]): numb
  * Uses reference baselines and applies Lambda compression.
  * v2.2: includes G/T Ratio and Breakeven Penalty.
  * v2.3: uses true expiration breakeven when strike/optionType are provided.
+ * Returns { score, factors } for structured explainability (P1-5).
+ */
+export function calculateSingleLOQWithFactors(
+    delta: number,
+    gamma: number,
+    theta: number,
+    stockPrice: number,
+    optionPrice: number,
+    ivRatio: number = 1.0,
+    dte: number = 30,
+    strike?: number,
+    optionType?: 'Call' | 'Put',
+): { score: number; factors: Array<{ name: string; impact: number; description: string; value?: string | number }> } {
+    const rawLambda = calculateLambda(delta, stockPrice, optionPrice);
+    const compLambda = compressLambda(rawLambda);
+    const gammaEff = calculateGammaEfficiency(gamma, optionPrice);
+    const thetaBurn = calculateThetaBurn(theta, optionPrice);
+    const gtRatio = calculateGammaThetaRatio(gamma, theta);
+    const beMove = strike != null && optionType
+        ? calculateBreakevenMove(strike, optionPrice, stockPrice, optionType)
+        : (Math.abs(delta) < 0.01 || stockPrice <= 0) ? 1 : optionPrice / (Math.abs(delta) * stockPrice);
+    const bePenalty = getBreakevenPenalty(beMove, dte);
+
+    const zLambda = (compLambda - 8) / 4;
+    const zGamma = (gammaEff - 0.02) / 0.015;
+    const zTheta = (thetaBurn - 0.03) / 0.02;
+    const zGT = (gtRatio - 0.5) / 0.4;
+
+    const deltaBonus = getDeltaBonus(delta);
+    const ivAdjustment = getIVAdjustment(ivRatio, 'long');
+    const w = getLOQWeightsForDTE(dte);
+    const thetaPenalty = getThetaPenalty(thetaBurn);
+    const vegaZ = 0;
+    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, ivAdjustment, deltaBonus, thetaBurn, false, zGT, bePenalty, dte, vegaZ);
+
+    const factors: Array<{ name: string; impact: number; description: string; value?: string | number }> = [
+        { name: 'Lambda', impact: Math.round(w.lambda * zLambda * 10) / 10, description: 'Leverage (compressed).', value: compLambda.toFixed(2) },
+        { name: 'Gamma Eff', impact: Math.round(w.gammaEff * zGamma * 10) / 10, description: 'Explosiveness per dollar.', value: gammaEff.toFixed(4) },
+        { name: 'G/T Ratio', impact: Math.round(w.gammaThetaRatio * zGT * 10) / 10, description: 'Gamma per unit theta.', value: gtRatio.toFixed(2) },
+        { name: 'Delta Bonus', impact: Math.round(w.deltaBonus * deltaBonus * 10) / 10, description: 'Strike alignment.', value: delta.toFixed(3) },
+        { name: 'BE Penalty', impact: Math.round(w.breakevenPenalty * bePenalty * 10) / 10, description: 'Breakeven difficulty.', value: undefined },
+        { name: 'IV / Term', impact: Math.round(ivAdjustment * 10) / 10, description: 'IV term structure.', value: ivRatio.toFixed(2) },
+        { name: 'Theta Penalty', impact: Math.round(-thetaPenalty * w.penaltyMult * 10) / 10, description: 'Time decay.', value: thetaBurn !== 0 ? `${(thetaBurn * 100).toFixed(2)}%/day` : undefined },
+    ].filter(f => Math.abs(f.impact) > 0.01).sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact)).slice(0, 8);
+
+    return { score: normalizeScoreTo100(rawScore), factors };
+}
+
+/**
+ * Calculate LOQ for a single position (returns score only). Use calculateSingleLOQWithFactors when you need factors.
  */
 export function calculateSingleLOQ(
     delta: number,
@@ -641,27 +691,7 @@ export function calculateSingleLOQ(
     strike?: number,
     optionType?: 'Call' | 'Put',
 ): number {
-    const rawLambda = calculateLambda(delta, stockPrice, optionPrice);
-    const compLambda = compressLambda(rawLambda);
-    const gammaEff = calculateGammaEfficiency(gamma, optionPrice);
-    const thetaBurn = calculateThetaBurn(theta, optionPrice);
-    const gtRatio = calculateGammaThetaRatio(gamma, theta);
-    const beMove = strike != null && optionType
-        ? calculateBreakevenMove(strike, optionPrice, stockPrice, optionType)
-        : (Math.abs(delta) < 0.01 || stockPrice <= 0) ? 1 : optionPrice / (Math.abs(delta) * stockPrice);
-    const bePenalty = getBreakevenPenalty(beMove, dte);
-
-    // Reference baselines (no pool available)
-    const zLambda = (compLambda - 8) / 4;
-    const zGamma = (gammaEff - 0.02) / 0.015;
-    const zTheta = (thetaBurn - 0.03) / 0.02;
-    const zGT = (gtRatio - 0.5) / 0.4;
-
-    const deltaBonus = getDeltaBonus(delta);
-    const ivAdjustment = getIVAdjustment(ivRatio, 'long');
-    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, ivAdjustment, deltaBonus, thetaBurn, false, zGT, bePenalty, dte);
-
-    return normalizeScoreTo100(rawScore);
+    return calculateSingleLOQWithFactors(delta, gamma, theta, stockPrice, optionPrice, ivRatio, dte, strike, optionType).score;
 }
 
 // ────────────────────────────────────────────────────────────────

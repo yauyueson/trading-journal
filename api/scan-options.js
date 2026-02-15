@@ -20,6 +20,8 @@ const {
     getRelativeIVAdjustmentCSQ,
     calculateLOQRaw,
     calculateCSQRaw,
+    buildLOQFactors,
+    buildCSQFactors,
     normalizeScoreTo100,
     normalizeLOQScoresWithDynamicBaseline,
     calculateSpreadPct,
@@ -243,7 +245,15 @@ export default async function handler(req, res) {
 
             results = processed.map((p, i) => {
                 const score = loqScores[i];
-
+                const atmIV = calculateTargetIV(fullChain, p.opt.dte, currentPrice);
+                const relIvAdj = getRelativeIVAdjustmentLOQ(p.opt.iv, atmIV);
+                const deltaBonus = getDeltaBonus(p.opt.delta);
+                const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
+                const factors = buildLOQFactors(
+                    zL[i], zG[i], zT[i],
+                    ivAdjustment + relIvAdj, deltaBonus, p.thetaBurn,
+                    zGT[i], bePenalty, p.opt.dte, zVegaEff[i]
+                );
                 return {
                     symbol: p.opt.symbol,
                     strike: p.opt.strike,
@@ -252,6 +262,7 @@ export default async function handler(req, res) {
                     dte: p.opt.dte,
                     price: Math.round(p.mid * 100) / 100,
                     score,
+                    factors,
                     metrics: {
                         lambda: Math.round(p.lambda * 100) / 100,
                         gammaEff: Math.round(p.gammaEff * 10000) / 10000,
@@ -292,7 +303,10 @@ export default async function handler(req, res) {
                 const vegaPenalty = -0.05 * zVegaEff[i];
                 const rawScore = calculateCSQRaw(zE[i], zP[i], zS[i], ivAdjustment + relIvAdj, vegaPenalty);
                 const score = normalizeScoreTo100(rawScore);
-
+                const factors = buildCSQFactors(
+                    zE[i], zP[i], zS[i],
+                    ivAdjustment + relIvAdj, vegaPenalty
+                );
                 return {
                     symbol: p.opt.symbol,
                     strike: p.opt.strike,
@@ -301,6 +315,7 @@ export default async function handler(req, res) {
                     dte: p.opt.dte,
                     price: Math.round(p.mid * 100) / 100,
                     score,
+                    factors,
                     metrics: {
                         pop: Math.round(p.pop * 1000) / 1000,
                         edge: Math.round(p.edge * 100) / 100,

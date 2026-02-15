@@ -4,6 +4,7 @@ import { Search, Info, Plus, Activity } from 'lucide-react';
 import { ScoredResult, Strategy, WatchlistItem, ScannerApiContext } from '../lib/types';
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
+import { ScoreFactorsView } from '../components/ScoreFactorsView';
 
 interface ScannerPageProps {
     onAddToWatchlist?: (position: WatchlistItem) => void;
@@ -282,11 +283,16 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) =>
                                     <span>OI: {res.liquidity.openInterest}</span>
                                 </div>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right group/score relative">
                                 <div className={`text-xl sm:text-2xl font-black ${getScoreColor(res.score)}`}>
                                     {res.score}
                                 </div>
                                 <div className="text-[9px] sm:text-[10px] text-gray-500 uppercase font-medium">OSS</div>
+                                {res.factors && res.factors.length > 0 && (
+                                    <div className="absolute bottom-full right-0 mb-1 w-56 p-2.5 bg-[#252528] border border-[#3A3A3C] rounded-lg shadow-xl opacity-0 group-hover/score:opacity-100 transition-opacity pointer-events-none z-50">
+                                        <ScoreFactorsView factors={res.factors} compact />
+                                    </div>
+                                )}
                             </div>
                         </div>
 

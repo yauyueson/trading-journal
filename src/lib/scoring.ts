@@ -70,6 +70,7 @@ export {
 
     // Single-position scoring
     calculateSingleLOQ,
+    calculateSingleLOQWithFactors,
 
     // Spread scoring
     calculateCreditSpreadScore,
@@ -101,6 +102,9 @@ import {
     calculateCSQRaw as _calculateCSQRaw,
     normalizeScoreTo100 as _normalizeScoreTo100,
     normalizeLOQScoresWithDynamicBaseline as _normalizeLOQScoresWithDynamicBaseline,
+    getLOQWeightsForDTE as _getLOQWeightsForDTE,
+    getThetaPenalty as _getThetaPenalty,
+    getLOQVegaWeight as _getLOQVegaWeight,
     type Strategy as StrategyType,
 } from './oss-core';
 
@@ -253,6 +257,54 @@ export interface ScanContext {
     strategy: StrategyType;
 }
 
+/** Build explainability factors for LOQ (long) raw score components. */
+function buildLOQFactors(
+    zLambda: number, zGammaEff: number, zThetaBurn: number,
+    ivAdjustment: number, deltaBonus: number, thetaBurn: number,
+    zGT: number, bePenalty: number, dte: number, zVegaEff: number
+): ScoreFactor[] {
+    const w = _getLOQWeightsForDTE(dte);
+    const thetaPenalty = _getThetaPenalty(thetaBurn);
+    const vegaWeight = _getLOQVegaWeight(dte, ivAdjustment);
+    const vegaBonus = vegaWeight * zVegaEff;
+    const items: ScoreFactor[] = [
+        { name: 'Lambda', impact: w.lambda * zLambda, description: 'Leverage (compressed); higher in sweet spot helps.', value: undefined },
+        { name: 'Gamma Eff', impact: w.gammaEff * zGammaEff, description: 'Explosiveness per dollar.', value: undefined },
+        { name: 'Theta (Z)', impact: w.thetaBurn * zThetaBurn, description: 'Relative theta burn vs pool.', value: undefined },
+        { name: 'G/T Ratio', impact: w.gammaThetaRatio * zGT, description: 'Gamma per unit theta (cost of gamma).', value: undefined },
+        { name: 'Delta Bonus', impact: w.deltaBonus * deltaBonus, description: 'Strike alignment; sweet spot 0.30–0.50.', value: undefined },
+        { name: 'BE Penalty', impact: w.breakevenPenalty * bePenalty, description: 'Breakeven difficulty (DTE-adjusted).', value: undefined },
+        { name: 'IV / Term', impact: ivAdjustment, description: 'IV term structure vs strategy (contango/backwardation).', value: undefined },
+        { name: 'Theta Penalty', impact: -thetaPenalty * w.penaltyMult, description: 'Time decay penalty.', value: thetaBurn !== 0 ? `${(thetaBurn * 100).toFixed(2)}%/day` : undefined },
+        { name: 'Vega', impact: vegaBonus, description: 'Vega exposure; DTE-adaptive weight.', value: undefined },
+    ];
+    return items.filter(f => Math.abs(f.impact) > 0.01).sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact)).slice(0, 8);
+}
+
+/** Build explainability factors for CSQ (short) raw score components. */
+function buildCSQFactors(
+    zEdge: number, zPOP: number, zSpread: number,
+    ivAdjustment: number, vegaPenalty: number
+): ScoreFactor[] {
+    const { edge: we, pop: wp, spread: ws } = { edge: 0.50, pop: 0.30, spread: -0.20 };
+    const items: ScoreFactor[] = [
+        { name: 'Edge', impact: we * zEdge, description: "Seller's expected win amount.", value: undefined },
+        { name: 'POP', impact: wp * zPOP, description: 'Probability of profit.', value: undefined },
+        { name: 'Spread%', impact: ws * zSpread, description: 'Tighter spread improves score.', value: undefined },
+        { name: 'IV / Term', impact: ivAdjustment, description: 'Regime/term structure alignment.', value: undefined },
+        { name: 'Vega Penalty', impact: vegaPenalty, description: 'High vega/premium penalized for sellers.', value: undefined },
+    ];
+    return items.filter(f => Math.abs(f.impact) > 0.01).sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact)).slice(0, 6);
+}
+
+/** Factor for structured explainability (P1-5). Impact = points added or subtracted. */
+export interface ScoreFactor {
+    name: string;
+    impact: number;
+    description: string;
+    value?: string | number;
+}
+
 export interface ScoredResult {
     symbol: string;
     strike: number;
@@ -261,6 +313,8 @@ export interface ScoredResult {
     dte: number;
     price: number;
     score: number;
+    /** Top contributors and penalties (explainability). */
+    factors?: ScoreFactor[];
     metrics: {
         lambda?: number;
         gammaEff?: number;
@@ -446,7 +500,15 @@ export function scoreOptionsChain(
 
         scored = longItems.map((p, i) => {
             const score = loqScores[i];
-
+            const atmIV = getATMIV(chain, currentPrice, p.opt.dte);
+            const relIvAdj = _getRelativeIVAdjustmentLOQ(p.opt.iv, atmIV);
+            const deltaBonus = _getDeltaBonus(p.opt.delta);
+            const bePenalty = _getBreakevenPenalty(p.breakevenMove, p.opt.dte);
+            const factors = buildLOQFactors(
+                zLambdas[i], zGammas[i], zThetas[i],
+                ivAdjustment + relIvAdj, deltaBonus, p.thetaBurn,
+                zGTRatios[i], bePenalty, p.opt.dte, zVegaEff[i]
+            );
             return {
                 symbol: p.opt.symbol,
                 strike: p.opt.strike,
@@ -455,6 +517,7 @@ export function scoreOptionsChain(
                 dte: p.opt.dte,
                 price: p.mid,
                 score,
+                factors,
                 metrics: {
                     lambda: p.lambda,
                     gammaEff: p.gammaEff,
@@ -498,7 +561,10 @@ export function scoreOptionsChain(
             const vegaPenalty = -0.05 * zVegaEff[i];
             const rawScore = _calculateCSQRaw(zEdges[i], zPops[i], zSpreads[i], ivAdjustment + relIvAdj, vegaPenalty);
             const score = _normalizeScoreTo100(rawScore);
-
+            const factors = buildCSQFactors(
+                zEdges[i], zPops[i], zSpreads[i],
+                ivAdjustment + relIvAdj, vegaPenalty
+            );
             return {
                 symbol: p.opt.symbol,
                 strike: p.opt.strike,
@@ -507,6 +573,7 @@ export function scoreOptionsChain(
                 dte: p.opt.dte,
                 price: p.mid,
                 score,
+                factors,
                 metrics: {
                     pop: p.pop,
                     edge: p.edge,

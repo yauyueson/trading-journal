@@ -1114,24 +1114,30 @@ export default async function handler(req, res) {
         const topPicks = [];
         for (const rec of creditSpreads) {
             const creditSpreadType = rec.type && rec.type.includes('Put') ? 'Put' : 'Call';
+            const { score: unifiedScore, factors } = calculateUnifiedScore(rec, 'CREDIT_SPREAD', regime.mode, regime.ivRvRatio, { ...unifiedOpts, skew, creditSpreadType });
             topPicks.push({
                 ...rec,
                 strategyCategory: 'CREDIT_SPREAD',
-                unifiedScore: calculateUnifiedScore(rec, 'CREDIT_SPREAD', regime.mode, regime.ivRvRatio, { ...unifiedOpts, skew, creditSpreadType }),
+                unifiedScore,
+                factors: factors || [],
             });
         }
         for (const rec of debitSpreads) {
+            const { score: unifiedScore, factors } = calculateUnifiedScore(rec, 'DEBIT_SPREAD', regime.mode, regime.ivRvRatio, unifiedOpts);
             topPicks.push({
                 ...rec,
                 strategyCategory: 'DEBIT_SPREAD',
-                unifiedScore: calculateUnifiedScore(rec, 'DEBIT_SPREAD', regime.mode, regime.ivRvRatio, unifiedOpts),
+                unifiedScore,
+                factors: factors || [],
             });
         }
         for (const rec of singleLegs) {
+            const { score: unifiedScore, factors } = calculateUnifiedScore(rec, 'SINGLE_LEG', regime.mode, regime.ivRvRatio, unifiedOpts);
             topPicks.push({
                 ...rec,
                 strategyCategory: 'SINGLE_LEG',
-                unifiedScore: calculateUnifiedScore(rec, 'SINGLE_LEG', regime.mode, regime.ivRvRatio, unifiedOpts),
+                unifiedScore,
+                factors: factors || [],
             });
         }
         topPicks.sort((a, b) => b.unifiedScore - a.unifiedScore);
@@ -1174,10 +1180,18 @@ export default async function handler(req, res) {
                 techAlignmentNote = (techAlignmentNote || '') + suffix;
             }
 
-            // Apply bonus to top picks' unifiedScore
+            // Apply bonus to top picks' unifiedScore and add factor for explainability
             if (techAlignmentBonus !== 0) {
                 for (const pick of topPicks) {
                     pick.unifiedScore = (pick.unifiedScore || 0) + techAlignmentBonus;
+                    if (Array.isArray(pick.factors)) {
+                        pick.factors.push({
+                            name: 'Tech alignment',
+                            impact: techAlignmentBonus,
+                            description: techAlignmentNote || 'Multi-timeframe technical alignment.',
+                            value: undefined,
+                        });
+                    }
                 }
                 topPicks.sort((a, b) => b.unifiedScore - a.unifiedScore);
             }

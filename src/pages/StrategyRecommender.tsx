@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark, Trophy, Settings2 } from 'lucide-react';
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
+import { ScoreFactorsView } from '../components/ScoreFactorsView';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { getSuggestedContracts } from '../lib/riskSizing';
@@ -792,6 +793,12 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                             {/* Expanded Details */}
                                             {expandedCard === idx && (
                                                 <div className="p-5 border-t border-[#3A3A3C] bg-black/20">
+                                                    {/* Score explainability (unified score factors for TOP_PICKS) */}
+                                                    {(rec as UnifiedCandidateType).factors && (rec as UnifiedCandidateType).factors!.length > 0 && (
+                                                        <div className="mb-6 p-4 bg-[#252528] border border-[#3A3A3C] rounded-xl">
+                                                            <ScoreFactorsView factors={(rec as UnifiedCandidateType).factors!} />
+                                                        </div>
+                                                    )}
                                                     {/* Analysis Section: Why this strategy/option is a good choice */}
                                                     {isSpread(rec) && rec.recommendation?.note && (
                                                         <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -5,7 +5,8 @@ import { Position, Transaction, LiveData, GreeksHistory, PositionAction } from '
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER } from '../lib/utils';
-import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQ } from '../lib/scoring';
+import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQWithFactors } from '../lib/scoring';
+import { ScoreFactorsView } from './ScoreFactorsView';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
 import { useAppSettings } from '../context/AppSettingsContext';
 
@@ -195,6 +196,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
 
 
                 let compositeScore = undefined;
+                let compositeFactors = undefined;
                 const underlyingPrice = shortData?.underlyingPrice || longData?.underlyingPrice || 0;
 
                 if (isCreditStrategy && shortData && longData && underlyingPrice > 0) {
@@ -226,7 +228,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         currentPrice: underlyingPrice
                     });
                 } else if (isCreditStrategy && shortData) {
-                    compositeScore = shortData.score || (shortData.underlyingPrice ? calculateSingleLOQ(
+                    const loq = shortData.underlyingPrice ? calculateSingleLOQWithFactors(
                         shortData.delta || 0,
                         shortData.gamma || 0,
                         shortData.theta || 0,
@@ -234,9 +236,11 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         Math.abs(shortData.price),
                         1.0,
                         daysUntil(position.expiration)
-                    ) : undefined);
+                    ) : null;
+                    compositeScore = shortData.score ?? loq?.score;
+                    compositeFactors = loq?.factors;
                 } else if (!isCreditStrategy && longData) {
-                    compositeScore = longData.score || (longData.underlyingPrice ? calculateSingleLOQ(
+                    const loq = longData.underlyingPrice ? calculateSingleLOQWithFactors(
                         longData.delta || 0,
                         longData.gamma || 0,
                         longData.theta || 0,
@@ -244,7 +248,9 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         Math.abs(longData.price),
                         1.0,
                         daysUntil(position.expiration)
-                    ) : undefined);
+                    ) : null;
+                    compositeScore = longData.score ?? loq?.score;
+                    compositeFactors = loq?.factors;
                 }
 
                 setLiveData({
@@ -254,7 +260,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     vega: netVega,
                     iv: netIv,
                     price: netPrice,
-                    score: compositeScore
+                    score: compositeScore,
+                    factors: compositeFactors
                 });
 
                 if (netDelta !== 0) saveGreeksHistory(position.id, netIv, netDelta);
@@ -296,7 +303,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                         if (data.cboeTimestamp && onDataUpdate) {
                             onDataUpdate(data.cboeTimestamp);
                         }
-                        const calculatedScore = data.score || (data.underlyingPrice ? calculateSingleLOQ(
+                        const loqResult = data.underlyingPrice ? calculateSingleLOQWithFactors(
                             data.delta || 0,
                             data.gamma || 0,
                             data.theta || 0,
@@ -304,7 +311,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                             price,
                             data.metrics?.ivRatio || 1.0,
                             daysUntil(position.expiration)
-                        ) : undefined);
+                        ) : null;
+                        const calculatedScore = data.score ?? loqResult?.score;
 
                         setLiveData({
                             delta: data.delta,
@@ -315,7 +323,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                             score: calculatedScore,
                             price,
                             isDayTrade: data.metrics?.isDayTrade,
-                            ivRatio: data.metrics?.ivRatio
+                            ivRatio: data.metrics?.ivRatio,
+                            factors: loqResult?.factors
                         });
                         saveGreeksHistory(position.id, data.iv, data.delta);
                     }
@@ -840,24 +849,32 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                             {liveData.iv !== undefined ? (liveData.iv * 100).toFixed(1) + '%' : '—'}
                         </div>
                     </div>
-                    <div>
-                        <div className="mb-1">
-                            <Tooltip label="Opt Score" explanation="Calculated Option Quality." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
-                        </div>
-                        <div className="flex flex-col">
-                            <div className={`metric-value font-bold ${liveData.score === undefined ? 'text-text-tertiary' :
-                                liveData.score >= 70 ? 'text-accent-green' :
-                                    liveData.score >= 50 ? 'text-accent-yellow' : 'text-accent-red'
-                                }`}>
-                                {liveData.score !== undefined ? liveData.score : '—'}
-                            </div>
-                            {Boolean(liveData.isDayTrade) && (
-                                <span className="mt-0.5 px-1 pb-0.5 text-[8px] font-bold uppercase tracking-wider text-purple-300 bg-purple-500/10 rounded w-fit">
-                                    Day Trade
-                                </span>
-                            )}
-                        </div>
-                    </div>
+                                    <div>
+                                        <div className="mb-1">
+                                            <Tooltip label="Opt Score" explanation="Calculated Option Quality." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <div className={`metric-value font-bold ${liveData.score === undefined ? 'text-text-tertiary' :
+                                                liveData.score >= 70 ? 'text-accent-green' :
+                                                    liveData.score >= 50 ? 'text-accent-yellow' : 'text-accent-red'
+                                                }`}>
+                                                {liveData.score !== undefined ? liveData.score : '—'}
+                                            </div>
+                                            {liveData.factors && liveData.factors.length > 0 && (
+                                                <div className="text-[10px] text-text-tertiary mt-0.5 group/opt relative cursor-help">
+                                                    <span className="border-b border-dotted border-text-tertiary/50">Breakdown</span>
+                                                    <div className="absolute bottom-full left-0 mb-2 w-52 p-2 bg-bg-elevated border border-border-default rounded shadow-xl opacity-0 group-hover/opt:opacity-100 transition-opacity pointer-events-none z-50">
+                                                        <ScoreFactorsView factors={liveData.factors} compact />
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {Boolean(liveData.isDayTrade) && (
+                                                <span className="mt-0.5 px-1 pb-0.5 text-[8px] font-bold uppercase tracking-wider text-purple-300 bg-purple-500/10 rounded w-fit">
+                                                    Day Trade
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
                 </div>
             </div>
 

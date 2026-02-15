@@ -1,3 +1,5 @@
+import type { ScoreFactor } from './scoring';
+
 export interface Position {
     id: string;
     ticker: string;
@@ -58,6 +60,8 @@ export interface LiveData {
     score?: number;
     isDayTrade?: boolean;
     ivRatio?: number;
+    /** Explainability: top contributors and penalties for Opt Score (when computed). */
+    factors?: ScoreFactor[];
 }
 
 export interface GreeksHistory {
@@ -157,6 +161,8 @@ export interface SpreadRecommendation {
     type: string;
     score: number;
     whyThis: string;
+    /** Top contributors and penalties for this score (explainability). */
+    factors?: ScoreFactor[];
     shortLeg: SpreadLeg;
     longLeg: SpreadLeg;
     width: number;
@@ -178,6 +184,8 @@ export interface SingleLegRecommendation {
     type: string;
     score: number;
     whyThis: string;
+    /** Top contributors and penalties for this score (explainability). */
+    factors?: ScoreFactor[];
     strike: number;
     expiration: string;
     dte: number;
@@ -288,5 +296,6 @@ export type {
     OptionData,
     ScoredResult,
     ScanContext,
-    Strategy
+    Strategy,
+    ScoreFactor
 } from './scoring';
