@@ -8,6 +8,11 @@ import fs from 'fs';
 import path from 'path';
 import { getAppSettings } from './_shared/getAppSettings.js';
 
+// ── Tech Score cache: avoids re-fetching 200 days of candles for the same ticker ──
+// Tech scores only change when a new candle closes (~30m), so 10-min TTL is safe.
+const techScoreCache = new Map();
+const TECH_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
 // ── Inline BSM helper (no external dep) ──────────────────────────────────────
 // Normal CDF approximation (Abramowitz & Stegun, max error 7.5e-8)
 function _normCDF(x) {
@@ -1042,7 +1047,13 @@ export default async function handler(req, res) {
         // Tech Score (Pine-aligned): 1h, 4h, daily candles → techScore per timeframe
         let tech = null;
         let techByTimeframe = null;
-        try {
+        const cachedTech = techScoreCache.get(upperTicker);
+        if (cachedTech && Date.now() - cachedTech.ts < TECH_CACHE_TTL_MS) {
+            tech = cachedTech.tech;
+            techByTimeframe = cachedTech.techByTimeframe;
+            console.log(`[Tech Score] ${upperTicker}: using cached scores (age: ${Math.round((Date.now() - cachedTech.ts) / 1000)}s)`);
+        }
+        if (!tech) try {
             const { getCandles } = await import('../lib/polygon-client.js');
             const { calculateTechScore } = await import('../lib/tech-analysis.js');
             const { createClient } = await import('@supabase/supabase-js');
@@ -1185,6 +1196,7 @@ export default async function handler(req, res) {
             if (primaryTech) {
                 tech = primaryTech;
                 techByTimeframe = { '1h': h1 || null, '4h': h4 || null, '1d': d || null };
+                techScoreCache.set(upperTicker, { ts: Date.now(), tech, techByTimeframe });
             }
             // #region agent log
             _dbg({ location: 'strategy-recommend.js:tech set', message: 'tech assigned', data: { ticker: upperTicker, techSet: !!tech }, hypothesisId: 'D' });
