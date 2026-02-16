@@ -1065,10 +1065,14 @@ export default async function handler(req, res) {
             fromIntraday.setDate(toDate.getDate() - 60);
 
             const fromDayStr = fromDay.toISOString().split('T')[0];
-            const candles1d = await getCandles(upperTicker, fromDayStr, toStr, 'day');
-
             const fromIntradayStr = fromIntraday.toISOString().split('T')[0];
-            const candles30m = await getCandles(upperTicker, fromIntradayStr, toStr, 'minute', 30);
+
+            const [candles1d, candles30m] = await Promise.all([
+                getCandles(upperTicker, fromDayStr, toStr, 'day'),
+                getCandles(upperTicker, fromIntradayStr, toStr, 'minute', 30)
+            ]);
+
+            console.log(`[Tech Score] ${upperTicker}: fetched ${candles1d.length} daily, ${candles30m.length} 30m candles`);
 
             // Helper to aggregate 30m candles into RTH-aligned hours
             // Market Hours: 09:30 - 16:00 ET
@@ -1161,6 +1165,7 @@ export default async function handler(req, res) {
 
             const candles1h = aggregateRTH(candles30m, 1);
             const candles4h = aggregateRTH(candles30m, 4);
+            console.log(`[Tech Score] ${upperTicker}: aggregated ${candles1h.length} 1h, ${candles4h.length} 4h bars`);
             // #region agent log
             _dbg({ location: 'strategy-recommend.js:after getCandles', message: 'candle counts', data: { ticker: upperTicker, len1d: candles1d?.length ?? null, len1h: candles1h?.length ?? null, len4h: candles4h?.length ?? null }, hypothesisId: 'A' });
             // #endregion
@@ -1172,6 +1177,7 @@ export default async function handler(req, res) {
             const d = toTech(candles1d);
             const h1 = toTech(candles1h);
             const h4 = toTech(candles4h);
+            console.log(`[Tech Score] ${upperTicker}: scores → 1d:${d?.techScore ?? 'null'} 1h:${h1?.techScore ?? 'null'} 4h:${h4?.techScore ?? 'null'}`);
             // #region agent log
             _dbg({ location: 'strategy-recommend.js:after toTech', message: 'toTech results', data: { ticker: upperTicker, d: !!d, h1: !!h1, h4: !!h4, score1d: d?.techScore ?? null }, hypothesisId: 'B' });
             // #endregion
@@ -1187,7 +1193,8 @@ export default async function handler(req, res) {
             // #region agent log
             _dbg({ location: 'strategy-recommend.js:catch', message: 'Tech Score error', data: { ticker: upperTicker, err: String(e?.message || e) }, hypothesisId: 'C' });
             // #endregion
-            console.warn(`[Strategy Recommend] ${upperTicker}: Tech Score skipped`, e?.message || e);
+            console.error(`[Tech Score] ${upperTicker}: FAILED —`, e?.message || e);
+            if (e?.stack) console.error(e.stack);
         }
 
         const creditStrat = isBull ? 'Put' : 'Call';
