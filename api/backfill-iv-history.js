@@ -9,7 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 // standard candle format: { date, open, high, low, close, volume }
 
 const ROLLING_DAYS = 30;
-// Polygon free tier: 5 req/min => 12s delay. We use 15s to be safe.
+// Polygon rate-limit safety: 15s delay between batch requests to avoid bursts.
 const POLYGON_DELAY_MS = 15000;
 
 const POPULAR_TICKERS = [
