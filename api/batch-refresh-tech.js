@@ -40,8 +40,8 @@ export default async function handler(req, res) {
         const supabase = createClient(url, key);
         const appSettings = await getAppSettings(supabase);
         const techScoreOptions = {
-          ...appSettings.techScore.weights,
-          ...appSettings.techScore.periods,
+            ...appSettings.techScore.weights,
+            ...appSettings.techScore.periods,
         };
 
         let positions = [];
@@ -60,7 +60,7 @@ export default async function handler(req, res) {
 
             const { data, error } = await supabase
                 .from('positions')
-                .select('id, symbol, status, tech_score_source, tech_score_updated_at')
+                .select('id, ticker, status, tech_score_source, tech_score_updated_at')
                 .neq('status', 'CLOSED'); // Assuming 'CLOSED' is the status for closed
 
             if (error) throw error;
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
         // Group by ticker to avoid duplicate API calls if user has multiple positions on same ticker
         const tickerMap = new Map(); // ticker -> [positionIds...]
         positions.forEach(p => {
-            const t = p.symbol ? p.symbol.toUpperCase() : null;
+            const t = p.ticker ? p.ticker.toUpperCase() : null;
             if (t) {
                 if (!tickerMap.has(t)) tickerMap.set(t, []);
                 tickerMap.get(t).push(p);
