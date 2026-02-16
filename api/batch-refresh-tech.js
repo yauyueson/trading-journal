@@ -87,7 +87,7 @@ export default async function handler(req, res) {
         });
 
         const uniqueTickers = Array.from(tickerMap.keys()).slice(0, Number(limit));
-        const forceUpdate = req.body.force === true || req.query.force === 'true';
+        const forceUpdate = (req.body && req.body.force === true) || (req.query && req.query.force === 'true');
 
         for (const ticker of uniqueTickers) {
             try {
@@ -145,7 +145,7 @@ export default async function handler(req, res) {
                         updates.tech_score_source = 'auto';
                     }
 
-                    if (req.body.dryRun) {
+                    if (req.body && req.body.dryRun) {
                         results.push({ id: pos.id, ticker, updates, dryRun: true });
                         continue;
                     }
