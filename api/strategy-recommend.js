@@ -1064,6 +1064,12 @@ export default async function handler(req, res) {
             const fromIntraday = new Date(toDate);
             fromIntraday.setDate(toDate.getDate() - 60);
 
+            const fromDayStr = fromDay.toISOString().split('T')[0];
+            const candles1d = await getCandles(upperTicker, fromDayStr, toStr, 'day');
+
+            const fromIntradayStr = fromIntraday.toISOString().split('T')[0];
+            const candles30m = await getCandles(upperTicker, fromIntradayStr, toStr, 'minute', 30);
+
             // Helper to aggregate 30m candles into RTH-aligned hours
             // Market Hours: 09:30 - 16:00 ET
             const aggregateRTH = (baseCandles, hoursPerBar) => {
