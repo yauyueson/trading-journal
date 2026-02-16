@@ -1059,10 +1059,10 @@ export default async function handler(req, res) {
             const fromDay = new Date(toDate);
             fromDay.setDate(toDate.getDate() - 600);
             // Fetch 30m candles for intraday to properly aggregate RTH
-            // 60 days of 30m candles = ~780 bars, sufficient for 1H (~390) and 4H (~97)
-            // Reduced from 170 to avoid timeouts
+            // Polygon returns ~8 trading days of 30m data per 60 calendar days requested,
+            // so we need a wide window. 200 days → enough for ~50 4H bars and ~160 1H bars.
             const fromIntraday = new Date(toDate);
-            fromIntraday.setDate(toDate.getDate() - 60);
+            fromIntraday.setDate(toDate.getDate() - 200);
 
             const fromDayStr = fromDay.toISOString().split('T')[0];
             const fromIntradayStr = fromIntraday.toISOString().split('T')[0];
@@ -1169,14 +1169,14 @@ export default async function handler(req, res) {
             // #region agent log
             _dbg({ location: 'strategy-recommend.js:after getCandles', message: 'candle counts', data: { ticker: upperTicker, len1d: candles1d?.length ?? null, len1h: candles1h?.length ?? null, len4h: candles4h?.length ?? null }, hypothesisId: 'A' });
             // #endregion
-            const toTech = (candles) => {
-                if (!candles || candles.length < 50) return null;
+            const toTech = (candles, minBars = 50) => {
+                if (!candles || candles.length < minBars) return null;
                 const r = calculateTechScore(candles, techScoreOptions);
                 return { techScore: r.techScore, setup: r.setup, signal: r.signal, type: r.type, confidence: r.confidence };
             };
             const d = toTech(candles1d);
             const h1 = toTech(candles1h);
-            const h4 = toTech(candles4h);
+            const h4 = toTech(candles4h, 30);
             console.log(`[Tech Score] ${upperTicker}: scores → 1d:${d?.techScore ?? 'null'} 1h:${h1?.techScore ?? 'null'} 4h:${h4?.techScore ?? 'null'}`);
             // #region agent log
             _dbg({ location: 'strategy-recommend.js:after toTech', message: 'toTech results', data: { ticker: upperTicker, d: !!d, h1: !!h1, h4: !!h4, score1d: d?.techScore ?? null }, hypothesisId: 'B' });
