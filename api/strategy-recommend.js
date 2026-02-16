@@ -1059,10 +1059,10 @@ export default async function handler(req, res) {
             const fromDay = new Date(toDate);
             fromDay.setDate(toDate.getDate() - 600);
             // Fetch 30m candles for intraday to properly aggregate RTH
-            // 90 days of 30m candles = ~1170 bars, sufficient for 1H (~585) and 4H (~146)
-            // Need slightly more history for 4H to reach 50+ bars: 180 days
+            // 60 days of 30m candles = ~780 bars, sufficient for 1H (~390) and 4H (~97)
+            // Reduced from 170 to avoid timeouts
             const fromIntraday = new Date(toDate);
-            fromIntraday.setDate(toDate.getDate() - 170);
+            fromIntraday.setDate(toDate.getDate() - 60);
 
             // Helper to aggregate 30m candles into RTH-aligned hours
             // Market Hours: 09:30 - 16:00 ET
@@ -1071,19 +1071,23 @@ export default async function handler(req, res) {
                 const aggs = [];
                 let currentBar = null;
 
+                const formatter = new Intl.DateTimeFormat('en-US', {
+                    timeZone: 'America/New_York',
+                    hour: 'numeric',
+                    minute: 'numeric',
+                    hour12: false
+                });
+
                 // Parse a candle's time in ET
                 const getET = (ts) => {
                     const d = new Date(ts);
-                    // Create formatted string in ET
-                    const parts = new Intl.DateTimeFormat('en-US', {
-                        timeZone: 'America/New_York',
-                        hour: 'numeric',
-                        minute: 'numeric',
-                        hour12: false
-                    }).formatToParts(d);
-                    const h = parseInt(parts.find(p => p.type === 'hour').value);
-                    const m = parseInt(parts.find(p => p.type === 'minute').value);
-                    return { h: h === 24 ? 0 : h, m };
+                    const parts = formatter.formatToParts(d);
+                    const hVal = parts.find(p => p.type === 'hour').value;
+                    const mVal = parts.find(p => p.type === 'minute').value;
+                    let h = parseInt(hVal);
+                    if (h === 24) h = 0;
+                    const m = parseInt(mVal);
+                    return { h, m };
                 };
 
                 for (const c of baseCandles) {
