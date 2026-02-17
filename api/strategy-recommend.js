@@ -951,10 +951,8 @@ export default async function handler(req, res) {
             fromIntraday.setDate(toDate.getDate() - 365); // Extended from 200 → 365 days for more 1h/4h bars
             const fromIntradayStr = fromIntraday.toISOString().split('T')[0];
 
-            // Batch 1: parallel fetch of ALL data that doesn't depend on option chain
-            // underlyingPrice + daily candles (for RV30 + tech score) + 30m candles (for 1h/4h tech) + earnings
-            const [underlyingPrice, dailyCandlesResult, candles30mResult, daysUntilEarningsResult] = await Promise.all([
-                getUnderlyingPrice(upperTicker),
+            // Batch 1: parallel fetch — daily candles + 30m candles + earnings (no getUnderlyingPrice)
+            const [dailyCandlesResult, candles30mResult, daysUntilEarningsResult] = await Promise.all([
                 getCandles(upperTicker, fromDailyStr, toStr, 'day'),
                 getCandles(upperTicker, fromIntradayStr, toStr, 'minute', 30),
                 fetchEarnings(upperTicker)
@@ -962,6 +960,10 @@ export default async function handler(req, res) {
             dailyCandles = dailyCandlesResult;
             candles30m = candles30mResult;
             daysUntilEarnings = daysUntilEarningsResult;
+
+            // Derive underlying price from last daily close (avoids a separate snapshot call)
+            // ±20% strike filter is wide enough that yesterday's close is accurate enough
+            const lastClose = dailyCandles?.length > 0 ? dailyCandles[dailyCandles.length - 1].close : null;
 
             // Compute RV30 inline from daily candles (no extra API call)
             if (dailyCandles && dailyCandles.length >= 11) {
@@ -972,32 +974,22 @@ export default async function handler(req, res) {
             console.log(`[Batch 1] ${upperTicker}: ${dailyCandles?.length ?? 0} daily, ${candles30m?.length ?? 0} 30m candles fetched`);
 
             try {
-                // Only request DTE 30 and 90 (IV term structure) with strike range ±20% to reduce payload/API usage
+                // Single reference call covering DTE 23–97 (spans both ~30 and ~90 DTE windows)
+                // Filtered in memory below — saves one API call vs separate dte:30 + dte:90 fetches
                 const strikePadding = 0.20;
-                const minStrike = underlyingPrice && underlyingPrice > 0 ? underlyingPrice * (1 - strikePadding) : undefined;
-                const maxStrike = underlyingPrice && underlyingPrice > 0 ? underlyingPrice * (1 + strikePadding) : undefined;
+                const minStrike = lastClose ? lastClose * (1 - strikePadding) : undefined;
+                const maxStrike = lastClose ? lastClose * (1 + strikePadding) : undefined;
                 const strikeFilter = (minStrike != null && maxStrike != null) ? { minStrike, maxStrike } : {};
 
-                const [chain30, chain90] = await Promise.all([
-                    getOptionChain(upperTicker, { dte: 30, ...strikeFilter }),
-                    getOptionChain(upperTicker, { dte: 90, ...strikeFilter })
-                ]);
-                const seen = new Set();
-                let chainData = [];
-                for (const o of [...(chain30 || []), ...(chain90 || [])]) {
-                    if (o?.symbol && !seen.has(o.symbol)) {
-                        seen.add(o.symbol);
-                        chainData.push(o);
-                    }
-                }
-                if (!chainData.length) {
-                    console.warn('Polygon chain empty with dte 30/90, trying without DTE...');
+                let chainData = await getOptionChain(upperTicker, { minDte: 23, maxDte: 97, ...strikeFilter });
+                if (!chainData?.length) {
+                    console.warn('Polygon chain empty with DTE 23–97, trying without DTE...');
                     chainData = await getOptionChain(upperTicker, {}) || [];
                 }
                 if (chainData.length > 0) {
                     allOptions = chainData;
                     const valid = chainData.find(o => o.underlyingPrice > 0);
-                    currentPrice = valid ? valid.underlyingPrice : 0;
+                    currentPrice = valid ? valid.underlyingPrice : (lastClose ?? 0);
                 } else {
                     console.warn('Polygon returned empty chain');
                     throw new Error('Empty Polygon chain');
@@ -1009,11 +1001,17 @@ export default async function handler(req, res) {
             }
 
         } else {
-            // CBOE Legacy
-            // 1. Parallel Fetching
-            [cboeRes, rv30, daysUntilEarnings] = await Promise.all([
+            // CBOE Legacy — fetch daily candles in batch 1 so RV30 and tech score share them
+            const { getCandles: _getCandles } = await import('../lib/polygon-client.js');
+            const _toDate = new Date();
+            const _toStr = _toDate.toISOString().split('T')[0];
+            const _fromDay = new Date(_toDate);
+            _fromDay.setDate(_toDate.getDate() - 150);
+            const _fromDayStr = _fromDay.toISOString().split('T')[0];
+
+            [cboeRes, dailyCandles, daysUntilEarnings] = await Promise.all([
                 fetch(cboeUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then(r => r.ok ? r.json() : null),
-                calculateRV30FromPolygon(upperTicker),
+                _getCandles(upperTicker, _fromDayStr, _toStr, 'day'),
                 fetchEarnings(upperTicker)
             ]);
 
@@ -1023,6 +1021,13 @@ export default async function handler(req, res) {
 
             currentPrice = cboeRes.data.current_price;
             allOptions = cboeRes.data.options;
+
+            // Compute RV30 inline (no extra Polygon call)
+            if (dailyCandles && dailyCandles.length >= 11) {
+                const closes = dailyCandles.map(c => c.close);
+                rv30 = _computeRV30(closes);
+                if (rv30 != null) console.log(`[RV30 Calc] ${upperTicker}: ${rv30.toFixed(2)}% (from CBOE path daily candles)`);
+            }
         }
 
         // RV is always computed by us (Polygon gives candles only). Fallback to Nasdaq when Polygon fails.
