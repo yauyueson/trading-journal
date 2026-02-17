@@ -933,18 +933,43 @@ export default async function handler(req, res) {
         let rv30 = null;
         let daysUntilEarnings = null;
 
+        // Pre-declare candle arrays at handler scope so batch 1 and tech score block can share them
+        let dailyCandles = null;
+        let candles30m = null;
+
         if (dataSource === 'POLYGON') {
             console.log(`Using Polygon.io for ${upperTicker}`);
-            const { getOptionChain, getUnderlyingPrice } = await import('../lib/polygon-client.js');
+            const { getOptionChain, getUnderlyingPrice, getCandles } = await import('../lib/polygon-client.js');
 
-            // Parallel fetch: ancillary data + underlying price (for strike-range filter to reduce payload)
-            const [rv30Result, daysUntilEarningsResult, underlyingPrice] = await Promise.all([
-                calculateRV30FromPolygon(upperTicker),
-                fetchEarnings(upperTicker),
-                getUnderlyingPrice(upperTicker)
+            // Date ranges for candle fetches
+            const toDate = new Date();
+            const toStr = toDate.toISOString().split('T')[0];
+            const fromDaily = new Date(toDate);
+            fromDaily.setDate(toDate.getDate() - 150); // 150 calendar days ≈ 105 trading days; max indicator lookback is 100 bars
+            const fromDailyStr = fromDaily.toISOString().split('T')[0];
+            const fromIntraday = new Date(toDate);
+            fromIntraday.setDate(toDate.getDate() - 365); // Extended from 200 → 365 days for more 1h/4h bars
+            const fromIntradayStr = fromIntraday.toISOString().split('T')[0];
+
+            // Batch 1: parallel fetch of ALL data that doesn't depend on option chain
+            // underlyingPrice + daily candles (for RV30 + tech score) + 30m candles (for 1h/4h tech) + earnings
+            const [underlyingPrice, dailyCandlesResult, candles30mResult, daysUntilEarningsResult] = await Promise.all([
+                getUnderlyingPrice(upperTicker),
+                getCandles(upperTicker, fromDailyStr, toStr, 'day'),
+                getCandles(upperTicker, fromIntradayStr, toStr, 'minute', 30),
+                fetchEarnings(upperTicker)
             ]);
-            rv30 = rv30Result;
+            dailyCandles = dailyCandlesResult;
+            candles30m = candles30mResult;
             daysUntilEarnings = daysUntilEarningsResult;
+
+            // Compute RV30 inline from daily candles (no extra API call)
+            if (dailyCandles && dailyCandles.length >= 11) {
+                const closes = dailyCandles.map(c => c.close);
+                rv30 = _computeRV30(closes);
+                if (rv30 != null) console.log(`[RV30 Calc] ${upperTicker}: ${rv30.toFixed(2)}% (from daily candles)`);
+            }
+            console.log(`[Batch 1] ${upperTicker}: ${dailyCandles?.length ?? 0} daily, ${candles30m?.length ?? 0} 30m candles fetched`);
 
             try {
                 // Only request DTE 30 and 90 (IV term structure) with strike range ±20% to reduce payload/API usage
@@ -1054,7 +1079,6 @@ export default async function handler(req, res) {
             console.log(`[Tech Score] ${upperTicker}: using cached scores (age: ${Math.round((Date.now() - cachedTech.ts) / 1000)}s)`);
         }
         if (!tech) try {
-            const { getCandles } = await import('../lib/polygon-client.js');
             const { calculateTechScore } = await import('../lib/tech-analysis.js');
             const { createClient } = await import('@supabase/supabase-js');
             const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -1065,25 +1089,28 @@ export default async function handler(req, res) {
                 ...appSettings.techScore.weights,
                 ...appSettings.techScore.periods,
             };
-            const toDate = new Date();
-            const toStr = toDate.toISOString().split('T')[0];
-            const fromDay = new Date(toDate);
-            fromDay.setDate(toDate.getDate() - 600);
-            // Fetch 30m candles for intraday to properly aggregate RTH
-            // Polygon returns ~8 trading days of 30m data per 60 calendar days requested,
-            // so we need a wide window. 200 days → enough for ~50 4H bars and ~160 1H bars.
-            const fromIntraday = new Date(toDate);
-            fromIntraday.setDate(toDate.getDate() - 200);
 
-            const fromDayStr = fromDay.toISOString().split('T')[0];
-            const fromIntradayStr = fromIntraday.toISOString().split('T')[0];
+            // For CBOE path, fetch candles if not already available from Polygon batch 1
+            if (!dailyCandles || !candles30m) {
+                const { getCandles } = await import('../lib/polygon-client.js');
+                const toDate = new Date();
+                const toStr = toDate.toISOString().split('T')[0];
+                if (!dailyCandles) {
+                    const fromDay = new Date(toDate);
+                    fromDay.setDate(toDate.getDate() - 150);
+                    dailyCandles = await getCandles(upperTicker, fromDay.toISOString().split('T')[0], toStr, 'day');
+                }
+                if (!candles30m) {
+                    const fromIntraday = new Date(toDate);
+                    fromIntraday.setDate(toDate.getDate() - 365);
+                    candles30m = await getCandles(upperTicker, fromIntraday.toISOString().split('T')[0], toStr, 'minute', 30);
+                }
+            }
 
-            const [candles1d, candles30m] = await Promise.all([
-                getCandles(upperTicker, fromDayStr, toStr, 'day'),
-                getCandles(upperTicker, fromIntradayStr, toStr, 'minute', 30)
-            ]);
+            // Use pre-fetched candles (from Polygon batch 1 or CBOE fallback above)
+            const candles1d = dailyCandles || [];
 
-            console.log(`[Tech Score] ${upperTicker}: fetched ${candles1d.length} daily, ${candles30m.length} 30m candles`);
+            console.log(`[Tech Score] ${upperTicker}: using ${candles1d.length} daily, ${candles30m.length} 30m candles`);
 
             // Helper to aggregate 30m candles into RTH-aligned hours
             // Market Hours: 09:30 - 16:00 ET
@@ -1125,30 +1152,20 @@ export default async function handler(req, res) {
                     if (!currentBar) {
                         isNewBar = true;
                     } else {
-                        // Check if same day
-                        const d1 = new Date(currentBar.timestamp).getDate();
-                        const d2 = new Date(c.timestamp).getDate();
-                        if (d1 !== d2) {
+                        // Day boundary: >12h gap means new trading day (timezone-safe, no getDate() pitfall)
+                        const timeDiff = c.timestamp - currentBar.timestamp;
+                        if (timeDiff > 12 * 60 * 60 * 1000) {
                             isNewBar = true;
                         } else {
-                            // Same day, check time bucket
-                            const startTime = getET(currentBar.timestamp);
-                            const startVal = startTime.h * 60 + startTime.m;
-                            const currVal = h * 60 + m;
-                            const diffMinutes = currVal - startVal;
+                            // Same day — always compare bucket indices relative to market open (9:30 ET)
+                            const minutesFromOpen = (h * 60 + m) - (9 * 60 + 30);
+                            const barIdx = Math.floor(minutesFromOpen / (hoursPerBar * 60));
 
-                            if (diffMinutes >= h * 60 + m - (h * 60 + m) + hoursPerBar * 60) {
-                                // Logic check: simpler way -> bucket index
-                                // 1h buckets relative to 9:30: 0, 60, 120...
-                                // 9:30=0, 10:00=30, 10:30=60
-                                const minutesFromOpen = (h * 60 + m) - (9 * 60 + 30);
-                                const barIdx = Math.floor(minutesFromOpen / (hoursPerBar * 60));
+                            const startET = getET(currentBar.timestamp);
+                            const startMinsFromOpen = (startET.h * 60 + startET.m) - (9 * 60 + 30);
+                            const startBarIdx = Math.floor(startMinsFromOpen / (hoursPerBar * 60));
 
-                                const startMinutesFromOpen = (startTime.h * 60 + startTime.m) - (9 * 60 + 30);
-                                const startBarIdx = Math.floor(startMinutesFromOpen / (hoursPerBar * 60));
-
-                                if (barIdx !== startBarIdx) isNewBar = true;
-                            }
+                            if (barIdx !== startBarIdx) isNewBar = true;
                         }
                     }
 
@@ -1187,7 +1204,7 @@ export default async function handler(req, res) {
             };
             const d = toTech(candles1d);
             const h1 = toTech(candles1h);
-            const h4 = toTech(candles4h, 30);
+            const h4 = toTech(candles4h, 20);
             console.log(`[Tech Score] ${upperTicker}: scores → 1d:${d?.techScore ?? 'null'} 1h:${h1?.techScore ?? 'null'} 4h:${h4?.techScore ?? 'null'}`);
             // #region agent log
             _dbg({ location: 'strategy-recommend.js:after toTech', message: 'toTech results', data: { ticker: upperTicker, d: !!d, h1: !!h1, h4: !!h4, score1d: d?.techScore ?? null }, hypothesisId: 'B' });
@@ -1205,7 +1222,12 @@ export default async function handler(req, res) {
             // #region agent log
             _dbg({ location: 'strategy-recommend.js:catch', message: 'Tech Score error', data: { ticker: upperTicker, err: String(e?.message || e) }, hypothesisId: 'C' });
             // #endregion
-            console.error(`[Tech Score] ${upperTicker}: FAILED —`, e?.message || e);
+            // Diagnostic: which phase failed, candle counts, elapsed time
+            const phase = !dailyCandles && !candles30m ? 'candle fetch'
+                : (!dailyCandles || !candles30m) ? 'partial candle fetch'
+                : 'aggregation/scoring';
+            console.error(`[Tech Score] ${upperTicker}: FAILED at ${phase} —`, e?.message || e);
+            console.error(`[Tech Score] ${upperTicker}: counts — daily:${dailyCandles?.length ?? 'null'}, 30m:${candles30m?.length ?? 'null'}`);
             if (e?.stack) console.error(e.stack);
         }
 

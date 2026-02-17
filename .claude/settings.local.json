@@ -32,7 +32,9 @@
       "Bash(Remove-Item \"E:\\\\03_Projects_Active\\\\Coding\\\\trading-journal\\\\docs\\\\OSS_v2.4_快速参考.md\" -Force)",
       "Bash(Remove-Item \"E:\\\\03_Projects_Active\\\\Coding\\\\trading-journal\\\\docs\\\\OSS_v2.4_更新总结.md\" -Force)",
       "Bash(git log:*)",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:polygon.io)",
+      "WebFetch(domain:massive.com)"
     ]
   }
 }
