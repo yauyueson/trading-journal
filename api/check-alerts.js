@@ -139,34 +139,36 @@ export default async function handler(req, res) {
     const optionChains = {};
 
     if (dataSource === 'POLYGON') {
-      // Use Polygon.io for real-time quotes
       try {
         const { getOptionChain } = await import('../lib/polygon-client.js');
+        const sequentialThreshold = Number(process.env.ALERT_CHAIN_SEQUENTIAL_THRESHOLD || 50);
+        const delayMs = Number(process.env.ALERT_CHAIN_DELAY_MS || 100);
 
-        await Promise.all(uniqueTickers.map(async (ticker) => {
-          try {
-            // For Polygon, we need to fetch chain for specific DTEs relevant to active positions.
-            // This is a simplification; ideally, we'd fetch for each position's expiration.
-            // For cron, fetching a broader range or per-position might be too slow.
-            // Let's fetch a general chain for the ticker and rely on `findOptionMid` to filter.
-            // The user's diff had `expiration` and `ticker` in the outer scope, which is incorrect.
-            // We'll fetch a broad chain for the ticker, similar to the original MarketData approach.
-            // The user's diff also had DTE calculation, which implies fetching for a specific expiration.
-            // To align with the original MarketData approach (fetch all expirations for ticker),
-            // we'll call getOptionChain without DTE filters here, and let findOptionMid handle the match.
-            // If the user intended DTE filtering at this stage, the `getOptionChain` call would need to be
-            // inside the position loop, or `uniqueTickers` would need to be `uniqueTickerExpirationPairs`.
-            // Given the structure, fetching a general chain per ticker is more consistent with the original.
-            const chain = await getOptionChain(ticker, {}); // Fetch all expirations for this ticker
-            optionChains[ticker] = chain || [];
-          } catch (e) {
-            console.warn('Polygon fetch failed for', ticker, e.message);
-            optionChains[ticker] = [];
+        if (uniqueTickers.length >= sequentialThreshold) {
+          for (let i = 0; i < uniqueTickers.length; i++) {
+            if (i > 0 && delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
+            const ticker = uniqueTickers[i];
+            try {
+              const chain = await getOptionChain(ticker, {});
+              optionChains[ticker] = chain || [];
+            } catch (e) {
+              console.warn('Polygon fetch failed for', ticker, e.message);
+              optionChains[ticker] = [];
+            }
           }
-        }));
+        } else {
+          await Promise.all(uniqueTickers.map(async (ticker) => {
+            try {
+              const chain = await getOptionChain(ticker, {});
+              optionChains[ticker] = chain || [];
+            } catch (e) {
+              console.warn('Polygon fetch failed for', ticker, e.message);
+              optionChains[ticker] = [];
+            }
+          }));
+        }
       } catch (importErr) {
         console.error('Failed to import polygon-client (lib):', importErr);
-        // Fall back to CBOE below
       }
     }
 

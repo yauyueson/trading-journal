@@ -106,50 +106,68 @@ export default async function handler(req, res) {
 
 async function handlePolygon(legs, res) {
     try {
-        const { getOptionSnapshot } = await import('../lib/polygon-client.js');
-        const results = [];
+        const { getOptionChain } = await import('../lib/polygon-client.js');
 
-        // Concurrent fetching for Polygon (since it doesn't have a true bulk API)
-        const CHUNK_SIZE = 10;
-        for (let i = 0; i < legs.length; i += CHUNK_SIZE) {
-            const chunk = legs.slice(i, i + CHUNK_SIZE);
-            const promises = chunk.map(async (leg) => {
-                const exp = normalizeExpiration(leg.expiration);
-                const occ = generateOCCSymbol(leg.ticker, exp, leg.type, leg.strike);
-                try {
-                    const snapshot = await getOptionSnapshot(leg.ticker.toUpperCase(), occ);
-                    if (snapshot) {
-                        return {
-                            ...leg,
-                            success: true,
-                            price: snapshot.last > 0 ? snapshot.last : ((snapshot.bid + snapshot.ask) / 2 || 0),
-                            symbol: occ,
-                            data: snapshot,
-                            priceSource: snapshot.last > 0 ? 'last' : 'mid',
-                            bid: snapshot.bid,
-                            ask: snapshot.ask,
-                            ...validateGreeks(
-                                { delta: snapshot.delta, gamma: snapshot.gamma, theta: snapshot.theta, vega: snapshot.vega, iv: snapshot.iv },
-                                snapshot.underlyingPrice || snapshot.underlying_price || 0,
-                                parseFloat(leg.strike), snapshot.dte || 30, leg.type
-                            ),
-                            dataSource: 'Polygon.io'
-                        };
-                    }
-                    return { ...leg, success: false, error: 'No snapshot data' };
-                } catch (e) {
-                    return { ...leg, success: false, error: e.message };
-                }
-            });
-            results.push(...(await Promise.all(promises)));
+        // Group legs by ticker so we fetch one chain per ticker (2 API calls per ticker instead of N per leg)
+        const tickerToLegs = new Map();
+        for (const leg of legs) {
+            const t = (leg.ticker || '').toUpperCase();
+            if (!t) continue;
+            if (!tickerToLegs.has(t)) tickerToLegs.set(t, []);
+            tickerToLegs.get(t).push(leg);
         }
 
-        // Response format compatibility
+        const chainByTicker = new Map();
+        for (const ticker of tickerToLegs.keys()) {
+            const chain = await getOptionChain(ticker, {});
+            chainByTicker.set(ticker, chain || []);
+        }
+
+        // Resolve each leg from the chain for its ticker (match by expiration, strike, type)
+        const results = [];
+        for (const leg of legs) {
+            const ticker = (leg.ticker || '').toUpperCase();
+            const chain = chainByTicker.get(ticker) || [];
+            const exp = normalizeExpiration(leg.expiration);
+            const strikeNum = parseFloat(leg.strike);
+            const typeNorm = (leg.type || '').toLowerCase() === 'put' ? 'Put' : 'Call';
+
+            const option = chain.find(
+                (o) =>
+                    (o.expiration === exp || (o.expiration && o.expiration.slice(0, 10) === exp)) &&
+                    Number(o.strike) === strikeNum &&
+                    (o.type === typeNorm || (o.type && o.type.toLowerCase() === typeNorm.toLowerCase()))
+            );
+
+            if (option) {
+                const price = option.last > 0 ? option.last : (option.bid + option.ask) / 2 || 0;
+                results.push({
+                    ...leg,
+                    success: true,
+                    price,
+                    symbol: option.symbol || generateOCCSymbol(leg.ticker, exp, leg.type, leg.strike),
+                    data: option,
+                    priceSource: option.last > 0 ? 'last' : 'mid',
+                    bid: option.bid,
+                    ask: option.ask,
+                    ...validateGreeks(
+                        { delta: option.delta, gamma: option.gamma, theta: option.theta, vega: option.vega, iv: option.iv },
+                        option.underlyingPrice || 0,
+                        strikeNum,
+                        option.dte || 30,
+                        leg.type
+                    ),
+                    dataSource: 'Polygon.io'
+                });
+            } else {
+                results.push({ ...leg, success: false, error: 'Option not found in chain' });
+            }
+        }
+
         if (legs.length === 1) {
             return res.status(results[0].success ? 200 : 404).json(results[0]);
         }
         return res.status(200).json({ success: true, results, timestamp: Date.now() });
-
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }

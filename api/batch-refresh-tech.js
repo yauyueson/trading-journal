@@ -88,9 +88,15 @@ export default async function handler(req, res) {
 
         const uniqueTickers = Array.from(tickerMap.keys()).slice(0, Number(limit));
         const forceUpdate = (req.body && req.body.force === true) || (req.query && req.query.force === 'true');
+        const delayMs = Number(process.env.BATCH_REFRESH_DELAY_MS || 0);
 
+        let firstInLoop = true;
         for (const ticker of uniqueTickers) {
             try {
+                if (!firstInLoop && delayMs > 0) {
+                    await new Promise(r => setTimeout(r, delayMs));
+                }
+                firstInLoop = false;
                 const positionList = tickerMap.get(ticker);
 
                 // Staleness Check: If NOT forced, check if already updated today (NY Time)

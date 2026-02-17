@@ -26,29 +26,17 @@ function getSupabase() {
 }
 
 async function fetchTickerIV(ticker) {
-    // Dynamic import to avoid load-time errors if not available
-    const { getOptionChain, getUnderlyingPrice } = await import('../lib/polygon-client.js');
+    const { getOptionChain } = await import('../lib/polygon-client.js');
 
     try {
-        const underlyingPrice = await getUnderlyingPrice(ticker);
+        // Single chain per ticker (2 API calls: contracts + snapshot) covering DTE 23–97; derive IV30/IV90 in memory
+        const chain = await getOptionChain(ticker, { minDte: 23, maxDte: 97 });
+        if (!chain || chain.length === 0) return null;
+
+        const underlyingPrice = chain.find(o => o.underlyingPrice > 0)?.underlyingPrice ?? null;
         if (!underlyingPrice) return null;
 
-        // Fetch just DTE 30 and 90 to save bandwidth/time
-        // We utilize strike padding to reduce data size
-        const strikePadding = 0.20;
-        const minStrike = underlyingPrice * (1 - strikePadding);
-        const maxStrike = underlyingPrice * (1 + strikePadding);
-        const filters = { minStrike, maxStrike };
-
-        const [chain30, chain90] = await Promise.all([
-            getOptionChain(ticker, { dte: 30, ...filters }),
-            getOptionChain(ticker, { dte: 90, ...filters })
-        ]);
-
-        const combined = [...(chain30 || []), ...(chain90 || [])];
-        if (combined.length === 0) return null;
-
-        const fullChain = parseChain(combined, underlyingPrice);
+        const fullChain = parseChain(chain, underlyingPrice);
         const structure = buildIVTermStructure(fullChain, underlyingPrice);
 
         return {
@@ -56,7 +44,6 @@ async function fetchTickerIV(ticker) {
             iv30: structure.iv30,
             iv90: structure.iv90
         };
-
     } catch (e) {
         console.warn(`Error fetching IV for ${ticker}:`, e.message);
         return null;
@@ -97,24 +84,13 @@ export default async function handler(req, res) {
     const results = [];
     const snapshots = [];
 
-    // process sequentially to be kind to API limits if many tickers
-    // but Cron can be faster. Polygon 5/sec limit? 5/min limit on free?
-    // If free tier, we MUST delay.
-    // Assuming mostly free tier for this user base or "Starter".
-    // 5 req/min is very slow. 
-    // Let's settle for a safe delay if we suspect free tier. 
-    // If user has paid tier, they can reduce delay.
-    const DELAY_MS = 2000; // 2s delay = ~30/min. Too fast for free tier (5/min). 
-    // If popular tickers ~20 + active ~5 = 25. 25 * 12s = 300s = 5 mins. 
-    // Vercel timeout is 10s (free) or 60s (pro). 
-    // If we have many tickers and free tier, we might timeout.
-    // We'll try to do best effort.
+    // Paid tier: 100 req/s. Short delay (200–500 ms) between tickers only to avoid single-second spike if 50+ tickers.
+    const DELAY_MS = Number(process.env.CRON_IV_DELAY_MS || 300);
 
     for (let i = 0; i < allTickers.length; i++) {
         const ticker = allTickers[i];
 
-        // Simple rate limiting
-        if (i > 0) await new Promise(r => setTimeout(r, DELAY_MS));
+        if (i > 0 && DELAY_MS > 0) await new Promise(r => setTimeout(r, DELAY_MS));
 
         const data = await fetchTickerIV(ticker);
         if (data && data.iv30) {

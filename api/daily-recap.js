@@ -161,23 +161,37 @@ export default async function handler(req, res) {
     const dataSource = process.env.DATA_SOURCE || 'CBOE';
     const optionChains = {};
 
-    // Use Polygon.io for real-time quotes
     if (dataSource === 'POLYGON') {
       try {
         const { getOptionChain } = await import('../lib/polygon-client.js');
+        const sequentialThreshold = Number(process.env.ALERT_CHAIN_SEQUENTIAL_THRESHOLD || 50);
+        const delayMs = Number(process.env.ALERT_CHAIN_DELAY_MS || 100);
 
-        await Promise.all(uniqueTickers.map(async function (ticker) {
-          try {
-            const chain = await getOptionChain(ticker, {});
-            optionChains[ticker] = chain || [];
-          } catch (e) {
-            console.warn('Polygon fetch failed for', ticker, e.message);
-            optionChains[ticker] = [];
+        if (uniqueTickers.length >= sequentialThreshold) {
+          for (let i = 0; i < uniqueTickers.length; i++) {
+            if (i > 0 && delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
+            const ticker = uniqueTickers[i];
+            try {
+              const chain = await getOptionChain(ticker, {});
+              optionChains[ticker] = chain || [];
+            } catch (e) {
+              console.warn('Polygon fetch failed for', ticker, e.message);
+              optionChains[ticker] = [];
+            }
           }
-        }));
+        } else {
+          await Promise.all(uniqueTickers.map(async function (ticker) {
+            try {
+              const chain = await getOptionChain(ticker, {});
+              optionChains[ticker] = chain || [];
+            } catch (e) {
+              console.warn('Polygon fetch failed for', ticker, e.message);
+              optionChains[ticker] = [];
+            }
+          }));
+        }
       } catch (importErr) {
         console.error('Failed to import polygon-client (lib):', importErr);
-        // Fall back to CBOE below
       }
     }
 
