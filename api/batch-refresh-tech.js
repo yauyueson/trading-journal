@@ -61,7 +61,7 @@ export default async function handler(req, res) {
             const { data, error } = await supabase
                 .from('positions')
                 .select('id, ticker, status, tech_score_source, tech_score_updated_at')
-                .neq('status', 'CLOSED'); // Assuming 'CLOSED' is the status for closed
+                .eq('status', 'active'); // Only active positions (same as Portfolio page)
 
             if (error) throw error;
             if (data) positions = data;
@@ -140,10 +140,9 @@ export default async function handler(req, res) {
                 for (const pos of positionList) {
                     const updates = {
                         tech_score_auto: scoreResult.techScore,
-                        tech_last_price: lastPrice,
-                        tech_data: scoreResult, // Save full debug object
                         tech_score_updated_at: new Date().toISOString()
                     };
+                    // Only include columns that exist in your schema; omit tech_last_price/tech_data if not migrated
 
                     // Logic: If Manual Override is NOT set, update the main tech_score
                     if (pos.tech_score_source !== 'manual') {
