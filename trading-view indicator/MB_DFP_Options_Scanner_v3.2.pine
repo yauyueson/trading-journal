@@ -712,7 +712,7 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
         else
             sig := "👀 WATCH · PUT"
 
-    [comp, sig, sn, st, sc, mb, bxs, bxl, d8, rvu or rvd, rvol_2bar, regime_str, overext, mtf_conflict, adx_v, hv_env_str, hv_expensive, is_earn_near]
+    [comp, sig, sn, st, sc, mb, bxs, bxl, d8, d21, rvu or rvd, rvol_2bar, regime_str, overext, mtf_conflict, adx_v, hv_env_str, hv_expensive, is_earn_near]
 
 // ==========================================
 // 6. SCANNER EXECUTION
@@ -727,7 +727,7 @@ if barstate.islast and show_scanner
         if str.length(sym) < 1
             continue
 
-        [s_comp, s_sig, s_setup, s_stype, s_conf, s_mb, s_bxs, s_bxl, s_d8, s_rev, s_rvol, s_regime, s_overext, s_mtf, s_adx, s_hv_env, s_hv_exp, s_earn] = request.security(sym, timeframe.period, s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2), ignore_invalid_symbol=true)
+        [s_comp, s_sig, s_setup, s_stype, s_conf, s_mb, s_bxs, s_bxl, s_d8, s_d21, s_rev, s_rvol, s_regime, s_overext, s_mtf, s_adx, s_hv_env, s_hv_exp, s_earn] = request.security(sym, timeframe.period, s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2), ignore_invalid_symbol=true)
 
         // [FIX-5] mtf_tag appended only for display, not for regime comparison
         s_mtf_final = s_mtf
@@ -825,9 +825,12 @@ if barstate.islast and show_scanner
                         if is_hv_exp
                             struct_rec := "Credit Put Spread"
                             portal_eng := "CSQ·HiIV breakout"
-                        else
+                        else if hv_s == "Lo"
                             struct_rec := "Long Call"
                             portal_eng := "LOQ·Lambda"
+                        else
+                            struct_rec := "Debit Call Spread"
+                            portal_eng := "DSQ·Breakout"
                     else if regime_s == "Trend" and not has_vol
                         struct_rec := "⏳ Low RVOL"
                         portal_eng := "Wait: breakout needs volume"
@@ -839,9 +842,12 @@ if barstate.islast and show_scanner
                         if is_hv_exp
                             struct_rec := "Credit Call Spread"
                             portal_eng := "CSQ·HiIV breakdown"
-                        else
+                        else if hv_s == "Lo"
                             struct_rec := "Long Put"
                             portal_eng := "LOQ·Lambda"
+                        else
+                            struct_rec := "Debit Put Spread"
+                            portal_eng := "DSQ·Breakdown"
                     else if regime_s == "Trend" and not has_vol
                         struct_rec := "⏳ Low RVOL"
                         portal_eng := "Wait: breakdown needs volume"
@@ -879,7 +885,11 @@ if barstate.islast and show_scanner
             else if str.contains(s_setup, "Strong") or str.contains(s_setup, "Trend")
                 if s_stype == "CALL"
                     if regime_s == "Trend"
-                        if is_hv_exp
+                        // [FIX-8] Mean Reversion Guard for late trend entries
+                        if s_d8 > 3.0 or s_d21 > 5.0
+                            struct_rec := "⚠️ Wait for Pullback"
+                            portal_eng := "Wait: High Mean Reversion Risk"
+                        else if is_hv_exp
                             struct_rec := "Credit Put Spread"
                             portal_eng := "CSQ·High POP, HiIV"
                         else
@@ -890,7 +900,11 @@ if barstate.islast and show_scanner
                         portal_eng := "Wait: trend unconfirmed"
                 else  // PUT: Strong Down
                     if regime_s == "Trend"
-                        if is_hv_exp
+                        // [FIX-8] Mean Reversion Guard for late breakdown entries
+                        if s_d8 < -3.0 or s_d21 < -5.0
+                            struct_rec := "⚠️ Wait for Bounce"
+                            portal_eng := "Wait: High Mean Reversion Risk"
+                        else if is_hv_exp
                             struct_rec := "Credit Call Spread"
                             portal_eng := "CSQ·High POP, HiIV"
                         else
@@ -925,9 +939,9 @@ if barstate.islast and show_scanner
                         struct_rec := "⏳ ADX<25"
                         portal_eng := "Wait: directional but no trend"
 
-            // ── GENERIC BULLISH / BEARISH (weakest directed setups) ──
+            // ── GENERIC BULLISH / BEARISH / MIXED ──
             // [FIX-A] Now gives conservative recs when score >= 75 + regime fits
-            else if str.contains(s_setup, "Bullish") or str.contains(s_setup, "Bearish")
+            else if str.contains(s_setup, "Bullish") or str.contains(s_setup, "Bearish") or str.contains(s_setup, "Mixed")
                 if regime_s == "Range"
                     if hv_s == "Lo"
                         struct_rec := "⏳ IV too low for IC"

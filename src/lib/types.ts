@@ -8,6 +8,7 @@ export interface Position {
     expiration: string;
     status: 'watchlist' | 'active' | 'closed';
     setup: string;
+    strategy?: string;
     entry_score: number;
     current_score: number;
     entry_loq_score?: number;
@@ -105,6 +106,7 @@ export interface DirectAddItem {
     type: string;
     expiration: string;
     setup: string;
+    strategy?: string;
     entry_score: number;
     stop_reason?: string;
     quantity: number;

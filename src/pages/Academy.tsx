@@ -4,7 +4,7 @@ import { BookOpen, Search, Info, Brain, Zap, Clock, Shield, BarChart2, TrendingU
 interface GlossaryItem {
     id: string;
     term: string;
-    category: 'Metric' | 'Concept' | 'Structure' | 'Greek' | 'Strategy' | 'Risk';
+    category: 'Metric' | 'Concept' | 'Structure' | 'Greek' | 'Strategy' | 'Risk' | 'Setup';
     explanation: string;
     formula?: string;
     whyItMatters: string;
@@ -177,6 +177,88 @@ const GLOSSARY: GlossaryItem[] = [
         formula: 'f* = (p(b+1) - 1) ÷ b',
         explanation: '这是赌博理论和投资管理中的圣杯公式，由香农的同事 John Kelly 提出。它解决了一个终极问题：\n“假设我知道这场赌局的胜率是 60%，赔率是 1:1，我每一把到底该下注多少本金，才能让我的财富增长最快，同时永远不破产？”\n\n答案不是 100%，也不是 1%。凯利公式能给出一个精确的数学最优解。如果超过这个比例（Over-betting），长期来看你的收益反而会下降，甚至归零；如果低于这个比例，你的资金利用率不足。\n\n在期权交易中，由于参数（胜率p）是估算的，为了安全起见，专业交易员通常使用 "Half-Kelly"（半凯利）甚至 "Quarter-Kelly"（1/4 凯利）来决定仓位大小，给自己留足安全边际。',
         whyItMatters: '很多交易员死于重仓。凯利公式告诉你：即使你有 99% 的胜率，如果在这一次梭哈，你最终破产的概率也是 100%。通常使用 "Half-Kelly" 来控制风险。'
+    },
+
+    // --- PINE SCRIPT SETUPS ---
+    {
+        id: 'setup-perfect-storm',
+        term: 'Perfect Storm',
+        category: 'Setup',
+        icon: Zap,
+        explanation: '最高确信度！所有 7 个指标全部协同一致（MB 强信号 + BXS/BXL 多头 + EMA 完美排列 + 趋势确认交叉 + 看涨/看跌堆叠）。\n\n触发条件：\n• MB 强信号 (Strong Bull/Bear)\n• BXS 方向确认 + 反转或动量交叉\n• BXL 同方向\n• EMA 完美堆叠 (Bull Stack 或 Bear Stack)\n• 价格在 EMA8 之上/之下\n\n策略映射：\n• 低 HV → Long Call / Long Put（利用便宜的权利金）\n• 中 HV → Debit Spread（降低成本）\n• 高 HV → Credit Spread（收割高波动率溢价）',
+        whyItMatters: '罕见但胜率极高。当 Perfect Storm 出现在 ADX 确认趋势时，可考虑最大仓位。'
+    },
+    {
+        id: 'setup-breakout',
+        term: 'Breakout / Breakdown',
+        category: 'Setup',
+        icon: TrendingUp,
+        explanation: '价格突破关键阻力/支撑，伴随 EMA 堆叠和动量确认。\n\n触发条件：\n• MB 大于 2（看涨振荡）\n• BXS > 10 + BXL > 5（双重动量确认）\n• EMA8 之上且趋势抬头\n• d8 > 1且 d21 > 0（价格在短期和中期均线上方）\n\n⚠️ 需要 ADX > 25（趋势确认）+ RVOL（成交量支持）\n\n策略映射：\n• 低 HV → Long Call / Long Put（爆发力最大化）\n• 高 HV → Credit Spread（在突破方向收割溢价）\n• ADX < 25 或 RVOL 不足 → ⏳ 等待确认',
+        whyItMatters: '经 RVOL 过滤后的突破信号可靠性更高。无量突破（Low RVOL）会被标记为「⏳ Low RVOL」等待状态。'
+    },
+    {
+        id: 'setup-strong-trend',
+        term: 'Strong Trend / Strong Down',
+        category: 'Setup',
+        icon: TrendingUp,
+        explanation: '强劲持续趋势，方向明确但不如 Perfect Storm 那样所有指标都齐。\n\n触发条件：\n• MB 大于 2（看涨）或小于 -2（看跌）\n• BXS > 5 + BXL > 8（核心振荡器同向）\n• d8 在趋势方向\n• [v3.2B] 不再要求完美 EMA 堆叠\n\n策略映射：高 POP 的 Credit Spread\n• ADX > 25（趋势确认）→ Credit Put/Call Spread\n• ADX < 25 → ⏳ 等待趋势确认',
+        whyItMatters: 'Strong Trend 适合保守的信用策略 (Credit Spread)，因为趋势方向明确但可能没有完美的动量共振。'
+    },
+    {
+        id: 'setup-pullback-buy',
+        term: 'Pullback Buy',
+        category: 'Setup',
+        icon: TrendingUp,
+        explanation: '牛市趋势中的健康回调——上升趋势完好，但短期出现买入机会。\n\n触发条件：\n• MB 看涨 + 振荡值 > 1\n• BXS > 0 且无下跌交叉\n• BXL > 0（大趋势看涨）\n• 价格接近 EMA21 或 EMA34（触碰支撑）\n• d8 > -2（价格未远离均线）\n• [v3.3] RVOL 必须收缩（健康缩量回调，而非分配）\n\n⚠️ 如果 RVOL 偏高，会被标记为 Vol Distribution（量大回调=不健康）\n\n策略映射：ADX > 25 时 → Credit Put Spread',
+        whyItMatters: 'RVOL 过滤是关键！缩量回调是健康的（买入机会），放量回调是危险的（分配信号）。'
+    },
+    {
+        id: 'setup-failed-rally',
+        term: 'Failed Rally',
+        category: 'Setup',
+        icon: TrendingUp,
+        explanation: '下跌趋势中的虚假反弹——熊市趋势完好，但短期反弹被宏观空头结构否定。\n\n触发条件（Pullback Buy 的看跌镜像）：\n• MB 看跌 + 振荡值 < -1\n• BXS < 0 且无上升交叉\n• BXL < 0（大趋势看跌）\n• 价格接近 EMA21/EMA34（触碰阻力）\n• d8 < 2（价格没有远离均线）\n• [v3.3] RVOL 必须收缩\n\n⚠️ 如果 RVOL 偏高 → Vol Accumulation（量大反弹=吸筹信号）\n\n策略映射：ADX > 25 时 → Credit Call Spread',
+        whyItMatters: '与 Pullback Buy 对称。卖家在「反弹失败」时入场做空是高概率策略。'
+    },
+    {
+        id: 'setup-divergence',
+        term: 'Divergence',
+        category: 'Setup',
+        icon: Activity,
+        explanation: '振荡器与价格走势出现分歧——潜在的反转信号。\n\n触发条件：\n• MB 看涨信号或振荡值 > 0\n• BXS 出现反转上升 (rev_up)\n• BXS > -10（不是极度看跌）\n• 价格在 EMA8 之上（开始走强）\n\n这是最低确信度 (conf=1) 的看涨信号，因为背离可以持续很长时间而不会触发真正的反转。\n\n策略映射：一般需要等待更多确认。',
+        whyItMatters: '背离是预警信号而非立即行动信号。确信度最低 (conf=1)，仓位应该最小。'
+    },
+    {
+        id: 'setup-distribution',
+        term: 'Distribution',
+        category: 'Setup',
+        icon: Activity,
+        explanation: '看跌背离信号——大资金正在离场。\n\n触发条件（Divergence 的看跌镜像）：\n• MB 看跌信号或振荡值 < 0\n• BXS 出现反转下降 (rev_dn)\n• BXS < 10\n• 价格在 EMA8 之下\n\n策略映射：ADX > 25 时 → Credit Call Spread',
+        whyItMatters: 'Distribution + 确认趋势 = 看跌的 Credit 策略。确信度最低。'
+    },
+    {
+        id: 'setup-directional',
+        term: 'Directional',
+        category: 'Setup',
+        icon: TrendingUp,
+        explanation: '[v3.2B 新增] 方向性 Catch-all。三个核心振荡器协同一致但没有达到更高级别 Setup 的门槛。\n\n触发条件：\n• MB 看涨 + BXS > 0 + BXL > 0\n• d8 > -1（价格接近均线上方）\n• 近 3 根 K 线有实际价格进展\n\n策略映射：\n• ADX > 25 + 高 HV → Credit Spread\n• ADX > 25 + 正常 HV → Debit Spread\n• ADX < 25 → ⏳ 等待',
+        whyItMatters: '比 Bullish/Bearish 更有方向性边际但低于 Breakout/Strong Trend。适合小仓位试探。'
+    },
+    {
+        id: 'setup-bullish-bearish',
+        term: 'Bullish / Bearish',
+        category: 'Setup',
+        icon: TrendingUp,
+        explanation: '最低级别的方向性信号——仅 MB + BXS 方向一致，但没有足够的动量或结构支撑。\n\n触发条件：\n• MB 看涨 + BXS > 0（但其余条件不满足更高级别 Setup）\n\n策略映射：\n• Range 环境 + 中/高 HV → **Iron Condor**（两侧收租）\n• Range 环境 + 低 HV → ⏳ 等待（溢价不足）\n• Trend 环境 + Score ≥ 75 → Credit Spread（小仓位试单）\n• 其他 → ⏳ 等待（没有明确边际）',
+        whyItMatters: '这是 Iron Condor 的主要触发场景——弱方向性 + Range 环境。'
+    },
+    {
+        id: 'setup-mixed',
+        term: 'Mixed',
+        category: 'Setup',
+        icon: AlertTriangle,
+        explanation: '无清晰方向——指标之间互相矛盾或都在中性区域。\n\n这是默认状态，Score 硬性上限 55 分，不会触发任何策略推荐。\n\n对应 Pine Script: 「— Mixed / No clear structure」',
+        whyItMatters: '出现 Mixed 时，最佳策略是等待。不交易也是交易的一部分。'
     }
 ];
 
@@ -184,7 +266,7 @@ export const Academy: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-    const categories = ['Metric', 'Greek', 'Strategy', 'Concept', 'Structure'];
+    const categories = ['Metric', 'Greek', 'Strategy', 'Setup', 'Concept', 'Structure'];
 
     const filteredGlossary = GLOSSARY.filter(item => {
         const matchesSearch = item.term.toLowerCase().includes(searchQuery.toLowerCase()) ||

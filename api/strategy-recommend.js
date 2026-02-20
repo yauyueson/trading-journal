@@ -47,7 +47,7 @@ function _dbg(payload) {
 // #endregion
 
 let compressLambda, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
-    calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, zScoresByBucket, HARD_FILTER_DEFAULTS,
+    calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, zScoresByBucket, HARD_FILTER_DEFAULTS, HARD_FILTER_CREDIT,
     getIVRiskFactor, getIVAdjustment, getIVRankAdjustment, getRelativeIVAdjustmentLOQ, getRelativeIVAdjustmentCSQ,
     calculateLOQRaw, normalizeScoreTo100, normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct,
     getCleanATM_IV, calculateTargetIV, buildIVTermStructure, parseChain, calculateSkew, estimateSlippage, getGammaRiskPenalty,
@@ -73,6 +73,7 @@ async function ensureScoring() {
     zScores = scoring.zScores;
     zScoresByBucket = scoring.zScoresByBucket;
     HARD_FILTER_DEFAULTS = scoring.HARD_FILTER_DEFAULTS;
+    HARD_FILTER_CREDIT = scoring.HARD_FILTER_CREDIT;
     getIVRiskFactor = scoring.getIVRiskFactor;
     getIVAdjustment = scoring.getIVAdjustment;
     getIVRankAdjustment = scoring.getIVRankAdjustment;
@@ -494,11 +495,12 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             // Liquidity Guard (Composite)
             if (shortLeg.bid <= 0 || longLeg.ask <= 0) continue;
 
-            // Hard filters on both legs
+            // Hard filters on both legs — credit spreads use stricter tier
+            const HF = HARD_FILTER_CREDIT;
             const shortMid = (shortLeg.bid + shortLeg.ask) / 2;
             const longMid = (longLeg.bid + longLeg.ask) / 2;
-            if (shortMid < HARD_FILTER_DEFAULTS.minMid || longMid < HARD_FILTER_DEFAULTS.minMid) continue;
-            if (shortLeg.openInterest < HARD_FILTER_DEFAULTS.minOpenInterest || longLeg.openInterest < HARD_FILTER_DEFAULTS.minOpenInterest) continue;
+            if (shortMid < HF.minMid || longMid < HF.minMid) continue;
+            if (shortLeg.openInterest < HF.minOpenInterest || longLeg.openInterest < HF.minOpenInterest) continue;
             const spreadBid = shortLeg.bid - longLeg.ask;
             const spreadAsk = shortLeg.ask - longLeg.bid;
             const spreadMid = (spreadBid + spreadAsk) / 2;
@@ -553,7 +555,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             const effectiveROI = (effectiveCredit / effectiveMaxRisk) * 100;
 
             // Use consistent spread ceiling across all strategies
-            if (spreadPct > HARD_FILTER_DEFAULTS.maxSpreadPctCeiling) continue;
+            if (spreadPct > HF.maxSpreadPctCeiling) continue;
 
             // Scoring (v2.2 — EV-enhanced + Slippage)
             const ev = calculateExpectedValue(pop, effectiveCredit, effectiveMaxRisk);
@@ -896,6 +898,188 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, iv
             recommendation: { action: 'BUY (Open)', note }
         };
     }).sort((a, b) => b.score - a.score).slice(0, 5);
+}
+
+// =============================================================================
+// IRON CONDOR BUILDER
+// =============================================================================
+
+function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false) {
+    const results = [];
+    const widths = customWidth ? [customWidth] : [5, 10];
+    const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short');
+    const HF = HARD_FILTER_CREDIT;
+
+    // Find unique expirations that have both put and call options
+    const expirations = [...new Set(chain.map(o => o.expiration))];
+
+    for (const exp of expirations) {
+        const expChain = chain.filter(o => o.expiration === exp);
+        const dte = expChain[0]?.dte;
+        if (!dte || dte < 21 || dte > 60) continue; // IC sweet spot: 21-60 DTE
+
+        // Earnings guard: skip if earnings fall within DTE
+        const includesEarnings = daysUntilEarnings !== null && daysUntilEarnings <= dte && daysUntilEarnings >= 0;
+        if (includesEarnings && daysUntilEarnings <= 10) continue;
+
+        // Find short put candidates (below price, 15-25Δ)
+        const shortPuts = expChain.filter(o =>
+            o.type === 'Put' &&
+            Math.abs(o.delta) >= 0.15 &&
+            Math.abs(o.delta) <= 0.25 &&
+            o.bid > 0 && o.ask > 0
+        );
+
+        // Find short call candidates (above price, 15-25Δ)
+        const shortCalls = expChain.filter(o =>
+            o.type === 'Call' &&
+            Math.abs(o.delta) >= 0.15 &&
+            Math.abs(o.delta) <= 0.25 &&
+            o.bid > 0 && o.ask > 0
+        );
+
+        for (const shortPut of shortPuts) {
+            for (const shortCall of shortCalls) {
+                // Short call must be above current price, short put below
+                if (shortCall.strike <= currentPrice || shortPut.strike >= currentPrice) continue;
+
+                for (const width of widths) {
+                    // Long legs: further OTM protection
+                    const longPutStrike = shortPut.strike - width;
+                    const longCallStrike = shortCall.strike + width;
+
+                    const longPut = expChain.find(o =>
+                        o.type === 'Put' && Math.abs(o.strike - longPutStrike) < 0.1
+                    );
+                    const longCall = expChain.find(o =>
+                        o.type === 'Call' && Math.abs(o.strike - longCallStrike) < 0.1
+                    );
+
+                    if (!longPut || !longCall) continue;
+
+                    // Liquidity checks on all 4 legs
+                    const legs = [shortPut, longPut, shortCall, longCall];
+                    const allLegsOK = legs.every(l => {
+                        const mid = (l.bid + l.ask) / 2;
+                        return mid >= HF.minMid && l.openInterest >= HF.minOpenInterest;
+                    });
+                    if (!allLegsOK) continue;
+
+                    // Credit calculation: put side + call side
+                    const putCreditBid = shortPut.bid - longPut.ask;
+                    const putCreditAsk = shortPut.ask - longPut.bid;
+                    const putCredit = (putCreditBid + putCreditAsk) / 2;
+
+                    const callCreditBid = shortCall.bid - longCall.ask;
+                    const callCreditAsk = shortCall.ask - longCall.bid;
+                    const callCredit = (callCreditBid + callCreditAsk) / 2;
+
+                    if (putCredit <= 0 || callCredit <= 0) continue;
+
+                    // Spread % check on each side
+                    const putSpreadPct = putCredit > 0 ? (putCreditAsk - putCreditBid) / putCredit : 1;
+                    const callSpreadPct = callCredit > 0 ? (callCreditAsk - callCreditBid) / callCredit : 1;
+                    if (putSpreadPct > HF.maxSpreadPctCeiling || callSpreadPct > HF.maxSpreadPctCeiling) continue;
+
+                    const totalCredit = putCredit + callCredit;
+                    // Max risk = width of wider side - total credit (only one side can lose)
+                    const maxRisk = width - totalCredit;
+                    if (maxRisk <= 0) continue;
+
+                    // Slippage on all 4 legs
+                    const totalSlippage =
+                        estimateSlippage(shortPut.bid, shortPut.ask, shortPut.openInterest) +
+                        estimateSlippage(longPut.bid, longPut.ask, longPut.openInterest) +
+                        estimateSlippage(shortCall.bid, shortCall.ask, shortCall.openInterest) +
+                        estimateSlippage(longCall.bid, longCall.ask, longCall.openInterest);
+                    const effectiveCredit = totalCredit - totalSlippage;
+                    if (effectiveCredit <= 0) continue;
+
+                    const effectiveMaxRisk = width - effectiveCredit;
+                    const effectiveROI = (effectiveCredit / effectiveMaxRisk) * 100;
+                    if (effectiveROI < 8) continue; // IC needs at least 8% ROI to be worth it
+
+                    // Breakeven range
+                    const lowerBreakeven = shortPut.strike - totalCredit;
+                    const upperBreakeven = shortCall.strike + totalCredit;
+                    const rangeWidth = upperBreakeven - lowerBreakeven;
+                    const rangePct = rangeWidth / currentPrice;
+
+                    // POP estimation: probability price stays within breakeven range
+                    // Use BSM to estimate P(lowerBE < S < upperBE) at expiry
+                    const iv = (shortPut.iv + shortCall.iv) / 2 || 0.3;
+                    const T = dte / 365;
+                    const pAboveLower = _bsmN2(currentPrice, lowerBreakeven, T, iv);  // P(S > lowerBE)
+                    const pAboveUpper = _bsmN2(currentPrice, upperBreakeven, T, iv);  // P(S > upperBE)
+                    const pop = pAboveLower - pAboveUpper; // P(lowerBE < S < upperBE)
+
+                    // Wing symmetry: prefer balanced wings (short put distance ≈ short call distance)
+                    const putDistance = (currentPrice - shortPut.strike) / currentPrice;
+                    const callDistance = (shortCall.strike - currentPrice) / currentPrice;
+                    const symmetryRatio = Math.min(putDistance, callDistance) / Math.max(putDistance, callDistance);
+
+                    // Scoring: POP (40%) + Credit/Risk (25%) + Wing Symmetry (15%) + DTE curve (20%)
+                    const scorePOP = pop * 100;
+                    const scoreROI = Math.min(effectiveROI * 3, 100);
+                    const scoreSymmetry = symmetryRatio * 100;
+                    const scoreDTE = Math.round(100 * Math.exp(-0.5 * Math.pow((dte - 37) / 15, 2)));
+
+                    let finalScore = (0.40 * scorePOP) + (0.25 * scoreROI) + (0.15 * scoreSymmetry) + (0.20 * scoreDTE);
+                    finalScore += ivRankAdj * 2;
+
+                    // IV/RV bonus: IC benefits from high IV (selling premium on both sides)
+                    if (ivRvRatio != null && ivRvRatio > 1.20) finalScore += 8;
+                    if (ivRvRatio != null && ivRvRatio > 1.40) finalScore += 5;
+
+                    // Anomaly penalty: IV spike makes short-term ICs risky
+                    if (anomaly && dte <= 35) finalScore -= 25;
+                    if (includesEarnings) finalScore -= 20;
+
+                    const whyThisParts = [];
+                    if (pop > 0.50) whyThisParts.push(`${(pop * 100).toFixed(0)}% POP`);
+                    if (effectiveROI > 12) whyThisParts.push(`${effectiveROI.toFixed(0)}% ROI`);
+                    if (symmetryRatio > 0.85) whyThisParts.push('Balanced Wings');
+                    if (ivRvRatio && ivRvRatio > 1.20) whyThisParts.push('Rich Premium');
+                    if (rangePct > 0.10) whyThisParts.push(`${(rangePct * 100).toFixed(1)}% Range`);
+
+                    results.push({
+                        type: 'Iron Condor',
+                        putSide: {
+                            shortLeg: { ...shortPut, price: shortPut.bid },
+                            longLeg: { ...longPut, price: longPut.ask },
+                            credit: Number(putCredit.toFixed(2)),
+                        },
+                        callSide: {
+                            shortLeg: { ...shortCall, price: shortCall.bid },
+                            longLeg: { ...longCall, price: longCall.ask },
+                            credit: Number(callCredit.toFixed(2)),
+                        },
+                        // Unified fields for scoring compatibility
+                        shortLeg: { ...shortPut, price: shortPut.bid, dte },
+                        longLeg: { ...longPut, price: longPut.ask },
+                        width,
+                        netCredit: Number(totalCredit.toFixed(2)),
+                        maxRisk: Number(maxRisk.toFixed(2)),
+                        maxProfit: Number(totalCredit.toFixed(2)),
+                        roi: Number((totalCredit / maxRisk * 100).toFixed(1)),
+                        pop: Number((pop * 100).toFixed(1)),
+                        expectedValue: Number(((totalCredit * pop) - (maxRisk * (1 - pop))).toFixed(2)),
+                        lowerBreakeven: Number(lowerBreakeven.toFixed(2)),
+                        upperBreakeven: Number(upperBreakeven.toFixed(2)),
+                        rangePct: Number((rangePct * 100).toFixed(1)),
+                        symmetry: Number((symmetryRatio * 100).toFixed(0)),
+                        score: Math.min(100, Math.max(0, Math.round(finalScore))),
+                        whyThis: whyThisParts.join(', ') || 'Neutral Premium Collection',
+                        recommendation: {
+                            action: "SELL (Open)",
+                            note: `✅ Iron Condor: Collect $${totalCredit.toFixed(2)} credit. Price must stay between $${lowerBreakeven.toFixed(2)} and $${upperBreakeven.toFixed(2)} (${(rangePct * 100).toFixed(1)}% range). ${pop > 0.55 ? 'Good probability of profit.' : 'Moderate probability — consider widening wings.'} ${ivRvRatio && ivRvRatio > 1.20 ? 'IV premium is rich — favorable for selling.' : ''}`
+                        }
+                    });
+                }
+            }
+        }
+    }
+    return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
 // =============================================================================
@@ -1255,7 +1439,7 @@ export default async function handler(req, res) {
         } else if (decodedStrategy === 'Long Put') {
             targetRecs = scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput);
         } else if (decodedStrategy === 'Iron Condor') {
-            console.warn(`Iron Condor algorithm not yet integrated.`);
+            targetRecs = buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly);
         }
 
         // 3. Score the targeted strategy using the unified algorithm
@@ -1268,22 +1452,32 @@ export default async function handler(req, res) {
             let simCat = 'CREDIT_SPREAD';
             if (decodedStrategy.includes('Debit')) simCat = 'DEBIT_SPREAD';
             if (decodedStrategy.includes('Long')) simCat = 'SINGLE_LEG';
+            if (decodedStrategy === 'Iron Condor') simCat = 'IRON_CONDOR';
 
             const creditSpreadType = (simCat === 'CREDIT_SPREAD' && decodedStrategy.includes('Put')) ? 'Put' : 'Call';
-            const { score: unifiedScore, factors } = calculateUnifiedScore(
-                rec,
-                simCat,
-                regime.mode,
-                regime.ivRvRatio,
-                { ...unifiedOpts, skew, creditSpreadType }
-            );
 
-            rec.setup = decodedSetup;
-            rec.strategyCategory = simCat;
-            rec.unifiedScore = unifiedScore;
-            // Overwrite the normal score with unifiedScore so UI doesn't need branching
-            rec.score = unifiedScore;
-            rec.factors = factors || [];
+            // Iron Condor has its own comprehensive scorer — skip unified re-scoring
+            if (simCat === 'IRON_CONDOR') {
+                rec.setup = decodedSetup;
+                rec.strategyCategory = simCat;
+                rec.unifiedScore = rec.score;
+                rec.factors = rec.factors || [];
+            } else {
+                const { score: unifiedScore, factors } = calculateUnifiedScore(
+                    rec,
+                    simCat,
+                    regime.mode,
+                    regime.ivRvRatio,
+                    { ...unifiedOpts, skew, creditSpreadType, setup: decodedSetup }
+                );
+
+                rec.setup = decodedSetup;
+                rec.strategyCategory = simCat;
+                rec.unifiedScore = unifiedScore;
+                // Overwrite the normal score with unifiedScore so UI doesn't need branching
+                rec.score = unifiedScore;
+                rec.factors = factors || [];
+            }
         }
         targetRecs.sort((a, b) => b.unifiedScore - a.unifiedScore);
 

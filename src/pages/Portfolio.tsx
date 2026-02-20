@@ -8,7 +8,7 @@ import { DataFooter } from '../components/DataFooter';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
-import { SETUPS, formatCurrency } from '../lib/utils';
+import { SETUPS, STRATEGIES, formatCurrency } from '../lib/utils';
 
 interface PortfolioPageProps {
     positions: Position[];
@@ -38,7 +38,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     const [positionType, setPositionType] = useState<'single' | 'credit' | 'debit'>('single');
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
-    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '' });
+    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: 'Credit Put Spread', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '' });
     const [bulkData, setBulkData] = useState<Record<string, any>>({});
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -178,6 +178,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 type: form.type,
                 expiration: form.expiration,
                 setup: form.setup,
+                strategy: form.strategy,
                 entry_score: parseInt(form.entry_score),
                 tech_score: form.tech_score ? parseInt(form.tech_score) : undefined,
                 stop_reason: form.stop_reason,
@@ -205,6 +206,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 type: typeName,
                 expiration: form.expiration,
                 setup: form.setup,
+                strategy: form.strategy,
                 entry_score: parseInt(form.entry_score),
                 tech_score: form.tech_score ? parseInt(form.tech_score) : undefined,
                 stop_reason: form.stop_reason,
@@ -216,7 +218,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
         }
 
         setSubmitting(false);
-        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '' });
+        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: 'Credit Put Spread', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '' });
         setPositionType('single');
         setShowForm(false);
     };
@@ -467,17 +469,30 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             </div>
 
                             {positionType === 'single' && (
-                                <div className="space-y-1.5">
-                                    <label htmlFor="setup">Setup Strategy</label>
-                                    <select
-                                        id="setup"
-                                        className="input-field"
-                                        value={form.setup}
-                                        onChange={e => setForm({ ...form, setup: e.target.value })}
-                                    >
-                                        {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                </div>
+                                <>
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="setup">Setup</label>
+                                        <select
+                                            id="setup"
+                                            className="input-field"
+                                            value={form.setup}
+                                            onChange={e => setForm({ ...form, setup: e.target.value })}
+                                        >
+                                            {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="strategy-single">Strategy</label>
+                                        <select
+                                            id="strategy-single"
+                                            className="input-field"
+                                            value={form.strategy}
+                                            onChange={e => setForm({ ...form, strategy: e.target.value })}
+                                        >
+                                            {STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                </>
                             )}
                         </div>
 
@@ -485,14 +500,25 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                         {positionType !== 'single' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                 <div className="space-y-1.5">
-                                    <label htmlFor="setup">Setup Strategy</label>
+                                    <label htmlFor="setup-spread">Setup</label>
                                     <select
-                                        id="setup"
+                                        id="setup-spread"
                                         className="input-field"
                                         value={form.setup}
                                         onChange={e => setForm({ ...form, setup: e.target.value })}
                                     >
                                         {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label htmlFor="strategy-spread">Strategy</label>
+                                    <select
+                                        id="strategy-spread"
+                                        className="input-field"
+                                        value={form.strategy}
+                                        onChange={e => setForm({ ...form, strategy: e.target.value })}
+                                    >
+                                        {STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
                                     </select>
                                 </div>
                             </div>

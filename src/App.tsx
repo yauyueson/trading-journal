@@ -166,6 +166,7 @@ function App() {
             type: item.type,
             expiration: item.expiration, // Ensure YYYY-MM-DD
             setup: item.setup,
+            strategy: item.strategy || item.type,
             status: 'active',
             entry_score: item.entry_score,
             current_score: item.entry_score,

@@ -6,7 +6,7 @@ import { ScoreFactorsView } from '../components/ScoreFactorsView';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { getSuggestedContracts } from '../lib/riskSizing';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, SETUPS, STRATEGIES } from '../lib/utils';
 import type {
     SpreadRecommendation,
     SingleLegRecommendation,
@@ -349,21 +349,10 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                 className="w-full bg-[#000] border border-[#333] text-white rounded-lg px-4 py-3 focus:outline-none focus:border-accent-green appearance-none cursor-pointer text-lg font-bold tracking-wide transition-colors"
                             >
                                 <option value="" disabled>Select Setup</option>
-                                <option value="Perfect Storm">Perfect Storm</option>
-                                <option value="Breakout">Breakout</option>
-                                <option value="Breakdown">Breakdown</option>
-                                <option value="Pullback Buy">Pullback Buy</option>
-                                <option value="Pullback Sell">Pullback Sell</option>
-                                <option value="Divergence Buy">Divergence Buy</option>
-                                <option value="Divergence Sell">Divergence Sell</option>
-                                <option value="Failed Rally">Failed Rally</option>
-                                <option value="Distribution">Distribution</option>
-                                <option value="Strong Trend">Strong Trend</option>
-                                <option value="Strong Down">Strong Down</option>
-                                <option value="Directional">Directional</option>
-                                <option value="Bullish">Bullish</option>
-                                <option value="Bearish">Bearish</option>
-                                <option value="Mixed">Mixed</option>
+                                {SETUPS.filter(s => s !== 'Other').map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                ))}
+                                <option value="Other">Other</option>
                             </select>
                         </div>
                         <div className="md:col-span-4">
@@ -373,13 +362,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                 onChange={(e) => setTargetStrategy(e.target.value)}
                                 className="w-full bg-[#000] border border-[#333] text-white rounded-lg px-4 py-3 focus:outline-none focus:border-accent-green appearance-none cursor-pointer text-lg font-bold tracking-wide transition-colors"
                             >
-                                <option value="Credit Put Spread">Credit Put Spread</option>
-                                <option value="Debit Call Spread">Debit Call Spread</option>
-                                <option value="Long Call">Long Call</option>
-                                <option value="Credit Call Spread">Credit Call Spread</option>
-                                <option value="Debit Put Spread">Debit Put Spread</option>
-                                <option value="Long Put">Long Put</option>
-                                <option value="Iron Condor">Iron Condor</option>
+                                {STRATEGIES.map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                ))}
                             </select>
                         </div>
                     </div>

@@ -19,6 +19,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions, transactions, l
         let totalPnL = 0, wins = 0, losses = 0, totalWinPnL = 0, totalLossPnL = 0;
         const setupStats: Record<string, { wins: number; losses: number; pnl: number }> = {};
         const strategyStats: Record<string, { wins: number; losses: number; pnl: number }> = {};
+        const crossTabStats: Record<string, { wins: number; losses: number; pnl: number }> = {};
 
         closedPositions.forEach(p => {
             const txns = transactions.filter(t => t.position_id === p.id);
@@ -44,6 +45,13 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions, transactions, l
             strategyStats[strategyType].pnl += pnl;
             if (pnl >= 0) strategyStats[strategyType].wins++;
             else strategyStats[strategyType].losses++;
+
+            // Setup × Strategy cross-tab
+            const crossKey = `${p.setup || 'Unknown'}|${p.strategy || p.type || 'Unknown'}`;
+            if (!crossTabStats[crossKey]) crossTabStats[crossKey] = { wins: 0, losses: 0, pnl: 0 };
+            crossTabStats[crossKey].pnl += pnl;
+            if (pnl >= 0) crossTabStats[crossKey].wins++;
+            else crossTabStats[crossKey].losses++;
         });
 
         const winRate = closedPositions.length > 0 ? (wins / closedPositions.length) * 100 : 0;
@@ -51,7 +59,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions, transactions, l
         const avgLoss = losses > 0 ? totalLossPnL / losses : 0;
         const profitFactor = totalLossPnL !== 0 ? Math.abs(totalWinPnL / totalLossPnL) : totalWinPnL > 0 ? Infinity : 0;
 
-        return { totalPnL, wins, losses, winRate, avgWin, avgLoss, profitFactor, setupStats, strategyStats };
+        return { totalPnL, wins, losses, winRate, avgWin, avgLoss, profitFactor, setupStats, strategyStats, crossTabStats };
     }, [closedPositions, transactions]);
 
     if (loading) return <LoadingSpinner />;
@@ -68,12 +76,12 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions, transactions, l
                         type="button"
                         onClick={() => setOwnerFilter(value)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${ownerFilter === value
-                                ? value === 'Yuchen'
-                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                    : value === 'Annie'
-                                        ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
-                                        : 'bg-white/10 text-text-primary border border-white/20'
-                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                            ? value === 'Yuchen'
+                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                : value === 'Annie'
+                                    ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
+                                    : 'bg-white/10 text-text-primary border border-white/20'
+                            : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
                             }`}
                     >
                         {value}
@@ -174,6 +182,39 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions, transactions, l
                                 );
                             })}
                     </div>
+
+                    {/* Setup × Strategy Cross-Tab */}
+                    {Object.keys(stats.crossTabStats).length > 0 && (
+                        <>
+                            <h3 className="text-lg font-semibold mb-4 mt-8 text-white/90">Setup × Strategy</h3>
+                            <div className="space-y-3">
+                                {Object.entries(stats.crossTabStats)
+                                    .sort((a, b) => b[1].pnl - a[1].pnl)
+                                    .map(([key, data]) => {
+                                        const [setup, strategy] = key.split('|');
+                                        const total = data.wins + data.losses;
+                                        const winRate = total > 0 ? (data.wins / total) * 100 : 0;
+                                        return (
+                                            <div key={key} className="card p-4 flex justify-between items-center bg-[#242426]/50">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="badge bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-xs">{setup}</span>
+                                                        <span className="text-text-tertiary">+</span>
+                                                        <span className="badge bg-violet-500/10 text-violet-400 border border-violet-500/20 text-xs">{strategy}</span>
+                                                    </div>
+                                                    <div className="text-text-secondary text-sm">
+                                                        <span className="text-accent-green">{data.wins}W</span> / <span className="text-red-400">{data.losses}L</span> · {winRate.toFixed(0)}%
+                                                    </div>
+                                                </div>
+                                                <div className={`text-xl font-bold font-mono ${data.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                                    {data.pnl >= 0 ? '+' : ''}{formatCurrency(data.pnl)}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+                        </>
+                    )}
                 </>
             )}
         </div>

@@ -47,4 +47,18 @@ export const SUPABASE_URL = 'https://irejefxhgetulqmxponl.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_STPE7Kl1Pnlwm6a-mCa-9g_U7hvret6';
 export const CONTRACT_MULTIPLIER = 100;
 
-export const SETUPS = ['Perfect Storm', 'Breakout', 'Breakdown', 'Pullback Buy', 'Pullback Sell', 'Divergence Buy', 'Divergence Sell', 'Failed Rally', 'Distribution', 'Strong Trend', 'Strong Down', 'Directional', 'Bullish', 'Bearish', 'Mixed', 'Other'];
+export const SETUPS = [
+    'Perfect Storm', 'Breakout', 'Breakdown',
+    'Strong Trend', 'Strong Down',
+    'Pullback Buy', 'Failed Rally',
+    'Divergence', 'Distribution',
+    'Directional', 'Bullish', 'Bearish',
+    'Mixed', 'Other'
+];
+
+export const STRATEGIES = [
+    'Long Call', 'Long Put',
+    'Debit Call Spread', 'Debit Put Spread',
+    'Credit Call Spread', 'Credit Put Spread',
+    'Iron Condor'
+];
