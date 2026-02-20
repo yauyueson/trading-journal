@@ -108,32 +108,105 @@ Because US equities have an inherent **bullish drift**, PUT signals are held to 
 
 ## 📈 Backtest Module
 
-The **Accuracy Table** (top-right corner) shows historical forward expectancy for each strategy type on the **current chart symbol**.
+The **Accuracy Table** (configurable position) shows historical forward expectancy for each strategy type on the **current chart symbol**. It contains two sub-modules that work together.
 
-### How it works
-- Every time the system would have recommended an **actionable strategy** (Structure column highlighted), it records the entry price.
-- After **14 bars** and **30 bars**, it evaluates whether the trade succeeded.
-- Only signals with a valid Structure recommendation are counted (⏳ Wait and ⚠️ Block states are excluded).
+---
 
-### Table Columns
-| Column | Description |
-| :--- | :--- |
-| **Count** | Number of completed trades recorded for this category |
-| **Win 14d** | % of trades profitable after 14 bars |
-| **Move 14d** | Average directional return after 14 bars |
-| **Win 30d** | % of trades profitable after 30 bars |
-| **Move 30d** | Average directional return after 30 bars |
+### Sub-Module 1: Time-Based Windows (14d / 30d)
 
-### Table Rows
+**How it works:**
+- Every time the system issues an **actionable strategy recommendation** (Structure column highlighted), it records the entry price.
+- After exactly **14 bars** and **30 bars**, it checks whether the trade was profitable.
+- Only signals with a valid Structure recommendation are counted — `⏳ Wait` and `⚠️ Block` states are excluded entirely.
+
+**Table Rows:**
 | Row | What it includes |
 | :--- | :--- |
 | **OVERALL** | All strategies combined: CALL + PUT + Iron Condor |
-| **CALL Only** | Only CALL-direction strategies (Debit Call Spread, Long Call, Credit Put Spread) |
-| **PUT Only** | Only PUT-direction strategies (filters exclude above-EMA50, RVOL < 0.8, MTF conflict) |
+| **CALL Only** | CALL-direction strategies (Debit Call Spread, Long Call, Credit Put Spread) |
+| **PUT Only** | PUT strategies after asymmetric filters (EMA50, RVOL, MTF guards applied) |
 | **I.CONDOR** | Iron Condor recommendations. Success = price stays within ±4.5% (14d) / ±5.5% (30d) |
-| **FILTERED** | Subset filtered by `Setup` type (configurable in Settings) |
+| **FILTERED** | Subset filtered by Setup type (configurable via `Setup Filter` setting) |
 
-> **Iron Condor Move**: Avg Move for IC represents absolute price drift from entry, not directional return. A lower Move = better for IC.
+**Table Columns:**
+| Column | Description |
+| :--- | :--- |
+| **Count** | Number of signals recorded for this category |
+| **Win 14d** | % of trades profitable after exactly 14 bars |
+| **Move 14d** | Average directional return after 14 bars (PUT = -move = profit if stock fell) |
+| **Win 30d** | % of trades profitable after exactly 30 bars |
+| **Move 30d** | Average directional return after 30 bars |
+
+> ⚠️ **Limitation**: Time-based windows don't account for early exits. A trade that peaked at +8% on day 5 then fell to -2% by day 14 is counted as a **loss**, even though you would have taken profit. This is solved by Sub-Module 2.
+
+---
+
+### Sub-Module 2: TP/SL Simulation (Realistic Exit Modeling)
+
+This module simulates what happens when you **actively manage** your position with real take-profit and stop-loss orders. On every bar after entry, it checks if price has crossed either boundary.
+
+**How it works:**
+- **CALL trade** → exits when `high ≥ entry × (1 + TP%)` or `low ≤ entry × (1 - SL%)`
+- **PUT trade** → exits when `low ≤ entry × (1 - TP%)` or `high ≥ entry × (1 + SL%)`
+- **IC trade** → exits when `|drift| ≤ IC_TP%` (still in range = win) or `|drift| ≥ IC_SL%` (broke out = loss)
+
+**Configuration (Settings → TP/SL Simulation):**
+| Setting | Default | Description |
+| :--- | :--- | :--- |
+| Enable TP/SL Simulation | true | Toggle the 4 TP/SL rows |
+| Take Profit % | **7%** | Underlying move required for a win exit |
+| Stop Loss % | **4%** | Underlying move against you before stop-loss exit |
+| IC Take Profit % | **3.5%** | IC profit threshold: price drift ≤ 3.5% = win |
+| IC Stop Loss % | **6%** | IC stop threshold: price drift ≥ 6% = loss |
+
+**TP/SL Table Rows (highlighted in color):**
+| Row | Background | What it shows |
+| :--- | :--- | :--- |
+| `TP7/SL4 ALL` | 🟨 Yellow | All strategies combined TP/SL performance |
+| `TP7/SL4 CALL` | 🟩 Green | Only CALL direction TP/SL performance |
+| `TP7/SL4 PUT` | 🟥 Red | Only PUT direction TP/SL performance |
+| `TP7/SL4 IC` | 🟣 Purple | Iron Condor TP/SL performance |
+
+**TP/SL Row Columns:**
+| Column | Description |
+| :--- | :--- |
+| **Count** | Total trades that hit either TP or SL |
+| **Win %** | TP hits / (TP + SL hits) |
+| **Avg Return** | Weighted average: `(wins × TP%) - (losses × SL%)` / count |
+| **TP:xxx** | Raw count of Take Profit exits |
+| **SL:xxx** | Raw count of Stop Loss exits |
+
+**How to read the TP/SL data strategically:**
+
+> Example from AMZN: `Win 14d = 39.7%` vs `TP7/SL4 ALL = 73%`
+
+This gap tells you:
+1. **The signal direction is correct** 73% of the time — the stock DOES move favorably.
+2. **But you're holding too long** — by day 14, many winners have reversed.
+3. **Optimal exit strategy**: Set a GTC limit order at +7% and a stop at -4% immediately after entry.
+4. **Expected value** = `(0.73 × 7%) - (0.27 × 4%) = +4.03%` per trade on average.
+
+**Using TP/SL to compare CALL vs PUT performance:**
+- If `CALL TP/SL Win%` >> `PUT TP/SL Win%` → confirms bullish drift advantage, be more selective with PUTs
+- If both are above 60% → signal quality is genuinely strong in both directions
+- If `IC TP/SL Win%` >> directional — the stock is better suited for premium selling strategies
+
+**Calibrating your TP/SL:**
+- Increase TP% and observe if Win% drops significantly → means most winners don't run that far
+- Decrease SL% and observe if SL count spikes → means you're cutting too early on normal volatility
+- The optimal ratio for most US large-cap is approximately **TP = 1.5-2× SL** (e.g., TP 7% / SL 4%)
+
+---
+
+### Backtest Settings Reference
+| Setting | Default | Description |
+| :--- | :--- | :--- |
+| Enable Backtest | true | Toggle the Accuracy table |
+| Table Position | bottom_right | Where to display the table |
+| Short Look-forward | 14 bars | First evaluation window |
+| Long Look-forward | 30 bars | Second evaluation window |
+| Min Score to Track | 75 | Score gate for backtest inclusion |
+| Setup Filter | All | Narrow backtest to a specific setup type |
 
 ---
 

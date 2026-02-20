@@ -185,6 +185,14 @@ look_fwd_2      = input.int(30, "Long Look-forward (bars)",    group=backGR)
 min_score_bt    = input.int(75, "Min Score to Track Signal",  group=backGR)
 setup_filt_bt   = input.string("All", "Setup Filter", options=["All", "Perfect Storm", "Breakout", "Breakdown", "Pullback Buy", "Failed Rally", "Divergence", "Distribution", "Strong Trend", "Strong Down", "Directional", "Bullish", "Bearish"], group=backGR)
 
+// TP/SL Simulation
+tpslGR         = "Signal Quality Analyzer (TP/SL Simulation)"
+use_tpsl       = input.bool(true,  "Enable TP/SL Simulation Row", group=tpslGR)
+tp_pct         = input.float(7.0,  "Take Profit % (underlying move)", minval=1.0, maxval=30.0, step=0.5, group=tpslGR) / 100.0
+sl_pct         = input.float(4.0,  "Stop Loss % (underlying move)",   minval=0.5, maxval=20.0, step=0.5, group=tpslGR) / 100.0
+ic_tp_pct      = input.float(3.5,  "IC Take Profit % (max drift)",    minval=1.0, maxval=10.0, step=0.5, group=tpslGR) / 100.0
+ic_sl_pct      = input.float(6.0,  "IC Stop Loss % (max drift)",      minval=2.0, maxval=15.0, step=0.5, group=tpslGR) / 100.0
+
 // Base Weights (v3.2: 7 components — tradability baked into score)
 // ──────────────────────────────────────────────────────
 // Old (5 components): Score = technical signal strength only.
@@ -1152,6 +1160,19 @@ f_draw_bt_row(tbl_id, row, label, t_count, c14, s14, m14, c30, s30, m30) =>
     table.cell(tbl_id, 4, row, str.tostring(math.round(r30, 1)) + "%", text_color=r30 >= 55 ? color.lime : color.white, text_size=size.small)
     table.cell(tbl_id, 5, row, (m30 >= 0 ? "+" : "") + str.tostring(math.round(m30 * 100 / math.max(1, c30), 2)) + "%", text_color=color.white, text_size=size.small)
 
+// TP/SL row renderer (must be global scope — Pine Script rule)
+f_tpsl_row(t, row, lbl, tot, wins, tp_hits, sl_hits, sum_ret, bg) =>
+    wr  = tot > 0 ? (wins / math.max(1, tot)) * 100 : 0.0
+    avg = tot > 0 ? sum_ret * 100 / math.max(1, tot) : 0.0
+    table.cell(t, 0, row, lbl,                                                             text_color=color.yellow,                       text_size=size.small, text_halign=text.align_left, bgcolor=bg)
+    table.cell(t, 1, row, str.tostring(tot),                                               text_color=color.gray,                         text_size=size.small, bgcolor=bg)
+    table.cell(t, 2, row, str.tostring(math.round(wr, 1)) + "%",                           text_color=wr  >= 55 ? color.lime : color.white, text_size=size.small, bgcolor=bg)
+    table.cell(t, 3, row, (avg >= 0 ? "+" : "") + str.tostring(math.round(avg, 2)) + "%",  text_color=avg >= 0  ? color.lime : color.red,   text_size=size.small, bgcolor=bg)
+    table.cell(t, 4, row, "TP:" + str.tostring(tp_hits),                                   text_color=color.lime,                         text_size=size.small, bgcolor=bg)
+    table.cell(t, 5, row, "SL:" + str.tostring(sl_hits),                                   text_color=color.red,                          text_size=size.small, bgcolor=bg)
+
+
+
 if show_backtest
     // Get signal data for current chart symbol
     [c_comp, c_sig, c_setup, c_stype, c_conf, c_mb, c_bxs, c_bxl, c_d8, c_d21, c_rev, c_rvol, c_regime, c_overext, c_mtf, c_adx, c_hv_env, c_hv_exp, c_earn] = s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2)
@@ -1207,7 +1228,31 @@ if show_backtest
     var int[]   signal_entry_bars   = array.new_int(0)
     var string[] signal_types       = array.new_string(0)
     var string[] signal_setups      = array.new_string(0)
-    var int     last_entry_idx      = -100 // Track last bar we entered
+    var int     last_entry_idx      = -100
+    
+    // TP/SL tracking arrays (parallel to above)
+    var float[] signal_tp_prices    = array.new_float(0)  // price level for TP
+    var float[] signal_sl_prices    = array.new_float(0)  // price level for SL
+    var bool[]  signal_closed       = array.new_bool(0)   // already exited via TP or SL?
+    
+    // TP/SL simulation stats — OVERALL
+    var int   tpsl_total   = 0
+    var int   tpsl_wins    = 0
+    var int   tpsl_tp_hits = 0
+    var int   tpsl_sl_hits = 0
+    var float tpsl_sum_ret = 0.0
+    // TP/SL — CALL breakdown
+    var int   tpsl_call_total = 0, var int tpsl_call_wins = 0
+    var int   tpsl_call_tp   = 0,  var int tpsl_call_sl   = 0
+    var float tpsl_call_ret  = 0.0
+    // TP/SL — PUT breakdown
+    var int   tpsl_put_total = 0,  var int tpsl_put_wins  = 0
+    var int   tpsl_put_tp    = 0,  var int tpsl_put_sl    = 0
+    var float tpsl_put_ret   = 0.0
+    // TP/SL — IC breakdown
+    var int   tpsl_ic_total  = 0,  var int tpsl_ic_wins   = 0
+    var int   tpsl_ic_tp     = 0,  var int tpsl_ic_sl     = 0
+    var float tpsl_ic_ret    = 0.0
 
     // Option A Logic: Trigger on NEW signal OR every 21 bars of persistent signal
     is_new_status = (c_sig != c_sig[1] or is_ic_rec != is_ic_rec[1])
@@ -1218,9 +1263,22 @@ if show_backtest
     if trigger_trade
         last_entry_idx := bar_index
         array.push(signal_entry_prices, close)
-        array.push(signal_entry_bars, bar_index)
-        array.push(signal_types, is_ic_rec ? "IC" : c_stype)
-        array.push(signal_setups, c_setup)
+        array.push(signal_entry_bars,   bar_index)
+        array.push(signal_types,        is_ic_rec ? "IC" : c_stype)
+        array.push(signal_setups,       c_setup)
+        array.push(signal_closed,       false)
+        
+        // Set TP/SL levels based on signal direction
+        if is_ic_rec
+            // IC: TP = price stays near entry (within ic_tp_pct), SL = breaks out by ic_sl_pct
+            array.push(signal_tp_prices, close * (1.0 + ic_tp_pct))  // dummy upper bound for IC
+            array.push(signal_sl_prices, close * (1.0 - ic_tp_pct))  // dummy lower bound for IC
+        else if c_stype == "CALL"
+            array.push(signal_tp_prices, close * (1.0 + tp_pct))
+            array.push(signal_sl_prices, close * (1.0 - sl_pct))
+        else  // PUT
+            array.push(signal_tp_prices, close * (1.0 - tp_pct))  // TP = drops by tp_pct
+            array.push(signal_sl_prices, close * (1.0 + sl_pct))  // SL = rises by sl_pct
         
         total_signals += 1
         if is_ic_rec
@@ -1236,13 +1294,75 @@ if show_backtest
     // Check performance for all pending signals
     if array.size(signal_entry_bars) > 0
         for i = array.size(signal_entry_bars) - 1 to 0
-            e_bar   = array.get(signal_entry_bars, i)
-            e_price = array.get(signal_entry_prices, i)
-            e_type  = array.get(signal_types, i)
-            e_setup = array.get(signal_setups, i)
-            diff    = bar_index - e_bar
+            e_bar    = array.get(signal_entry_bars, i)
+            e_price  = array.get(signal_entry_prices, i)
+            e_type   = array.get(signal_types, i)
+            e_setup  = array.get(signal_setups, i)
+            e_closed = array.get(signal_closed, i)
+            e_tp     = array.get(signal_tp_prices, i)
+            e_sl     = array.get(signal_sl_prices, i)
+            diff     = bar_index - e_bar
             
             is_match = setup_filt_bt == "All" or str.contains(e_setup, setup_filt_bt)
+
+            // ── TP/SL Check: runs on EVERY bar, takes priority ──────────────
+            if use_tpsl and not e_closed
+                tp_hit = false
+                sl_hit = false
+                
+                if e_type == "IC"
+                    // IC: TP if price stays inside band; SL if it breaks out
+                    ic_drift = math.abs(close - e_price) / e_price
+                    if ic_drift <= ic_tp_pct
+                        tp_hit := true  // still within range → profitable
+                    else if ic_drift >= ic_sl_pct
+                        sl_hit := true  // broke out → stop loss
+                else if e_type == "CALL"
+                    if high >= e_tp
+                        tp_hit := true
+                    else if low <= e_sl
+                        sl_hit := true
+                else  // PUT
+                    if low <= e_tp   // TP for PUT = underlying dropped enough
+                        tp_hit := true
+                    else if high >= e_sl  // SL for PUT = underlying rose above sl
+                        sl_hit := true
+                
+                if tp_hit or sl_hit
+                    array.set(signal_closed, i, true)
+                    ret_val = tp_hit ? (e_type == "IC" ? ic_tp_pct : tp_pct) : -(e_type == "IC" ? ic_sl_pct : sl_pct)
+                    tpsl_total   += 1
+                    tpsl_sum_ret += ret_val
+                    if tp_hit
+                        tpsl_wins    += 1
+                        tpsl_tp_hits += 1
+                    else
+                        tpsl_sl_hits += 1
+                    // Per-category breakdown
+                    if e_type == "CALL"
+                        tpsl_call_total += 1
+                        tpsl_call_ret   += ret_val
+                        if tp_hit
+                            tpsl_call_wins += 1
+                            tpsl_call_tp   += 1
+                        else
+                            tpsl_call_sl += 1
+                    else if e_type == "PUT"
+                        tpsl_put_total += 1
+                        tpsl_put_ret   += ret_val
+                        if tp_hit
+                            tpsl_put_wins += 1
+                            tpsl_put_tp   += 1
+                        else
+                            tpsl_put_sl += 1
+                    else  // IC
+                        tpsl_ic_total += 1
+                        tpsl_ic_ret   += ret_val
+                        if tp_hit
+                            tpsl_ic_wins += 1
+                            tpsl_ic_tp   += 1
+                        else
+                            tpsl_ic_sl += 1
 
             if diff == look_fwd_1
                 move = (close - e_price) / e_price
@@ -1320,15 +1440,18 @@ if show_backtest
                     c30_filt += 1
                     sum_m30_filt += (e_type == "IC" ? math.abs(move) : (e_type == "CALL" ? move : -move))
                 // Remove once past the maximum fwd lookback
-                array.remove(signal_entry_bars, i)
+                array.remove(signal_entry_bars,   i)
                 array.remove(signal_entry_prices, i)
-                array.remove(signal_types, i)
-                array.remove(signal_setups, i)
+                array.remove(signal_types,        i)
+                array.remove(signal_setups,       i)
+                array.remove(signal_closed,       i)
+                array.remove(signal_tp_prices,    i)
+                array.remove(signal_sl_prices,    i)
 
     // Display Stats Table
     if barstate.islast
         bt_tbl_pos = bt_pos == "top_right" ? position.top_right : bt_pos == "top_left" ? position.top_left : bt_pos == "bottom_right" ? position.bottom_right : bt_pos == "bottom_left" ? position.bottom_left : bt_pos == "top_center" ? position.top_center : position.bottom_center
-        var table bt_tbl = table.new(bt_tbl_pos, 6, 6, bgcolor=color.new(color.black, 40), border_width=1, border_color=color.gray)
+        var table bt_tbl = table.new(bt_tbl_pos, 6, 12, bgcolor=color.new(color.black, 40), border_width=1, border_color=color.gray)
         
         bt_title = "Accuracy: " + syminfo.ticker + (setup_filt_bt == "All" ? "" : " [" + setup_filt_bt + "]") + " (" + str.tostring(bar_index + 1) + " bars)"
         table.merge_cells(bt_tbl, 0, 0, 5, 0)
@@ -1342,15 +1465,22 @@ if show_backtest
         table.cell(bt_tbl, 5, 1, "Move 30d", text_color=color.gray, text_size=size.tiny)
         
 
-        f_draw_bt_row(bt_tbl, 2, "OVERALL", total_signals, c14_total, success_14, sum_m14_total, c30_total, success_30, sum_m30_total)
-        f_draw_bt_row(bt_tbl, 3, "CALL Only", t_calls, c14_calls, s14_calls, sum_m14_calls, c30_calls, s30_calls, sum_m30_calls)
-        f_draw_bt_row(bt_tbl, 4, "PUT Only", t_puts, c14_puts, s14_puts, sum_m14_puts, c30_puts, s30_puts, sum_m30_puts)
+        f_draw_bt_row(bt_tbl, 2, "OVERALL",   total_signals, c14_total, success_14, sum_m14_total, c30_total, success_30,  sum_m30_total)
+        f_draw_bt_row(bt_tbl, 3, "CALL Only", t_calls,       c14_calls, s14_calls,  sum_m14_calls, c30_calls, s30_calls,   sum_m30_calls)
+        f_draw_bt_row(bt_tbl, 4, "PUT Only",  t_puts,        c14_puts,  s14_puts,   sum_m14_puts,  c30_puts,  s30_puts,    sum_m30_puts)
+        f_draw_bt_row(bt_tbl, 5, "I.CONDOR",  t_ics,         c14_ics,   s14_ics,    sum_m14_ics,   c30_ics,   s30_ics,     sum_m30_ics)
         
-        // IC Special row (added to table if enough data)
-        var table ic_tbl = bt_tbl
-        table.cell(ic_tbl, 0, 5, "I.CONDOR", text_color=color.orange, text_size=size.small, text_halign=text.align_left)
-        f_draw_bt_row(ic_tbl, 5, "I.CONDOR", t_ics, c14_ics, s14_ics, sum_m14_ics, c30_ics, s30_ics, sum_m30_ics)
+        // TP/SL Simulation Rows (overall + per category)
+        if use_tpsl
+            tpsl_lbl = "TP" + str.tostring(math.round(tp_pct * 100)) + "/SL" + str.tostring(math.round(sl_pct * 100))
+            bg_total = color.new(color.yellow, 88)
+            bg_call  = color.new(color.green,  92)
+            bg_put   = color.new(color.red,    92)
+            bg_ic    = color.new(color.purple, 92)
+            f_tpsl_row(bt_tbl, 6, tpsl_lbl + " ALL",  tpsl_total,      tpsl_wins,      tpsl_tp_hits, tpsl_sl_hits, tpsl_sum_ret,  bg_total)
+            f_tpsl_row(bt_tbl, 7, tpsl_lbl + " CALL", tpsl_call_total, tpsl_call_wins, tpsl_call_tp, tpsl_call_sl, tpsl_call_ret, bg_call)
+            f_tpsl_row(bt_tbl, 8, tpsl_lbl + " PUT",  tpsl_put_total,  tpsl_put_wins,  tpsl_put_tp,  tpsl_put_sl,  tpsl_put_ret,  bg_put)
+            f_tpsl_row(bt_tbl, 9, tpsl_lbl + " IC",   tpsl_ic_total,   tpsl_ic_wins,   tpsl_ic_tp,   tpsl_ic_sl,   tpsl_ic_ret,   bg_ic)
 
         if setup_filt_bt != "All"
-            table.cell(bt_tbl, 0, 2, "FILTERED", text_color=color.yellow, text_size=size.small, text_halign=text.align_left)
-            f_draw_bt_row(bt_tbl, 2, setup_filt_bt, t_filt, c14_filt, s14_filt, sum_m14_filt, c30_filt, s30_filt, sum_m30_filt)
+            f_draw_bt_row(bt_tbl, 11, setup_filt_bt, t_filt, c14_filt, s14_filt, sum_m14_filt, c30_filt, s30_filt, sum_m30_filt)
