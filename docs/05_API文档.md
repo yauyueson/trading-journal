@@ -1,6 +1,6 @@
 # Trading Journal - API文档
 
-> 最后更新: 2026年2月17日  
+> 最后更新: 2026年2月20日  
 > **数据源**: Polygon.io（主）/ CBOE（备）；API 用量优化：仅请求所需 DTE/行权 + 期权链缓存；付费档建议设置 `POLYGON_RATE_LIMIT_RPM=100`
 
 ## 📋 目录
@@ -286,6 +286,22 @@ GET /api/strategy-recommend
 | ticker | string | ✅ | 股票代码 | - |
 | direction | string | ❌ | 方向偏好 `BULL` 或 `BEAR` | `BULL` |
 | targetDte | number | ❌ | 目标 DTE 档位（14/30/45/90） | `30` |
+| targetStrategy | string | ❌ | Pine Script 推荐的策略类型 | - |
+| setup | string | ❌ | Pine Script 误识名称（如 `Perfect Storm`） | - |
+
+**`targetStrategy` 取值**（对应双大算法）：
+
+| 取值 | 调用函数 | 过滤层 |
+|------|----------|----------|
+| `Credit Put Spread` | `buildCreditSpreads('Put')` | `HARD_FILTER_CREDIT` |
+| `Credit Call Spread` | `buildCreditSpreads('Call')` | `HARD_FILTER_CREDIT` |
+| `Debit Call Spread` | `buildDebitSpreads('Call')` | `HARD_FILTER_DEFAULTS` |
+| `Debit Put Spread` | `buildDebitSpreads('Put')` | `HARD_FILTER_DEFAULTS` |
+| `Long Call` | `scoreSingleLegs('Call')` | `HARD_FILTER_DEFAULTS` |
+| `Long Put` | `scoreSingleLegs('Put')` | `HARD_FILTER_DEFAULTS` |
+| `Iron Condor` | `buildIronCondors()` ✅ v2.6 | `HARD_FILTER_CREDIT` |
+
+**`setup` 参数作用**：传入后会激活 [Pine Script 设置感知权重](#)（EV 40%→35%，Regime 25%→30%）。`Mixed`/`Other` 不激活权重切换。
 
 ---
 
