@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark, Trophy, Settings2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark, Settings2 } from 'lucide-react';
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
 import { ScoreFactorsView } from '../components/ScoreFactorsView';

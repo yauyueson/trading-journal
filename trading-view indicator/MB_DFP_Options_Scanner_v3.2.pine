@@ -798,24 +798,24 @@ if barstate.islast and show_scanner
                 if s_stype == "CALL"
                     if is_hv_exp
                         // [FIX-3] High IV: prefer selling premium (credit)
-                        struct_rec := "Credit Put Spd 💰"
+                        struct_rec := "Credit Put Spread"
                         portal_eng := "CSQ|" + dte_hint + "|" + delta_sell
                     else if hv_s == "Lo"
-                        struct_rec := "Single Leg Call 🎯"
+                        struct_rec := "Long Call"
                         portal_eng := "LOQ|" + dte_hint + "|Buy 60Δ"
                     else
-                        struct_rec := "Debit Call Spd 🎯"
+                        struct_rec := "Debit Call Spread"
                         portal_eng := "DSQ|" + dte_hint + "|" + delta_buy
                 else  // PUT
                     if is_hv_exp
                         // [FIX-3] High IV: prefer credit call spread
-                        struct_rec := "Credit Call Spd 📉"
+                        struct_rec := "Credit Call Spread"
                         portal_eng := "CSQ|" + dte_hint + "|" + delta_sell
                     else if hv_s == "Lo"
-                        struct_rec := "Single Leg Put 🎯"
+                        struct_rec := "Long Put"
                         portal_eng := "LOQ|" + dte_hint + "|Buy 60Δ"
                     else
-                        struct_rec := "Debit Put Spd 🎯"
+                        struct_rec := "Debit Put Spread"
                         portal_eng := "DSQ|" + dte_hint + "|" + delta_buy
 
             // ── BREAKOUT / BREAKDOWN ──────────────────────────────
@@ -823,10 +823,10 @@ if barstate.islast and show_scanner
                 if s_stype == "CALL"
                     if regime_s == "Trend" and has_vol  // [FIX-6] require RVOL
                         if is_hv_exp
-                            struct_rec := "Credit Put Spd 💰"
+                            struct_rec := "Credit Put Spread"
                             portal_eng := "CSQ·HiIV breakout"
                         else
-                            struct_rec := "Single Leg Call ⚡"
+                            struct_rec := "Long Call"
                             portal_eng := "LOQ·Lambda"
                     else if regime_s == "Trend" and not has_vol
                         struct_rec := "⏳ Low RVOL"
@@ -837,10 +837,10 @@ if barstate.islast and show_scanner
                 else  // PUT (Breakdown)
                     if regime_s == "Trend" and has_vol
                         if is_hv_exp
-                            struct_rec := "Credit Call Spd 📉"
+                            struct_rec := "Credit Call Spread"
                             portal_eng := "CSQ·HiIV breakdown"
                         else
-                            struct_rec := "Single Leg Put ⚡"
+                            struct_rec := "Long Put"
                             portal_eng := "LOQ·Lambda"
                     else if regime_s == "Trend" and not has_vol
                         struct_rec := "⏳ Low RVOL"
@@ -855,10 +855,10 @@ if barstate.islast and show_scanner
                 if s_stype == "CALL"
                     if regime_s == "Trend"
                         if is_hv_exp
-                            struct_rec := "Credit Put Spd 💰"
+                            struct_rec := "Credit Put Spread"
                             portal_eng := "CSQ·HiIV pullback"
                         else
-                            struct_rec := "Credit Put Spd 💰"
+                            struct_rec := "Credit Put Spread"
                             portal_eng := "CSQ"
                     else
                         struct_rec := "⏳ ADX<25"
@@ -866,10 +866,10 @@ if barstate.islast and show_scanner
                 else  // PUT: Failed Rally / Distribution
                     if regime_s == "Trend"
                         if is_hv_exp
-                            struct_rec := "Credit Call Spd 📉"
+                            struct_rec := "Credit Call Spread"
                             portal_eng := "CSQ·HiIV failed rally"
                         else
-                            struct_rec := "Credit Call Spd 📉"
+                            struct_rec := "Credit Call Spread"
                             portal_eng := "CSQ"
                     else
                         struct_rec := "⏳ ADX<25"
@@ -880,10 +880,10 @@ if barstate.islast and show_scanner
                 if s_stype == "CALL"
                     if regime_s == "Trend"
                         if is_hv_exp
-                            struct_rec := "Credit Put Spd 💰"
+                            struct_rec := "Credit Put Spread"
                             portal_eng := "CSQ·High POP, HiIV"
                         else
-                            struct_rec := "Credit Put Spd 💰"
+                            struct_rec := "Credit Put Spread"
                             portal_eng := "CSQ·High POP"
                     else
                         struct_rec := "⏳ ADX<25"
@@ -891,10 +891,10 @@ if barstate.islast and show_scanner
                 else  // PUT: Strong Down
                     if regime_s == "Trend"
                         if is_hv_exp
-                            struct_rec := "Credit Call Spd 📉"
+                            struct_rec := "Credit Call Spread"
                             portal_eng := "CSQ·High POP, HiIV"
                         else
-                            struct_rec := "Credit Call Spd 📉"
+                            struct_rec := "Credit Call Spread"
                             portal_eng := "CSQ·High POP"
                     else
                         struct_rec := "⏳ ADX<25"
@@ -905,10 +905,10 @@ if barstate.islast and show_scanner
                 if s_stype == "CALL"
                     if regime_s == "Trend"
                         if is_hv_exp
-                            struct_rec := "Sm Credit Put Spd 🔸"
+                            struct_rec := "Credit Put Spread"
                             portal_eng := "CSQ·Starter, HiIV"
                         else
-                            struct_rec := "Sm Debit Call Spd 🔸"
+                            struct_rec := "Debit Call Spread"
                             portal_eng := "DSQ·Starter"
                     else
                         struct_rec := "⏳ ADX<25"
@@ -916,10 +916,10 @@ if barstate.islast and show_scanner
                 else  // PUT
                     if regime_s == "Trend"
                         if is_hv_exp
-                            struct_rec := "Sm Credit Call Spd 🔸"
+                            struct_rec := "Credit Call Spread"
                             portal_eng := "CSQ·Starter, HiIV"
                         else
-                            struct_rec := "Sm Debit Put Spd 🔸"
+                            struct_rec := "Debit Put Spread"
                             portal_eng := "DSQ·Starter"
                     else
                         struct_rec := "⏳ ADX<25"
@@ -933,15 +933,15 @@ if barstate.islast and show_scanner
                         struct_rec := "⏳ IV too low for IC"
                         portal_eng := "Wait: low premium"
                     else
-                        struct_rec := "Iron Condor 🔄"
+                        struct_rec := "Iron Condor"
                         portal_eng := "CSQ·Both sides"
                 else if regime_s == "Trend" and s_comp >= 75
                     // [FIX-A] High-score weak setup in trend → small starter position
                     if s_stype == "CALL"
-                        struct_rec := "Sm Credit Put Spd 🔸"
+                        struct_rec := "Credit Put Spread"
                         portal_eng := "CSQ·Starter, weak setup"
                     else
-                        struct_rec := "Sm Credit Call Spd 🔸"
+                        struct_rec := "Credit Call Spread"
                         portal_eng := "CSQ·Starter, weak setup"
                 else
                     struct_rec := "⏳ Weak setup"
