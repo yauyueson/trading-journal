@@ -173,7 +173,10 @@ function App() {
             notes: item.ticker + ' ' + item.type,
             stop_reason: item.stop_reason,
             legs: item.legs || null,
-            owner: item.owner || null
+            owner: item.owner || null,
+            tech_score: item.tech_score,
+            tech_score_source: item.tech_score_source || 'manual',
+            tech_score_manual: item.tech_score
         }]).select();
 
         if (data && data[0]) {
@@ -282,7 +285,10 @@ function App() {
             stop_reason: item.stop_reason,
             notes: item.notes,
             legs: item.legs,
-            owner: item.owner || null
+            owner: item.owner || null,
+            tech_score: item.tech_score,
+            tech_score_manual: item.tech_score,
+            tech_score_source: item.tech_score_source || 'manual'
         }]);
 
         if (error) {

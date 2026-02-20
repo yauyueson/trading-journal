@@ -167,7 +167,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     const [ticker, setTicker] = useState('SPY');
     const [direction] = useState<'BULL' | 'BEAR'>('BULL');
     const [targetStrategy, setTargetStrategy] = useState('Credit Put Spread');
-    const [setup, setSetup] = useState('');
+    const [setup, setSetup] = useState('Pullback Buy');
+    const [techScore, setTechScore] = useState('');
     const [targetDte, setTargetDte] = useState(30);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -271,7 +272,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             notes: isSpreadType
                 ? `EV: $${(rec as SpreadRecommendation).expectedValue ?? '0'}. Width: $${(rec as SpreadRecommendation).width}`
                 : `Delta: ${(rec as SingleLegRecommendation).delta}`,
-            legs: legs as WatchlistItem['legs']
+            legs: legs as WatchlistItem['legs'],
+            tech_score: techScore ? parseInt(techScore, 10) : undefined,
+            tech_score_source: 'manual'
         };
 
         await onAddToWatchlist(item);
@@ -311,9 +314,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                             </div>
                         )}
                     </div>
-                    {/* Top Row: Ticker & Direction */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-                        <div className="md:col-span-1">
+                    {/* Top Row: Ticker, TV Score, Setup, Strategy */}
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
+                        <div className="md:col-span-3">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Ticker Symbol</label>
                             <div className="relative">
                                 <input
@@ -327,17 +330,43 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                 <Search className="absolute left-3 top-3.5 text-gray-500" size={20} />
                             </div>
                         </div>
-                        <div className="md:col-span-1">
-                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Setup</label>
+                        <div className="md:col-span-2">
+                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">TV Score</label>
                             <input
-                                type="text"
-                                value={setup}
-                                onChange={(e) => setSetup(e.target.value)}
+                                type="number"
+                                min="0" max="100"
+                                value={techScore}
+                                onChange={(e) => setTechScore(e.target.value)}
                                 className="w-full bg-[#000] border border-[#333] text-white rounded-lg px-4 py-3 focus:outline-none focus:border-accent-green text-lg font-bold tracking-wide placeholder-gray-600 transition-colors"
-                                placeholder="e.g. Pullback Buy"
+                                placeholder="0-100"
                             />
                         </div>
-                        <div className="md:col-span-2">
+                        <div className="md:col-span-3">
+                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Setup</label>
+                            <select
+                                value={setup}
+                                onChange={(e) => setSetup(e.target.value)}
+                                className="w-full bg-[#000] border border-[#333] text-white rounded-lg px-4 py-3 focus:outline-none focus:border-accent-green appearance-none cursor-pointer text-lg font-bold tracking-wide transition-colors"
+                            >
+                                <option value="" disabled>Select Setup</option>
+                                <option value="Perfect Storm">Perfect Storm</option>
+                                <option value="Breakout">Breakout</option>
+                                <option value="Breakdown">Breakdown</option>
+                                <option value="Pullback Buy">Pullback Buy</option>
+                                <option value="Pullback Sell">Pullback Sell</option>
+                                <option value="Divergence Buy">Divergence Buy</option>
+                                <option value="Divergence Sell">Divergence Sell</option>
+                                <option value="Failed Rally">Failed Rally</option>
+                                <option value="Distribution">Distribution</option>
+                                <option value="Strong Trend">Strong Trend</option>
+                                <option value="Strong Down">Strong Down</option>
+                                <option value="Directional">Directional</option>
+                                <option value="Bullish">Bullish</option>
+                                <option value="Bearish">Bearish</option>
+                                <option value="Mixed">Mixed</option>
+                            </select>
+                        </div>
+                        <div className="md:col-span-4">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Strategy Type</label>
                             <select
                                 value={targetStrategy}

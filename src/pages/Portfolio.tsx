@@ -38,7 +38,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     const [positionType, setPositionType] = useState<'single' | 'credit' | 'debit'>('single');
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
-    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: '1', entry_price: '' });
+    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '' });
     const [bulkData, setBulkData] = useState<Record<string, any>>({});
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -162,17 +162,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     };
 
     useEffect(() => {
-        // Bulk first, then batch-refresh-tech after a short delay so bulk's API calls complete first
-        refreshAllPrices().then(() => {
-            const delayMs = 2000;
-            return new Promise(r => setTimeout(r, delayMs));
-        }).then(() => {
-            fetch('/api/batch-refresh-tech?scope=active')
-                .then(res => res.json())
-                .then(data => console.log("Tech Score Check:", data.message))
-                .catch(err => console.error("Tech Score Trigger Failed", err));
-        });
-
+        // Bulk refresh only
+        refreshAllPrices();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -188,6 +179,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 expiration: form.expiration,
                 setup: form.setup,
                 entry_score: parseInt(form.entry_score),
+                tech_score: form.tech_score ? parseInt(form.tech_score) : undefined,
                 stop_reason: form.stop_reason,
                 quantity: parseInt(form.quantity),
                 entry_price: parseFloat(form.entry_price),
@@ -214,6 +206,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 expiration: form.expiration,
                 setup: form.setup,
                 entry_score: parseInt(form.entry_score),
+                tech_score: form.tech_score ? parseInt(form.tech_score) : undefined,
                 stop_reason: form.stop_reason,
                 quantity: parseInt(form.quantity),
                 entry_price: parseFloat(form.entry_price),
@@ -223,7 +216,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
         }
 
         setSubmitting(false);
-        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', stop_reason: '', quantity: '1', entry_price: '' });
+        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '' });
         setPositionType('single');
         setShowForm(false);
     };
@@ -506,7 +499,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                         )}
 
                         {/* Row 2: Analysis & Execution */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                             <div className="space-y-1.5">
                                 <label htmlFor="score">Entry Score</label>
                                 <input
@@ -516,6 +509,18 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                                     className="input-field"
                                     value={form.entry_score}
                                     onChange={e => setForm({ ...form, entry_score: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label htmlFor="tech_score">TV Score</label>
+                                <input
+                                    id="tech_score"
+                                    type="number"
+                                    placeholder="0-100"
+                                    className="input-field"
+                                    value={form.tech_score}
+                                    onChange={e => setForm({ ...form, tech_score: e.target.value })}
                                 />
                             </div>
 

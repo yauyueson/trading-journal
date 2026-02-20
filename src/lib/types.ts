@@ -91,6 +91,8 @@ export interface WatchlistItem {
     notes?: string;
     legs?: PositionLeg[];
     owner?: 'Yuchen' | 'Annie' | null;
+    tech_score?: number;
+    tech_score_source?: 'auto' | 'manual';
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -109,6 +111,8 @@ export interface DirectAddItem {
     entry_price: number;
     legs?: PositionLeg[];
     owner?: 'Yuchen' | 'Annie' | null;
+    tech_score?: number;
+    tech_score_source?: 'auto' | 'manual';
 }
 
 // ────────────────────────────────────────────────────────────────
