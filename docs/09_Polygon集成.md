@@ -24,6 +24,9 @@ DATA_SOURCE=POLYGON
 
 # 填入您的 Polygon.io API Key
 POLYGON_API_KEY=your_polygon_api_key_here
+
+# 付费档限流（建议 100，与 Polygon 建议 100 req/s 一致；未设时默认 5 易触发 429）
+POLYGON_RATE_LIMIT_RPM=100
 ```
 
 ### 3. 本地开发环境加载 (dotenv)
@@ -43,7 +46,8 @@ dotenv.config(); // 兼容标准 .env
 
 > **重要提示**：
 > - 确保您的 subscription plan 包含 **Options Advanced Features** (Greeks、IV)
-> - 查看您的速率限制，避免在高频场景下触发限流
+> - 付费档建议设置 `POLYGON_RATE_LIMIT_RPM=100`，与 Polygon 建议的 100 req/s 一致；未设置时客户端默认 5 RPM，易触发 429
+> - 遇 429 时客户端会按 `Retry-After` 重试（最多 60 秒）；错误信息会提示检查 `POLYGON_RATE_LIMIT_RPM`
 
 ---
 
@@ -89,7 +93,10 @@ Polygon.io 通过以下端点提供期权数据：
 |-----|------|
 | **strategy-recommend** | 先 `getUnderlyingPrice(ticker)`，再仅请求 **DTE 30** 与 **DTE 90** 两段 + **行权价 ±20%**（minStrike/maxStrike），满足 IV 期限结构与策略构建即可。 |
 | **scan-options** | 先 `getUnderlyingPrice(ticker)`，再按 `dteMin`/`dteMax` 与 `strikeRange` 传 **minStrike/maxStrike** 给 `getOptionChain`，只拉会用到的行权范围。 |
-| **期权链缓存** | `getOptionChain` 对同一 `(ticker, filters)` 结果做 **1 分钟内存缓存**，同一用户短时间重复请求直接命中，降低成本并保持算法一致。 |
+| **option-prices (POST 批量)** | 按 **ticker 分组**，每个唯一 ticker 只拉一次期权链（2 次 API），再从链中解析各腿；调用量 = 2× 唯一 ticker 数。 |
+| **cron-iv-snapshot** | 每 ticker 只拉 **单条链**（DTE 23–97），从链中计算 iv30/iv90 写入 `ticker_iv_snapshots`；可选 `CRON_IV_DELAY_MS`（默认 300）限速。 |
+| **check-alerts / daily-recap** | 当唯一 ticker 数 ≥ 50 时改为**顺序请求**，并用 `ALERT_CHAIN_DELAY_MS` 控制间隔，避免瞬时打满限流。 |
+| **期权链缓存** | `getOptionChain` 对同一 `(ticker, filters)` 结果做 **内存缓存**（链 10 分钟、标的价 2 分钟 TTL），重复请求命中缓存。 |
 
 详见 `api/polygon-client.js`（`getUnderlyingPrice`、`optionChainCache`、`OPTION_CHAIN_CACHE_TTL_MS`）。
 

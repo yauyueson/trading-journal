@@ -82,15 +82,14 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transaction
                         key={value}
                         type="button"
                         onClick={() => setOwnerFilter(value)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            ownerFilter === value
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${ownerFilter === value
                                 ? value === 'Yuchen'
                                     ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
                                     : value === 'Annie'
                                         ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
                                         : 'bg-white/10 text-text-primary border border-white/20'
                                 : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                        }`}
+                            }`}
                     >
                         {value}
                     </button>
@@ -124,25 +123,23 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transaction
                                                         const next = p.owner === 'Yuchen' ? 'Annie' : 'Yuchen';
                                                         onUpdateOwner(p.id, next);
                                                     }}
-                                                    className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold cursor-pointer transition-colors ${
-                                                        p.owner === 'Yuchen'
+                                                    className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold cursor-pointer transition-colors ${p.owner === 'Yuchen'
                                                             ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
                                                             : 'bg-pink-500/20 text-pink-400 hover:bg-pink-500/30'
-                                                    }`}
+                                                        }`}
                                                     title={`Owner: ${p.owner}`}
                                                 >
                                                     {p.owner}
                                                 </button>
                                             )}
-                                            <span className={`badge ${p.type === 'Call' ? 'badge-green' : 'badge-red'}`}>{p.type}</span>
+                                            <span className={`badge bg-[#2C2C2E] text-white border border-[#3A3A3C]`}>{p.type}</span>
+                                            {p.setup && <span className={`badge bg-yellow-500/10 text-yellow-500 border border-yellow-500/20`}>{p.setup}</span>}
                                             <span className={`badge ${isWin ? 'badge-green' : 'badge-red'} flex items-center gap-1`}>
                                                 {isWin ? <><Check size={12} /> Win</> : 'Loss'}
                                             </span>
                                         </div>
                                         <div className="text-text-secondary text-xs sm:text-sm">
                                             <span className="font-mono">${p.strike}</span>
-                                            <span className="mx-1.5 sm:mx-2">·</span>
-                                            <span>{p.setup}</span>
                                             <span className="mx-1.5 sm:mx-2">·</span>
                                             <span>{holdDays}d</span>
                                         </div>

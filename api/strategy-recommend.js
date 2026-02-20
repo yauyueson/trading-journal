@@ -911,7 +911,7 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const { ticker, direction = 'BULL', targetDte, spreadWidth } = req.query;
+    const { ticker, direction = 'BULL', targetDte, spreadWidth, targetStrategy, setup } = req.query;
 
     if (!ticker) {
         return res.status(400).json({ error: 'Missing ticker parameter' });
@@ -1230,69 +1230,71 @@ export default async function handler(req, res) {
             // Diagnostic: which phase failed, candle counts, elapsed time
             const phase = !dailyCandles && !candles30m ? 'candle fetch'
                 : (!dailyCandles || !candles30m) ? 'partial candle fetch'
-                : 'aggregation/scoring';
+                    : 'aggregation/scoring';
             console.error(`[Tech Score] ${upperTicker}: FAILED at ${phase} —`, e?.message || e);
             console.error(`[Tech Score] ${upperTicker}: counts — daily:${dailyCandles?.length ?? 'null'}, 30m:${candles30m?.length ?? 'null'}`);
             if (e?.stack) console.error(e.stack);
         }
 
-        const creditStrat = isBull ? 'Put' : 'Call';
-        const debitStrat = isBull ? 'Call' : 'Put';
-        const legStrat = isBull ? 'Call' : 'Put';
-
-        // 2. Build Strategies — use ivPercentile (% of days below current IV) for scoring adjustments;
-        //    more robust than ivRank (min/max) which is distorted by single outlier spikes.
-        //    Fall back to ivRank if ivPercentile is unavailable.
+        // 2. Build Targeted Strategy based on Pine Script recommendation
         const ivScoreInput = ivPercentile ?? ivRank;
-        const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly);
-        const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly);
-        const singleLegs = scoreSingleLegs(strategyChain, legStrat, regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput);
+        let targetRecs = [];
+        const decodedStrategy = targetStrategy ? decodeURIComponent(targetStrategy) : 'Credit Put Spread';
+        const decodedSetup = setup ? decodeURIComponent(setup) : '';
 
-        // 3. Unified Cross-Strategy Scoring — Top Picks (skew favor, termStrength, anomaly down-weight for short-term credit)
+        if (decodedStrategy === 'Credit Put Spread') {
+            targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly);
+        } else if (decodedStrategy === 'Debit Call Spread') {
+            targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly);
+        } else if (decodedStrategy === 'Long Call') {
+            targetRecs = scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput);
+        } else if (decodedStrategy === 'Credit Call Spread') {
+            targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly);
+        } else if (decodedStrategy === 'Debit Put Spread') {
+            targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly);
+        } else if (decodedStrategy === 'Long Put') {
+            targetRecs = scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput);
+        } else if (decodedStrategy === 'Iron Condor') {
+            console.warn(`Iron Condor algorithm not yet integrated.`);
+        }
+
+        // 3. Score the targeted strategy using the unified algorithm
         const unifiedOpts = {
             anomaly: ivSurface.anomaly || false,
             termStrength: regime.slopeTier || undefined
         };
-        const topPicks = [];
-        for (const rec of creditSpreads) {
-            const creditSpreadType = rec.type && rec.type.includes('Put') ? 'Put' : 'Call';
-            const { score: unifiedScore, factors } = calculateUnifiedScore(rec, 'CREDIT_SPREAD', regime.mode, regime.ivRvRatio, { ...unifiedOpts, skew, creditSpreadType });
-            topPicks.push({
-                ...rec,
-                strategyCategory: 'CREDIT_SPREAD',
-                unifiedScore,
-                factors: factors || [],
-            });
+
+        for (const rec of targetRecs) {
+            let simCat = 'CREDIT_SPREAD';
+            if (decodedStrategy.includes('Debit')) simCat = 'DEBIT_SPREAD';
+            if (decodedStrategy.includes('Long')) simCat = 'SINGLE_LEG';
+
+            const creditSpreadType = (simCat === 'CREDIT_SPREAD' && decodedStrategy.includes('Put')) ? 'Put' : 'Call';
+            const { score: unifiedScore, factors } = calculateUnifiedScore(
+                rec,
+                simCat,
+                regime.mode,
+                regime.ivRvRatio,
+                { ...unifiedOpts, skew, creditSpreadType }
+            );
+
+            rec.setup = decodedSetup;
+            rec.strategyCategory = simCat;
+            rec.unifiedScore = unifiedScore;
+            // Overwrite the normal score with unifiedScore so UI doesn't need branching
+            rec.score = unifiedScore;
+            rec.factors = factors || [];
         }
-        for (const rec of debitSpreads) {
-            const { score: unifiedScore, factors } = calculateUnifiedScore(rec, 'DEBIT_SPREAD', regime.mode, regime.ivRvRatio, unifiedOpts);
-            topPicks.push({
-                ...rec,
-                strategyCategory: 'DEBIT_SPREAD',
-                unifiedScore,
-                factors: factors || [],
-            });
-        }
-        for (const rec of singleLegs) {
-            const { score: unifiedScore, factors } = calculateUnifiedScore(rec, 'SINGLE_LEG', regime.mode, regime.ivRvRatio, unifiedOpts);
-            topPicks.push({
-                ...rec,
-                strategyCategory: 'SINGLE_LEG',
-                unifiedScore,
-                factors: factors || [],
-            });
-        }
-        topPicks.sort((a, b) => b.unifiedScore - a.unifiedScore);
+        targetRecs.sort((a, b) => b.unifiedScore - a.unifiedScore);
 
         // 3b. Tech Timeframe Alignment — confidence bonus/penalty based on multi-TF agreement
-        // Checks if 1D + 4H agree with the trade direction; flags 1H disagreement as counter-trend risk.
         let techAlignmentBonus = 0;
         let techAlignmentNote = null;
         if (techByTimeframe) {
             const d = techByTimeframe['1d'];
             const h4 = techByTimeframe['4h'];
             const h1 = techByTimeframe['1h'];
-            const tradeDir = isBull ? 1 : -1; // +1 = bullish, -1 = bearish
+            const tradeDir = isBull ? 1 : -1;
 
             const dirOf = (t) => {
                 if (!t) return 0;
@@ -1308,10 +1310,9 @@ export default async function handler(req, res) {
             const h1Disagrees = h1Dir !== 0 && h1Dir !== tradeDir;
 
             if (higherTFAgree && dDir === tradeDir && h4Dir === tradeDir) {
-                // 1D + 4H fully aligned
                 techAlignmentBonus = 5;
                 techAlignmentNote = `1D + 4H tech aligned (${isBull ? 'bullish' : 'bearish'}): higher-TF confirmation — confidence HIGH.`;
-                if (!h1Disagrees) techAlignmentBonus = 7; // All 3 TFs agree
+                if (!h1Disagrees) techAlignmentBonus = 7;
             } else if (higherTFAgree) {
                 techAlignmentBonus = 2;
                 techAlignmentNote = `Higher TFs lean ${isBull ? 'bullish' : 'bearish'} — moderate alignment.`;
@@ -1322,9 +1323,9 @@ export default async function handler(req, res) {
                 techAlignmentNote = (techAlignmentNote || '') + suffix;
             }
 
-            // Apply bonus to top picks' unifiedScore and add factor for explainability
             if (techAlignmentBonus !== 0) {
-                for (const pick of topPicks) {
+                for (const pick of targetRecs) {
+                    pick.score = (pick.score || 0) + techAlignmentBonus;
                     pick.unifiedScore = (pick.unifiedScore || 0) + techAlignmentBonus;
                     if (Array.isArray(pick.factors)) {
                         pick.factors.push({
@@ -1335,29 +1336,10 @@ export default async function handler(req, res) {
                         });
                     }
                 }
-                topPicks.sort((a, b) => b.unifiedScore - a.unifiedScore);
+                targetRecs.sort((a, b) => b.unifiedScore - a.unifiedScore);
             }
         }
 
-        // 4. Strategy Selection — driven by unified score (replaces flawed cross-score comparison)
-        let recommendedStrategy = 'CREDIT_SPREAD';
-        if (topPicks.length > 0) {
-            recommendedStrategy = topPicks[0].strategyCategory;
-        } else if (regime.mode === 'DEBIT') {
-            recommendedStrategy = 'DEBIT_SPREAD';
-        }
-        // Safety fallbacks for empty arrays
-        if (recommendedStrategy === 'CREDIT_SPREAD' && creditSpreads.length === 0) {
-            recommendedStrategy = debitSpreads.length > 0 ? 'DEBIT_SPREAD' : 'SINGLE_LEG';
-        }
-        if (recommendedStrategy === 'DEBIT_SPREAD' && debitSpreads.length === 0) {
-            recommendedStrategy = singleLegs.length > 0 ? 'SINGLE_LEG' : 'CREDIT_SPREAD';
-        }
-        if (recommendedStrategy === 'SINGLE_LEG' && singleLegs.length === 0) {
-            recommendedStrategy = creditSpreads.length > 0 ? 'CREDIT_SPREAD' : 'DEBIT_SPREAD';
-        }
-
-        // Compute top-level earnings premium for the requested DTE (informational — shown regardless of strategy type)
         const contextIV = iv30 ?? null;
         const earningsPremiumContext = contextIV && currentPrice > 0
             ? estimateEarningsPremium(daysUntilEarnings, dteTarget, contextIV, currentPrice)
@@ -1400,15 +1382,12 @@ export default async function handler(req, res) {
                     anomalyRatio: ivSurface.anomalyRatio ? Number(ivSurface.anomalyRatio.toFixed(2)) : null
                 }
             },
-            recommendedStrategy,
+            recommendedStrategy: decodedStrategy,
             tech: tech,
             techByTimeframe: techByTimeframe || undefined,
             techAlignment: techAlignmentNote ? { note: techAlignmentNote, bonus: techAlignmentBonus } : null,
             strategies: {
-                CREDIT_SPREAD: creditSpreads,
-                DEBIT_SPREAD: debitSpreads,
-                SINGLE_LEG: singleLegs,
-                TOP_PICKS: topPicks,
+                TARGET_STRATEGY: targetRecs,
                 _regimeMeta: { skew }
             }
         });

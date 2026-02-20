@@ -1,0 +1,1062 @@
+//@version=6
+// © MB+DFP + Options Scanner v3.2
+// ────────────────────────────────────────────────
+// v3.0→v3.1  FIX LOG
+// ────────────────────────────────────────────────
+// [FIX-1] PUT scoring symmetry: sc_mb / sc_bxs / sc_bxl now give
+//         bearish signals the same 25–100 range as bullish ones.
+//         A "Perfect Storm PUT" can now reach STR SELL threshold.
+//
+// [FIX-2] Structure recommendation is now fully direction-aware.
+//         Every branch checks s_stype (CALL vs PUT) before mapping
+//         to credit/debit structure. Prevents "Credit Put Spd" on a
+//         bearish setup.
+//
+// [FIX-3] hv_expensive flag is now wired into structure logic.
+//         High-HV CALL setups shift from debit to credit structures.
+//         High-HV PUT setups shift from debit puts to credit calls.
+//
+// [FIX-4] RVOL penalty now applies to both CALL and PUT.
+//         Low-volume breakdowns are penalised the same as low-vol rallies.
+//
+// [FIX-5] s_regime string no longer pre-concatenated with mtf_tag
+//         before it's used in structure comparisons. mtf_tag appended
+//         only in the display column.
+//
+// [FIX-6] Breakout structure now requires RVOL confirmation.
+//
+// [FIX-7] Iron Condor recommendation now requires HV >= Mid.
+//
+// [FIX-8] s_calc_emas comment updated to match actual periods (21/34/50).
+//
+// ────────────────────────────────────────────────
+// v3.1→v3.2  TIMEFRAME CALIBRATION (1.5 wk – 2 mo holding period)
+// ────────────────────────────────────────────────
+// [CAL-1] Scanner MB Period default: 100 → 60
+//         100-period EMA ≈ 5-month trend — too slow for a 2-month max hold.
+//         60-period EMA ≈ 3-month trend — catches direction shifts within
+//         the timeframe where you'd still be in a position.
+//
+// [CAL-2] Weekly MTF approximation multiplier: ×5 → ×3
+//         c_mb*5 = 500 bars ≈ 2-year lag — nearly useless for swing trades.
+//         c_mb*3 = 180 bars ≈ 9-month anchor — responsive enough to flag
+//         weekly trend conflicts within a month, not two years late.
+//         B-Xtrender weekly proxy also scaled ×3 (was ×5) for consistency.
+//
+// [CAL-3] Momentum scoring: added 10-day (2-week) change layer
+//         ch1 (1d) and ch3 (3d) only capture intra-week noise.
+//         ch10 (10d ≈ 2 weeks) aligns with the SHORT end of holding period.
+//         Scoring now 3-tier: ch1 (entry urgency) + ch3 (short swing) +
+//         ch10 (medium momentum confirmation).  Weights: 25/35/40.
+// ────────────────────────────────────────────────
+
+indicator("MB+DFP + Options Scanner v3.2", shorttitle="MB+DFP+SCAN v3.2", overlay=true, max_bars_back=1500, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+
+// ==========================================
+// 1. VISUAL INDICATOR INPUTS
+// ==========================================
+mbGR = "Visuals: Market Bias"
+ha_htf  = input.timeframe('', 'Timeframe', tooltip="Must be >= chart timeframe", group=mbGR, display=display.data_window)
+ha_len  = input(100, 'Period',    group=mbGR, display=display.data_window)
+ha_len2 = input(100, 'Smoothing', group=mbGR, display=display.data_window)
+osc_len = input.int(7, "Oscillator Period", group=mbGR, display=display.data_window)
+show_ha = input.bool(true,  "Show HA Candles",   inline='ha/mb display', group=mbGR, display=display.data_window)
+show_mb = input.bool(true,  "Show Market Bias",   inline='ha/mb display', group=mbGR, display=display.data_window)
+col_bull = input.color(color.lime, 'Color: Bullish', inline='bull/bear color', group=mbGR, display=display.data_window)
+col_bear = input.color(color.red,  'Bearish',         inline='bull/bear color', group=mbGR, display=display.data_window)
+
+emaGR    = "Visuals: EMA Stack (8/21/34)"
+show_stack = input.bool(true,         "Show EMA Stack", group=emaGR, display=display.data_window)
+c_ema8    = input.color(color.yellow, "EMA 8 Color",    group=emaGR, display=display.data_window)
+c_ema21   = input.color(color.orange, "EMA 21 Color",   group=emaGR, display=display.data_window)
+c_ema34   = input.color(color.red,    "EMA 34 Color",   group=emaGR, display=display.data_window)
+
+maGR   = "Visuals: Standard MAs"
+showMA   = input.bool(false, "Show Standard MAs",    group=maGR, display=display.data_window)
+showDots = input.bool(true,  "Show Historical Dots", group=maGR, display=display.data_window)
+ma5_color   = input.color(color.new(#00FFFF, 0), "MA5",   inline="ma1", group=maGR, display=display.data_window)
+ma10_color  = input.color(color.new(#1E90FF, 0), "MA10",  inline="ma1", group=maGR, display=display.data_window)
+ma20_color  = input.color(color.new(#0000FF, 0), "MA20",  inline="ma2", group=maGR, display=display.data_window)
+ma60_color  = input.color(color.new(#000080, 0), "MA60",  inline="ma2", group=maGR, display=display.data_window)
+ma120_color = input.color(color.new(#FF69B4, 0), "MA120", inline="ma3", group=maGR, display=display.data_window)
+ma200_color = input.color(color.new(#8B0000, 0), "MA200", inline="ma3", group=maGR, display=display.data_window)
+
+dfGR   = "Visuals: Delta Flow"
+dfDist = input.int(0,  'Distance from Price', minval=-100, maxval=100, step=1, group=dfGR, display=display.data_window)
+vpSH   = input.bool(true, 'Money Flow Profile', inline='mfp', group=dfGR, display=display.data_window)
+mfpC   = input.color(color.new(#5288C4, 0), '', inline='mfp', group=dfGR, display=display.data_window)
+npSH   = input.bool(true, 'Normalized', inline='mfp', group=dfGR, display=display.data_window)
+spSH   = input.bool(true, 'Delta Profile', group=dfGR, display=display.data_window)
+spPTY  = input.string('Bar Polarity', 'Polarity Method', options=['Bar Polarity', 'Bar Buying/Selling Pressure'], inline='pm', group=dfGR, display=display.data_window)
+spBLC  = input.color(color.new(#5288C4, 0), '', inline='pm', group=dfGR, display=display.data_window)
+spBRC  = input.color(color.new(#f7525f, 0), '', inline='pm', group=dfGR, display=display.data_window)
+rpLN   = input.int(360, 'Lookback Length',         minval=10, maxval=1500, step=10,  group=dfGR, display=display.data_window)
+rpNR   = input.int(25,  'Number of Rows',           minval=10, maxval=125,  step=5,   group=dfGR, display=display.data_window)
+rpW    = input.int(17,  'Profile Width %',           minval=10, maxval=50,             group=dfGR, display=display.data_window) / 100
+vpHO   = input.int(13,  'Profile Horizontal Offset',                                   group=dfGR, display=display.data_window)
+vpLS   = input.string('Tiny',  'Profile Text',  options=['Auto','Tiny','Small','None'], group=dfGR, display=display.data_window)
+vpLC   = input.bool(false, 'Currency', group=dfGR, display=display.data_window)
+rpPL   = input.bool(false, 'Profile Price Levels', group=dfGR, display=display.data_window)
+rpLS   = input.string('Small', 'Level Text Size', options=['Tiny','Small','Normal'],    group=dfGR, display=display.data_window)
+
+// ==========================================
+// 2. SCANNER INPUTS
+// ==========================================
+scanGR          = "Scanner: Settings"
+show_scanner    = input.bool(true, "Show Scanner Table", group=scanGR, display=display.data_window)
+watchlist_input = input.string("AAPL,MSFT,GOOGL,AMZN,NVDA,META,TSLA,AMD,NFLX,CRM,ORCL,INTC,QCOM,AVGO,JPM,BAC,GS,MS,V,COST,SPY,QQQ,MSTR,COIN,PLTR", "Watchlist (max 25)", group=scanGR, display=display.data_window)
+max_display     = input.int(15, "Max Stocks to Display", minval=5, maxval=40, group=scanGR, display=display.data_window)
+min_score       = input.int(60, "Minimum Score", minval=0, maxval=100, group=scanGR, display=display.data_window)
+show_puts       = input.bool(true, "Show PUT Opportunities",  group=scanGR, display=display.data_window)
+show_calls      = input.bool(true, "Show CALL Opportunities", group=scanGR, display=display.data_window)
+table_position  = input.string("middle_right", "Table Position", options=["top_left","top_center","top_right","middle_left","middle_center","middle_right","bottom_left","bottom_center","bottom_right"], group=scanGR, display=display.data_window)
+table_size      = input.string("small", "Table Size", options=["tiny","small","normal","large"], group=scanGR, display=display.data_window)
+
+critGR      = "Scanner: Criteria Periods"
+// [v3.2] Scanner MB now shares ha_len from "Visuals: Market Bias → Period"
+// so you only set one value — visual and scanner always stay in sync.
+sc_mb_len   = ha_len
+sc_bx_s1    = input.int(5,   "B-Xtrender Short L1",   group=critGR, display=display.data_window)
+sc_bx_s2    = input.int(20,  "B-Xtrender Short L2",   group=critGR, display=display.data_window)
+sc_bx_s3    = input.int(15,  "B-Xtrender Short L3",   group=critGR, display=display.data_window)
+sc_bx_l1    = input.int(20,  "B-Xtrender Long L1",    group=critGR, display=display.data_window)
+sc_bx_l2    = input.int(15,  "B-Xtrender Long L2",    group=critGR, display=display.data_window)
+
+// ==========================================
+// ENHANCEMENT INPUTS (v2 + v3 + v3.1)
+// ==========================================
+
+// [1] RVOL
+rvolGR          = "Scanner: [v2] Volume Confirmation (RVOL)"
+use_rvol        = input.bool(true,  "Enable RVOL Filter",                    group=rvolGR, display=display.data_window)
+rvol_period     = input.int(20,     "RVOL Average Period",    minval=5, maxval=50, group=rvolGR, display=display.data_window)
+rvol_threshold  = input.float(1.3,  "Min RVOL (2-bar avg) for Full Credit",  group=rvolGR, display=display.data_window)
+// rvol_penalty removed in v3.2 — RVOL is now a scored component, not a post-hoc penalty
+
+// [2] ADX Dynamic Weighting
+adxGR           = "Scanner: [v2] ADX Dynamic Weighting"
+use_adx         = input.bool(true, "Enable ADX Dynamic Weights",                  group=adxGR, display=display.data_window)
+adx_period      = input.int(14,    "ADX Period",   minval=5, maxval=30,             group=adxGR, display=display.data_window)
+adx_trend_thresh = input.int(25,   "ADX Trend Threshold (> = Trending)",           group=adxGR, display=display.data_window)
+adx_range_thresh = input.int(20,   "ADX Range Threshold (< = Ranging)",            group=adxGR, display=display.data_window)
+
+// [v3.3] Options Specific DTE & Earnings Logic
+earningGR       = "Scanner: [v3.3] Earnings & Setup Constraints"
+use_earn        = input.bool(true,  "Avoid Credit/Debit ahead of Earnings",       group=earningGR, display=display.data_window)
+earn_thresh     = input.int(10,     "Days to Earnings Risk Window", minval=1, maxval=21, group=earningGR, display=display.data_window)
+pb_rvol_max     = input.float(1.0,  "Max RVOL for a Healthy Pullback",            group=earningGR, display=display.data_window)
+
+// [3] Mean Reversion Filter
+mrGR            = "Scanner: [v2] Mean Reversion Filter"
+use_mr_filter   = input.bool(true,  "Enable Mean Reversion Filter",               group=mrGR, display=display.data_window)
+mr_stddev_mult  = input.float(3.0,  "StdDev Multiplier for OVEREXTENDED",         group=mrGR, display=display.data_window)
+mr_lookback     = input.int(20,     "StdDev Lookback",                             group=mrGR, display=display.data_window)
+
+// [4] MTF Hard Constraint  [v3: Weekly replaces Daily as primary anchor]
+mtfGR           = "Scanner: [v3] MTF Hard Constraint (Weekly Anchor)"
+use_mtf_filter  = input.bool(true, "Enable Weekly Bias Hard Filter",               group=mtfGR, display=display.data_window)
+mtf_score_floor = input.int(48,    "Min Weekly Score to Allow BUY (else Bounce)",  group=mtfGR, display=display.data_window)
+
+// [5] Non-linear Boost
+boostGR         = "Scanner: [v2] Perfect Storm Boost"
+use_boost       = input.bool(true, "Enable 1.1x Boost (MB+BXS both > thresh)",   group=boostGR, display=display.data_window)
+boost_mb_thresh = input.int(80,    "MB Score Threshold",                           group=boostGR, display=display.data_window)
+boost_bxs_thresh = input.int(80,   "BXS Score Threshold",                          group=boostGR, display=display.data_window)
+
+// [v3] HV Percentile (IV proxy)
+hvGR            = "Scanner: [v3] HV Percentile (IV Environment Proxy)"
+use_hv          = input.bool(true,  "Enable HV Percentile Warning",               group=hvGR, display=display.data_window)
+hv_period       = input.int(20,     "HV Calculation Period",  minval=10, maxval=30, group=hvGR, display=display.data_window)
+hv_pct_lookback = input.int(252,    "HV Percentile Lookback (bars)",               group=hvGR, display=display.data_window)
+hv_high_thresh  = input.float(0.75, "High-Vol Threshold (0–1 percentile)",         group=hvGR, display=display.data_window)
+hv_low_thresh   = input.float(0.30, "Low-Vol Threshold (ideal for buying premium)",group=hvGR, display=display.data_window)
+
+// [v3] Options Entry Quality
+optGR           = "Scanner: [v3] Options-Specific Filters"
+opt_str_buy_min = input.int(82, "Min Score for STR BUY/SELL",   group=optGR, display=display.data_window)
+opt_buy_min     = input.int(75, "Min Score for BUY/SELL",        group=optGR, display=display.data_window)
+
+// Base Weights (v3.2: 7 components — tradability baked into score)
+// ──────────────────────────────────────────────────────
+// Old (5 components): Score = technical signal strength only.
+//   Problem: Score 85 + ADX 18 + RVOL 0.7 → high score, no structure.
+//
+// New (7 components): Score = signal strength × tradability.
+//   ADX Regime: is there a real trend to ride? (or confirmed range for IC)
+//   RVOL:       is volume confirming the move?
+//   High score now means "strong AND tradable".
+// ──────────────────────────────────────────────────────
+w_mb  = input.int(25, "Weight: Market Bias %",      minval=0, maxval=40, group="Scanner: Scoring", display=display.data_window)
+w_bxs = input.int(20, "Weight: B-Xtrender Short %", minval=0, maxval=40, group="Scanner: Scoring", display=display.data_window)
+w_bxl = input.int(15, "Weight: B-Xtrender Long %",  minval=0, maxval=40, group="Scanner: Scoring", display=display.data_window)
+w_ema = input.int(12, "Weight: EMA Stack %",        minval=0, maxval=40, group="Scanner: Scoring", display=display.data_window)
+w_mom = input.int(8,  "Weight: Momentum %",         minval=0, maxval=40, group="Scanner: Scoring", display=display.data_window)
+w_adx = input.int(12, "Weight: ADX Regime %",       minval=0, maxval=30, group="Scanner: Scoring", display=display.data_window)
+w_vol = input.int(8,  "Weight: RVOL %",             minval=0, maxval=30, group="Scanner: Scoring", display=display.data_window)
+
+// ==========================================
+// 3. VISUAL CALCULATIONS
+// ==========================================
+indexHighTF = timeframe.in_seconds(ha_htf) == timeframe.in_seconds('') ? 0 : barstate.isrealtime ? 1 : 0
+indexCurrTF = timeframe.in_seconds(ha_htf) == timeframe.in_seconds('') ? 0 : barstate.isrealtime ? 0 : 1
+
+f_no_repaint_request(string _resolution, _expression) =>
+    request.security(syminfo.tickerid, _resolution, _expression[indexHighTF])[indexCurrTF]
+
+f_gTxtSz(_t) =>
+    switch _t
+        'Tiny'   => size.tiny
+        'Small'  => size.small
+        'Normal' => size.normal
+        => size.auto
+
+f_drawLabelX(_x, _y, _text, _style, _textcolor, _size, _tooltip) =>
+    var lb = label.new(_x, _y, _text, xloc.bar_index, yloc.price, color(na), _style, _textcolor, _size, text.align_left, _tooltip)
+    lb.set_xy(_x, _y), lb.set_text(_text), lb.set_tooltip(_tooltip), lb.set_textcolor(_textcolor)
+
+// EMA Stack
+v_ema8  = ta.ema(close, 8)
+v_ema21 = ta.ema(close, 21)
+v_ema34 = ta.ema(close, 34)
+plot(show_stack ? v_ema8  : na, "EMA 8",  color=c_ema8,  linewidth=2)
+plot(show_stack ? v_ema21 : na, "EMA 21", color=c_ema21, linewidth=2)
+plot(show_stack ? v_ema34 : na, "EMA 34", color=c_ema34, linewidth=2)
+
+// Standard MAs
+ma5   = ta.sma(close, 5),   ma10  = ta.sma(close, 10),  ma20  = ta.sma(close, 20)
+ma60  = ta.sma(close, 60),  ma120 = ta.sma(close, 120), ma200 = ta.sma(close, 200)
+plot(showMA ? ma5   : na, "MA5",   color=ma5_color,   linewidth=1)
+plot(showMA ? ma10  : na, "MA10",  color=ma10_color,  linewidth=1)
+plot(showMA ? ma20  : na, "MA20",  color=ma20_color,  linewidth=1)
+plot(showMA ? ma60  : na, "MA60",  color=ma60_color,  linewidth=1)
+plot(showMA ? ma120 : na, "MA120", color=ma120_color, linewidth=1)
+plot(showMA ? ma200 : na, "MA200", color=ma200_color, linewidth=1)
+
+// Historical Dots
+dotColor = color.new(color.yellow, 0)
+dotSize  = size.tiny
+plotshape(showDots ? 1 : na, "5d",   style=shape.circle, location=location.belowbar, color=dotColor, size=dotSize, offset=-5,   show_last=1)
+plotshape(showDots ? 1 : na, "10d",  style=shape.circle, location=location.belowbar, color=dotColor, size=dotSize, offset=-10,  show_last=1)
+plotshape(showDots ? 1 : na, "20d",  style=shape.circle, location=location.belowbar, color=dotColor, size=dotSize, offset=-20,  show_last=1)
+plotshape(showDots ? 1 : na, "60d",  style=shape.circle, location=location.belowbar, color=dotColor, size=dotSize, offset=-60,  show_last=1)
+plotshape(showDots ? 1 : na, "120d", style=shape.circle, location=location.belowbar, color=dotColor, size=dotSize, offset=-120, show_last=1)
+plotshape(showDots ? 1 : na, "200d", style=shape.circle, location=location.belowbar, color=dotColor, size=dotSize, offset=-200, show_last=1)
+
+// Market Bias Visuals
+mb_o = ta.ema(open, ha_len), mb_c = ta.ema(close, ha_len), mb_h = ta.ema(high, ha_len), mb_l = ta.ema(low, ha_len)
+haclose  = f_no_repaint_request(ha_htf, (mb_o + mb_h + mb_l + mb_c) / 4)
+xhaopen  = f_no_repaint_request(ha_htf, (mb_o + mb_c) / 2)
+haopen   = na(xhaopen[1]) ? (mb_o + mb_c) / 2 : (xhaopen[1] + haclose[1]) / 2
+hahigh   = math.max(mb_h, math.max(haopen, haclose))
+halow    = math.min(mb_l, math.min(haopen, haclose))
+o2 = f_no_repaint_request(ha_htf, ta.ema(haopen,  ha_len2))
+c2 = f_no_repaint_request(ha_htf, ta.ema(haclose, ha_len2))
+h2 = f_no_repaint_request(ha_htf, ta.ema(hahigh,  ha_len2))
+l2 = f_no_repaint_request(ha_htf, ta.ema(halow,   ha_len2))
+osc_bias   = 100 * (c2 - o2)
+osc_smooth = ta.ema(osc_bias, osc_len)
+sigcolor   = switch
+    (osc_bias > 0) and (osc_bias >= osc_smooth) => color.new(col_bull, 35)
+    (osc_bias > 0) and (osc_bias < osc_smooth)  => color.new(col_bull, 75)
+    (osc_bias < 0) and (osc_bias <= osc_smooth) => color.new(col_bear, 35)
+    (osc_bias < 0) and (osc_bias > osc_smooth)  => color.new(col_bear, 75)
+    => color(na)
+p_h = plot(h2, "Bias High", color=color(na), display=display.data_window, editable=false)
+p_l = plot(l2, "Bias Low",  color=color(na), display=display.data_window, editable=false)
+fill(p_l, p_h, show_mb ? sigcolor : na)
+plotcandle(o2, h2, l2, c2, title='heikin smoothed', color=o2 > c2 ? col_bear : col_bull, display=show_ha ? display.pane : display.data_window, editable=false)
+
+// Delta Flow Profile
+type bar
+    float o = open
+    float h = high
+    float l = low
+    float c = close
+    float v = volume
+    int   i = bar_index
+
+bar b    = bar.new()
+nzV      = nz(b.v)
+rpVST    = array.new<float>(rpNR, 0.)
+rpVSB    = array.new<float>(rpNR, 0.)
+rpVSD    = array.new<float>(rpNR, 0.)
+var dRP  = array.new<box>()
+var dPR  = array.new<line>()
+var float pLST = na, var float pHST = na, var int sI = na, var color llC = na
+bull = spPTY == 'Bar Polarity' ? b.c > b.o : (b.c - b.l) > (b.h - b.c)
+rpS  = f_gTxtSz(rpLS), vpS = f_gTxtSz(vpLS)
+adj_rpLN = last_bar_index > rpLN ? rpLN - 1 : last_bar_index
+if b.i == last_bar_index - adj_rpLN
+    sI   := b.i, pLST := b.l, pHST := b.h
+else if b.i > last_bar_index - adj_rpLN
+    pLST := math.min(b.l, pLST), pHST := math.max(b.h, pHST)
+pSTP = (pHST - pLST) / rpNR
+
+if barstate.islast and not na(nzV) and not timeframe.isseconds and adj_rpLN > 0 and pSTP > 0 and nzV > 0
+    if dRP.size() > 0
+        for i = 0 to dRP.size() - 1
+            box.delete(dRP.shift())
+    if dPR.size() > 0
+        for i = 0 to dPR.size() - 1
+            line.delete(dPR.shift())
+    for bI = adj_rpLN to 0
+        l_idx = 0
+        _h = high[bI], _l = low[bI], _v = nzV[bI]
+        for pLL = pLST to pHST - pSTP by pSTP
+            if _h >= pLL and _l < pLL + pSTP
+                vPOR = 0.0
+                if _l >= pLL and _h > pLL + pSTP
+                    vPOR := (pLL + pSTP - _l) / (_h - _l)
+                else if _h <= pLL + pSTP and _l < pLL
+                    vPOR := (_h - pLL) / (_h - _l)
+                else if (_l >= pLL and _h <= pLL + pSTP)
+                    vPOR := 1.0
+                else
+                    vPOR := pSTP / (_h - _l)
+                rpVST.set(l_idx, rpVST.get(l_idx) + _v * vPOR * (pLST + (l_idx + .5) * pSTP))
+                if bull[bI] and spSH
+                    rpVSB.set(l_idx, rpVSB.get(l_idx) + _v * vPOR * (pLST + (l_idx + .5) * pSTP))
+            l_idx += 1
+    vtMX = rpVST.max()
+    for l = 0 to rpNR - 1
+        vtLV = rpVST.get(l), LpM = vtLV / vtMX, bbp = 2 * rpVSB.get(l) - vtLV
+        rpVSD.set(l, rpVSD.get(l) + bbp * (bbp > 0 ? 1 : -1))
+        if vpSH and npSH
+            llC := color.from_gradient(LpM, 0, 1, color.new(mfpC, 93), color.new(mfpC, 53))
+            sBI  = b.i + int(4 * adj_rpLN * rpW / 3) + dfDist
+            dRP.push(box.new(sBI + 1 + vpHO, pLST + (l + .03) * pSTP, sBI + int(adj_rpLN * rpW / 3) + 3 + vpHO, pLST + (l + .97) * pSTP, color(na), bgcolor=llC))
+            dPR.push(line.new(sBI + 1 + vpHO, pLST + (l + .0) * pSTP, sBI + int(adj_rpLN * rpW / 3) + 3 + vpHO, pLST + (l + .0) * pSTP, color=color.gray, width=2))
+            sBI := sBI + int(adj_rpLN * rpW / 3) + 3 + vpHO
+            eBI  = sBI - int(LpM * (int(adj_rpLN * rpW / 3) + 2))
+            llC := color.from_gradient(LpM, 0, 1, color.new(mfpC, 53), color.new(chart.fg_color, 13))
+            dRP.push(box.new(sBI, pLST + (l + .1) * pSTP, eBI, pLST + (l + .9) * pSTP, color(na), bgcolor=llC, text=vpLS != 'None' ? str.tostring(LpM * 100, format.percent) : '', text_color=LpM == 1 ? color.blue : LpM > .5 ? chart.bg_color : chart.fg_color, text_halign=text.align_right, text_size=LpM == 1 ? size.small : size.tiny))
+    if spSH
+        bbp = 2 * rpVSB.sum() - rpVST.sum()
+        llC := bbp > 0 ? spBLC : spBRC
+        dPR.push(line.new(sI + dfDist, pLST, sI + dfDist, pHST, color=llC, width=2))
+    if vpSH
+        dPR.push(line.new(b.i + int(4 * adj_rpLN * rpW / 3) + 1 + vpHO + dfDist, pLST, b.i + int(4 * adj_rpLN * rpW / 3) + 1 + vpHO + dfDist, pHST, color=mfpC, width=2))
+        if npSH
+            dPR.push(line.new(b.i + int(5 * adj_rpLN * rpW / 3) + 3 + vpHO + dfDist, pLST, b.i + int(5 * adj_rpLN * rpW / 3) + 3 + vpHO + dfDist, pHST, color=mfpC, width=2))
+    if rpPL
+        f_drawLabelX(vpSH ? b.i + int(4 * adj_rpLN * rpW / 3) + 1 + vpHO + dfDist : b.i + dfDist, pHST, 'Profile High · ' + str.tostring(pHST, format.mintick), label.style_label_down, mfpC, rpS, 'Profile High')
+        f_drawLabelX(vpSH ? b.i + int(4 * adj_rpLN * rpW / 3) + 1 + vpHO + dfDist : b.i + dfDist, pLST, 'Profile Low · '  + str.tostring(pLST, format.mintick), label.style_label_up,   mfpC, rpS, 'Profile Low')
+    vdMX = rpVSD.max()
+    for l = 0 to rpNR - 1
+        if dRP.size() < 500
+            vtLV = rpVST.get(l), LpM = vtLV / vtMX, DpM = rpVSD.get(l) / vdMX
+            if vpSH
+                sBI  = b.i + int(4 * adj_rpLN * rpW / 3) + dfDist
+                eBI  = sBI - int(LpM * adj_rpLN * rpW)
+                llC := color.from_gradient(LpM, 0, 1, color.new(mfpC, 73), color.new(mfpC, 3))
+                dRP.push(box.new(sBI + vpHO, pLST + (l + .1) * pSTP, eBI + vpHO, pLST + (l + .9) * pSTP, color(na), bgcolor=llC, text=(vpLS != 'None' ? str.tostring(array.get(rpVST, l), format.volume) : ''), text_halign=text.align_right, text_color=LpM == 1 ? color.yellow : chart.fg_color, text_size=vpS))
+            if spSH
+                sBI  = sI + dfDist, eBI = sBI + int(DpM * adj_rpLN * rpW)
+                bbp  = 2 * rpVSB.get(l) - vtLV
+                llC := bbp > 0 ? color.from_gradient(DpM, 0, 1, color.new(spBLC, 80), color.new(spBLC, 20)) : color.from_gradient(DpM, 0, 1, color.new(spBRC, 80), color.new(spBRC, 20))
+                dRP.push(box.new(sBI + 1, pLST + (l + .1) * pSTP, eBI + 1, pLST + (l + .9) * pSTP, color(na), bgcolor=llC, text=(vpLS != 'None' ? str.tostring(bbp, format.volume) : ''), text_halign=text.align_left, text_color=chart.fg_color, text_size=vpS))
+
+
+// ==========================================
+// 4. SCANNER HELPER FUNCTIONS
+// ==========================================
+
+type StockData
+    string symbol
+    float  score
+    string signal
+    string setup
+    string stype
+    int    confidence
+    float  mb_osc
+    float  bx_short
+    float  bx_long
+    float  dist_ema8
+    bool   reversal
+    float  rvol
+    string regime       // [FIX-5] raw regime string, no mtf_tag
+    bool   overextended
+    bool   mtf_conflict
+    float  adx_val
+    string hv_env
+    string note_detail
+
+s_t3_smooth(src, len) =>
+    xe1=ta.ema(src,len), xe2=ta.ema(xe1,len), xe3=ta.ema(xe2,len)
+    xe4=ta.ema(xe3,len), xe5=ta.ema(xe4,len), xe6=ta.ema(xe5,len)
+    b=0.7, c1=-b*b*b, c2=3*b*b+3*b*b*b, c3=-6*b*b-3*b-3*b*b*b, c4=1+3*b+b*b*b+3*b*b
+    c1*xe6 + c2*xe5 + c3*xe4 + c4*xe3
+
+s_calc_mb(c, o, h, l, len) =>
+    mb_o=ta.ema(o,len), mb_c=ta.ema(c,len), mb_h=ta.ema(h,len), mb_l=ta.ema(l,len)
+    hc=(mb_o+mb_h+mb_l+mb_c)/4
+    xho=(mb_o+mb_c)/2
+    ho=na(xho[1])?(mb_o+mb_c)/2:(xho[1]+hc[1])/2
+    o2=ta.ema(ho,len), c2=ta.ema(hc,len)
+    osc=100*(c2-o2), sm=ta.ema(osc,7)
+    is_bull=osc>0, is_str=is_bull?(osc>=sm):(osc<=sm)
+    bs_bull=is_bull and osc[1]<0, bs_bear=not is_bull and osc[1]>=0
+    [osc,is_bull,is_str,bs_bull,bs_bear]
+
+s_calc_bx(c, s1, s2, s3, l1, l2) =>
+    stX=ta.rsi(ta.ema(c,s1)-ta.ema(c,s2),s3)-50
+    ltX=ta.rsi(ta.ema(c,l1),l2)-50
+    mstX=s_t3_smooth(stX,5)
+    [stX, mstX, ltX, mstX>mstX[1] and mstX[1]<mstX[2], mstX<mstX[1] and mstX[1]>mstX[2], stX>0 and stX[1]<=0, stX<0 and stX[1]>=0]
+
+// [FIX-8] EMA periods for scanner: 21/34/50 — calibrated for options holding periods
+// EMA21 ≈ 1 month  |  EMA34 ≈ 7 weeks  |  EMA50 ≈ 2.5 months
+// Note: These are DIFFERENT from the visual EMA stack (8/21/34) which is for chart display
+s_calc_emas(c) =>
+    e21=ta.ema(c,21), e34=ta.ema(c,34), e50=ta.ema(c,50)
+    d21=(c-e21)/e21*100, d34=(c-e34)/e34*100, d50=(c-e50)/e50*100
+    bstk=e21>e34 and e34>e50, brstk=e21<e34 and e34<e50
+    [e21,e34,e50,d21,d34,d50,bstk,brstk,math.abs(d34)<1.0,math.abs(d50)<1.5,c>e21 and c[1]<=e21[1],c<e21 and c[1]>=e21[1]]
+
+// ADX helper
+s_calc_adx(len) =>
+    up=ta.change(high), dn=-ta.change(low)
+    plus=na(up)?na:(up>dn and up>0?up:0)
+    minus=na(dn)?na:(dn>up and dn>0?dn:0)
+    tr_=ta.rma(ta.tr,len)
+    pdi=100*ta.rma(plus,len)/tr_, mdi=100*ta.rma(minus,len)/tr_
+    sum_di=pdi+mdi
+    adx_v=100*ta.rma(math.abs(pdi-mdi)/(sum_di==0?1:sum_di),len)
+    [adx_v, pdi, mdi]
+
+// RVOL with 2-bar confirmation
+s_calc_rvol(vol, period) =>
+    avg = ta.sma(vol, period)
+    rvol_now  = nz(vol,0)   / (avg==0?1:avg)
+    rvol_prev = nz(vol[1],0) / (nz(avg[1],avg)==0?1:nz(avg[1],avg))
+    rvol_2bar = (rvol_now + rvol_prev) / 2
+    [rvol_now, rvol_2bar]
+
+// HV Percentile — proxy for IV environment
+s_calc_hv_pct(period, lookback) =>
+    log_ret = math.log(nz(close[1]) > 0 ? close / close[1] : 1.0)
+    hv_now  = ta.stdev(log_ret, period) * math.sqrt(252) * 100
+    hv_max  = ta.highest(hv_now, lookback)
+    hv_min  = ta.lowest(hv_now,  lookback)
+    pct     = hv_max == hv_min ? 0.5 : (hv_now - hv_min) / math.max(hv_max - hv_min, 0.0001)
+    [hv_now, pct]
+
+// Setup Identification
+// [v3.2B] Relaxed conditions — key changes:
+//   • Strong Trend / Strong Down: removed full stack (bstk/brstk) requirement.
+//     Now only requires d8 aligned + bxs/bxl aligned. Catches stocks that are
+//     clearly directional but EMAs haven't fully fanned out yet (e.g. META).
+//   • Failed Rally: removed brstk, now only needs d8<2 (price below short EMA).
+//   • Pullback Buy: removed bstk, now just needs d8>-2 and EMA proximity (t21/t34).
+// [v3.3] Pullback setups now require RVOL contraction.
+s_identify(osc, bull, bs_bull, bs_bear, bxs, bxl, rev_up, rev_dn, crup, crdn, d8, d21, d34, bstk, brstk, t21, t34, cup8, cdn8, rvol_now, pb_max) =>
+    name="Mixed", type="NEUTRAL", conf=0
+
+    // ── CALL setups (strongest → weakest) ──────────────────
+    if (bs_bull or (bull and osc>2)) and (crup or (bxs>0 and rev_up)) and bxl>0 and cup8 and bstk
+        name:="Perfect Storm", type:="CALL", conf:=3
+    else if bull and osc>2 and bxs>10 and bxl>5 and cup8 and d8>1 and d21>0
+        name:="Breakout", type:="CALL", conf:=3
+    else if bull and osc>2 and bxs>5 and bxl>8 and d8>0
+        name:="Strong Trend", type:="CALL", conf:=2
+    else if bull and osc>1 and bxs>0 and not crdn and bxl>0 and (t21 or t34) and d8>-2
+        // [v3.3] pullbacks must shrink in volume (healthy retracement, not distribution)
+        if rvol_now <= pb_max
+            name:="Pullback Buy", type:="CALL", conf:=2
+        else
+            name:="Vol Distribution", type:="NEUTRAL", conf:=1
+    else if (bs_bull or osc>0) and rev_up and bxs>-10 and cup8
+        name:="Divergence", type:="CALL", conf:=1
+
+    // ── PUT setups (strongest → weakest) ───────────────────
+    else if (bs_bear or (not bull and osc<-2)) and (crdn or (bxs<0 and rev_dn)) and bxl<0 and cdn8 and brstk
+        name:="Perfect Storm", type:="PUT", conf:=3
+    else if not bull and osc<-2 and bxs<-10 and bxl<-5 and cdn8 and d8<-1 and d21<0
+        name:="Breakdown", type:="PUT", conf:=3
+    else if not bull and osc<-2 and bxs<-5 and bxl<-8 and d8<0
+        name:="Strong Down", type:="PUT", conf:=2
+    else if not bull and osc<-1 and bxs<0 and not crup and bxl<0 and (t21 or t34) and d8<2
+        // [v3.3] failed rallies must shrink in volume
+        if rvol_now <= pb_max
+            name:="Failed Rally", type:="PUT", conf:=2
+        else
+            name:="Vol Accumulation", type:="NEUTRAL", conf:=1
+    else if (bs_bear or osc<0) and rev_dn and bxs<10 and cdn8
+        name:="Distribution", type:="PUT", conf:=1
+
+    // ── [v3.2B REFINED] Directional catch-all ──────────────────
+    // All 3 core oscillators agree AND there is confirmed recent price progress
+    else if bull and bxs>0 and bxl>0 and d8>-1 and (nz(close[3]) > 0 and close > close[3])
+        name:="Directional", type:="CALL", conf:=1
+    else if not bull and bxs<0 and bxl<0 and d8<1 and (nz(close[3]) > 0 and close < close[3])
+        name:="Directional", type:="PUT", conf:=1
+
+    // ── Generic fallback ───────────────────────────────────
+    else
+        if bull and bxs>0
+            name:="Bullish", type:="CALL"
+        else if not bull and bxs<0
+            name:="Bearish", type:="PUT"
+    [name, type, conf]
+
+// ==========================================
+// 5. MAIN SCANNER FUNCTION (v3.2)
+// ==========================================
+s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
+
+    // RVOL (First so we can use it in identify)
+    [rvol_now, rvol_2bar] = s_calc_rvol(volume, rvol_period)
+
+    // Earnings Date (Check if earnings are coming up soon)
+    // request.earnings requires a prefix. We construct a resolved string using syminfo.prefix.
+    // If prefix is missing, we use a dummy resolved ticker to prevent the "unresolved" error.
+    t_resolved = syminfo.prefix != "" ? syminfo.prefix + ":" + syminfo.ticker : "NASDAQ:AAPL"
+    ern_ms_raw = request.earnings(t_resolved, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+    ern_ms = syminfo.prefix != "" ? ern_ms_raw : na
+    days_to_ern = na(ern_ms) ? 999 : (ern_ms - time) / 86400000
+    is_earn_near = use_earn and (days_to_ern > 0 and days_to_ern <= earn_thresh)
+
+    // Core
+    [mb,isb,iss,bsb,bss]                                         = s_calc_mb(close,open,high,low,c_mb)
+    [bxs,mabxs,bxl,rvu,rvd,cru,crd]                             = s_calc_bx(close,c_s1,c_s2,c_s3,c_l1,c_l2)
+    [e8,e21,e34,d8,d21,d34,bstk,brstk,t21,t34,cup8,cdn8]        = s_calc_emas(close)
+    [sn,st,sc]                                                    = s_identify(mb,isb,bsb,bss,bxs,bxl,rvu,rvd,cru,crd,d8,d21,d34,bstk,brstk,t21,t34,cup8,cdn8, rvol_now, pb_rvol_max)
+
+    // ADX
+    [adx_v, plus_di, minus_di] = s_calc_adx(adx_period)
+    is_trending = adx_v > adx_trend_thresh
+    is_ranging  = adx_v < adx_range_thresh
+    regime_str  = is_trending ? "Trend" : is_ranging ? "Range" : "Neut"
+
+    // HV Percentile
+    [hv_now, hv_pct] = s_calc_hv_pct(hv_period, hv_pct_lookback)
+    hv_env_str  = hv_pct >= hv_high_thresh ? "Hi" : hv_pct <= hv_low_thresh ? "Lo" : "Mid"
+    // [FIX-3] hv_expensive now used in structure logic below
+    hv_expensive = use_hv and hv_pct >= hv_high_thresh
+    hv_cheap     = use_hv and hv_pct <= hv_low_thresh
+
+    // Dynamic Weights (ADX shifts emphasis between oscillators and structure)
+    float dw1=w1, float dw2=w2, float dw3=w3, float dw4=w4, float dw5=w5, float dw6=w6, float dw7=w7
+    if use_adx
+        if is_trending
+            dw4:=w4*1.5, dw1:=w1*0.9, dw2:=w2*0.9
+        else if is_ranging
+            dw1:=w1*1.2, dw2:=w2*1.2, dw4:=w4*0.6
+
+    // ═══════════════════════════════════════════════════════
+    // [v3.2 REWRITE] DIRECTION-AWARE COMPONENT SCORING
+    // ═══════════════════════════════════════════════════════
+    //
+    // PROBLEM (v3.1): abs() scoring made contradictory signals both score high.
+    //   MSFT: MB=-264 (bearish), BxS=+17 (bullish) → both got high scores → 100
+    //   This is WRONG. Conflicting indicators should LOWER the score.
+    //
+    // FIX: Each component is scored relative to the setup direction (st).
+    //   - CALL setup: positive indicator = aligned → high score
+    //                 negative indicator = conflicting → LOW score
+    //   - PUT setup:  negative indicator = aligned → high score
+    //                 positive indicator = conflicting → LOW score
+    //   - NEUTRAL:    no direction → everything scores low (capped at 55)
+    //
+    // Score anatomy:  base 50 + direction_credit (0–30) + strength_bonus (0–20)
+    //   Aligned strong signal:     50 + 30 + 20 = 100
+    //   Aligned weak signal:       50 + 10 + 5  = 65
+    //   Conflicting weak signal:   50 + 0  + 0  = 50
+    //   Conflicting strong signal: 50 - 20 + 0  = 30  ← PENALISED
+    // ═══════════════════════════════════════════════════════
+
+    // Direction multiplier: +1 for CALL, -1 for PUT
+    // When we multiply indicator value by dir, aligned signals become positive
+    dir = st == "CALL" ? 1.0 : st == "PUT" ? -1.0 : 0.0
+
+    // ── MB Score ──────────────────────────────────────────
+    // mb > 0 = bullish oscillator, mb < 0 = bearish
+    // For CALL: want mb > 0 → mb * dir > 0 → aligned
+    // For PUT:  want mb < 0 → mb * (-1) > 0 → aligned
+    mb_aligned = mb * dir  // positive = aligned, negative = conflicting
+    mb_credit  = mb_aligned > 0 ? math.min(math.abs(mb) * 3, 30.0) : -math.min(math.abs(mb) * 2, 35.0)
+    mb_str_bonus = mb_aligned > 0 and iss ? 20.0 : 0.0
+    sc_mb = math.max(math.min(50.0 + mb_credit + mb_str_bonus, 100.0), 15.0)
+
+    // ── BXS Score ─────────────────────────────────────────
+    bxs_aligned = bxs * dir
+    bxs_credit  = bxs_aligned > 0 ? math.min(math.abs(bxs) * 1.5, 30.0) : -math.min(math.abs(bxs) * 1.5, 35.0)
+    bxs_momentum_bonus = (mabxs > mabxs[1] and bxs_aligned > 0) ? 10.0 : 0.0
+    bxs_reversal_bonus = ((rvu and st == "CALL") or (rvd and st == "PUT")) ? 10.0 : 0.0
+    sc_bxs = math.max(math.min(50.0 + bxs_credit + bxs_momentum_bonus + bxs_reversal_bonus, 100.0), 15.0)
+
+    // ── BXL Score ─────────────────────────────────────────
+    bxl_aligned = bxl * dir
+    bxl_credit  = bxl_aligned > 0 ? math.min(math.abs(bxl) * 2, 50.0) : -math.min(math.abs(bxl) * 2, 35.0)
+    sc_bxl = math.max(math.min(50.0 + bxl_credit, 100.0), 15.0)
+
+    // ── EMA Score ─────────────────────────────────────────
+    // Direction-aware: bullish stack = good for CALL, bad for PUT
+    ema_call_aligned = d8 > 0 and d21 > 0 and bstk
+    ema_put_aligned  = d8 < 0 and d21 < 0 and brstk
+    ema_with_dir = (st == "CALL" and ema_call_aligned) or (st == "PUT" and ema_put_aligned)
+    ema_against  = (st == "CALL" and ema_put_aligned)  or (st == "PUT" and ema_call_aligned)
+    sc_ema = ema_with_dir ? 90.0 : ema_against ? 25.0 : 55.0
+    // Partial credit: aligned direction but not full stack
+    ema_partial_call = d8 > 0 and st == "CALL" and not ema_call_aligned
+    ema_partial_put  = d8 < 0 and st == "PUT"  and not ema_put_aligned
+    sc_ema := (ema_partial_call or ema_partial_put) ? 70.0 : sc_ema
+
+    // ── Momentum Score ────────────────────────────────────
+    ch1  = nz(close[1]) > 0 ? (close - close[1])  / close[1]  * 100 : 0.0
+    ch3  = nz(close[3]) > 0 ? (close - close[3])  / close[3]  * 100 : 0.0
+    ch10 = nz(close[10]) > 0 ? (close - close[10]) / close[10] * 100 : 0.0
+
+    // Direction-aware momentum: aligned changes score high, opposing score low
+    mom1_aligned = ch1 * dir, mom3_aligned = ch3 * dir, mom10_aligned = ch10 * dir
+
+    // Each tier: aligned strong = 30, aligned weak = 15, flat = 5, opposing = -10
+    mom_t1  = mom1_aligned  > 0 ? (math.abs(ch1)  > 2 ? 30.0 : math.abs(ch1)  > 0.5 ? 15.0 : 5.0) : (math.abs(ch1)  > 2 ? -10.0 : -5.0)
+    mom_t3  = mom3_aligned  > 0 ? (math.abs(ch3)  > 2 ? 30.0 : math.abs(ch3)  > 0.5 ? 15.0 : 5.0) : (math.abs(ch3)  > 2 ? -10.0 : -5.0)
+    mom_t10 = mom10_aligned > 0 ? (math.abs(ch10) > 2 ? 30.0 : math.abs(ch10) > 0.5 ? 15.0 : 5.0) : (math.abs(ch10) > 2 ? -10.0 : -5.0)
+
+    // Weighted blend: ch10 (40%) > ch3 (35%) > ch1 (25%)
+    // Raw tier range: -10 to +30.  With 3 tiers, max raw sum = 90, min = -30
+    // We want the final sc_mom range to be ~15–100
+    sc_mom = math.max(math.min(50.0 + (mom_t1 * 0.25 + mom_t3 * 0.35 + mom_t10 * 0.40) * 1.6, 100.0), 15.0)
+
+    // ── ADX Regime Score ──────────────────────────────────
+    // Trending environment = good for directional, bad for mixed
+    // Ranging environment = good for IC / neutral, bad for directional
+    is_weak_setup = sn == "Bullish" or sn == "Bearish" or sn == "Mixed"
+    is_mid_setup  = sn == "Directional" or sn == "Pullback Buy" or sn == "Failed Rally" or sn == "Divergence" or sn == "Distribution"
+    is_strong_setup = sn == "Perfect Storm" or sn == "Breakout" or sn == "Breakdown" or sn == "Strong Trend" or sn == "Strong Down"
+
+    sc_adx = 50.0  // default neutral
+    if is_trending
+        sc_adx := is_strong_setup ? 95.0 : is_mid_setup ? 80.0 : is_weak_setup ? 55.0 : 50.0
+    else if is_ranging
+        sc_adx := is_weak_setup ? 65.0 : is_strong_setup ? 35.0 : is_mid_setup ? 45.0 : 50.0
+    else  // neutral ADX
+        sc_adx := is_mid_setup ? 60.0 : 55.0
+
+    // ── RVOL Score ────────────────────────────────────────
+    sc_vol = rvol_2bar >= 2.0 ? 100.0 : rvol_2bar >= 1.5 ? 90.0 : rvol_2bar >= rvol_threshold ? 75.0 : rvol_2bar >= 1.0 ? 60.0 : rvol_2bar >= 0.7 ? 40.0 : 25.0
+
+    // ═══════════════════════════════════════════════════════
+    // COMPOSITE SCORE
+    // ═══════════════════════════════════════════════════════
+    f_mb  = nz(sc_mb,  50)
+    f_bxs = nz(sc_bxs, 50)
+    f_bxl = nz(sc_bxl, 50)
+    f_ema = nz(sc_ema, 50)
+    f_mom = nz(sc_mom, 50)
+    f_adx = nz(sc_adx, 50)
+    f_vol = nz(sc_vol, 50)
+    tot   = dw1 + dw2 + dw3 + dw4 + dw5 + dw6 + dw7
+    comp  = f_mb * (dw1/tot) + f_bxs * (dw2/tot) + f_bxl * (dw3/tot) + f_ema * (dw4/tot) + f_mom * (dw5/tot) + f_adx * (dw6/tot) + f_vol * (dw7/tot)
+
+    // ── COHERENCE MULTIPLIER ──────────────────────────────
+    // If the 3 core directional indicators (MB, BXS, BXL) all agree with
+    // the setup direction → 1.1x boost.  If 2+ conflict → 0.85x penalty.
+    // This prevents high scores from contradictory signals.
+    core_agree = 0
+    core_agree += mb_aligned  > 0 ? 1 : 0
+    core_agree += bxs_aligned > 0 ? 1 : 0
+    core_agree += bxl_aligned > 0 ? 1 : 0
+
+    coherence_mult = core_agree == 3 ? 1.10 : core_agree == 2 ? 1.0 : core_agree == 1 ? 0.85 : 0.70
+    comp := math.min(comp * coherence_mult, 100.0)
+
+    // ── NEUTRAL HARD CAP ──────────────────────────────────
+    // NEUTRAL / Mixed setups can never score above 55 — they have no
+    // directional edge, so a high score would be misleading.
+    comp := st == "NEUTRAL" ? math.min(comp, 55.0) : comp
+
+    // Non-linear Boost (only if coherence is perfect)
+    boost_active = use_boost and f_mb >= boost_mb_thresh and f_bxs >= boost_bxs_thresh and core_agree == 3
+    comp        := boost_active ? math.min(comp * 1.1, 100) : comp
+
+    // Overextended
+    price_std = ta.stdev(close, mr_lookback)
+    overext   = use_mr_filter and math.abs(close - e21) > mr_stddev_mult * price_std
+
+    // Weekly MTF Hard Filter (approximation)
+    // [CAL-2] ×3 multiplier (was ×5) — 180-bar ≈ 9-month anchor, not 2-year
+    [w_osc, w_bull, w_str, _, _] = s_calc_mb(close, open, high, low, c_mb * 3)
+    [w_bxs, _, w_bxl, _, _, _, _] = s_calc_bx(close, c_s1 * 3, c_s2 * 3, c_s3, c_l1 * 3, c_l2)
+    weekly_score_approx = 50.0 + (w_bull ? math.min(w_osc * 5, 30) : -math.min(math.abs(w_osc) * 5, 30)) + (w_str ? 20 : 5)
+    mtf_conflict = use_mtf_filter and st == "CALL" and weekly_score_approx < mtf_score_floor
+
+    // Signal Label (options-adjusted thresholds)
+    str_thresh = opt_str_buy_min
+    buy_thresh = opt_buy_min
+
+    sig = "❌ AVOID"
+    if overext
+        sig := "⚠️ OVEREXT"
+    else if mtf_conflict
+        sig := "⬆️ BOUNCE?"
+    else if st == "CALL"
+        if comp >= str_thresh and sc == 3
+            sig := "🟢 STR BUY" + (boost_active ? " 🔥" : "") + (hv_cheap ? " 💎" : "")
+        else if comp >= str_thresh
+            sig := "🟢 BUY" + (hv_cheap ? " 💎" : "")
+        else if comp >= buy_thresh
+            sig := "🟡 BUY"
+        else
+            sig := "👀 WATCH · CALL"
+    else if st == "PUT"
+        // [FIX-1] PUT signals now use same thresholds and can reach them
+        if comp >= str_thresh and sc == 3
+            sig := "🔴 STR SELL" + (boost_active ? " 🔥" : "") + (hv_cheap ? " 💎" : "")
+        else if comp >= str_thresh
+            sig := "🔴 SELL" + (hv_cheap ? " 💎" : "")
+        else if comp >= buy_thresh
+            sig := "🟠 SELL"
+        else
+            sig := "👀 WATCH · PUT"
+
+    [comp, sig, sn, st, sc, mb, bxs, bxl, d8, rvu or rvd, rvol_2bar, regime_str, overext, mtf_conflict, adx_v, hv_env_str, hv_expensive, is_earn_near]
+
+// ==========================================
+// 6. SCANNER EXECUTION
+// ==========================================
+var string[]    symbols = str.split(watchlist_input, ",")
+var StockData[] results = array.new<StockData>()
+
+if barstate.islast and show_scanner
+    array.clear(results)
+    for i = 0 to math.min(array.size(symbols) - 1, 24)
+        sym = str.trim(array.get(symbols, i))
+        if str.length(sym) < 1
+            continue
+
+        [s_comp, s_sig, s_setup, s_stype, s_conf, s_mb, s_bxs, s_bxl, s_d8, s_rev, s_rvol, s_regime, s_overext, s_mtf, s_adx, s_hv_env, s_hv_exp, s_earn] = request.security(sym, timeframe.period, s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2), ignore_invalid_symbol=true)
+
+        // [FIX-5] mtf_tag appended only for display, not for regime comparison
+        s_mtf_final = s_mtf
+        mtf_tag = "W~"
+
+        incl = (s_stype == "CALL" and show_calls) or (s_stype == "PUT" and show_puts)
+        if not na(s_comp) and ((s_comp >= min_score and incl) or min_score == 0)
+
+            // ──────────────────────────────────────────────────────
+            // [FIX-2] [FIX-3] [FIX-6] [FIX-7]
+            // Structure Recommendation — FULLY DIRECTION-AWARE
+            // ──────────────────────────────────────────────────────
+            // Decision Matrix:
+            //   Axis 1: Setup type (Perfect Storm, Breakout, Pullback, etc.)
+            //   Axis 2: Direction (CALL vs PUT)
+            //   Axis 3: ADX Regime (Trend / Range / Neut)
+            //   Axis 4: HV Environment (Lo / Mid / Hi)
+            //   Axis 5: RVOL (sufficient volume?)
+            //
+            // Output: Structure (debit/credit/single leg) + Portal Engine label
+            // ──────────────────────────────────────────────────────
+
+            struct_rec = ""
+            portal_eng = ""
+
+            // Cast regime and hv to stable strings for comparison
+            regime_s = str.tostring(s_regime)     // "Trend" | "Range" | "Neut"
+            hv_s     = str.tostring(s_hv_env)     // "Lo" | "Mid" | "Hi"
+            is_hv_exp = s_hv_exp == true           // high HV environment flag
+            has_vol   = nz(s_rvol, 1.0) >= rvol_threshold
+
+            dte_hint   = is_hv_exp ? "30-45DTE" : "60-90DTE"
+            delta_buy  = "Buy 40-50Δ"
+            delta_sell = "Sell 15-20Δ"
+
+            // ── OVEREXTENDED (any direction) ─────────────────────
+            if s_overext
+                if s_stype == "PUT"
+                    if hv_s == "Hi"
+                        struct_rec := "⚠️ OverExt + HiVol"
+                        portal_eng := "Wait: price<-3σ, IV high"
+                    else
+                        struct_rec := "⚠️ OverExt·PUT risk"
+                        portal_eng := "Wait: price<-3σ from EMA"
+                else if s_stype == "CALL"
+                    if hv_s == "Hi"
+                        struct_rec := "⚠️ OverExt + HiVol"
+                        portal_eng := "Wait: price>3σ, IV high"
+                    else
+                        struct_rec := "⚠️ OverExt·CALL risk"
+                        portal_eng := "Wait: price>3σ from EMA"
+                else
+                    struct_rec := "⚠️ OverExt"
+                    portal_eng := "Wait"
+
+            // ── MTF CONFLICT ──────────────────────────────────────
+            else if s_mtf_final
+                struct_rec := "⬆️ MTF Conflict"
+                portal_eng := "Wait: weekly bearish"
+
+            // ── EARNINGS APPROACHING ──────────────────────────────
+            else if s_earn
+                struct_rec := "⚠️ ER Blocked"
+                portal_eng := "Avoid Theta/Vega Crush"
+
+            // ── PERFECT STORM ─────────────────────────────────────
+            else if str.contains(s_setup, "Perfect")
+                if s_stype == "CALL"
+                    if is_hv_exp
+                        // [FIX-3] High IV: prefer selling premium (credit)
+                        struct_rec := "Credit Put Spd 💰"
+                        portal_eng := "CSQ|" + dte_hint + "|" + delta_sell
+                    else if hv_s == "Lo"
+                        struct_rec := "Single Leg Call 🎯"
+                        portal_eng := "LOQ|" + dte_hint + "|Buy 60Δ"
+                    else
+                        struct_rec := "Debit Call Spd 🎯"
+                        portal_eng := "DSQ|" + dte_hint + "|" + delta_buy
+                else  // PUT
+                    if is_hv_exp
+                        // [FIX-3] High IV: prefer credit call spread
+                        struct_rec := "Credit Call Spd 📉"
+                        portal_eng := "CSQ|" + dte_hint + "|" + delta_sell
+                    else if hv_s == "Lo"
+                        struct_rec := "Single Leg Put 🎯"
+                        portal_eng := "LOQ|" + dte_hint + "|Buy 60Δ"
+                    else
+                        struct_rec := "Debit Put Spd 🎯"
+                        portal_eng := "DSQ|" + dte_hint + "|" + delta_buy
+
+            // ── BREAKOUT / BREAKDOWN ──────────────────────────────
+            else if str.contains(s_setup, "Break")
+                if s_stype == "CALL"
+                    if regime_s == "Trend" and has_vol  // [FIX-6] require RVOL
+                        if is_hv_exp
+                            struct_rec := "Credit Put Spd 💰"
+                            portal_eng := "CSQ·HiIV breakout"
+                        else
+                            struct_rec := "Single Leg Call ⚡"
+                            portal_eng := "LOQ·Lambda"
+                    else if regime_s == "Trend" and not has_vol
+                        struct_rec := "⏳ Low RVOL"
+                        portal_eng := "Wait: breakout needs volume"
+                    else
+                        struct_rec := "⏳ ADX<25"
+                        portal_eng := "Wait: trend unconfirmed"
+                else  // PUT (Breakdown)
+                    if regime_s == "Trend" and has_vol
+                        if is_hv_exp
+                            struct_rec := "Credit Call Spd 📉"
+                            portal_eng := "CSQ·HiIV breakdown"
+                        else
+                            struct_rec := "Single Leg Put ⚡"
+                            portal_eng := "LOQ·Lambda"
+                    else if regime_s == "Trend" and not has_vol
+                        struct_rec := "⏳ Low RVOL"
+                        portal_eng := "Wait: breakdown needs volume"
+                    else
+                        struct_rec := "⏳ ADX<25"
+                        portal_eng := "Wait: trend unconfirmed"
+
+            // ── PULLBACK BUY / DIVERGENCE (CALL) ─────────────────
+            //    FAILED RALLY / DISTRIBUTION (PUT) ────────────────
+            else if str.contains(s_setup, "Pullback") or str.contains(s_setup, "Divergence") or str.contains(s_setup, "Fail") or str.contains(s_setup, "Dist")
+                if s_stype == "CALL"
+                    if regime_s == "Trend"
+                        if is_hv_exp
+                            struct_rec := "Credit Put Spd 💰"
+                            portal_eng := "CSQ·HiIV pullback"
+                        else
+                            struct_rec := "Credit Put Spd 💰"
+                            portal_eng := "CSQ"
+                    else
+                        struct_rec := "⏳ ADX<25"
+                        portal_eng := "Wait: no trend anchor"
+                else  // PUT: Failed Rally / Distribution
+                    if regime_s == "Trend"
+                        if is_hv_exp
+                            struct_rec := "Credit Call Spd 📉"
+                            portal_eng := "CSQ·HiIV failed rally"
+                        else
+                            struct_rec := "Credit Call Spd 📉"
+                            portal_eng := "CSQ"
+                    else
+                        struct_rec := "⏳ ADX<25"
+                        portal_eng := "Wait: no trend anchor"
+
+            // ── STRONG TREND (CALL) / STRONG DOWN (PUT) ──────────
+            else if str.contains(s_setup, "Strong") or str.contains(s_setup, "Trend")
+                if s_stype == "CALL"
+                    if regime_s == "Trend"
+                        if is_hv_exp
+                            struct_rec := "Credit Put Spd 💰"
+                            portal_eng := "CSQ·High POP, HiIV"
+                        else
+                            struct_rec := "Credit Put Spd 💰"
+                            portal_eng := "CSQ·High POP"
+                    else
+                        struct_rec := "⏳ ADX<25"
+                        portal_eng := "Wait: trend unconfirmed"
+                else  // PUT: Strong Down
+                    if regime_s == "Trend"
+                        if is_hv_exp
+                            struct_rec := "Credit Call Spd 📉"
+                            portal_eng := "CSQ·High POP, HiIV"
+                        else
+                            struct_rec := "Credit Call Spd 📉"
+                            portal_eng := "CSQ·High POP"
+                    else
+                        struct_rec := "⏳ ADX<25"
+                        portal_eng := "Wait: trend unconfirmed"
+
+            // ── DIRECTIONAL (new v3.2B catch-all with direction) ─
+            else if str.contains(s_setup, "Directional")
+                if s_stype == "CALL"
+                    if regime_s == "Trend"
+                        if is_hv_exp
+                            struct_rec := "Sm Credit Put Spd 🔸"
+                            portal_eng := "CSQ·Starter, HiIV"
+                        else
+                            struct_rec := "Sm Debit Call Spd 🔸"
+                            portal_eng := "DSQ·Starter"
+                    else
+                        struct_rec := "⏳ ADX<25"
+                        portal_eng := "Wait: directional but no trend"
+                else  // PUT
+                    if regime_s == "Trend"
+                        if is_hv_exp
+                            struct_rec := "Sm Credit Call Spd 🔸"
+                            portal_eng := "CSQ·Starter, HiIV"
+                        else
+                            struct_rec := "Sm Debit Put Spd 🔸"
+                            portal_eng := "DSQ·Starter"
+                    else
+                        struct_rec := "⏳ ADX<25"
+                        portal_eng := "Wait: directional but no trend"
+
+            // ── GENERIC BULLISH / BEARISH (weakest directed setups) ──
+            // [FIX-A] Now gives conservative recs when score >= 75 + regime fits
+            else if str.contains(s_setup, "Bullish") or str.contains(s_setup, "Bearish")
+                if regime_s == "Range"
+                    if hv_s == "Lo"
+                        struct_rec := "⏳ IV too low for IC"
+                        portal_eng := "Wait: low premium"
+                    else
+                        struct_rec := "Iron Condor 🔄"
+                        portal_eng := "CSQ·Both sides"
+                else if regime_s == "Trend" and s_comp >= 75
+                    // [FIX-A] High-score weak setup in trend → small starter position
+                    if s_stype == "CALL"
+                        struct_rec := "Sm Credit Put Spd 🔸"
+                        portal_eng := "CSQ·Starter, weak setup"
+                    else
+                        struct_rec := "Sm Credit Call Spd 🔸"
+                        portal_eng := "CSQ·Starter, weak setup"
+                else
+                    struct_rec := "⏳ Weak setup"
+                    portal_eng := "Wait: no clear edge"
+
+            else
+                struct_rec := "— Mixed"
+                portal_eng := "No clear structure"
+
+            // Low-vol warning appended (for display only)
+            if not has_vol and (s_stype == "CALL" or s_stype == "PUT")
+                struct_rec := struct_rec + " ⚡LowVol"
+
+            // Note column: Structure | Portal Engine
+            note = struct_rec + "\n" + portal_eng
+
+            // [FIX-5] regime for display includes mtf_tag, but raw regime was used above
+            display_regime = regime_s + " " + mtf_tag
+
+            safe_overext = s_overext ? true : false
+            safe_mtf = s_mtf_final ? true : false
+            safe_rev = s_rev ? true : false
+
+            array.push(results, StockData.new(sym, s_comp, s_sig, s_setup, s_stype, s_conf,
+                 nz(s_mb), nz(s_bxs), nz(s_bxl), nz(s_d8), safe_rev,
+                 nz(s_rvol, 1.0), display_regime,
+                 safe_overext, safe_mtf,
+                 nz(s_adx, 0.0), str.tostring(s_hv_env), note))
+
+// ==========================================
+// 7. SCANNER DISPLAY (11 columns)
+// ==========================================
+// Cols: Symbol | Score | Signal | Setup | MB | Bx-S | Bx-L | EMA8 | RVOL | ADX·HV | Structure|Engine
+
+if barstate.islast and show_scanner and array.size(results) > 1
+    for i = 0 to array.size(results) - 2
+        for j = i + 1 to array.size(results) - 1
+            if array.get(results, j).score > array.get(results, i).score
+                temp = array.get(results, i)
+                array.set(results, i, array.get(results, j))
+                array.set(results, j, temp)
+
+if barstate.islast and show_scanner and array.size(results) > 0
+    tbl_pos = table_position == "top_left" ? position.top_left : table_position == "top_center" ? position.top_center : table_position == "top_right" ? position.top_right : table_position == "middle_left" ? position.middle_left : table_position == "middle_center" ? position.middle_center : table_position == "middle_right" ? position.middle_right : table_position == "bottom_left" ? position.bottom_left : table_position == "bottom_center" ? position.bottom_center : position.bottom_right
+    sz = table_size == "tiny" ? size.tiny : table_size == "small" ? size.small : table_size == "large" ? size.large : size.normal
+
+    var table tbl = table.new(tbl_pos, 11, max_display + 2, border_width=2)
+    hdr_bg = color.new(color.blue, 70)
+    hdr_tc = color.white
+
+    table.cell(tbl, 0,  0, "Symbol",            bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 1,  0, "Score",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 2,  0, "Signal",             bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 3,  0, "Setup",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 4,  0, "MB",                 bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 5,  0, "Bx-S",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 6,  0, "Bx-L",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 7,  0, "EMA",               bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 8,  0, "RVOL",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 9,  0, "ADX · HV",          bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 10, 0, "Structure | Engine", bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+
+    cnt = math.min(array.size(results), max_display)
+    call_cnt = 0, put_cnt = 0
+
+    for i = 0 to cnt - 1
+        d = array.get(results, i)
+        r = i + 1
+        if d.stype == "CALL"
+            call_cnt += 1
+        if d.stype == "PUT"
+            put_cnt  += 1
+
+        bg    = d.overextended ? color.new(color.purple, 85) : d.mtf_conflict ? color.new(color.orange, 85) : d.score >= 85 ? color.new(color.green, 90) : d.score >= 70 ? color.new(color.yellow, 90) : color.new(color.gray, 95)
+        sc_bg = d.score >= 85 ? color.new(color.green, 50) : d.score >= 70 ? color.new(color.orange, 50) : color.new(color.gray, 70)
+        stars = d.confidence == 3 ? "⭐⭐⭐" : d.confidence == 2 ? "⭐⭐" : d.confidence == 1 ? "⭐" : ""
+
+        // Col 0: Symbol
+        sym_color = d.stype == "CALL" ? color.green : d.stype == "PUT" ? color.red : color.gray
+        table.cell(tbl, 0, r, d.symbol, bgcolor=bg, text_size=sz, text_color=sym_color)
+
+        // Col 1: Score
+        table.cell(tbl, 1, r, str.tostring(math.round(d.score)), bgcolor=sc_bg, text_size=sz, text_color=color.white)
+
+        // Col 2: Signal
+        sig_bg = d.stype == "CALL" ? color.new(color.green, 75) : d.stype == "PUT" ? color.new(color.red, 75) : color.new(color.gray, 85)
+        table.cell(tbl, 2, r, d.signal, bgcolor=sig_bg, text_size=sz, text_color=color.white)
+
+        // Col 3: Setup
+        setup_txt = d.setup == "Mixed" ? "" : d.setup + (d.reversal ? " 🔄" : "") + (stars != "" ? "\n" + stars : "")
+        table.cell(tbl, 3, r, setup_txt, bgcolor=bg, text_size=sz, text_color=color.white)
+
+        // Col 4-7: Indicators
+        table.cell(tbl, 4, r, str.tostring(math.round(d.mb_osc, 1)),   bgcolor=bg, text_size=sz, text_color=d.mb_osc > 0 ? color.green : color.red)
+        table.cell(tbl, 5, r, str.tostring(math.round(d.bx_short, 1)), bgcolor=bg, text_size=sz, text_color=d.bx_short > 0 ? color.green : color.red)
+        table.cell(tbl, 6, r, str.tostring(math.round(d.bx_long, 1)),  bgcolor=bg, text_size=sz, text_color=d.bx_long > 0 ? color.green : color.red)
+        table.cell(tbl, 7, r, str.tostring(math.round(d.dist_ema8, 1)) + "%", bgcolor=bg, text_size=sz, text_color=d.dist_ema8 > 0 ? color.green : color.red)
+
+        // Col 8: RVOL
+        rvol_txt = str.tostring(math.round(d.rvol, 2)) + "x"
+        rvol_bg  = d.rvol >= rvol_threshold * 1.5 ? color.new(color.green, 55) : d.rvol >= rvol_threshold ? color.new(color.teal, 70) : d.rvol >= 0.8 ? color.new(color.gray, 80) : color.new(color.red, 70)
+        table.cell(tbl, 8, r, rvol_txt, bgcolor=rvol_bg, text_size=sz, text_color=color.white)
+
+        // Col 9: ADX + HV
+        adx_txt = str.tostring(math.round(d.adx_val, 1)) + " " + d.regime + "\nHV:" + d.hv_env
+        adx_bg  = d.adx_val > adx_trend_thresh ? color.new(color.blue, 65) : d.adx_val < adx_range_thresh ? color.new(color.purple, 65) : color.new(color.gray, 80)
+        adx_tc  = d.hv_env == "Hi" ? color.orange : d.hv_env == "Lo" ? color.lime : color.white
+        table.cell(tbl, 9, r, adx_txt, bgcolor=adx_bg, text_size=sz, text_color=adx_tc)
+
+        // Col 10: Structure — blank when NEUTRAL
+        struct_txt = d.stype == "NEUTRAL" ? "" : d.note_detail
+        table.cell(tbl, 10, r, struct_txt, bgcolor=bg, text_size=sz, text_color=color.white)
+
+    // Summary row
+    sum_row = cnt + 1
+    sum_txt = str.tostring(cnt) + " setups | " + str.tostring(call_cnt) + " CALLS · " + str.tostring(put_cnt) + " PUTS  |  v3.2 — 1.5wk–2mo calibration"
+    table.merge_cells(tbl, 0, sum_row, 10, sum_row)
+    table.cell(tbl, 0, sum_row, sum_txt, bgcolor=color.new(color.blue, 90), text_size=size.small, text_color=color.white)

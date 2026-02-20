@@ -48,7 +48,7 @@ ON ticker_iv_snapshots FOR ALL USING (true) WITH CHECK (true);
 
 ## 步骤 2：配置环境变量
 
-IV 历史读写需要 Supabase 的 URL 和 Anon Key，与 `check-alerts` 用的是同一套。
+IV 历史**读取**使用 Supabase URL + Anon Key（与 `check-alerts` 等一致）；**写入**（`saveTickerIVSnapshot`）必须使用 **Supabase Secret Key**（Service Role），否则会因 RLS 报 401 / “new row violates row-level security policy”。
 
 ### 2.1 本地开发（.env）
 
@@ -57,10 +57,12 @@ IV 历史读写需要 Supabase 的 URL 和 Anon Key，与 `check-alerts` 用的�
 ```env
 VITE_SUPABASE_URL=https://你的项目.supabase.co
 VITE_SUPABASE_ANON_KEY=你的_anon_key
+
+# IV 快照写入必填：Supabase Dashboard → Settings → API → secret (service_role key)
+SUPABASE_SERVICE_ROLE_KEY=你的_secret_key
 ```
 
-若已有登录/持仓功能，一般已经配过，检查名字一致即可。  
-API 里会读 `process.env.SUPABASE_URL` 或 `process.env.VITE_SUPABASE_URL`，Vercel 部署时通常用下面那组。
+若已有登录/持仓功能，前两项一般已配好。API 会读 `process.env.SUPABASE_URL` 或 `process.env.VITE_SUPABASE_URL`；**写入 IV 快照**时优先使用 `SUPABASE_SERVICE_ROLE_KEY`，未配置则回退 anon（可能因 RLS 写入失败）。
 
 ### 2.2 Vercel 部署
 
@@ -69,10 +71,11 @@ API 里会读 `process.env.SUPABASE_URL` 或 `process.env.VITE_SUPABASE_URL`，V
 3. 确认已有：
    - `SUPABASE_URL` = `https://你的项目.supabase.co`
    - `SUPABASE_ANON_KEY` = 你的 anon key（一长串）
+   - **`SUPABASE_SERVICE_ROLE_KEY`** = 你的 **secret key**（Supabase → Settings → API → **secret**，仅服务端使用，勿暴露前端）
 4. 若没有则点 **Add** 添加，Environment 选 **Production**（以及需要的话 **Preview**）
 5. 改过变量后，到 **Deployments** 里对最新部署点 **Redeploy** 一次，新变量才会生效
 
-Supabase 里查 URL 和 Key：Supabase 项目 → **Settings** → **API** → **Project URL** 与 **anon public**。
+Supabase 里查 URL 和 Key：Supabase 项目 → **Settings** → **API** → **Project URL**、**anon public**、**secret (service_role)**。
 
 ---
 

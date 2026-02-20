@@ -243,10 +243,8 @@ export interface StrategyResult {
         '1d': StrategyResultTech;
     } | null;
     strategies: {
-        CREDIT_SPREAD: SpreadRecommendation[];
-        DEBIT_SPREAD: SpreadRecommendation[];
-        SINGLE_LEG: SingleLegRecommendation[];
-        TOP_PICKS: UnifiedCandidateType[];
+        TARGET_STRATEGY: Recommendation[];
+        _regimeMeta?: { skew: number | null };
     };
 }
 

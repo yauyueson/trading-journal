@@ -7,7 +7,7 @@ import { LoginPage } from './pages/Login';
 import { PortfolioPage } from './pages/Portfolio';
 import { WatchlistPage } from './pages/Watchlist';
 import { ScannerPage } from './pages/Scanner';
-import { StrategyRecommender } from './pages/StrategyRecommender';
+import { OptionSelector } from './pages/StrategyRecommender';
 import { HistoryPage } from './pages/History';
 import { StatsPage } from './pages/Stats';
 import { Academy } from './pages/Academy';
@@ -382,8 +382,8 @@ function App() {
                 {activeTab === 'scanner' && (
                     <ScannerPage onAddToWatchlist={onAddToWatchlist} />
                 )}
-                {activeTab === 'strategy' && (
-                    <StrategyRecommender onAddToWatchlist={onAddToWatchlist} />
+                {activeTab === 'selector' && (
+                    <OptionSelector onAddToWatchlist={onAddToWatchlist} />
                 )}
                 {activeTab === 'history' && (
                     <HistoryPage

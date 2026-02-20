@@ -1,7 +1,7 @@
 # Trading Journal - API文档
 
-> 最后更新: 2026年2月14日  
-> **数据源**: Polygon.io（主）/ CBOE（备）；API 用量优化：仅请求所需 DTE/行权 + 1 分钟期权链缓存
+> 最后更新: 2026年2月17日  
+> **数据源**: Polygon.io（主）/ CBOE（备）；API 用量优化：仅请求所需 DTE/行权 + 期权链缓存；付费档建议设置 `POLYGON_RATE_LIMIT_RPM=100`
 
 ## 📋 目录
 
@@ -55,9 +55,11 @@ Supabase PostgreSQL (数据存储)
 
 **开发环境** (`.env.local`):
 ```bash
-# 推荐：Polygon.io（仅请求所需 DTE/行权 + 1 分钟缓存）
+# 推荐：Polygon.io（仅请求所需 DTE/行权 + 缓存）
 DATA_SOURCE=POLYGON
 POLYGON_API_KEY=your_polygon_api_key_here
+# 付费档：避免客户端过度限流，建议 100（与 Polygon 建议 100 req/s 一致）
+POLYGON_RATE_LIMIT_RPM=100
 
 # 不设置或 DATA_SOURCE=CBOE 时使用 CBOE 免费延迟数据
 ```
@@ -65,8 +67,9 @@ POLYGON_API_KEY=your_polygon_api_key_here
 **生产环境** (Vercel Dashboard):
 ```
 Settings → Environment Variables
-├── DATA_SOURCE = POLYGON   # 推荐；不设则 CBOE
-└── POLYGON_API_KEY = ...   # DATA_SOURCE=POLYGON 时必填
+├── DATA_SOURCE = POLYGON        # 推荐；不设则 CBOE
+├── POLYGON_API_KEY = ...       # DATA_SOURCE=POLYGON 时必填
+└── POLYGON_RATE_LIMIT_RPM = 100   # 付费档建议，否则默认 5 易触发 429
 ```
 
 **API 用量优化（Polygon）**：`/api/scan-options` 与 `/api/strategy-recommend` 在 Polygon 下先取标的价，再仅请求会用到的到期日与行权范围；同一 ticker 的期权链按参数做 **1 分钟内存缓存**，重复请求命中缓存。详见 `docs/09_Polygon集成.md`。
@@ -130,7 +133,8 @@ POST /api/option-prices (批量)
 ```
 
 ### 用途
-通用价格获取接口。支持通过查询参数获取单份合约，或通过 POST Body 批量获取多份合约的价格与 Greeks。
+通用价格获取接口。支持通过查询参数获取单份合约，或通过 POST Body 批量获取多份合约的价格与 Greeks。  
+**Polygon 批量优化**：POST 批量时按 **ticker 分组**，每个唯一 ticker 只请求一次期权链（2 次 API），再从链中解析各腿；调用量由「腿数」降为「2× 唯一 ticker 数」。
 
 ### 参数 (GET - 单个)
 | 参数 | 类型 | 必填 | 说明 | 示例 |
@@ -266,7 +270,8 @@ GET /api/strategy-recommend
 - **slope**：期限结构斜率 `(IV30−IV90)/IV90`，正值表示 backwardation，负值表示 contango。
 - **slopeTier**：档位，用于微调 Regime Bonus。取值：`strong_backwardation`、`backwardation`、`flat`、`contango`、`strong_contango`。
 
-**IV Rank 与 IV Percentile**：`ivRank`、`ivPercentile` 来自表 `ticker_iv_snapshots`（252 日窗口）。策略推荐中 Credit Spread、Debit Spread、Single-leg 均使用 `getIVRankAdjustment(ivRank, strategy)` 参与打分，详见 [03_核心算法.md](./03_核心算法.md)。**策略推荐页**（StrategyRecommender）在 regime 区域同时展示 **IV Rank** 与 **IV Percentile**（同色阶：低=便宜/绿、高=贵/黄），并显示样本天数与回填入口。
+**IV Rank 与 IV Percentile**：`ivRank`、`ivPercentile` 来自表 `ticker_iv_snapshots`（252 日窗口）。策略推荐中 Credit Spread、Debit Spread、Single-leg 均使用 `getIVRankAdjustment(ivRank, strategy)` 参与打分，详见 [03_核心算法.md](./03_核心算法.md)。**策略推荐页**（StrategyRecommender）在 regime 区域同时展示 **IV Rank** 与 **IV Percentile**（同色阶：低=便宜/绿、高=贵/黄），并显示样本天数与回填入口。  
+**写入 IV 快照**：`lib/_shared/ivHistory.cjs` 的 `saveTickerIVSnapshot` 使用 **Supabase Secret Key**（`SUPABASE_SERVICE_ROLE_KEY`）写入，以绕过 `ticker_iv_snapshots` 的 RLS；若仅配置 anon key 会报 401/RLS 错误。见 [08_IV_Rank_上线步骤.md](./08_IV_Rank_上线步骤.md)。
 
 **异常检测与统一分**:
 - 当 `ivSurface.anomaly = true` 时，表示检测到短期 IV 异常飙升（IV7/IV30 > 1.3，如财报前）
@@ -325,12 +330,14 @@ GET/POST /api/batch-refresh-tech
 触发持仓或观察列表中标的的技术面快速刷新（Tech Score）。
 
 ### 参数
-- `scope`: `active` (默认, 仅同步持仓), `watchlist`, `all`
+- `scope`: `active` (默认, 仅同步**活跃持仓**), `watchlist`, `all`
 - `force`: `true` (忽略纽约时间冷却检查)
 
 ### 特性
+- **仅处理 active**：只拉取 `status = 'active'` 的持仓（与 Portfolio 页一致），不处理 watchlist/closed。
 - **冷却机制**: 默认情况下，如果标的今天（NY Time）已更新过，则不再重复调用 Polygon Aggregates API，节省用量。
-- **自动化**: 位于前端 `Portfolio.tsx` 页面加载时静默触发。
+- **可选限速**：环境变量 `BATCH_REFRESH_DELAY_MS`（默认 0）可在每只标的请求后加延迟，适合大批量时平滑请求。
+- **自动化**: 位于前端 `Portfolio.tsx`，在批量价格请求完成后再触发，避免与 bulk 同时打满限流。
 
 ## 🧪 测试指南
 
@@ -375,4 +382,4 @@ vercel --prod
 ---
 
 *文档维护者: Trading Journal Team*  
-*最后更新: 2026年2月12日*
+*最后更新: 2026年2月17日*

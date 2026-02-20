@@ -197,18 +197,21 @@ export function calculateTechScore(
 
     // Score EMA — continuous interpolation (avoids coarse 4-value step function)
     let sc_ema = 50.0;
-    // Sign-alignment component [10..25]: when d8 & d21 agree, strength = weaker magnitude
+    // Sign-alignment component [±10..±25]: when d8 & d21 agree, strength = weaker magnitude
+    // Direction: +1 bullish (both above EMAs), -1 bearish (both below EMAs), 0 mixed
     const signAligned = (d8 > 0 && d21 > 0) || (d8 < 0 && d21 < 0);
+    const signDir = signAligned ? (d8 > 0 ? 1 : -1) : 0;
     const signStrength = signAligned ? Math.min(Math.abs(d8), Math.abs(d21)) : 0;
-    sc_ema += 10 + Math.min(signStrength / 2, 1) * 15; // 0%→10, ≥2%→25
+    sc_ema += signDir * (10 + Math.min(signStrength / 2, 1) * 15); // 0%→±10, ≥2%→±25
 
-    // Stack-order component [5..25]: continuous gap between adjacent EMAs
+    // Stack-order component [±5..±25]: continuous gap between adjacent EMAs
     const gap1 = currE8 - currE21;
     const gap2 = currE21 - currE34;
     const stackAligned = gap1 * gap2 > 0; // both same direction = ordered stack
+    const stackDir = stackAligned ? (b_stack ? 1 : -1) : 0;
     const stackStrength = stackAligned
         ? Math.min(Math.abs(gap1), Math.abs(gap2)) / currClose * 100 : 0;
-    sc_ema += 5 + Math.min(stackStrength / 0.5, 1) * 20; // 0%→5, ≥0.5%→25
+    sc_ema += stackDir * (5 + Math.min(stackStrength / 0.5, 1) * 20); // 0%→±5, ≥0.5%→±25
 
 
     // --- 4. Momentum (10%) ---
@@ -223,12 +226,15 @@ export function calculateTechScore(
     const ch3 = ((currClose - prevClose3) / prevClose3) * 100;
 
     // Momentum — continuous interpolation (avoids coarse ~5-value step function)
+    // Direction-aware: positive momentum adds, negative momentum subtracts
     let sc_mom = 50.0;
     const absCh1 = Math.abs(ch1);
     const absCh3 = Math.abs(ch3);
+    const ch1Sign = ch1 >= 0 ? 1 : -1;
+    const ch3Sign = ch3 >= 0 ? 1 : -1;
 
-    sc_mom += 5 + Math.min(absCh1 / 2, 1) * 20; // |ch1| [0%,2%] → [5,25]
-    sc_mom += 5 + Math.min(absCh3 / 5, 1) * 20; // |ch3| [0%,5%] → [5,25]
+    sc_mom += ch1Sign * (5 + Math.min(absCh1 / 2, 1) * 20); // ch1 [0%,2%] → ±[5,25]
+    sc_mom += ch3Sign * (5 + Math.min(absCh3 / 5, 1) * 20); // ch3 [0%,5%] → ±[5,25]
 
 
     // --- 5. Total Score ---

@@ -9,7 +9,7 @@ interface TabNavProps {
 export const TabNav: React.FC<TabNavProps> = ({ activeTab, setActiveTab }) => {
     const tabs = [
         { id: 'scanner', label: 'Scan', mobileLabel: 'Scan', Icon: Search },
-        { id: 'strategy', label: 'Strategy', mobileLabel: 'Strategy', Icon: Target },
+        { id: 'selector', label: 'Option Selector', mobileLabel: 'Selector', Icon: Target },
         { id: 'watchlist', label: 'Watchlist', mobileLabel: 'Watch', Icon: List },
         { id: 'portfolio', label: 'Portfolio', mobileLabel: 'Portfolio', Icon: LayoutDashboard },
         { id: 'history', label: 'History', mobileLabel: 'History', Icon: History },

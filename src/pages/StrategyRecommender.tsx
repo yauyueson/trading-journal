@@ -157,21 +157,22 @@ const PayoffDiagram: React.FC<{ recommendation: Recommendation; currentPrice: nu
     );
 };
 
-interface StrategyRecommenderProps {
+interface OptionSelectorProps {
     onAddToWatchlist?: (item: WatchlistItem) => Promise<void>;
 }
 
-export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddToWatchlist }) => {
+export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist }) => {
     const { settings, stopOutFraction } = useAppSettings();
     const { accountSize: portfolioTotal, riskPct, stopOutPct } = settings.portfolio;
     const [ticker, setTicker] = useState('SPY');
-    const [direction, setDirection] = useState<'BULL' | 'BEAR'>('BULL');
+    const [direction] = useState<'BULL' | 'BEAR'>('BULL');
+    const [targetStrategy, setTargetStrategy] = useState('Credit Put Spread');
+    const [setup, setSetup] = useState('');
     const [targetDte, setTargetDte] = useState(30);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [result, setResult] = useState<StrategyResult | null>(null);
     const [expandedCard, setExpandedCard] = useState<number | null>(null);
-    const [selectedTab, setSelectedTab] = useState<'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SINGLE_LEG' | 'TOP_PICKS'>('TOP_PICKS');
     const [showSettings, setShowSettings] = useState(false);
     const [spreadWidth, setSpreadWidth] = useState(5);
 
@@ -183,7 +184,9 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
         setExpandedCard(null);
 
         try {
-            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}`;
+            const encodedStrategy = encodeURIComponent(targetStrategy);
+            const encodedSetup = encodeURIComponent(setup);
+            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}&targetStrategy=${encodedStrategy}&setup=${encodedSetup}`;
             const res = await fetch(url);
             const text = await res.text();
             let data: unknown;
@@ -203,7 +206,6 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
             }
             const resultData = data as StrategyResult;
             setResult(resultData);
-            setSelectedTab('TOP_PICKS');
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : 'Unknown error';
             setError(msg);
@@ -261,7 +263,7 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
             strike: isSpreadType ? (rec as SpreadRecommendation).shortLeg.strike : (rec as SingleLegRecommendation).strike,
             type: rec.type,
             expiration: isSpreadType ? (rec as SpreadRecommendation).shortLeg.expiration : (rec as SingleLegRecommendation).expiration,
-            setup: `Strategy Rec: ${result.regime.advice.split(':')[0]}`,
+            setup: setup || 'Algorithm Rec',
             entry_score: rec.score,
             ideal_entry: isSpreadType ? ((rec as SpreadRecommendation).netCredit ?? (rec as SpreadRecommendation).netDebit) : (rec as SingleLegRecommendation).price,
             target_price: 0,
@@ -282,9 +284,9 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
             <div className="mb-6">
                 <h1 className="text-2xl font-bold flex items-center gap-2">
                     <Activity className="text-accent-green" />
-                    Strategy Recommender
+                    Option Selector
                 </h1>
-                <p className="text-gray-400 text-sm mt-1">Smart strategy selection based on IV regime</p>
+                <p className="text-gray-400 text-sm mt-1">Single-strategy option selection driven by TradingView</p>
             </div>
 
             {/* Input Panel */}
@@ -310,8 +312,8 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                         )}
                     </div>
                     {/* Top Row: Ticker & Direction */}
-                    <div className="flex flex-col md:flex-row gap-6 items-end">
-                        <div className="flex-1 w-full">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                        <div className="md:col-span-1">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Ticker Symbol</label>
                             <div className="relative">
                                 <input
@@ -325,31 +327,31 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                 <Search className="absolute left-3 top-3.5 text-gray-500" size={20} />
                             </div>
                         </div>
-
-                        <div className="w-full md:w-64">
-                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Market Bias</label>
-                            <div className="flex bg-[#000] p-1 rounded-lg border border-[#333]">
-                                <button
-                                    onClick={() => setDirection('BULL')}
-                                    className={`flex-1 py-2.5 rounded-md text-sm font-bold flex items-center justify-center gap-2 transition-all ${direction === 'BULL'
-                                        ? 'bg-[#1a4d2e] text-green-400 shadow-sm border border-green-500/30'
-                                        : 'text-gray-500 hover:text-gray-300'
-                                        }`}
-                                >
-                                    <TrendingUp size={16} />
-                                    BULL 🐂
-                                </button>
-                                <button
-                                    onClick={() => setDirection('BEAR')}
-                                    className={`flex-1 py-2.5 rounded-md text-sm font-bold flex items-center justify-center gap-2 transition-all ${direction === 'BEAR'
-                                        ? 'bg-[#4d1a1a] text-red-400 shadow-sm border border-red-500/30'
-                                        : 'text-gray-500 hover:text-gray-300'
-                                        }`}
-                                >
-                                    <TrendingDown size={16} />
-                                    BEAR 🐻
-                                </button>
-                            </div>
+                        <div className="md:col-span-1">
+                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Setup</label>
+                            <input
+                                type="text"
+                                value={setup}
+                                onChange={(e) => setSetup(e.target.value)}
+                                className="w-full bg-[#000] border border-[#333] text-white rounded-lg px-4 py-3 focus:outline-none focus:border-accent-green text-lg font-bold tracking-wide placeholder-gray-600 transition-colors"
+                                placeholder="e.g. Pullback Buy"
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Strategy Type</label>
+                            <select
+                                value={targetStrategy}
+                                onChange={(e) => setTargetStrategy(e.target.value)}
+                                className="w-full bg-[#000] border border-[#333] text-white rounded-lg px-4 py-3 focus:outline-none focus:border-accent-green appearance-none cursor-pointer text-lg font-bold tracking-wide transition-colors"
+                            >
+                                <option value="Credit Put Spread">Credit Put Spread</option>
+                                <option value="Debit Call Spread">Debit Call Spread</option>
+                                <option value="Long Call">Long Call</option>
+                                <option value="Credit Call Spread">Credit Call Spread</option>
+                                <option value="Debit Put Spread">Debit Put Spread</option>
+                                <option value="Long Put">Long Put</option>
+                                <option value="Iron Condor">Iron Condor</option>
+                            </select>
                         </div>
                     </div>
 
@@ -579,43 +581,9 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                         </div>
                     </div>
 
-                    {/* Strategy Tabs */}
-                    <div className="flex border-b border-[#2A2A2A] gap-3 sm:gap-6 overflow-x-auto scrollbar-hide">
-                        {([
-                            { id: 'TOP_PICKS' as const, label: 'Top Picks', mobileLabel: 'Top' },
-                            { id: 'CREDIT_SPREAD' as const, label: 'Credit Spreads', mobileLabel: 'Credit' },
-                            { id: 'DEBIT_SPREAD' as const, label: 'Debit Spreads', mobileLabel: 'Debit' },
-                            { id: 'SINGLE_LEG' as const, label: 'Long Options', mobileLabel: 'Long' }
-                        ]).map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => { setSelectedTab(tab.id); setExpandedCard(null); }}
-                                className={`pb-3 text-xs sm:text-sm font-bold relative transition-colors shrink-0 whitespace-nowrap ${selectedTab === tab.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
-                                    }`}
-                            >
-                                <span className="flex items-center gap-1.5">
-                                    {tab.id === 'TOP_PICKS' && <Trophy size={14} />}
-                                    <span className="sm:hidden">{tab.mobileLabel}</span>
-                                    <span className="hidden sm:inline">{tab.label}</span>
-                                </span>
-                                {tab.id !== 'TOP_PICKS' && result.recommendedStrategy === tab.id && (
-                                    <span className="ml-1 sm:ml-2 bg-accent-green/20 text-accent-green text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded-sm border border-accent-green/30">
-                                        Regime
-                                    </span>
-                                )}
-                                {selectedTab === tab.id && (
-                                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-green shadow-[0_0_10px_rgba(208,253,62,0.5)]" />
-                                )}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Recommendations List */}
+                    {/* Target Recommendations */}
                     {(() => {
-                        const isTopPicks = selectedTab === 'TOP_PICKS';
-                        const recs: Recommendation[] = isTopPicks
-                            ? (result.strategies.TOP_PICKS as unknown as Recommendation[]) || []
-                            : (result.strategies[selectedTab as keyof typeof result.strategies] as Recommendation[]) || [];
+                        const recs = (result.strategies.TARGET_STRATEGY as Recommendation[]) || [];
                         return (
                             <div className="space-y-4">
                                 {recs.length === 0 && (
@@ -626,8 +594,8 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                 )}
 
                                 {recs.map((rec: Recommendation, idx: number) => {
-                                    const displayScore = isTopPicks ? (rec as unknown as UnifiedCandidateType).unifiedScore : rec.score;
-                                    const category = isTopPicks ? (rec as unknown as UnifiedCandidateType).strategyCategory : null;
+                                    const displayScore = rec.score;
+                                    const category = (rec as unknown as UnifiedCandidateType).strategyCategory || null;
                                     return (
                                         <div
                                             key={idx}
@@ -653,8 +621,8 @@ export const StrategyRecommender: React.FC<StrategyRecommenderProps> = ({ onAddT
                                                                         </span>
                                                                     );
                                                                 })()}
-                                                                {isTopPicks && (
-                                                                    <span className="text-[10px] sm:text-xs text-gray-500 font-mono shrink-0">(cat: {rec.score})</span>
+                                                                {rec.score >= 0 && (
+                                                                    <span className="text-[10px] sm:text-xs text-gray-500 font-mono shrink-0">(score: {rec.score})</span>
                                                                 )}
                                                                 {isSpread(rec) && (
                                                                     <span className="text-xs sm:text-sm font-mono text-gray-400 bg-white/5 px-1.5 sm:px-2 py-0.5 rounded border border-white/10 shrink-0">
