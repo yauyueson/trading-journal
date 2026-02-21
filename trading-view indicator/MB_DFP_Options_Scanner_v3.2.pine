@@ -1,54 +1,7 @@
 //@version=6
 // © MB+DFP + Options Scanner v3.2
-// ────────────────────────────────────────────────
-// v3.0→v3.1  FIX LOG
-// ────────────────────────────────────────────────
-// [FIX-1] PUT scoring symmetry: sc_mb / sc_bxs / sc_bxl now give
-//         bearish signals the same 25–100 range as bullish ones.
-//         A "Perfect Storm PUT" can now reach STR SELL threshold.
-//
-// [FIX-2] Structure recommendation is now fully direction-aware.
-//         Every branch checks s_stype (CALL vs PUT) before mapping
-//         to credit/debit structure. Prevents "Credit Put Spd" on a
-//         bearish setup.
-//
-// [FIX-3] hv_expensive flag is now wired into structure logic.
-//         High-HV CALL setups shift from debit to credit structures.
-//         High-HV PUT setups shift from debit puts to credit calls.
-//
-// [FIX-4] RVOL penalty now applies to both CALL and PUT.
-//         Low-volume breakdowns are penalised the same as low-vol rallies.
-//
-// [FIX-5] s_regime string no longer pre-concatenated with mtf_tag
-//         before it's used in structure comparisons. mtf_tag appended
-//         only in the display column.
-//
-// [FIX-6] Breakout structure now requires RVOL confirmation.
-//
-// [FIX-7] Iron Condor recommendation now requires HV >= Mid.
-//
-// [FIX-8] s_calc_emas comment updated to match actual periods (21/34/50).
-//
-// ────────────────────────────────────────────────
-// v3.1→v3.2  TIMEFRAME CALIBRATION (1.5 wk – 2 mo holding period)
-// ────────────────────────────────────────────────
-// [CAL-1] Scanner MB Period default: 100 → 60
-//         100-period EMA ≈ 5-month trend — too slow for a 2-month max hold.
-//         60-period EMA ≈ 3-month trend — catches direction shifts within
-//         the timeframe where you'd still be in a position.
-//
-// [CAL-2] Weekly MTF approximation multiplier: ×5 → ×3
-//         c_mb*5 = 500 bars ≈ 2-year lag — nearly useless for swing trades.
-//         c_mb*3 = 180 bars ≈ 9-month anchor — responsive enough to flag
-//         weekly trend conflicts within a month, not two years late.
-//         B-Xtrender weekly proxy also scaled ×3 (was ×5) for consistency.
-//
-// [CAL-3] Momentum scoring: added 10-day (2-week) change layer
-//         ch1 (1d) and ch3 (3d) only capture intra-week noise.
-//         ch10 (10d ≈ 2 weeks) aligns with the SHORT end of holding period.
-//         Scoring now 3-tier: ch1 (entry urgency) + ch3 (short swing) +
-//         ch10 (medium momentum confirmation).  Weights: 25/35/40.
-// ────────────────────────────────────────────────
+// v3.2: Direction-aware scoring, ATR-normalized momentum, 7-component composite
+// Calibrated for 1.5wk–2mo swing options holding period
 
 indicator("MB+DFP + Options Scanner v3.2", shorttitle="MB+DFP+SCAN v3.2", overlay=true, max_bars_back=1500, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
@@ -143,14 +96,14 @@ adx_range_thresh = input.int(20,   "ADX Range Threshold (< = Ranging)",         
 // [v3.3] Options Specific DTE & Earnings Logic
 earningGR       = "Scanner: [v3.3] Earnings & Setup Constraints"
 use_earn        = input.bool(true,  "Avoid Credit/Debit ahead of Earnings",       group=earningGR, display=display.data_window)
-earn_thresh     = input.int(10,     "Days to Earnings Risk Window", minval=1, maxval=21, group=earningGR, display=display.data_window)
+earn_thresh     = input.int(15,     "Days to Earnings Risk Window", minval=1, maxval=21, group=earningGR, display=display.data_window)
 pb_rvol_max     = input.float(1.0,  "Max RVOL for a Healthy Pullback",            group=earningGR, display=display.data_window)
 
 // [3] Mean Reversion Filter
 mrGR            = "Scanner: [v2] Mean Reversion Filter"
 use_mr_filter   = input.bool(true,  "Enable Mean Reversion Filter",               group=mrGR, display=display.data_window)
-mr_stddev_mult  = input.float(3.0,  "StdDev Multiplier for OVEREXTENDED",         group=mrGR, display=display.data_window)
-mr_lookback     = input.int(20,     "StdDev Lookback",                             group=mrGR, display=display.data_window)
+mr_stddev_mult  = input.float(3.0,  "ATR Multiplier for OVEREXTENDED",            group=mrGR, display=display.data_window)
+mr_lookback     = input.int(20,     "ATR Lookback",                               group=mrGR, display=display.data_window)
 
 // [4] MTF Hard Constraint  [v3: Weekly replaces Daily as primary anchor]
 mtfGR           = "Scanner: [v3] MTF Hard Constraint (Weekly Anchor)"
@@ -188,21 +141,12 @@ setup_filt_bt   = input.string("All", "Setup Filter", options=["All", "Perfect S
 // TP/SL Simulation
 tpslGR         = "Signal Quality Analyzer (TP/SL Simulation)"
 use_tpsl       = input.bool(true,  "Enable TP/SL Simulation Row", group=tpslGR)
-tp_pct         = input.float(7.0,  "Take Profit % (underlying move)", minval=1.0, maxval=30.0, step=0.5, group=tpslGR) / 100.0
-sl_pct         = input.float(4.0,  "Stop Loss % (underlying move)",   minval=0.5, maxval=20.0, step=0.5, group=tpslGR) / 100.0
-ic_tp_pct      = input.float(3.5,  "IC Take Profit % (max drift)",    minval=1.0, maxval=10.0, step=0.5, group=tpslGR) / 100.0
-ic_sl_pct      = input.float(6.0,  "IC Stop Loss % (max drift)",      minval=2.0, maxval=15.0, step=0.5, group=tpslGR) / 100.0
+tp_atr         = input.float(2.0,  "Take Profit (ATR Multiplier)", minval=0.5, maxval=10.0, step=0.5, group=tpslGR)
+sl_atr         = input.float(1.0,  "Stop Loss (ATR Multiplier)",   minval=0.5, maxval=10.0, step=0.5, group=tpslGR)
+ic_tp_atr      = input.float(1.0,  "IC TP Entry Band (ATR Mult)",  minval=0.5, maxval=5.0,  step=0.5, group=tpslGR)
+ic_sl_atr      = input.float(2.0,  "IC SL Drift Max (ATR Mult)",   minval=1.0, maxval=8.0,  step=0.5, group=tpslGR)
 
-// Base Weights (v3.2: 7 components — tradability baked into score)
-// ──────────────────────────────────────────────────────
-// Old (5 components): Score = technical signal strength only.
-//   Problem: Score 85 + ADX 18 + RVOL 0.7 → high score, no structure.
-//
-// New (7 components): Score = signal strength × tradability.
-//   ADX Regime: is there a real trend to ride? (or confirmed range for IC)
-//   RVOL:       is volume confirming the move?
-//   High score now means "strong AND tradable".
-// ──────────────────────────────────────────────────────
+// Base Weights (7 components: signal strength × tradability)
 w_mb  = input.int(25, "Weight: Market Bias %",      minval=0, maxval=40, group="Scanner: Scoring", display=display.data_window)
 w_bxs = input.int(20, "Weight: B-Xtrender Short %", minval=0, maxval=40, group="Scanner: Scoring", display=display.data_window)
 w_bxl = input.int(15, "Weight: B-Xtrender Long %",  minval=0, maxval=40, group="Scanner: Scoring", display=display.data_window)
@@ -458,14 +402,7 @@ s_calc_hv_pct(period, lookback) =>
     pct     = hv_max == hv_min ? 0.5 : (hv_now - hv_min) / math.max(hv_max - hv_min, 0.0001)
     [hv_now, pct]
 
-// Setup Identification
-// [v3.2B] Relaxed conditions — key changes:
-//   • Strong Trend / Strong Down: removed full stack (bstk/brstk) requirement.
-//     Now only requires d8 aligned + bxs/bxl aligned. Catches stocks that are
-//     clearly directional but EMAs haven't fully fanned out yet (e.g. META).
-//   • Failed Rally: removed brstk, now only needs d8<2 (price below short EMA).
-//   • Pullback Buy: removed bstk, now just needs d8>-2 and EMA proximity (t21/t34).
-// [v3.3] Pullback setups now require RVOL contraction.
+// Setup Identification (v3.2B relaxed + v3.3 RVOL contraction for pullbacks)
 s_identify(osc, bull, bs_bull, bs_bear, bxs, bxl, rev_up, rev_dn, crup, crdn, d8, d21, d34, bstk, brstk, t21, t34, cup8, cdn8, rvol_now, pb_max) =>
     name="Mixed", type="NEUTRAL", conf=0
 
@@ -525,8 +462,6 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
     [rvol_now, rvol_2bar] = s_calc_rvol(volume, rvol_period)
 
     // Earnings Date (Check if earnings are coming up soon)
-    // request.earnings requires a prefix. We construct a resolved string using syminfo.prefix.
-    // If prefix is missing, we use a dummy resolved ticker to prevent the "unresolved" error.
     t_resolved = syminfo.prefix != "" ? syminfo.prefix + ":" + syminfo.ticker : "NASDAQ:AAPL"
     ern_ms_raw = request.earnings(t_resolved, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
     ern_ms = syminfo.prefix != "" ? ern_ms_raw : na
@@ -560,30 +495,8 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
         else if is_ranging
             dw1:=w1*1.2, dw2:=w2*1.2, dw4:=w4*0.6
 
-    // ═══════════════════════════════════════════════════════
-    // [v3.2 REWRITE] DIRECTION-AWARE COMPONENT SCORING
-    // ═══════════════════════════════════════════════════════
-    //
-    // PROBLEM (v3.1): abs() scoring made contradictory signals both score high.
-    //   MSFT: MB=-264 (bearish), BxS=+17 (bullish) → both got high scores → 100
-    //   This is WRONG. Conflicting indicators should LOWER the score.
-    //
-    // FIX: Each component is scored relative to the setup direction (st).
-    //   - CALL setup: positive indicator = aligned → high score
-    //                 negative indicator = conflicting → LOW score
-    //   - PUT setup:  negative indicator = aligned → high score
-    //                 positive indicator = conflicting → LOW score
-    //   - NEUTRAL:    no direction → everything scores low (capped at 55)
-    //
-    // Score anatomy:  base 50 + direction_credit (0–30) + strength_bonus (0–20)
-    //   Aligned strong signal:     50 + 30 + 20 = 100
-    //   Aligned weak signal:       50 + 10 + 5  = 65
-    //   Conflicting weak signal:   50 + 0  + 0  = 50
-    //   Conflicting strong signal: 50 - 20 + 0  = 30  ← PENALISED
-    // ═══════════════════════════════════════════════════════
-
-    // Direction multiplier: +1 for CALL, -1 for PUT
-    // When we multiply indicator value by dir, aligned signals become positive
+    // Direction-aware scoring: each component scored relative to setup direction
+    // base 50 ± direction_credit ± strength_bonus → range 15–100
     dir = st == "CALL" ? 1.0 : st == "PUT" ? -1.0 : 0.0
 
     // ── MB Score ──────────────────────────────────────────
@@ -624,22 +537,24 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
     ch3  = nz(close[3]) > 0 ? (close - close[3])  / close[3]  * 100 : 0.0
     ch10 = nz(close[10]) > 0 ? (close - close[10]) / close[10] * 100 : 0.0
 
+    // Normalize momentum using ATR
+    atr_pct = (ta.atr(14) / nz(close, 1)) * 100
+    norm_ch1  = atr_pct > 0 ? ch1 / atr_pct : 0.0
+    norm_ch3  = atr_pct > 0 ? ch3 / (atr_pct * math.sqrt(3)) : 0.0
+    norm_ch10 = atr_pct > 0 ? ch10 / (atr_pct * math.sqrt(10)) : 0.0
+
     // Direction-aware momentum: aligned changes score high, opposing score low
-    mom1_aligned = ch1 * dir, mom3_aligned = ch3 * dir, mom10_aligned = ch10 * dir
+    mom1_aligned = norm_ch1 * dir, mom3_aligned = norm_ch3 * dir, mom10_aligned = norm_ch10 * dir
 
     // Each tier: aligned strong = 30, aligned weak = 15, flat = 5, opposing = -10
-    mom_t1  = mom1_aligned  > 0 ? (math.abs(ch1)  > 2 ? 30.0 : math.abs(ch1)  > 0.5 ? 15.0 : 5.0) : (math.abs(ch1)  > 2 ? -10.0 : -5.0)
-    mom_t3  = mom3_aligned  > 0 ? (math.abs(ch3)  > 2 ? 30.0 : math.abs(ch3)  > 0.5 ? 15.0 : 5.0) : (math.abs(ch3)  > 2 ? -10.0 : -5.0)
-    mom_t10 = mom10_aligned > 0 ? (math.abs(ch10) > 2 ? 30.0 : math.abs(ch10) > 0.5 ? 15.0 : 5.0) : (math.abs(ch10) > 2 ? -10.0 : -5.0)
+    mom_t1  = mom1_aligned  > 0 ? (math.abs(norm_ch1)  > 1.0 ? 30.0 : math.abs(norm_ch1)  > 0.3 ? 15.0 : 5.0) : (math.abs(norm_ch1)  > 1.0 ? -10.0 : -5.0)
+    mom_t3  = mom3_aligned  > 0 ? (math.abs(norm_ch3)  > 1.0 ? 30.0 : math.abs(norm_ch3)  > 0.3 ? 15.0 : 5.0) : (math.abs(norm_ch3)  > 1.0 ? -10.0 : -5.0)
+    mom_t10 = mom10_aligned > 0 ? (math.abs(norm_ch10) > 1.0 ? 30.0 : math.abs(norm_ch10) > 0.3 ? 15.0 : 5.0) : (math.abs(norm_ch10) > 1.0 ? -10.0 : -5.0)
 
     // Weighted blend: ch10 (40%) > ch3 (35%) > ch1 (25%)
-    // Raw tier range: -10 to +30.  With 3 tiers, max raw sum = 90, min = -30
-    // We want the final sc_mom range to be ~15–100
     sc_mom = math.max(math.min(50.0 + (mom_t1 * 0.25 + mom_t3 * 0.35 + mom_t10 * 0.40) * 1.6, 100.0), 15.0)
 
-    // ── ADX Regime Score ──────────────────────────────────
-    // Trending environment = good for directional, bad for mixed
-    // Ranging environment = good for IC / neutral, bad for directional
+    // ── ADX Regime Score
     is_weak_setup = sn == "Bullish" or sn == "Bearish" or sn == "Mixed"
     is_mid_setup  = sn == "Directional" or sn == "Pullback Buy" or sn == "Failed Rally" or sn == "Divergence" or sn == "Distribution"
     is_strong_setup = sn == "Perfect Storm" or sn == "Breakout" or sn == "Breakdown" or sn == "Strong Trend" or sn == "Strong Down"
@@ -652,12 +567,10 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
     else  // neutral ADX
         sc_adx := is_mid_setup ? 60.0 : 55.0
 
-    // ── RVOL Score ────────────────────────────────────────
+    // ── RVOL Score
     sc_vol = rvol_2bar >= 2.0 ? 100.0 : rvol_2bar >= 1.5 ? 90.0 : rvol_2bar >= rvol_threshold ? 75.0 : rvol_2bar >= 1.0 ? 60.0 : rvol_2bar >= 0.7 ? 40.0 : 25.0
 
-    // ═══════════════════════════════════════════════════════
     // COMPOSITE SCORE
-    // ═══════════════════════════════════════════════════════
     f_mb  = nz(sc_mb,  50)
     f_bxs = nz(sc_bxs, 50)
     f_bxl = nz(sc_bxl, 50)
@@ -668,93 +581,54 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
     tot   = dw1 + dw2 + dw3 + dw4 + dw5 + dw6 + dw7
     comp  = f_mb * (dw1/tot) + f_bxs * (dw2/tot) + f_bxl * (dw3/tot) + f_ema * (dw4/tot) + f_mom * (dw5/tot) + f_adx * (dw6/tot) + f_vol * (dw7/tot)
 
-    // ── COHERENCE MULTIPLIER ──────────────────────────────
-    // If the 3 core directional indicators (MB, BXS, BXL) all agree with
-    // the setup direction → 1.1x boost.  If 2+ conflict → 0.85x penalty.
-    // This prevents high scores from contradictory signals.
-    core_agree = 0
-    core_agree += mb_aligned  > 0 ? 1 : 0
-    core_agree += bxs_aligned > 0 ? 1 : 0
-    core_agree += bxl_aligned > 0 ? 1 : 0
-
+    // Coherence: 3 core indicators agree with direction
+    core_agree = (mb_aligned > 0 ? 1 : 0) + (bxs_aligned > 0 ? 1 : 0) + (bxl_aligned > 0 ? 1 : 0)
     coherence_mult = core_agree == 3 ? 1.10 : core_agree == 2 ? 1.0 : core_agree == 1 ? 0.85 : 0.70
     comp := math.min(comp * coherence_mult, 100.0)
 
-    // ── NEUTRAL HARD CAP ──────────────────────────────────
-    // NEUTRAL / Mixed setups can never score above 55 — they have no
-    // directional edge, so a high score would be misleading.
+    // NEUTRAL hard cap at 55
     comp := st == "NEUTRAL" ? math.min(comp, 55.0) : comp
 
     // Non-linear Boost (only if coherence is perfect)
     boost_active = use_boost and f_mb >= boost_mb_thresh and f_bxs >= boost_bxs_thresh and core_agree == 3
     comp        := boost_active ? math.min(comp * 1.1, 100) : comp
 
-    // Overextended
-    price_std = ta.stdev(close, mr_lookback)
-    overext   = use_mr_filter and math.abs(close - e21) > mr_stddev_mult * price_std
-    
-    // [FIX-PUT] EMA 50 Guard for Shorts
-    ema50_guard = st == "PUT" and close > e34 // e34 stores the EMA50 value from s_calc_emas
+    overext   = use_mr_filter and math.abs(close - e21) > (mr_stddev_mult * ta.atr(mr_lookback))
+    ema50_guard = st == "PUT" and close > e34
 
-    // Weekly MTF Hard Filter (approximation)
-    // [CAL-2] ×3 multiplier (was ×5) — 180-bar ≈ 9-month anchor, not 2-year
+    // Weekly MTF Hard Filter (×3 approximation)
     [wk_osc, wk_bull, wk_str, _, _] = s_calc_mb(close, open, high, low, c_mb * 3)
     [wk_bxs, _, wk_bxl, _, _, _, _] = s_calc_bx(close, c_s1 * 3, c_s2 * 3, c_s3, c_l1 * 3, c_l2)
     weekly_score_approx = 50.0 + (wk_bull ? math.min(wk_osc * 5, 30) : -math.min(math.abs(wk_osc) * 5, 30)) + (wk_str ? 20 : 5)
     mtf_conflict = use_mtf_filter and ((st == "CALL" and weekly_score_approx < mtf_score_floor) or (st == "PUT" and weekly_score_approx > 52))
 
-    // Signal Label (options-adjusted thresholds)
-    str_thresh = opt_str_buy_min
-    buy_thresh = opt_buy_min
-
     sig = "❌ AVOID"
     if overext
         sig := "⚠️ OVEREXT"
     else if mtf_conflict
-        // [v3.3] Tiered MTF conflict labels — replace generic "BOUNCE?" with nuanced classification
         if st == "PUT"
-            // PUT blocked by weekly strength → classify how "close" we are to a real breakdown
-            if weekly_score_approx > 62
-                // Weekly is very strong bull — this is a healthy pullback, not a breakdown
-                sig := "⬆️ PULLBACK"
-            else if weekly_score_approx > 55
-                // Weekly starting to weaken, but not broken — dangerous for shorts
-                sig := "⚡ REBOUND RISK"
-            else
-                // Weekly close to neutral/bearish flip — breakdown imminent, watch for volume
-                sig := "🟡 BRKDWN WATCH"
+            sig := weekly_score_approx > 62 ? "⬆️ PULLBACK" : weekly_score_approx > 55 ? "⚡ REBOUND RISK" : "🟡 BRKDWN WATCH"
         else if st == "CALL"
-            // CALL blocked by weekly weakness (MTF floor not met)
-            if weekly_score_approx < 38
-                // Weekly deeply bearish — definitely not time to buy calls
-                sig := "🐻 BEAR TREND"
-            else if weekly_score_approx < 45
-                // Weekly trending down but could stabilize
-                sig := "⚡ RALLY RISK"
-            else
-                // Weekly near neutral — cautious call setup forming
-                sig := "👀 NEUT WATCH"
+            sig := weekly_score_approx < 38 ? "🐻 BEAR TREND" : weekly_score_approx < 45 ? "⚡ RALLY RISK" : "👀 NEUT WATCH"
         else
             sig := "⬆️ MTF BLOCK"
     else if st == "CALL"
-        if comp >= str_thresh and sc == 3
+        if comp >= opt_str_buy_min and sc == 3
             sig := "🟢 STR BUY" + (boost_active ? " 🔥" : "") + (hv_cheap ? " 💎" : "")
-        else if comp >= str_thresh
+        else if comp >= opt_str_buy_min
             sig := "🟢 BUY" + (hv_cheap ? " 💎" : "")
-        else if comp >= buy_thresh
+        else if comp >= opt_buy_min
             sig := "🟡 BUY"
         else
             sig := "👀 WATCH · CALL"
     else if st == "PUT"
-        // [FIX-PUT] Asymmetric strictness for PUT signals
-        is_high_conf_down = comp >= str_thresh and sc == 3 and rvol_2bar >= 1.0
-        is_valid_put      = comp >= buy_thresh and rvol_2bar >= 0.8
-        
+        is_high_conf_down = comp >= opt_str_buy_min and sc == 3 and rvol_2bar >= 1.0
+        is_valid_put      = comp >= opt_buy_min and rvol_2bar >= 0.8
         if ema50_guard
-            sig := "👀 WATCH · PUT" // Rejects/downgrades if still above EMA 50
+            sig := "👀 WATCH · PUT"
         else if is_high_conf_down
             sig := "🔴 STR SELL" + (boost_active ? " 🔥" : "") + (hv_cheap ? " 💎" : "")
-        else if comp >= str_thresh
+        else if comp >= opt_str_buy_min
             sig := "🔴 SELL" + (hv_cheap ? " 💎" : "")
         else if is_valid_put
             sig := "🟡 SELL"
@@ -956,9 +830,13 @@ f_get_struct(s_stype, s_setup, s_regime, s_hv_env, s_hv_exp, s_rvol, r_thresh, s
     // ── GENERIC BULLISH / BEARISH / MIXED ──
     else if str.contains(s_setup, "Bullish") or str.contains(s_setup, "Bearish") or str.contains(s_setup, "Mixed")
         if regime_s == "Range"
+            has_range_width = (ta.highest(high, 20) - ta.lowest(low, 20)) > (ta.atr(14) * 2)
             if hv_s == "Lo"
                 struct_rec := "⏳ IV too low for IC"
                 portal_eng := "Wait: low premium"
+            else if not has_range_width
+                struct_rec := "⏳ Range too tight"
+                portal_eng := "Wait: insufficient premium"
             else
                 struct_rec := "Iron Condor"
                 portal_eng := "CSQ·Both sides"
@@ -998,48 +876,16 @@ if barstate.islast and show_scanner
 
         [s_comp, s_sig, s_setup, s_stype, s_conf, s_mb, s_bxs, s_bxl, s_d8, s_d21, s_rev, s_rvol, s_regime, s_overext, s_mtf, s_adx, s_hv_env, s_hv_exp, s_earn] = request.security(sym, timeframe.period, s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2), ignore_invalid_symbol=true)
 
-        // [FIX-5] mtf_tag appended only for display, not for regime comparison
-        s_mtf_final = s_mtf
-        mtf_tag = "W~"
-
         incl = (s_stype == "CALL" and show_calls) or (s_stype == "PUT" and show_puts)
         if not na(s_comp) and ((s_comp >= min_score and incl) or min_score == 0)
-
-            // ──────────────────────────────────────────────────────
-            // [FIX-2] [FIX-3] [FIX-6] [FIX-7]
-            // Structure Recommendation — FULLY DIRECTION-AWARE
-            // ──────────────────────────────────────────────────────
-            // Decision Matrix:
-            //   Axis 1: Setup type (Perfect Storm, Breakout, Pullback, etc.)
-            //   Axis 2: Direction (CALL vs PUT)
-            //   Axis 3: ADX Regime (Trend / Range / Neut)
-            //   Axis 4: HV Environment (Lo / Mid / Hi)
-            //   Axis 5: RVOL (sufficient volume?)
-            //
-            // Output: Structure (debit/credit/single leg) + Portal Engine label
-            // ──────────────────────────────────────────────────────
-
-            [struct_rec, portal_eng] = f_get_struct(s_stype, s_setup, s_regime, s_hv_env, s_hv_exp, s_rvol, rvol_threshold, s_overext, s_mtf_final, s_earn, s_d8, s_d21, s_comp)
-
-            // Low-vol warning appended (for display only)
-            // This logic is now inside f_get_struct
-            // if not has_vol and (s_stype == "CALL" or s_stype == "PUT")
-            //     struct_rec := struct_rec + " ⚡LowVol"
-
-            // Note column: Structure | Portal Engine
+            [struct_rec, portal_eng] = f_get_struct(s_stype, s_setup, s_regime, s_hv_env, s_hv_exp, s_rvol, rvol_threshold, s_overext, s_mtf, s_earn, s_d8, s_d21, s_comp)
             note = struct_rec + "\n" + portal_eng
-
-            // [FIX-5] regime for display includes mtf_tag, but raw regime was used above
-            display_regime = str.tostring(s_regime) + " " + mtf_tag
-
-            safe_overext = s_overext ? true : false
-            safe_mtf = s_mtf_final ? true : false
-            safe_rev = s_rev ? true : false
+            display_regime = str.tostring(s_regime) + " W~"
 
             array.push(results, StockData.new(sym, s_comp, s_sig, s_setup, s_stype, s_conf,
-                 nz(s_mb), nz(s_bxs), nz(s_bxl), nz(s_d8), safe_rev,
+                 nz(s_mb), nz(s_bxs), nz(s_bxl), nz(s_d8), s_rev ? true : false,
                  nz(s_rvol, 1.0), display_regime,
-                 safe_overext, safe_mtf,
+                 s_overext ? true : false, s_mtf ? true : false,
                  nz(s_adx, 0.0), str.tostring(s_hv_env), note))
 
 // ==========================================
@@ -1177,41 +1023,24 @@ if show_backtest
     // Get signal data for current chart symbol
     [c_comp, c_sig, c_setup, c_stype, c_conf, c_mb, c_bxs, c_bxl, c_d8, c_d21, c_rev, c_rvol, c_regime, c_overext, c_mtf, c_adx, c_hv_env, c_hv_exp, c_earn] = s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2)
     
-    // Only track if score meets minimum threshold
     is_valid_sig = c_comp >= min_score_bt and (c_stype == "CALL" or c_stype == "PUT")
-    
-    // Persistent stats
-    var int   total_signals = 0
-    var int c14_total = 0, var int success_14 = 0
-    var float sum_m14_total = 0.0
-    var int c30_total = 0, var int success_30 = 0
-    var float sum_m30_total = 0.0
-    
-    // Strategy Breakdown
-    var int t_calls = 0 
-    var int c14_calls = 0, var int s14_calls = 0
-    var float sum_m14_calls = 0.0
-    var int c30_calls = 0, var int s30_calls = 0
-    var float sum_m30_calls = 0.0
-    
-    var int t_puts  = 0
-    var int c14_puts = 0, var int s14_puts  = 0
-    var float sum_m14_puts  = 0.0
-    var int c30_puts = 0, var int s30_puts  = 0
-    var float sum_m30_puts  = 0.0
-    
-    var int t_ics   = 0
-    var int c14_ics = 0, var int s14_ics   = 0
-    var float sum_m14_ics   = 0.0
-    var int c30_ics = 0, var int s30_ics   = 0
-    var float sum_m30_ics   = 0.0
-    
-    // Filtered Breakdown (by setup)
-    var int t_filt = 0 
-    var int c14_filt = 0, var int s14_filt = 0
-    var float sum_m14_filt = 0.0
-    var int c30_filt = 0, var int s30_filt = 0
-    var float sum_m30_filt = 0.0
+
+    // Persistent stats — Overall
+    var int total_signals = 0
+    var int c14_total = 0, var int success_14 = 0, var float sum_m14_total = 0.0
+    var int c30_total = 0, var int success_30 = 0, var float sum_m30_total = 0.0
+    // Strategy Breakdown — CALL
+    var int t_calls = 0, var int c14_calls = 0, var int s14_calls = 0, var float sum_m14_calls = 0.0
+    var int c30_calls = 0, var int s30_calls = 0, var float sum_m30_calls = 0.0
+    // Strategy Breakdown — PUT
+    var int t_puts = 0, var int c14_puts = 0, var int s14_puts = 0, var float sum_m14_puts = 0.0
+    var int c30_puts = 0, var int s30_puts = 0, var float sum_m30_puts = 0.0
+    // Strategy Breakdown — IC
+    var int t_ics = 0, var int c14_ics = 0, var int s14_ics = 0, var float sum_m14_ics = 0.0
+    var int c30_ics = 0, var int s30_ics = 0, var float sum_m30_ics = 0.0
+    // Filtered Breakdown
+    var int t_filt = 0, var int c14_filt = 0, var int s14_filt = 0, var float sum_m14_filt = 0.0
+    var int c30_filt = 0, var int s30_filt = 0, var float sum_m30_filt = 0.0
     
     // Check Structure Rec dynamically to see if strategy is valid to enter
     [c_struct_rec, c_portal_eng] = f_get_struct(c_stype, c_setup, c_regime, c_hv_env, c_hv_exp, c_rvol, rvol_threshold, c_overext, c_mtf, c_earn, c_d8, c_d21, c_comp)
@@ -1234,6 +1063,7 @@ if show_backtest
     var float[] signal_tp_prices    = array.new_float(0)  // price level for TP
     var float[] signal_sl_prices    = array.new_float(0)  // price level for SL
     var bool[]  signal_closed       = array.new_bool(0)   // already exited via TP or SL?
+    var float[] signal_atr_val      = array.new_float(0)  // track ATR at entry
     
     // TP/SL simulation stats — OVERALL
     var int   tpsl_total   = 0
@@ -1268,17 +1098,19 @@ if show_backtest
         array.push(signal_setups,       c_setup)
         array.push(signal_closed,       false)
         
-        // Set TP/SL levels based on signal direction
-        if is_ic_rec
-            // IC: TP = price stays near entry (within ic_tp_pct), SL = breaks out by ic_sl_pct
-            array.push(signal_tp_prices, close * (1.0 + ic_tp_pct))  // dummy upper bound for IC
-            array.push(signal_sl_prices, close * (1.0 - ic_tp_pct))  // dummy lower bound for IC
+        entry_atr = ta.atr(14)
+        array.push(signal_atr_val,      entry_atr)
+        
+        // Set TP/SL levels based on signal direction using ATR multipliers
+        if is_ic_rec // IC uses dummy boundaries here; drift check handles actual ATR comparison
+            array.push(signal_tp_prices, close + (entry_atr * ic_tp_atr))
+            array.push(signal_sl_prices, close - (entry_atr * ic_tp_atr))
         else if c_stype == "CALL"
-            array.push(signal_tp_prices, close * (1.0 + tp_pct))
-            array.push(signal_sl_prices, close * (1.0 - sl_pct))
+            array.push(signal_tp_prices, close + (entry_atr * tp_atr))
+            array.push(signal_sl_prices, close - (entry_atr * sl_atr))
         else  // PUT
-            array.push(signal_tp_prices, close * (1.0 - tp_pct))  // TP = drops by tp_pct
-            array.push(signal_sl_prices, close * (1.0 + sl_pct))  // SL = rises by sl_pct
+            array.push(signal_tp_prices, close - (entry_atr * tp_atr))
+            array.push(signal_sl_prices, close + (entry_atr * sl_atr))
         
         total_signals += 1
         if is_ic_rec
@@ -1309,13 +1141,14 @@ if show_backtest
             if use_tpsl and not e_closed
                 tp_hit = false
                 sl_hit = false
+                e_atr = array.get(signal_atr_val, i)
                 
                 if e_type == "IC"
                     // IC: TP if price stays inside band; SL if it breaks out
-                    ic_drift = math.abs(close - e_price) / e_price
-                    if ic_drift <= ic_tp_pct
+                    ic_drift = math.abs(close - e_price)
+                    if ic_drift <= (e_atr * ic_tp_atr)
                         tp_hit := true  // still within range → profitable
-                    else if ic_drift >= ic_sl_pct
+                    else if ic_drift >= (e_atr * ic_sl_atr)
                         sl_hit := true  // broke out → stop loss
                 else if e_type == "CALL"
                     if high >= e_tp
@@ -1330,7 +1163,7 @@ if show_backtest
                 
                 if tp_hit or sl_hit
                     array.set(signal_closed, i, true)
-                    ret_val = tp_hit ? (e_type == "IC" ? ic_tp_pct : tp_pct) : -(e_type == "IC" ? ic_sl_pct : sl_pct)
+                    ret_val = tp_hit ? (e_type == "IC" ? (e_atr * ic_tp_atr)/math.max(e_price, 0.01) : (e_atr * tp_atr)/math.max(e_price, 0.01)) : -(e_type == "IC" ? (e_atr * ic_sl_atr)/math.max(e_price, 0.01) : (e_atr * sl_atr)/math.max(e_price, 0.01))
                     tpsl_total   += 1
                     tpsl_sum_ret += ret_val
                     if tp_hit
@@ -1447,6 +1280,7 @@ if show_backtest
                 array.remove(signal_closed,       i)
                 array.remove(signal_tp_prices,    i)
                 array.remove(signal_sl_prices,    i)
+                array.remove(signal_atr_val,      i)
 
     // Display Stats Table
     if barstate.islast
@@ -1472,7 +1306,7 @@ if show_backtest
         
         // TP/SL Simulation Rows (overall + per category)
         if use_tpsl
-            tpsl_lbl = "TP" + str.tostring(math.round(tp_pct * 100)) + "/SL" + str.tostring(math.round(sl_pct * 100))
+            tpsl_lbl = "TP" + str.tostring(tp_atr) + "A/SL" + str.tostring(sl_atr) + "A"
             bg_total = color.new(color.yellow, 88)
             bg_call  = color.new(color.green,  92)
             bg_put   = color.new(color.red,    92)
