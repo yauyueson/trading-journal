@@ -11,20 +11,23 @@ The `MB_DFP_Options_Scanner_v3.2` is a Pine Script indicator that acts as the **
 
 ### Step 1: Discover on TradingView
 1. Attach `MB_DFP_Options_Scanner_v3.2` to any chart.
-2. The scanner table shows tickers ranked by Score. Look at the **rightmost column** — `Structure | Engine` — for actionable setups (highlighted in green/red/purple).
-3. Note three fields from an actionable row:
-   - **Ticker** (e.g., `NVDA`)
-   - **Setup** (e.g., `Strong Trend`)
-   - **Target Strategy** (e.g., `Credit Put Spread`)
+2. The scanner table shows tickers ranked by Score. Look at the right half of the table for actionable setups (indicated by a non-blank **Direction** column and colored **Score Tier**).
+3. Read the explicitly listed platform input columns from left to right:
+   - **Score Tier** (e.g., `S (90+)`)
+   - **Setup** (e.g., `Strong Down`)
+   - **Direction** (e.g., `BEAR`)
+   - **Market State** (e.g., `TRENDING`)
+   - **Risk Flags** (e.g., `Hi Vol`)
 
-### Step 2: Plug into Option Selector (Web UI)
-1. Open the **Option Selector** page.
-2. Enter the Ticker, Direction, Target DTE, Target Strategy, and Setup from Step 1.
-3. Click **Scan Options**.
+### Step 2: Plug into Strategy Recommender (Web UI)
+1. Open the **Strategy Recommender** page.
+2. Enter the data exactly as read from the scanner table (Direction, Setup, Market State, Risk Flags).
+3. Keep the Target Strategy dropdown on **Auto-Select Strategy**.
+4. Click **Analyze Strategy**.
 
 ### Step 3: Analyze & Execute
-1. The Web UI fetches the exact options chain and scores every spread combination.
-2. Review top-scored strikes, click **Add to Watchlist**, and log the trade.
+1. The Web UI's Options Architect engine fetches the exact options chain and scores every spread combination across all strategy types.
+2. Review the top-5 recommended structures, compare the risk-reward profiles, and execute the trade in your broker.
 
 ---
 
@@ -54,14 +57,14 @@ The table uses a **dark/muted style** for most columns. Color is reserved only f
 
 | Column | Description |
 | :--- | :--- |
-| **Symbol** | Ticker. Green text = CALL setup. Red text = PUT setup. |
-| **Score** | 0–100 composite score. Muted display — high score alone does NOT mean "trade now". |
-| **Signal** | Environment classification (see Signal Labels below). |
-| **Setup** | Pattern detected (Perfect Storm, Breakout, Pullback Buy, etc.) + star confidence rating (⭐⭐⭐ = highest). |
-| **MB / Bx-S / Bx-L / EMA** | Raw indicator values. Green = bullish, Red = bearish. Muted color intentionally. |
-| **RVOL** | Relative volume. Color = text only: 🟢 Lime = strong, Teal = ok, Gray = low, 🔴 Red = danger. |
-| **ADX · HV** | ADX trend strength + Historical Volatility percentile (Lo/Mid/Hi). HV drives credit vs. debit routing. |
-| **Structure \| Engine** | **⬅ THE ONLY COLUMN THAT MATTERS**. Highlighted when actionable: 🟩 CALL strategy, 🟥 PUT strategy, 🟣 Iron Condor. Dim/dark = Wait state. |
+| **Symbol** | Ticker symbol. Green text = CALL setup. Red text = PUT setup. |
+| **MB / Bx-S / Bx-L / EMA** | Raw indicator values showing oscillator alignment and trend structural health. Muted colors to reduce noise. |
+| **RVOL** | Relative volume vs 20-day average. 🟢 Lime > 1.3x, Teal > 1.0x, Gray > 0.8x. |
+| **Score Tier** | Grade of the setup from D to S (90+). Highlights in Green/Red for actionable signals. |
+| **Setup** | The exact structural pattern detected (e.g. Breakout, Pullback Buy, Strong Down). Enter this in the Web App. |
+| **Direction** | BULL, BEAR, or blank. Shows the side of the market the setup is leaning toward. Enter this in the Web App. |
+| **Market State** | Explicitly derived regime from ADX, oscillators, and volatility (e.g. TRENDING, RANGING, EXPLOSIVE, REVERTING). Enter this in the Web App. |
+| **Risk Flags** | Contains any structural warnings or blockers from Pine Script (e.g., ⚠️ OverExt, ⬆️ MTF Conflict, Hi Vol, ER Blocked). Check the corresponding boxes in the Web App. |
 
 ---
 
