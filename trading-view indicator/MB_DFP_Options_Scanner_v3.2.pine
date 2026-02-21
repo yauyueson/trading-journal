@@ -919,7 +919,7 @@ if barstate.islast and show_scanner and array.size(results) > 0
     table.cell(tbl, 7,  0, "EMA",               bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
     table.cell(tbl, 8,  0, "RVOL",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
     table.cell(tbl, 9,  0, "ADX · HV",          bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
-    table.cell(tbl, 10, 0, "Structure | Engine", bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 10, 0, "→ Platform",          bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
 
     cnt = math.min(array.size(results), max_display)
     call_cnt = 0, put_cnt = 0
@@ -943,7 +943,7 @@ if barstate.islast and show_scanner and array.size(results) > 0
         muted_tc = color.new(color.white, 40)  // dimmed text
         dim_bg   = color.new(color.black, 92)  // slightly dimmer for non-key cols
 
-        stars = d.confidence == 3 ? "⭐⭐⭐" : d.confidence == 2 ? "⭐⭐" : d.confidence == 1 ? "⭐" : ""
+        stars = is_actionable ? (d.confidence == 3 ? "⭐⭐⭐" : d.confidence == 2 ? "⭐⭐" : d.confidence == 1 ? "⭐" : "") : ""
 
         // Col 0: Symbol — keep green/red text for direction, no fancy bg
         sym_color = d.stype == "CALL" ? color.new(color.green, 20) : d.stype == "PUT" ? color.new(color.red, 20) : color.gray
@@ -975,14 +975,23 @@ if barstate.islast and show_scanner and array.size(results) > 0
         adx_tc  = d.hv_env == "Hi" ? color.new(color.orange, 20) : d.hv_env == "Lo" ? color.new(color.lime, 30) : muted_tc
         table.cell(tbl, 9, r, adx_txt, bgcolor=dim_bg, text_size=sz, text_color=adx_tc)
 
-        // Col 10: Structure — THIS is the only column that gets a vivid highlight
-        struct_txt = d.stype == "NEUTRAL" ? "" : d.note_detail
+        // Col 10: → Platform — copy direction · setup · tier into the Strategy Recommender
+        dir_txt    = d.stype == "CALL" ? "BULL" : d.stype == "PUT" ? "BEAR" : ""
+        score_tier = d.score >= 90 ? "S  (90+)" :
+                     d.score >= 80 ? "A  (80–89)" :
+                     d.score >= 70 ? "B  (70–79)" :
+                     d.score >= 60 ? "C  (60–69)" : "D  (<60)"
+        risk_flag  = array.get(str.split(d.note_detail, "\n"), 0)
+        struct_txt = d.stype == "NEUTRAL" ? "" :
+                     is_actionable ? (dir_txt + "  ·  " + (d.setup == "Mixed" ? "Mixed" : d.setup) + "\n" + score_tier + "  " + stars) :
+                     (dir_txt + "  ·  " + (d.setup == "Mixed" ? "Mixed" : d.setup) + "\n" + score_tier + "  |  " + risk_flag)
         struct_bg  = is_call_action ? color.new(color.green,  60) :
                      is_put_action  ? color.new(color.red,    60) :
                      is_ic_action   ? color.new(color.purple, 60) :
                                       color.new(color.black, 88)   // dim for Wait/Block
         struct_tc  = is_actionable ? color.white : color.new(color.white, 55)
         table.cell(tbl, 10, r, struct_txt, bgcolor=struct_bg, text_size=sz, text_color=struct_tc)
+
 
     // Summary row
     sum_row = cnt + 1

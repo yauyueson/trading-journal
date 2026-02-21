@@ -168,9 +168,15 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     const [ticker, setTicker] = useState('SPY');
     const [direction, setDirection] = useState<'BULL' | 'BEAR'>('BULL');
     const [marketState, setMarketState] = useState<string>('TRENDING');
+    const [riskFlags, setRiskFlags] = useState({
+        overextended: false,
+        mtfConflict: false,
+        lowVolume: false,
+        nearEarnings: false
+    });
     const [targetStrategy, setTargetStrategy] = useState('Credit Put Spread');
     const [setup, setSetup] = useState('Pullback Buy');
-    const [techScore, setTechScore] = useState('');
+    const [techScoreTier, setTechScoreTier] = useState<{ label: string; value: number; range: string; color: string } | null>(null);
     const [targetDte, setTargetDte] = useState(30);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -189,7 +195,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         try {
             const encodedStrategy = encodeURIComponent(targetStrategy);
             const encodedSetup = encodeURIComponent(setup);
-            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}&targetStrategy=${encodedStrategy}&setup=${encodedSetup}`;
+            const flagsParams = `&overextended=${riskFlags.overextended}&mtfConflict=${riskFlags.mtfConflict}&lowVolume=${riskFlags.lowVolume}&nearEarnings=${riskFlags.nearEarnings}`;
+            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}&targetStrategy=${encodedStrategy}&setup=${encodedSetup}${flagsParams}`;
             const res = await fetch(url);
             const text = await res.text();
             let data: unknown;
@@ -297,7 +304,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                 ? `EV: $${(rec as SpreadRecommendation).expectedValue ?? '0'}. Width: $${(rec as SpreadRecommendation).width}`
                 : `Delta: ${(rec as SingleLegRecommendation).delta}`,
             legs: legs as WatchlistItem['legs'],
-            tech_score: techScore ? parseInt(techScore, 10) : undefined,
+            tech_score: techScoreTier?.value ?? undefined,
             tech_score_source: 'manual',
             direction,
             market_state: marketState,
@@ -360,15 +367,29 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                             </div>
                         </div>
                         <div className="md:col-span-2">
-                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">TV Score</label>
-                            <input
-                                type="number"
-                                min="0" max="100"
-                                value={techScore}
-                                onChange={(e) => setTechScore(e.target.value)}
-                                className="w-full bg-[#000] border border-[#333] text-white rounded-lg px-4 py-3 focus:outline-none focus:border-accent-green text-lg font-bold tracking-wide placeholder-gray-600 transition-colors"
-                                placeholder="0-100"
-                            />
+                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">TV Score Tier</label>
+                            <div className="grid grid-cols-5 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
+                                {[
+                                    { label: 'S', value: 92, range: '90+', color: 'text-emerald-400 border-emerald-500/50 bg-emerald-500/20' },
+                                    { label: 'A', value: 85, range: '80–89', color: 'text-green-400 border-green-500/50 bg-green-500/15' },
+                                    { label: 'B', value: 75, range: '70–79', color: 'text-yellow-400 border-yellow-500/50 bg-yellow-500/15' },
+                                    { label: 'C', value: 65, range: '60–69', color: 'text-orange-400 border-orange-500/50 bg-orange-500/15' },
+                                    { label: 'D', value: 55, range: '<60', color: 'text-red-400 border-red-500/50 bg-red-500/15' },
+                                ].map((tier) => (
+                                    <button
+                                        key={tier.label}
+                                        type="button"
+                                        onClick={() => setTechScoreTier(techScoreTier?.label === tier.label ? null : tier)}
+                                        className={`py-2.5 rounded text-center transition-all border ${techScoreTier?.label === tier.label
+                                            ? `${tier.color} shadow-sm`
+                                            : 'text-gray-500 border-transparent hover:text-gray-300'
+                                            }`}
+                                    >
+                                        <div className="text-xs font-black">{tier.label}</div>
+                                        <div className="text-[9px] font-normal opacity-70 mt-0.5">{tier.range}</div>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                         <div className="md:col-span-3">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Setup</label>
@@ -451,6 +472,37 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                         </button>
                                     ))}
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Pine Risk Flags Row */}
+                        <div className="mt-4 pt-4 border-t border-accent-green/20">
+                            <label className="text-xs text-accent-green/70 font-bold mb-2 flex items-center gap-1.5 uppercase tracking-wider">
+                                <AlertCircle size={12} className="text-yellow-500" />
+                                Risk Flags (Check if indicated by Pine)
+                            </label>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                {[
+                                    { key: 'overextended', label: 'Overextended', icon: '⚠️' },
+                                    { key: 'mtfConflict', label: 'MTF Conflict', icon: '⬆️' },
+                                    { key: 'lowVolume', label: 'Low Volume', icon: '⏳' },
+                                    { key: 'nearEarnings', label: 'Near Earnings', icon: '⚠️' }
+                                ].map((flag) => {
+                                    const isActive = riskFlags[flag.key as keyof typeof riskFlags];
+                                    return (
+                                        <button
+                                            key={flag.key}
+                                            onClick={() => setRiskFlags(prev => ({ ...prev, [flag.key]: !prev[flag.key as keyof typeof riskFlags] }))}
+                                            className={`py-2 px-3 rounded text-xs font-bold transition-all border flex items-center justify-center gap-1.5 ${isActive
+                                                    ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/40 shadow-sm'
+                                                    : 'bg-[#0a0a0a] text-gray-500 border-[#333] hover:text-gray-300 hover:border-[#444]'
+                                                }`}
+                                        >
+                                            <span className="opacity-80">{flag.icon}</span>
+                                            {flag.label}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
@@ -539,7 +591,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         const topRec = recs[0];
                         const topDelta = topRec
                             ? isSpread(topRec) ? Math.abs((topRec as SpreadRecommendation).shortLeg?.delta || 0.3)
-                            : Math.abs((topRec as SingleLegRecommendation).delta || 0.3)
+                                : Math.abs((topRec as SingleLegRecommendation).delta || 0.3)
                             : 0.3;
                         const topGT = topRec && !isSpread(topRec) && (topRec as SingleLegRecommendation).gamma != null
                             ? ((topRec as SingleLegRecommendation).gamma || 0) / Math.max(Math.abs((topRec as SingleLegRecommendation).theta || 1), 0.001)
@@ -554,194 +606,193 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                             marketState,
                         });
                         const profileColors: Record<string, string> = {
-                            'Gamma Burst':    'bg-purple-500/15 text-purple-300 border-purple-500/30',
-                            'Delta Trend':    'bg-blue-500/15 text-blue-300 border-blue-500/30',
-                            'Theta Harvest':  'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+                            'Gamma Burst': 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+                            'Delta Trend': 'bg-blue-500/15 text-blue-300 border-blue-500/30',
+                            'Theta Harvest': 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
                             'Vega Expansion': 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-                            'Vega Crush':     'bg-orange-500/15 text-orange-300 border-orange-500/30',
+                            'Vega Crush': 'bg-orange-500/15 text-orange-300 border-orange-500/30',
                         };
                         const profileIcons: Record<string, string> = {
-                            'Gamma Burst':    '⚡',
-                            'Delta Trend':    '→',
-                            'Theta Harvest':  'θ',
+                            'Gamma Burst': '⚡',
+                            'Delta Trend': '→',
+                            'Theta Harvest': 'θ',
                             'Vega Expansion': '↑V',
-                            'Vega Crush':     '↓V',
+                            'Vega Crush': '↓V',
                         };
                         return (
-                    <div className={`border rounded-xl p-4 sm:p-5 relative overflow-hidden ${result.regime.mode === 'CREDIT' ? 'bg-red-900/10 border-red-500/30' :
-                        result.regime.mode === 'DEBIT' ? 'bg-green-900/10 border-green-500/30' :
-                            'bg-[#1C1C1E] border-[#2A2A2A]'
-                        }`}>
-                        <div className="flex flex-col gap-4 relative z-10">
-                            {/* Upper half: Ticker + explanation */}
-                            <div className="min-w-0">
-                                <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 sm:gap-3 flex-wrap">
-                                    {result.context.ticker}
-                                    <span className="text-base sm:text-lg font-normal text-gray-400 font-mono">${result.context.currentPrice.toFixed(2)}</span>
-                                    <span className={`text-xs font-bold px-2 py-0.5 rounded border ${result.context.direction === 'BULL' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'
-                                        }`}>
-                                        {result.context.direction} {result.context.direction === 'BULL' ? '🐂' : '🐻'}
-                                    </span>
-                                    <span className={`text-xs font-bold px-2 py-0.5 rounded border ${profileColors[tradeProfile]}`}>
-                                        {profileIcons[tradeProfile]} {tradeProfile}
-                                    </span>
-                                </h2>
-                                <p className={`mt-2 font-medium flex items-center gap-2 text-sm sm:text-base ${result.regime.mode === 'CREDIT' ? 'text-red-400' :
-                                    result.regime.mode === 'DEBIT' ? 'text-green-400' : 'text-gray-300'
-                                    }`}>
-                                    {result.regime.mode === 'CREDIT' && <TrendingDown size={18} />}
-                                    {result.regime.mode === 'DEBIT' && <TrendingUp size={18} />}
-                                    {result.regime.advice}
-                                </p>
-                                {result.regime.adviceDetail && (
-                                    <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-gray-400 leading-relaxed max-w-2xl">
-                                        {result.regime.adviceDetail}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Lower half: Technical indicators (IV + Tech Score) */}
-                            <div className="border-t border-[#333] pt-4 sm:pt-5 mt-2">
-                                <div className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-wider mb-3">Technical indicators</div>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
-                                    {result.regime.ivTrend && (
-                                        <div className="col-span-2 sm:col-span-4 mb-2">
-                                            <div className={`inline-flex items-center gap-1.5 text-[10px] sm:text-xs font-bold px-2 py-1 rounded border ${
-                                                result.regime.ivTrend === 'rising'
-                                                    ? 'bg-orange-500/10 border-orange-500/30 text-orange-400'
-                                                    : result.regime.ivTrend === 'falling'
-                                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                                                        : 'bg-gray-500/10 border-gray-500/30 text-gray-400'
+                            <div className={`border rounded-xl p-4 sm:p-5 relative overflow-hidden ${result.regime.mode === 'CREDIT' ? 'bg-red-900/10 border-red-500/30' :
+                                result.regime.mode === 'DEBIT' ? 'bg-green-900/10 border-green-500/30' :
+                                    'bg-[#1C1C1E] border-[#2A2A2A]'
+                                }`}>
+                                <div className="flex flex-col gap-4 relative z-10">
+                                    {/* Upper half: Ticker + explanation */}
+                                    <div className="min-w-0">
+                                        <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 sm:gap-3 flex-wrap">
+                                            {result.context.ticker}
+                                            <span className="text-base sm:text-lg font-normal text-gray-400 font-mono">${result.context.currentPrice.toFixed(2)}</span>
+                                            <span className={`text-xs font-bold px-2 py-0.5 rounded border ${result.context.direction === 'BULL' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'
+                                                }`}>
+                                                {result.context.direction} {result.context.direction === 'BULL' ? '🐂' : '🐻'}
+                                            </span>
+                                            <span className={`text-xs font-bold px-2 py-0.5 rounded border ${profileColors[tradeProfile]}`}>
+                                                {profileIcons[tradeProfile]} {tradeProfile}
+                                            </span>
+                                        </h2>
+                                        <p className={`mt-2 font-medium flex items-center gap-2 text-sm sm:text-base ${result.regime.mode === 'CREDIT' ? 'text-red-400' :
+                                            result.regime.mode === 'DEBIT' ? 'text-green-400' : 'text-gray-300'
                                             }`}>
-                                                IV Trend (5d):&nbsp;
-                                                {result.regime.ivTrend === 'rising' && '📈 RISING'}
-                                                {result.regime.ivTrend === 'falling' && '📉 FALLING'}
-                                                {result.regime.ivTrend === 'flat' && '➡️ FLAT'}
-                                                {result.regime.iv5dChange != null && (
-                                                    <span className="font-mono ml-1 opacity-80">({result.regime.iv5dChange > 0 ? '+' : ''}{result.regime.iv5dChange}pp)</span>
-                                                )}
-                                                {result.regime.ivTrend === 'rising' && direction !== 'BEAR' && targetStrategy.includes('Credit') && (
-                                                    <span className="ml-1 text-orange-300">⚠️ selling into rising IV — consider debit or wait</span>
+                                            {result.regime.mode === 'CREDIT' && <TrendingDown size={18} />}
+                                            {result.regime.mode === 'DEBIT' && <TrendingUp size={18} />}
+                                            {result.regime.advice}
+                                        </p>
+                                        {result.regime.adviceDetail && (
+                                            <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-gray-400 leading-relaxed max-w-2xl">
+                                                {result.regime.adviceDetail}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Lower half: Technical indicators (IV + Tech Score) */}
+                                    <div className="border-t border-[#333] pt-4 sm:pt-5 mt-2">
+                                        <div className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-wider mb-3">Technical indicators</div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+                                            {result.regime.ivTrend && (
+                                                <div className="col-span-2 sm:col-span-4 mb-2">
+                                                    <div className={`inline-flex items-center gap-1.5 text-[10px] sm:text-xs font-bold px-2 py-1 rounded border ${result.regime.ivTrend === 'rising'
+                                                        ? 'bg-orange-500/10 border-orange-500/30 text-orange-400'
+                                                        : result.regime.ivTrend === 'falling'
+                                                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                                            : 'bg-gray-500/10 border-gray-500/30 text-gray-400'
+                                                        }`}>
+                                                        IV Trend (5d):&nbsp;
+                                                        {result.regime.ivTrend === 'rising' && '📈 RISING'}
+                                                        {result.regime.ivTrend === 'falling' && '📉 FALLING'}
+                                                        {result.regime.ivTrend === 'flat' && '➡️ FLAT'}
+                                                        {result.regime.iv5dChange != null && (
+                                                            <span className="font-mono ml-1 opacity-80">({result.regime.iv5dChange > 0 ? '+' : ''}{result.regime.iv5dChange}pp)</span>
+                                                        )}
+                                                        {result.regime.ivTrend === 'rising' && direction !== 'BEAR' && targetStrategy.includes('Credit') && (
+                                                            <span className="ml-1 text-orange-300">⚠️ selling into rising IV — consider debit or wait</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <div>
+                                                <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                    IV Rank
+                                                    <Tooltip label="" explanation="IV Rank: current IV30 in 252d min–max range (0–100%). Low = IV cheap (buyers); high = IV expensive (sellers). N/A until enough history (run backfill once)." />
+                                                </div>
+                                                <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${result.regime.ivRank != null ? (result.regime.ivRank < 0.3 ? 'text-emerald-400' : result.regime.ivRank > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
+                                                    {result.regime.ivRank != null ? `${(result.regime.ivRank * 100).toFixed(0)}%` : 'N/A'}
+                                                </div>
+                                                <div className="text-[10px] text-gray-500 font-mono">
+                                                    {result.regime.ivRankSampleDays != null && result.regime.ivRankSampleDays > 0 ? `${result.regime.ivRankSampleDays}d` : ''}
+                                                    {result.regime.ivRank == null && (
+                                                        <a
+                                                            href={`/api/backfill-iv-history?ticker=${encodeURIComponent(result.context.ticker)}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-accent-green/80 hover:text-accent-green ml-1 underline"
+                                                        >
+                                                            回填
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                    IV %
+                                                    <Tooltip label="" explanation="IV Percentile: % of past days with IV30 below current. Low = IV cheap (buyers); high = IV expensive (sellers). N/A until enough history (run backfill once)." />
+                                                </div>
+                                                <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${result.regime.ivPercentile != null ? (result.regime.ivPercentile < 0.3 ? 'text-emerald-400' : result.regime.ivPercentile > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
+                                                    {result.regime.ivPercentile != null ? `${(result.regime.ivPercentile * 100).toFixed(0)}%` : 'N/A'}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                    IV Ratio
+                                                    <Tooltip label="" explanation="IV30/IV90 term structure. &lt;1 = contango (short vol friendly), &gt;1 = backwardation (long vol friendly)." />
+                                                </div>
+                                                <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${(result.regime.ivRatio ?? 1) < 0.95 ? 'text-emerald-400' : (result.regime.ivRatio ?? 1) > 1.05 ? 'text-amber-400' : 'text-white'}`}>
+                                                    {result.regime.ivRatio != null ? result.regime.ivRatio.toFixed(2) : 'N/A'}
+                                                </div>
+                                                <div className="text-[10px] text-gray-500 font-mono">
+                                                    {result.regime.iv30 != null ? `IV30: ${result.regime.iv30}%` : ''} {result.regime.iv90 != null ? ` · IV90: ${result.regime.iv90}%` : ''}
+                                                </div>
+                                                {result.regime.slope != null && result.regime.slopeTier && result.regime.slopeTier !== 'flat' && (
+                                                    <div className="text-[10px] text-gray-500 mt-0.5">
+                                                        Slope {(result.regime.slope * 100).toFixed(1)}% · {result.regime.slopeTier.replace(/_/g, ' ')}
+                                                    </div>
                                                 )}
                                             </div>
+                                            <div>
+                                                <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                    IV / RV
+                                                    <Tooltip label="" explanation="IV30 vs 20d realized vol. &gt;1 = implied expensive vs recent realized; &lt;1 = implied cheap. Drives regime (credit vs debit)." />
+                                                </div>
+                                                <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${(result.regime.ivRvRatio ?? 1) > 1.1 ? 'text-amber-400' : (result.regime.ivRvRatio ?? 1) < 0.9 ? 'text-emerald-400' : 'text-white'}`}>
+                                                    {result.regime.ivRvRatio != null ? result.regime.ivRvRatio.toFixed(2) : 'N/A'}
+                                                </div>
+                                                <div className="text-[10px] text-gray-500 font-mono">
+                                                    {result.regime.rv30 != null ? `RV30: ${result.regime.rv30}%` : ''}
+                                                </div>
+                                            </div>
                                         </div>
-                                    )}
-                                    <div>
-                                        <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
-                                            IV Rank
-                                            <Tooltip label="" explanation="IV Rank: current IV30 in 252d min–max range (0–100%). Low = IV cheap (buyers); high = IV expensive (sellers). N/A until enough history (run backfill once)." />
-                                        </div>
-                                        <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${result.regime.ivRank != null ? (result.regime.ivRank < 0.3 ? 'text-emerald-400' : result.regime.ivRank > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
-                                            {result.regime.ivRank != null ? `${(result.regime.ivRank * 100).toFixed(0)}%` : 'N/A'}
-                                        </div>
-                                        <div className="text-[10px] text-gray-500 font-mono">
-                                            {result.regime.ivRankSampleDays != null && result.regime.ivRankSampleDays > 0 ? `${result.regime.ivRankSampleDays}d` : ''}
-                                            {result.regime.ivRank == null && (
-                                                <a
-                                                    href={`/api/backfill-iv-history?ticker=${encodeURIComponent(result.context.ticker)}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-accent-green/80 hover:text-accent-green ml-1 underline"
-                                                >
-                                                    回填
-                                                </a>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
-                                            IV %
-                                            <Tooltip label="" explanation="IV Percentile: % of past days with IV30 below current. Low = IV cheap (buyers); high = IV expensive (sellers). N/A until enough history (run backfill once)." />
-                                        </div>
-                                        <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${result.regime.ivPercentile != null ? (result.regime.ivPercentile < 0.3 ? 'text-emerald-400' : result.regime.ivPercentile > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
-                                            {result.regime.ivPercentile != null ? `${(result.regime.ivPercentile * 100).toFixed(0)}%` : 'N/A'}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
-                                            IV Ratio
-                                            <Tooltip label="" explanation="IV30/IV90 term structure. &lt;1 = contango (short vol friendly), &gt;1 = backwardation (long vol friendly)." />
-                                        </div>
-                                        <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${(result.regime.ivRatio ?? 1) < 0.95 ? 'text-emerald-400' : (result.regime.ivRatio ?? 1) > 1.05 ? 'text-amber-400' : 'text-white'}`}>
-                                            {result.regime.ivRatio != null ? result.regime.ivRatio.toFixed(2) : 'N/A'}
-                                        </div>
-                                        <div className="text-[10px] text-gray-500 font-mono">
-                                            {result.regime.iv30 != null ? `IV30: ${result.regime.iv30}%` : ''} {result.regime.iv90 != null ? ` · IV90: ${result.regime.iv90}%` : ''}
-                                        </div>
-                                        {result.regime.slope != null && result.regime.slopeTier && result.regime.slopeTier !== 'flat' && (
-                                            <div className="text-[10px] text-gray-500 mt-0.5">
-                                                Slope {(result.regime.slope * 100).toFixed(1)}% · {result.regime.slopeTier.replace(/_/g, ' ')}
+                                        {/* Tech Score (1h / 4h / 1d) + Setup */}
+                                        {result.tech != null && (
+                                            <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 mt-4 pt-4 border-t border-[#333]">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                        Tech Score
+                                                        <Tooltip label="" explanation="0–100 technical score from OHLC (Market Bias, B-Xtrender, EMA Stack, Momentum). Shown for 1h, 4h, and daily timeframes. Aligned with Pine Script MB+DFP Scanner. High = bullish structure, low = bearish." />
+                                                    </div>
+                                                    {result.techByTimeframe != null ? (
+                                                        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                                                            {(['1h', '4h', '1d'] as const).map(tf => {
+                                                                const t = result.techByTimeframe?.[tf];
+                                                                const score = t?.techScore ?? null;
+                                                                const color = score == null ? 'text-gray-500' : score >= 70 ? 'text-emerald-400' : score >= 60 ? 'text-amber-400' : 'text-gray-400';
+                                                                return (
+                                                                    <span key={tf} className="flex items-baseline gap-1.5">
+                                                                        <span className="text-[10px] sm:text-xs text-gray-500 font-medium">{tf}</span>
+                                                                        <span className={`text-xl sm:text-2xl font-mono font-bold ${color}`}>
+                                                                            {score != null ? score : '—'}
+                                                                        </span>
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    ) : (
+                                                        <div className={`text-2xl sm:text-3xl font-mono font-bold ${result.tech.techScore >= 70 ? 'text-emerald-400' : result.tech.techScore >= 60 ? 'text-amber-400' : 'text-gray-400'}`}>
+                                                            {result.tech.techScore}
+                                                        </div>
+                                                    )}
+                                                    <div className="text-xs text-gray-500 mt-0.5">
+                                                        {result.tech.signal}
+                                                        {result.tech.type !== 'NEUTRAL' && (
+                                                            <span className={`ml-1.5 font-medium ${result.tech.type === 'CALL' ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {result.tech.type}
+                                                            </span>
+                                                        )}
+                                                        {result.tech.confidence > 0 && (
+                                                            <span className="ml-1 text-gray-400"> · {result.tech.confidence}★</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1">Setup</div>
+                                                    <div className="text-sm sm:text-base font-medium text-white">
+                                                        {result.tech.setup}
+                                                    </div>
+                                                    <div className="text-[10px] text-gray-500 mt-0.5">
+                                                        Same logic as Scanner (Perfect Storm, Pullback, Breakout, etc.)
+                                                    </div>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
-                                    <div>
-                                        <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
-                                            IV / RV
-                                            <Tooltip label="" explanation="IV30 vs 20d realized vol. &gt;1 = implied expensive vs recent realized; &lt;1 = implied cheap. Drives regime (credit vs debit)." />
-                                        </div>
-                                        <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${(result.regime.ivRvRatio ?? 1) > 1.1 ? 'text-amber-400' : (result.regime.ivRvRatio ?? 1) < 0.9 ? 'text-emerald-400' : 'text-white'}`}>
-                                            {result.regime.ivRvRatio != null ? result.regime.ivRvRatio.toFixed(2) : 'N/A'}
-                                        </div>
-                                        <div className="text-[10px] text-gray-500 font-mono">
-                                            {result.regime.rv30 != null ? `RV30: ${result.regime.rv30}%` : ''}
-                                        </div>
-                                    </div>
                                 </div>
-                                {/* Tech Score (1h / 4h / 1d) + Setup */}
-                                {result.tech != null && (
-                                    <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 mt-4 pt-4 border-t border-[#333]">
-                                        <div className="flex-1 min-w-0">
-                                            <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
-                                                Tech Score
-                                                <Tooltip label="" explanation="0–100 technical score from OHLC (Market Bias, B-Xtrender, EMA Stack, Momentum). Shown for 1h, 4h, and daily timeframes. Aligned with Pine Script MB+DFP Scanner. High = bullish structure, low = bearish." />
-                                            </div>
-                                            {result.techByTimeframe != null ? (
-                                                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                                                    {(['1h', '4h', '1d'] as const).map(tf => {
-                                                        const t = result.techByTimeframe?.[tf];
-                                                        const score = t?.techScore ?? null;
-                                                        const color = score == null ? 'text-gray-500' : score >= 70 ? 'text-emerald-400' : score >= 60 ? 'text-amber-400' : 'text-gray-400';
-                                                        return (
-                                                            <span key={tf} className="flex items-baseline gap-1.5">
-                                                                <span className="text-[10px] sm:text-xs text-gray-500 font-medium">{tf}</span>
-                                                                <span className={`text-xl sm:text-2xl font-mono font-bold ${color}`}>
-                                                                    {score != null ? score : '—'}
-                                                                </span>
-                                                            </span>
-                                                        );
-                                                    })}
-                                                </div>
-                                            ) : (
-                                                <div className={`text-2xl sm:text-3xl font-mono font-bold ${result.tech.techScore >= 70 ? 'text-emerald-400' : result.tech.techScore >= 60 ? 'text-amber-400' : 'text-gray-400'}`}>
-                                                    {result.tech.techScore}
-                                                </div>
-                                            )}
-                                            <div className="text-xs text-gray-500 mt-0.5">
-                                                {result.tech.signal}
-                                                {result.tech.type !== 'NEUTRAL' && (
-                                                    <span className={`ml-1.5 font-medium ${result.tech.type === 'CALL' ? 'text-green-400' : 'text-red-400'}`}>
-                                                        {result.tech.type}
-                                                    </span>
-                                                )}
-                                                {result.tech.confidence > 0 && (
-                                                    <span className="ml-1 text-gray-400"> · {result.tech.confidence}★</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1">Setup</div>
-                                            <div className="text-sm sm:text-base font-medium text-white">
-                                                {result.tech.setup}
-                                            </div>
-                                            <div className="text-[10px] text-gray-500 mt-0.5">
-                                                Same logic as Scanner (Perfect Storm, Pullback, Breakout, etc.)
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
-                        </div>
-                    </div>
                         );
                     })()}
 

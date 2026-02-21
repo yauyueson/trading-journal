@@ -1548,6 +1548,76 @@ export default async function handler(req, res) {
             }
         }
 
+        // 3c. Pine Risk Flags Adjustments
+        const overextended = req.query.overextended === 'true';
+        const mtfConflict = req.query.mtfConflict === 'true';
+        const lowVolume = req.query.lowVolume === 'true';
+        const nearEarnings = req.query.nearEarnings === 'true';
+
+        for (const pick of targetRecs) {
+            let flagBonus = 0;
+            const flagNotes = [];
+            const isDebit = pick.strategyCategory === 'DEBIT_SPREAD' || pick.strategyCategory === 'SINGLE_LEG';
+            const isCredit = pick.strategyCategory === 'CREDIT_SPREAD';
+            const isIC = pick.strategyCategory === 'IRON_CONDOR';
+            const _dte = pick.shortLeg?.dte || pick.longLeg?.dte || 30;
+
+            if (overextended) {
+                if (isDebit) {
+                    flagBonus -= 30;
+                    flagNotes.push('⚠️ Overextended: Debit strategies heavily penalized due to mean-reversion risk.');
+                } else if (isCredit) {
+                    flagBonus += 15;
+                    flagNotes.push('🛡️ Overextended: Credit spreads boosted as they can absorb mean-reversion pullbacks.');
+                }
+            }
+
+            if (mtfConflict) {
+                if (_dte > 21) {
+                    flagBonus -= 20;
+                    flagNotes.push('⚠️ MTF Conflict: Long DTE penalized because higher timeframe trend opposes setup.');
+                } else {
+                    flagBonus += 10;
+                    flagNotes.push('🛡️ MTF Conflict: Short DTE scalp boosted to avoid higher timeframe trend.');
+                }
+            }
+
+            if (lowVolume) {
+                const isBreakout = decodedSetup.toLowerCase().includes('break');
+                if (isBreakout || isDebit) {
+                    flagBonus -= 25;
+                    flagNotes.push('⚠️ Low Volume: Breakout/Directional setups penalized without volume confirmation.');
+                } else if (isIC) {
+                    flagBonus += 15;
+                    flagNotes.push('🛡️ Low Volume: Iron Condors boosted for range-bound low-volume chop.');
+                }
+            }
+
+            if (nearEarnings) {
+                if (isDebit) {
+                    flagBonus -= 40;
+                    flagNotes.push('🚫 Near Earnings: Long vega structures heavily penalized due to IV crush risk.');
+                } else {
+                    flagBonus += 10;
+                    flagNotes.push('🛡️ Near Earnings: Short vega boosted for IV crush, but maintain caution.');
+                }
+            }
+
+            if (flagBonus !== 0) {
+                pick.score = Math.max(0, Math.min(100, (pick.score || 0) + flagBonus));
+                pick.unifiedScore = Math.max(0, Math.min(100, (pick.unifiedScore || 0) + flagBonus));
+                if (Array.isArray(pick.factors)) {
+                    pick.factors.push({
+                        name: 'Pine Risk Flags',
+                        impact: flagBonus,
+                        description: flagNotes.join(' '),
+                        value: undefined,
+                    });
+                }
+            }
+        }
+        targetRecs.sort((a, b) => b.unifiedScore - a.unifiedScore);
+
         const contextIV = iv30 ?? null;
         const earningsPremiumContext = contextIV && currentPrice > 0
             ? estimateEarningsPremium(daysUntilEarnings, dteTarget, contextIV, currentPrice)

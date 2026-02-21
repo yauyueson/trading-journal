@@ -81,6 +81,28 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
+  // --- Market Hours Check ---
+  // US Market: Mon-Fri, 09:30 - 16:00 ET
+  const nyDate = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const day = nyDate.getDay(); // 0 (Sun) to 6 (Sat)
+  const hour = nyDate.getHours();
+  const min = nyDate.getMinutes();
+
+  const isWeekend = day === 0 || day === 6;
+  const isBeforeOpen = (hour < 9) || (hour === 9 && min < 30);
+  const isAfterClose = (hour >= 16);
+
+  if (isWeekend || isBeforeOpen || isAfterClose) {
+    return res.status(200).json({
+      ok: true,
+      message: 'Market is closed (EST/EDT). Skipping alerts.',
+      time: nyDate.toLocaleString(),
+      isWeekend,
+      isBeforeOpen,
+      isAfterClose
+    });
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

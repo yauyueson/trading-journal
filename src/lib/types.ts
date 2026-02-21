@@ -38,6 +38,9 @@ export interface Position {
     trade_profile?: string;
     iv_rank_entry?: number;
     iv_regime_entry?: string;
+    // Analytics columns (added via migration)
+    max_risk_entry?: number;   // net debit or (spread width − credit) per contract
+    exit_type?: 'TP' | 'SL' | 'TIME' | 'MANUAL' | 'ROLL';
 }
 
 export interface PositionLeg {
@@ -130,6 +133,10 @@ export interface DirectAddItem {
     owner?: 'Yuchen' | 'Annie' | null;
     tech_score?: number;
     tech_score_source?: 'auto' | 'manual';
+    // Pine Signal inputs + entry analytics (mirrors WatchlistItem)
+    direction?: 'BULL' | 'BEAR';
+    iv_regime_entry?: string;   // 'CREDIT' | 'DEBIT' | 'NEUTRAL'
+    max_risk_entry?: number;    // net debit, or (spread width − credit) × 100
 }
 
 // ────────────────────────────────────────────────────────────────

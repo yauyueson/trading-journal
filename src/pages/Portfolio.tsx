@@ -38,7 +38,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     const [positionType, setPositionType] = useState<'single' | 'credit' | 'debit'>('single');
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
-    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: 'Credit Put Spread', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '' });
+    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: 'Credit Put Spread', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL' as 'BULL' | 'BEAR', iv_regime_entry: '' });
     const [bulkData, setBulkData] = useState<Record<string, any>>({});
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -265,6 +265,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 stop_reason: form.stop_reason,
                 quantity: parseInt(form.quantity),
                 entry_price: parseFloat(form.entry_price),
+                direction: form.direction as 'BULL' | 'BEAR',
+                iv_regime_entry: form.iv_regime_entry || undefined,
                 owner: formOwner
             });
         } else {
@@ -294,12 +296,14 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 quantity: parseInt(form.quantity),
                 entry_price: parseFloat(form.entry_price),
                 legs,
+                direction: form.direction as 'BULL' | 'BEAR',
+                iv_regime_entry: form.iv_regime_entry || undefined,
                 owner: formOwner
             });
         }
 
         setSubmitting(false);
-        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: 'Credit Put Spread', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '' });
+        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: 'Credit Put Spread', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL', iv_regime_entry: '' });
         setPositionType('single');
         setShowForm(false);
     };
@@ -408,31 +412,28 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                         <div>
-                            <div className={`text-base sm:text-lg font-bold font-mono ${
-                                portfolioGreeks.netDelta > 150 ? 'text-emerald-400' :
-                                portfolioGreeks.netDelta < -150 ? 'text-accent-red' :
-                                'text-text-primary'
-                            }`}>
+                            <div className={`text-base sm:text-lg font-bold font-mono ${portfolioGreeks.netDelta > 150 ? 'text-emerald-400' :
+                                    portfolioGreeks.netDelta < -150 ? 'text-accent-red' :
+                                        'text-text-primary'
+                                }`}>
                                 {portfolioGreeks.netDelta > 0 ? '+' : ''}{portfolioGreeks.netDelta.toFixed(0)}
                             </div>
                             <div className="text-[10px] text-text-tertiary mt-0.5">Net Delta (Δ shares)</div>
                         </div>
                         <div>
-                            <div className={`text-base sm:text-lg font-bold font-mono ${
-                                portfolioGreeks.netTheta > 15 ? 'text-emerald-400' :
-                                portfolioGreeks.netTheta < -25 ? 'text-accent-red' :
-                                'text-text-primary'
-                            }`}>
+                            <div className={`text-base sm:text-lg font-bold font-mono ${portfolioGreeks.netTheta > 15 ? 'text-emerald-400' :
+                                    portfolioGreeks.netTheta < -25 ? 'text-accent-red' :
+                                        'text-text-primary'
+                                }`}>
                                 {portfolioGreeks.netTheta >= 0 ? '+' : ''}${portfolioGreeks.netTheta.toFixed(0)}/d
                             </div>
                             <div className="text-[10px] text-text-tertiary mt-0.5">Net Theta (Θ)</div>
                         </div>
                         <div>
-                            <div className={`text-base sm:text-lg font-bold font-mono ${
-                                portfolioGreeks.netVega > 0 ? 'text-accent-yellow' :
-                                portfolioGreeks.netVega < 0 ? 'text-blue-400' :
-                                'text-text-primary'
-                            }`}>
+                            <div className={`text-base sm:text-lg font-bold font-mono ${portfolioGreeks.netVega > 0 ? 'text-accent-yellow' :
+                                    portfolioGreeks.netVega < 0 ? 'text-blue-400' :
+                                        'text-text-primary'
+                                }`}>
                                 {portfolioGreeks.netVega >= 0 ? '+' : ''}${portfolioGreeks.netVega.toFixed(0)}
                             </div>
                             <div className="text-[10px] text-text-tertiary mt-0.5">Net Vega (per 1% IV)</div>
@@ -440,11 +441,10 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                         <div>
                             {portfolioGreeks.largestRiskTicker && portfolioGreeks.largestRiskPct > 0 ? (
                                 <>
-                                    <div className={`text-base sm:text-lg font-bold font-mono ${
-                                        portfolioGreeks.largestRiskPct > 10 ? 'text-accent-red' :
-                                        portfolioGreeks.largestRiskPct > 5 ? 'text-accent-yellow' :
-                                        'text-text-primary'
-                                    }`}>
+                                    <div className={`text-base sm:text-lg font-bold font-mono ${portfolioGreeks.largestRiskPct > 10 ? 'text-accent-red' :
+                                            portfolioGreeks.largestRiskPct > 5 ? 'text-accent-yellow' :
+                                                'text-text-primary'
+                                        }`}>
                                         {portfolioGreeks.largestRiskTicker} {portfolioGreeks.largestRiskPct.toFixed(1)}%
                                     </div>
                                     <div className="text-[10px] text-text-tertiary mt-0.5">Largest Position Risk</div>
@@ -737,6 +737,44 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                                         required
                                     />
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Row 3: Direction + IV Regime */}
+                        <div className="grid grid-cols-2 gap-6">
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Direction (from Pine)</label>
+                                <div className="flex gap-2">
+                                    {(['BULL', 'BEAR'] as const).map(d => (
+                                        <button
+                                            key={d}
+                                            type="button"
+                                            onClick={() => setForm({ ...form, direction: d })}
+                                            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${form.direction === d
+                                                    ? d === 'BULL'
+                                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                                        : 'bg-red-500/20 text-red-400 border border-red-500/40'
+                                                    : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                                }`}
+                                        >
+                                            {d === 'BULL' ? '▲ BULL' : '▼ BEAR'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label htmlFor="iv_regime" className="text-xs font-medium text-text-secondary uppercase tracking-wider">IV Regime (from Pine HV col)</label>
+                                <select
+                                    id="iv_regime"
+                                    className="input-field"
+                                    value={form.iv_regime_entry}
+                                    onChange={e => setForm({ ...form, iv_regime_entry: e.target.value })}
+                                >
+                                    <option value="">— Unknown —</option>
+                                    <option value="CREDIT">CREDIT (Hi HV)</option>
+                                    <option value="DEBIT">DEBIT (Lo HV)</option>
+                                    <option value="NEUTRAL">NEUTRAL</option>
+                                </select>
                             </div>
                         </div>
 

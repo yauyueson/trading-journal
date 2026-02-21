@@ -10,54 +10,110 @@ interface StatsPageProps {
     loading: boolean;
 }
 
+interface BucketStats {
+    wins: number;
+    losses: number;
+    pnl: number;
+    totalHoldDays: number;
+    holdCount: number;
+    totalR: number;
+    rCount: number;
+}
+
+const emptyBucket = (): BucketStats => ({
+    wins: 0, losses: 0, pnl: 0,
+    totalHoldDays: 0, holdCount: 0,
+    totalR: 0, rCount: 0,
+});
+
+const accumulateBucket = (
+    bucket: BucketStats,
+    pnl: number,
+    holdDays: number | null,
+    rMult: number | null
+) => {
+    bucket.pnl += pnl;
+    if (pnl >= 0) bucket.wins++; else bucket.losses++;
+    if (holdDays != null && holdDays >= 0) { bucket.totalHoldDays += holdDays; bucket.holdCount++; }
+    if (rMult != null && isFinite(rMult)) { bucket.totalR += rMult; bucket.rCount++; }
+};
+
+const BucketMeta: React.FC<{ data: BucketStats }> = ({ data }) => {
+    const avgHold = data.holdCount > 0 ? Math.round(data.totalHoldDays / data.holdCount) : null;
+    const avgR = data.rCount > 0 ? data.totalR / data.rCount : null;
+    if (avgHold == null && avgR == null) return null;
+    return (
+        <div className="flex gap-3 mt-1">
+            {avgHold != null && (
+                <span className="text-[11px] text-text-tertiary font-mono">Hold: {avgHold}d</span>
+            )}
+            {avgR != null && (
+                <span className={`text-[11px] font-mono font-semibold ${avgR >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+                    R: {avgR >= 0 ? '+' : ''}{avgR.toFixed(2)}x
+                </span>
+            )}
+        </div>
+    );
+};
+
 export const StatsPage: React.FC<StatsPageProps> = ({ positions, transactions, loading }) => {
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
     const allClosedPositions = positions.filter(p => p.status === 'closed');
-    const closedPositions = ownerFilter === 'All' ? allClosedPositions : allClosedPositions.filter(p => p.owner === ownerFilter);
+    const closedPositions = ownerFilter === 'All'
+        ? allClosedPositions
+        : allClosedPositions.filter(p => p.owner === ownerFilter);
 
     const stats = useMemo(() => {
         let totalPnL = 0, wins = 0, losses = 0, totalWinPnL = 0, totalLossPnL = 0;
-        const setupStats: Record<string, { wins: number; losses: number; pnl: number }> = {};
-        const strategyStats: Record<string, { wins: number; losses: number; pnl: number }> = {};
-        const crossTabStats: Record<string, { wins: number; losses: number; pnl: number }> = {};
+        const setupStats: Record<string, BucketStats> = {};
+        const strategyStats: Record<string, BucketStats> = {};
+        const crossTabStats: Record<string, BucketStats> = {};
 
         closedPositions.forEach(p => {
             const txns = transactions.filter(t => t.position_id === p.id);
-            let cost = 0, proceeds = 0;
+            let cost = 0, proceeds = 0, totalQty = 0;
             txns.forEach(t => {
                 const price = t.price * CONTRACT_MULTIPLIER;
-                if (t.quantity > 0) cost += t.quantity * price;
+                if (t.quantity > 0) { cost += t.quantity * price; totalQty += t.quantity; }
                 else proceeds += Math.abs(t.quantity) * price;
             });
             const pnl = proceeds - cost;
             totalPnL += pnl;
-
             if (pnl >= 0) { wins++; totalWinPnL += pnl; }
             else { losses++; totalLossPnL += pnl; }
 
-            if (!setupStats[p.setup]) setupStats[p.setup] = { wins: 0, losses: 0, pnl: 0 };
-            setupStats[p.setup].pnl += pnl;
-            if (pnl >= 0) setupStats[p.setup].wins++;
-            else setupStats[p.setup].losses++;
+            // Hold duration (days from open to close)
+            const holdDays = (p.closed_at && p.created_at)
+                ? Math.round((new Date(p.closed_at).getTime() - new Date(p.created_at).getTime()) / 86400000)
+                : null;
 
+            // R-Multiple: pnl / (max_risk_entry per contract × qty × multiplier)
+            const maxRiskDollars = (p.max_risk_entry != null && totalQty > 0)
+                ? p.max_risk_entry * totalQty * CONTRACT_MULTIPLIER
+                : null;
+            const rMult = (maxRiskDollars != null && maxRiskDollars !== 0) ? pnl / maxRiskDollars : null;
+
+            // Accumulate setup bucket
+            if (!setupStats[p.setup]) setupStats[p.setup] = emptyBucket();
+            accumulateBucket(setupStats[p.setup], pnl, holdDays, rMult);
+
+            // Accumulate strategy bucket
             const strategyType = p.type || 'Unknown';
-            if (!strategyStats[strategyType]) strategyStats[strategyType] = { wins: 0, losses: 0, pnl: 0 };
-            strategyStats[strategyType].pnl += pnl;
-            if (pnl >= 0) strategyStats[strategyType].wins++;
-            else strategyStats[strategyType].losses++;
+            if (!strategyStats[strategyType]) strategyStats[strategyType] = emptyBucket();
+            accumulateBucket(strategyStats[strategyType], pnl, holdDays, rMult);
 
             // Setup × Strategy cross-tab
             const crossKey = `${p.setup || 'Unknown'}|${p.strategy || p.type || 'Unknown'}`;
-            if (!crossTabStats[crossKey]) crossTabStats[crossKey] = { wins: 0, losses: 0, pnl: 0 };
-            crossTabStats[crossKey].pnl += pnl;
-            if (pnl >= 0) crossTabStats[crossKey].wins++;
-            else crossTabStats[crossKey].losses++;
+            if (!crossTabStats[crossKey]) crossTabStats[crossKey] = emptyBucket();
+            accumulateBucket(crossTabStats[crossKey], pnl, holdDays, rMult);
         });
 
         const winRate = closedPositions.length > 0 ? (wins / closedPositions.length) * 100 : 0;
         const avgWin = wins > 0 ? totalWinPnL / wins : 0;
         const avgLoss = losses > 0 ? totalLossPnL / losses : 0;
-        const profitFactor = totalLossPnL !== 0 ? Math.abs(totalWinPnL / totalLossPnL) : totalWinPnL > 0 ? Infinity : 0;
+        const profitFactor = totalLossPnL !== 0
+            ? Math.abs(totalWinPnL / totalLossPnL)
+            : totalWinPnL > 0 ? Infinity : 0;
 
         return { totalPnL, wins, losses, winRate, avgWin, avgLoss, profitFactor, setupStats, strategyStats, crossTabStats };
     }, [closedPositions, transactions]);
@@ -142,14 +198,15 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions, transactions, l
                             .sort((a, b) => b[1].pnl - a[1].pnl)
                             .map(([strat, data]) => {
                                 const total = data.wins + data.losses;
-                                const winRate = total > 0 ? (data.wins / total) * 100 : 0;
+                                const wr = total > 0 ? (data.wins / total) * 100 : 0;
                                 return (
                                     <div key={strat} className="card p-4 flex justify-between items-center bg-[#242426]/50">
                                         <div>
                                             <div className="font-medium text-[#E0E0E0]">{strat}</div>
                                             <div className="text-text-secondary text-sm">
-                                                <span className="text-accent-green">{data.wins}W</span> / <span className="text-red-400">{data.losses}L</span> · {winRate.toFixed(0)}%
+                                                <span className="text-accent-green">{data.wins}W</span> / <span className="text-red-400">{data.losses}L</span> · {wr.toFixed(0)}%
                                             </div>
+                                            <BucketMeta data={data} />
                                         </div>
                                         <div className={`text-xl font-bold font-mono ${data.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                                             {data.pnl >= 0 ? '+' : ''}{formatCurrency(data.pnl)}
@@ -166,14 +223,15 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions, transactions, l
                             .sort((a, b) => b[1].pnl - a[1].pnl)
                             .map(([setup, data]) => {
                                 const total = data.wins + data.losses;
-                                const winRate = total > 0 ? (data.wins / total) * 100 : 0;
+                                const wr = total > 0 ? (data.wins / total) * 100 : 0;
                                 return (
                                     <div key={setup} className="card p-4 flex justify-between items-center bg-[#242426]/50">
                                         <div>
                                             <div className="font-medium text-[#E0E0E0]">{setup || 'Unknown Setup'}</div>
                                             <div className="text-text-secondary text-sm">
-                                                <span className="text-accent-green">{data.wins}W</span> / <span className="text-red-400">{data.losses}L</span> · {winRate.toFixed(0)}%
+                                                <span className="text-accent-green">{data.wins}W</span> / <span className="text-red-400">{data.losses}L</span> · {wr.toFixed(0)}%
                                             </div>
+                                            <BucketMeta data={data} />
                                         </div>
                                         <div className={`text-xl font-bold font-mono ${data.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                                             {data.pnl >= 0 ? '+' : ''}{formatCurrency(data.pnl)}
@@ -193,7 +251,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions, transactions, l
                                     .map(([key, data]) => {
                                         const [setup, strategy] = key.split('|');
                                         const total = data.wins + data.losses;
-                                        const winRate = total > 0 ? (data.wins / total) * 100 : 0;
+                                        const wr = total > 0 ? (data.wins / total) * 100 : 0;
                                         return (
                                             <div key={key} className="card p-4 flex justify-between items-center bg-[#242426]/50">
                                                 <div>
@@ -203,8 +261,9 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions, transactions, l
                                                         <span className="badge bg-violet-500/10 text-violet-400 border border-violet-500/20 text-xs">{strategy}</span>
                                                     </div>
                                                     <div className="text-text-secondary text-sm">
-                                                        <span className="text-accent-green">{data.wins}W</span> / <span className="text-red-400">{data.losses}L</span> · {winRate.toFixed(0)}%
+                                                        <span className="text-accent-green">{data.wins}W</span> / <span className="text-red-400">{data.losses}L</span> · {wr.toFixed(0)}%
                                                     </div>
+                                                    <BucketMeta data={data} />
                                                 </div>
                                                 <div className={`text-xl font-bold font-mono ${data.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                                                     {data.pnl >= 0 ? '+' : ''}{formatCurrency(data.pnl)}

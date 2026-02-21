@@ -177,7 +177,11 @@ function App() {
             owner: item.owner || null,
             tech_score: item.tech_score,
             tech_score_source: item.tech_score_source || 'manual',
-            tech_score_manual: item.tech_score
+            tech_score_manual: item.tech_score,
+            // Pine Signal + entry analytics
+            direction: item.direction || null,
+            iv_regime_entry: item.iv_regime_entry || null,
+            max_risk_entry: item.max_risk_entry || null,
         }]).select();
 
         if (data && data[0]) {
