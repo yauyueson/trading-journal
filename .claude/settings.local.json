@@ -34,7 +34,10 @@
       "Bash(git log:*)",
       "WebSearch",
       "WebFetch(domain:polygon.io)",
-      "WebFetch(domain:massive.com)"
+      "WebFetch(domain:massive.com)",
+      "Bash(gh pr create:*)",
+      "Bash(where:*)",
+      "Bash(winget list:*)"
     ]
   }
 }
