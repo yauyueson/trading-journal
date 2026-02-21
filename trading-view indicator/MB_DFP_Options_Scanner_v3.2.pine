@@ -340,6 +340,7 @@ type StockData
     bool   mtf_conflict
     float  adx_val
     string hv_env
+    string market_state
     string note_detail
 
 s_t3_smooth(src, len) =>
@@ -635,7 +636,18 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
         else
             sig := "👀 WATCH · PUT"
 
-    [comp, sig, sn, st, sc, mb, bxs, bxl, d8, d21, rvu or rvd, rvol_2bar, regime_str, overext, mtf_conflict, adx_v, hv_env_str, hv_expensive, is_earn_near]
+    // Market State for UI
+    mkt_state = "TRENDING"
+    if is_trending and boost_active
+        mkt_state := "EXPLOSIVE"
+    else if rvu or rvd
+        mkt_state := "REVERTING"
+    else if is_ranging
+        mkt_state := "RANGING"
+    else if is_trending
+        mkt_state := "TRENDING"
+
+    [comp, sig, sn, st, sc, mb, bxs, bxl, d8, d21, rvu or rvd, rvol_2bar, regime_str, overext, mtf_conflict, adx_v, hv_env_str, hv_expensive, is_earn_near, mkt_state]
 
 // ==========================================
 // 6. OPTIONS STRUCTURE DECISION MATRIX
@@ -874,7 +886,7 @@ if barstate.islast and show_scanner
         if str.length(sym) < 1
             continue
 
-        [s_comp, s_sig, s_setup, s_stype, s_conf, s_mb, s_bxs, s_bxl, s_d8, s_d21, s_rev, s_rvol, s_regime, s_overext, s_mtf, s_adx, s_hv_env, s_hv_exp, s_earn] = request.security(sym, timeframe.period, s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2), ignore_invalid_symbol=true)
+        [s_comp, s_sig, s_setup, s_stype, s_conf, s_mb, s_bxs, s_bxl, s_d8, s_d21, s_rev, s_rvol, s_regime, s_overext, s_mtf, s_adx, s_hv_env, s_hv_exp, s_earn, s_mkt_state] = request.security(sym, timeframe.period, s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2), ignore_invalid_symbol=true)
 
         incl = (s_stype == "CALL" and show_calls) or (s_stype == "PUT" and show_puts)
         if not na(s_comp) and ((s_comp >= min_score and incl) or min_score == 0)
@@ -886,12 +898,12 @@ if barstate.islast and show_scanner
                  nz(s_mb), nz(s_bxs), nz(s_bxl), nz(s_d8), s_rev ? true : false,
                  nz(s_rvol, 1.0), display_regime,
                  s_overext ? true : false, s_mtf ? true : false,
-                 nz(s_adx, 0.0), str.tostring(s_hv_env), note))
+                 nz(s_adx, 0.0), str.tostring(s_hv_env), str.tostring(s_mkt_state), note))
 
 // ==========================================
 // 7. SCANNER DISPLAY (11 columns)
 // ==========================================
-// Cols: Symbol | Score | Signal | Setup | MB | Bx-S | Bx-L | EMA8 | RVOL | ADX·HV | Structure|Engine
+// Cols: Symbol | MB | Bx-S | Bx-L | EMA | RVOL | Score Tier | Setup | Direction | Mkt State | Risk Flags
 
 if barstate.islast and show_scanner and array.size(results) > 1
     for i = 0 to array.size(results) - 2
@@ -910,16 +922,16 @@ if barstate.islast and show_scanner and array.size(results) > 0
     hdr_tc = color.white
 
     table.cell(tbl, 0,  0, "Symbol",            bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
-    table.cell(tbl, 1,  0, "Score",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
-    table.cell(tbl, 2,  0, "Signal",             bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
-    table.cell(tbl, 3,  0, "Setup",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
-    table.cell(tbl, 4,  0, "MB",                 bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
-    table.cell(tbl, 5,  0, "Bx-S",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
-    table.cell(tbl, 6,  0, "Bx-L",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
-    table.cell(tbl, 7,  0, "EMA",               bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
-    table.cell(tbl, 8,  0, "RVOL",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
-    table.cell(tbl, 9,  0, "ADX · HV",          bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
-    table.cell(tbl, 10, 0, "→ Platform",          bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 1,  0, "MB",                bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 2,  0, "Bx-S",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 3,  0, "Bx-L",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 4,  0, "EMA",               bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 5,  0, "RVOL",              bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 6,  0, "Score Tier",        bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 7,  0, "Setup",             bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 8,  0, "Direction",         bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 9,  0, "Market State",      bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 10, 0, "Risk Flags",        bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
 
     cnt = math.min(array.size(results), max_display)
     call_cnt = 0, put_cnt = 0
@@ -949,48 +961,44 @@ if barstate.islast and show_scanner and array.size(results) > 0
         sym_color = d.stype == "CALL" ? color.new(color.green, 20) : d.stype == "PUT" ? color.new(color.red, 20) : color.gray
         table.cell(tbl, 0, r, d.symbol, bgcolor=row_bg, text_size=sz, text_color=sym_color)
 
-        // Col 1: Score — plain white number, no bg color
-        table.cell(tbl, 1, r, str.tostring(math.round(d.score)), bgcolor=row_bg, text_size=sz, text_color=muted_tc)
+        // Col 1-4: Indicators — muted green/red text, dark bg
+        table.cell(tbl, 1, r, str.tostring(math.round(d.mb_osc, 1)),   bgcolor=dim_bg, text_size=sz, text_color=d.mb_osc   > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
+        table.cell(tbl, 2, r, str.tostring(math.round(d.bx_short, 1)), bgcolor=dim_bg, text_size=sz, text_color=d.bx_short > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
+        table.cell(tbl, 3, r, str.tostring(math.round(d.bx_long, 1)),  bgcolor=dim_bg, text_size=sz, text_color=d.bx_long  > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
+        table.cell(tbl, 4, r, str.tostring(math.round(d.dist_ema8, 1)) + "%", bgcolor=dim_bg, text_size=sz, text_color=d.dist_ema8 > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
 
-        // Col 2: Signal — no background, plain label
-        table.cell(tbl, 2, r, d.signal, bgcolor=row_bg, text_size=sz, text_color=color.white)
-
-        // Col 3: Setup
-        setup_txt = d.setup == "Mixed" ? "" : d.setup + (d.reversal ? " 🔄" : "") + (stars != "" ? "\n" + stars : "")
-        table.cell(tbl, 3, r, setup_txt, bgcolor=row_bg, text_size=sz, text_color=muted_tc)
-
-        // Col 4-7: Indicators — muted green/red text, dark bg
-        table.cell(tbl, 4, r, str.tostring(math.round(d.mb_osc, 1)),   bgcolor=dim_bg, text_size=sz, text_color=d.mb_osc   > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
-        table.cell(tbl, 5, r, str.tostring(math.round(d.bx_short, 1)), bgcolor=dim_bg, text_size=sz, text_color=d.bx_short > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
-        table.cell(tbl, 6, r, str.tostring(math.round(d.bx_long, 1)),  bgcolor=dim_bg, text_size=sz, text_color=d.bx_long  > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
-        table.cell(tbl, 7, r, str.tostring(math.round(d.dist_ema8, 1)) + "%", bgcolor=dim_bg, text_size=sz, text_color=d.dist_ema8 > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
-
-        // Col 8: RVOL — only color RVOL itself, keep bg dark
+        // Col 5: RVOL — only color RVOL itself, keep bg dark
         rvol_txt = str.tostring(math.round(d.rvol, 2)) + "x"
         rvol_tc  = d.rvol >= rvol_threshold * 1.5 ? color.lime : d.rvol >= rvol_threshold ? color.teal : d.rvol >= 0.8 ? color.silver : color.new(color.red, 20)
-        table.cell(tbl, 8, r, rvol_txt, bgcolor=dim_bg, text_size=sz, text_color=rvol_tc)
+        table.cell(tbl, 5, r, rvol_txt, bgcolor=dim_bg, text_size=sz, text_color=rvol_tc)
 
-        // Col 9: ADX + HV — muted styling
-        adx_txt = str.tostring(math.round(d.adx_val, 1)) + " " + d.regime + "\nHV:" + d.hv_env
-        adx_tc  = d.hv_env == "Hi" ? color.new(color.orange, 20) : d.hv_env == "Lo" ? color.new(color.lime, 30) : muted_tc
-        table.cell(tbl, 9, r, adx_txt, bgcolor=dim_bg, text_size=sz, text_color=adx_tc)
+        // Col 6: Score Tier
+        score_tier = d.score >= 90 ? "S (90+)" :
+                     d.score >= 80 ? "A (80–89)" :
+                     d.score >= 70 ? "B (70–79)" :
+                     d.score >= 60 ? "C (60–69)" : "D (<60)"
+        tier_tc = d.score >= 90 ? color.lime : d.score >= 80 ? color.green : d.score >= 70 ? color.yellow : d.score >= 60 ? color.orange : color.red
+        table.cell(tbl, 6, r, score_tier, bgcolor=row_bg, text_size=sz, text_color=tier_tc)
 
-        // Col 10: → Platform — copy direction · setup · tier into the Strategy Recommender
+        // Col 7: Setup
+        setup_txt = d.setup == "Mixed" ? "Mixed" : d.setup + (d.reversal ? " 🔄" : "") + (stars != "" ? " " + stars : "")
+        table.cell(tbl, 7, r, setup_txt, bgcolor=row_bg, text_size=sz, text_color=muted_tc)
+
+        // Col 8: Direction
         dir_txt    = d.stype == "CALL" ? "BULL" : d.stype == "PUT" ? "BEAR" : ""
-        score_tier = d.score >= 90 ? "S  (90+)" :
-                     d.score >= 80 ? "A  (80–89)" :
-                     d.score >= 70 ? "B  (70–79)" :
-                     d.score >= 60 ? "C  (60–69)" : "D  (<60)"
-        risk_flag  = array.get(str.split(d.note_detail, "\n"), 0)
-        struct_txt = d.stype == "NEUTRAL" ? "" :
-                     is_actionable ? (dir_txt + "  ·  " + (d.setup == "Mixed" ? "Mixed" : d.setup) + "\n" + score_tier + "  " + stars) :
-                     (dir_txt + "  ·  " + (d.setup == "Mixed" ? "Mixed" : d.setup) + "\n" + score_tier + "  |  " + risk_flag)
-        struct_bg  = is_call_action ? color.new(color.green,  60) :
-                     is_put_action  ? color.new(color.red,    60) :
-                     is_ic_action   ? color.new(color.purple, 60) :
-                                      color.new(color.black, 88)   // dim for Wait/Block
-        struct_tc  = is_actionable ? color.white : color.new(color.white, 55)
-        table.cell(tbl, 10, r, struct_txt, bgcolor=struct_bg, text_size=sz, text_color=struct_tc)
+        dir_tc     = d.stype == "CALL" ? color.lime : d.stype == "PUT" ? color.red : color.gray
+        table.cell(tbl, 8, r, dir_txt, bgcolor=row_bg, text_size=sz, text_color=dir_tc)
+
+        // Col 9: Market State
+        mkt_tc = d.market_state == "EXPLOSIVE" ? color.new(color.yellow, 20) : color.white
+        table.cell(tbl, 9, r, d.market_state, bgcolor=row_bg, text_size=sz, text_color=mkt_tc)
+
+        // Col 10: Risk Flags
+        risk_flag  = is_actionable ? "" : array.get(str.split(d.note_detail, "\n"), 0)
+        if risk_flag == "" and d.hv_env == "Hi" and not is_actionable
+            risk_flag := "Hi Vol"
+        
+        table.cell(tbl, 10, r, risk_flag, bgcolor=row_bg, text_size=sz, text_color=color.new(color.orange, 20))
 
 
     // Summary row
@@ -1030,7 +1038,7 @@ f_tpsl_row(t, row, lbl, tot, wins, tp_hits, sl_hits, sum_ret, bg) =>
 
 if show_backtest
     // Get signal data for current chart symbol
-    [c_comp, c_sig, c_setup, c_stype, c_conf, c_mb, c_bxs, c_bxl, c_d8, c_d21, c_rev, c_rvol, c_regime, c_overext, c_mtf, c_adx, c_hv_env, c_hv_exp, c_earn] = s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2)
+    [c_comp, c_sig, c_setup, c_stype, c_conf, c_mb, c_bxs, c_bxl, c_d8, c_d21, c_rev, c_rvol, c_regime, c_overext, c_mtf, c_adx, c_hv_env, c_hv_exp, c_earn, c_mkt_state] = s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2)
     
     is_valid_sig = c_comp >= min_score_bt and (c_stype == "CALL" or c_stype == "PUT")
 
