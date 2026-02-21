@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw, ChevronDown, Settings2 } from 'lucide-react';
 import { Position, Transaction, PositionAction, DirectAddItem, RollData, PositionLeg } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -63,6 +63,87 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
         return sum + getPositionRiskAtStopOutDollars(position, totalQty, entryPrice, stopOutFraction);
     }, 0);
     const totalRiskPct = portfolioTotal > 0 ? (totalRiskDollars / portfolioTotal) * 100 : 0;
+
+    // Portfolio-level Greeks aggregation from live bulk data
+    const portfolioGreeks = useMemo(() => {
+        let netDelta = 0, netGamma = 0, netTheta = 0, netVega = 0;
+        let positionsWithData = 0;
+        let largestRiskPct = 0;
+        let largestRiskTicker = '';
+
+        activePositions.forEach(pos => {
+            const legData = bulkData[pos.id];
+            if (!legData || legData.length === 0) return;
+
+            // Net quantity + entry price from transactions
+            const posTxns = transactions.filter(t => t.position_id === pos.id);
+            let qtyBought = 0, qtySold = 0, entryPrice = 0;
+            posTxns.forEach(t => {
+                if (t.quantity > 0) {
+                    if (entryPrice === 0) entryPrice = t.price;
+                    qtyBought += t.quantity;
+                } else {
+                    qtySold += Math.abs(t.quantity);
+                }
+            });
+            const qty = qtyBought - qtySold;
+            if (qty <= 0) return;
+
+            // Compute per-position net Greeks from bulk data
+            let posNetDelta = 0, posNetGamma = 0, posNetTheta = 0, posNetVega = 0;
+            let hasData = false;
+
+            if (pos.legs && pos.legs.length > 0) {
+                pos.legs.forEach(leg => {
+                    const legResult = (legData as any[]).find(d =>
+                        d.expiration === leg.expiration &&
+                        String(d.strike) === String(leg.strike) &&
+                        d.type === leg.type
+                    );
+                    const data = legResult?.data;
+                    if (!data) return;
+                    const mult = leg.side === 'short' ? -1 : 1;
+                    posNetDelta += (data.delta || 0) * mult;
+                    posNetGamma += (data.gamma || 0) * mult;
+                    posNetTheta += (data.theta || 0) * mult;
+                    posNetVega += (data.vega || 0) * mult;
+                    hasData = true;
+                });
+            } else {
+                const item = (legData as any[])[0];
+                const data = item?.data || item;
+                if (data && (data.delta != null || data.theta != null)) {
+                    posNetDelta = data.delta || 0;
+                    posNetGamma = data.gamma || 0;
+                    posNetTheta = data.theta || 0;
+                    posNetVega = data.vega || 0;
+                    hasData = true;
+                }
+            }
+
+            if (!hasData) return;
+            positionsWithData++;
+
+            // Scale by contract qty × 100 shares/contract
+            netDelta += posNetDelta * qty * 100;
+            netGamma += posNetGamma * qty * 100;
+            netTheta += posNetTheta * qty * 100;
+            netVega += posNetVega * qty * 100;
+
+            // Track largest single-position risk %
+            if (portfolioTotal > 0) {
+                const riskDollars = getPositionRiskAtStopOutDollars(pos, qty, entryPrice, stopOutFraction);
+                const riskPctPos = (riskDollars / portfolioTotal) * 100;
+                if (riskPctPos > largestRiskPct) {
+                    largestRiskPct = riskPctPos;
+                    largestRiskTicker = pos.ticker;
+                }
+            }
+        });
+
+        if (positionsWithData === 0) return null;
+        return { netDelta, netGamma, netTheta, netVega, positionsWithData, largestRiskPct, largestRiskTicker };
+    }, [activePositions, bulkData, transactions, portfolioTotal, stopOutFraction]);
 
     const sortedPositions = [...activePositions].sort((a, b) => {
         switch (sortBy) {
@@ -311,6 +392,73 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                     </div>
                 )}
             </div>
+
+            {/* Portfolio Greeks Aggregation Widget */}
+            {portfolioGreeks && (
+                <div className="rounded-xl border border-border-default/30 bg-bg-secondary/20 p-4">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">
+                            Portfolio Greeks — {portfolioGreeks.positionsWithData} position{portfolioGreeks.positionsWithData !== 1 ? 's' : ''} with live data
+                        </span>
+                        {Math.abs(portfolioGreeks.netDelta) > 200 && (
+                            <span className="text-[10px] font-bold text-orange-400 border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 rounded">
+                                ⚠ HIGH DIRECTIONAL EXPOSURE
+                            </span>
+                        )}
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                        <div>
+                            <div className={`text-base sm:text-lg font-bold font-mono ${
+                                portfolioGreeks.netDelta > 150 ? 'text-emerald-400' :
+                                portfolioGreeks.netDelta < -150 ? 'text-accent-red' :
+                                'text-text-primary'
+                            }`}>
+                                {portfolioGreeks.netDelta > 0 ? '+' : ''}{portfolioGreeks.netDelta.toFixed(0)}
+                            </div>
+                            <div className="text-[10px] text-text-tertiary mt-0.5">Net Delta (Δ shares)</div>
+                        </div>
+                        <div>
+                            <div className={`text-base sm:text-lg font-bold font-mono ${
+                                portfolioGreeks.netTheta > 15 ? 'text-emerald-400' :
+                                portfolioGreeks.netTheta < -25 ? 'text-accent-red' :
+                                'text-text-primary'
+                            }`}>
+                                {portfolioGreeks.netTheta >= 0 ? '+' : ''}${portfolioGreeks.netTheta.toFixed(0)}/d
+                            </div>
+                            <div className="text-[10px] text-text-tertiary mt-0.5">Net Theta (Θ)</div>
+                        </div>
+                        <div>
+                            <div className={`text-base sm:text-lg font-bold font-mono ${
+                                portfolioGreeks.netVega > 0 ? 'text-accent-yellow' :
+                                portfolioGreeks.netVega < 0 ? 'text-blue-400' :
+                                'text-text-primary'
+                            }`}>
+                                {portfolioGreeks.netVega >= 0 ? '+' : ''}${portfolioGreeks.netVega.toFixed(0)}
+                            </div>
+                            <div className="text-[10px] text-text-tertiary mt-0.5">Net Vega (per 1% IV)</div>
+                        </div>
+                        <div>
+                            {portfolioGreeks.largestRiskTicker && portfolioGreeks.largestRiskPct > 0 ? (
+                                <>
+                                    <div className={`text-base sm:text-lg font-bold font-mono ${
+                                        portfolioGreeks.largestRiskPct > 10 ? 'text-accent-red' :
+                                        portfolioGreeks.largestRiskPct > 5 ? 'text-accent-yellow' :
+                                        'text-text-primary'
+                                    }`}>
+                                        {portfolioGreeks.largestRiskTicker} {portfolioGreeks.largestRiskPct.toFixed(1)}%
+                                    </div>
+                                    <div className="text-[10px] text-text-tertiary mt-0.5">Largest Position Risk</div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="text-base sm:text-lg font-bold font-mono text-text-tertiary">—</div>
+                                    <div className="text-[10px] text-text-tertiary mt-0.5">Largest Position Risk</div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Quick Add Form */}
             {showForm && (

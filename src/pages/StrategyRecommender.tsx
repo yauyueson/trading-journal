@@ -6,6 +6,7 @@ import { ScoreFactorsView } from '../components/ScoreFactorsView';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { getSuggestedContracts } from '../lib/riskSizing';
+import { classifyTradeProfile } from '../lib/oss-core';
 import { formatCurrency, SETUPS, STRATEGIES } from '../lib/utils';
 import type {
     SpreadRecommendation,
@@ -163,9 +164,10 @@ interface OptionSelectorProps {
 
 export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist }) => {
     const { settings, stopOutFraction } = useAppSettings();
-    const { accountSize: portfolioTotal, riskPct, stopOutPct } = settings.portfolio;
+    const { accountSize: portfolioTotal, riskPct } = settings.portfolio;
     const [ticker, setTicker] = useState('SPY');
-    const [direction] = useState<'BULL' | 'BEAR'>('BULL');
+    const [direction, setDirection] = useState<'BULL' | 'BEAR'>('BULL');
+    const [marketState, setMarketState] = useState<string>('TRENDING');
     const [targetStrategy, setTargetStrategy] = useState('Credit Put Spread');
     const [setup, setSetup] = useState('Pullback Buy');
     const [techScore, setTechScore] = useState('');
@@ -239,6 +241,27 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
         const isSpreadType = isSpread(rec);
 
+        // Compute trade profile at entry (retrospective categorization)
+        const entryIsCredit = result.recommendedStrategy === 'CREDIT_SPREAD' || result.regime.mode === 'CREDIT';
+        const entryIvRegime = result.regime.mode === 'CREDIT' ? 'backwardation' : result.regime.mode === 'DEBIT' ? 'contango' : 'flat';
+        const entryDelta = isSpreadType
+            ? Math.abs((rec as SpreadRecommendation).shortLeg?.delta || 0.3)
+            : Math.abs((rec as SingleLegRecommendation).delta || 0.3);
+        const entryGT = !isSpreadType && (rec as SingleLegRecommendation).gamma != null
+            ? ((rec as SingleLegRecommendation).gamma || 0) / Math.max(Math.abs((rec as SingleLegRecommendation).theta || 1), 0.001)
+            : 0;
+        const entryTradeProfile = classifyTradeProfile({
+            isCredit: entryIsCredit,
+            ivRegime: entryIvRegime as 'contango' | 'backwardation' | 'flat',
+            ivRank: result.regime.ivRank,
+            dte: result.context.targetDte,
+            gtRatio: entryGT,
+            delta: entryDelta,
+            marketState,
+        });
+        const entryIvRegimeEntry = entryIvRegime;
+        const entryIvRank = result.regime.ivRank != null ? result.regime.ivRank : undefined;
+
         let legs: { side: string; strike: number; type: string; expiration: string }[] | undefined = undefined;
         if (isSpreadType) {
             const spreadRec = rec as SpreadRecommendation;
@@ -265,6 +288,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             type: rec.type,
             expiration: isSpreadType ? (rec as SpreadRecommendation).shortLeg.expiration : (rec as SingleLegRecommendation).expiration,
             setup: setup || 'Algorithm Rec',
+            strategy: targetStrategy,
             entry_score: rec.score,
             ideal_entry: isSpreadType ? ((rec as SpreadRecommendation).netCredit ?? (rec as SpreadRecommendation).netDebit) : (rec as SingleLegRecommendation).price,
             target_price: 0,
@@ -274,7 +298,12 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                 : `Delta: ${(rec as SingleLegRecommendation).delta}`,
             legs: legs as WatchlistItem['legs'],
             tech_score: techScore ? parseInt(techScore, 10) : undefined,
-            tech_score_source: 'manual'
+            tech_score_source: 'manual',
+            direction,
+            market_state: marketState,
+            trade_profile: entryTradeProfile,
+            iv_rank_entry: entryIvRank,
+            iv_regime_entry: entryIvRegimeEntry,
         };
 
         await onAddToWatchlist(item);
@@ -369,6 +398,63 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         </div>
                     </div>
 
+                    {/* Pine Signal Row: Direction + Market State */}
+                    <div className="border border-accent-green/20 bg-accent-green/5 rounded-lg p-4">
+                        <div className="text-[10px] text-accent-green/70 font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                            <TrendingUp size={12} />
+                            Pine Signal Inputs — copy from TradingView scanner
+                        </div>
+                        <div className="flex flex-col md:flex-row gap-4 items-end">
+                            <div>
+                                <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Direction</label>
+                                <div className="grid grid-cols-2 gap-2 bg-[#000] p-1 rounded-lg border border-[#333] w-44">
+                                    {(['BULL', 'BEAR'] as const).map((d) => (
+                                        <button
+                                            key={d}
+                                            onClick={() => setDirection(d)}
+                                            className={`py-2.5 rounded text-xs font-bold transition-all ${direction === d
+                                                ? d === 'BULL'
+                                                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                                    : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                                : 'text-gray-500 hover:text-gray-300'
+                                                }`}
+                                        >
+                                            {d === 'BULL' ? '🐂' : '🐻'} {d}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex-1">
+                                <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">
+                                    Market State
+                                    <span className="ml-1.5 text-gray-600 normal-case font-normal">(from ADX + MB oscillator)</span>
+                                </label>
+                                <div className="grid grid-cols-4 gap-2 bg-[#000] p-1 rounded-lg border border-[#333]">
+                                    {[
+                                        { label: 'TRENDING', desc: 'ADX↑' },
+                                        { label: 'EXPLOSIVE', desc: 'MB↑↑' },
+                                        { label: 'RANGING', desc: 'ADX↓' },
+                                        { label: 'REVERTING', desc: 'Fade' },
+                                    ].map((opt) => (
+                                        <button
+                                            key={opt.label}
+                                            onClick={() => setMarketState(opt.label)}
+                                            className={`py-2 rounded px-1 text-xs font-bold transition-all ${marketState === opt.label
+                                                ? 'bg-[#3A3A3C] text-white shadow-sm'
+                                                : 'text-gray-500 hover:text-gray-300'
+                                                }`}
+                                        >
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-[9px] sm:text-[10px]">{opt.label}</span>
+                                                <span className="text-[8px] font-normal opacity-70">{opt.desc}</span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Bottom Row: DTE, Spread Width & Analyze */}
                     <div className="flex flex-col md:flex-row gap-6 items-end">
                         <div className="w-full md:flex-1">
@@ -445,6 +531,43 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             {result && (
                 <div className="space-y-6 animate-fade-in">
                     {/* Regime Card */}
+                    {(() => {
+                        // Compute Trade Profile from result + user inputs
+                        const isCredit = result.recommendedStrategy === 'CREDIT_SPREAD' || result.regime.mode === 'CREDIT';
+                        const ivRegime = result.regime.mode === 'CREDIT' ? 'backwardation' : result.regime.mode === 'DEBIT' ? 'contango' : 'flat';
+                        const recs = (result.strategies.TARGET_STRATEGY as Recommendation[]) || [];
+                        const topRec = recs[0];
+                        const topDelta = topRec
+                            ? isSpread(topRec) ? Math.abs((topRec as SpreadRecommendation).shortLeg?.delta || 0.3)
+                            : Math.abs((topRec as SingleLegRecommendation).delta || 0.3)
+                            : 0.3;
+                        const topGT = topRec && !isSpread(topRec) && (topRec as SingleLegRecommendation).gamma != null
+                            ? ((topRec as SingleLegRecommendation).gamma || 0) / Math.max(Math.abs((topRec as SingleLegRecommendation).theta || 1), 0.001)
+                            : 0;
+                        const tradeProfile = classifyTradeProfile({
+                            isCredit,
+                            ivRegime: ivRegime as 'contango' | 'backwardation' | 'flat',
+                            ivRank: result.regime.ivRank,
+                            dte: result.context.targetDte,
+                            gtRatio: topGT,
+                            delta: topDelta,
+                            marketState,
+                        });
+                        const profileColors: Record<string, string> = {
+                            'Gamma Burst':    'bg-purple-500/15 text-purple-300 border-purple-500/30',
+                            'Delta Trend':    'bg-blue-500/15 text-blue-300 border-blue-500/30',
+                            'Theta Harvest':  'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+                            'Vega Expansion': 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+                            'Vega Crush':     'bg-orange-500/15 text-orange-300 border-orange-500/30',
+                        };
+                        const profileIcons: Record<string, string> = {
+                            'Gamma Burst':    '⚡',
+                            'Delta Trend':    '→',
+                            'Theta Harvest':  'θ',
+                            'Vega Expansion': '↑V',
+                            'Vega Crush':     '↓V',
+                        };
+                        return (
                     <div className={`border rounded-xl p-4 sm:p-5 relative overflow-hidden ${result.regime.mode === 'CREDIT' ? 'bg-red-900/10 border-red-500/30' :
                         result.regime.mode === 'DEBIT' ? 'bg-green-900/10 border-green-500/30' :
                             'bg-[#1C1C1E] border-[#2A2A2A]'
@@ -458,6 +581,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                     <span className={`text-xs font-bold px-2 py-0.5 rounded border ${result.context.direction === 'BULL' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'
                                         }`}>
                                         {result.context.direction} {result.context.direction === 'BULL' ? '🐂' : '🐻'}
+                                    </span>
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded border ${profileColors[tradeProfile]}`}>
+                                        {profileIcons[tradeProfile]} {tradeProfile}
                                     </span>
                                 </h2>
                                 <p className={`mt-2 font-medium flex items-center gap-2 text-sm sm:text-base ${result.regime.mode === 'CREDIT' ? 'text-red-400' :
@@ -478,6 +604,28 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                             <div className="border-t border-[#333] pt-4 sm:pt-5 mt-2">
                                 <div className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-wider mb-3">Technical indicators</div>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+                                    {result.regime.ivTrend && (
+                                        <div className="col-span-2 sm:col-span-4 mb-2">
+                                            <div className={`inline-flex items-center gap-1.5 text-[10px] sm:text-xs font-bold px-2 py-1 rounded border ${
+                                                result.regime.ivTrend === 'rising'
+                                                    ? 'bg-orange-500/10 border-orange-500/30 text-orange-400'
+                                                    : result.regime.ivTrend === 'falling'
+                                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                                        : 'bg-gray-500/10 border-gray-500/30 text-gray-400'
+                                            }`}>
+                                                IV Trend (5d):&nbsp;
+                                                {result.regime.ivTrend === 'rising' && '📈 RISING'}
+                                                {result.regime.ivTrend === 'falling' && '📉 FALLING'}
+                                                {result.regime.ivTrend === 'flat' && '➡️ FLAT'}
+                                                {result.regime.iv5dChange != null && (
+                                                    <span className="font-mono ml-1 opacity-80">({result.regime.iv5dChange > 0 ? '+' : ''}{result.regime.iv5dChange}pp)</span>
+                                                )}
+                                                {result.regime.ivTrend === 'rising' && direction !== 'BEAR' && targetStrategy.includes('Credit') && (
+                                                    <span className="ml-1 text-orange-300">⚠️ selling into rising IV — consider debit or wait</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                     <div>
                                         <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
                                             IV Rank
@@ -594,6 +742,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                             </div>
                         </div>
                     </div>
+                        );
+                    })()}
 
                     {/* Target Recommendations */}
                     {(() => {
@@ -692,12 +842,19 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                         <span className="text-accent-green font-mono font-bold">{rec.riskReward}</span>
                                                                     </div>
                                                                 )}
-                                                                {(rec as SpreadRecommendation).expectedValue !== undefined && (
+                                                                {(rec as SpreadRecommendation).evHold !== undefined && (
                                                                     <div className="flex flex-col">
-                                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">EV</span>
-                                                                        <span className={`font-mono font-bold ${(rec as SpreadRecommendation).expectedValue! > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                            ${(rec as SpreadRecommendation).expectedValue}
+                                                                        <span className="text-[10px] text-gray-500 uppercase font-bold">
+                                                                            EV (Hold)
                                                                         </span>
+                                                                        <span className={`font-mono font-bold ${(rec as SpreadRecommendation).evHold! > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                            ${(rec as SpreadRecommendation).evHold}
+                                                                        </span>
+                                                                        {(rec as SpreadRecommendation).evDaily !== undefined && (
+                                                                            <span className="text-[9px] text-gray-500 font-mono">
+                                                                                ${((rec as SpreadRecommendation).evDaily! * 100).toFixed(1)}¢/d
+                                                                            </span>
+                                                                        )}
                                                                     </div>
                                                                 )}
                                                                 <div className="flex flex-col">
@@ -762,11 +919,19 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                 </div>
                                                 {(() => {
                                                     const sizing = getSuggestedContracts(rec, portfolioTotal, riskPct, { useKelly: true, stopOutFraction });
+                                                    const riskAtStopOut = sizing.suggestedContracts * sizing.riskPerContractAtStopOutDollars;
+                                                    const riskPctActual = portfolioTotal > 0 ? (riskAtStopOut / portfolioTotal) * 100 : 0;
+                                                    const budgetConsumed = sizing.riskCapDollars > 0 ? (riskAtStopOut / sizing.riskCapDollars) * 100 : 0;
                                                     return (
                                                         <div className="text-[10px] sm:text-xs text-gray-400 font-mono pl-6 leading-relaxed">
                                                             Size: <span className="text-accent-green font-bold">{sizing.suggestedContracts}</span> contracts
-                                                            <span className="hidden sm:inline">{' '}(risk cap: {formatCurrency(sizing.riskCapDollars)}, stop-out: {formatCurrency(sizing.riskPerContractAtStopOutDollars)} at {stopOutPct}%, max loss: {formatCurrency(sizing.maxLossPerContractDollars)})</span>
-                                                            <span className="sm:hidden"> · cap {formatCurrency(sizing.riskCapDollars)}</span>
+                                                            {sizing.suggestedContracts > 0 && (
+                                                                <>
+                                                                    {' '}· at-risk: <span className={`font-bold ${riskPctActual > 5 ? 'text-accent-red' : riskPctActual > 2.5 ? 'text-accent-yellow' : 'text-text-primary'}`}>{formatCurrency(riskAtStopOut)} ({riskPctActual.toFixed(1)}%)</span>
+                                                                    <span className="hidden sm:inline text-gray-500"> · budget {budgetConsumed.toFixed(0)}% · max-loss/contract {formatCurrency(sizing.maxLossPerContractDollars)}</span>
+                                                                </>
+                                                            )}
+                                                            <span className="hidden sm:inline text-gray-600"> · cap {formatCurrency(sizing.riskCapDollars)}</span>
                                                         </div>
                                                     );
                                                 })()}

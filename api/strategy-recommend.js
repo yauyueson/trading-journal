@@ -620,6 +620,17 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
                 roi: Number(roi.toFixed(1)),
                 pop: Number((pop * 100).toFixed(1)),
                 expectedValue: Number(((credit * pop) - (maxRisk * (1 - pop))).toFixed(2)),
+                // Holding-period EV: swing trader exits at 50% profit OR 50% stop-loss (not at expiry)
+                evHold: (() => {
+                    const dte = shortLeg.dte || 30;
+                    return Number((pop * 0.5 * credit - (1 - pop) * 0.5 * maxRisk).toFixed(2));
+                })(),
+                evDaily: (() => {
+                    const dte = shortLeg.dte || 30;
+                    const evH = pop * 0.5 * credit - (1 - pop) * 0.5 * maxRisk;
+                    const holdDays = Math.max(1, dte * (pop * 0.5 + (1 - pop) * 0.30));
+                    return Number((evH / holdDays).toFixed(4));
+                })(),
                 distance: Number((distance * 100).toFixed(1)),
                 breakeven,
                 score: Math.min(100, Math.max(0, Math.round(finalScore))),
@@ -1257,6 +1268,9 @@ export default async function handler(req, res) {
         const ivRank = ivRankResult?.ivRank ?? null;
         const ivPercentile = ivRankResult?.ivPercentile ?? null;
         const ivRankSampleDays = ivRankResult?.sampleDays ?? 0;
+        // IV Momentum: 5-trading-day change (prevents selling into rising IV)
+        const iv5dChange = ivRankResult?.iv5dChange ?? null;
+        const ivTrend = ivRankResult?.ivTrend ?? null;
 
         // Tech Score (Pine-aligned): 1h, 4h, daily candles → techScore per timeframe
         let tech = null;
@@ -1560,6 +1574,9 @@ export default async function handler(req, res) {
                 ivRank: ivRank != null ? Number(ivRank.toFixed(3)) : null,
                 ivPercentile: ivPercentile != null ? Number(ivPercentile.toFixed(3)) : null,
                 ivRankSampleDays: ivRankSampleDays,
+                // IV Momentum (v2.4): direction of IV30 over last 5 trading days
+                iv5dChange: iv5dChange,
+                ivTrend: ivTrend,
                 mode: regime.mode,
                 advice: regime.advice,
                 adviceDetail: regime.adviceDetail || null,

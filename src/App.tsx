@@ -279,6 +279,7 @@ function App() {
             type: item.type,
             expiration: item.expiration,
             setup: item.setup,
+            strategy: item.strategy || null,
             status: 'watchlist',
             entry_score: item.entry_score,
             ideal_entry: item.ideal_entry,
@@ -289,7 +290,12 @@ function App() {
             owner: item.owner || null,
             tech_score: item.tech_score,
             tech_score_manual: item.tech_score,
-            tech_score_source: item.tech_score_source || 'manual'
+            tech_score_source: item.tech_score_source || 'manual',
+            direction: item.direction || null,
+            market_state: item.market_state || null,
+            trade_profile: item.trade_profile || null,
+            iv_rank_entry: item.iv_rank_entry ?? null,
+            iv_regime_entry: item.iv_regime_entry || null,
         }]);
 
         if (error) {

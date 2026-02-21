@@ -62,3 +62,6 @@ export const STRATEGIES = [
     'Credit Call Spread', 'Credit Put Spread',
     'Iron Condor'
 ];
+
+export const MARKET_STATES = ['TRENDING', 'EXPLOSIVE', 'RANGING', 'REVERTING'] as const;
+export type MarketState = typeof MARKET_STATES[number];

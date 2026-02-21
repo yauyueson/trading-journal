@@ -31,6 +31,13 @@ export interface Position {
     tech_score_source?: 'auto' | 'manual';
     tech_score_updated_at?: string;
     tech_data?: any;
+    // Pine Signal inputs (Layer 1 → Layer 2 handoff)
+    direction?: 'BULL' | 'BEAR';
+    market_state?: string;
+    // Retrospective categorization (captured at entry, cannot be reconstructed)
+    trade_profile?: string;
+    iv_rank_entry?: number;
+    iv_regime_entry?: string;
 }
 
 export interface PositionLeg {
@@ -83,6 +90,7 @@ export interface WatchlistItem {
     type: string;
     expiration: string;
     setup?: string;
+    strategy?: string;
     entry_score?: number | null;
     current_score?: number | null;
     current_price?: number | null;
@@ -94,6 +102,13 @@ export interface WatchlistItem {
     owner?: 'Yuchen' | 'Annie' | null;
     tech_score?: number;
     tech_score_source?: 'auto' | 'manual';
+    // Pine Signal inputs (captured at recommendation time)
+    direction?: 'BULL' | 'BEAR';
+    market_state?: string;
+    // Retrospective categorization (captured at entry)
+    trade_profile?: string;
+    iv_rank_entry?: number;
+    iv_regime_entry?: string;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -139,6 +154,10 @@ export interface StrategyRegime {
     ivPercentile: number | null;
     /** Number of days in ticker_iv_snapshots used to compute IV Rank. */
     ivRankSampleDays?: number;
+    /** IV30 change over last 5 trading days (pp). Positive = rising IV. */
+    iv5dChange?: number | null;
+    /** IV trend direction derived from 5d change. Rising IV = avoid selling premium. */
+    ivTrend?: 'rising' | 'falling' | 'flat' | null;
     mode: 'CREDIT' | 'DEBIT' | 'NEUTRAL';
     advice: string;
     /** Longer explanation of why this regime favors Credit/Debit/Neutral and what to do. */
@@ -180,6 +199,10 @@ export interface SpreadRecommendation {
     riskReward?: number;
     pop?: number;
     expectedValue?: number;
+    /** Holding-period EV: assumes 50% profit-target / 50% stop-loss exit, not holding to expiry. */
+    evHold?: number;
+    /** EV per day of expected hold time (cross-DTE comparison). */
+    evDaily?: number;
     breakeven: number;
     distance?: number;
     lambda?: number;

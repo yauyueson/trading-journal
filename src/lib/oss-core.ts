@@ -223,6 +223,40 @@ export function calculateExpectedValue(pop: number, credit: number, maxRisk: num
 }
 
 /**
+ * Holding-Period EV for swing traders (v2.4).
+ *
+ * Standard EV assumes holding to expiration — incorrect for swing traders who
+ * exit at 50% profit OR 50% stop-loss, not at expiry.
+ *
+ * EV_hold = POP × (profitTargetPct × credit) - (1-POP) × (stopLossPct × maxRisk)
+ *
+ * Also computes evDaily = EV_hold / expectedHoldDays, enabling fair comparison
+ * across different DTEs (a 10DTE spread has more gamma risk per EV dollar than
+ * a 45DTE spread with similar expiry EV).
+ *
+ * @param pop         Probability of profit (0-1)
+ * @param credit      Net credit received per contract (dollar)
+ * @param maxRisk     Maximum risk per contract (dollar)
+ * @param dte         Days to expiration
+ * @param profitTargetPct  Exit at this fraction of max profit (default: 0.50 = 50%)
+ * @param stopLossPct      Exit at this fraction of max loss (default: 0.50 = 50%)
+ */
+export function calculateHoldingPeriodEV(
+    pop: number,
+    credit: number,
+    maxRisk: number,
+    dte: number,
+    profitTargetPct: number = 0.5,
+    stopLossPct: number = 0.5
+): { evHold: number; evDaily: number } {
+    const evHold = (pop * profitTargetPct * credit) - ((1 - pop) * stopLossPct * maxRisk);
+    // Expected hold time: winners close at ~(profitTargetPct × DTE), losers stop out earlier (~30% of DTE)
+    const expectedHoldDays = Math.max(1, dte * (pop * profitTargetPct + (1 - pop) * 0.30));
+    const evDaily = evHold / expectedHoldDays;
+    return { evHold, evDaily };
+}
+
+/**
  * Spread Percentage - Liquidity measure.
  */
 export function calculateSpreadPct(bid: number, ask: number): number {
@@ -750,4 +784,78 @@ export function calculateDebitSpreadScore(metrics: DebitSpreadMetrics): number {
 
     const finalScore = 0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaScore;
     return Math.round(Math.min(100, Math.max(0, finalScore)));
+}
+
+// ────────────────────────────────────────────────────────────────
+// Trade Profile Classification (v2.4)
+// The Bridge between Pine Script Direction and IV Regime Structure
+// ────────────────────────────────────────────────────────────────
+
+/**
+ * Human-readable labels that communicate what KIND of money a trade is designed
+ * to make. Used to bridge Pine Script signals (direction/timing) with Journal
+ * regime analysis (structure selection).
+ *
+ * Gamma Burst    — Short DTE, high G/T, buying explosiveness before a move
+ * Delta Trend    — High delta, directional move is the primary P&L driver
+ * Theta Harvest  — Credit spread in stable/flat vol, collect time decay
+ * Vega Expansion — Buying cheap vol (contango) expecting IV to expand
+ * Vega Crush     — Selling expensive premium (backwardation) expecting IV to fall
+ */
+export type TradeProfile =
+    | 'Gamma Burst'
+    | 'Delta Trend'
+    | 'Theta Harvest'
+    | 'Vega Expansion'
+    | 'Vega Crush';
+
+export interface TradeProfileInput {
+    /** True for credit spreads; false for debit spreads and single long options. */
+    isCredit: boolean;
+    /** IV term structure regime derived from IV30/IV90 ratio. */
+    ivRegime: 'contango' | 'backwardation' | 'flat';
+    /** IV Rank (0–1): where current IV sits in 52-week range. null if no history. */
+    ivRank?: number | null;
+    /** Days to expiration. */
+    dte: number;
+    /** Gamma/Theta ratio of the position or primary leg. Optional — defaults to 0. */
+    gtRatio?: number;
+    /** Delta of the position (absolute value used internally). */
+    delta: number;
+    /** Pine Script Market State: 'TRENDING' | 'EXPLOSIVE' | 'RANGING' | 'REVERTING'. */
+    marketState?: string | null;
+}
+
+/**
+ * Classify a trade into one of five Trade Profile labels.
+ *
+ * Priority order (higher priority rules short-circuit lower ones):
+ * 1. Gamma Burst — short DTE + explosive setup + cheap vol
+ * 2. Delta Trend — high delta (directional dominates over regime)
+ * 3. Vega Crush  — credit + backwardation (sell expensive near-term IV)
+ * 4. Vega Expansion — debit + contango + low IV rank
+ * 5. Theta Harvest — default for credit in flat/moderate environments
+ */
+export function classifyTradeProfile(input: TradeProfileInput): TradeProfile {
+    const { isCredit, ivRegime, ivRank, dte, gtRatio = 0, delta, marketState } = input;
+    const absDelta = Math.abs(delta);
+
+    // 1. Gamma Burst: short DTE + explosive setup or high G/T + debit + cheap vol
+    const isLowIV = ivRegime === 'contango' || (ivRank != null && ivRank < 0.40);
+    const isExplosiveState = marketState === 'EXPLOSIVE';
+    if (!isCredit && dte <= 21 && (gtRatio > 3 || isExplosiveState) && (isLowIV || isExplosiveState)) {
+        return 'Gamma Burst';
+    }
+
+    // 2. Delta Trend: high delta = directional trade, regime is secondary
+    if (absDelta > 0.55) return 'Delta Trend';
+
+    // 3. Vega Crush: credit + backwardation = selling expensive near-term premium
+    if (isCredit && ivRegime === 'backwardation') return 'Vega Crush';
+
+    // 4. Vega Expansion: debit + cheap vol (contango or low IV rank)
+    if (!isCredit && isLowIV) return 'Vega Expansion';
+
+    // 5. Theta Harvest: default for credit in flat/moderate environments
+    return 'Theta Harvest';
 }

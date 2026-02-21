@@ -873,6 +873,18 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                                                     Day Trade
                                                 </span>
                                             )}
+                                            {liveData.score !== undefined && (() => {
+                                                const entryScore = position.entry_score || 0;
+                                                const scoreDrop = entryScore - liveData.score!;
+                                                const isLowScore = liveData.score! < 40;
+                                                const isLargeDrop = scoreDrop >= 20;
+                                                if (!isLowScore && !isLargeDrop) return null;
+                                                return (
+                                                    <span className="mt-1 px-1.5 pb-0.5 text-[8px] font-bold uppercase tracking-wider text-red-300 bg-red-500/15 border border-red-500/30 rounded w-fit animate-pulse">
+                                                        {isLargeDrop ? `↓${scoreDrop} EXIT?` : 'EXIT?'}
+                                                    </span>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                 </div>

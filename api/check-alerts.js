@@ -261,6 +261,48 @@ export default async function handler(req, res) {
       }
     }
 
+    // ── Exit Score Signals ──────────────────────────────────────────
+    // Alert when current_score < 40 OR score drops > 20 from entry.
+    // Uses DB scores (current_score / entry_score), no API call needed.
+    for (const pos of positions) {
+      const currentScore = pos.current_score;
+      const entryScore = pos.entry_score;
+      if (currentScore == null || entryScore == null) continue;
+
+      const scoreDrop = entryScore - currentScore;
+      const isLowScore = currentScore < 40;
+      const isLargeDrop = scoreDrop >= 20;
+      if (!isLowScore && !isLargeDrop) continue;
+
+      const ticker = (pos.ticker || '').toUpperCase();
+      const reason = isLargeDrop
+        ? `Score dropped **${scoreDrop} pts** (entry: ${entryScore} → now: ${currentScore})`
+        : `Score is low (**${currentScore}**) — trade thesis may be degraded`;
+
+      const body = {
+        content: null,
+        embeds: [{
+          title: '⚠️ Exit Score Signal',
+          description: `**${ticker}** ${pos.strike || ''} ${pos.type || ''}\n${reason}\nConsider reviewing or closing this position.`,
+          color: 0xf59e0b, // amber
+          footer: { text: 'Trading Journal · OSS Exit Signal' },
+          timestamp: new Date().toISOString(),
+        }],
+      };
+
+      const discordRes = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (discordRes.ok) {
+        sent++;
+      } else {
+        console.warn('Discord webhook (score alert) failed', discordRes.status, await discordRes.text());
+      }
+    }
+
     return res.status(200).json({ ok: true, checked: positions.length, sent });
   } catch (err) {
     console.error('check-alerts error:', err);
