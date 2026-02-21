@@ -174,7 +174,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         lowVolume: false,
         nearEarnings: false
     });
-    const [targetStrategy, setTargetStrategy] = useState('Credit Put Spread');
+    const [targetStrategy, setTargetStrategy] = useState('Auto-Select Strategy');
     const [setup, setSetup] = useState('Pullback Buy');
     const [techScoreTier, setTechScoreTier] = useState<{ label: string; value: number; range: string; color: string } | null>(null);
     const [targetDte, setTargetDte] = useState(30);
@@ -494,8 +494,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                             key={flag.key}
                                             onClick={() => setRiskFlags(prev => ({ ...prev, [flag.key]: !prev[flag.key as keyof typeof riskFlags] }))}
                                             className={`py-2 px-3 rounded text-xs font-bold transition-all border flex items-center justify-center gap-1.5 ${isActive
-                                                    ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/40 shadow-sm'
-                                                    : 'bg-[#0a0a0a] text-gray-500 border-[#333] hover:text-gray-300 hover:border-[#444]'
+                                                ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/40 shadow-sm'
+                                                : 'bg-[#0a0a0a] text-gray-500 border-[#333] hover:text-gray-300 hover:border-[#444]'
                                                 }`}
                                         >
                                             <span className="opacity-80">{flag.icon}</span>

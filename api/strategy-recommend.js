@@ -1440,7 +1440,23 @@ export default async function handler(req, res) {
         const decodedStrategy = targetStrategy ? decodeURIComponent(targetStrategy) : 'Credit Put Spread';
         const decodedSetup = setup ? decodeURIComponent(setup) : '';
 
-        if (decodedStrategy === 'Credit Put Spread') {
+        if (decodedStrategy === 'Auto-Select Strategy') {
+            if (isBull) {
+                targetRecs = [
+                    ...buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly),
+                    ...buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly),
+                    ...scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput),
+                    ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly)
+                ];
+            } else {
+                targetRecs = [
+                    ...buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly),
+                    ...buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly),
+                    ...scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput),
+                    ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly)
+                ];
+            }
+        } else if (decodedStrategy === 'Credit Put Spread') {
             targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly);
         } else if (decodedStrategy === 'Debit Call Spread') {
             targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly);
@@ -1464,11 +1480,12 @@ export default async function handler(req, res) {
 
         for (const rec of targetRecs) {
             let simCat = 'CREDIT_SPREAD';
-            if (decodedStrategy.includes('Debit')) simCat = 'DEBIT_SPREAD';
-            if (decodedStrategy.includes('Long')) simCat = 'SINGLE_LEG';
-            if (decodedStrategy === 'Iron Condor') simCat = 'IRON_CONDOR';
+            const recType = rec.type || decodedStrategy;
+            if (recType.includes('Debit')) simCat = 'DEBIT_SPREAD';
+            if (recType.includes('Long')) simCat = 'SINGLE_LEG';
+            if (recType === 'Iron Condor') simCat = 'IRON_CONDOR';
 
-            const creditSpreadType = (simCat === 'CREDIT_SPREAD' && decodedStrategy.includes('Put')) ? 'Put' : 'Call';
+            const creditSpreadType = (simCat === 'CREDIT_SPREAD' && recType.includes('Put')) ? 'Put' : 'Call';
 
             // Iron Condor has its own comprehensive scorer — skip unified re-scoring
             if (simCat === 'IRON_CONDOR') {
@@ -1617,6 +1634,11 @@ export default async function handler(req, res) {
             }
         }
         targetRecs.sort((a, b) => b.unifiedScore - a.unifiedScore);
+
+        // If Auto-Select Strategy mode, truncate to top 5 out of all structures generated
+        if (decodedStrategy === 'Auto-Select Strategy') {
+            targetRecs = targetRecs.slice(0, 5);
+        }
 
         const contextIV = iv30 ?? null;
         const earningsPremiumContext = contextIV && currentPrice > 0

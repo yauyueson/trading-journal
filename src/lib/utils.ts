@@ -57,6 +57,7 @@ export const SETUPS = [
 ];
 
 export const STRATEGIES = [
+    'Auto-Select Strategy',
     'Long Call', 'Long Put',
     'Debit Call Spread', 'Debit Put Spread',
     'Credit Call Spread', 'Credit Put Spread',
