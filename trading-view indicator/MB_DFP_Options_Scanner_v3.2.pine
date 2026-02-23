@@ -24,15 +24,7 @@ c_ema8    = input.color(color.yellow, "EMA 8 Color",    group=emaGR, display=dis
 c_ema21   = input.color(color.orange, "EMA 21 Color",   group=emaGR, display=display.data_window)
 c_ema34   = input.color(color.red,    "EMA 34 Color",   group=emaGR, display=display.data_window)
 
-maGR   = "Visuals: Standard MAs"
-showMA   = input.bool(false, "Show Standard MAs",    group=maGR, display=display.data_window)
-showDots = input.bool(true,  "Show Historical Dots", group=maGR, display=display.data_window)
-ma5_color   = input.color(color.new(#00FFFF, 0), "MA5",   inline="ma1", group=maGR, display=display.data_window)
-ma10_color  = input.color(color.new(#1E90FF, 0), "MA10",  inline="ma1", group=maGR, display=display.data_window)
-ma20_color  = input.color(color.new(#0000FF, 0), "MA20",  inline="ma2", group=maGR, display=display.data_window)
-ma60_color  = input.color(color.new(#000080, 0), "MA60",  inline="ma2", group=maGR, display=display.data_window)
-ma120_color = input.color(color.new(#FF69B4, 0), "MA120", inline="ma3", group=maGR, display=display.data_window)
-ma200_color = input.color(color.new(#8B0000, 0), "MA200", inline="ma3", group=maGR, display=display.data_window)
+
 
 dfGR   = "Visuals: Delta Flow"
 dfDist = input.int(0,  'Distance from Price', minval=-100, maxval=100, step=1, group=dfGR, display=display.data_window)
@@ -97,7 +89,7 @@ adx_range_thresh = input.int(20,   "ADX Range Threshold (< = Ranging)",         
 earningGR       = "Scanner: [v3.3] Earnings & Setup Constraints"
 use_earn        = input.bool(true,  "Avoid Credit/Debit ahead of Earnings",       group=earningGR, display=display.data_window)
 earn_thresh     = input.int(15,     "Days to Earnings Risk Window", minval=1, maxval=21, group=earningGR, display=display.data_window)
-pb_rvol_max     = input.float(1.0,  "Max RVOL for a Healthy Pullback",            group=earningGR, display=display.data_window)
+pb_rvol_max     = input.float(0.8,  "Max RVOL for a Healthy Pullback",            group=earningGR, display=display.data_window)
 
 // [3] Mean Reversion Filter
 mrGR            = "Scanner: [v2] Mean Reversion Filter"
@@ -133,18 +125,21 @@ opt_buy_min     = input.int(75, "Min Score for BUY/SELL",        group=optGR, di
 backGR          = "Signal Quality Analyzer (Backtest)"
 show_backtest   = input.bool(true, "Show Signal Accuracy Table", group=backGR)
 bt_pos          = input.string("bottom_right", "Table Position", options=["top_right", "top_left", "bottom_right", "bottom_left", "top_center", "bottom_center"], group=backGR)
-look_fwd_1      = input.int(14, "Short Look-forward (bars)",   group=backGR)
-look_fwd_2      = input.int(30, "Long Look-forward (bars)",    group=backGR)
+look_fwd_0      = input.int(5, "5d Look-forward (bars)",   group=backGR)
+look_fwd_1      = input.int(10, "10d Look-forward (bars)",   group=backGR)
+look_fwd_2      = input.int(20, "20d Look-forward (bars)",    group=backGR)
 min_score_bt    = input.int(75, "Min Score to Track Signal",  group=backGR)
+min_win_move    = input.float(2.0, "Min Move % to Count as Win (DEPRECATED)", minval=0.0, maxval=10.0, step=0.5, group=backGR, tooltip="⚠️ Deprecated: Use ATR-based threshold below for fair cross-ticker comparison")
+min_win_atr     = input.float(1.0, "Min ATR Multiple to Win", minval=0.0, maxval=5.0, step=0.1, group=backGR, tooltip="ATR-normalized win threshold: 1.0 = price must move 1× ATR in correct direction. Fair across all volatility regimes. Set to 0 to disable.")
+show_regime_ctx = input.bool(false, "Show Regime Context (Trend/Range)", group=backGR, tooltip="Display tier performance split by market regime")
 setup_filt_bt   = input.string("All", "Setup Filter", options=["All", "Perfect Storm", "Breakout", "Breakdown", "Pullback Buy", "Failed Rally", "Divergence", "Distribution", "Strong Trend", "Strong Down", "Directional", "Bullish", "Bearish"], group=backGR)
 
 // TP/SL Simulation
 tpslGR         = "Signal Quality Analyzer (TP/SL Simulation)"
 use_tpsl       = input.bool(true,  "Enable TP/SL Simulation Row", group=tpslGR)
+show_tpsl_cmp  = input.bool(true,  "Show TP/SL vs 14d Comparison", group=tpslGR, tooltip="Show indicator (✓/↓) comparing TP/SL win rate vs 14d hold")
 tp_atr         = input.float(2.0,  "Take Profit (ATR Multiplier)", minval=0.5, maxval=10.0, step=0.5, group=tpslGR)
 sl_atr         = input.float(1.0,  "Stop Loss (ATR Multiplier)",   minval=0.5, maxval=10.0, step=0.5, group=tpslGR)
-ic_tp_atr      = input.float(1.0,  "IC TP Entry Band (ATR Mult)",  minval=0.5, maxval=5.0,  step=0.5, group=tpslGR)
-ic_sl_atr      = input.float(2.0,  "IC SL Drift Max (ATR Mult)",   minval=1.0, maxval=8.0,  step=0.5, group=tpslGR)
 
 // Base Weights (7 components: signal strength × tradability)
 w_mb  = input.int(25, "Weight: Market Bias %",      minval=0, maxval=40, group="Scanner: Scoring", display=display.data_window)
@@ -183,25 +178,7 @@ plot(show_stack ? v_ema8  : na, "EMA 8",  color=c_ema8,  linewidth=2)
 plot(show_stack ? v_ema21 : na, "EMA 21", color=c_ema21, linewidth=2)
 plot(show_stack ? v_ema34 : na, "EMA 34", color=c_ema34, linewidth=2)
 
-// Standard MAs
-ma5   = ta.sma(close, 5),   ma10  = ta.sma(close, 10),  ma20  = ta.sma(close, 20)
-ma60  = ta.sma(close, 60),  ma120 = ta.sma(close, 120), ma200 = ta.sma(close, 200)
-plot(showMA ? ma5   : na, "MA5",   color=ma5_color,   linewidth=1)
-plot(showMA ? ma10  : na, "MA10",  color=ma10_color,  linewidth=1)
-plot(showMA ? ma20  : na, "MA20",  color=ma20_color,  linewidth=1)
-plot(showMA ? ma60  : na, "MA60",  color=ma60_color,  linewidth=1)
-plot(showMA ? ma120 : na, "MA120", color=ma120_color, linewidth=1)
-plot(showMA ? ma200 : na, "MA200", color=ma200_color, linewidth=1)
 
-// Historical Dots
-dotColor = color.new(color.yellow, 0)
-dotSize  = size.tiny
-plotshape(showDots ? 1 : na, "5d",   style=shape.circle, location=location.belowbar, color=dotColor, size=dotSize, offset=-5,   show_last=1)
-plotshape(showDots ? 1 : na, "10d",  style=shape.circle, location=location.belowbar, color=dotColor, size=dotSize, offset=-10,  show_last=1)
-plotshape(showDots ? 1 : na, "20d",  style=shape.circle, location=location.belowbar, color=dotColor, size=dotSize, offset=-20,  show_last=1)
-plotshape(showDots ? 1 : na, "60d",  style=shape.circle, location=location.belowbar, color=dotColor, size=dotSize, offset=-60,  show_last=1)
-plotshape(showDots ? 1 : na, "120d", style=shape.circle, location=location.belowbar, color=dotColor, size=dotSize, offset=-120, show_last=1)
-plotshape(showDots ? 1 : na, "200d", style=shape.circle, location=location.belowbar, color=dotColor, size=dotSize, offset=-200, show_last=1)
 
 // Market Bias Visuals
 mb_o = ta.ema(open, ha_len), mb_c = ta.ema(close, ha_len), mb_h = ta.ema(high, ha_len), mb_l = ta.ema(low, ha_len)
@@ -346,16 +323,16 @@ type StockData
 s_t3_smooth(src, len) =>
     xe1=ta.ema(src,len), xe2=ta.ema(xe1,len), xe3=ta.ema(xe2,len)
     xe4=ta.ema(xe3,len), xe5=ta.ema(xe4,len), xe6=ta.ema(xe5,len)
-    b=0.7, c1=-b*b*b, c2=3*b*b+3*b*b*b, c3=-6*b*b-3*b-3*b*b*b, c4=1+3*b+b*b*b+3*b*b
-    c1*xe6 + c2*xe5 + c3*xe4 + c4*xe3
+    b=0.7, c1=-b*b*b, c_2=3*b*b+3*b*b*b, c3=-6*b*b-3*b-3*b*b*b, c4=1+3*b+b*b*b+3*b*b
+    c1*xe6 + c_2*xe5 + c3*xe4 + c4*xe3
 
 s_calc_mb(c, o, h, l, len) =>
     mb_o=ta.ema(o,len), mb_c=ta.ema(c,len), mb_h=ta.ema(h,len), mb_l=ta.ema(l,len)
     hc=(mb_o+mb_h+mb_l+mb_c)/4
     xho=(mb_o+mb_c)/2
     ho=na(xho[1])?(mb_o+mb_c)/2:(xho[1]+hc[1])/2
-    o2=ta.ema(ho,len), c2=ta.ema(hc,len)
-    osc=100*(c2-o2), sm=ta.ema(osc,7)
+    _o2=ta.ema(ho,len), _c2=ta.ema(hc,len)
+    osc=100*(_c2-_o2), sm=ta.ema(osc,7)
     is_bull=osc>0, is_str=is_bull?(osc>=sm):(osc<=sm)
     bs_bull=is_bull and osc[1]<0, bs_bear=not is_bull and osc[1]>=0
     [osc,is_bull,is_str,bs_bull,bs_bear]
@@ -404,19 +381,19 @@ s_calc_hv_pct(period, lookback) =>
     [hv_now, pct]
 
 // Setup Identification (v3.2B relaxed + v3.3 RVOL contraction for pullbacks)
-s_identify(osc, bull, bs_bull, bs_bear, bxs, bxl, rev_up, rev_dn, crup, crdn, d8, d21, d34, bstk, brstk, t21, t34, cup8, cdn8, rvol_now, pb_max) =>
+s_identify(osc, bull, bs_bull, bs_bear, bxs, bxl, rev_up, rev_dn, crup, crdn, d8, d21, d34, bstk, brstk, t21, t34, cup8, cdn8, rvol_now, pb_max, is_sqz) =>
     name="Mixed", type="NEUTRAL", conf=0
 
     // ── CALL setups (strongest → weakest) ──────────────────
     if (bs_bull or (bull and osc>2)) and (crup or (bxs>0 and rev_up)) and bxl>0 and cup8 and bstk
         name:="Perfect Storm", type:="CALL", conf:=3
     else if bull and osc>2 and bxs>10 and bxl>5 and cup8 and d8>1 and d21>0
-        name:="Breakout", type:="CALL", conf:=3
+        name:=is_sqz ? "Squeeze Breakout" : "Breakout", type:="CALL", conf:=3
     else if bull and osc>2 and bxs>5 and bxl>8 and d8>0
         name:="Strong Trend", type:="CALL", conf:=2
     else if bull and osc>1 and bxs>0 and not crdn and bxl>0 and (t21 or t34) and d8>-2
-        // [v3.3] pullbacks must shrink in volume (healthy retracement, not distribution)
-        if rvol_now <= pb_max
+        // [v3.3] pullbacks must shrink in volume and hit structural support (21 or 50 EMA)
+        if rvol_now <= pb_max and (math.abs(d8) <= 1.5 or math.abs(d34) <= 1.5)
             name:="Pullback Buy", type:="CALL", conf:=2
         else
             name:="Vol Distribution", type:="NEUTRAL", conf:=1
@@ -427,12 +404,12 @@ s_identify(osc, bull, bs_bull, bs_bear, bxs, bxl, rev_up, rev_dn, crup, crdn, d8
     else if (bs_bear or (not bull and osc<-2)) and (crdn or (bxs<0 and rev_dn)) and bxl<0 and cdn8 and brstk
         name:="Perfect Storm", type:="PUT", conf:=3
     else if not bull and osc<-2 and bxs<-10 and bxl<-5 and cdn8 and d8<-1 and d21<0
-        name:="Breakdown", type:="PUT", conf:=3
+        name:=is_sqz ? "Squeeze Breakdown" : "Breakdown", type:="PUT", conf:=3
     else if not bull and osc<-2 and bxs<-5 and bxl<-8 and d8<0
         name:="Strong Down", type:="PUT", conf:=2
     else if not bull and osc<-1 and bxs<0 and not crup and bxl<0 and (t21 or t34) and d8<2
-        // [v3.3] failed rallies must shrink in volume
-        if rvol_now <= pb_max
+        // [v3.3] failed rallies must shrink in volume and hit structural support (21 or 50 EMA)
+        if rvol_now <= pb_max and (math.abs(d8) <= 1.5 or math.abs(d34) <= 1.5)
             name:="Failed Rally", type:="PUT", conf:=2
         else
             name:="Vol Accumulation", type:="NEUTRAL", conf:=1
@@ -463,9 +440,8 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
     [rvol_now, rvol_2bar] = s_calc_rvol(volume, rvol_period)
 
     // Earnings Date (Check if earnings are coming up soon)
-    t_resolved = syminfo.prefix != "" ? syminfo.prefix + ":" + syminfo.ticker : "NASDAQ:AAPL"
-    ern_ms_raw = request.earnings(t_resolved, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
-    ern_ms = syminfo.prefix != "" ? ern_ms_raw : na
+    // Construct ticker symbol (prefix:ticker) or return na if prefix unavailable
+    ern_ms = syminfo.prefix != "" ? request.earnings(syminfo.prefix + ":" + syminfo.ticker, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off) : na
     days_to_ern = na(ern_ms) ? 999 : (ern_ms - time) / 86400000
     is_earn_near = use_earn and (days_to_ern > 0 and days_to_ern <= earn_thresh)
 
@@ -473,7 +449,14 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
     [mb,isb,iss,bsb,bss]                                         = s_calc_mb(close,open,high,low,c_mb)
     [bxs,mabxs,bxl,rvu,rvd,cru,crd]                             = s_calc_bx(close,c_s1,c_s2,c_s3,c_l1,c_l2)
     [e8,e21,e34,d8,d21,d34,bstk,brstk,t21,t34,cup8,cdn8]        = s_calc_emas(close)
-    [sn,st,sc]                                                    = s_identify(mb,isb,bsb,bss,bxs,bxl,rvu,rvd,cru,crd,d8,d21,d34,bstk,brstk,t21,t34,cup8,cdn8, rvol_now, pb_rvol_max)
+
+    // Volatility Contraction (Squeeze)
+    bb_dev = 2.0 * ta.stdev(close, 20)
+    kc_dev = 1.5 * ta.atr(20)
+    is_sqz = (ta.sma(close, 20) + bb_dev) < (ta.ema(close, 20) + kc_dev) and (ta.sma(close, 20) - bb_dev) > (ta.ema(close, 20) - kc_dev)
+    is_sqz_hist = is_sqz or is_sqz[1] or is_sqz[2]
+
+    [sn,st,sc]                                                    = s_identify(mb,isb,bsb,bss,bxs,bxl,rvu,rvd,cru,crd,d8,d21,d34,bstk,brstk,t21,t34,cup8,cdn8, rvol_now, pb_rvol_max, is_sqz_hist)
 
     // ADX
     [adx_v, plus_di, minus_di] = s_calc_adx(adx_period)
@@ -594,12 +577,16 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
     boost_active = use_boost and f_mb >= boost_mb_thresh and f_bxs >= boost_bxs_thresh and core_agree == 3
     comp        := boost_active ? math.min(comp * 1.1, 100) : comp
 
+    // Squeeze Bonus
+    if is_sqz_hist and (sn == "Squeeze Breakout" or sn == "Squeeze Breakdown")
+        comp := math.min(comp + 5.0, 100.0)
+
     overext   = use_mr_filter and math.abs(close - e21) > (mr_stddev_mult * ta.atr(mr_lookback))
     ema50_guard = st == "PUT" and close > e34
 
-    // Weekly MTF Hard Filter (×3 approximation)
-    [wk_osc, wk_bull, wk_str, _, _] = s_calc_mb(close, open, high, low, c_mb * 3)
-    [wk_bxs, _, wk_bxl, _, _, _, _] = s_calc_bx(close, c_s1 * 3, c_s2 * 3, c_s3, c_l1 * 3, c_l2)
+    // Weekly MTF Hard Filter (true weekly data, not approximation)
+    [wk_osc, wk_bull, wk_str, _, _] = request.security(syminfo.tickerid, "W", s_calc_mb(close, open, high, low, c_mb), lookahead=barmerge.lookahead_off)
+    [wk_bxs, _, wk_bxl, _, _, _, _] = request.security(syminfo.tickerid, "W", s_calc_bx(close, c_s1, c_s2, c_s3, c_l1, c_l2), lookahead=barmerge.lookahead_off)
     weekly_score_approx = 50.0 + (wk_bull ? math.min(wk_osc * 5, 30) : -math.min(math.abs(wk_osc) * 5, 30)) + (wk_str ? 20 : 5)
     mtf_conflict = use_mtf_filter and ((st == "CALL" and weekly_score_approx < mtf_score_floor) or (st == "PUT" and weekly_score_approx > 52))
 
@@ -872,6 +859,21 @@ f_get_struct(s_stype, s_setup, s_regime, s_hv_env, s_hv_exp, s_rvol, r_thresh, s
 
     [struct_rec, portal_eng]
 
+// IC Composite Score — 5 range-quality metrics
+f_ic_score(adx_val, hv_env, rvol_val, range_w_ratio, range_pos_pct) =>
+    // ADX Quietness (30%) — lower ADX = stronger range confirmation
+    adx_s = adx_val <= 12 ? 95.0 : adx_val <= 16 ? 85.0 : adx_val <= 20 ? 75.0 : adx_val <= 25 ? 55.0 : 35.0
+    // Range Width / ATR (25%) — wider range = more premium to collect
+    rw_s = range_w_ratio >= 4 ? 95.0 : range_w_ratio >= 3 ? 85.0 : range_w_ratio >= 2.5 ? 75.0 : range_w_ratio >= 2 ? 60.0 : 35.0
+    // Price Centering (20%) — centered = more room before breach
+    dev = math.abs(range_pos_pct - 50.0)
+    pc_s = dev <= 10 ? 95.0 : dev <= 20 ? 80.0 : dev <= 30 ? 65.0 : dev <= 40 ? 45.0 : 30.0
+    // HV Premium (15%) — higher vol = better option premium
+    hv_s = hv_env == "Hi" ? 90.0 : hv_env == "Mid" ? 70.0 : 40.0
+    // RVOL Stability (10%) — moderate vol = stable range
+    rv_s = (rvol_val >= 0.8 and rvol_val <= 1.5) ? 85.0 : (rvol_val >= 0.6 and rvol_val <= 2.0) ? 65.0 : rvol_val < 0.6 ? 55.0 : 35.0
+    math.min(adx_s * 0.30 + rw_s * 0.25 + pc_s * 0.20 + hv_s * 0.15 + rv_s * 0.10, 100.0)
+
 
 // ==========================================
 // 6. SCANNER EXECUTION
@@ -1013,15 +1015,18 @@ if barstate.islast and show_scanner and array.size(results) > 0
 // This section tracks signals on the CURRENT chart symbol and calculates 
 // how price moved 14 and 30 bars after the signal.
 
-f_draw_bt_row(tbl_id, row, label, t_count, c14, s14, m14, c30, s30, m30) =>
+f_draw_bt_row(tbl_id, row, label, t_count, c7, s7, m7, c14, s14, m14, c30, s30, m30) =>
+    r7  = c7 > 0 ? (s7 / math.max(1, c7)) * 100 : 0
     r14 = c14 > 0 ? (s14 / math.max(1, c14)) * 100 : 0
     r30 = c30 > 0 ? (s30 / math.max(1, c30)) * 100 : 0
     table.cell(tbl_id, 0, row, label, text_color=color.white, text_size=size.small, text_halign=text.align_left)
     table.cell(tbl_id, 1, row, str.tostring(t_count), text_color=color.gray, text_size=size.small)
-    table.cell(tbl_id, 2, row, str.tostring(math.round(r14, 1)) + "%", text_color=r14 >= 55 ? color.lime : color.white, text_size=size.small)
-    table.cell(tbl_id, 3, row, (m14 >= 0 ? "+" : "") + str.tostring(math.round(m14 * 100 / math.max(1, c14), 2)) + "%", text_color=color.white, text_size=size.small)
-    table.cell(tbl_id, 4, row, str.tostring(math.round(r30, 1)) + "%", text_color=r30 >= 55 ? color.lime : color.white, text_size=size.small)
-    table.cell(tbl_id, 5, row, (m30 >= 0 ? "+" : "") + str.tostring(math.round(m30 * 100 / math.max(1, c30), 2)) + "%", text_color=color.white, text_size=size.small)
+    table.cell(tbl_id, 2, row, str.tostring(math.round(r7, 1)) + "%", text_color=r7 >= 55 ? color.lime : color.white, text_size=size.small)
+    table.cell(tbl_id, 3, row, (m7 >= 0 ? "+" : "") + str.tostring(math.round(m7 * 100 / math.max(1, c7), 2)) + "%", text_color=color.white, text_size=size.small)
+    table.cell(tbl_id, 4, row, str.tostring(math.round(r14, 1)) + "%", text_color=r14 >= 55 ? color.lime : color.white, text_size=size.small)
+    table.cell(tbl_id, 5, row, (m14 >= 0 ? "+" : "") + str.tostring(math.round(m14 * 100 / math.max(1, c14), 2)) + "%", text_color=color.white, text_size=size.small)
+    table.cell(tbl_id, 6, row, str.tostring(math.round(r30, 1)) + "%", text_color=r30 >= 55 ? color.lime : color.white, text_size=size.small)
+    table.cell(tbl_id, 7, row, (m30 >= 0 ? "+" : "") + str.tostring(math.round(m30 * 100 / math.max(1, c30), 2)) + "%", text_color=color.white, text_size=size.small)
 
 // TP/SL row renderer (must be global scope — Pine Script rule)
 f_tpsl_row(t, row, lbl, tot, wins, tp_hits, sl_hits, sum_ret, bg) =>
@@ -1033,6 +1038,10 @@ f_tpsl_row(t, row, lbl, tot, wins, tp_hits, sl_hits, sum_ret, bg) =>
     table.cell(t, 3, row, (avg >= 0 ? "+" : "") + str.tostring(math.round(avg, 2)) + "%",  text_color=avg >= 0  ? color.lime : color.red,   text_size=size.small, bgcolor=bg)
     table.cell(t, 4, row, "TP:" + str.tostring(tp_hits),                                   text_color=color.lime,                         text_size=size.small, bgcolor=bg)
     table.cell(t, 5, row, "SL:" + str.tostring(sl_hits),                                   text_color=color.red,                          text_size=size.small, bgcolor=bg)
+    // Span empty space to cover the expanded 8-column layout
+    table.cell(t, 6, row, "", bgcolor=bg)
+    table.cell(t, 7, row, "", bgcolor=bg)
+    table.merge_cells(t, 0, row, 1, row)
 
 
 
@@ -1040,40 +1049,49 @@ if show_backtest
     // Get signal data for current chart symbol
     [c_comp, c_sig, c_setup, c_stype, c_conf, c_mb, c_bxs, c_bxl, c_d8, c_d21, c_rev, c_rvol, c_regime, c_overext, c_mtf, c_adx, c_hv_env, c_hv_exp, c_earn, c_mkt_state] = s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2)
     
-    is_valid_sig = c_comp >= min_score_bt and (c_stype == "CALL" or c_stype == "PUT")
+    is_valid_sig = c_comp >= math.max(min_score_bt, 70) and (c_stype == "CALL" or c_stype == "PUT")
 
     // Persistent stats — Overall
     var int total_signals = 0
+    var int c7_total = 0, var int success_7 = 0, var float sum_m7_total = 0.0
     var int c14_total = 0, var int success_14 = 0, var float sum_m14_total = 0.0
     var int c30_total = 0, var int success_30 = 0, var float sum_m30_total = 0.0
     // Strategy Breakdown — CALL
-    var int t_calls = 0, var int c14_calls = 0, var int s14_calls = 0, var float sum_m14_calls = 0.0
+    var int t_calls = 0, var int c7_calls = 0, var int s7_calls = 0, var float sum_m7_calls = 0.0
+    var int c14_calls = 0, var int s14_calls = 0, var float sum_m14_calls = 0.0
     var int c30_calls = 0, var int s30_calls = 0, var float sum_m30_calls = 0.0
     // Strategy Breakdown — PUT
-    var int t_puts = 0, var int c14_puts = 0, var int s14_puts = 0, var float sum_m14_puts = 0.0
+    var int t_puts = 0, var int c7_puts = 0, var int s7_puts = 0, var float sum_m7_puts = 0.0
+    var int c14_puts = 0, var int s14_puts = 0, var float sum_m14_puts = 0.0
     var int c30_puts = 0, var int s30_puts = 0, var float sum_m30_puts = 0.0
-    // Strategy Breakdown — IC
-    var int t_ics = 0, var int c14_ics = 0, var int s14_ics = 0, var float sum_m14_ics = 0.0
-    var int c30_ics = 0, var int s30_ics = 0, var float sum_m30_ics = 0.0
     // Filtered Breakdown
-    var int t_filt = 0, var int c14_filt = 0, var int s14_filt = 0, var float sum_m14_filt = 0.0
+    var int t_filt = 0, var int c7_filt = 0, var int s7_filt = 0, var float sum_m7_filt = 0.0
+    var int c14_filt = 0, var int s14_filt = 0, var float sum_m14_filt = 0.0
     var int c30_filt = 0, var int s30_filt = 0, var float sum_m30_filt = 0.0
+    // Simplified Tier Breakdown — CALL (S, A, B)
+    var int t_call_s = 0, var int c7_call_s = 0, var int s7_call_s = 0, var float sum_m7_call_s = 0.0, var int c14_call_s = 0, var int s14_call_s = 0, var float sum_m14_call_s = 0.0, var int c20_call_s = 0, var int s20_call_s = 0, var float sum_m20_call_s = 0.0
+    var int t_call_a = 0, var int c7_call_a = 0, var int s7_call_a = 0, var float sum_m7_call_a = 0.0, var int c14_call_a = 0, var int s14_call_a = 0, var float sum_m14_call_a = 0.0, var int c20_call_a = 0, var int s20_call_a = 0, var float sum_m20_call_a = 0.0
+    var int t_call_b = 0, var int c7_call_b = 0, var int s7_call_b = 0, var float sum_m7_call_b = 0.0, var int c14_call_b = 0, var int s14_call_b = 0, var float sum_m14_call_b = 0.0, var int c20_call_b = 0, var int s20_call_b = 0, var float sum_m20_call_b = 0.0
+    
+    // Simplified Tier Breakdown — PUT (S, A, B)
+    var int t_put_s = 0, var int c7_put_s = 0, var int s7_put_s = 0, var float sum_m7_put_s = 0.0, var int c14_put_s = 0, var int s14_put_s = 0, var float sum_m14_put_s = 0.0, var int c20_put_s = 0, var int s20_put_s = 0, var float sum_m20_put_s = 0.0
+    var int t_put_a = 0, var int c7_put_a = 0, var int s7_put_a = 0, var float sum_m7_put_a = 0.0, var int c14_put_a = 0, var int s14_put_a = 0, var float sum_m14_put_a = 0.0, var int c20_put_a = 0, var int s20_put_a = 0, var float sum_m20_put_a = 0.0
+    var int t_put_b = 0, var int c7_put_b = 0, var int s7_put_b = 0, var float sum_m7_put_b = 0.0, var int c14_put_b = 0, var int s14_put_b = 0, var float sum_m14_put_b = 0.0, var int c20_put_b = 0, var int s20_put_b = 0, var float sum_m20_put_b = 0.0
     
     // Check Structure Rec dynamically to see if strategy is valid to enter
     [c_struct_rec, c_portal_eng] = f_get_struct(c_stype, c_setup, c_regime, c_hv_env, c_hv_exp, c_rvol, rvol_threshold, c_overext, c_mtf, c_earn, c_d8, c_d21, c_comp)
     has_valid_struct = not str.startswith(c_struct_rec, "⏳") and not str.startswith(c_struct_rec, "⚠️") and not str.startswith(c_struct_rec, "⬆️") and not str.startswith(c_struct_rec, "—")
     
-    // Iron Condor Logic Check (explicit recommendation)
-    is_ic_rec = str.contains(c_struct_rec, "Iron Condor")
-    
-    // Only trigger if we have a valid structural recommendation AND score is high enough 
-    is_any_sig = (is_valid_sig and has_valid_struct) or is_ic_rec
+    // Trigger condition
+    is_any_sig = (is_valid_sig and has_valid_struct)
 
     // Track active signals
     var float[] signal_entry_prices = array.new_float(0)
     var int[]   signal_entry_bars   = array.new_int(0)
     var string[] signal_types       = array.new_string(0)
     var string[] signal_setups      = array.new_string(0)
+    var string[] signal_tiers       = array.new_string(0)
+    var string[] signal_regimes     = array.new_string(0)  // Market regime at entry
     var int     last_entry_idx      = -100
     
     // TP/SL tracking arrays (parallel to above)
@@ -1096,13 +1114,17 @@ if show_backtest
     var int   tpsl_put_total = 0,  var int tpsl_put_wins  = 0
     var int   tpsl_put_tp    = 0,  var int tpsl_put_sl    = 0
     var float tpsl_put_ret   = 0.0
-    // TP/SL — IC breakdown
-    var int   tpsl_ic_total  = 0,  var int tpsl_ic_wins   = 0
-    var int   tpsl_ic_tp     = 0,  var int tpsl_ic_sl     = 0
-    var float tpsl_ic_ret    = 0.0
+    // TP/SL — Directional Tier breakdown (Call)
+    var int tpsl_c_s_tot = 0, var int tpsl_c_s_win = 0, var int tpsl_c_s_tp = 0, var int tpsl_c_s_sl = 0, var float tpsl_c_s_ret = 0.0
+    var int tpsl_c_a_tot = 0, var int tpsl_c_a_win = 0, var int tpsl_c_a_tp = 0, var int tpsl_c_a_sl = 0, var float tpsl_c_a_ret = 0.0
+    var int tpsl_c_b_tot = 0, var int tpsl_c_b_win = 0, var int tpsl_c_b_tp = 0, var int tpsl_c_b_sl = 0, var float tpsl_c_b_ret = 0.0
+    // TP/SL — Directional Tier breakdown (Put)
+    var int tpsl_p_s_tot = 0, var int tpsl_p_s_win = 0, var int tpsl_p_s_tp = 0, var int tpsl_p_s_sl = 0, var float tpsl_p_s_ret = 0.0
+    var int tpsl_p_a_tot = 0, var int tpsl_p_a_win = 0, var int tpsl_p_a_tp = 0, var int tpsl_p_a_sl = 0, var float tpsl_p_a_ret = 0.0
+    var int tpsl_p_b_tot = 0, var int tpsl_p_b_win = 0, var int tpsl_p_b_tp = 0, var int tpsl_p_b_sl = 0, var float tpsl_p_b_ret = 0.0
 
     // Option A Logic: Trigger on NEW signal OR every 21 bars of persistent signal
-    is_new_status = (c_sig != c_sig[1] or is_ic_rec != is_ic_rec[1])
+    is_new_status = (c_sig != c_sig[1])
     is_cooldown_expired = (bar_index - last_entry_idx >= 21)
     
     trigger_trade = is_any_sig and (is_new_status or is_cooldown_expired)
@@ -1111,18 +1133,19 @@ if show_backtest
         last_entry_idx := bar_index
         array.push(signal_entry_prices, close)
         array.push(signal_entry_bars,   bar_index)
-        array.push(signal_types,        is_ic_rec ? "IC" : c_stype)
+        array.push(signal_types,        c_stype)
         array.push(signal_setups,       c_setup)
+        effective_score = c_comp
+        tier = effective_score >= 90 ? "S" : effective_score >= 80 ? "A" : "B"
+        array.push(signal_tiers,        tier)
+        array.push(signal_regimes,      c_regime)  // Store regime at entry
         array.push(signal_closed,       false)
         
         entry_atr = ta.atr(14)
         array.push(signal_atr_val,      entry_atr)
         
         // Set TP/SL levels based on signal direction using ATR multipliers
-        if is_ic_rec // IC uses dummy boundaries here; drift check handles actual ATR comparison
-            array.push(signal_tp_prices, close + (entry_atr * ic_tp_atr))
-            array.push(signal_sl_prices, close - (entry_atr * ic_tp_atr))
-        else if c_stype == "CALL"
+        if c_stype == "CALL"
             array.push(signal_tp_prices, close + (entry_atr * tp_atr))
             array.push(signal_sl_prices, close - (entry_atr * sl_atr))
         else  // PUT
@@ -1130,13 +1153,27 @@ if show_backtest
             array.push(signal_sl_prices, close + (entry_atr * sl_atr))
         
         total_signals += 1
-        if is_ic_rec
-            t_ics += 1
-        else if c_stype == "CALL"
+        if c_stype == "CALL"
             t_calls += 1
         else if c_stype == "PUT"
             t_puts += 1
             
+        // Tier counts: DIRECTIONAL trades only
+        if c_stype == "CALL"
+            if tier == "S"
+                t_call_s += 1
+            else if tier == "A"
+                t_call_a += 1
+            else
+                t_call_b += 1
+        else if c_stype == "PUT"
+            if tier == "S"
+                t_put_s += 1
+            else if tier == "A"
+                t_put_a += 1
+            else
+                t_put_b += 1
+
         if setup_filt_bt == "All" or str.contains(c_setup, setup_filt_bt)
             t_filt += 1
 
@@ -1147,6 +1184,8 @@ if show_backtest
             e_price  = array.get(signal_entry_prices, i)
             e_type   = array.get(signal_types, i)
             e_setup  = array.get(signal_setups, i)
+            e_tier   = array.get(signal_tiers, i)
+            e_regime = array.get(signal_regimes, i)
             e_closed = array.get(signal_closed, i)
             e_tp     = array.get(signal_tp_prices, i)
             e_sl     = array.get(signal_sl_prices, i)
@@ -1154,33 +1193,36 @@ if show_backtest
             
             is_match = setup_filt_bt == "All" or str.contains(e_setup, setup_filt_bt)
 
-            // ── TP/SL Check: runs on EVERY bar, takes priority ──────────────
+            // ── TP/SL Check: runs on EVERY bar, takes priority
             if use_tpsl and not e_closed
                 tp_hit = false
                 sl_hit = false
                 e_atr = array.get(signal_atr_val, i)
-                
-                if e_type == "IC"
-                    // IC: TP if price stays inside band; SL if it breaks out
-                    ic_drift = math.abs(close - e_price)
-                    if ic_drift <= (e_atr * ic_tp_atr)
-                        tp_hit := true  // still within range → profitable
-                    else if ic_drift >= (e_atr * ic_sl_atr)
-                        sl_hit := true  // broke out → stop loss
-                else if e_type == "CALL"
-                    if high >= e_tp
+
+                if e_type == "CALL"
+                    tp_triggered = high >= e_tp
+                    sl_triggered = low <= e_sl
+                    // Conservative: if both hit same bar, prioritize SL (worst case)
+                    if tp_triggered and sl_triggered
+                        sl_hit := true
+                    else if tp_triggered
                         tp_hit := true
-                    else if low <= e_sl
+                    else if sl_triggered
                         sl_hit := true
                 else  // PUT
-                    if low <= e_tp   // TP for PUT = underlying dropped enough
+                    tp_triggered = low <= e_tp   // TP for PUT = underlying dropped enough
+                    sl_triggered = high >= e_sl  // SL for PUT = underlying rose above sl
+                    // Conservative: if both hit same bar, prioritize SL (worst case)
+                    if tp_triggered and sl_triggered
+                        sl_hit := true
+                    else if tp_triggered
                         tp_hit := true
-                    else if high >= e_sl  // SL for PUT = underlying rose above sl
+                    else if sl_triggered
                         sl_hit := true
                 
                 if tp_hit or sl_hit
                     array.set(signal_closed, i, true)
-                    ret_val = tp_hit ? (e_type == "IC" ? (e_atr * ic_tp_atr)/math.max(e_price, 0.01) : (e_atr * tp_atr)/math.max(e_price, 0.01)) : -(e_type == "IC" ? (e_atr * ic_sl_atr)/math.max(e_price, 0.01) : (e_atr * sl_atr)/math.max(e_price, 0.01))
+                    ret_val = tp_hit ? (e_atr * tp_atr)/math.max(e_price, 0.01) : -(e_atr * sl_atr)/math.max(e_price, 0.01)
                     tpsl_total   += 1
                     tpsl_sum_ret += ret_val
                     if tp_hit
@@ -1205,95 +1247,265 @@ if show_backtest
                             tpsl_put_tp   += 1
                         else
                             tpsl_put_sl += 1
-                    else  // IC
-                        tpsl_ic_total += 1
-                        tpsl_ic_ret   += ret_val
-                        if tp_hit
-                            tpsl_ic_wins += 1
-                            tpsl_ic_tp   += 1
-                        else
-                            tpsl_ic_sl += 1
+
+                            
+                    if e_type == "CALL"
+                        if e_tier == "S"
+                            tpsl_c_s_tot += 1
+                            tpsl_c_s_ret += ret_val
+                            if tp_hit
+                                tpsl_c_s_win += 1
+                                tpsl_c_s_tp  += 1
+                            else
+                                tpsl_c_s_sl  += 1
+                        else if e_tier == "A"
+                            tpsl_c_a_tot += 1
+                            tpsl_c_a_ret += ret_val
+                            if tp_hit
+                                tpsl_c_a_win += 1
+                                tpsl_c_a_tp  += 1
+                            else
+                                tpsl_c_a_sl  += 1
+                        else if e_tier == "B"
+                            tpsl_c_b_tot += 1
+                            tpsl_c_b_ret += ret_val
+                            if tp_hit
+                                tpsl_c_b_win += 1
+                                tpsl_c_b_tp  += 1
+                            else
+                                tpsl_c_b_sl  += 1
+                    else if e_type == "PUT"
+                        if e_tier == "S"
+                            tpsl_p_s_tot += 1
+                            tpsl_p_s_ret += ret_val
+                            if tp_hit
+                                tpsl_p_s_win += 1
+                                tpsl_p_s_tp  += 1
+                            else
+                                tpsl_p_s_sl  += 1
+                        else if e_tier == "A"
+                            tpsl_p_a_tot += 1
+                            tpsl_p_a_ret += ret_val
+                            if tp_hit
+                                tpsl_p_a_win += 1
+                                tpsl_p_a_tp  += 1
+                            else
+                                tpsl_p_a_sl  += 1
+                        else if e_tier == "B"
+                            tpsl_p_b_tot += 1
+                            tpsl_p_b_ret += ret_val
+                            if tp_hit
+                                tpsl_p_b_win += 1
+                                tpsl_p_b_tp  += 1
+                            else
+                                tpsl_p_b_sl  += 1
+
+            if diff == look_fwd_0
+                move = (close - e_price) / e_price
+                hit = false
+                trade_move = e_type == "CALL" ? move : -move
+                e_atr = array.get(signal_atr_val, i)
+                
+                c7_total += 1
+                sum_m7_total += trade_move
+                atr_threshold = min_win_atr > 0 ? (min_win_atr * e_atr / e_price) : (min_win_move / 100.0)
+                hit := trade_move > atr_threshold
+                if hit
+                    success_7 += 1
+                
+                if e_type == "CALL" 
+                    c7_calls += 1
+                    sum_m7_calls += trade_move
+                    if hit
+                        s7_calls += 1
+                else 
+                    c7_puts += 1
+                    sum_m7_puts += move
+                    if hit
+                        s7_puts += 1
+                
+                if is_match
+                    c7_filt += 1
+                    sum_m7_filt += (e_type == "CALL" ? move : -move)
+                    if hit
+                        s7_filt += 1
+                
+                if e_type == "CALL"
+                    if e_tier == "S"
+                        c7_call_s += 1
+                        sum_m7_call_s += trade_move
+                        if hit
+                            s7_call_s += 1
+                    else if e_tier == "A"
+                        c7_call_a += 1
+                        sum_m7_call_a += trade_move
+                        if hit
+                            s7_call_a += 1
+                    else if e_tier == "B"
+                        c7_call_b += 1
+                        sum_m7_call_b += trade_move
+                        if hit
+                            s7_call_b += 1
+                else if e_type == "PUT"
+                    if e_tier == "S"
+                        c7_put_s += 1
+                        sum_m7_put_s += trade_move
+                        if hit
+                            s7_put_s += 1
+                    else if e_tier == "A"
+                        c7_put_a += 1
+                        sum_m7_put_a += trade_move
+                        if hit
+                            s7_put_a += 1
+                    else if e_tier == "B"
+                        c7_put_b += 1
+                        sum_m7_put_b += trade_move
+                        if hit
+                            s7_put_b += 1
 
             if diff == look_fwd_1
                 move = (close - e_price) / e_price
                 hit = false
-                if e_type == "IC"
-                    c14_ics += 1
-                    sum_m14_ics += math.abs(move)
-                    hit = math.abs(move) <= 0.045 // Success if within +/- 4.5% range
+                trade_move = e_type == "CALL" ? move : -move
+                e_atr = array.get(signal_atr_val, i)
+                
+                c14_total += 1
+                sum_m14_total += trade_move
+                // ATR-normalized win threshold (fair across volatility regimes)
+                atr_threshold = min_win_atr > 0 ? (min_win_atr * e_atr / e_price) : (min_win_move / 100.0)
+                hit := trade_move > atr_threshold
+                if hit
+                    success_14 += 1
+                
+                if e_type == "CALL" 
+                    c14_calls += 1
+                    sum_m14_calls += trade_move
                     if hit
-                        s14_ics += 1
-                    // Add to overall
-                    c14_total += 1
-                    sum_m14_total += move // For IC in overall, we'll keep simple move
+                        s14_calls += 1
+                else 
+                    c14_puts += 1
+                    sum_m14_puts += move
                     if hit
-                        success_14 += 1
-                else
-                    c14_total += 1
-                    trade_move = e_type == "CALL" ? move : -move
-                    sum_m14_total += trade_move
-                    hit = trade_move > 0
-                    if hit
-                        success_14 += 1
-                    
-                    if e_type == "CALL" 
-                        c14_calls += 1
-                        sum_m14_calls += trade_move
-                        if hit
-                            s14_calls += 1
-                    else 
-                        c14_puts += 1
-                        sum_m14_puts += trade_move
-                        if hit
-                            s14_puts += 1
+                        s14_puts += 1
                 
                 if is_match
                     c14_filt += 1
-                    sum_m14_filt += (e_type == "IC" ? math.abs(move) : (e_type == "CALL" ? move : -move))
+                    sum_m14_filt += (e_type == "CALL" ? move : -move)
                     if hit
                         s14_filt += 1
-                    
+                
+                if e_type == "CALL"
+                    if e_tier == "S"
+                        c14_call_s += 1
+                        sum_m14_call_s += trade_move
+                        if hit
+                            s14_call_s += 1
+                    else if e_tier == "A"
+                        c14_call_a += 1
+                        sum_m14_call_a += trade_move
+                        if hit
+                            s14_call_a += 1
+                    else if e_tier == "B"
+                        c14_call_b += 1
+                        sum_m14_call_b += trade_move
+                        if hit
+                            s14_call_b += 1
+                else if e_type == "PUT"
+                    if e_tier == "S"
+                        c14_put_s += 1
+                        sum_m14_put_s += trade_move
+                        if hit
+                            s14_put_s += 1
+                    else if e_tier == "A"
+                        c14_put_a += 1
+                        sum_m14_put_a += trade_move
+                        if hit
+                            s14_put_a += 1
+                    else if e_tier == "B"
+                        c14_put_b += 1
+                        sum_m14_put_b += trade_move
+                        if hit
+                            s14_put_b += 1
+
             if diff == look_fwd_2
                 move = (close - e_price) / e_price
-                if e_type == "IC"
-                    c30_ics += 1
-                    sum_m30_ics += math.abs(move) // Track absolute deviation
-                    hit = math.abs(move) <= 0.055 // Success if within +/- 5.5% range for 30d
-                    if hit
-                        s30_ics += 1
-                    // Add to overall
-                    c30_total += 1
-                    sum_m30_total += move
-                    if hit
-                        success_30 += 1
-                else
-                    c30_total += 1
-                    // Track trade success movement (Call = +move, Put = -move)
-                    trade_move = e_type == "CALL" ? move : -move
-                    sum_m30_total += trade_move
-                    hit = trade_move > 0
-                    if hit
-                        success_30 += 1
-                    
-                    if e_type == "CALL" 
-                        c30_calls += 1
-                        sum_m30_calls += trade_move
-                        if hit
-                            s30_calls += 1
-                    else 
-                        c30_puts += 1
-                        sum_m30_puts += trade_move
-                        if hit
-                            s30_puts += 1
+                bool hit2 = false
+                float trade_move_2 = e_type == "CALL" ? move : -move
+                e_atr_30 = array.get(signal_atr_val, i)
                 
+                c30_total += 1
+                // Track trade success movement (Call = +move, Put = -move)
+                sum_m30_total += trade_move_2
+                // ATR-normalized win threshold (fair across volatility regimes)
+                atr_threshold_30 = min_win_atr > 0 ? (min_win_atr * e_atr_30 / e_price) : (min_win_move / 100.0)
+                hit2 := trade_move_2 > atr_threshold_30
+                if hit2
+                    success_30 += 1
+                
+                if e_type == "CALL" 
+                    c30_calls += 1
+                    sum_m30_calls += trade_move_2
+                    if hit2
+                        s30_calls += 1
+                else 
+                    c30_puts += 1
+                    sum_m30_puts += move
+                    if hit2
+                        s30_puts += 1
+            
                 if is_match
                     c30_filt += 1
-                    sum_m30_filt += (e_type == "IC" ? math.abs(move) : (e_type == "CALL" ? move : -move))
-                // Remove once past the maximum fwd lookback
+                    sum_m30_filt += (e_type == "CALL" ? move : -move)
+                    if hit2
+                        s30_filt += 1
+
+                if e_type == "CALL"
+                    if e_tier == "S"
+                        c20_call_s += 1
+                        sum_m20_call_s += trade_move_2
+                        if hit2
+                            s20_call_s += 1
+                    else if e_tier == "A"
+                        c20_call_a += 1
+                        sum_m20_call_a += trade_move_2
+                        if hit2
+                            s20_call_a += 1
+                    else if e_tier == "B"
+                        c20_call_b += 1
+                        sum_m20_call_b += trade_move_2
+                        if hit2
+                            s20_call_b += 1
+                else if e_type == "PUT"
+                    if e_tier == "S"
+                        c20_put_s += 1
+                        sum_m20_put_s += trade_move_2
+                        if hit2
+                            s20_put_s += 1
+                    else if e_tier == "A"
+                        c20_put_a += 1
+                        sum_m20_put_a += trade_move_2
+                        if hit2
+                            s20_put_a += 1
+                    else if e_tier == "B"
+                        c20_put_b += 1
+                        sum_m20_put_b += trade_move_2
+                        if hit2
+                            s20_put_b += 1
+            
+            // Cleanup logic - decoupled from look_fwd_2 to fix survivorship bias in TP/SL stats
+            should_remove = false
+            if use_tpsl
+                should_remove := (e_closed and diff >= look_fwd_2) or diff >= 60
+            else
+                should_remove := diff >= look_fwd_2
+                
+            if should_remove
                 array.remove(signal_entry_bars,   i)
                 array.remove(signal_entry_prices, i)
                 array.remove(signal_types,        i)
                 array.remove(signal_setups,       i)
+                array.remove(signal_tiers,        i)
+                array.remove(signal_regimes,      i)
                 array.remove(signal_closed,       i)
                 array.remove(signal_tp_prices,    i)
                 array.remove(signal_sl_prices,    i)
@@ -1302,36 +1514,55 @@ if show_backtest
     // Display Stats Table
     if barstate.islast
         bt_tbl_pos = bt_pos == "top_right" ? position.top_right : bt_pos == "top_left" ? position.top_left : bt_pos == "bottom_right" ? position.bottom_right : bt_pos == "bottom_left" ? position.bottom_left : bt_pos == "top_center" ? position.top_center : position.bottom_center
-        var table bt_tbl = table.new(bt_tbl_pos, 6, 12, bgcolor=color.new(color.black, 40), border_width=1, border_color=color.gray)
+        var table bt_tbl = table.new(bt_tbl_pos, 8, 30, bgcolor=color.new(color.black, 40), border_width=1, border_color=color.gray)
         
-        bt_title = "Accuracy: " + syminfo.ticker + (setup_filt_bt == "All" ? "" : " [" + setup_filt_bt + "]") + " (" + str.tostring(bar_index + 1) + " bars)"
-        table.merge_cells(bt_tbl, 0, 0, 5, 0)
+        bt_title = "Signal Quality: " + syminfo.ticker + (setup_filt_bt == "All" ? "" : " [" + setup_filt_bt + "]") + " (" + str.tostring(bar_index + 1) + " bars · Underlying move, not option PnL)"
+        table.merge_cells(bt_tbl, 0, 0, 7, 0)
         table.cell(bt_tbl, 0, 0, bt_title, text_color=color.white, text_size=size.small, bgcolor=color.new(color.blue, 60))
         
         table.cell(bt_tbl, 0, 1, "Category", text_color=color.gray, text_size=size.tiny)
         table.cell(bt_tbl, 1, 1, "Count",    text_color=color.gray, text_size=size.tiny)
-        table.cell(bt_tbl, 2, 1, "Win 14d", text_color=color.gray, text_size=size.tiny)
-        table.cell(bt_tbl, 3, 1, "Move 14d", text_color=color.gray, text_size=size.tiny)
-        table.cell(bt_tbl, 4, 1, "Win 30d", text_color=color.gray, text_size=size.tiny)
-        table.cell(bt_tbl, 5, 1, "Move 30d", text_color=color.gray, text_size=size.tiny)
+        table.cell(bt_tbl, 2, 1, "Win 5d",   text_color=color.gray, text_size=size.tiny)
+        table.cell(bt_tbl, 3, 1, "Move 5d",  text_color=color.gray, text_size=size.tiny)
+        table.cell(bt_tbl, 4, 1, "Win 10d",  text_color=color.gray, text_size=size.tiny)
+        table.cell(bt_tbl, 5, 1, "Move 10d", text_color=color.gray, text_size=size.tiny)
+        table.cell(bt_tbl, 6, 1, "Win 20d",  text_color=color.gray, text_size=size.tiny)
+        table.cell(bt_tbl, 7, 1, "Move 20d", text_color=color.gray, text_size=size.tiny)
         
 
-        f_draw_bt_row(bt_tbl, 2, "OVERALL",   total_signals, c14_total, success_14, sum_m14_total, c30_total, success_30,  sum_m30_total)
-        f_draw_bt_row(bt_tbl, 3, "CALL Only", t_calls,       c14_calls, s14_calls,  sum_m14_calls, c30_calls, s30_calls,   sum_m30_calls)
-        f_draw_bt_row(bt_tbl, 4, "PUT Only",  t_puts,        c14_puts,  s14_puts,   sum_m14_puts,  c30_puts,  s30_puts,    sum_m30_puts)
-        f_draw_bt_row(bt_tbl, 5, "I.CONDOR",  t_ics,         c14_ics,   s14_ics,    sum_m14_ics,   c30_ics,   s30_ics,     sum_m30_ics)
+        f_draw_bt_row(bt_tbl, 2, "OVERALL",   total_signals, c7_total, success_7, sum_m7_total, c14_total, success_14, sum_m14_total, c30_total, success_30,  sum_m30_total)
         
-        // TP/SL Simulation Rows (overall + per category)
+        // --- CALL SECTION ---
+        table.merge_cells(bt_tbl, 0, 3, 7, 3)
+        table.cell(bt_tbl, 0, 3, "CALL STRATEGIES", text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.green, 70))
+        
+        f_draw_bt_row(bt_tbl, 4, "CALL Only (ALL)", t_calls, c7_calls, s7_calls,  sum_m7_calls, c14_calls, s14_calls,  sum_m14_calls, c30_calls, s30_calls,   sum_m30_calls)
+        f_draw_bt_row(bt_tbl, 5, "└ S(90+) Call",  t_call_s, c7_call_s, s7_call_s, sum_m7_call_s, c14_call_s, s14_call_s, sum_m14_call_s, c20_call_s, s20_call_s, sum_m20_call_s)
+        f_draw_bt_row(bt_tbl, 6, "└ A(80+) Call",  t_call_a, c7_call_a, s7_call_a, sum_m7_call_a, c14_call_a, s14_call_a, sum_m14_call_a, c20_call_a, s20_call_a, sum_m20_call_a)
+        f_draw_bt_row(bt_tbl, 7, "└ B(70+) Call",  t_call_b, c7_call_b, s7_call_b, sum_m7_call_b, c14_call_b, s14_call_b, sum_m14_call_b, c20_call_b, s20_call_b, sum_m20_call_b)
+        
         if use_tpsl
             tpsl_lbl = "TP" + str.tostring(tp_atr) + "A/SL" + str.tostring(sl_atr) + "A"
-            bg_total = color.new(color.yellow, 88)
-            bg_call  = color.new(color.green,  92)
-            bg_put   = color.new(color.red,    92)
-            bg_ic    = color.new(color.purple, 92)
-            f_tpsl_row(bt_tbl, 6, tpsl_lbl + " ALL",  tpsl_total,      tpsl_wins,      tpsl_tp_hits, tpsl_sl_hits, tpsl_sum_ret,  bg_total)
-            f_tpsl_row(bt_tbl, 7, tpsl_lbl + " CALL", tpsl_call_total, tpsl_call_wins, tpsl_call_tp, tpsl_call_sl, tpsl_call_ret, bg_call)
-            f_tpsl_row(bt_tbl, 8, tpsl_lbl + " PUT",  tpsl_put_total,  tpsl_put_wins,  tpsl_put_tp,  tpsl_put_sl,  tpsl_put_ret,  bg_put)
-            f_tpsl_row(bt_tbl, 9, tpsl_lbl + " IC",   tpsl_ic_total,   tpsl_ic_wins,   tpsl_ic_tp,   tpsl_ic_sl,   tpsl_ic_ret,   bg_ic)
+            bg_c = color.new(color.green, 92)
+            f_tpsl_row(bt_tbl, 8,  tpsl_lbl + " S Call", tpsl_c_s_tot, tpsl_c_s_win, tpsl_c_s_tp, tpsl_c_s_sl, tpsl_c_s_ret, bg_c)
+            f_tpsl_row(bt_tbl, 9,  tpsl_lbl + " A Call", tpsl_c_a_tot, tpsl_c_a_win, tpsl_c_a_tp, tpsl_c_a_sl, tpsl_c_a_ret, bg_c)
+            f_tpsl_row(bt_tbl, 10, tpsl_lbl + " B Call", tpsl_c_b_tot, tpsl_c_b_win, tpsl_c_b_tp, tpsl_c_b_sl, tpsl_c_b_ret, bg_c)
+
+        // --- PUT SECTION ---
+        table.merge_cells(bt_tbl, 0, 11, 7, 11)
+        table.cell(bt_tbl, 0, 11, "PUT STRATEGIES", text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.red, 70))
+        
+        f_draw_bt_row(bt_tbl, 12, "PUT Only (ALL)",  t_puts,  c7_puts,  s7_puts,   sum_m7_puts,  c14_puts,  s14_puts,   sum_m14_puts,  c30_puts,  s30_puts,    sum_m30_puts)
+        f_draw_bt_row(bt_tbl, 13, "└ S(90+) Put",   t_put_s, c7_put_s, s7_put_s, sum_m7_put_s, c14_put_s, s14_put_s, sum_m14_put_s, c20_put_s, s20_put_s, sum_m20_put_s)
+        f_draw_bt_row(bt_tbl, 14, "└ A(80+) Put",   t_put_a, c7_put_a, s7_put_a, sum_m7_put_a, c14_put_a, s14_put_a, sum_m14_put_a, c20_put_a, s20_put_a, sum_m20_put_a)
+        f_draw_bt_row(bt_tbl, 15, "└ B(70+) Put",   t_put_b, c7_put_b, s7_put_b, sum_m7_put_b, c14_put_b, s14_put_b, sum_m14_put_b, c20_put_b, s20_put_b, sum_m20_put_b)
+
+        if use_tpsl
+            tpsl_lbl = "TP" + str.tostring(tp_atr) + "A/SL" + str.tostring(sl_atr) + "A"
+            bg_p = color.new(color.red, 92)
+            f_tpsl_row(bt_tbl, 16, tpsl_lbl + " S Put", tpsl_p_s_tot, tpsl_p_s_win, tpsl_p_s_tp, tpsl_p_s_sl, tpsl_p_s_ret, bg_p)
+            f_tpsl_row(bt_tbl, 17, tpsl_lbl + " A Put", tpsl_p_a_tot, tpsl_p_a_win, tpsl_p_a_tp, tpsl_p_a_sl, tpsl_p_a_ret, bg_p)
+            f_tpsl_row(bt_tbl, 18, tpsl_lbl + " B Put", tpsl_p_b_tot, tpsl_p_b_win, tpsl_p_b_tp, tpsl_p_b_sl, tpsl_p_b_ret, bg_p)
 
         if setup_filt_bt != "All"
-            f_draw_bt_row(bt_tbl, 11, setup_filt_bt, t_filt, c14_filt, s14_filt, sum_m14_filt, c30_filt, s30_filt, sum_m30_filt)
+            f_draw_bt_row(bt_tbl, 19, setup_filt_bt, t_filt, c7_filt, s7_filt, sum_m7_filt, c14_filt, s14_filt, sum_m14_filt, c30_filt, s30_filt, sum_m30_filt)

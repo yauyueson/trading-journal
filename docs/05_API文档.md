@@ -1,6 +1,6 @@
 # Trading Journal - API文档
 
-> 最后更新: 2026年2月20日  
+> 最后更新: 2026年2月23日  
 > **数据源**: Polygon.io（主）/ CBOE（备）；API 用量优化：仅请求所需 DTE/行权 + 期权链缓存；付费档建议设置 `POLYGON_RATE_LIMIT_RPM=100`
 
 ## 📋 目录
@@ -42,8 +42,11 @@ Supabase PostgreSQL (数据存储)
 | `/api/batch-refresh-tech` | GET/POST | 批量刷新技术面评分（Tech Score 自动化） | ✅ 生产 |
 | `/api/underlying-rv` | GET | 标的已实现波动率（Nasdaq 历史） | ✅ 生产 |
 | `/api/earnings` | GET | 获取财报日期（通过 Nasdaq API） | ✅ 生产 |
+| `/api/iv-rank` | GET | 获取指定 Ticker 的 IV Rank 与 Percentile | ✅ 生产 |
+| `/api/cron-iv-snapshot` | GET/POST | 定时任务，每日收集活跃持仓与热门标的 IV 快照并写入 | ✅ 生产 |
+| `/api/backfill-iv-history` | GET | 回填历史波动率数据以建立基准 | ✅ 生产 |
 
-**评分逻辑统一**：所有 API 均引用 `api/_shared/scoring.cjs`，与前端 `src/lib/oss-core.ts` 逻辑镜像，保证扫描结果、策略推荐与持仓卡片 OSS 分数一致。
+**评分逻辑统一**：所有 API 均引用 `api/_shared/scoring.cjs` / `api/_shared/ivHistory.cjs`，与前端 `src/lib/oss-core.ts` 逻辑镜像，保证扫描结果、策略推荐与持仓卡片 OSS 分数一致。
 
 ---
 
@@ -355,6 +358,29 @@ GET/POST /api/batch-refresh-tech
 - **可选限速**：环境变量 `BATCH_REFRESH_DELAY_MS`（默认 0）可在每只标的请求后加延迟，适合大批量时平滑请求。
 - **自动化**: 位于前端 `Portfolio.tsx`，在批量价格请求完成后再触发，避免与 bulk 同时打满限流。
 
+---
+
+## 📉 波动率历史与快照 API (IV Rank)
+
+本组 API 负责维护与查询基于 252 日周期的 IV Rank (IVR) 及 IV Percentile，用于提供策略推荐的宏观波动率背景。
+
+### 1. 查询 IV Rank 与基本信息
+**端点**: `GET /api/iv-rank?ticker={TICKER}`  
+**用途**: 获取指定标的的 IV Rank / IV Percentile、历史最值及天数。  
+**实现**: 查询 Supabase 数据库 `ticker_iv_snapshots` 表中的历史快照，计算当前排位。
+
+### 2. 定时写入每日 IV 快照
+**端点**: `GET/POST /api/cron-iv-snapshot`  
+**用途**: 由 Vercel Cron 每交易日盘后触发（如 16:30 ET），自动获取所有活跃持仓标的及特定热门标的（如 SPY, QQQ, AAPL 等）当天的 IV30 与 IV90 值，并写入数据库 `ticker_iv_snapshots` 记录当日快照。  
+**注意**: 此端点通过获取单条期权链在内存中计算 IV 期权结构，每次耗费 2 个 Polygon API Quota（一次合约、一次快照）。需要使用带有 `SUPABASE_SERVICE_ROLE_KEY` 权限的后端脚本执行。
+
+### 3. 回填历史波动率数据
+**端点**: `GET /api/backfill-iv-history?ticker={TICKER}` 或 `?mode=popular`  
+**用途**: 为新关注或尚无 IV 历史的标的极速回填过去 ~1.5 年的滚动 30 日实现波动率（RV30）作为初始 IV 比较基准，避免因样本缺失无法计算 Rank。  
+**处理机制**: 一次请求批量摄取历史 K 线并按天计算实现波动率后，批量存入数据表。
+
+---
+
 ## 🧪 测试指南
 
 ### 本地测试
@@ -398,4 +424,4 @@ vercel --prod
 ---
 
 *文档维护者: Trading Journal Team*  
-*最后更新: 2026年2月17日*
+*最后更新: 2026年2月23日*

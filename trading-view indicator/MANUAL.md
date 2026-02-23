@@ -1,5 +1,5 @@
-# MB_DFP_Options_Scanner v3.2 — User Manual
-> **Last Updated**: 2026-02-19 | Current Build: **v3.3**
+# MB_DFP_Options_Scanner v3.4 — User Manual
+> **Last Updated**: 2026-02-23 | Current Build: **v3.4**
 
 The `MB_DFP_Options_Scanner_v3.2` is a Pine Script indicator that acts as the **primary signal generator** for the Trading Journal workflow. It identifies high-probability options setups by scoring market environments across multiple dimensions, then routes each setup to the most appropriate options structure (Credit Spread, Debit Spread, Long, Iron Condor, etc.).
 
@@ -38,15 +38,16 @@ Each ticker is scored across 7 direction-aware components:
 
 | Component | Weight | What it measures |
 | :--- | :--- | :--- |
-| **Market Bias (MB)** | 30% | Smoothed Heikin-Ashi oscillator — trend momentum direction |
-| **B-Xtrender Short (Bx-S)** | 30% | Short-term MACD/RSI derivative — fast cycle alignment |
+| **Market Bias (MB)** | 25% | Smoothed Heikin-Ashi oscillator — trend momentum direction |
+| **B-Xtrender Short (Bx-S)** | 20% | Short-term MACD/RSI derivative — fast cycle alignment |
 | **B-Xtrender Long (Bx-L)** | 15% | Medium-term baseline direction |
-| **EMA Stack** | 15% | EMA 21/34/50 fan alignment — structural trend quality |
-| **Momentum** | 10% | Price Rate-of-Change — candle velocity confirmation |
-| **ADX** | Dynamic | Adjusts EMA weight vs. oscillator weight based on trend strength |
-| **RVOL** | Scored | Volume participation — penalizes low-volume signals |
+| **EMA Stack** | 12% | EMA 21/34/50 fan alignment — structural trend quality |
+| **Momentum** | 8% | Price Rate-of-Change — candle velocity confirmation |
+| **ADX Regime** | 12% | Adjusts EMA weight vs. oscillator weight based on trend strength |
+| **RVOL** | 8% | Volume participation — penalizes low-volume signals |
 
 > **Coherence Multiplier**: If all three core indicators (MB, Bx-S, Bx-L) agree with the setup direction → 1.10× boost. If 2+ conflict → 0.85× penalty.
+> **Squeeze Bonus**: If a setup triggers immediately following a period of volatility contraction (TTM Squeeze logic: Bollinger Bands inside Keltner Channels), a +5.0 point bonus is applied to favor explosive momentum.
 
 ---
 
@@ -61,7 +62,7 @@ The table uses a **dark/muted style** for most columns. Color is reserved only f
 | **MB / Bx-S / Bx-L / EMA** | Raw indicator values showing oscillator alignment and trend structural health. Muted colors to reduce noise. |
 | **RVOL** | Relative volume vs 20-day average. 🟢 Lime > 1.3x, Teal > 1.0x, Gray > 0.8x. |
 | **Score Tier** | Grade of the setup from D to S (90+). Highlights in Green/Red for actionable signals. |
-| **Setup** | The exact structural pattern detected (e.g. Breakout, Pullback Buy, Strong Down). Enter this in the Web App. |
+| **Setup** | The exact structural pattern detected (e.g. Squeeze Breakout, Breakout, Pullback Buy, Strong Down). Enter this in the Web App. |
 | **Direction** | BULL, BEAR, or blank. Shows the side of the market the setup is leaning toward. Enter this in the Web App. |
 | **Market State** | Explicitly derived regime from ADX, oscillators, and volatility (e.g. TRENDING, RANGING, EXPLOSIVE, REVERTING). Enter this in the Web App. |
 | **Risk Flags** | Contains any structural warnings or blockers from Pine Script (e.g., ⚠️ OverExt, ⬆️ MTF Conflict, Hi Vol, ER Blocked). Check the corresponding boxes in the Web App. |
@@ -109,6 +110,15 @@ Because US equities have an inherent **bullish drift**, PUT signals are held to 
 
 ---
 
+## 🛡️ Structural Setup Enhancements (v3.3)
+
+| Guard | Condition | Effect |
+| :--- | :--- | :--- |
+| **Healthy Pullback Volume Block** | RVOL ≤ 0.8 | Required for *Pullback Buy* and *Failed Rally* setups. High volume on pullbacks indicates distribution/accumulation rather than a healthy retracement. |
+| **Dynamic Support Entry Block** | Distance to EMA21 ≤ 1.5% OR EMA50 ≤ 1.5% | Pullback setups are only validated if the price has legitimately retreated to structural trend-following support bands. Failing this downgrades to structural warnings like *Vol Distribution*. |
+
+---
+
 ## 📈 Backtest Module
 
 The **Accuracy Table** (configurable position) shows historical forward expectancy for each strategy type on the **current chart symbol**. It contains two sub-modules that work together.
@@ -129,6 +139,10 @@ The **Accuracy Table** (configurable position) shows historical forward expectan
 | **CALL Only** | CALL-direction strategies (Debit Call Spread, Long Call, Credit Put Spread) |
 | **PUT Only** | PUT strategies after asymmetric filters (EMA50, RVOL, MTF guards applied) |
 | **I.CONDOR** | Iron Condor recommendations. Success = price stays within ±4.5% (14d) / ±5.5% (30d) |
+| **Tier S (90+)** | Signals with a unified score of 90 or above. |
+| **Tier A (80-89)** | Signals with a unified score between 80 and 89. |
+| **Tier B (70-79)** | Signals with a unified score between 70 and 79. |
+| **Tier C/D (<70)** | Signals with a unified score below 70. |
 | **FILTERED** | Subset filtered by Setup type (configurable via `Setup Filter` setting) |
 
 **Table Columns:**
@@ -149,26 +163,32 @@ The **Accuracy Table** (configurable position) shows historical forward expectan
 This module simulates what happens when you **actively manage** your position with real take-profit and stop-loss orders. On every bar after entry, it checks if price has crossed either boundary.
 
 **How it works:**
-- **CALL trade** → exits when `high ≥ entry × (1 + TP%)` or `low ≤ entry × (1 - SL%)`
-- **PUT trade** → exits when `low ≤ entry × (1 - TP%)` or `high ≥ entry × (1 + SL%)`
-- **IC trade** → exits when `|drift| ≤ IC_TP%` (still in range = win) or `|drift| ≥ IC_SL%` (broke out = loss)
+- The engine simulates taking your trade and tracking its exact path bar-by-bar.
+- UNLIKE the 14/30d hold windows, it operates **independently of time constraints** up to a maximum of 60 bars (approx. 3 months). It will keep tracking a slow-moving trade until it hits one of your exits or expires.
+- **CALL trade** → exits when `high ≥ entry + (ATR × TP_ATR)` or `low ≤ entry - (ATR × SL_ATR)`
+- **PUT trade** → exits when `low ≤ entry - (ATR × TP_ATR)` or `high ≥ entry + (ATR × SL_ATR)`
 
 **Configuration (Settings → TP/SL Simulation):**
 | Setting | Default | Description |
 | :--- | :--- | :--- |
-| Enable TP/SL Simulation | true | Toggle the 4 TP/SL rows |
-| Take Profit % | **7%** | Underlying move required for a win exit |
-| Stop Loss % | **4%** | Underlying move against you before stop-loss exit |
-| IC Take Profit % | **3.5%** | IC profit threshold: price drift ≤ 3.5% = win |
-| IC Stop Loss % | **6%** | IC stop threshold: price drift ≥ 6% = loss |
+| Enable TP/SL Simulation Row | true | Toggle the 4 TP/SL rows |
+| Show TP/SL vs 14d Comparison | true | Show indicator (✓/↓) comparing TP/SL win rate vs 14d hold |
+| Take Profit (ATR Mult) | **2.0** | Underlying ATR move required for a win exit |
+| Stop Loss (ATR Mult) | **1.0** | Underlying ATR move against you before stop-loss exit |
+| IC TP Entry Band (ATR Mult) | **1.0** | IC profit threshold: price drift ≤ 1.0 ATR = win |
+| IC SL Drift Max (ATR Mult) | **2.0** | IC stop threshold: price drift ≥ 2.0 ATR = loss |
 
 **TP/SL Table Rows (highlighted in color):**
 | Row | Background | What it shows |
 | :--- | :--- | :--- |
-| `TP7/SL4 ALL` | 🟨 Yellow | All strategies combined TP/SL performance |
-| `TP7/SL4 CALL` | 🟩 Green | Only CALL direction TP/SL performance |
-| `TP7/SL4 PUT` | 🟥 Red | Only PUT direction TP/SL performance |
-| `TP7/SL4 IC` | 🟣 Purple | Iron Condor TP/SL performance |
+| `TP... ALL` | 🟨 Yellow (Dark) | All strategies combined TP/SL performance |
+| `TP... CALL` | 🟩 Green (Dark) | Only CALL direction TP/SL performance |
+| `TP... PUT` | 🟥 Red (Dark) | Only PUT direction TP/SL performance |
+| `TP... IC` | 🟣 Purple (Dark) | Iron Condor TP/SL performance |
+| `TP... S(90+)` | 🟢 Teal | Tier S setups combined TP/SL performance |
+| `TP... A(80+)` | 🟩 Green | Tier A setups combined TP/SL performance |
+| `TP... B(70+)` | 🟨 Yellow | Tier B setups combined TP/SL performance |
+| `TP... C(<70)` | 🟥 Red | Tier C/D setups combined TP/SL performance |
 
 **TP/SL Row Columns:**
 | Column | Description |
@@ -181,13 +201,13 @@ This module simulates what happens when you **actively manage** your position wi
 
 **How to read the TP/SL data strategically:**
 
-> Example from AMZN: `Win 14d = 39.7%` vs `TP7/SL4 ALL = 73%`
+> Example from AMZN: `Win 14d = 39.7%` vs `TP2.0/SL1.0 ALL = 73%`
 
 This gap tells you:
 1. **The signal direction is correct** 73% of the time — the stock DOES move favorably.
 2. **But you're holding too long** — by day 14, many winners have reversed.
-3. **Optimal exit strategy**: Set a GTC limit order at +7% and a stop at -4% immediately after entry.
-4. **Expected value** = `(0.73 × 7%) - (0.27 × 4%) = +4.03%` per trade on average.
+3. **Optimal exit strategy**: Set a GTC limit order at +2 ATRs and a stop at -1 ATR immediately after entry.
+4. **Expected value** = `(0.73 × 2 ATR) - (0.27 × 1 ATR) = +1.19 ATR` per trade on average.
 
 **Using TP/SL to compare CALL vs PUT performance:**
 - If `CALL TP/SL Win%` >> `PUT TP/SL Win%` → confirms bullish drift advantage, be more selective with PUTs
@@ -195,9 +215,9 @@ This gap tells you:
 - If `IC TP/SL Win%` >> directional — the stock is better suited for premium selling strategies
 
 **Calibrating your TP/SL:**
-- Increase TP% and observe if Win% drops significantly → means most winners don't run that far
-- Decrease SL% and observe if SL count spikes → means you're cutting too early on normal volatility
-- The optimal ratio for most US large-cap is approximately **TP = 1.5-2× SL** (e.g., TP 7% / SL 4%)
+- Increase TP_ATR and observe if Win% drops significantly → means most winners don't run that far
+- Decrease SL_ATR and observe if SL count spikes → means you're cutting too early on normal volatility
+- The optimal ratio for most US large-cap is approximately **TP = 1.5-2× SL** (e.g., TP 2.0 ATR / SL 1.0 ATR)
 
 ---
 
@@ -209,6 +229,8 @@ This gap tells you:
 | Short Look-forward | 14 bars | First evaluation window |
 | Long Look-forward | 30 bars | Second evaluation window |
 | Min Score to Track | 75 | Score gate for backtest inclusion |
+| Min Move % to Count as Win | 2.0 | Minimum price move for 14d/30d CALL/PUT trades to count as a win vs just chop |
+| Show Regime Context | false | Display tier performance split by market regime |
 | Setup Filter | All | Narrow backtest to a specific setup type |
 
 ---
@@ -227,7 +249,7 @@ This gap tells you:
 | Setting | Default | Description |
 | :--- | :--- | :--- |
 | RVOL Threshold | 1.3× | Volume required for a "Full Credit" RVOL signal on breakouts. |
-| Max RVOL (Pullback) | 1.0× | Volume ceiling for a valid healthy pullback (high volume pullbacks = distribution). |
+| Max RVOL (Pullback) | 0.8× | Volume ceiling for a valid healthy pullback (high volume pullbacks = distribution). |
 | ADX Trend Thresh | 25 | ADX above this = Trend regime. |
 | ADX Range Thresh | 20 | ADX below this = Range regime (favors Iron Condor). |
 | HV High Thresh | 75th pct | Above this = expensive IV → prefer selling premium. |
@@ -239,10 +261,13 @@ This gap tells you:
 | Setting | Default | Description |
 | :--- | :--- | :--- |
 | Enable Backtest | true | Toggle the Accuracy table display. |
-| Look-forward 1 | 14 bars | First evaluation window. |
-| Look-forward 2 | 30 bars | Second evaluation window. |
-| Setup Filter | All | Filter backtest to a specific setup type. |
+| Table Position | bottom_right | Where to display the table. |
+| Short Look-forward | 14 bars | First evaluation window. |
+| Long Look-forward | 30 bars | Second evaluation window. |
 | Min Score (Backtest) | 75 | Score gate for backtest inclusion. |
+| Min Move % | 2.0 | Minimum price movement required for CALL/PUT. |
+| Show Regime Context | false | Toggle displaying regime context in tiers. |
+| Setup Filter | All | Filter backtest to a specific setup type. |
 
 ---
 
