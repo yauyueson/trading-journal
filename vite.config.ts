@@ -1079,75 +1079,14 @@ function localApiPlugin(): Plugin {
           if (recommendedStrategy === 'DEBIT_SPREAD' && debitSpreads.length === 0) recommendedStrategy = 'SINGLE_LEG';
           if (recommendedStrategy === 'SINGLE_LEG' && singleLegs.length === 0 && creditSpreads.length > 0) recommendedStrategy = 'CREDIT_SPREAD';
 
-          // Tech Score (Pine-aligned): 1h, 4h, daily for Recommender display
-          let tech: { techScore: number; setup: string; signal: string; type: 'CALL' | 'PUT' | 'NEUTRAL'; confidence: number } | null = null;
-          let techByTimeframe: { '1h': typeof tech; '4h': typeof tech; '1d': typeof tech } | null = null;
-          try {
-            const polygonClient = await import('./lib/polygon-client.js');
-            const techAnalysis = await import('./lib/tech-analysis.js');
-            let techScoreOptions: Record<string, number> = {};
-            try {
-              const { createClient } = await import('@supabase/supabase-js');
-              const supabaseUrl = process.env.VITE_SUPABASE_URL;
-              const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
-              if (supabaseUrl && supabaseKey) {
-                const sb = createClient(supabaseUrl, supabaseKey);
-                const { data } = await sb.from('app_settings').select('settings').eq('id', 1).single();
-                if (data?.settings?.techScore) {
-                  techScoreOptions = { ...data.settings.techScore.weights, ...data.settings.techScore.periods };
-                }
-              }
-            } catch (_) {}
-            const toDate = new Date();
-            const toStr = toDate.toISOString().split('T')[0];
-            const fromDay = new Date(toDate);
-            fromDay.setDate(toDate.getDate() - 600);
-            const from1h = new Date(toDate);
-            from1h.setDate(toDate.getDate() - 90); // ~90 days → ~585 1H bars; sufficient for sc_mb_len up to 100
-            const from4h = new Date(toDate);
-            from4h.setDate(toDate.getDate() - 180); // ~180 days → ~293 4H bars; sufficient for sc_mb_len up to 100
-            const [candles1d, candles1h, candles4h] = await Promise.all([
-              polygonClient.getCandles(upperTicker, fromDay.toISOString().split('T')[0], toStr, 'day'),
-              polygonClient.getCandles(upperTicker, from1h.toISOString().split('T')[0], toStr, 'hour'),
-              polygonClient.getCandles(upperTicker, from4h.toISOString().split('T')[0], toStr, 'hour', 4)
-            ]);
-            const toTech = (candles: Array<{ open: number; high: number; low: number; close: number }> | null | undefined) => {
-              if (!candles || candles.length < 50) return null;
-              const r = techAnalysis.calculateTechScore(candles, techScoreOptions);
-              return { techScore: r.techScore, setup: r.setup, signal: r.signal, type: r.type, confidence: r.confidence };
-            };
-            const d = toTech(candles1d);
-            const h1 = toTech(candles1h);
-            const h4 = toTech(candles4h);
-            const primaryTech = d ?? h4 ?? h1 ?? null;
-            if (primaryTech) {
-              tech = primaryTech;
-              techByTimeframe = { '1h': h1 ?? null, '4h': h4 ?? null, '1d': d ?? null };
-            } else {
-              console.warn(`[Strategy Recommend] ${upperTicker}: Tech Score not shown (need 50+ bars). 1d=${candles1d?.length ?? 0}, 1h=${candles1h?.length ?? 0}, 4h=${candles4h?.length ?? 0}. Check POLYGON_API_KEY in .env.local if all are 0.`);
-              try {
-                const logDir = path.join(process.cwd(), '.cursor');
-                if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-                fs.appendFileSync(path.join(logDir, 'debug.log'), JSON.stringify({ location: 'vite.config.ts:tech no data', message: 'tech null', data: { ticker: upperTicker, len1d: candles1d?.length ?? 0, len1h: candles1h?.length ?? 0, len4h: candles4h?.length ?? 0 }, timestamp: Date.now() }) + '\n');
-              } catch (_) {}
-            }
-          } catch (e: any) {
-            console.warn(`[Strategy Recommend] ${upperTicker}: Tech Score skipped`, e?.message ?? e);
-            try {
-              const logDir = path.join(process.cwd(), '.cursor');
-              if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-              fs.appendFileSync(path.join(logDir, 'debug.log'), JSON.stringify({ location: 'vite.config.ts:tech catch', message: 'Tech Score error', data: { ticker: upperTicker, err: String(e?.message ?? e) }, timestamp: Date.now() }) + '\n');
-            } catch (_) {}
-          }
-
           res.statusCode = 200;
           res.end(JSON.stringify({
             success: true,
             context: { ticker: upperTicker, currentPrice, direction: isBull ? 'BULL' : 'BEAR', targetDte },
             regime: { ivRatio: +ivRatio.toFixed(3), iv30: iv30 ? +(iv30 * 100).toFixed(1) : null, iv90: iv90 ? +(iv90 * 100).toFixed(1) : null, mode: regimeMode, advice },
             recommendedStrategy,
-            tech,
-            techByTimeframe: techByTimeframe ?? undefined,
+            tech: null,
+            techByTimeframe: undefined,
             strategies: {
               CREDIT_SPREAD: creditSpreads,
               DEBIT_SPREAD: debitSpreads,

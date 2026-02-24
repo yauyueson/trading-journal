@@ -8,11 +8,6 @@ import fs from 'fs';
 import path from 'path';
 import { getAppSettings } from './_shared/getAppSettings.js';
 
-// ── Tech Score cache: avoids re-fetching 200 days of candles for the same ticker ──
-// Tech scores only change when a new candle closes (~30m), so 10-min TTL is safe.
-const techScoreCache = new Map();
-const TECH_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
 // ── Inline BSM helper (no external dep) ──────────────────────────────────────
 // Normal CDF approximation (Abramowitz & Stegun, max error 7.5e-8)
 function _normCDF(x) {
@@ -1128,9 +1123,8 @@ export default async function handler(req, res) {
         let rv30 = null;
         let daysUntilEarnings = null;
 
-        // Pre-declare candle arrays at handler scope so batch 1 and tech score block can share them
+        // Pre-declare candle arrays at handler scope so batch 1 can share them
         let dailyCandles = null;
-        let candles30m = null;
 
         if (dataSource === 'POLYGON') {
             console.log(`Using Polygon.io for ${upperTicker}`);
@@ -1146,14 +1140,12 @@ export default async function handler(req, res) {
             fromIntraday.setDate(toDate.getDate() - 365); // Extended from 200 → 365 days for more 1h/4h bars
             const fromIntradayStr = fromIntraday.toISOString().split('T')[0];
 
-            // Batch 1: parallel fetch — daily candles + 30m candles + earnings (no getUnderlyingPrice)
-            const [dailyCandlesResult, candles30mResult, daysUntilEarningsResult] = await Promise.all([
+            // Batch 1: parallel fetch — daily candles + earnings (no getUnderlyingPrice)
+            const [dailyCandlesResult, daysUntilEarningsResult] = await Promise.all([
                 getCandles(upperTicker, fromDailyStr, toStr, 'day'),
-                getCandles(upperTicker, fromIntradayStr, toStr, 'minute', 30),
                 fetchEarnings(upperTicker)
             ]);
             dailyCandles = dailyCandlesResult;
-            candles30m = candles30mResult;
             daysUntilEarnings = daysUntilEarningsResult;
 
             // Derive underlying price from last daily close (avoids a separate snapshot call)
@@ -1166,7 +1158,7 @@ export default async function handler(req, res) {
                 rv30 = _computeRV30(closes);
                 if (rv30 != null) console.log(`[RV30 Calc] ${upperTicker}: ${rv30.toFixed(2)}% (from daily candles)`);
             }
-            console.log(`[Batch 1] ${upperTicker}: ${dailyCandles?.length ?? 0} daily, ${candles30m?.length ?? 0} 30m candles fetched`);
+            console.log(`[Batch 1] ${upperTicker}: ${dailyCandles?.length ?? 0} daily candles fetched`);
 
             try {
                 // Single reference call covering DTE 23–97 (spans both ~30 and ~90 DTE windows)
@@ -1272,168 +1264,6 @@ export default async function handler(req, res) {
         const iv5dChange = ivRankResult?.iv5dChange ?? null;
         const ivTrend = ivRankResult?.ivTrend ?? null;
 
-        // Tech Score (Pine-aligned): 1h, 4h, daily candles → techScore per timeframe
-        let tech = null;
-        let techByTimeframe = null;
-        const cachedTech = techScoreCache.get(upperTicker);
-        if (cachedTech && Date.now() - cachedTech.ts < TECH_CACHE_TTL_MS) {
-            tech = cachedTech.tech;
-            techByTimeframe = cachedTech.techByTimeframe;
-            console.log(`[Tech Score] ${upperTicker}: using cached scores (age: ${Math.round((Date.now() - cachedTech.ts) / 1000)}s)`);
-        }
-        if (!tech) try {
-            const { calculateTechScore } = await import('../lib/tech-analysis.js');
-            const { createClient } = await import('@supabase/supabase-js');
-            const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-            const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-            const supabase = createClient(supabaseUrl, supabaseKey);
-            const appSettings = await getAppSettings(supabase);
-            const techScoreOptions = {
-                ...appSettings.techScore.weights,
-                ...appSettings.techScore.periods,
-            };
-
-            // For CBOE path, fetch candles if not already available from Polygon batch 1
-            if (!dailyCandles || !candles30m) {
-                const { getCandles } = await import('../lib/polygon-client.js');
-                const toDate = new Date();
-                const toStr = toDate.toISOString().split('T')[0];
-                if (!dailyCandles) {
-                    const fromDay = new Date(toDate);
-                    fromDay.setDate(toDate.getDate() - 150);
-                    dailyCandles = await getCandles(upperTicker, fromDay.toISOString().split('T')[0], toStr, 'day');
-                }
-                if (!candles30m) {
-                    const fromIntraday = new Date(toDate);
-                    fromIntraday.setDate(toDate.getDate() - 365);
-                    candles30m = await getCandles(upperTicker, fromIntraday.toISOString().split('T')[0], toStr, 'minute', 30);
-                }
-            }
-
-            // Use pre-fetched candles (from Polygon batch 1 or CBOE fallback above)
-            const candles1d = dailyCandles || [];
-
-            console.log(`[Tech Score] ${upperTicker}: using ${candles1d.length} daily, ${candles30m.length} 30m candles`);
-
-            // Helper to aggregate 30m candles into RTH-aligned hours
-            // Market Hours: 09:30 - 16:00 ET
-            const aggregateRTH = (baseCandles, hoursPerBar) => {
-                if (!baseCandles || baseCandles.length === 0) return [];
-                const aggs = [];
-                let currentBar = null;
-
-                const formatter = new Intl.DateTimeFormat('en-US', {
-                    timeZone: 'America/New_York',
-                    hour: 'numeric',
-                    minute: 'numeric',
-                    hour12: false
-                });
-
-                // Parse a candle's time in ET
-                const getET = (ts) => {
-                    const d = new Date(ts);
-                    const parts = formatter.formatToParts(d);
-                    const hVal = parts.find(p => p.type === 'hour').value;
-                    const mVal = parts.find(p => p.type === 'minute').value;
-                    let h = parseInt(hVal);
-                    if (h === 24) h = 0;
-                    const m = parseInt(mVal);
-                    return { h, m };
-                };
-
-                for (const c of baseCandles) {
-                    const { h, m } = getET(c.timestamp);
-                    // Filter RTH: 09:30 <= time < 16:00
-                    const tVal = h * 100 + m;
-                    if (tVal < 930 || tVal >= 1600) continue;
-
-                    // Determine session start for this day
-                    // Simplification: We assume contiguous RTH blocks. 
-                    // New day detection:
-                    let isNewBar = false;
-
-                    if (!currentBar) {
-                        isNewBar = true;
-                    } else {
-                        // Day boundary: >12h gap means new trading day (timezone-safe, no getDate() pitfall)
-                        const timeDiff = c.timestamp - currentBar.timestamp;
-                        if (timeDiff > 12 * 60 * 60 * 1000) {
-                            isNewBar = true;
-                        } else {
-                            // Same day — always compare bucket indices relative to market open (9:30 ET)
-                            const minutesFromOpen = (h * 60 + m) - (9 * 60 + 30);
-                            const barIdx = Math.floor(minutesFromOpen / (hoursPerBar * 60));
-
-                            const startET = getET(currentBar.timestamp);
-                            const startMinsFromOpen = (startET.h * 60 + startET.m) - (9 * 60 + 30);
-                            const startBarIdx = Math.floor(startMinsFromOpen / (hoursPerBar * 60));
-
-                            if (barIdx !== startBarIdx) isNewBar = true;
-                        }
-                    }
-
-                    if (isNewBar) {
-                        if (currentBar) aggs.push(currentBar);
-                        currentBar = {
-                            timestamp: c.timestamp,
-                            open: c.open,
-                            high: c.high,
-                            low: c.low,
-                            close: c.close,
-                            volume: c.volume
-                        };
-                    } else {
-                        // Update current bar
-                        currentBar.high = Math.max(currentBar.high, c.high);
-                        currentBar.low = Math.min(currentBar.low, c.low);
-                        currentBar.close = c.close;
-                        currentBar.volume += c.volume;
-                    }
-                }
-                if (currentBar) aggs.push(currentBar);
-                return aggs;
-            };
-
-            const candles1h = aggregateRTH(candles30m, 1);
-            const candles4h = aggregateRTH(candles30m, 4);
-            console.log(`[Tech Score] ${upperTicker}: aggregated ${candles1h.length} 1h, ${candles4h.length} 4h bars`);
-            // #region agent log
-            _dbg({ location: 'strategy-recommend.js:after getCandles', message: 'candle counts', data: { ticker: upperTicker, len1d: candles1d?.length ?? null, len1h: candles1h?.length ?? null, len4h: candles4h?.length ?? null }, hypothesisId: 'A' });
-            // #endregion
-            const toTech = (candles, minBars = 50) => {
-                if (!candles || candles.length < minBars) return null;
-                const r = calculateTechScore(candles, techScoreOptions);
-                return { techScore: r.techScore, setup: r.setup, signal: r.signal, type: r.type, confidence: r.confidence };
-            };
-            const d = toTech(candles1d);
-            const h1 = toTech(candles1h);
-            const h4 = toTech(candles4h, 20);
-            console.log(`[Tech Score] ${upperTicker}: scores → 1d:${d?.techScore ?? 'null'} 1h:${h1?.techScore ?? 'null'} 4h:${h4?.techScore ?? 'null'}`);
-            // #region agent log
-            _dbg({ location: 'strategy-recommend.js:after toTech', message: 'toTech results', data: { ticker: upperTicker, d: !!d, h1: !!h1, h4: !!h4, score1d: d?.techScore ?? null }, hypothesisId: 'B' });
-            // #endregion
-            const primaryTech = d || h4 || h1 || null;
-            if (primaryTech) {
-                tech = primaryTech;
-                techByTimeframe = { '1h': h1 || null, '4h': h4 || null, '1d': d || null };
-                techScoreCache.set(upperTicker, { ts: Date.now(), tech, techByTimeframe });
-            }
-            // #region agent log
-            _dbg({ location: 'strategy-recommend.js:tech set', message: 'tech assigned', data: { ticker: upperTicker, techSet: !!tech }, hypothesisId: 'D' });
-            // #endregion
-        } catch (e) {
-            // #region agent log
-            _dbg({ location: 'strategy-recommend.js:catch', message: 'Tech Score error', data: { ticker: upperTicker, err: String(e?.message || e) }, hypothesisId: 'C' });
-            // #endregion
-            // Diagnostic: which phase failed, candle counts, elapsed time
-            const phase = !dailyCandles && !candles30m ? 'candle fetch'
-                : (!dailyCandles || !candles30m) ? 'partial candle fetch'
-                    : 'aggregation/scoring';
-            console.error(`[Tech Score] ${upperTicker}: FAILED at ${phase} —`, e?.message || e);
-            console.error(`[Tech Score] ${upperTicker}: counts — daily:${dailyCandles?.length ?? 'null'}, 30m:${candles30m?.length ?? 'null'}`);
-            if (e?.stack) console.error(e.stack);
-        }
-
         // 2. Build Targeted Strategy based on Pine Script recommendation
         const ivScoreInput = ivPercentile ?? ivRank;
         let targetRecs = [];
@@ -1512,64 +1342,15 @@ export default async function handler(req, res) {
         }
         targetRecs.sort((a, b) => b.unifiedScore - a.unifiedScore);
 
-        // 3b. Tech Timeframe Alignment — confidence bonus/penalty based on multi-TF agreement
-        let techAlignmentBonus = 0;
-        let techAlignmentNote = null;
-        if (techByTimeframe) {
-            const d = techByTimeframe['1d'];
-            const h4 = techByTimeframe['4h'];
-            const h1 = techByTimeframe['1h'];
-            const tradeDir = isBull ? 1 : -1;
-
-            const dirOf = (t) => {
-                if (!t) return 0;
-                if (t.signal === 'BUY' || t.type === 'Call' || t.setup?.includes('Bull')) return 1;
-                if (t.signal === 'SELL' || t.type === 'Put' || t.setup?.includes('Bear')) return -1;
-                return 0;
-            };
-            const dDir = dirOf(d);
-            const h4Dir = dirOf(h4);
-            const h1Dir = dirOf(h1);
-
-            const higherTFAgree = (dDir === tradeDir || dDir === 0) && (h4Dir === tradeDir || h4Dir === 0);
-            const h1Disagrees = h1Dir !== 0 && h1Dir !== tradeDir;
-
-            if (higherTFAgree && dDir === tradeDir && h4Dir === tradeDir) {
-                techAlignmentBonus = 5;
-                techAlignmentNote = `1D + 4H tech aligned (${isBull ? 'bullish' : 'bearish'}): higher-TF confirmation — confidence HIGH.`;
-                if (!h1Disagrees) techAlignmentBonus = 7;
-            } else if (higherTFAgree) {
-                techAlignmentBonus = 2;
-                techAlignmentNote = `Higher TFs lean ${isBull ? 'bullish' : 'bearish'} — moderate alignment.`;
-            }
-            if (h1Disagrees && techAlignmentBonus >= 0) {
-                techAlignmentBonus -= 3;
-                const suffix = ' ⚠️ 1H counter-trend — consider waiting for 1H confirmation or reduce size.';
-                techAlignmentNote = (techAlignmentNote || '') + suffix;
-            }
-
-            if (techAlignmentBonus !== 0) {
-                for (const pick of targetRecs) {
-                    pick.score = (pick.score || 0) + techAlignmentBonus;
-                    pick.unifiedScore = (pick.unifiedScore || 0) + techAlignmentBonus;
-                    if (Array.isArray(pick.factors)) {
-                        pick.factors.push({
-                            name: 'Tech alignment',
-                            impact: techAlignmentBonus,
-                            description: techAlignmentNote || 'Multi-timeframe technical alignment.',
-                            value: undefined,
-                        });
-                    }
-                }
-                targetRecs.sort((a, b) => b.unifiedScore - a.unifiedScore);
-            }
-        }
+        targetRecs.sort((a, b) => b.unifiedScore - a.unifiedScore);
 
         // 3c. Pine Risk Flags Adjustments
         const overextended = req.query.overextended === 'true';
         const mtfConflict = req.query.mtfConflict === 'true';
         const lowVolume = req.query.lowVolume === 'true';
         const nearEarnings = req.query.nearEarnings === 'true';
+        const highVolatility = req.query.highVolatility === 'true';
+        const priceReversing = req.query.priceReversing === 'true';
 
         for (const pick of targetRecs) {
             let flagBonus = 0;
@@ -1617,6 +1398,29 @@ export default async function handler(req, res) {
                 } else {
                     flagBonus += 10;
                     flagNotes.push('🛡️ Near Earnings: Short vega boosted for IV crush, but maintain caution.');
+                }
+            }
+
+            if (highVolatility) {
+                if (isCredit) {
+                    flagBonus += 10;
+                    flagNotes.push('🔥 High Volatility: Favors credit spreads to capture IV premium and benefit from IV crush.');
+                } else if (isDebit) {
+                    flagBonus -= 15;
+                    flagNotes.push('⚠️ High Volatility: Debit spreads at higher risk of IV crush; premium is expensive.');
+                }
+            }
+
+            if (priceReversing) {
+                if (isDebit || pick.strategyCategory === 'SINGLE_LEG') {
+                    flagBonus -= 25;
+                    flagNotes.push('🔄 Price Reversing: Direction-heavy strategies penalized due to lack of stable trend momentum.');
+                } else if (isIC) {
+                    flagBonus += 15;
+                    flagNotes.push('🛡️ Price Reversing: Excellent environment for Iron Condors as price reverts to the mean.');
+                } else if (isCredit) {
+                    flagBonus -= 5;
+                    flagNotes.push('🔄 Price Reversing: Use caution even with credit spreads during trend transitions.');
                 }
             }
 
@@ -1686,9 +1490,6 @@ export default async function handler(req, res) {
                 }
             },
             recommendedStrategy: decodedStrategy,
-            tech: tech,
-            techByTimeframe: techByTimeframe || undefined,
-            techAlignment: techAlignmentNote ? { note: techAlignmentNote, bonus: techAlignmentBonus } : null,
             strategies: {
                 TARGET_STRATEGY: targetRecs,
                 _regimeMeta: { skew }

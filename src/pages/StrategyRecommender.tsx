@@ -172,7 +172,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         overextended: false,
         mtfConflict: false,
         lowVolume: false,
-        nearEarnings: false
+        nearEarnings: false,
+        highVolatility: false,
+        priceReversing: false
     });
     const [targetStrategy, setTargetStrategy] = useState('Auto-Select Strategy');
     const [setup, setSetup] = useState('Pullback Buy');
@@ -195,7 +197,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         try {
             const encodedStrategy = encodeURIComponent(targetStrategy);
             const encodedSetup = encodeURIComponent(setup);
-            const flagsParams = `&overextended=${riskFlags.overextended}&mtfConflict=${riskFlags.mtfConflict}&lowVolume=${riskFlags.lowVolume}&nearEarnings=${riskFlags.nearEarnings}`;
+            const flagsParams = `&overextended=${riskFlags.overextended}&mtfConflict=${riskFlags.mtfConflict}&lowVolume=${riskFlags.lowVolume}&nearEarnings=${riskFlags.nearEarnings}&highVolatility=${riskFlags.highVolatility}&priceReversing=${riskFlags.priceReversing}`;
             const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}&targetStrategy=${encodedStrategy}&setup=${encodedSetup}${flagsParams}`;
             const res = await fetch(url);
             const text = await res.text();
@@ -368,13 +370,11 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         </div>
                         <div className="md:col-span-2">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">TV Score Tier</label>
-                            <div className="grid grid-cols-5 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
+                            <div className="grid grid-cols-3 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
                                 {[
                                     { label: 'S', value: 92, range: '90+', color: 'text-emerald-400 border-emerald-500/50 bg-emerald-500/20' },
                                     { label: 'A', value: 85, range: '80–89', color: 'text-green-400 border-green-500/50 bg-green-500/15' },
                                     { label: 'B', value: 75, range: '70–79', color: 'text-yellow-400 border-yellow-500/50 bg-yellow-500/15' },
-                                    { label: 'C', value: 65, range: '60–69', color: 'text-orange-400 border-orange-500/50 bg-orange-500/15' },
-                                    { label: 'D', value: 55, range: '<60', color: 'text-red-400 border-red-500/50 bg-red-500/15' },
                                 ].map((tier) => (
                                     <button
                                         key={tier.label}
@@ -486,7 +486,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                     { key: 'overextended', label: 'Overextended', icon: '⚠️' },
                                     { key: 'mtfConflict', label: 'MTF Conflict', icon: '⬆️' },
                                     { key: 'lowVolume', label: 'Low Volume', icon: '⏳' },
-                                    { key: 'nearEarnings', label: 'Near Earnings', icon: '⚠️' }
+                                    { key: 'nearEarnings', label: 'Near Earnings', icon: '⚠️' },
+                                    { key: 'highVolatility', label: 'High Volatility', icon: '🔥' },
+                                    { key: 'priceReversing', label: 'Price Reversing', icon: '🔄' }
                                 ].map((flag) => {
                                     const isActive = riskFlags[flag.key as keyof typeof riskFlags];
                                     return (
@@ -738,58 +740,6 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                 </div>
                                             </div>
                                         </div>
-                                        {/* Tech Score (1h / 4h / 1d) + Setup */}
-                                        {result.tech != null && (
-                                            <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 mt-4 pt-4 border-t border-[#333]">
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
-                                                        Tech Score
-                                                        <Tooltip label="" explanation="0–100 technical score from OHLC (Market Bias, B-Xtrender, EMA Stack, Momentum). Shown for 1h, 4h, and daily timeframes. Aligned with Pine Script MB+DFP Scanner. High = bullish structure, low = bearish." />
-                                                    </div>
-                                                    {result.techByTimeframe != null ? (
-                                                        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                                                            {(['1h', '4h', '1d'] as const).map(tf => {
-                                                                const t = result.techByTimeframe?.[tf];
-                                                                const score = t?.techScore ?? null;
-                                                                const color = score == null ? 'text-gray-500' : score >= 70 ? 'text-emerald-400' : score >= 60 ? 'text-amber-400' : 'text-gray-400';
-                                                                return (
-                                                                    <span key={tf} className="flex items-baseline gap-1.5">
-                                                                        <span className="text-[10px] sm:text-xs text-gray-500 font-medium">{tf}</span>
-                                                                        <span className={`text-xl sm:text-2xl font-mono font-bold ${color}`}>
-                                                                            {score != null ? score : '—'}
-                                                                        </span>
-                                                                    </span>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    ) : (
-                                                        <div className={`text-2xl sm:text-3xl font-mono font-bold ${result.tech.techScore >= 70 ? 'text-emerald-400' : result.tech.techScore >= 60 ? 'text-amber-400' : 'text-gray-400'}`}>
-                                                            {result.tech.techScore}
-                                                        </div>
-                                                    )}
-                                                    <div className="text-xs text-gray-500 mt-0.5">
-                                                        {result.tech.signal}
-                                                        {result.tech.type !== 'NEUTRAL' && (
-                                                            <span className={`ml-1.5 font-medium ${result.tech.type === 'CALL' ? 'text-green-400' : 'text-red-400'}`}>
-                                                                {result.tech.type}
-                                                            </span>
-                                                        )}
-                                                        {result.tech.confidence > 0 && (
-                                                            <span className="ml-1 text-gray-400"> · {result.tech.confidence}★</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1">Setup</div>
-                                                    <div className="text-sm sm:text-base font-medium text-white">
-                                                        {result.tech.setup}
-                                                    </div>
-                                                    <div className="text-[10px] text-gray-500 mt-0.5">
-                                                        Same logic as Scanner (Perfect Storm, Pullback, Breakout, etc.)
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
                             </div>

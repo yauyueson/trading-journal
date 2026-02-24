@@ -10,19 +10,22 @@ indicator("MB+DFP + Options Scanner v3.2", shorttitle="MB+DFP+SCAN v3.2", overla
 // ==========================================
 mbGR = "Visuals: Market Bias"
 ha_htf  = input.timeframe('', 'Timeframe', tooltip="Must be >= chart timeframe", group=mbGR, display=display.data_window)
-ha_len  = input(100, 'Period',    group=mbGR, display=display.data_window)
-ha_len2 = input(100, 'Smoothing', group=mbGR, display=display.data_window)
+ha_len  = input.int(20, 'Period',    group=mbGR, display=display.data_window)
+ha_len2 = input.int(7, 'Smoothing', group=mbGR, display=display.data_window)
 osc_len = input.int(7, "Oscillator Period", group=mbGR, display=display.data_window)
 show_ha = input.bool(true,  "Show HA Candles",   inline='ha/mb display', group=mbGR, display=display.data_window)
 show_mb = input.bool(true,  "Show Market Bias",   inline='ha/mb display', group=mbGR, display=display.data_window)
 col_bull = input.color(color.lime, 'Color: Bullish', inline='bull/bear color', group=mbGR, display=display.data_window)
 col_bear = input.color(color.red,  'Bearish',         inline='bull/bear color', group=mbGR, display=display.data_window)
 
-emaGR    = "Visuals: EMA Stack (8/21/34)"
+emaGR    = "Visuals: EMA Stack"
 show_stack = input.bool(true,         "Show EMA Stack", group=emaGR, display=display.data_window)
-c_ema8    = input.color(color.yellow, "EMA 8 Color",    group=emaGR, display=display.data_window)
-c_ema21   = input.color(color.orange, "EMA 21 Color",   group=emaGR, display=display.data_window)
-c_ema34   = input.color(color.red,    "EMA 34 Color",   group=emaGR, display=display.data_window)
+ema_len1  = input.int(8,  "EMA 1 Length", group=emaGR, display=display.data_window)
+ema_len2  = input.int(21, "EMA 2 Length", group=emaGR, display=display.data_window)
+ema_len3  = input.int(34, "EMA 3 Length", group=emaGR, display=display.data_window)
+c_ema1    = input.color(color.yellow, "EMA 1 Color",    group=emaGR, display=display.data_window)
+c_ema2    = input.color(color.orange, "EMA 2 Color",   group=emaGR, display=display.data_window)
+c_ema3    = input.color(color.red,    "EMA 3 Color",   group=emaGR, display=display.data_window)
 
 
 
@@ -61,6 +64,8 @@ critGR      = "Scanner: Criteria Periods"
 // [v3.2] Scanner MB now shares ha_len from "Visuals: Market Bias → Period"
 // so you only set one value — visual and scanner always stay in sync.
 sc_mb_len   = ha_len
+sc_mb_len2  = ha_len2
+sc_mb_len3  = osc_len
 sc_bx_s1    = input.int(5,   "B-Xtrender Short L1",   group=critGR, display=display.data_window)
 sc_bx_s2    = input.int(20,  "B-Xtrender Short L2",   group=critGR, display=display.data_window)
 sc_bx_s3    = input.int(15,  "B-Xtrender Short L3",   group=critGR, display=display.data_window)
@@ -133,13 +138,18 @@ min_win_move    = input.float(2.0, "Min Move % to Count as Win (DEPRECATED)", mi
 min_win_atr     = input.float(1.0, "Min ATR Multiple to Win", minval=0.0, maxval=5.0, step=0.1, group=backGR, tooltip="ATR-normalized win threshold: 1.0 = price must move 1× ATR in correct direction. Fair across all volatility regimes. Set to 0 to disable.")
 show_regime_ctx = input.bool(false, "Show Regime Context (Trend/Range)", group=backGR, tooltip="Display tier performance split by market regime")
 setup_filt_bt   = input.string("All", "Setup Filter", options=["All", "Perfect Storm", "Breakout", "Breakdown", "Pullback Buy", "Failed Rally", "Divergence", "Distribution", "Strong Trend", "Strong Down", "Directional", "Bullish", "Bearish"], group=backGR)
+bt_filt_wait    = input.bool(true, "BT Filt: Wait (⏳ ADX/Range)", group=backGR)
+bt_filt_overext = input.bool(true, "BT Filt: Overextended (⚠️)", group=backGR)
+bt_filt_mtf     = input.bool(true, "BT Filt: MTF Conflict (⬆️)", group=backGR)
+bt_filt_er      = input.bool(true, "BT Filt: Earnings (⚠️ ER)", group=backGR)
 
 // TP/SL Simulation
-tpslGR         = "Signal Quality Analyzer (TP/SL Simulation)"
+tpslGR         = "Signal Quality Analyzer (TP/SL/Time Simulation)"
 use_tpsl       = input.bool(true,  "Enable TP/SL Simulation Row", group=tpslGR)
 show_tpsl_cmp  = input.bool(true,  "Show TP/SL vs 14d Comparison", group=tpslGR, tooltip="Show indicator (✓/↓) comparing TP/SL win rate vs 14d hold")
 tp_atr         = input.float(2.0,  "Take Profit (ATR Multiplier)", minval=0.5, maxval=10.0, step=0.5, group=tpslGR)
 sl_atr         = input.float(1.0,  "Stop Loss (ATR Multiplier)",   minval=0.5, maxval=10.0, step=0.5, group=tpslGR)
+time_stop_bars = input.int(21,     "Time Stop (Max Hold Bars)",    minval=5,  maxval=60,   step=1,   group=tpslGR)
 
 // Base Weights (7 components: signal strength × tradability)
 w_mb  = input.int(25, "Weight: Market Bias %",      minval=0, maxval=40, group="Scanner: Scoring", display=display.data_window)
@@ -171,12 +181,12 @@ f_drawLabelX(_x, _y, _text, _style, _textcolor, _size, _tooltip) =>
     lb.set_xy(_x, _y), lb.set_text(_text), lb.set_tooltip(_tooltip), lb.set_textcolor(_textcolor)
 
 // EMA Stack
-v_ema8  = ta.ema(close, 8)
-v_ema21 = ta.ema(close, 21)
-v_ema34 = ta.ema(close, 34)
-plot(show_stack ? v_ema8  : na, "EMA 8",  color=c_ema8,  linewidth=2)
-plot(show_stack ? v_ema21 : na, "EMA 21", color=c_ema21, linewidth=2)
-plot(show_stack ? v_ema34 : na, "EMA 34", color=c_ema34, linewidth=2)
+v_ema1  = ta.ema(close, ema_len1)
+v_ema2  = ta.ema(close, ema_len2)
+v_ema3  = ta.ema(close, ema_len3)
+plot(show_stack ? v_ema1  : na, "EMA 1",  color=c_ema1,  linewidth=2)
+plot(show_stack ? v_ema2  : na, "EMA 2",  color=c_ema2, linewidth=2)
+plot(show_stack ? v_ema3  : na, "EMA 3",  color=c_ema3, linewidth=2)
 
 
 
@@ -309,7 +319,7 @@ type StockData
     float  mb_osc
     float  bx_short
     float  bx_long
-    float  dist_ema8
+    float  dist_ema1
     bool   reversal
     float  rvol
     string regime       // [FIX-5] raw regime string, no mtf_tag
@@ -326,13 +336,13 @@ s_t3_smooth(src, len) =>
     b=0.7, c1=-b*b*b, c_2=3*b*b+3*b*b*b, c3=-6*b*b-3*b-3*b*b*b, c4=1+3*b+b*b*b+3*b*b
     c1*xe6 + c_2*xe5 + c3*xe4 + c4*xe3
 
-s_calc_mb(c, o, h, l, len) =>
-    mb_o=ta.ema(o,len), mb_c=ta.ema(c,len), mb_h=ta.ema(h,len), mb_l=ta.ema(l,len)
-    hc=(mb_o+mb_h+mb_l+mb_c)/4
-    xho=(mb_o+mb_c)/2
-    ho=na(xho[1])?(mb_o+mb_c)/2:(xho[1]+hc[1])/2
-    _o2=ta.ema(ho,len), _c2=ta.ema(hc,len)
-    osc=100*(_c2-_o2), sm=ta.ema(osc,7)
+s_calc_mb(c, o, h, l, len1, len2, len3) =>
+    _mb_o=ta.ema(o,len1), _mb_c=ta.ema(c,len1), _mb_h=ta.ema(h,len1), _mb_l=ta.ema(l,len1)
+    hc=(_mb_o+_mb_h+_mb_l+_mb_c)/4
+    xho=(_mb_o+_mb_c)/2
+    ho=na(xho[1])?(_mb_o+_mb_c)/2:(xho[1]+hc[1])/2
+    _o2=ta.ema(ho,len2), _c2=ta.ema(hc,len2)
+    osc=100*(_c2-_o2), sm=ta.ema(osc,len3)
     is_bull=osc>0, is_str=is_bull?(osc>=sm):(osc<=sm)
     bs_bull=is_bull and osc[1]<0, bs_bear=not is_bull and osc[1]>=0
     [osc,is_bull,is_str,bs_bull,bs_bear]
@@ -343,14 +353,12 @@ s_calc_bx(c, s1, s2, s3, l1, l2) =>
     mstX=s_t3_smooth(stX,5)
     [stX, mstX, ltX, mstX>mstX[1] and mstX[1]<mstX[2], mstX<mstX[1] and mstX[1]>mstX[2], stX>0 and stX[1]<=0, stX<0 and stX[1]>=0]
 
-// [FIX-8] EMA periods for scanner: 21/34/50 — calibrated for options holding periods
-// EMA21 ≈ 1 month  |  EMA34 ≈ 7 weeks  |  EMA50 ≈ 2.5 months
-// Note: These are DIFFERENT from the visual EMA stack (8/21/34) which is for chart display
-s_calc_emas(c) =>
-    e21=ta.ema(c,21), e34=ta.ema(c,34), e50=ta.ema(c,50)
-    d21=(c-e21)/e21*100, d34=(c-e34)/e34*100, d50=(c-e50)/e50*100
-    bstk=e21>e34 and e34>e50, brstk=e21<e34 and e34<e50
-    [e21,e34,e50,d21,d34,d50,bstk,brstk,math.abs(d34)<1.0,math.abs(d50)<1.5,c>e21 and c[1]<=e21[1],c<e21 and c[1]>=e21[1]]
+// EMA periods for scanner are now synced with Visuals settings
+s_calc_emas(c, l1, l2, l3) =>
+    e1=ta.ema(c,l1), e2=ta.ema(c,l2), e3=ta.ema(c,l3)
+    d1=(c-e1)/e1*100, d2=(c-e2)/e2*100, d3=(c-e3)/e3*100
+    bstk=e1>e2 and e2>e3, brstk=e1<e2 and e2<e3
+    [e1,e2,e3,d1,d2,d3,bstk,brstk,math.abs(d2)<1.0,math.abs(d3)<1.5,c>e1 and c[1]<=e1[1],c<e1 and c[1]>=e1[1]]
 
 // ADX helper
 s_calc_adx(len) =>
@@ -381,46 +389,46 @@ s_calc_hv_pct(period, lookback) =>
     [hv_now, pct]
 
 // Setup Identification (v3.2B relaxed + v3.3 RVOL contraction for pullbacks)
-s_identify(osc, bull, bs_bull, bs_bear, bxs, bxl, rev_up, rev_dn, crup, crdn, d8, d21, d34, bstk, brstk, t21, t34, cup8, cdn8, rvol_now, pb_max, is_sqz) =>
+s_identify(osc, bull, bs_bull, bs_bear, bxs, bxl, rev_up, rev_dn, crup, crdn, d1, d2, d3, bstk, brstk, t2, t3, cup1, cdn1, rvol_now, pb_max, is_sqz) =>
     name="Mixed", type="NEUTRAL", conf=0
 
     // ── CALL setups (strongest → weakest) ──────────────────
-    if (bs_bull or (bull and osc>2)) and (crup or (bxs>0 and rev_up)) and bxl>0 and cup8 and bstk
+    if (bs_bull or (bull and osc>2)) and (crup or (bxs>0 and rev_up)) and bxl>0 and cup1 and bstk
         name:="Perfect Storm", type:="CALL", conf:=3
-    else if bull and osc>2 and bxs>10 and bxl>5 and cup8 and d8>1 and d21>0
+    else if bull and osc>2 and bxs>10 and bxl>5 and cup1 and d1>1 and d2>0
         name:=is_sqz ? "Squeeze Breakout" : "Breakout", type:="CALL", conf:=3
-    else if bull and osc>2 and bxs>5 and bxl>8 and d8>0
+    else if bull and osc>2 and bxs>5 and bxl>8 and d1>0
         name:="Strong Trend", type:="CALL", conf:=2
-    else if bull and osc>1 and bxs>0 and not crdn and bxl>0 and (t21 or t34) and d8>-2
+    else if bull and osc>1 and bxs>0 and not crdn and bxl>0 and (t2 or t3) and d1>-2
         // [v3.3] pullbacks must shrink in volume and hit structural support (21 or 50 EMA)
-        if rvol_now <= pb_max and (math.abs(d8) <= 1.5 or math.abs(d34) <= 1.5)
+        if rvol_now <= pb_max and (math.abs(d1) <= 1.5 or math.abs(d3) <= 1.5)
             name:="Pullback Buy", type:="CALL", conf:=2
         else
             name:="Vol Distribution", type:="NEUTRAL", conf:=1
-    else if (bs_bull or osc>0) and rev_up and bxs>-10 and cup8
+    else if (bs_bull or osc>0) and rev_up and bxs>-10 and cup1
         name:="Divergence", type:="CALL", conf:=1
 
     // ── PUT setups (strongest → weakest) ───────────────────
-    else if (bs_bear or (not bull and osc<-2)) and (crdn or (bxs<0 and rev_dn)) and bxl<0 and cdn8 and brstk
+    else if (bs_bear or (not bull and osc<-2)) and (crdn or (bxs<0 and rev_dn)) and bxl<0 and cdn1 and brstk
         name:="Perfect Storm", type:="PUT", conf:=3
-    else if not bull and osc<-2 and bxs<-10 and bxl<-5 and cdn8 and d8<-1 and d21<0
+    else if not bull and osc<-2 and bxs<-10 and bxl<-5 and cdn1 and d1<-1 and d2<0
         name:=is_sqz ? "Squeeze Breakdown" : "Breakdown", type:="PUT", conf:=3
-    else if not bull and osc<-2 and bxs<-5 and bxl<-8 and d8<0
+    else if not bull and osc<-2 and bxs<-5 and bxl<-8 and d1<0
         name:="Strong Down", type:="PUT", conf:=2
-    else if not bull and osc<-1 and bxs<0 and not crup and bxl<0 and (t21 or t34) and d8<2
+    else if not bull and osc<-1 and bxs<0 and not crup and bxl<0 and (t2 or t3) and d1<2
         // [v3.3] failed rallies must shrink in volume and hit structural support (21 or 50 EMA)
-        if rvol_now <= pb_max and (math.abs(d8) <= 1.5 or math.abs(d34) <= 1.5)
+        if rvol_now <= pb_max and (math.abs(d1) <= 1.5 or math.abs(d3) <= 1.5)
             name:="Failed Rally", type:="PUT", conf:=2
         else
             name:="Vol Accumulation", type:="NEUTRAL", conf:=1
-    else if (bs_bear or osc<0) and rev_dn and bxs<10 and cdn8
+    else if (bs_bear or osc<0) and rev_dn and bxs<10 and cdn1
         name:="Distribution", type:="PUT", conf:=1
 
     // ── [v3.2B REFINED] Directional catch-all ──────────────────
     // All 3 core oscillators agree AND there is confirmed recent price progress
-    else if bull and bxs>0 and bxl>0 and d8>-1 and (nz(close[3]) > 0 and close > close[3])
+    else if bull and bxs>0 and bxl>0 and d1>-1 and (nz(close[3]) > 0 and close > close[3])
         name:="Directional", type:="CALL", conf:=1
-    else if not bull and bxs<0 and bxl<0 and d8<1 and (nz(close[3]) > 0 and close < close[3])
+    else if not bull and bxs<0 and bxl<0 and d1<1 and (nz(close[3]) > 0 and close < close[3])
         name:="Directional", type:="PUT", conf:=1
 
     // ── Generic fallback ───────────────────────────────────
@@ -434,7 +442,7 @@ s_identify(osc, bull, bs_bull, bs_bear, bxs, bxl, rev_up, rev_dn, crup, crdn, d8
 // ==========================================
 // 5. MAIN SCANNER FUNCTION (v3.2)
 // ==========================================
-s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
+s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb1, c_mb2, c_mb3, c_s1, c_s2, c_s3, c_l1, c_l2, c_e1, c_e2, c_e3) =>
 
     // RVOL (First so we can use it in identify)
     [rvol_now, rvol_2bar] = s_calc_rvol(volume, rvol_period)
@@ -446,9 +454,9 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
     is_earn_near = use_earn and (days_to_ern > 0 and days_to_ern <= earn_thresh)
 
     // Core
-    [mb,isb,iss,bsb,bss]                                         = s_calc_mb(close,open,high,low,c_mb)
+    [mb,isb,iss,bsb,bss]                                         = s_calc_mb(close,open,high,low,c_mb1, c_mb2, c_mb3)
     [bxs,mabxs,bxl,rvu,rvd,cru,crd]                             = s_calc_bx(close,c_s1,c_s2,c_s3,c_l1,c_l2)
-    [e8,e21,e34,d8,d21,d34,bstk,brstk,t21,t34,cup8,cdn8]        = s_calc_emas(close)
+    [e1,e2,e3,d1,d2,d3,bstk,brstk,t2,t3,cup1,cdn1]        = s_calc_emas(close, c_e1, c_e2, c_e3)
 
     // Volatility Contraction (Squeeze)
     bb_dev = 2.0 * ta.stdev(close, 20)
@@ -456,7 +464,7 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
     is_sqz = (ta.sma(close, 20) + bb_dev) < (ta.ema(close, 20) + kc_dev) and (ta.sma(close, 20) - bb_dev) > (ta.ema(close, 20) - kc_dev)
     is_sqz_hist = is_sqz or is_sqz[1] or is_sqz[2]
 
-    [sn,st,sc]                                                    = s_identify(mb,isb,bsb,bss,bxs,bxl,rvu,rvd,cru,crd,d8,d21,d34,bstk,brstk,t21,t34,cup8,cdn8, rvol_now, pb_rvol_max, is_sqz_hist)
+    [sn,st,sc]                                                    = s_identify(mb,isb,bsb,bss,bxs,bxl,rvu,rvd,cru,crd,d1,d2,d3,bstk,brstk,t2,t3,cup1,cdn1, rvol_now, pb_rvol_max, is_sqz_hist)
 
     // ADX
     [adx_v, plus_di, minus_di] = s_calc_adx(adx_period)
@@ -506,14 +514,14 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
 
     // ── EMA Score ─────────────────────────────────────────
     // Direction-aware: bullish stack = good for CALL, bad for PUT
-    ema_call_aligned = d8 > 0 and d21 > 0 and bstk
-    ema_put_aligned  = d8 < 0 and d21 < 0 and brstk
+    ema_call_aligned = d1 > 0 and d2 > 0 and bstk
+    ema_put_aligned  = d1 < 0 and d2 < 0 and brstk
     ema_with_dir = (st == "CALL" and ema_call_aligned) or (st == "PUT" and ema_put_aligned)
     ema_against  = (st == "CALL" and ema_put_aligned)  or (st == "PUT" and ema_call_aligned)
     sc_ema = ema_with_dir ? 90.0 : ema_against ? 25.0 : 55.0
     // Partial credit: aligned direction but not full stack
-    ema_partial_call = d8 > 0 and st == "CALL" and not ema_call_aligned
-    ema_partial_put  = d8 < 0 and st == "PUT"  and not ema_put_aligned
+    ema_partial_call = d1 > 0 and st == "CALL" and not ema_call_aligned
+    ema_partial_put  = d1 < 0 and st == "PUT"  and not ema_put_aligned
     sc_ema := (ema_partial_call or ema_partial_put) ? 70.0 : sc_ema
 
     // ── Momentum Score ────────────────────────────────────
@@ -581,11 +589,11 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
     if is_sqz_hist and (sn == "Squeeze Breakout" or sn == "Squeeze Breakdown")
         comp := math.min(comp + 5.0, 100.0)
 
-    overext   = use_mr_filter and math.abs(close - e21) > (mr_stddev_mult * ta.atr(mr_lookback))
-    ema50_guard = st == "PUT" and close > e34
+    overext   = use_mr_filter and math.abs(close - e2) > (mr_stddev_mult * ta.atr(mr_lookback))
+    ema50_guard = st == "PUT" and close > e3
 
     // Weekly MTF Hard Filter (true weekly data, not approximation)
-    [wk_osc, wk_bull, wk_str, _, _] = request.security(syminfo.tickerid, "W", s_calc_mb(close, open, high, low, c_mb), lookahead=barmerge.lookahead_off)
+    [wk_osc, wk_bull, wk_str, _, _] = request.security(syminfo.tickerid, "W", s_calc_mb(close, open, high, low, c_mb1, c_mb2, c_mb3), lookahead=barmerge.lookahead_off)
     [wk_bxs, _, wk_bxl, _, _, _, _] = request.security(syminfo.tickerid, "W", s_calc_bx(close, c_s1, c_s2, c_s3, c_l1, c_l2), lookahead=barmerge.lookahead_off)
     weekly_score_approx = 50.0 + (wk_bull ? math.min(wk_osc * 5, 30) : -math.min(math.abs(wk_osc) * 5, 30)) + (wk_str ? 20 : 5)
     mtf_conflict = use_mtf_filter and ((st == "CALL" and weekly_score_approx < mtf_score_floor) or (st == "PUT" and weekly_score_approx > 52))
@@ -634,13 +642,13 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb, c_s1, c_s2, c_s3, c_l1, c_l2) =>
     else if is_trending
         mkt_state := "TRENDING"
 
-    [comp, sig, sn, st, sc, mb, bxs, bxl, d8, d21, rvu or rvd, rvol_2bar, regime_str, overext, mtf_conflict, adx_v, hv_env_str, hv_expensive, is_earn_near, mkt_state]
+    [comp, sig, sn, st, sc, mb, bxs, bxl, d1, d2, rvu or rvd, rvol_2bar, regime_str, overext, mtf_conflict, adx_v, hv_env_str, hv_expensive, is_earn_near, mkt_state]
 
 // ==========================================
 // 6. OPTIONS STRUCTURE DECISION MATRIX
 // ==========================================
 // Extracted so it can be used by both the scanner UI and Backtester
-f_get_struct(s_stype, s_setup, s_regime, s_hv_env, s_hv_exp, s_rvol, r_thresh, s_overext, s_mtf_final, s_earn, s_d8, s_d21, s_comp) =>
+f_get_struct(s_stype, s_setup, s_regime, s_hv_env, s_hv_exp, s_rvol, r_thresh, s_overext, s_mtf_final, s_earn, s_d1, s_d2, s_comp) =>
     struct_rec = ""
     portal_eng = ""
     
@@ -774,7 +782,7 @@ f_get_struct(s_stype, s_setup, s_regime, s_hv_env, s_hv_exp, s_rvol, r_thresh, s
     else if str.contains(s_setup, "Strong") or str.contains(s_setup, "Trend")
         if s_stype == "CALL"
             if regime_s == "Trend"
-                if s_d8 > 3.0 or s_d21 > 5.0
+                if s_d1 > 3.0 or s_d2 > 5.0
                     struct_rec := "⚠️ Wait for Pullback"
                     portal_eng := "Wait: High Mean Reversion Risk"
                 else if is_hv_exp
@@ -788,7 +796,7 @@ f_get_struct(s_stype, s_setup, s_regime, s_hv_env, s_hv_exp, s_rvol, r_thresh, s
                 portal_eng := "Wait: trend unconfirmed"
         else  // PUT: Strong Down
             if regime_s == "Trend"
-                if s_d8 < -3.0 or s_d21 < -5.0
+                if s_d1 < -3.0 or s_d2 < -5.0
                     struct_rec := "⚠️ Wait for Bounce"
                     portal_eng := "Wait: High Mean Reversion Risk"
                 else if is_hv_exp
@@ -888,24 +896,24 @@ if barstate.islast and show_scanner
         if str.length(sym) < 1
             continue
 
-        [s_comp, s_sig, s_setup, s_stype, s_conf, s_mb, s_bxs, s_bxl, s_d8, s_d21, s_rev, s_rvol, s_regime, s_overext, s_mtf, s_adx, s_hv_env, s_hv_exp, s_earn, s_mkt_state] = request.security(sym, timeframe.period, s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2), ignore_invalid_symbol=true)
+        [s_comp, s_sig, s_setup, s_stype, s_conf, s_mb, s_bxs, s_bxl, s_d1, s_d2, s_rev, s_rvol, s_regime, s_overext, s_mtf, s_adx, s_hv_env, s_hv_exp, s_earn, s_mkt_state] = request.security(sym, timeframe.period, s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_mb_len2, sc_mb_len3, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2, ema_len1, ema_len2, ema_len3), ignore_invalid_symbol=true)
 
         incl = (s_stype == "CALL" and show_calls) or (s_stype == "PUT" and show_puts)
         if not na(s_comp) and ((s_comp >= min_score and incl) or min_score == 0)
-            [struct_rec, portal_eng] = f_get_struct(s_stype, s_setup, s_regime, s_hv_env, s_hv_exp, s_rvol, rvol_threshold, s_overext, s_mtf, s_earn, s_d8, s_d21, s_comp)
+            [struct_rec, portal_eng] = f_get_struct(s_stype, s_setup, s_regime, s_hv_env, s_hv_exp, s_rvol, rvol_threshold, s_overext, s_mtf, s_earn, s_d1, s_d2, s_comp)
             note = struct_rec + "\n" + portal_eng
             display_regime = str.tostring(s_regime) + " W~"
 
             array.push(results, StockData.new(sym, s_comp, s_sig, s_setup, s_stype, s_conf,
-                 nz(s_mb), nz(s_bxs), nz(s_bxl), nz(s_d8), s_rev ? true : false,
+                 nz(s_mb), nz(s_bxs), nz(s_bxl), nz(s_d1), s_rev ? true : false,
                  nz(s_rvol, 1.0), display_regime,
                  s_overext ? true : false, s_mtf ? true : false,
                  nz(s_adx, 0.0), str.tostring(s_hv_env), str.tostring(s_mkt_state), note))
 
 // ==========================================
-// 7. SCANNER DISPLAY (11 columns)
+// 7. SCANNER DISPLAY (12 columns)
 // ==========================================
-// Cols: Symbol | MB | Bx-S | Bx-L | EMA | RVOL | Score Tier | Setup | Direction | Mkt State | Risk Flags
+// Cols: Symbol | MB | Bx-S | Bx-L | EMA | RVOL | Score Tier | Setup | Direction | Mkt State | Risk Flags | Blocker
 
 if barstate.islast and show_scanner and array.size(results) > 1
     for i = 0 to array.size(results) - 2
@@ -919,7 +927,7 @@ if barstate.islast and show_scanner and array.size(results) > 0
     tbl_pos = table_position == "top_left" ? position.top_left : table_position == "top_center" ? position.top_center : table_position == "top_right" ? position.top_right : table_position == "middle_left" ? position.middle_left : table_position == "middle_center" ? position.middle_center : table_position == "middle_right" ? position.middle_right : table_position == "bottom_left" ? position.bottom_left : table_position == "bottom_center" ? position.bottom_center : position.bottom_right
     sz = table_size == "tiny" ? size.tiny : table_size == "small" ? size.small : table_size == "large" ? size.large : size.normal
 
-    var table tbl = table.new(tbl_pos, 11, max_display + 2, border_width=2)
+    var table tbl = table.new(tbl_pos, 12, max_display + 2, border_width=2)
     hdr_bg = color.new(color.blue, 70)
     hdr_tc = color.white
 
@@ -934,6 +942,7 @@ if barstate.islast and show_scanner and array.size(results) > 0
     table.cell(tbl, 8,  0, "Direction",         bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
     table.cell(tbl, 9,  0, "Market State",      bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
     table.cell(tbl, 10, 0, "Risk Flags",        bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
+    table.cell(tbl, 11, 0, "Blocker",           bgcolor=hdr_bg, text_color=hdr_tc, text_size=sz)
 
     cnt = math.min(array.size(results), max_display)
     call_cnt = 0, put_cnt = 0
@@ -947,7 +956,8 @@ if barstate.islast and show_scanner and array.size(results) > 0
             put_cnt  += 1
 
         // Row-level: determine if this row has an ACTUAL strategy recommendation
-        is_actionable = not str.startswith(d.note_detail, "⏳") and not str.startswith(d.note_detail, "⚠️") and not str.startswith(d.note_detail, "⬆️") and not str.startswith(d.note_detail, "—") and d.stype != "NEUTRAL"
+        raw_struct = array.get(str.split(d.note_detail, "\n"), 0)
+        is_actionable = not str.startswith(raw_struct, "⏳") and not str.startswith(raw_struct, "⚠️") and not str.startswith(raw_struct, "⬆️") and not str.startswith(raw_struct, "—") and d.stype != "NEUTRAL"
         is_call_action = is_actionable and d.stype == "CALL"
         is_put_action  = is_actionable and d.stype == "PUT"
         is_ic_action   = is_actionable and str.contains(d.note_detail, "Iron Condor")
@@ -967,7 +977,7 @@ if barstate.islast and show_scanner and array.size(results) > 0
         table.cell(tbl, 1, r, str.tostring(math.round(d.mb_osc, 1)),   bgcolor=dim_bg, text_size=sz, text_color=d.mb_osc   > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
         table.cell(tbl, 2, r, str.tostring(math.round(d.bx_short, 1)), bgcolor=dim_bg, text_size=sz, text_color=d.bx_short > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
         table.cell(tbl, 3, r, str.tostring(math.round(d.bx_long, 1)),  bgcolor=dim_bg, text_size=sz, text_color=d.bx_long  > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
-        table.cell(tbl, 4, r, str.tostring(math.round(d.dist_ema8, 1)) + "%", bgcolor=dim_bg, text_size=sz, text_color=d.dist_ema8 > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
+        table.cell(tbl, 4, r, str.tostring(math.round(d.dist_ema1, 1)) + "%", bgcolor=dim_bg, text_size=sz, text_color=d.dist_ema1 > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
 
         // Col 5: RVOL — only color RVOL itself, keep bg dark
         rvol_txt = str.tostring(math.round(d.rvol, 2)) + "x"
@@ -996,17 +1006,35 @@ if barstate.islast and show_scanner and array.size(results) > 0
         table.cell(tbl, 9, r, d.market_state, bgcolor=row_bg, text_size=sz, text_color=mkt_tc)
 
         // Col 10: Risk Flags
-        risk_flag  = is_actionable ? "" : array.get(str.split(d.note_detail, "\n"), 0)
-        if risk_flag == "" and d.hv_env == "Hi" and not is_actionable
-            risk_flag := "Hi Vol"
+        string risk_str = ""
+        if d.overextended or str.contains(raw_struct, "OverExt")
+            risk_str := risk_str + "⚠️Ext "
+        if d.mtf_conflict or str.contains(raw_struct, "MTF")
+            risk_str := risk_str + "⬆️MTF "
+        if str.contains(raw_struct, "ER Blocked")
+            risk_str := risk_str + "⚠️ER "
+        if str.contains(raw_struct, "LowVol") or str.contains(raw_struct, "Low RVOL")
+            risk_str := risk_str + "⏳Vol "
+        if d.hv_env == "Hi"
+            risk_str := risk_str + "HiVol "
         
-        table.cell(tbl, 10, r, risk_flag, bgcolor=row_bg, text_size=sz, text_color=color.new(color.orange, 20))
+        table.cell(tbl, 10, r, risk_str, bgcolor=row_bg, text_size=sz, text_color=color.new(color.orange, 20))
+
+        // Col 11: Blocker
+        string blocker_str = ""
+        if not is_actionable
+            if str.contains(raw_struct, "OverExt") or str.contains(raw_struct, "MTF Conflict") or str.contains(raw_struct, "ER Blocked") or str.contains(raw_struct, "Low RVOL")
+                blocker_str := "Risk Block"
+            else
+                blocker_str := str.replace_all(raw_struct, " ⚡LowVol", "")
+
+        table.cell(tbl, 11, r, blocker_str, bgcolor=row_bg, text_size=sz, text_color=color.new(color.red, 30))
 
 
     // Summary row
     sum_row = cnt + 1
     sum_txt = str.tostring(cnt) + " setups | " + str.tostring(call_cnt) + " CALLS · " + str.tostring(put_cnt) + " PUTS  |  v3.2 — 1.5wk–2mo calibration"
-    table.merge_cells(tbl, 0, sum_row, 10, sum_row)
+    table.merge_cells(tbl, 0, sum_row, 11, sum_row)
     table.cell(tbl, 0, sum_row, sum_txt, bgcolor=color.new(color.blue, 90), text_size=size.small, text_color=color.white)
 
 // ==========================================
@@ -1047,7 +1075,7 @@ f_tpsl_row(t, row, lbl, tot, wins, tp_hits, sl_hits, sum_ret, bg) =>
 
 if show_backtest
     // Get signal data for current chart symbol
-    [c_comp, c_sig, c_setup, c_stype, c_conf, c_mb, c_bxs, c_bxl, c_d8, c_d21, c_rev, c_rvol, c_regime, c_overext, c_mtf, c_adx, c_hv_env, c_hv_exp, c_earn, c_mkt_state] = s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2)
+    [c_comp, c_sig, c_setup, c_stype, c_conf, c_mb, c_bxs, c_bxl, c_d1, c_d2, c_rev, c_rvol, c_regime, c_overext, c_mtf, c_adx, c_hv_env, c_hv_exp, c_earn, c_mkt_state] = s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_mb_len2, sc_mb_len3, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2, ema_len1, ema_len2, ema_len3)
     
     is_valid_sig = c_comp >= math.max(min_score_bt, 70) and (c_stype == "CALL" or c_stype == "PUT")
 
@@ -1079,8 +1107,26 @@ if show_backtest
     var int t_put_b = 0, var int c7_put_b = 0, var int s7_put_b = 0, var float sum_m7_put_b = 0.0, var int c14_put_b = 0, var int s14_put_b = 0, var float sum_m14_put_b = 0.0, var int c20_put_b = 0, var int s20_put_b = 0, var float sum_m20_put_b = 0.0
     
     // Check Structure Rec dynamically to see if strategy is valid to enter
-    [c_struct_rec, c_portal_eng] = f_get_struct(c_stype, c_setup, c_regime, c_hv_env, c_hv_exp, c_rvol, rvol_threshold, c_overext, c_mtf, c_earn, c_d8, c_d21, c_comp)
-    has_valid_struct = not str.startswith(c_struct_rec, "⏳") and not str.startswith(c_struct_rec, "⚠️") and not str.startswith(c_struct_rec, "⬆️") and not str.startswith(c_struct_rec, "—")
+    [c_struct_rec, c_portal_eng] = f_get_struct(c_stype, c_setup, c_regime, c_hv_env, c_hv_exp, c_rvol, rvol_threshold, c_overext, c_mtf, c_earn, c_d1, c_d2, c_comp)
+    
+    // Determine blocker status per type
+    is_wait    = str.startswith(c_struct_rec, "⏳")
+    is_overext = str.contains(c_struct_rec, "OverExt")
+    is_mtf     = str.contains(c_struct_rec, "MTF")
+    is_er      = str.contains(c_struct_rec, "ER Blocked")
+    
+    // A setup is "valid" if it's NOT blocked by an enabled filter
+    has_valid_struct = true
+    if bt_filt_wait and is_wait
+        has_valid_struct := false
+    if bt_filt_overext and is_overext
+        has_valid_struct := false
+    if bt_filt_mtf and is_mtf
+        has_valid_struct := false
+    if bt_filt_er and is_er
+        has_valid_struct := false
+    if str.startswith(c_struct_rec, "—")
+        has_valid_struct := false
     
     // Trigger condition
     is_any_sig = (is_valid_sig and has_valid_struct)
@@ -1127,46 +1173,51 @@ if show_backtest
     is_new_status = (c_sig != c_sig[1])
     is_cooldown_expired = (bar_index - last_entry_idx >= 21)
     
-    trigger_trade = is_any_sig and (is_new_status or is_cooldown_expired)
+    trigger_trade_cond = is_any_sig and (is_new_status or is_cooldown_expired)
+
+    // NEW (v3.3): Enter on the OPEN of the bar following the signal to simulate realistic execution
+    trigger_trade = trigger_trade_cond[1]
 
     if trigger_trade
-        last_entry_idx := bar_index
-        array.push(signal_entry_prices, close)
+        last_entry_idx := bar_index - 1
+        entry_price = open
+        array.push(signal_entry_prices, entry_price)
         array.push(signal_entry_bars,   bar_index)
-        array.push(signal_types,        c_stype)
-        array.push(signal_setups,       c_setup)
-        effective_score = c_comp
+        array.push(signal_types,        c_stype[1])
+        array.push(signal_setups,       c_setup[1])
+        effective_score = c_comp[1]
         tier = effective_score >= 90 ? "S" : effective_score >= 80 ? "A" : "B"
         array.push(signal_tiers,        tier)
-        array.push(signal_regimes,      c_regime)  // Store regime at entry
+        array.push(signal_regimes,      c_regime[1])  // Store regime at entry
         array.push(signal_closed,       false)
         
-        entry_atr = ta.atr(14)
+        entry_atr = ta.atr(14)[1]
         array.push(signal_atr_val,      entry_atr)
         
-        // Set TP/SL levels based on signal direction using ATR multipliers
-        if c_stype == "CALL"
-            array.push(signal_tp_prices, close + (entry_atr * tp_atr))
-            array.push(signal_sl_prices, close - (entry_atr * sl_atr))
+        // Set TP/SL levels based on signal direction using ATR multipliers (calculated at signal bar)
+        if c_stype[1] == "CALL"
+            array.push(signal_tp_prices, entry_price + (entry_atr * tp_atr))
+            array.push(signal_sl_prices, entry_price - (entry_atr * sl_atr))
         else  // PUT
-            array.push(signal_tp_prices, close - (entry_atr * tp_atr))
-            array.push(signal_sl_prices, close + (entry_atr * sl_atr))
+            array.push(signal_tp_prices, entry_price - (entry_atr * tp_atr))
+            array.push(signal_sl_prices, entry_price + (entry_atr * sl_atr))
         
         total_signals += 1
-        if c_stype == "CALL"
+        prev_stype = c_stype[1]
+        if prev_stype == "CALL"
             t_calls += 1
-        else if c_stype == "PUT"
+        else if prev_stype == "PUT"
             t_puts += 1
             
         // Tier counts: DIRECTIONAL trades only
-        if c_stype == "CALL"
+        if prev_stype == "CALL"
             if tier == "S"
                 t_call_s += 1
             else if tier == "A"
                 t_call_a += 1
             else
                 t_call_b += 1
-        else if c_stype == "PUT"
+        else if prev_stype == "PUT"
             if tier == "S"
                 t_put_s += 1
             else if tier == "A"
@@ -1174,7 +1225,8 @@ if show_backtest
             else
                 t_put_b += 1
 
-        if setup_filt_bt == "All" or str.contains(c_setup, setup_filt_bt)
+        prev_setup = c_setup[1]
+        if setup_filt_bt == "All" or str.contains(prev_setup, setup_filt_bt)
             t_filt += 1
 
     // Check performance for all pending signals
@@ -1197,39 +1249,71 @@ if show_backtest
             if use_tpsl and not e_closed
                 tp_hit = false
                 sl_hit = false
+                time_stop_hit = false
                 e_atr = array.get(signal_atr_val, i)
 
-                if e_type == "CALL"
-                    tp_triggered = high >= e_tp
-                    sl_triggered = low <= e_sl
-                    // Conservative: if both hit same bar, prioritize SL (worst case)
-                    if tp_triggered and sl_triggered
-                        sl_hit := true
-                    else if tp_triggered
-                        tp_hit := true
-                    else if sl_triggered
-                        sl_hit := true
-                else  // PUT
-                    tp_triggered = low <= e_tp   // TP for PUT = underlying dropped enough
-                    sl_triggered = high >= e_sl  // SL for PUT = underlying rose above sl
-                    // Conservative: if both hit same bar, prioritize SL (worst case)
-                    if tp_triggered and sl_triggered
-                        sl_hit := true
-                    else if tp_triggered
-                        tp_hit := true
-                    else if sl_triggered
-                        sl_hit := true
+                float execution_price = close
+                float sl_slippage_price = e_sl
+
+                if diff >= time_stop_bars
+                    time_stop_hit := true
+                else
+                    if e_type == "CALL"
+                        tp_triggered = high >= e_tp
+                        sl_triggered = low <= e_sl
+                        // Check Gap Slippage on SL
+                        if open < e_sl
+                            sl_hit := true
+                            sl_slippage_price := open
+                        else if tp_triggered and sl_triggered
+                            // Conservative: if both hit same bar, prioritize SL (worst case)
+                            sl_hit := true
+                            sl_slippage_price := e_sl
+                        else if tp_triggered
+                            tp_hit := true
+                            execution_price := e_tp
+                        else if sl_triggered
+                            sl_hit := true
+                            sl_slippage_price := e_sl
+                    else  // PUT
+                        tp_triggered = low <= e_tp   // TP for PUT = underlying dropped enough
+                        sl_triggered = high >= e_sl  // SL for PUT = underlying rose above sl
+                        // Check Gap Slippage on SL
+                        if open > e_sl
+                            sl_hit := true
+                            sl_slippage_price := open
+                        else if tp_triggered and sl_triggered
+                            // Conservative: if both hit same bar, prioritize SL (worst case)
+                            sl_hit := true
+                            sl_slippage_price := e_sl
+                        else if tp_triggered
+                            tp_hit := true
+                            execution_price := e_tp
+                        else if sl_triggered
+                            sl_hit := true
+                            sl_slippage_price := e_sl
                 
-                if tp_hit or sl_hit
+                if tp_hit or sl_hit or time_stop_hit
                     array.set(signal_closed, i, true)
-                    ret_val = tp_hit ? (e_atr * tp_atr)/math.max(e_price, 0.01) : -(e_atr * sl_atr)/math.max(e_price, 0.01)
+                    float ret_val = 0.0
+                    if time_stop_hit
+                        ret_val := (e_type == "CALL" ? (close - e_price) : (e_price - close)) / math.max(e_price, 0.01)
+                    else if tp_hit
+                        ret_val := (e_type == "CALL" ? (execution_price - e_price) : (e_price - execution_price)) / math.max(e_price, 0.01)
+                    else if sl_hit
+                        ret_val := (e_type == "CALL" ? (sl_slippage_price - e_price) : (e_price - sl_slippage_price)) / math.max(e_price, 0.01)
+
                     tpsl_total   += 1
                     tpsl_sum_ret += ret_val
+                    is_win = ret_val > 0
                     if tp_hit
                         tpsl_wins    += 1
                         tpsl_tp_hits += 1
-                    else
+                    else if sl_hit
                         tpsl_sl_hits += 1
+                    else if time_stop_hit and is_win
+                        tpsl_wins += 1    
+
                     // Per-category breakdown
                     if e_type == "CALL"
                         tpsl_call_total += 1
@@ -1237,16 +1321,20 @@ if show_backtest
                         if tp_hit
                             tpsl_call_wins += 1
                             tpsl_call_tp   += 1
-                        else
+                        else if sl_hit
                             tpsl_call_sl += 1
+                        else if time_stop_hit and is_win
+                            tpsl_call_wins += 1
                     else if e_type == "PUT"
                         tpsl_put_total += 1
                         tpsl_put_ret   += ret_val
                         if tp_hit
                             tpsl_put_wins += 1
                             tpsl_put_tp   += 1
-                        else
+                        else if sl_hit
                             tpsl_put_sl += 1
+                        else if time_stop_hit and is_win
+                            tpsl_put_wins += 1
 
                             
                     if e_type == "CALL"
@@ -1256,24 +1344,30 @@ if show_backtest
                             if tp_hit
                                 tpsl_c_s_win += 1
                                 tpsl_c_s_tp  += 1
-                            else
+                            else if sl_hit
                                 tpsl_c_s_sl  += 1
+                            else if time_stop_hit and is_win
+                                tpsl_c_s_win += 1
                         else if e_tier == "A"
                             tpsl_c_a_tot += 1
                             tpsl_c_a_ret += ret_val
                             if tp_hit
                                 tpsl_c_a_win += 1
                                 tpsl_c_a_tp  += 1
-                            else
+                            else if sl_hit
                                 tpsl_c_a_sl  += 1
+                            else if time_stop_hit and is_win
+                                tpsl_c_a_win += 1
                         else if e_tier == "B"
                             tpsl_c_b_tot += 1
                             tpsl_c_b_ret += ret_val
                             if tp_hit
                                 tpsl_c_b_win += 1
                                 tpsl_c_b_tp  += 1
-                            else
+                            else if sl_hit
                                 tpsl_c_b_sl  += 1
+                            else if time_stop_hit and is_win
+                                tpsl_c_b_win += 1
                     else if e_type == "PUT"
                         if e_tier == "S"
                             tpsl_p_s_tot += 1
@@ -1281,24 +1375,30 @@ if show_backtest
                             if tp_hit
                                 tpsl_p_s_win += 1
                                 tpsl_p_s_tp  += 1
-                            else
+                            else if sl_hit
                                 tpsl_p_s_sl  += 1
+                            else if time_stop_hit and is_win
+                                tpsl_p_s_win += 1
                         else if e_tier == "A"
                             tpsl_p_a_tot += 1
                             tpsl_p_a_ret += ret_val
                             if tp_hit
                                 tpsl_p_a_win += 1
                                 tpsl_p_a_tp  += 1
-                            else
+                            else if sl_hit
                                 tpsl_p_a_sl  += 1
+                            else if time_stop_hit and is_win
+                                tpsl_p_a_win += 1
                         else if e_tier == "B"
                             tpsl_p_b_tot += 1
                             tpsl_p_b_ret += ret_val
                             if tp_hit
                                 tpsl_p_b_win += 1
                                 tpsl_p_b_tp  += 1
-                            else
+                            else if sl_hit
                                 tpsl_p_b_sl  += 1
+                            else if time_stop_hit and is_win
+                                tpsl_p_b_win += 1
 
             if diff == look_fwd_0
                 move = (close - e_price) / e_price
@@ -1495,7 +1595,7 @@ if show_backtest
             // Cleanup logic - decoupled from look_fwd_2 to fix survivorship bias in TP/SL stats
             should_remove = false
             if use_tpsl
-                should_remove := (e_closed and diff >= look_fwd_2) or diff >= 60
+                should_remove := (e_closed and diff >= look_fwd_2) or diff >= math.max(60, time_stop_bars + 1)
             else
                 should_remove := diff >= look_fwd_2
                 

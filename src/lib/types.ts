@@ -256,28 +256,11 @@ export type UnifiedSingleLegCandidate = SingleLegRecommendation & {
 
 export type UnifiedCandidateType = UnifiedSpreadCandidate | UnifiedSingleLegCandidate;
 
-/** Tech Score slice returned by strategy-recommend for display in Recommender. */
-export interface StrategyResultTech {
-    techScore: number;
-    setup: string;
-    signal: string;
-    type: 'CALL' | 'PUT' | 'NEUTRAL';
-    confidence: number;
-}
-
 export interface StrategyResult {
     success: boolean;
     context: StrategyContext;
     regime: StrategyRegime;
     recommendedStrategy: 'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SINGLE_LEG';
-    /** Tech Score and setup from daily OHLC (Pine-aligned). Present when candles available. */
-    tech?: StrategyResultTech | null;
-    /** Tech Score per timeframe (1h, 4h, 1d). Present when daily candles available. */
-    techByTimeframe?: {
-        '1h': StrategyResultTech | null;
-        '4h': StrategyResultTech | null;
-        '1d': StrategyResultTech;
-    } | null;
     strategies: {
         TARGET_STRATEGY: Recommendation[];
         _regimeMeta?: { skew: number | null };
