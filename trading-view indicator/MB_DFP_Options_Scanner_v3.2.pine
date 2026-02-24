@@ -113,18 +113,6 @@ use_boost       = input.bool(true, "Enable 1.1x Boost (MB+BXS both > thresh)",  
 boost_mb_thresh = input.int(80,    "MB Score Threshold",                           group=boostGR, display=display.data_window)
 boost_bxs_thresh = input.int(80,   "BXS Score Threshold",                          group=boostGR, display=display.data_window)
 
-// [v3] HV Percentile (IV proxy)
-hvGR            = "Scanner: [v3] HV Percentile (IV Environment Proxy)"
-use_hv          = input.bool(true,  "Enable HV Percentile Warning",               group=hvGR, display=display.data_window)
-hv_period       = input.int(20,     "HV Calculation Period",  minval=10, maxval=30, group=hvGR, display=display.data_window)
-hv_pct_lookback = input.int(252,    "HV Percentile Lookback (bars)",               group=hvGR, display=display.data_window)
-hv_high_thresh  = input.float(0.75, "High-Vol Threshold (0–1 percentile)",         group=hvGR, display=display.data_window)
-hv_low_thresh   = input.float(0.30, "Low-Vol Threshold (ideal for buying premium)",group=hvGR, display=display.data_window)
-
-// [v3] Options Entry Quality
-optGR           = "Scanner: [v3] Options-Specific Filters"
-opt_str_buy_min = input.int(82, "Min Score for STR BUY/SELL",   group=optGR, display=display.data_window)
-opt_buy_min     = input.int(75, "Min Score for BUY/SELL",        group=optGR, display=display.data_window)
 
 // [v3.2B] Signal Expectancy Analysis (Backtesting)
 backGR          = "Signal Quality Analyzer (Backtest)"
@@ -325,8 +313,6 @@ type StockData
     string regime       // [FIX-5] raw regime string, no mtf_tag
     bool   overextended
     bool   mtf_conflict
-    float  adx_val
-    string hv_env
     string market_state
     string note_detail
 
@@ -379,14 +365,6 @@ s_calc_rvol(vol, period) =>
     rvol_2bar = (rvol_now + rvol_prev) / 2
     [rvol_now, rvol_2bar]
 
-// HV Percentile — proxy for IV environment
-s_calc_hv_pct(period, lookback) =>
-    log_ret = math.log(nz(close[1]) > 0 ? close / close[1] : 1.0)
-    hv_now  = ta.stdev(log_ret, period) * math.sqrt(252) * 100
-    hv_max  = ta.highest(hv_now, lookback)
-    hv_min  = ta.lowest(hv_now,  lookback)
-    pct     = hv_max == hv_min ? 0.5 : (hv_now - hv_min) / math.max(hv_max - hv_min, 0.0001)
-    [hv_now, pct]
 
 // Setup Identification (v3.2B relaxed + v3.3 RVOL contraction for pullbacks)
 s_identify(osc, bull, bs_bull, bs_bear, bxs, bxl, rev_up, rev_dn, crup, crdn, d1, d2, d3, bstk, brstk, t2, t3, cup1, cdn1, rvol_now, pb_max, is_sqz) =>
@@ -472,12 +450,7 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb1, c_mb2, c_mb3, c_s1, c_s2, c_s3,
     is_ranging  = adx_v < adx_range_thresh
     regime_str  = is_trending ? "Trend" : is_ranging ? "Range" : "Neut"
 
-    // HV Percentile
-    [hv_now, hv_pct] = s_calc_hv_pct(hv_period, hv_pct_lookback)
-    hv_env_str  = hv_pct >= hv_high_thresh ? "Hi" : hv_pct <= hv_low_thresh ? "Lo" : "Mid"
-    // [FIX-3] hv_expensive now used in structure logic below
-    hv_expensive = use_hv and hv_pct >= hv_high_thresh
-    hv_cheap     = use_hv and hv_pct <= hv_low_thresh
+
 
     // Dynamic Weights (ADX shifts emphasis between oscillators and structure)
     float dw1=w1, float dw2=w2, float dw3=w3, float dw4=w4, float dw5=w5, float dw6=w6, float dw7=w7
@@ -609,23 +582,23 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb1, c_mb2, c_mb3, c_s1, c_s2, c_s3,
         else
             sig := "⬆️ MTF BLOCK"
     else if st == "CALL"
-        if comp >= opt_str_buy_min and sc == 3
-            sig := "🟢 STR BUY" + (boost_active ? " 🔥" : "") + (hv_cheap ? " 💎" : "")
-        else if comp >= opt_str_buy_min
-            sig := "🟢 BUY" + (hv_cheap ? " 💎" : "")
-        else if comp >= opt_buy_min
+        if comp >= 80 and sc == 3
+            sig := "🟢 STR BUY" + (boost_active ? " 🔥" : "")
+        else if comp >= 80
+            sig := "🟢 BUY"
+        else if comp >= 70
             sig := "🟡 BUY"
         else
             sig := "👀 WATCH · CALL"
     else if st == "PUT"
-        is_high_conf_down = comp >= opt_str_buy_min and sc == 3 and rvol_2bar >= 1.0
-        is_valid_put      = comp >= opt_buy_min and rvol_2bar >= 0.8
+        is_high_conf_down = comp >= 80 and sc == 3 and rvol_2bar >= 1.0
+        is_valid_put      = comp >= 70 and rvol_2bar >= 0.8
         if ema50_guard
             sig := "👀 WATCH · PUT"
         else if is_high_conf_down
-            sig := "🔴 STR SELL" + (boost_active ? " 🔥" : "") + (hv_cheap ? " 💎" : "")
-        else if comp >= opt_str_buy_min
-            sig := "🔴 SELL" + (hv_cheap ? " 💎" : "")
+            sig := "🔴 STR SELL" + (boost_active ? " 🔥" : "")
+        else if comp >= 80
+            sig := "🔴 SELL"
         else if is_valid_put
             sig := "🟡 SELL"
         else
@@ -642,245 +615,29 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb1, c_mb2, c_mb3, c_s1, c_s2, c_s3,
     else if is_trending
         mkt_state := "TRENDING"
 
-    [comp, sig, sn, st, sc, mb, bxs, bxl, d1, d2, rvu or rvd, rvol_2bar, regime_str, overext, mtf_conflict, adx_v, hv_env_str, hv_expensive, is_earn_near, mkt_state]
+    [comp, sig, sn, st, sc, mb, bxs, bxl, d1, d2, rvu or rvd, rvol_2bar, regime_str, overext, mtf_conflict, adx_v, is_earn_near, mkt_state]
 
 // ==========================================
 // 6. OPTIONS STRUCTURE DECISION MATRIX
 // ==========================================
 // Extracted so it can be used by both the scanner UI and Backtester
-f_get_struct(s_stype, s_setup, s_regime, s_hv_env, s_hv_exp, s_rvol, r_thresh, s_overext, s_mtf_final, s_earn, s_d1, s_d2, s_comp) =>
-    struct_rec = ""
-    portal_eng = ""
-    
-    // Cast regime and hv to stable strings for comparison
-    regime_s = str.tostring(s_regime)     // "Trend" | "Range" | "Neut"
-    hv_s     = str.tostring(s_hv_env)     // "Lo" | "Mid" | "Hi"
-    is_hv_exp = s_hv_exp == true           // high HV environment flag
-    has_vol   = nz(s_rvol, 1.0) >= r_thresh
+f_get_blocker(s_regime, s_rvol, r_thresh, s_overext, s_mtf_final, s_earn) =>
+    block_msg = ""
+    regime_s = str.tostring(s_regime)
+    has_vol  = nz(s_rvol, 1.0) >= r_thresh
 
-    dte_hint   = is_hv_exp ? "30-45DTE" : "60-90DTE"
-    delta_buy  = "Buy 40-50Δ"
-    delta_sell = "Sell 15-20Δ"
-
-    // ── OVEREXTENDED (any direction) ─────────────────────
     if s_overext
-        if s_stype == "PUT"
-            if hv_s == "Hi"
-                struct_rec := "⚠️ OverExt + HiVol"
-                portal_eng := "Wait: price<-3σ, IV high"
-            else
-                struct_rec := "⚠️ OverExt·PUT risk"
-                portal_eng := "Wait: price<-3σ from EMA"
-        else if s_stype == "CALL"
-            if hv_s == "Hi"
-                struct_rec := "⚠️ OverExt + HiVol"
-                portal_eng := "Wait: price>3σ, IV high"
-            else
-                struct_rec := "⚠️ OverExt·CALL risk"
-                portal_eng := "Wait: price>3σ from EMA"
-        else
-            struct_rec := "⚠️ OverExt"
-            portal_eng := "Wait"
-
-    // ── MTF CONFLICT ──────────────────────────────────────
+        block_msg := "⚠️ OverExt"
     else if s_mtf_final
-        struct_rec := "⬆️ MTF Conflict"
-        portal_eng := "Wait: weekly bearish"
-
-    // ── EARNINGS APPROACHING ──────────────────────────────
+        block_msg := "⬆️ MTF Conflict"
     else if s_earn
-        struct_rec := "⚠️ ER Blocked"
-        portal_eng := "Avoid Theta/Vega Crush"
-
-    // ── PERFECT STORM ─────────────────────────────────────
-    else if str.contains(s_setup, "Perfect")
-        if s_stype == "CALL"
-            if is_hv_exp
-                struct_rec := "Credit Put Spread"
-                portal_eng := "CSQ|" + dte_hint + "|" + delta_sell
-            else if hv_s == "Lo"
-                struct_rec := "Long Call"
-                portal_eng := "LOQ|" + dte_hint + "|Buy 60Δ"
-            else
-                struct_rec := "Debit Call Spread"
-                portal_eng := "DSQ|" + dte_hint + "|" + delta_buy
-        else  // PUT
-            if is_hv_exp
-                struct_rec := "Credit Call Spread"
-                portal_eng := "CSQ|" + dte_hint + "|" + delta_sell
-            else if hv_s == "Lo"
-                struct_rec := "Long Put"
-                portal_eng := "LOQ|" + dte_hint + "|Buy 60Δ"
-            else
-                struct_rec := "Debit Put Spread"
-                portal_eng := "DSQ|" + dte_hint + "|" + delta_buy
-
-    // ── BREAKOUT / BREAKDOWN ──────────────────────────────
-    else if str.contains(s_setup, "Break")
-        if s_stype == "CALL"
-            if regime_s == "Trend" and has_vol
-                if is_hv_exp
-                    struct_rec := "Credit Put Spread"
-                    portal_eng := "CSQ·HiIV breakout"
-                else if hv_s == "Lo"
-                    struct_rec := "Long Call"
-                    portal_eng := "LOQ·Lambda"
-                else
-                    struct_rec := "Debit Call Spread"
-                    portal_eng := "DSQ·Breakout"
-            else if regime_s == "Trend" and not has_vol
-                struct_rec := "⏳ Low RVOL"
-                portal_eng := "Wait: breakout needs volume"
-            else
-                struct_rec := "⏳ ADX<25"
-                portal_eng := "Wait: trend unconfirmed"
-        else  // PUT (Breakdown)
-            if regime_s == "Trend" and has_vol
-                if is_hv_exp
-                    struct_rec := "Credit Call Spread"
-                    portal_eng := "CSQ·HiIV breakdown"
-                else if hv_s == "Lo"
-                    struct_rec := "Long Put"
-                    portal_eng := "LOQ·Lambda"
-                else
-                    struct_rec := "Debit Put Spread"
-                    portal_eng := "DSQ·Breakdown"
-            else if regime_s == "Trend" and not has_vol
-                struct_rec := "⏳ Low RVOL"
-                portal_eng := "Wait: breakdown needs volume"
-            else
-                struct_rec := "⏳ ADX<25"
-                portal_eng := "Wait: trend unconfirmed"
-
-    // ── PULLBACK BUY / DIVERGENCE (CALL) ─────────────────
-    //    FAILED RALLY / DISTRIBUTION (PUT) ────────────────
-    else if str.contains(s_setup, "Pullback") or str.contains(s_setup, "Divergence") or str.contains(s_setup, "Fail") or str.contains(s_setup, "Dist")
-        if s_stype == "CALL"
-            if regime_s == "Trend"
-                if is_hv_exp
-                    struct_rec := "Credit Put Spread"
-                    portal_eng := "CSQ·HiIV pullback"
-                else
-                    struct_rec := "Credit Put Spread"
-                    portal_eng := "CSQ"
-            else
-                struct_rec := "⏳ ADX<25"
-                portal_eng := "Wait: no trend anchor"
-        else  // PUT: Failed Rally / Distribution
-            if regime_s == "Trend"
-                if is_hv_exp
-                    struct_rec := "Credit Call Spread"
-                    portal_eng := "CSQ·HiIV failed rally"
-                else
-                    struct_rec := "Credit Call Spread"
-                    portal_eng := "CSQ"
-            else
-                struct_rec := "⏳ ADX<25"
-                portal_eng := "Wait: no trend anchor"
-
-    // ── STRONG TREND (CALL) / STRONG DOWN (PUT) ──────────
-    else if str.contains(s_setup, "Strong") or str.contains(s_setup, "Trend")
-        if s_stype == "CALL"
-            if regime_s == "Trend"
-                if s_d1 > 3.0 or s_d2 > 5.0
-                    struct_rec := "⚠️ Wait for Pullback"
-                    portal_eng := "Wait: High Mean Reversion Risk"
-                else if is_hv_exp
-                    struct_rec := "Credit Put Spread"
-                    portal_eng := "CSQ·High POP, HiIV"
-                else
-                    struct_rec := "Credit Put Spread"
-                    portal_eng := "CSQ·High POP"
-            else
-                struct_rec := "⏳ ADX<25"
-                portal_eng := "Wait: trend unconfirmed"
-        else  // PUT: Strong Down
-            if regime_s == "Trend"
-                if s_d1 < -3.0 or s_d2 < -5.0
-                    struct_rec := "⚠️ Wait for Bounce"
-                    portal_eng := "Wait: High Mean Reversion Risk"
-                else if is_hv_exp
-                    struct_rec := "Credit Call Spread"
-                    portal_eng := "CSQ·High POP, HiIV"
-                else
-                    struct_rec := "Credit Call Spread"
-                    portal_eng := "CSQ·High POP"
-            else
-                struct_rec := "⏳ ADX<25"
-                portal_eng := "Wait: trend unconfirmed"
-
-    // ── DIRECTIONAL (new v3.2B catch-all with direction) ─
-    else if str.contains(s_setup, "Directional")
-        if s_stype == "CALL"
-            if regime_s == "Trend"
-                if is_hv_exp
-                    struct_rec := "Credit Put Spread"
-                    portal_eng := "CSQ·Starter, HiIV"
-                else
-                    struct_rec := "Debit Call Spread"
-                    portal_eng := "DSQ·Starter"
-            else
-                struct_rec := "⏳ ADX<25"
-                portal_eng := "Wait: directional but no trend"
-        else  // PUT
-            if regime_s == "Trend"
-                if is_hv_exp
-                    struct_rec := "Credit Call Spread"
-                    portal_eng := "CSQ·Starter, HiIV"
-                else
-                    struct_rec := "Debit Put Spread"
-                    portal_eng := "DSQ·Starter"
-            else
-                struct_rec := "⏳ ADX<25"
-                portal_eng := "Wait: directional but no trend"
-
-    // ── GENERIC BULLISH / BEARISH / MIXED ──
-    else if str.contains(s_setup, "Bullish") or str.contains(s_setup, "Bearish") or str.contains(s_setup, "Mixed")
-        if regime_s == "Range"
-            has_range_width = (ta.highest(high, 20) - ta.lowest(low, 20)) > (ta.atr(14) * 2)
-            if hv_s == "Lo"
-                struct_rec := "⏳ IV too low for IC"
-                portal_eng := "Wait: low premium"
-            else if not has_range_width
-                struct_rec := "⏳ Range too tight"
-                portal_eng := "Wait: insufficient premium"
-            else
-                struct_rec := "Iron Condor"
-                portal_eng := "CSQ·Both sides"
-        else if regime_s == "Trend" and s_comp >= 75
-            if s_stype == "CALL"
-                struct_rec := "Credit Put Spread"
-                portal_eng := "CSQ·Starter, weak setup"
-            else
-                struct_rec := "Credit Call Spread"
-                portal_eng := "CSQ·Starter, weak setup"
-        else
-            struct_rec := "⏳ Weak setup"
-            portal_eng := "Wait: no clear edge"
-
-    else
-        struct_rec := "— Mixed"
-        portal_eng := "No clear structure"
-
-    if not has_vol and (s_stype == "CALL" or s_stype == "PUT")
-        struct_rec := struct_rec + " ⚡LowVol"
-
-    [struct_rec, portal_eng]
-
-// IC Composite Score — 5 range-quality metrics
-f_ic_score(adx_val, hv_env, rvol_val, range_w_ratio, range_pos_pct) =>
-    // ADX Quietness (30%) — lower ADX = stronger range confirmation
-    adx_s = adx_val <= 12 ? 95.0 : adx_val <= 16 ? 85.0 : adx_val <= 20 ? 75.0 : adx_val <= 25 ? 55.0 : 35.0
-    // Range Width / ATR (25%) — wider range = more premium to collect
-    rw_s = range_w_ratio >= 4 ? 95.0 : range_w_ratio >= 3 ? 85.0 : range_w_ratio >= 2.5 ? 75.0 : range_w_ratio >= 2 ? 60.0 : 35.0
-    // Price Centering (20%) — centered = more room before breach
-    dev = math.abs(range_pos_pct - 50.0)
-    pc_s = dev <= 10 ? 95.0 : dev <= 20 ? 80.0 : dev <= 30 ? 65.0 : dev <= 40 ? 45.0 : 30.0
-    // HV Premium (15%) — higher vol = better option premium
-    hv_s = hv_env == "Hi" ? 90.0 : hv_env == "Mid" ? 70.0 : 40.0
-    // RVOL Stability (10%) — moderate vol = stable range
-    rv_s = (rvol_val >= 0.8 and rvol_val <= 1.5) ? 85.0 : (rvol_val >= 0.6 and rvol_val <= 2.0) ? 65.0 : rvol_val < 0.6 ? 55.0 : 35.0
-    math.min(adx_s * 0.30 + rw_s * 0.25 + pc_s * 0.20 + hv_s * 0.15 + rv_s * 0.10, 100.0)
+        block_msg := "⚠️ ER Blocked"
+    else if regime_s == "Trend" and not has_vol
+        block_msg := "⏳ Low RVOL"
+    else if regime_s != "Trend"
+        block_msg := "⏳ ADX<25"
+    
+    block_msg
 
 
 // ==========================================
@@ -896,19 +653,19 @@ if barstate.islast and show_scanner
         if str.length(sym) < 1
             continue
 
-        [s_comp, s_sig, s_setup, s_stype, s_conf, s_mb, s_bxs, s_bxl, s_d1, s_d2, s_rev, s_rvol, s_regime, s_overext, s_mtf, s_adx, s_hv_env, s_hv_exp, s_earn, s_mkt_state] = request.security(sym, timeframe.period, s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_mb_len2, sc_mb_len3, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2, ema_len1, ema_len2, ema_len3), ignore_invalid_symbol=true)
+        [s_comp, s_sig, s_setup, s_stype, s_conf, s_mb, s_bxs, s_bxl, s_d1, s_d2, s_rev, s_rvol, s_regime, s_overext, s_mtf, s_adx, s_earn, s_mkt_state] = request.security(sym, timeframe.period, s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_mb_len2, sc_mb_len3, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2, ema_len1, ema_len2, ema_len3), ignore_invalid_symbol=true)
 
         incl = (s_stype == "CALL" and show_calls) or (s_stype == "PUT" and show_puts)
         if not na(s_comp) and ((s_comp >= min_score and incl) or min_score == 0)
-            [struct_rec, portal_eng] = f_get_struct(s_stype, s_setup, s_regime, s_hv_env, s_hv_exp, s_rvol, rvol_threshold, s_overext, s_mtf, s_earn, s_d1, s_d2, s_comp)
-            note = struct_rec + "\n" + portal_eng
+            blocker_msg = f_get_blocker(s_regime, s_rvol, rvol_threshold, s_overext, s_mtf, s_earn)
+            note = blocker_msg
             display_regime = str.tostring(s_regime) + " W~"
 
             array.push(results, StockData.new(sym, s_comp, s_sig, s_setup, s_stype, s_conf,
                  nz(s_mb), nz(s_bxs), nz(s_bxl), nz(s_d1), s_rev ? true : false,
                  nz(s_rvol, 1.0), display_regime,
                  s_overext ? true : false, s_mtf ? true : false,
-                 nz(s_adx, 0.0), str.tostring(s_hv_env), str.tostring(s_mkt_state), note))
+                 str.tostring(s_mkt_state), note))
 
 // ==========================================
 // 7. SCANNER DISPLAY (12 columns)
@@ -956,11 +713,10 @@ if barstate.islast and show_scanner and array.size(results) > 0
             put_cnt  += 1
 
         // Row-level: determine if this row has an ACTUAL strategy recommendation
-        raw_struct = array.get(str.split(d.note_detail, "\n"), 0)
-        is_actionable = not str.startswith(raw_struct, "⏳") and not str.startswith(raw_struct, "⚠️") and not str.startswith(raw_struct, "⬆️") and not str.startswith(raw_struct, "—") and d.stype != "NEUTRAL"
+        raw_struct = d.note_detail
+        is_actionable = raw_struct == "" and d.stype != "NEUTRAL"
         is_call_action = is_actionable and d.stype == "CALL"
         is_put_action  = is_actionable and d.stype == "PUT"
-        is_ic_action   = is_actionable and str.contains(d.note_detail, "Iron Condor")
 
         // Universal row background: dark & neutral for ALL rows
         row_bg   = color.new(color.black, 85)
@@ -1015,20 +771,15 @@ if barstate.islast and show_scanner and array.size(results) > 0
             risk_str := risk_str + "⚠️ER "
         if str.contains(raw_struct, "LowVol") or str.contains(raw_struct, "Low RVOL")
             risk_str := risk_str + "⏳Vol "
-        if d.hv_env == "Hi"
-            risk_str := risk_str + "HiVol "
         
         table.cell(tbl, 10, r, risk_str, bgcolor=row_bg, text_size=sz, text_color=color.new(color.orange, 20))
 
         // Col 11: Blocker
-        string blocker_str = ""
-        if not is_actionable
-            if str.contains(raw_struct, "OverExt") or str.contains(raw_struct, "MTF Conflict") or str.contains(raw_struct, "ER Blocked") or str.contains(raw_struct, "Low RVOL")
-                blocker_str := "Risk Block"
-            else
-                blocker_str := str.replace_all(raw_struct, " ⚡LowVol", "")
+        string blocker_str = raw_struct
+        if blocker_str == ""
+            blocker_str := "✅ Clear"
 
-        table.cell(tbl, 11, r, blocker_str, bgcolor=row_bg, text_size=sz, text_color=color.new(color.red, 30))
+        table.cell(tbl, 11, r, blocker_str, bgcolor=row_bg, text_size=sz, text_color=is_actionable ? color.new(color.green, 50) : color.new(color.red, 30))
 
 
     // Summary row
@@ -1075,7 +826,7 @@ f_tpsl_row(t, row, lbl, tot, wins, tp_hits, sl_hits, sum_ret, bg) =>
 
 if show_backtest
     // Get signal data for current chart symbol
-    [c_comp, c_sig, c_setup, c_stype, c_conf, c_mb, c_bxs, c_bxl, c_d1, c_d2, c_rev, c_rvol, c_regime, c_overext, c_mtf, c_adx, c_hv_env, c_hv_exp, c_earn, c_mkt_state] = s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_mb_len2, sc_mb_len3, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2, ema_len1, ema_len2, ema_len3)
+    [c_comp, c_sig, c_setup, c_stype, c_conf, c_mb, c_bxs, c_bxl, c_d1, c_d2, c_rev, c_rvol, c_regime, c_overext, c_mtf, c_adx, c_earn, c_mkt_state] = s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_mb_len2, sc_mb_len3, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2, ema_len1, ema_len2, ema_len3)
     
     is_valid_sig = c_comp >= math.max(min_score_bt, 70) and (c_stype == "CALL" or c_stype == "PUT")
 
@@ -1106,14 +857,14 @@ if show_backtest
     var int t_put_a = 0, var int c7_put_a = 0, var int s7_put_a = 0, var float sum_m7_put_a = 0.0, var int c14_put_a = 0, var int s14_put_a = 0, var float sum_m14_put_a = 0.0, var int c20_put_a = 0, var int s20_put_a = 0, var float sum_m20_put_a = 0.0
     var int t_put_b = 0, var int c7_put_b = 0, var int s7_put_b = 0, var float sum_m7_put_b = 0.0, var int c14_put_b = 0, var int s14_put_b = 0, var float sum_m14_put_b = 0.0, var int c20_put_b = 0, var int s20_put_b = 0, var float sum_m20_put_b = 0.0
     
-    // Check Structure Rec dynamically to see if strategy is valid to enter
-    [c_struct_rec, c_portal_eng] = f_get_struct(c_stype, c_setup, c_regime, c_hv_env, c_hv_exp, c_rvol, rvol_threshold, c_overext, c_mtf, c_earn, c_d1, c_d2, c_comp)
+    // Check local blocker rules
+    c_block_msg = f_get_blocker(c_regime, c_rvol, rvol_threshold, c_overext, c_mtf, c_earn)
     
     // Determine blocker status per type
-    is_wait    = str.startswith(c_struct_rec, "⏳")
-    is_overext = str.contains(c_struct_rec, "OverExt")
-    is_mtf     = str.contains(c_struct_rec, "MTF")
-    is_er      = str.contains(c_struct_rec, "ER Blocked")
+    is_wait    = str.startswith(c_block_msg, "⏳")
+    is_overext = str.contains(c_block_msg, "OverExt")
+    is_mtf     = str.contains(c_block_msg, "MTF")
+    is_er      = str.contains(c_block_msg, "ER Blocked")
     
     // A setup is "valid" if it's NOT blocked by an enabled filter
     has_valid_struct = true
@@ -1125,7 +876,7 @@ if show_backtest
         has_valid_struct := false
     if bt_filt_er and is_er
         has_valid_struct := false
-    if str.startswith(c_struct_rec, "—")
+    if str.startswith(c_block_msg, "—")
         has_valid_struct := false
     
     // Trigger condition

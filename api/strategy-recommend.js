@@ -1109,8 +1109,11 @@ export default async function handler(req, res) {
 
     const upperTicker = ticker.toUpperCase();
     const isBull = direction.toUpperCase() === 'BULL';
-    const dteTarget = targetDte ? parseInt(targetDte) : 30;
-    const widthParam = spreadWidth ? parseFloat(spreadWidth) : null;
+    const targetDteStr = targetDte ? String(targetDte).replace(/[^0-9]/g, '') : '30';
+    const dteTarget = parseInt(targetDteStr) || 30;
+
+    const widthStr = spreadWidth ? String(spreadWidth).replace(/[^0-9.]/g, '') : null;
+    const widthParam = widthStr ? parseFloat(widthStr) : null;
 
     try {
         await ensureScoring();
