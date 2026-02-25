@@ -286,3 +286,17 @@ When the **Structure | Engine** cell is:
 - `⏳` = Trend/volume/regime not confirmed yet — just wait
 - `⚠️` = Risk warning (overextended, earnings approaching, mean reversion risk)
 - `⬆️ / 🐻 / ⚡` = Weekly MTF conflict — tiered warning (see Signal Labels above)
+
+---
+
+## 🛠️ v3.4.1 Refactoring Patch Notes (Bug Fixes)
+
+A comprehensive code review and refactoring patch (v3.4.1) was applied to the underlying Pine Script `MB_DFP_Options_Scanner_v3.2.pine` to resolve 7 critical mathematical and structural logic vulnerabilities:
+
+1. **Earnings API Fix (Anti-Hallucination)**: The automated `request.earnings` API call was returning raw EPS values instead of UNIX timestamps, causing all temporal earnings avoidance math to fail. This internal auto-blocker has been safely disabled to prevent false confidence. Please check earnings dates manually.
+2. **MTF Scope Contamination Remediation**: Fixed an issue where the nested `request.security(syminfo.tickerid, "W", ...)` was forcing the MTF Weekly check to evaluate the chart's main ticker rather than the scanned watchlist tickers. Weekly filters now safely simulate weekly length multipliers without nested scope pollution.
+3. **Bearish MTF Score Inversion Fix**: Repaired a logic inversion where a violently bearish weekly momentum expansion (`wk_str = true`) would incorrectly add +20 to the score instead of subtracting 20, unintentionally rendering perfect downside setups neutral.
+4. **Double Entry / Echo Loop Removal**: Fixed a 1-bar lagging assignment to `last_entry_idx` that caused the cooldown mechanism (`is_cooldown_expired`) to trigger double entries on the 22nd and 23rd bars of persistent trends, inflating backtest sample sizes. 
+5. **Mutex Risk Masking Fix**: Flattened an `else if` blocker chain that caused simultaneous structural risks (e.g., Over-Extended AND MTF Conflict) to mask each other. The UI now concatenates and displays all concurrent risk flags, solving errors where isolated toggles in the backtester failed to clear bad setups.
+6. **Setup Cannibalization Fix**: Restructured a short-circuiting nested `if rvol_now <= pb_max ... else ... NEUTRAL` wrapper inside the Pullback calculation. Weak-volume pullbacks now elegantly fall through to evaluate `Directional` or `Bullish` catches instead of immediately halting the entire decision tree to `NEUTRAL`.
+7. **Backtest Survivorship Bias Fix**: Decoupled the `should_remove` tracking algorithm from TP/SL exit triggers. Backtest expectancy tracking (10d, 20d, 30d) now preserves data across the full timeframe, allowing the True Move columns to measure accurate asset divergence regardless of premature TP/SL hits.

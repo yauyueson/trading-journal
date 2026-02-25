@@ -377,12 +377,8 @@ s_identify(osc, bull, bs_bull, bs_bear, bxs, bxl, rev_up, rev_dn, crup, crdn, d1
         name:=is_sqz ? "Squeeze Breakout" : "Breakout", type:="CALL", conf:=3
     else if bull and osc>2 and bxs>5 and bxl>8 and d1>0
         name:="Strong Trend", type:="CALL", conf:=2
-    else if bull and osc>1 and bxs>0 and not crdn and bxl>0 and (t2 or t3) and d1>-2
-        // [v3.3] pullbacks must shrink in volume and hit structural support (21 or 50 EMA)
-        if rvol_now <= pb_max and (math.abs(d1) <= 1.5 or math.abs(d3) <= 1.5)
-            name:="Pullback Buy", type:="CALL", conf:=2
-        else
-            name:="Vol Distribution", type:="NEUTRAL", conf:=1
+    else if bull and osc>1 and bxs>0 and not crdn and bxl>0 and (t2 or t3) and d1>-2 and rvol_now <= pb_max and (math.abs(d1) <= 1.5 or math.abs(d3) <= 1.5)
+        name:="Pullback Buy", type:="CALL", conf:=2
     else if (bs_bull or osc>0) and rev_up and bxs>-10 and cup1
         name:="Divergence", type:="CALL", conf:=1
 
@@ -393,12 +389,8 @@ s_identify(osc, bull, bs_bull, bs_bear, bxs, bxl, rev_up, rev_dn, crup, crdn, d1
         name:=is_sqz ? "Squeeze Breakdown" : "Breakdown", type:="PUT", conf:=3
     else if not bull and osc<-2 and bxs<-5 and bxl<-8 and d1<0
         name:="Strong Down", type:="PUT", conf:=2
-    else if not bull and osc<-1 and bxs<0 and not crup and bxl<0 and (t2 or t3) and d1<2
-        // [v3.3] failed rallies must shrink in volume and hit structural support (21 or 50 EMA)
-        if rvol_now <= pb_max and (math.abs(d1) <= 1.5 or math.abs(d3) <= 1.5)
-            name:="Failed Rally", type:="PUT", conf:=2
-        else
-            name:="Vol Accumulation", type:="NEUTRAL", conf:=1
+    else if not bull and osc<-1 and bxs<0 and not crup and bxl<0 and (t2 or t3) and d1<2 and rvol_now <= pb_max and (math.abs(d1) <= 1.5 or math.abs(d3) <= 1.5)
+        name:="Failed Rally", type:="PUT", conf:=2
     else if (bs_bear or osc<0) and rev_dn and bxs<10 and cdn1
         name:="Distribution", type:="PUT", conf:=1
 
@@ -426,10 +418,8 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb1, c_mb2, c_mb3, c_s1, c_s2, c_s3,
     [rvol_now, rvol_2bar] = s_calc_rvol(volume, rvol_period)
 
     // Earnings Date (Check if earnings are coming up soon)
-    // Construct ticker symbol (prefix:ticker) or return na if prefix unavailable
-    ern_ms = syminfo.prefix != "" ? request.earnings(syminfo.prefix + ":" + syminfo.ticker, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off) : na
-    days_to_ern = na(ern_ms) ? 999 : (ern_ms - time) / 86400000
-    is_earn_near = use_earn and (days_to_ern > 0 and days_to_ern <= earn_thresh)
+    // [FIX-1] Removed earnings hallucinated API (EPS vs Timestamp risk)
+    is_earn_near = false
 
     // Core
     [mb,isb,iss,bsb,bss]                                         = s_calc_mb(close,open,high,low,c_mb1, c_mb2, c_mb3)
@@ -565,10 +555,11 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb1, c_mb2, c_mb3, c_s1, c_s2, c_s3,
     overext   = use_mr_filter and math.abs(close - e2) > (mr_stddev_mult * ta.atr(mr_lookback))
     ema50_guard = st == "PUT" and close > e3
 
-    // Weekly MTF Hard Filter (true weekly data, not approximation)
-    [wk_osc, wk_bull, wk_str, _, _] = request.security(syminfo.tickerid, "W", s_calc_mb(close, open, high, low, c_mb1, c_mb2, c_mb3), lookahead=barmerge.lookahead_off)
-    [wk_bxs, _, wk_bxl, _, _, _, _] = request.security(syminfo.tickerid, "W", s_calc_bx(close, c_s1, c_s2, c_s3, c_l1, c_l2), lookahead=barmerge.lookahead_off)
-    weekly_score_approx = 50.0 + (wk_bull ? math.min(wk_osc * 5, 30) : -math.min(math.abs(wk_osc) * 5, 30)) + (wk_str ? 20 : 5)
+    // Weekly MTF Hard Filter [FIX-2 & FIX-3: Simulated Weekly without nested security to avoid contamination, and correct bearish momentum inversion]
+    [wk_osc, wk_bull, wk_str, _, _] = s_calc_mb(close, open, high, low, c_mb1 * 5, c_mb2 * 5, c_mb3 * 5)
+    [wk_bxs, _, wk_bxl, _, _, _, _] = s_calc_bx(close, c_s1 * 5, c_s2 * 5, c_s3 * 5, c_l1 * 5, c_l2 * 5)
+    mtf_momentum_bonus = wk_str ? (wk_bull ? 20.0 : -20.0) : (wk_bull ? 5.0 : -5.0)
+    weekly_score_approx = 50.0 + (wk_bull ? math.min(wk_osc * 5, 30) : -math.min(math.abs(wk_osc) * 5, 30)) + mtf_momentum_bonus
     mtf_conflict = use_mtf_filter and ((st == "CALL" and weekly_score_approx < mtf_score_floor) or (st == "PUT" and weekly_score_approx > 52))
 
     sig = "❌ AVOID"
@@ -627,17 +618,17 @@ f_get_blocker(s_regime, s_rvol, r_thresh, s_overext, s_mtf_final, s_earn) =>
     has_vol  = nz(s_rvol, 1.0) >= r_thresh
 
     if s_overext
-        block_msg := "⚠️ OverExt"
-    else if s_mtf_final
-        block_msg := "⬆️ MTF Conflict"
-    else if s_earn
-        block_msg := "⚠️ ER Blocked"
-    else if regime_s == "Trend" and not has_vol
-        block_msg := "⏳ Low RVOL"
-    else if regime_s != "Trend"
-        block_msg := "⏳ ADX<25"
+        block_msg += "⚠️ OverExt "
+    if s_mtf_final
+        block_msg += "⬆️ MTF Conflict "
+    if s_earn
+        block_msg += "⚠️ ER Blocked "
+    if regime_s == "Trend" and not has_vol
+        block_msg += "⏳ Low RVOL "
+    if regime_s != "Trend"
+        block_msg += "⏳ ADX<25 "
     
-    block_msg
+    block_msg == "" ? "" : str.trim(block_msg)
 
 
 // ==========================================
@@ -930,7 +921,7 @@ if show_backtest
     trigger_trade = trigger_trade_cond[1]
 
     if trigger_trade
-        last_entry_idx := bar_index - 1
+        last_entry_idx := bar_index
         entry_price = open
         array.push(signal_entry_prices, entry_price)
         array.push(signal_entry_bars,   bar_index)
@@ -1343,10 +1334,10 @@ if show_backtest
                         if hit2
                             s20_put_b += 1
             
-            // Cleanup logic - decoupled from look_fwd_2 to fix survivorship bias in TP/SL stats
+            // [FIX-7] Cleanup logic - NEVER prematurely remove due to e_closed, preserving 10d/20d price expectancy sample set integrity
             should_remove = false
             if use_tpsl
-                should_remove := (e_closed and diff >= look_fwd_2) or diff >= math.max(60, time_stop_bars + 1)
+                should_remove := diff >= math.max(look_fwd_2, time_stop_bars + 1)
             else
                 should_remove := diff >= look_fwd_2
                 
