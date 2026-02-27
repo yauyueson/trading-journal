@@ -1288,10 +1288,10 @@ export default async function handler(req, res) {
         const ivTrend = ivRankResult?.ivTrend ?? null;
 
         // Auto-backfill: if this ticker has no historical IV data, kick off a background backfill
-        // so that IV Rank/Percentile will be available on the next analysis.
+        // so that IV Rank/Percentile will be available on the next analysis. (<=1 because today's is inserted right before this)
         let autoBackfillTriggered = false;
-        if (ivRankSampleDays === 0) {
-            console.log(`[Strategy Recommend] ${upperTicker}: No IV history found — triggering auto-backfill in background.`);
+        if (ivRankSampleDays <= 1) {
+            console.log(`[Strategy Recommend] ${upperTicker}: Insufficient IV history (${ivRankSampleDays} samples) — triggering auto-backfill in background.`);
             autoBackfillTriggered = true;
             // Fire-and-forget: don't await so it doesn't block the current response
             (async () => {
