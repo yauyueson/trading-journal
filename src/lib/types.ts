@@ -258,6 +258,10 @@ export type UnifiedCandidateType = UnifiedSpreadCandidate | UnifiedSingleLegCand
 
 export interface StrategyResult {
     success: boolean;
+    /** True when the ticker had no IV history and a background backfill was triggered. Re-analyze after ~30s. */
+    autoBackfillTriggered?: boolean;
+    /** Which options data source was used: 'POLYGON' (real-time) or 'CBOE' (15-min delayed). */
+    dataSource?: 'POLYGON' | 'CBOE';
     context: StrategyContext;
     regime: StrategyRegime;
     recommendedStrategy: 'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SINGLE_LEG';

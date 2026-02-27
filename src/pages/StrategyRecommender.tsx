@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark, Settings2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark, Settings2, RefreshCw } from 'lucide-react';
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
 import { ScoreFactorsView } from '../components/ScoreFactorsView';
@@ -579,6 +579,32 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                 <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl mb-6 flex items-center gap-3">
                     <AlertCircle size={24} />
                     <span className="font-medium">{error}</span>
+                </div>
+            )}
+
+            {/* Auto-backfill notice: shown when ticker had no IV history */}
+            {result?.autoBackfillTriggered && (
+                <div className="bg-blue-500/10 border border-blue-500/30 text-blue-300 p-4 rounded-xl mb-6 flex items-start gap-3 animate-pulse-slow">
+                    <RefreshCw size={20} className="mt-0.5 shrink-0 text-blue-400 animate-spin" style={{ animationDuration: '2s' }} />
+                    <div>
+                        <div className="font-bold text-sm text-blue-300 mb-0.5">Building IV History for {result.context.ticker}…</div>
+                        <div className="text-xs text-blue-400/80 leading-relaxed">
+                            No historical IV data was found for this ticker. A backfill is running in the background (~30s).
+                            Once complete, re-click <strong>Analyze Strategy</strong> to get accurate IV Rank &amp; Percentile.
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CBOE data source notice: 15-min delayed */}
+            {result?.dataSource === 'CBOE' && (
+                <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 p-3 rounded-xl mb-4 flex items-center gap-3">
+                    <AlertCircle size={16} className="shrink-0 text-amber-400" />
+                    <span className="text-xs font-medium">
+                        <span className="font-bold text-amber-200">Data Source: CBOE</span>
+                        {' '}— Options quotes are <span className="font-bold">15 minutes delayed</span>.
+                        For real-time Greeks &amp; IV, set <code className="bg-black/40 px-1 rounded text-amber-300">DATA_SOURCE=POLYGON</code> in your environment.
+                    </span>
                 </div>
             )}
 

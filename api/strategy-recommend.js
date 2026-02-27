@@ -1137,6 +1137,8 @@ export default async function handler(req, res) {
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
         const dataSource = process.env.DATA_SOURCE || 'CBOE';
+        // Track which source was actually used (may differ from configured if fallback occurs)
+        let actualDataSource = dataSource;
         let allOptions = [];
         let currentPrice = 0;
         let cboeRes = null;
@@ -1209,6 +1211,7 @@ export default async function handler(req, res) {
 
         } else {
             // CBOE Legacy — fetch daily candles in batch 1 so RV30 and tech score share them
+            actualDataSource = 'CBOE';
             const { getCandles: _getCandles } = await import('../lib/polygon-client.js');
             const _toDate = new Date();
             const _toStr = _toDate.toISOString().split('T')[0];
@@ -1283,6 +1286,32 @@ export default async function handler(req, res) {
         // IV Momentum: 5-trading-day change (prevents selling into rising IV)
         const iv5dChange = ivRankResult?.iv5dChange ?? null;
         const ivTrend = ivRankResult?.ivTrend ?? null;
+
+        // Auto-backfill: if this ticker has no historical IV data, kick off a background backfill
+        // so that IV Rank/Percentile will be available on the next analysis.
+        let autoBackfillTriggered = false;
+        if (ivRankSampleDays === 0) {
+            console.log(`[Strategy Recommend] ${upperTicker}: No IV history found — triggering auto-backfill in background.`);
+            autoBackfillTriggered = true;
+            // Fire-and-forget: don't await so it doesn't block the current response
+            (async () => {
+                try {
+                    const backfillMod = await import('./backfill-iv-history.js');
+                    const backfillHandler = backfillMod.default ?? backfillMod;
+                    // Create a minimal mock req/res to reuse the existing handler
+                    const mockReq = { method: 'GET', query: { ticker: upperTicker } };
+                    const mockRes = {
+                        status: (code) => ({ json: (body) => { console.log(`[AutoBackfill] ${upperTicker}: status=${code}`, JSON.stringify(body).slice(0, 200)); return mockRes; }, end: () => mockRes }),
+                        setHeader: () => mockRes,
+                        json: (body) => { console.log(`[AutoBackfill] ${upperTicker}: done`, JSON.stringify(body).slice(0, 200)); return mockRes; },
+                    };
+                    await backfillHandler(mockReq, mockRes);
+                    console.log(`[AutoBackfill] ${upperTicker}: complete.`);
+                } catch (e) {
+                    console.warn(`[AutoBackfill] ${upperTicker}: failed —`, e.message);
+                }
+            })();
+        }
 
         // 2. Build Targeted Strategy based on Pine Script recommendation
         const ivScoreInput = ivPercentile ?? ivRank;
@@ -1469,6 +1498,8 @@ export default async function handler(req, res) {
 
         return res.status(200).json({
             success: true,
+            autoBackfillTriggered,
+            dataSource: actualDataSource,   // 'POLYGON' (real-time) or 'CBOE' (15-min delayed)
             context: {
                 ticker: upperTicker,
                 currentPrice,
