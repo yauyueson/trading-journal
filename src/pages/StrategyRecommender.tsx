@@ -513,8 +513,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                     <div className="flex flex-col md:flex-row gap-6 items-end">
                         <div className="w-full md:flex-1">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Target Expiration (DTE)</label>
-                            <div className="grid grid-cols-4 gap-2 bg-[#000] p-1 rounded-lg border border-[#333]">
+                            <div className="grid grid-cols-5 gap-2 bg-[#000] p-1 rounded-lg border border-[#333]">
                                 {[
+                                    { label: 'Ultra', val: 7, text: '7-14d' },
                                     { label: 'Short', val: 14, text: '14-30d' },
                                     { label: 'Med', val: 30, text: '30-45d' },
                                     { label: 'Long', val: 45, text: '45-90d' },
