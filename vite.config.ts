@@ -764,337 +764,61 @@ function localApiPlugin(): Plugin {
         }
       });
 
-      // Handle /api/strategy-recommend - Intelligent Strategy Recommender
+      // Handle /api/strategy-recommend — thin shim → calls the REAL api/strategy-recommend.js handler.
+      // ⚠️  Do NOT add inline CBOE logic here. Edit api/strategy-recommend.js instead.
+      // This shim ensures local dev uses DATA_SOURCE=POLYGON from .env.local, identical to production.
       server.middlewares.use('/api/strategy-recommend', async (req, res) => {
         const url = new URL(req.url || '', `http://${req.headers.host}`);
-        const ticker = url.searchParams.get('ticker');
-        const direction = url.searchParams.get('direction') || 'BULL';
-        const targetDteParam = url.searchParams.get('targetDte');
-        const targetDte = targetDteParam ? parseInt(targetDteParam) : 30;
-        const spreadWidthParam = url.searchParams.get('spreadWidth');
-        const customWidth = spreadWidthParam ? parseFloat(spreadWidthParam) : null;
 
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
 
-        if (!ticker) {
-          res.statusCode = 400;
-          res.end(JSON.stringify({ error: 'Missing ticker parameter' }));
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 200;
+          res.end();
           return;
         }
 
-        const upperTicker = ticker.toUpperCase();
-        const isBull = direction.toUpperCase() === 'BULL';
-
         try {
-          // Fetch full chain from CBOE
-          const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
-          const response = await fetch(cboeUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Referer': 'https://www.cboe.com/',
-              'Origin': 'https://www.cboe.com'
-            }
-          });
+          // Use new Function to create a runtime-only dynamic import.
+          // esbuild cannot statically analyze imports created via new Function,
+          // so it will never try to resolve the path during the production build.
+          // This only runs inside the Vite dev-server middleware — never in the browser bundle.
+          const dynamicImport = new Function('path', 'return import(path)') as (p: string) => Promise<any>;
+          const handlerPath = new URL('../api/strategy-recommend.js', import.meta.url).href;
+          const mod = await dynamicImport(`${handlerPath}?_t=${Date.now()}`).catch(
+            () => dynamicImport(handlerPath)
+          );
+          const handler = (mod as any).default ?? mod;
 
-          if (!response.ok) {
-            console.error(`❌ CBOE API Error [${upperTicker}]: ${response.status} ${response.statusText}`);
-            res.statusCode = response.status;
-            res.end(JSON.stringify({ error: 'CBOE API error', status: response.status }));
-            return;
-          }
-
-          const data = await response.json();
-          if (!data.data || !data.data.options) {
-            res.statusCode = 404;
-            res.end(JSON.stringify({ error: 'No options data found' }));
-            return;
-          }
-
-          const currentPrice = data.data.current_price;
-          const allOptions = data.data.options;
-
-          // Parse chain helper
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-
-          const parseChain = (options: any[], targetDTE: number | null) => {
-            return options.map((opt: any) => {
-              const symbol = opt.option || '';
-              const dateMatch = symbol.match(/(\d{6})[CP]/);
-              let dte = 30;
-              let expiration = '';
-
-              if (dateMatch) {
-                const dateStr = dateMatch[1];
-                const yy = parseInt(dateStr.slice(0, 2));
-                const mm = parseInt(dateStr.slice(2, 4));
-                const dd = parseInt(dateStr.slice(4, 6));
-                const expDate = new Date(2000 + yy, mm - 1, dd);
-                dte = Math.ceil((expDate.getTime() - today.getTime()) / 86400000);
-                expiration = `${2000 + yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
-              }
-
-              const strikeMatch = symbol.match(/[CP](\d{8})$/);
-              const strike = strikeMatch ? parseInt(strikeMatch[1]) / 1000 : 0;
-              const type = symbol.includes('C') && symbol.match(/\d{6}C/) ? 'Call' : 'Put';
-
-              return {
-                symbol, strike, type, expiration, dte,
-                bid: opt.bid || 0, ask: opt.ask || 0, delta: opt.delta || 0,
-                gamma: opt.gamma || 0, theta: opt.theta || 0, vega: opt.vega || 0,
-                iv: opt.iv || 0, volume: opt.volume || 0, openInterest: opt.open_interest || 0
-              };
-            }).filter((opt: any) => {
-              const minStrike = currentPrice * 0.85;
-              const maxStrike = currentPrice * 1.15;
-              if (opt.strike < minStrike || opt.strike > maxStrike) return false;
-              if (targetDTE !== null) {
-                if (targetDTE < 30) return opt.dte >= 14 && opt.dte < 30; // Short: 14-30
-                if (targetDTE < 45) return opt.dte >= 30 && opt.dte < 45; // Med: 30-45
-                if (targetDTE < 90) return opt.dte >= 45 && opt.dte < 90; // Long: 45-90
-                return opt.dte >= 90; // Leaps: 90+
-              }
-              return opt.dte > 0 && opt.dte <= 730;
-            });
+          // Build a minimal req/res shim compatible with the Vercel handler signature
+          const mockReq: any = {
+            method: req.method || 'GET',
+            query: Object.fromEntries(url.searchParams.entries()),
+            headers: req.headers,
           };
 
-          const chain30 = parseChain(allOptions, 30);
-          const chain90 = parseChain(allOptions, 90);
-          // NEW: Filter full chain by targetDte for strategy building
-          const strategyChain = parseChain(allOptions, targetDte);
-
-          // Detect Regime
-          const getATMIV = (chain: any[]) => {
-            const calls = chain.filter((opt: any) => opt.type === 'Call');
-            if (calls.length < 2) return null;
-            calls.sort((a: any, b: any) => a.strike - b.strike);
-            for (let i = 0; i < calls.length - 1; i++) {
-              if (calls[i].strike <= currentPrice && calls[i + 1].strike >= currentPrice) {
-                return (calls[i].iv + calls[i + 1].iv) / 2;
-              }
-            }
-            return calls[0].iv;
+          let statusCode = 200;
+          const mockRes: any = {
+            setHeader: () => { },
+            status(code: number) { statusCode = code; return mockRes; },
+            json(body: unknown) {
+              res.statusCode = statusCode;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(body));
+              return mockRes;
+            },
+            end(body?: string) {
+              res.statusCode = statusCode;
+              if (body) res.end(body); else res.end();
+              return mockRes;
+            },
           };
 
-          const iv30 = getATMIV(chain30);
-          const iv90 = getATMIV(chain90);
-          let ivRatio = 1.0;
-          let regimeMode = 'NEUTRAL';
-          let advice = '⚖️ Neutral IV: Either strategy viable';
-
-          if (iv30 && iv90 && iv90 > 0) {
-            ivRatio = iv30 / iv90;
-            if (ivRatio < 0.95) {
-              regimeMode = 'DEBIT';
-              advice = '🟢 Contango (Cheap IV): Buy Debit Spreads / Long Options';
-            } else if (ivRatio > 1.05) {
-              regimeMode = 'CREDIT';
-              advice = '🔴 Backwardation (Expensive IV): Sell Credit Spreads';
-            }
-          }
-
-          // POP from breakeven: delta at BE strike (same type & exp), then pop = 1 - |delta|
-          const getDeltaAtStrike = (c: any[], optionType: string, expiration: string, targetStrike: number) => {
-            const same = c.filter((o: any) => o.type === optionType && o.expiration === expiration);
-            if (same.length === 0) return null;
-            same.sort((a: any, b: any) => a.strike - b.strike);
-            const below = same.filter((o: any) => o.strike <= targetStrike);
-            const above = same.filter((o: any) => o.strike > targetStrike);
-            const a = below.length ? below[below.length - 1] : same[0];
-            const b = above.length ? above[0] : same[same.length - 1];
-            if (a.strike === b.strike) return a.delta;
-            const t = (targetStrike - a.strike) / (b.strike - a.strike);
-            return a.delta + t * (b.delta - a.delta);
-          };
-
-          const buildCreditSpreads = (chain: any[], spreadType: string, widthOverride: number | null = null) => {
-            const results: any[] = [];
-            const widths = widthOverride ? [widthOverride] : [5, 10];
-            const shorts = chain.filter((o: any) => o.type === spreadType && Math.abs(o.delta) >= 0.20 && Math.abs(o.delta) <= 0.40);
-
-            for (const shortLeg of shorts) {
-              for (const width of widths) {
-                const longStrike = spreadType === 'Put' ? shortLeg.strike - width : shortLeg.strike + width;
-                const longLeg = chain.find((o: any) => o.type === spreadType && o.expiration === shortLeg.expiration && Math.abs(o.strike - longStrike) < 0.1);
-                if (!longLeg) continue;
-
-                const credit = shortLeg.bid - longLeg.ask;
-                const maxRisk = width - credit;
-                if (credit < 0.15 || maxRisk <= 0) continue;
-
-                const breakeven = spreadType === 'Put' ? shortLeg.strike - credit : shortLeg.strike + credit;
-                const deltaAtBE = getDeltaAtStrike(chain, spreadType, shortLeg.expiration, breakeven);
-                const pop = deltaAtBE != null ? 1 - Math.abs(deltaAtBE) : 1 - Math.abs(shortLeg.delta);
-                const roi = (credit / maxRisk) * 100;
-                const distance = Math.abs(currentPrice - shortLeg.strike) / currentPrice;
-                const spreadPct = ((shortLeg.ask - shortLeg.bid) / ((shortLeg.ask + shortLeg.bid) / 2));
-
-                const expectedValue = (credit * pop) - (maxRisk * (1 - pop));
-
-                if (roi < 15 || spreadPct > 0.10) continue;
-
-                const score = Math.round(0.4 * Math.min(roi * 4, 100) + 0.4 * pop * 100 + 0.2 * Math.min(distance * 1000, 100));
-                const whyThis = `${roi.toFixed(0)}% ROI with ${(pop * 100).toFixed(0)}% win rate`;
-
-                results.push({
-                  type: spreadType === 'Put' ? 'Credit Put Spread' : 'Credit Call Spread',
-                  shortLeg: { strike: shortLeg.strike, expiration: shortLeg.expiration, dte: shortLeg.dte, price: shortLeg.bid, delta: shortLeg.delta, iv: shortLeg.iv, volume: shortLeg.volume, openInterest: shortLeg.openInterest },
-                  longLeg: { strike: longLeg.strike, expiration: longLeg.expiration, price: longLeg.ask, delta: longLeg.delta, volume: longLeg.volume, openInterest: longLeg.openInterest },
-                  width, netCredit: +credit.toFixed(2), maxRisk: +maxRisk.toFixed(2), maxProfit: +credit.toFixed(2),
-                  roi: +roi.toFixed(1), pop: +(pop * 100).toFixed(1), distance: +(distance * 100).toFixed(1),
-                  expectedValue: +expectedValue.toFixed(2),
-                  breakeven,
-                  score: Math.min(100, Math.max(0, score)), whyThis
-                });
-              }
-            }
-            return results.sort((a, b) => b.score - a.score).slice(0, 5);
-          };
-
-          const buildDebitSpreads = (chain: any[], spreadType: string, widthOverride: number | null = null) => {
-            const results: any[] = [];
-            const widths = widthOverride ? [widthOverride] : [2.5, 5];
-
-            // Relaxed Delta Filter
-            const longs = chain.filter((o: any) => o.type === spreadType && Math.abs(o.delta) >= 0.40 && Math.abs(o.delta) <= 0.70);
-
-            for (const longLeg of longs) {
-              for (const width of widths) {
-                const shortStrike = spreadType === 'Call' ? longLeg.strike + width : longLeg.strike - width;
-                const shortLeg = chain.find((o: any) => o.type === spreadType && o.expiration === longLeg.expiration && Math.abs(o.strike - shortStrike) < 0.1);
-                if (!shortLeg) continue;
-
-                const debit = longLeg.ask - shortLeg.bid;
-                const maxProfit = width - debit;
-                const riskReward = maxProfit / debit;
-                const spreadPct = ((longLeg.ask - longLeg.bid) / ((longLeg.ask + longLeg.bid) / 2));
-
-                // Relaxed Filters
-                if (debit <= 0 || debit >= width * 0.50) continue;
-                if (riskReward < 1.0) continue;
-                if (spreadPct > 0.10) continue;
-
-                const mid = (longLeg.bid + longLeg.ask) / 2;
-                const lambda = Math.abs(longLeg.delta) * (currentPrice / mid);
-                const deltaBonus = getDeltaBonus(longLeg.delta);
-
-                // POP & EV
-                const pop = Math.abs(longLeg.delta) - 0.05;
-                const expectedValue = (maxProfit * pop) - (debit * (1 - pop));
-
-                const lambdaScore = Math.min((compressLambda(lambda) / 20) * 100, 100);
-                const rrScore = Math.min((riskReward / 3) * 100, 100);
-                const deltaBonusScore = 50 + deltaBonus * 12.5;
-                const score = Math.round(0.4 * lambdaScore + 0.35 * rrScore + 0.25 * deltaBonusScore);
-                const whyThis = `${riskReward.toFixed(1)}:1 reward-to-risk, λ=${lambda.toFixed(1)}`;
-
-                results.push({
-                  type: spreadType === 'Call' ? 'Debit Call Spread' : 'Debit Put Spread',
-                  longLeg: { strike: longLeg.strike, expiration: longLeg.expiration, dte: longLeg.dte, price: longLeg.ask, delta: longLeg.delta, iv: longLeg.iv, volume: longLeg.volume, openInterest: longLeg.openInterest },
-                  shortLeg: { strike: shortLeg.strike, expiration: shortLeg.expiration, price: shortLeg.bid, delta: shortLeg.delta, volume: shortLeg.volume, openInterest: shortLeg.openInterest },
-                  width, netDebit: +debit.toFixed(2), maxRisk: +debit.toFixed(2), maxProfit: +maxProfit.toFixed(2),
-                  riskReward: +riskReward.toFixed(2), lambda: +lambda.toFixed(1),
-                  pop: +(pop * 100).toFixed(1), expectedValue: +expectedValue.toFixed(2),
-                  breakeven: spreadType === 'Call' ? longLeg.strike + debit : longLeg.strike - debit,
-                  score: Math.min(100, Math.max(0, score)), whyThis
-                });
-              }
-            }
-            return results.sort((a, b) => b.score - a.score).slice(0, 5);
-          };
-
-          const scoreSingleLegs = (chain: any[], legType: string) => {
-            const filtered = chain.filter((o: any) => o.type === legType && Math.abs(o.delta) >= 0.25 && Math.abs(o.delta) <= 0.60);
-            if (filtered.length === 0) return [];
-
-            const processed = filtered.map((opt: any) => {
-              const mid = (opt.bid + opt.ask) / 2;
-              const lambda = Math.abs(opt.delta) * (currentPrice / mid);
-              const gammaEff = opt.gamma / mid;
-              const thetaBurn = Math.abs(opt.theta) / mid;
-              return { opt, mid, lambda, gammaEff, thetaBurn };
-            });
-
-            // Z-Score Helper (Local)
-            const calculateZScores = (values: number[]) => {
-              const n = values.length;
-              if (n < 2) return values.map(() => 0);
-              const mean = values.reduce((s, v) => s + v, 0) / n;
-              const std = Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / n) || 1;
-              return values.map(v => (v - mean) / std);
-            };
-
-            const compressedLambdas = processed.map((p: any) => compressLambda(p.lambda));
-            const gammas = processed.map((p: any) => p.gammaEff);
-            const thetas = processed.map((p: any) => p.thetaBurn);
-
-            const zL = calculateZScores(compressedLambdas);
-            const zG = calculateZScores(gammas);
-            const zT = calculateZScores(thetas);
-
-            const ivAdj = (1 - getIVRiskFactor(ivRatio)) * 5;
-
-            return processed.map((p: any, i: number) => {
-              const deltaBonus = getDeltaBonus(p.opt.delta);
-              const thetaPenalty = getThetaPenalty(p.thetaBurn);
-
-              // Formula: 0.4*zL + 0.3*zG - 0.15*zT + 0.15*Bonus + Adj - ThetaPenalty
-              const rawScore = 0.40 * zL[i] + 0.30 * zG[i] - 0.15 * zT[i] + 0.15 * deltaBonus + ivAdj - thetaPenalty;
-
-              const score = Math.max(0, Math.min(100, Math.round(50 + rawScore * 12.5)));
-
-              return {
-                type: `Long ${legType}`, strike: p.opt.strike, expiration: p.opt.expiration, dte: p.opt.dte,
-                price: +p.mid.toFixed(2), delta: p.opt.delta, iv: p.opt.iv, lambda: +p.lambda.toFixed(1),
-                gamma: p.opt.gamma, theta: p.opt.theta, vega: p.opt.vega, volume: p.opt.volume, openInterest: p.opt.openInterest,
-                gammaEff: +p.gammaEff.toFixed(4), thetaBurn: +p.thetaBurn.toFixed(4), score,
-                whyThis: `λ=${p.lambda.toFixed(1)} leverage, Δ=${Math.abs(p.opt.delta).toFixed(2)}`
-              };
-            }).sort((a: any, b: any) => b.score - a.score).slice(0, 5);
-          };
-
-          // Generate ALL recommendations
-          const creditStrat = isBull ? 'Put' : 'Call';
-          const debitStrat = isBull ? 'Call' : 'Put';
-          const legStrat = isBull ? 'Call' : 'Put';
-
-          const creditSpreads = buildCreditSpreads(strategyChain, creditStrat, customWidth);
-          const debitSpreads = buildDebitSpreads(strategyChain, debitStrat, customWidth);
-          const singleLegs = scoreSingleLegs(strategyChain, legStrat);
-
-          // Determine Recommended Strategy
-          let recommendedStrategy = 'CREDIT_SPREAD';
-          if (regimeMode === 'DEBIT') {
-            recommendedStrategy = 'DEBIT_SPREAD';
-          } else if (regimeMode === 'NEUTRAL') {
-            // Tie-breaker: Check scores
-            const topCredit = creditSpreads[0]?.score || 0;
-            const topDebit = debitSpreads[0]?.score || 0;
-            if (topDebit > topCredit) recommendedStrategy = 'DEBIT_SPREAD';
-          }
-
-          // Validation: If recommended has no results, fallback
-          if (recommendedStrategy === 'CREDIT_SPREAD' && creditSpreads.length === 0) recommendedStrategy = 'DEBIT_SPREAD';
-          if (recommendedStrategy === 'DEBIT_SPREAD' && debitSpreads.length === 0) recommendedStrategy = 'SINGLE_LEG';
-          if (recommendedStrategy === 'SINGLE_LEG' && singleLegs.length === 0 && creditSpreads.length > 0) recommendedStrategy = 'CREDIT_SPREAD';
-
-          res.statusCode = 200;
-          res.end(JSON.stringify({
-            success: true,
-            context: { ticker: upperTicker, currentPrice, direction: isBull ? 'BULL' : 'BEAR', targetDte },
-            regime: { ivRatio: +ivRatio.toFixed(3), iv30: iv30 ? +(iv30 * 100).toFixed(1) : null, iv90: iv90 ? +(iv90 * 100).toFixed(1) : null, mode: regimeMode, advice },
-            recommendedStrategy,
-            tech: null,
-            techByTimeframe: undefined,
-            strategies: {
-              CREDIT_SPREAD: creditSpreads,
-              DEBIT_SPREAD: debitSpreads,
-              SINGLE_LEG: singleLegs
-            }
-          }));
-
+          await handler(mockReq, mockRes);
         } catch (error: any) {
+          console.error('[vite-shim] /api/strategy-recommend error:', error.message);
           res.statusCode = 500;
           res.end(JSON.stringify({ error: 'Internal Server Error', message: error.message }));
         }
