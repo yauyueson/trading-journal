@@ -130,13 +130,13 @@ async function handlePolygon(legs, res) {
             const chain = chainByTicker.get(ticker) || [];
             const exp = normalizeExpiration(leg.expiration);
             const strikeNum = parseFloat(leg.strike);
-            const typeNorm = (leg.type || '').toLowerCase() === 'put' ? 'Put' : 'Call';
+            const typeNorm = (leg.type || '').toLowerCase().includes('put') ? 'Put' : 'Call';
 
             const option = chain.find(
                 (o) =>
                     (o.expiration === exp || (o.expiration && o.expiration.slice(0, 10) === exp)) &&
                     Number(o.strike) === strikeNum &&
-                    (o.type === typeNorm || (o.type && o.type.toLowerCase() === typeNorm.toLowerCase()))
+                    (o.type === typeNorm || (o.type && o.type.toLowerCase().includes(typeNorm.toLowerCase())))
             );
 
             if (option) {
