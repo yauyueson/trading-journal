@@ -34,7 +34,8 @@ const PayoffDiagram: React.FC<{ recommendation: Recommendation; currentPrice: nu
 
     const lowerStrike = Math.min(spread.shortLeg.strike, spread.longLeg.strike);
     const upperStrike = Math.max(spread.shortLeg.strike, spread.longLeg.strike);
-    const range = upperStrike - lowerStrike;
+    let range = upperStrike - lowerStrike;
+    if (range <= 0) range = 10; // Prevent infinite loop if strikes are somehow identical
     const minX = lowerStrike - range * 1.5;
     const maxX = upperStrike + range * 1.5;
 
@@ -658,7 +659,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                     <div className="min-w-0">
                                         <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 sm:gap-3 flex-wrap">
                                             {result.context.ticker}
-                                            <span className="text-base sm:text-lg font-normal text-gray-400 font-mono">${result.context.currentPrice.toFixed(2)}</span>
+                                            <span className="text-base sm:text-lg font-normal text-gray-400 font-mono">${(result.context.currentPrice || 0).toFixed(2)}</span>
                                             <span className={`text-xs font-bold px-2 py-0.5 rounded border ${result.context.direction === 'BULL' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'
                                                 }`}>
                                                 {result.context.direction} {result.context.direction === 'BULL' ? '🐂' : '🐻'}
@@ -1066,7 +1067,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
                                                                 <div className="pt-2 border-t border-white/5 flex justify-between items-center">
                                                                     <span className="text-sm text-gray-400">Breakeven</span>
-                                                                    <span className="text-white font-mono font-bold">${rec.breakeven.toFixed(2)}</span>
+                                                                    <span className="text-white font-mono font-bold">${(rec.breakeven || 0).toFixed(2)}</span>
                                                                 </div>
                                                             </div>
                                                         </div>

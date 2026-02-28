@@ -786,7 +786,7 @@ function localApiPlugin(): Plugin {
           // so it will never try to resolve the path during the production build.
           // This only runs inside the Vite dev-server middleware — never in the browser bundle.
           const dynamicImport = new Function('path', 'return import(path)') as (p: string) => Promise<any>;
-          const handlerPath = new URL('../api/strategy-recommend.js', import.meta.url).href;
+          const handlerPath = new URL('./api/strategy-recommend.js', import.meta.url).href;
           const mod = await dynamicImport(`${handlerPath}?_t=${Date.now()}`).catch(
             () => dynamicImport(handlerPath)
           );
