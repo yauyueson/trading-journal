@@ -157,7 +157,7 @@ export default async function handler(req, res) {
 
     // Fetch option chains once per unique ticker
     const uniqueTickers = [...new Set(positions.map(p => (p.ticker || '').toUpperCase()).filter(Boolean))];
-    const dataSource = process.env.DATA_SOURCE || 'CBOE';
+    const dataSource = (process.env.DATA_SOURCE || 'CBOE').trim().toUpperCase();
     const optionChains = {};
 
     if (dataSource === 'POLYGON') {

@@ -74,7 +74,7 @@ export default async function handler(req, res) {
         const upperTicker = ticker.toUpperCase();
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
-        const dataSource = process.env.DATA_SOURCE || 'CBOE';
+        const dataSource = (process.env.DATA_SOURCE || 'CBOE').trim().toUpperCase();
         let options = [];
         let currentPrice = 0;
         let cboeTimestamp = null;

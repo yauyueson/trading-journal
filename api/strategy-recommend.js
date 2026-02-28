@@ -1136,7 +1136,7 @@ export default async function handler(req, res) {
         await ensureScoring();
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
-        const dataSource = process.env.DATA_SOURCE || 'CBOE';
+        const dataSource = (process.env.DATA_SOURCE || 'CBOE').trim().toUpperCase();
         // Track which source was actually used (may differ from configured if fallback occurs)
         let actualDataSource = dataSource;
         let allOptions = [];
@@ -1147,6 +1147,8 @@ export default async function handler(req, res) {
 
         // Pre-declare candle arrays at handler scope so batch 1 can share them
         let dailyCandles = null;
+
+        let polygonSuccess = false;
 
         if (dataSource === 'POLYGON') {
             console.log(`Using Polygon.io for ${upperTicker}`);
@@ -1190,26 +1192,31 @@ export default async function handler(req, res) {
                 const maxStrike = lastClose ? lastClose * (1 + strikePadding) : undefined;
                 const strikeFilter = (minStrike != null && maxStrike != null) ? { minStrike, maxStrike } : {};
 
-                let chainData = await getOptionChain(upperTicker, { minDte: 23, maxDte: 97, ...strikeFilter });
+                let chainData = await getOptionChain(upperTicker, { minDte: 0, maxDte: 160, ...strikeFilter });
                 if (!chainData?.length) {
-                    console.warn('Polygon chain empty with DTE 23–97, trying without DTE...');
+                    console.warn('Polygon chain empty with DTE 0–160, trying without DTE...');
                     chainData = await getOptionChain(upperTicker, {}) || [];
                 }
                 if (chainData.length > 0) {
-                    allOptions = chainData;
-                    const valid = chainData.find(o => o.underlyingPrice > 0);
-                    currentPrice = valid ? valid.underlyingPrice : (lastClose ?? 0);
+                    const hasQuotes = chainData.some(o => o.bid > 0 || o.ask > 0);
+                    if (hasQuotes) {
+                        allOptions = chainData;
+                        const valid = chainData.find(o => o.underlyingPrice > 0);
+                        currentPrice = valid ? valid.underlyingPrice : (lastClose ?? 0);
+                        polygonSuccess = true;
+                    } else {
+                        console.warn('Polygon returned 0 bids/asks (Free Tier?). Falling back to CBOE...');
+                    }
                 } else {
-                    console.warn('Polygon returned empty chain');
-                    throw new Error('Empty Polygon chain');
+                    console.warn('Polygon returned empty chain. Falling back to CBOE...');
                 }
 
             } catch (err) {
-                console.error('Polygon fetch failed:', err);
-                throw err;
+                console.error('Polygon fetch failed. Falling back to CBOE. Error:', err.message);
             }
+        }
 
-        } else {
+        if (!polygonSuccess) {
             // CBOE Legacy — fetch daily candles in batch 1 so RV30 and tech score share them
             actualDataSource = 'CBOE';
             const { getCandles: _getCandles } = await import('../lib/polygon-client.js');

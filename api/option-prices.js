@@ -11,7 +11,7 @@ import { generateOCCSymbol, normalizeExpiration } from '../lib/_shared/utils.js'
 function _normCDF(x) {
     if (x < -8) return 0;
     if (x > 8) return 1;
-    const a1=0.254829592, a2=-0.284496736, a3=1.421413741, a4=-1.453152027, a5=1.061405429, p=0.3275911;
+    const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
     const sign = x < 0 ? -1 : 1;
     const t = 1.0 / (1.0 + p * Math.abs(x));
     const poly = t * (a1 + t * (a2 + t * (a3 + t * (a4 + t * a5))));
@@ -63,7 +63,7 @@ function validateGreeks(greeks, S, K, dte, type) {
             vega: vega || 0,
             iv: iv || sigma,
             greeksSuspicious: true,
-            greeksNote: `Market delta ${(delta||0).toFixed(3)} flagged; BSM delta ${bsmDelta.toFixed(3)} used`
+            greeksNote: `Market delta ${(delta || 0).toFixed(3)} flagged; BSM delta ${bsmDelta.toFixed(3)} used`
         };
     }
     return { delta, gamma, theta, vega, iv, greeksSuspicious: false };
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const dataSource = process.env.DATA_SOURCE || 'CBOE';
+    const dataSource = (process.env.DATA_SOURCE || 'CBOE').trim().toUpperCase();
 
     // 1. Determine Legs (Single vs Bulk)
     let legs = [];
