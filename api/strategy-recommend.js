@@ -1203,6 +1203,19 @@ export default async function handler(req, res) {
                         allOptions = chainData;
                         const valid = chainData.find(o => o.underlyingPrice > 0);
                         currentPrice = valid ? valid.underlyingPrice : (lastClose ?? 0);
+
+                        // Fallback: If Polygon stock data failed (Free Tier rate limit) but options worked,
+                        // get the underlying price from CBOE (since term structure needs a valid currentPrice).
+                        if (!currentPrice || currentPrice === 0) {
+                            try {
+                                console.log(`[Polygon Fallback] Fetching CBOE for ${upperTicker} underlying price...`);
+                                const cRes = await fetch(cboeUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then(r => r.ok ? r.json() : null);
+                                if (cRes?.data?.current_price) {
+                                    currentPrice = cRes.data.current_price;
+                                }
+                            } catch (e) { }
+                        }
+
                         polygonSuccess = true;
                     } else {
                         console.warn('Polygon returned 0 bids/asks (Free Tier?). Falling back to CBOE...');
