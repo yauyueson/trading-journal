@@ -315,6 +315,7 @@ type StockData
     bool   mtf_conflict
     string market_state
     string note_detail
+    string pb_qual      // 'EXTENDED' | 'MOMENTUM' | 'SWEET' | 'PULLBACK'
 
 s_t3_smooth(src, len) =>
     xe1=ta.ema(src,len), xe2=ta.ema(xe1,len), xe3=ta.ema(xe2,len)
@@ -555,6 +556,13 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb1, c_mb2, c_mb3, c_s1, c_s2, c_s3,
     overext   = use_mr_filter and math.abs(close - e2) > (mr_stddev_mult * ta.atr(mr_lookback))
     ema50_guard = st == "PUT" and close > e3
 
+    // --- Pullback Quality Gate (mirrors tech-analysis.js logic) ---
+    // For CALL: best entry when price is AT or BELOW EMA-8 (d1 <= 0)
+    //           worst entry when price is >1.5% ABOVE EMA-8 (chasing the breakout)
+    // For PUT:  mirror image — best when d1 >= 0 (price at/above EMA-8), worst when d1 < -1.5%
+    dir_d1 = st == "CALL" ? d1 : st == "PUT" ? -d1 : 0.0
+    pb_qual = dir_d1 > 1.5 ? "EXTENDED" : dir_d1 > 0.0 ? "MOMENTUM" : dir_d1 >= -0.5 ? "SWEET" : "PULLBACK"
+
     // Weekly MTF Hard Filter [FIX-2 & FIX-3: Simulated Weekly without nested security to avoid contamination, and correct bearish momentum inversion]
     [wk_osc, wk_bull, wk_str, _, _] = s_calc_mb(close, open, high, low, c_mb1 * 5, c_mb2 * 5, c_mb3 * 5)
     [wk_bxs, _, wk_bxl, _, _, _, _] = s_calc_bx(close, c_s1 * 5, c_s2 * 5, c_s3 * 5, c_l1 * 5, c_l2 * 5)
@@ -573,8 +581,13 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb1, c_mb2, c_mb3, c_s1, c_s2, c_s3,
         else
             sig := "⬆️ MTF BLOCK"
     else if st == "CALL"
-        if comp >= 80 and sc == 3
-            sig := "🟢 STR BUY" + (boost_active ? " 🔥" : "")
+        // Pullback quality gate: don't chase >1.5% above EMA-8
+        if pb_qual == "EXTENDED"
+            sig := comp >= 80 ? "⏳ WAIT PB" : "👀 WATCH · CALL"
+        else if comp >= 80 and sc == 3 and pb_qual == "PULLBACK"
+            sig := "🟢 STR BUY" + (boost_active ? " 🔥" : "")   // ideal entry: EMA-8 retest
+        else if comp >= 80 and sc == 3
+            sig := "🟢 BUY" + (boost_active ? " 🔥" : "")       // on the break: acceptable
         else if comp >= 80
             sig := "🟢 BUY"
         else if comp >= 70
@@ -586,8 +599,12 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb1, c_mb2, c_mb3, c_s1, c_s2, c_s3,
         is_valid_put      = comp >= 70 and rvol_2bar >= 0.8
         if ema50_guard
             sig := "👀 WATCH · PUT"
+        else if pb_qual == "EXTENDED"
+            sig := comp >= 80 ? "⏳ WAIT PB" : "👀 WATCH · PUT"
+        else if is_high_conf_down and pb_qual == "PULLBACK"
+            sig := "🔴 STR SELL" + (boost_active ? " 🔥" : "")  // ideal entry: EMA-8 retest
         else if is_high_conf_down
-            sig := "🔴 STR SELL" + (boost_active ? " 🔥" : "")
+            sig := "🔴 SELL" + (boost_active ? " 🔥" : "")      // on the break: acceptable
         else if comp >= 80
             sig := "🔴 SELL"
         else if is_valid_put
@@ -606,7 +623,7 @@ s_get_data_v3(w1, w2, w3, w4, w5, w6, w7, c_mb1, c_mb2, c_mb3, c_s1, c_s2, c_s3,
     else if is_trending
         mkt_state := "TRENDING"
 
-    [comp, sig, sn, st, sc, mb, bxs, bxl, d1, d2, rvu or rvd, rvol_2bar, regime_str, overext, mtf_conflict, adx_v, is_earn_near, mkt_state]
+    [comp, sig, sn, st, sc, mb, bxs, bxl, d1, d2, rvu or rvd, rvol_2bar, regime_str, overext, mtf_conflict, adx_v, is_earn_near, mkt_state, pb_qual]
 
 // ==========================================
 // 6. OPTIONS STRUCTURE DECISION MATRIX
@@ -644,7 +661,7 @@ if barstate.islast and show_scanner
         if str.length(sym) < 1
             continue
 
-        [s_comp, s_sig, s_setup, s_stype, s_conf, s_mb, s_bxs, s_bxl, s_d1, s_d2, s_rev, s_rvol, s_regime, s_overext, s_mtf, s_adx, s_earn, s_mkt_state] = request.security(sym, timeframe.period, s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_mb_len2, sc_mb_len3, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2, ema_len1, ema_len2, ema_len3), ignore_invalid_symbol=true)
+        [s_comp, s_sig, s_setup, s_stype, s_conf, s_mb, s_bxs, s_bxl, s_d1, s_d2, s_rev, s_rvol, s_regime, s_overext, s_mtf, s_adx, s_earn, s_mkt_state, s_pb_qual] = request.security(sym, timeframe.period, s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_mb_len2, sc_mb_len3, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2, ema_len1, ema_len2, ema_len3), ignore_invalid_symbol=true)
 
         incl = (s_stype == "CALL" and show_calls) or (s_stype == "PUT" and show_puts)
         if not na(s_comp) and ((s_comp >= min_score and incl) or min_score == 0)
@@ -656,7 +673,7 @@ if barstate.islast and show_scanner
                  nz(s_mb), nz(s_bxs), nz(s_bxl), nz(s_d1), s_rev ? true : false,
                  nz(s_rvol, 1.0), display_regime,
                  s_overext ? true : false, s_mtf ? true : false,
-                 str.tostring(s_mkt_state), note))
+                 str.tostring(s_mkt_state), note, na(s_pb_qual) ? "MOMENTUM" : s_pb_qual))
 
 // ==========================================
 // 7. SCANNER DISPLAY (12 columns)
@@ -724,7 +741,10 @@ if barstate.islast and show_scanner and array.size(results) > 0
         table.cell(tbl, 1, r, str.tostring(math.round(d.mb_osc, 1)),   bgcolor=dim_bg, text_size=sz, text_color=d.mb_osc   > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
         table.cell(tbl, 2, r, str.tostring(math.round(d.bx_short, 1)), bgcolor=dim_bg, text_size=sz, text_color=d.bx_short > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
         table.cell(tbl, 3, r, str.tostring(math.round(d.bx_long, 1)),  bgcolor=dim_bg, text_size=sz, text_color=d.bx_long  > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
-        table.cell(tbl, 4, r, str.tostring(math.round(d.dist_ema1, 1)) + "%", bgcolor=dim_bg, text_size=sz, text_color=d.dist_ema1 > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
+        // Col 4: EMA d8% + Pullback Quality label
+        pb_label = d.pb_qual == "PULLBACK" ? " PB✓" : d.pb_qual == "SWEET" ? " OK" : d.pb_qual == "EXTENDED" ? " EXT!" : ""
+        pb_ema_tc = d.pb_qual == "PULLBACK" ? color.lime : d.pb_qual == "SWEET" ? color.new(color.green, 30) : d.pb_qual == "EXTENDED" ? color.new(color.orange, 10) : (d.dist_ema1 > 0 ? color.new(color.green, 30) : color.new(color.red, 30))
+        table.cell(tbl, 4, r, str.tostring(math.round(d.dist_ema1, 1)) + "%" + pb_label, bgcolor=dim_bg, text_size=sz, text_color=pb_ema_tc)
 
         // Col 5: RVOL — only color RVOL itself, keep bg dark
         rvol_txt = str.tostring(math.round(d.rvol, 2)) + "x"
@@ -752,10 +772,12 @@ if barstate.islast and show_scanner and array.size(results) > 0
         mkt_tc = d.market_state == "EXPLOSIVE" ? color.new(color.yellow, 20) : color.white
         table.cell(tbl, 9, r, d.market_state, bgcolor=row_bg, text_size=sz, text_color=mkt_tc)
 
-        // Col 10: Risk Flags
+        // Col 10: Risk Flags (including pullback quality)
         string risk_str = ""
         if d.overextended or str.contains(raw_struct, "OverExt")
             risk_str := risk_str + "⚠️Ext "
+        if d.pb_qual == "EXTENDED"
+            risk_str := risk_str + "⏳PB "
         if d.mtf_conflict or str.contains(raw_struct, "MTF")
             risk_str := risk_str + "⬆️MTF "
         if str.contains(raw_struct, "ER Blocked")
@@ -775,7 +797,7 @@ if barstate.islast and show_scanner and array.size(results) > 0
 
     // Summary row
     sum_row = cnt + 1
-    sum_txt = str.tostring(cnt) + " setups | " + str.tostring(call_cnt) + " CALLS · " + str.tostring(put_cnt) + " PUTS  |  v3.2 — 1.5wk–2mo calibration"
+    sum_txt = str.tostring(cnt) + " setups | " + str.tostring(call_cnt) + " CALLS · " + str.tostring(put_cnt) + " PUTS  |  v3.3 — Pullback Quality Gate"
     table.merge_cells(tbl, 0, sum_row, 11, sum_row)
     table.cell(tbl, 0, sum_row, sum_txt, bgcolor=color.new(color.blue, 90), text_size=size.small, text_color=color.white)
 
@@ -817,7 +839,7 @@ f_tpsl_row(t, row, lbl, tot, wins, tp_hits, sl_hits, sum_ret, bg) =>
 
 if show_backtest
     // Get signal data for current chart symbol
-    [c_comp, c_sig, c_setup, c_stype, c_conf, c_mb, c_bxs, c_bxl, c_d1, c_d2, c_rev, c_rvol, c_regime, c_overext, c_mtf, c_adx, c_earn, c_mkt_state] = s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_mb_len2, sc_mb_len3, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2, ema_len1, ema_len2, ema_len3)
+    [c_comp, c_sig, c_setup, c_stype, c_conf, c_mb, c_bxs, c_bxl, c_d1, c_d2, c_rev, c_rvol, c_regime, c_overext, c_mtf, c_adx, c_earn, c_mkt_state, c_pb_qual] = s_get_data_v3(w_mb, w_bxs, w_bxl, w_ema, w_mom, w_adx, w_vol, sc_mb_len, sc_mb_len2, sc_mb_len3, sc_bx_s1, sc_bx_s2, sc_bx_s3, sc_bx_l1, sc_bx_l2, ema_len1, ema_len2, ema_len3)
     
     is_valid_sig = c_comp >= math.max(min_score_bt, 70) and (c_stype == "CALL" or c_stype == "PUT")
 

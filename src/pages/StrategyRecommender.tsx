@@ -180,6 +180,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     const [targetStrategy, setTargetStrategy] = useState('Auto-Select Strategy');
     const [setup, setSetup] = useState('Pullback Buy');
     const [techScoreTier, setTechScoreTier] = useState<{ label: string; value: number; range: string; color: string } | null>(null);
+    const [techD8, setTechD8] = useState<number | null>(null); // EMA-8 distance from last tech score run
     const [targetDte, setTargetDte] = useState(30);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -199,7 +200,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             const encodedStrategy = encodeURIComponent(targetStrategy);
             const encodedSetup = encodeURIComponent(setup);
             const flagsParams = `&overextended=${riskFlags.overextended}&mtfConflict=${riskFlags.mtfConflict}&lowVolume=${riskFlags.lowVolume}&nearEarnings=${riskFlags.nearEarnings}&highVolatility=${riskFlags.highVolatility}&priceReversing=${riskFlags.priceReversing}`;
-            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}&targetStrategy=${encodedStrategy}&setup=${encodedSetup}${flagsParams}`;
+            const d8Param = techD8 != null ? `&d8=${techD8.toFixed(2)}` : '';
+            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}&targetStrategy=${encodedStrategy}&setup=${encodedSetup}${flagsParams}${d8Param}`;
             const res = await fetch(url);
             const text = await res.text();
             let data: unknown;
@@ -391,6 +393,21 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                         <div className="text-[9px] font-normal opacity-70 mt-0.5">{tier.range}</div>
                                     </button>
                                 ))}
+                            </div>
+                            {/* d8 input: % distance of price from EMA-8, from TV scanner debug output */}
+                            <div className="mt-2 flex items-center gap-2">
+                                <label className="text-[10px] text-gray-500 uppercase tracking-wider whitespace-nowrap">EMA-8 d8%</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    placeholder="e.g. 1.8"
+                                    value={techD8 ?? ''}
+                                    onChange={(e) => setTechD8(e.target.value === '' ? null : parseFloat(e.target.value))}
+                                    className="w-full bg-[#000] border border-[#333] text-white rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-accent-green placeholder-gray-600"
+                                />
+                                {techD8 != null && Math.abs(techD8) > 1.5 && (
+                                    <span className="text-[10px] text-orange-400 font-bold whitespace-nowrap">⚠️ Extended</span>
+                                )}
                             </div>
                         </div>
                         <div className="md:col-span-3">

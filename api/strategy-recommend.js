@@ -251,6 +251,33 @@ async function fetchEarnings(ticker) {
     }
 }
 
+// =============================================================================
+// ENTRY PROFILES — Setup → DTE peak, delta range, allowChase
+// =============================================================================
+// Maps the Pine Script setup name to concrete parameters that drive:
+//   dtePeak    → the DTE at which the Gaussian DTE score peaks (per-setup)
+//   deltaRange → [min, max] for the long leg in buildDebitSpreads
+//   allowChase → if false, long/single-leg debit scores are penalized when
+//                pullbackQuality === 'EXTENDED' (i.e., price far above EMA-8)
+const ENTRY_PROFILES = {
+    'Perfect Storm': { dtePeak: 14, deltaRange: [0.50, 0.70], allowChase: true },
+    'Breakout': { dtePeak: 14, deltaRange: [0.45, 0.60], allowChase: false },
+    'Strong Trend': { dtePeak: 37, deltaRange: [0.45, 0.65], allowChase: true },
+    'Pullback Buy': { dtePeak: 28, deltaRange: [0.55, 0.70], allowChase: true },
+    'Divergence': { dtePeak: 21, deltaRange: [0.40, 0.60], allowChase: false },
+    'Failed Rally': { dtePeak: 28, deltaRange: [0.55, 0.70], allowChase: true },
+    'Breakdown': { dtePeak: 14, deltaRange: [0.45, 0.60], allowChase: false },
+    'Strong Down': { dtePeak: 37, deltaRange: [0.45, 0.65], allowChase: true },
+    'Distribution': { dtePeak: 21, deltaRange: [0.40, 0.60], allowChase: false },
+    'Bullish': { dtePeak: 37, deltaRange: [0.45, 0.65], allowChase: false },
+    'Bearish': { dtePeak: 37, deltaRange: [0.45, 0.65], allowChase: false },
+};
+const DEFAULT_ENTRY_PROFILE = { dtePeak: 37, deltaRange: [0.45, 0.70], allowChase: false };
+
+function getEntryProfile(setup) {
+    return ENTRY_PROFILES[setup] || DEFAULT_ENTRY_PROFILE;
+}
+
 /** Term structure slope = (IV30 - IV90) / IV90. Positive = backwardation, negative = contango. */
 const SLOPE_STRONG_BACK = 0.15;   // termRatio > 1.15
 const SLOPE_BACK = 0.05;         // termRatio > 1.05
@@ -482,7 +509,7 @@ function getProbITMAtStrike(chain, optionType, expiration, targetStrike) {
     return a.probabilityITM + t * (b.probabilityITM - a.probabilityITM);
 }
 
-function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false) {
+function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, dtePeak = 37) {
     const results = [];
     const widths = customWidth ? [customWidth] : [5, 10];
     const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short');
@@ -588,9 +615,9 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             // 2. Skew Adjustment: magnitude-based bonus (|skew| larger → same-direction bonus scales 5..15, capped)
             const skewBonus = getSkewBonusForCreditSpread(skew, type);
 
-            // Smooth Gaussian DTE curve: peak at DTE=37, σ=15
-            // DTE 37→100, 30→94, 21→70, 14→42, 60→80, 7→18 (no sharp cliffs)
-            const scoreDTE = Math.round(100 * Math.exp(-0.5 * Math.pow((dte - 37) / 15, 2)));
+            // Smooth Gaussian DTE curve: peak is setup-aware (dtePeak), σ=15
+            // Momentum setups (Breakout, Perfect Storm) peak at DTE=14; Trend at 37; Pullback at 28
+            const scoreDTE = Math.round(100 * Math.exp(-0.5 * Math.pow((dte - dtePeak) / 15, 2)));
 
             let finalScore = (0.20 * scoreEV) + (0.20 * scoreROI) + (0.20 * scorePOP) + (0.15 * scoreDistance) + (0.25 * scoreDTE) + skewBonus + gammaPenalty + relativeIVBonus;
             finalScore += ivRankAdj * 2;
@@ -658,15 +685,16 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
-function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null, daysUntilEarnings = null, anomaly = false) {
+function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null, daysUntilEarnings = null, anomaly = false, dtePeak = 37, deltaRange = [0.45, 0.70]) {
     const results = [];
     const widths = customWidth ? [customWidth] : [2.5, 5];
     const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'long');
+    const [deltaMin, deltaMax] = deltaRange;
 
     const longs = chain.filter(o =>
         o.type === type &&
-        Math.abs(o.delta) >= 0.45 &&
-        Math.abs(o.delta) <= 0.70
+        Math.abs(o.delta) >= deltaMin &&
+        Math.abs(o.delta) <= deltaMax
     );
 
     for (const longLeg of longs) {
@@ -764,8 +792,10 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
             const evScore = Math.max(0, Math.min(100, 50 + evRatio * 50));
 
             // Weighted scoring: lambda(25%) + R:R(25%) + delta(15%) + EV(20%) + BE(10%) + theta(-5%)
+            // DTE score uses setup-tuned Gaussian peak (dtePeak)
+            const scoreDTEDebit = Math.round(100 * Math.exp(-0.5 * Math.pow((longLeg.dte - dtePeak) / 15, 2)));
             let finalScore = (0.25 * lambdaScore) + (0.25 * rrScore) + (0.15 * deltaScore) +
-                (0.20 * evScore) + (0.10 * (50 + bePenalty * 12.5)) - (0.05 * thetaPenalty);
+                (0.20 * evScore) + (0.10 * (50 + bePenalty * 12.5)) - (0.05 * thetaPenalty) + (0.05 * scoreDTEDebit);
             finalScore += ivRankAdj * 2;
             if (anomaly && (longLeg.dte || 30) <= 35) finalScore -= 20; // Anomaly IV → Penalize buyers due to IV crush risk
 
@@ -1124,6 +1154,11 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing ticker parameter' });
     }
 
+    // d8: % distance of close from EMA-8, sent by frontend from tech score result.
+    // Used to auto-detect 'overextended' without requiring the user to check it manually.
+    const d8Str = req.query.d8 ? String(req.query.d8).replace(/[^-0-9.]/g, '') : null;
+    const d8Param = d8Str != null ? parseFloat(d8Str) : null;
+
     const upperTicker = ticker.toUpperCase();
     const isBull = direction.toUpperCase() === 'BULL';
     const targetDteStr = targetDte ? String(targetDte).replace(/[^0-9]/g, '') : '30';
@@ -1339,32 +1374,48 @@ export default async function handler(req, res) {
         const decodedStrategy = targetStrategy ? decodeURIComponent(targetStrategy) : 'Credit Put Spread';
         const decodedSetup = setup ? decodeURIComponent(setup) : '';
 
+        // --- Entry Profile: convert setup name → concrete builder params ---
+        const entryProfile = getEntryProfile(decodedSetup);
+        const { dtePeak, deltaRange, allowChase } = entryProfile;
+
+        // Auto-detect overextended from d8:
+        //   If d8 > 1.5% for BULL (price is >1.5% above EMA-8) it's a chase entry.
+        //   If d8 < -1.5% for BEAR (price is >1.5% below EMA-8) same risk.
+        // The user's manual flag is an OR gate — either the user flags it or d8 signals it.
+        const autoOverextended = d8Param != null
+            ? (isBull ? d8Param > 1.5 : d8Param < -1.5)
+            : false;
+
+        if (autoOverextended) {
+            console.log(`[EntryProfile] ${upperTicker}: auto-flagging overextended (d8=${d8Param?.toFixed(2)}, direction=${isBull ? 'BULL' : 'BEAR'})`);
+        }
+
         if (decodedStrategy === 'Auto-Select Strategy') {
             if (isBull) {
                 targetRecs = [
-                    ...buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly),
-                    ...buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly),
+                    ...buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak),
+                    ...buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange),
                     ...scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput),
                     ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly)
                 ];
             } else {
                 targetRecs = [
-                    ...buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly),
-                    ...buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly),
+                    ...buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak),
+                    ...buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange),
                     ...scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput),
                     ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly)
                 ];
             }
         } else if (decodedStrategy === 'Credit Put Spread') {
-            targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly);
+            targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak);
         } else if (decodedStrategy === 'Debit Call Spread') {
-            targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly);
+            targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange);
         } else if (decodedStrategy === 'Long Call') {
             targetRecs = scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput);
         } else if (decodedStrategy === 'Credit Call Spread') {
-            targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly);
+            targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak);
         } else if (decodedStrategy === 'Debit Put Spread') {
-            targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly);
+            targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange);
         } else if (decodedStrategy === 'Long Put') {
             targetRecs = scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput);
         } else if (decodedStrategy === 'Iron Condor') {
@@ -1412,7 +1463,8 @@ export default async function handler(req, res) {
         targetRecs.sort((a, b) => b.unifiedScore - a.unifiedScore);
 
         // 3c. Pine Risk Flags Adjustments
-        const overextended = req.query.overextended === 'true';
+        // overextended is an OR of the user's manual flag AND the auto-detected d8 flag
+        const overextended = req.query.overextended === 'true' || autoOverextended;
         const mtfConflict = req.query.mtfConflict === 'true';
         const lowVolume = req.query.lowVolume === 'true';
         const nearEarnings = req.query.nearEarnings === 'true';
@@ -1559,6 +1611,14 @@ export default async function handler(req, res) {
                 }
             },
             recommendedStrategy: decodedStrategy,
+            entryProfileMeta: {
+                setup: decodedSetup,
+                dtePeak,
+                deltaRange,
+                allowChase,
+                autoOverextended,
+                d8: d8Param,
+            },
             strategies: {
                 TARGET_STRATEGY: targetRecs,
                 _regimeMeta: { skew }
