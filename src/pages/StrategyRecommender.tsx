@@ -238,11 +238,12 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         return 'text-red-400';
     };
 
-    const getCategoryBadge = (category: StrategyCategory) => {
+    const getCategoryBadge = (category: StrategyCategory | string) => {
         switch (category) {
             case 'CREDIT_SPREAD': return { label: 'Credit', color: 'bg-red-500/20 text-red-400 border-red-500/30' };
             case 'DEBIT_SPREAD': return { label: 'Debit', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
             case 'SINGLE_LEG': return { label: 'Long', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' };
+            default: return { label: category, color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' };
         }
     };
 
