@@ -37,7 +37,12 @@
       "WebFetch(domain:massive.com)",
       "Bash(gh pr create:*)",
       "Bash(where:*)",
-      "Bash(winget list:*)"
+      "Bash(winget list:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(node_modules/.bin/vite.cmd --version)",
+      "mcp__ide__getDiagnostics",
+      "WebFetch(domain:supabase.com)",
+      "Bash(claude mcp:*)"
     ]
   }
 }

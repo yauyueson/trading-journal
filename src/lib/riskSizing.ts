@@ -6,7 +6,7 @@
  */
 
 import type { SpreadRecommendation, SingleLegRecommendation, Recommendation } from './types';
-import type { Position } from './types';
+import type { Position, Transaction } from './types';
 
 const CONTRACT_MULTIPLIER = 100;
 
@@ -135,13 +135,22 @@ export function getSuggestedContracts(
             );
         }
     }
-    // Single leg: we could use a rough win/loss from delta (e.g. POP ~ delta), but skip Kelly for simplicity
+    // Single leg: proper Kelly using TP/SL ratios, not leverage (F5.1 fix)
+    // b = TP_pct / SL_pct (reward/risk ratio at target exit levels)
+    // p = |delta| as POP proxy with 5% haircut for slippage + fees
+    // Default: TP at +50% of entry, SL at -50% → b = 1.0
     if (options?.useKelly && contractsKelly == null && 'price' in rec && 'delta' in rec) {
         const single = rec as SingleLegRecommendation;
-        const lossPerContract = (single.price ?? 0) * CONTRACT_MULTIPLIER;
-        const winPerContract = lossPerContract * 1.5; // assume 1.5:1 reward if ITM
-        const pop = (Math.abs(single.delta ?? 0) - 0.05) * 100;
-        contractsKelly = getKellyContracts(winPerContract, lossPerContract, pop, portfolioTotal, 0.25);
+        const costPerShare = single.price ?? 0;
+        if (costPerShare > 0) {
+            const tpPct = 0.50; // take profit at +50%
+            const slPct = 0.50; // stop loss at -50%
+            const winPerContract = costPerShare * tpPct * CONTRACT_MULTIPLIER;
+            const lossPerContract = costPerShare * slPct * CONTRACT_MULTIPLIER;
+            // POP proxy: |delta| gives rough P(ITM); haircut 5% for transaction costs
+            const pop = Math.max(0, (Math.abs(single.delta ?? 0) - 0.05)) * 100;
+            contractsKelly = getKellyContracts(winPerContract, lossPerContract, pop, portfolioTotal, 0.25);
+        }
     }
 
     const suggestedContracts = contractsKelly != null && contractsKelly >= 0
@@ -156,4 +165,150 @@ export function getSuggestedContracts(
         contractsCap,
         contractsKelly,
     };
+}
+
+export interface ConcentrationWarning {
+    type: 'ticker' | 'expiration_week';
+    label: string;
+    pct: number;
+    limit: number;
+}
+
+export interface PortfolioGreeksResult {
+    netDelta: number;
+    netGamma: number;
+    netTheta: number;
+    netVega: number;
+    positionsWithData: number;
+    largestRiskPct: number;
+    largestRiskTicker: string;
+    concentrationWarnings: ConcentrationWarning[];
+}
+
+/**
+ * Aggregate net portfolio Greeks from live bulk data.
+ * Each Greek is scaled by contract quantity × 100 shares/contract.
+ * Returns null if no positions have live data.
+ */
+export function aggregatePortfolioGreeks(
+    positions: Position[],
+    transactions: Transaction[],
+    bulkData: Record<string, any>,
+    portfolioTotal: number,
+    stopOutFraction: number = STOP_OUT_PCT
+): PortfolioGreeksResult | null {
+    let netDelta = 0, netGamma = 0, netTheta = 0, netVega = 0;
+    let positionsWithData = 0;
+    let largestRiskPct = 0;
+    let largestRiskTicker = '';
+
+    // Concentration tracking: risk$ per ticker and per expiration week
+    const riskByTicker: Record<string, number> = {};
+    const riskByExpWeek: Record<string, number> = {};
+
+    positions.forEach(pos => {
+        const legData = bulkData[pos.id];
+        if (!legData || legData.length === 0) return;
+
+        const posTxns = transactions.filter(t => t.position_id === pos.id);
+        let qtyBought = 0, qtySold = 0, entryPrice = 0;
+        posTxns.forEach(t => {
+            if (t.quantity > 0) {
+                if (entryPrice === 0) entryPrice = t.price;
+                qtyBought += t.quantity;
+            } else {
+                qtySold += Math.abs(t.quantity);
+            }
+        });
+        const qty = qtyBought - qtySold;
+        if (qty <= 0) return;
+
+        let posNetDelta = 0, posNetGamma = 0, posNetTheta = 0, posNetVega = 0;
+        let hasData = false;
+
+        if (pos.legs && pos.legs.length > 0) {
+            pos.legs.forEach(leg => {
+                const legResult = (legData as any[]).find((d: any) =>
+                    d.expiration === leg.expiration &&
+                    String(d.strike) === String(leg.strike) &&
+                    d.type === leg.type
+                );
+                const data = legResult?.data;
+                if (!data) return;
+                const mult = leg.side === 'short' ? -1 : 1;
+                posNetDelta += (data.delta || 0) * mult;
+                posNetGamma += (data.gamma || 0) * mult;
+                posNetTheta += (data.theta || 0) * mult;
+                posNetVega += (data.vega || 0) * mult;
+                hasData = true;
+            });
+        } else {
+            const item = (legData as any[])[0];
+            const data = item?.data || item;
+            if (data && (data.delta != null || data.theta != null)) {
+                posNetDelta = data.delta || 0;
+                posNetGamma = data.gamma || 0;
+                posNetTheta = data.theta || 0;
+                posNetVega = data.vega || 0;
+                hasData = true;
+            }
+        }
+
+        if (!hasData) return;
+        positionsWithData++;
+
+        netDelta += posNetDelta * qty * CONTRACT_MULTIPLIER;
+        netGamma += posNetGamma * qty * CONTRACT_MULTIPLIER;
+        netTheta += posNetTheta * qty * CONTRACT_MULTIPLIER;
+        netVega += posNetVega * qty * CONTRACT_MULTIPLIER;
+
+        if (portfolioTotal > 0) {
+            const riskDollars = getPositionRiskAtStopOutDollars(pos, qty, entryPrice, stopOutFraction);
+            const riskPctPos = (riskDollars / portfolioTotal) * 100;
+            if (riskPctPos > largestRiskPct) {
+                largestRiskPct = riskPctPos;
+                largestRiskTicker = pos.ticker;
+            }
+
+            // Accumulate risk by ticker
+            riskByTicker[pos.ticker] = (riskByTicker[pos.ticker] || 0) + riskDollars;
+
+            // Accumulate risk by expiration week (ISO week of nearest expiration)
+            const expDate = pos.legs?.[0]?.expiration || pos.expiration;
+            if (expDate) {
+                const d = new Date(expDate);
+                // Get ISO week start (Monday) as a key
+                const day = d.getDay();
+                const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                const weekStart = new Date(d);
+                weekStart.setDate(diff);
+                const weekKey = weekStart.toISOString().split('T')[0];
+                riskByExpWeek[weekKey] = (riskByExpWeek[weekKey] || 0) + riskDollars;
+            }
+        }
+    });
+
+    if (positionsWithData === 0) return null;
+
+    // F5.2: Concentration warnings
+    const TICKER_LIMIT = 25; // max 25% of portfolio in one underlying
+    const EXP_WEEK_LIMIT = 30; // max 30% expiring same week
+    const concentrationWarnings: ConcentrationWarning[] = [];
+
+    if (portfolioTotal > 0) {
+        for (const [ticker, risk] of Object.entries(riskByTicker)) {
+            const pct = (risk / portfolioTotal) * 100;
+            if (pct > TICKER_LIMIT) {
+                concentrationWarnings.push({ type: 'ticker', label: ticker, pct: Math.round(pct * 10) / 10, limit: TICKER_LIMIT });
+            }
+        }
+        for (const [week, risk] of Object.entries(riskByExpWeek)) {
+            const pct = (risk / portfolioTotal) * 100;
+            if (pct > EXP_WEEK_LIMIT) {
+                concentrationWarnings.push({ type: 'expiration_week', label: `Week of ${week}`, pct: Math.round(pct * 10) / 10, limit: EXP_WEEK_LIMIT });
+            }
+        }
+    }
+
+    return { netDelta, netGamma, netTheta, netVega, positionsWithData, largestRiskPct, largestRiskTicker, concentrationWarnings };
 }

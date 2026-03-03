@@ -202,7 +202,9 @@ function getATMIV(
     const exact = sortedDTEs.find(d => Math.abs(d - targetDTE) <= 3);
     if (exact !== undefined) return expirationMap.get(exact) ?? null;
 
-    // Linear interpolation between the two bracketing expirations
+    // Variance-based interpolation between the two bracketing expirations
+    // Variance = σ²·T/252 is linear in calendar time; interpolating in variance space
+    // avoids overstating IV in backwardation (linear would give 25% vs correct 22.4%).
     const below = sortedDTEs.filter(d => d < targetDTE);
     const above = sortedDTEs.filter(d => d > targetDTE);
     if (below.length > 0 && above.length > 0) {
@@ -210,8 +212,11 @@ function getATMIV(
         const d2 = above[0];
         const iv1 = expirationMap.get(d1)!;
         const iv2 = expirationMap.get(d2)!;
-        // lerp: iv1 + (iv2 - iv1) * (target - d1) / (d2 - d1)
-        return iv1 + (iv2 - iv1) * (targetDTE - d1) / (d2 - d1);
+        const varNear = iv1 * iv1 * d1 / 252;
+        const varFar  = iv2 * iv2 * d2 / 252;
+        const varTarget = varNear + (varFar - varNear) * (targetDTE - d1) / (d2 - d1);
+        if (varTarget <= 0) return null;
+        return Math.sqrt(varTarget * 252 / targetDTE);
     }
 
     // Extrapolation: use nearest available if target is outside the chain's DTE range

@@ -7,6 +7,7 @@ const require = createRequire(import.meta.url);
 
 const {
     compressLambda,
+    calculateDollarGamma,
     calculateGammaThetaRatio,
     calculateBreakevenMove,
     getBreakevenPenalty,
@@ -78,9 +79,10 @@ export default async function handler(req, res) {
         let options = [];
         let currentPrice = 0;
         let cboeTimestamp = null;
+        let quoteFreshness = null;
 
         if (dataSource === 'POLYGON') {
-            const { getOptionChain, getUnderlyingPrice } = await import('../lib/polygon-client.js');
+            const { getOptionChain, getUnderlyingPrice, checkQuoteFreshness } = await import('../lib/polygon-client.js');
             console.log(`Scanning ${upperTicker} via Polygon.io`);
 
             // Get underlying price first so we request only the strike range we use (reduces payload/API)
@@ -105,6 +107,7 @@ export default async function handler(req, res) {
                 options = chainData;
                 const valid = chainData.find(o => o.underlyingPrice > 0);
                 currentPrice = valid ? valid.underlyingPrice : (underlyingPrice || 0);
+                quoteFreshness = checkQuoteFreshness(chainData);
             } else {
                 return res.status(200).json({ success: true, results: [], context: { note: 'No data from Polygon.io' } });
             }
@@ -134,6 +137,13 @@ export default async function handler(req, res) {
 
         // Parse full chain for IV calculation
         const fullChain = parseChain(options, currentPrice, null);
+
+        // 4.1 — Degraded data detection: CBOE sometimes returns chains with all-zero Greeks.
+        const zeroGreeksCount = fullChain.filter(o => o.delta === 0 && o.gamma === 0 && o.vega === 0).length;
+        const dataQuality = fullChain.length > 0 && zeroGreeksCount / fullChain.length > 0.5 ? 'degraded' : 'ok';
+
+        // F6.4 — CBOE fallback produces meaningless scores (all Greeks=0 → LOQ/CSQ ≈ 50 for everything)
+        const scoresReliable = !(dataSource !== 'POLYGON' && dataQuality === 'degraded');
 
         // Hard filters — single pass combining filter + metric calculation
         const minStrike = currentPrice * (1 - strikeRangeNum);
@@ -173,11 +183,11 @@ export default async function handler(req, res) {
             // Calculate metrics inline (single pass)
             if (strategy === 'long') {
                 const lambda = Math.abs(opt.delta) * (currentPrice / mid);
-                const gammaEff = opt.gamma / mid;
+                const dollarGamma = calculateDollarGamma(opt.gamma, currentPrice);
                 const thetaBurn = Math.abs(opt.theta) / mid;
                 const gammaThetaRatio = calculateGammaThetaRatio(opt.gamma, opt.theta);
                 const breakevenMove = calculateBreakevenMove(opt.strike, mid, currentPrice, opt.type);
-                processed.push({ opt, mid, spreadPct, lambda, gammaEff, thetaBurn, gammaThetaRatio, breakevenMove });
+                processed.push({ opt, mid, spreadPct, lambda, dollarGamma, thetaBurn, gammaThetaRatio, breakevenMove });
             } else {
                 const pop = 1 - Math.abs(opt.delta);
                 const edge = pop * mid;
@@ -223,13 +233,13 @@ export default async function handler(req, res) {
 
         if (strategy === 'long') {
             const compressedLambdas = processed.map((p) => compressLambda(p.lambda));
-            const gammas = processed.map((p) => p.gammaEff);
+            const dollarGammas = processed.map((p) => p.dollarGamma);
             const thetas = processed.map((p) => p.thetaBurn);
             const gtRatios = processed.map((p) => p.gammaThetaRatio);
             const dtes = processed.map((p) => p.opt.dte);
             const vegaEfficiencies = processed.map((p) => (p.opt.vega || 0) / (p.mid || 0.01));
             const zL = zScoresByBucket(compressedLambdas, dtes);
-            const zG = zScoresByBucket(gammas, dtes);
+            const zDG = zScoresByBucket(dollarGammas, dtes);
             const zT = zScoresByBucket(thetas, dtes);
             const zGT = zScoresByBucket(gtRatios, dtes);
             const zVegaEff = zScoresByBucket(vegaEfficiencies, dtes);
@@ -239,7 +249,7 @@ export default async function handler(req, res) {
                 const relIvAdj = getRelativeIVAdjustmentLOQ(p.opt.iv, atmIV);
                 const deltaBonus = getDeltaBonus(p.opt.delta);
                 const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
-                return calculateLOQRaw(zL[i], zG[i], zT[i], ivAdjustment + relIvAdj, deltaBonus, p.thetaBurn, isDayTradeMode, zGT[i], bePenalty, p.opt.dte, zVegaEff[i]);
+                return calculateLOQRaw(zL[i], zDG[i], zT[i], ivAdjustment + relIvAdj, deltaBonus, p.thetaBurn, isDayTradeMode, zGT[i], bePenalty, p.opt.dte, zVegaEff[i]);
             });
             const loqScores = normalizeLOQScoresWithDynamicBaseline(rawScores);
 
@@ -250,7 +260,7 @@ export default async function handler(req, res) {
                 const deltaBonus = getDeltaBonus(p.opt.delta);
                 const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
                 const factors = buildLOQFactors(
-                    zL[i], zG[i], zT[i],
+                    zL[i], zDG[i], zT[i],
                     ivAdjustment + relIvAdj, deltaBonus, p.thetaBurn,
                     zGT[i], bePenalty, p.opt.dte, zVegaEff[i]
                 );
@@ -265,7 +275,7 @@ export default async function handler(req, res) {
                     factors,
                     metrics: {
                         lambda: Math.round(p.lambda * 100) / 100,
-                        gammaEff: Math.round(p.gammaEff * 10000) / 10000,
+                        dollarGamma: Math.round(p.dollarGamma * 100) / 100,
                         thetaBurn: Math.round(p.thetaBurn * 10000) / 10000,
                         gammaThetaRatio: Math.round(p.gammaThetaRatio * 1000) / 1000,
                         breakevenMove: Math.round(p.breakevenMove * 10000) / 10000,
@@ -300,7 +310,9 @@ export default async function handler(req, res) {
             results = processed.map((p, i) => {
                 const atmIV = calculateTargetIV(fullChain, p.opt.dte, currentPrice);
                 const relIvAdj = getRelativeIVAdjustmentCSQ(p.opt.iv, atmIV);
-                const vegaPenalty = -0.05 * zVegaEff[i];
+                // Vega penalty conditioned on IV Rank: at high IV Rank, selling high-vega is desirable.
+                // ivRank not fetched in scan-options → default to 0.5 (neutral).
+                const vegaPenalty = -0.05 * Math.max(0, 1 - 0.5) * zVegaEff[i];
                 const rawScore = calculateCSQRaw(zE[i], zP[i], zS[i], ivAdjustment + relIvAdj, vegaPenalty);
                 const score = normalizeScoreTo100(rawScore);
                 const factors = buildCSQFactors(
@@ -344,6 +356,8 @@ export default async function handler(req, res) {
 
         return res.status(200).json({
             success: true,
+            dataQuality,
+            scoresReliable,
             context: {
                 ticker: upperTicker,
                 currentPrice,
@@ -354,7 +368,8 @@ export default async function handler(req, res) {
                 strategy,
                 totalOptions: options.length,
                 filteredCount: processed.length,
-                cboeTimestamp: cboeTimestamp ?? null
+                cboeTimestamp: cboeTimestamp ?? null,
+                quoteFreshness: quoteFreshness ?? null
             },
             results
         });

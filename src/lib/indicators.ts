@@ -235,6 +235,213 @@ export function heikinAshi(opens: number[], highs: number[], lows: number[], clo
     return result;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// V4 INDICATOR PRIMITIVES
+// New indicators required for the 4-factor scoring model (v4.0).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Wilder's Moving Average (RMA) — internal utility.
+ * Matches Pine Script's ta.rma(): seeded with SMA of first `period` valid values,
+ * then alpha = 1/period rolling average.
+ */
+function rma(values: number[], period: number): number[] {
+    const result: number[] = new Array(values.length).fill(NaN);
+    const alpha = 1.0 / period;
+
+    let seedSum = 0;
+    let seedCount = 0;
+    let seedIdx = -1;
+
+    for (let i = 0; i < values.length; i++) {
+        if (isFinite(values[i])) {
+            seedSum += values[i];
+            seedCount++;
+            if (seedCount === period) {
+                result[i] = seedSum / period;
+                seedIdx = i;
+                break;
+            }
+        }
+    }
+
+    if (seedIdx === -1) return result;
+
+    for (let i = seedIdx + 1; i < values.length; i++) {
+        const v = values[i];
+        const prev = result[i - 1];
+        result[i] = isFinite(v) ? alpha * v + (1 - alpha) * prev : prev; // carry forward on NaN
+    }
+
+    return result;
+}
+
+/**
+ * Average True Range (ATR)
+ * Matches Pine Script's ta.atr(period) — uses Wilder's RMA of True Range.
+ */
+export function calcATR(
+    highs: number[],
+    lows: number[],
+    closes: number[],
+    period: number
+): number[] {
+    const n = closes.length;
+    if (n < 2) return new Array(n).fill(NaN);
+
+    const trValues: number[] = [NaN]; // first bar has no prior close
+    for (let i = 1; i < n; i++) {
+        const tr = Math.max(
+            highs[i] - lows[i],
+            Math.abs(highs[i] - closes[i - 1]),
+            Math.abs(lows[i] - closes[i - 1])
+        );
+        trValues.push(tr);
+    }
+
+    return rma(trValues, period);
+}
+
+/**
+ * Average Directional Index (ADX) with DI+ and DI−.
+ * Matches Pine Script's [adx_v, plus_di, minus_di] = ta.adx(period) equivalent.
+ * Returns full series arrays.
+ */
+export interface ADXResult {
+    adx: number[];
+    diPlus: number[];
+    diMinus: number[];
+}
+
+export function calcADX(
+    highs: number[],
+    lows: number[],
+    closes: number[],
+    period: number
+): ADXResult {
+    const n = closes.length;
+    const empty = (): number[] => new Array(n).fill(NaN);
+
+    if (n < 2) return { adx: empty(), diPlus: empty(), diMinus: empty() };
+
+    const trValues: number[] = [NaN];
+    const dmPlusValues: number[] = [NaN];
+    const dmMinusValues: number[] = [NaN];
+
+    for (let i = 1; i < n; i++) {
+        const h = highs[i], l = lows[i], prevH = highs[i - 1], prevL = lows[i - 1];
+        const tr = Math.max(h - l, Math.abs(h - closes[i - 1]), Math.abs(l - closes[i - 1]));
+        const upMove = h - prevH;
+        const downMove = prevL - l;
+        trValues.push(tr);
+        dmPlusValues.push(upMove > downMove && upMove > 0 ? upMove : 0);
+        dmMinusValues.push(downMove > upMove && downMove > 0 ? downMove : 0);
+    }
+
+    const atr = rma(trValues, period);
+    const smoothPlus = rma(dmPlusValues, period);
+    const smoothMinus = rma(dmMinusValues, period);
+
+    const diPlus: number[] = [];
+    const diMinus: number[] = [];
+    const dxValues: number[] = [];
+
+    for (let i = 0; i < n; i++) {
+        const a = atr[i];
+        if (!isFinite(a) || a === 0) {
+            diPlus.push(NaN); diMinus.push(NaN); dxValues.push(NaN);
+        } else {
+            const dip = 100 * smoothPlus[i] / a;
+            const dim = 100 * smoothMinus[i] / a;
+            diPlus.push(dip);
+            diMinus.push(dim);
+            const diSum = dip + dim;
+            dxValues.push(diSum === 0 ? 0 : 100 * Math.abs(dip - dim) / diSum);
+        }
+    }
+
+    return { adx: rma(dxValues, period), diPlus, diMinus };
+}
+
+/**
+ * Relative Volume (RVOL)
+ * Returns {rvol, rvol2Bar} where rvol2Bar is a 2-bar rolling average of RVOL.
+ * Matches Pine Script's s_calc_rvol() logic.
+ */
+export function calcRVOL(
+    volumes: number[],
+    period: number = 20
+): { rvol: number[]; rvol2Bar: number[] } {
+    const n = volumes.length;
+    const volSma = sma(volumes, period);
+
+    const rvol: number[] = volSma.map((avg, i) =>
+        isFinite(avg) && avg > 0 ? volumes[i] / avg : NaN
+    );
+
+    const rvol2Bar: number[] = rvol.map((rv, i) => {
+        if (i === 0) return rv;
+        const prev = rvol[i - 1];
+        if (!isFinite(rv)) return isFinite(prev) ? prev : NaN;
+        if (!isFinite(prev)) return rv;
+        return (rv + prev) / 2;
+    });
+
+    return { rvol, rvol2Bar };
+}
+
+/**
+ * Bollinger / Keltner Channel Squeeze Detection.
+ * Squeeze = BB width < KC width (volatility contraction).
+ * Matches Pine Script: is_sqz = BB_upper < KC_upper AND BB_lower > KC_lower.
+ * Returns a boolean[] series (true = squeeze active on that bar).
+ */
+export function detectSqueeze(
+    closes: number[],
+    highs: number[],
+    lows: number[],
+    period: number = 20,
+    bbMultiplier: number = 2.0,
+    kcMultiplier: number = 1.5
+): boolean[] {
+    const n = closes.length;
+    const result: boolean[] = new Array(n).fill(false);
+    if (n < period) return result;
+
+    const atrValues = calcATR(highs, lows, closes, period);
+    const emaValues = emaFullSeries(closes, period);
+
+    for (let i = period - 1; i < n; i++) {
+        // BB — centered on SMA
+        let sum = 0;
+        for (let j = i - period + 1; j <= i; j++) sum += closes[j];
+        const mean = sum / period;
+
+        let variance = 0;
+        for (let j = i - period + 1; j <= i; j++) {
+            const d = closes[j] - mean;
+            variance += d * d;
+        }
+        const stdDev = Math.sqrt(variance / period);
+        const bbUpper = mean + bbMultiplier * stdDev;
+        const bbLower = mean - bbMultiplier * stdDev;
+
+        // KC — centered on EMA
+        const kcCenter = emaValues[i];
+        const atr = atrValues[i];
+        if (!isFinite(kcCenter) || !isFinite(atr)) continue;
+
+        const kcUpper = kcCenter + kcMultiplier * atr;
+        const kcLower = kcCenter - kcMultiplier * atr;
+
+        result[i] = bbUpper < kcUpper && bbLower > kcLower;
+    }
+
+    return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
  * Heikin Ashi built exactly like Pine Script s_calc_mb:
  * haclose = (mb_o+mb_h+mb_l+mb_c)/4, xhaopen = (mb_o+mb_c)/2,

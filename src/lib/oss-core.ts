@@ -20,13 +20,21 @@
 // ────────────────────────────────────────────────────────────────
 
 export const HARD_FILTER_DEFAULTS = {
-    minMid: 0.15,
-    minOpenInterest: 200,
-    maxSpreadPctCeiling: 0.12,
+    minMid: 0.10,
+    minOpenInterest: 100,
+    maxSpreadPctCeiling: 0.35,
+} as const;
+
+/** Stricter tier for credit spreads — sellers need tighter fills. */
+export const HARD_FILTER_CREDIT = {
+    minMid: 0.10,
+    minOpenInterest: 150,
+    maxSpreadPctCeiling: 0.30,
 } as const;
 
 export const DTE_BUCKETS = [
-    { label: '0-14', min: 0, max: 14 },
+    { label: '0-7', min: 0, max: 7 },
+    { label: '8-14', min: 8, max: 14 },
     { label: '15-30', min: 15, max: 30 },
     { label: '31-60', min: 31, max: 60 },
     { label: '61-120', min: 61, max: 120 },
@@ -105,11 +113,27 @@ export function calculateLambda(delta: number, stockPrice: number, optionPrice: 
 }
 
 /**
+ * @deprecated Use calculateDollarGamma instead — price-independent, industry standard.
  * Gamma Efficiency (Γeff) - Explosiveness per dollar.
  */
 export function calculateGammaEfficiency(gamma: number, optionPrice: number): number {
     if (optionPrice <= 0.01) return 0;
     return gamma / optionPrice;
+}
+
+/**
+ * Dollar Gamma (ΔΓ$) - Price-independent gamma exposure (v2.8).
+ *
+ * Dollar Gamma = γ × S² / 100
+ *
+ * Industry standard metric. Unlike gammaEff = γ/price, this does NOT divide by
+ * option price, eliminating the spurious ~0.8 correlation with Lambda that caused
+ * cheap OTM options to be double-counted.
+ *
+ * Interpretation: P&L change from a 1% move in the underlying = Dollar Gamma × 0.5.
+ */
+export function calculateDollarGamma(gamma: number, currentPrice: number): number {
+    return gamma * currentPrice * currentPrice / 100;
 }
 
 /**
@@ -362,8 +386,8 @@ export function normalizeToZScoresByBucket(
  */
 export function getIVRiskFactor(ratio: number): number {
     const clamped = Math.max(0.5, Math.min(2.0, ratio));
-    const k = 12;
-    const x0 = 1.10;
+    const k = 8;
+    const x0 = 1.00;
     const raw = sigmoid(k * (clamped - x0));
     return 0.9 + raw * 0.4;
 }
@@ -391,16 +415,24 @@ export function getIVAdjustment(ivRatio: number, strategy: Strategy): number {
  *
  * Returns 0 if ivRank is null (no history). Add this on top of getIVAdjustment.
  */
-export function getIVRankAdjustment(ivRank: number | null, strategy: Strategy): number {
+export function getIVRankAdjustment(ivRank: number | null, strategy: Strategy, sampleDays: number = 180): number {
     if (ivRank == null || ivRank < 0 || ivRank > 1) return 0;
+    // Confidence discount: scale by min(1, sampleDays / 180)
+    // 180 days = ~3/4 of the 252-day lookback. IV Rank from fewer samples has higher
+    // std error — reduce its influence proportionally. Old threshold of 60 was too lenient,
+    // giving full confidence with only ~24% of the lookback window filled.
+    const confidence = Math.min(1, sampleDays / 180);
+    let raw: number;
     if (strategy === 'long') {
-        if (ivRank < 0.3) return 0.5;
-        if (ivRank > 0.7) return -0.5;
-        return 0;
+        if (ivRank < 0.3) raw = 0.5;
+        else if (ivRank > 0.7) raw = -0.5;
+        else raw = 0;
+    } else {
+        if (ivRank < 0.3) raw = -0.3;
+        else if (ivRank > 0.7) raw = 0.5;
+        else raw = 0;
     }
-    if (ivRank < 0.3) return -0.3;
-    if (ivRank > 0.7) return 0.5;
-    return 0;
+    return raw * confidence;
 }
 
 /**
@@ -441,20 +473,20 @@ export function getRelativeIVAdjustmentCSQ(
 // LOQ Weights & Score
 // ────────────────────────────────────────────────────────────────
 
-/** Standard mode weights (v2.2 — G/T + Breakeven) */
+/** Standard mode weights (v2.8 — Dollar Gamma replaces Gamma Efficiency) */
 export const LOQ_WEIGHTS = {
     lambda: 0.30,
-    gammaEff: 0.20,
+    dollarGamma: 0.20,
     gammaThetaRatio: 0.15,
     thetaBurn: 0,
     deltaBonus: 0.15,
     breakevenPenalty: 0.15,
 } as const;
 
-/** Day-trade mode weights (DTE ≤ 5, v2.2 — G/T emphasized, BE de-emphasized) */
+/** Day-trade mode weights (DTE ≤ 5, v2.8 — Dollar Gamma emphasized) */
 export const LOQ_DT_WEIGHTS = {
     lambda: 0.30,
-    gammaEff: 0.35,
+    dollarGamma: 0.35,
     gammaThetaRatio: 0.20,
     thetaBurn: 0,
     breakevenPenalty: 0.05,
@@ -463,7 +495,7 @@ export const LOQ_DT_WEIGHTS = {
 
 export interface LOQWeightsForDTE {
     lambda: number;
-    gammaEff: number;
+    dollarGamma: number;
     gammaThetaRatio: number;
     thetaBurn: number;
     deltaBonus: number;
@@ -483,7 +515,7 @@ export function getLOQWeightsForDTE(dte: number): LOQWeightsForDTE {
     if (dte <= 5) {
         return {
             lambda: LOQ_DT_WEIGHTS.lambda,
-            gammaEff: LOQ_DT_WEIGHTS.gammaEff,
+            dollarGamma: LOQ_DT_WEIGHTS.dollarGamma,
             gammaThetaRatio: LOQ_DT_WEIGHTS.gammaThetaRatio,
             thetaBurn: LOQ_DT_WEIGHTS.thetaBurn,
             deltaBonus,
@@ -494,7 +526,7 @@ export function getLOQWeightsForDTE(dte: number): LOQWeightsForDTE {
     if (dte >= 15) {
         return {
             lambda: LOQ_WEIGHTS.lambda,
-            gammaEff: LOQ_WEIGHTS.gammaEff,
+            dollarGamma: LOQ_WEIGHTS.dollarGamma,
             gammaThetaRatio: LOQ_WEIGHTS.gammaThetaRatio,
             thetaBurn: LOQ_WEIGHTS.thetaBurn,
             deltaBonus,
@@ -506,7 +538,7 @@ export function getLOQWeightsForDTE(dte: number): LOQWeightsForDTE {
     const mix = (a: number, b: number) => a + (b - a) * t;
     return {
         lambda: mix(LOQ_DT_WEIGHTS.lambda, LOQ_WEIGHTS.lambda),
-        gammaEff: mix(LOQ_DT_WEIGHTS.gammaEff, LOQ_WEIGHTS.gammaEff),
+        dollarGamma: mix(LOQ_DT_WEIGHTS.dollarGamma, LOQ_WEIGHTS.dollarGamma),
         gammaThetaRatio: mix(LOQ_DT_WEIGHTS.gammaThetaRatio, LOQ_WEIGHTS.gammaThetaRatio),
         thetaBurn: mix(LOQ_DT_WEIGHTS.thetaBurn, LOQ_WEIGHTS.thetaBurn),
         deltaBonus,
@@ -549,7 +581,7 @@ export const CSQ_VEGA_PENALTY_WEIGHT = -0.05;
  */
 export function calculateLOQRaw(
     zLambda: number,
-    zGammaEff: number,
+    zDollarGamma: number,
     zThetaBurn: number,
     ivAdjustment: number,
     deltaBonus: number = 0,
@@ -581,7 +613,7 @@ export function calculateLOQRaw(
 
     return (
         w.lambda * zLambda +
-        w.gammaEff * zGammaEff +
+        w.dollarGamma * zDollarGamma +
         w.gammaThetaRatio * zGammaThetaRatio +
         w.thetaBurn * zThetaBurn +
         w.deltaBonus * deltaBonus +
@@ -678,7 +710,7 @@ export function calculateSingleLOQWithFactors(
 ): { score: number; factors: Array<{ name: string; impact: number; description: string; value?: string | number }> } {
     const rawLambda = calculateLambda(delta, stockPrice, optionPrice);
     const compLambda = compressLambda(rawLambda);
-    const gammaEff = calculateGammaEfficiency(gamma, optionPrice);
+    const dollarGamma = calculateDollarGamma(gamma, stockPrice);
     const thetaBurn = calculateThetaBurn(theta, optionPrice);
     const gtRatio = calculateGammaThetaRatio(gamma, theta);
     const beMove = strike != null && optionType
@@ -687,7 +719,7 @@ export function calculateSingleLOQWithFactors(
     const bePenalty = getBreakevenPenalty(beMove, dte);
 
     const zLambda = (compLambda - 8) / 4;
-    const zGamma = (gammaEff - 0.02) / 0.015;
+    const zDollarGamma = (dollarGamma - 50) / 40;
     const zTheta = (thetaBurn - 0.03) / 0.02;
     const zGT = (gtRatio - 0.5) / 0.4;
 
@@ -696,11 +728,11 @@ export function calculateSingleLOQWithFactors(
     const w = getLOQWeightsForDTE(dte);
     const thetaPenalty = getThetaPenalty(thetaBurn);
     const vegaZ = 0;
-    const rawScore = calculateLOQRaw(zLambda, zGamma, zTheta, ivAdjustment, deltaBonus, thetaBurn, false, zGT, bePenalty, dte, vegaZ);
+    const rawScore = calculateLOQRaw(zLambda, zDollarGamma, zTheta, ivAdjustment, deltaBonus, thetaBurn, false, zGT, bePenalty, dte, vegaZ);
 
     const factors: Array<{ name: string; impact: number; description: string; value?: string | number }> = [
         { name: 'Lambda', impact: Math.round(w.lambda * zLambda * 10) / 10, description: 'Leverage (compressed).', value: compLambda.toFixed(2) },
-        { name: 'Gamma Eff', impact: Math.round(w.gammaEff * zGamma * 10) / 10, description: 'Explosiveness per dollar.', value: gammaEff.toFixed(4) },
+        { name: 'Dollar Gamma', impact: Math.round(w.dollarGamma * zDollarGamma * 10) / 10, description: 'Price-independent gamma exposure (γ × S² / 100).', value: dollarGamma.toFixed(2) },
         { name: 'G/T Ratio', impact: Math.round(w.gammaThetaRatio * zGT * 10) / 10, description: 'Gamma per unit theta.', value: gtRatio.toFixed(2) },
         { name: 'Delta Bonus', impact: Math.round(w.deltaBonus * deltaBonus * 10) / 10, description: 'Strike alignment.', value: delta.toFixed(3) },
         { name: 'BE Penalty', impact: Math.round(w.breakevenPenalty * bePenalty * 10) / 10, description: 'Breakeven difficulty.', value: undefined },

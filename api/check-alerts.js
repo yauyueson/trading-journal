@@ -215,9 +215,89 @@ export default async function handler(req, res) {
     let sent = 0;
 
     for (const pos of positions) {
-      // Skip multi-leg for now (alerts for spreads can be added later)
       const legs = pos.legs || [];
-      if (legs.length >= 2) continue;
+
+      // Handle 2-leg spreads (credit and debit)
+      if (legs.length === 2) {
+        const posTxns = txnsByPos[pos.id] || [];
+        const netTxn = posTxns.find(t => t.price != null);
+        const entryNet = netTxn ? Math.abs(netTxn.price) : 0;
+        if (!entryNet) continue;
+
+        const ticker = (pos.ticker || '').toUpperCase();
+        const chain = optionChains[ticker] || [];
+
+        // Determine short leg (sold) and long leg (bought)
+        const shortLegDef = legs.find(l => (l.quantity || 0) < 0) || legs[0];
+        const longLegDef = legs.find(l => (l.quantity || 0) > 0) || legs[1];
+
+        const shortMid = findOptionMid(chain, ticker,
+          (shortLegDef.expiration || '').slice(0, 10), shortLegDef.strike, shortLegDef.type || 'Put');
+        const longMid = findOptionMid(chain, ticker,
+          (longLegDef.expiration || '').slice(0, 10), longLegDef.strike, longLegDef.type || 'Put');
+
+        if (shortMid == null || longMid == null) continue;
+
+        // Determine strategy direction from transaction price
+        // Credit received → netTxn.price < 0 (credit) or strategy type
+        const strategyType = (pos.strategy_type || pos.type || '').toLowerCase();
+        const isCreditSpread = strategyType.includes('credit') || (netTxn && netTxn.price < 0);
+
+        let spreadTriggered = null;
+        let spreadDesc = '';
+        if (isCreditSpread) {
+          const costToClose = shortMid - longMid;
+          if (costToClose > entryNet * 1.5) {
+            spreadTriggered = 'stop';
+            spreadDesc = `Cost-to-close **$${costToClose.toFixed(2)}** is >1.5x entry credit **$${entryNet.toFixed(2)}**`;
+          } else if (costToClose < entryNet * 0.5) {
+            spreadTriggered = 'target';
+            spreadDesc = `Cost-to-close **$${costToClose.toFixed(2)}** is <0.5x entry credit **$${entryNet.toFixed(2)}** — 50% profit captured`;
+          }
+        } else {
+          const currentValue = longMid - shortMid;
+          if (currentValue < entryNet * 0.5) {
+            spreadTriggered = 'stop';
+            spreadDesc = `Current value **$${currentValue.toFixed(2)}** is <0.5x entry debit **$${entryNet.toFixed(2)}**`;
+          } else if (currentValue > entryNet * 1.5) {
+            spreadTriggered = 'target';
+            spreadDesc = `Current value **$${currentValue.toFixed(2)}** is >1.5x entry debit **$${entryNet.toFixed(2)}** — 50%+ gain`;
+          }
+        }
+
+        if (!spreadTriggered) continue;
+
+        const spreadTitle = spreadTriggered === 'stop' ? '🛑 Spread Stop Hit' : '🎯 Spread Target Hit';
+        const spreadColor = spreadTriggered === 'stop' ? 0xef4444 : 0x22c55e;
+        const spreadBody = {
+          content: null,
+          embeds: [{
+            title: spreadTitle,
+            description: `**${ticker}** ${isCreditSpread ? 'Credit' : 'Debit'} Spread · ${spreadDesc}`,
+            color: spreadColor,
+            fields: [
+              { name: 'Short Leg', value: `${shortLegDef.strike} ${shortLegDef.type || 'P'} @ $${shortMid.toFixed(2)}`, inline: true },
+              { name: 'Long Leg', value: `${longLegDef.strike} ${longLegDef.type || 'P'} @ $${longMid.toFixed(2)}`, inline: true },
+            ],
+            footer: { text: 'Trading Journal' },
+            timestamp: new Date().toISOString(),
+          }],
+        };
+        try {
+          await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(spreadBody),
+          });
+          sent++;
+        } catch (discordErr) {
+          console.warn('Discord spread alert failed:', discordErr.message);
+        }
+        continue;
+      }
+
+      // Skip 4-leg or other complex positions
+      if (legs.length > 2) continue;
 
       const posTxns = txnsByPos[pos.id] || [];
       const firstBuy = posTxns.find(t => t.quantity > 0);

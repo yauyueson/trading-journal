@@ -117,6 +117,71 @@ export default async function handler(req, res) {
         }
     }
 
+    // 5.1 — Regime Change Early Warning
+    // For each ticker that succeeded today, query last 5 days of snapshots.
+    // If regime changed in the last 3 days, send Discord alert.
+    const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+    if (webhookUrl && snapshots.length > 0) {
+        const fiveDaysAgo = new Date();
+        fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+        const fromDate = fiveDaysAgo.toISOString().slice(0, 10);
+
+        for (const snap of snapshots) {
+            try {
+                const { data: history } = await supabase
+                    .from('ticker_iv_snapshots')
+                    .select('recorded_date,iv30,iv90')
+                    .eq('ticker', snap.ticker)
+                    .gte('recorded_date', fromDate)
+                    .order('recorded_date', { ascending: false })
+                    .limit(5);
+
+                if (!history || history.length < 3) continue;
+
+                const toMode = row => {
+                    const ratio = row.iv30 && row.iv90 > 0 ? row.iv30 / row.iv90 : 1.0;
+                    return ratio > 1.05 ? 'CREDIT' : ratio < 0.95 ? 'DEBIT' : 'NEUTRAL';
+                };
+
+                const modes = history.map(toMode);
+                const todayMode = modes[0];
+                // Look for a flip in last 3 days: today differs from any of days 3-5 ago
+                const olderMode = modes.slice(2).find(m => m !== 'NEUTRAL');
+                if (!olderMode || olderMode === todayMode || todayMode === 'NEUTRAL') continue;
+
+                const todaySnap = history[0];
+                const todayRatio = todaySnap.iv30 && todaySnap.iv90 > 0
+                    ? (todaySnap.iv30 / todaySnap.iv90).toFixed(3)
+                    : 'N/A';
+
+                const alertBody = {
+                    embeds: [{
+                        title: `📊 Regime Shift: ${snap.ticker}`,
+                        description: `**${snap.ticker}** regime shifted from **${olderMode}** → **${todayMode}**`,
+                        color: todayMode === 'CREDIT' ? 0x00cc66 : todayMode === 'DEBIT' ? 0x3399ff : 0xaaaaaa,
+                        fields: [
+                            { name: 'IV30/IV90 Ratio', value: todayRatio, inline: true },
+                            { name: 'Previous Regime', value: olderMode, inline: true },
+                            { name: 'New Regime', value: todayMode, inline: true },
+                        ],
+                        footer: { text: 'Cron IV Snapshot · Regime Early Warning' },
+                        timestamp: new Date().toISOString(),
+                    }]
+                };
+
+                await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(alertBody),
+                    signal: AbortSignal.timeout(5000),
+                });
+                console.log(`[RegimeAlert] ${snap.ticker}: ${olderMode} → ${todayMode}`);
+            } catch (alertErr) {
+                console.warn(`[RegimeAlert] ${snap.ticker} alert failed:`, alertErr?.message);
+            }
+        }
+    }
+
     return res.status(200).json({
         success: true,
         processed: allTickers.length,

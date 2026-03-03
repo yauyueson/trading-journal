@@ -1,6 +1,6 @@
 # Trading Journal - API文档
 
-> 最后更新: 2026年2月23日  
+> 最后更新: 2026年3月1日
 > **数据源**: Polygon.io（主）/ CBOE（备）；API 用量优化：仅请求所需 DTE/行权 + 期权链缓存；付费档建议设置 `POLYGON_RATE_LIMIT_RPM=100`
 
 ## 📋 目录
@@ -43,10 +43,14 @@ Supabase PostgreSQL (数据存储)
 | `/api/underlying-rv` | GET | 标的已实现波动率（Nasdaq 历史） | ✅ 生产 |
 | `/api/earnings` | GET | 获取财报日期（通过 Nasdaq API） | ✅ 生产 |
 | `/api/iv-rank` | GET | 获取指定 Ticker 的 IV Rank 与 Percentile | ✅ 生产 |
-| `/api/cron-iv-snapshot` | GET/POST | 定时任务，每日收集活跃持仓与热门标的 IV 快照并写入 | ✅ 生产 |
+| `/api/cron-iv-snapshot` | GET/POST | 定时任务，每日收集活跃持仓与热门标的 IV 快照并写入；检测 Regime 切换并发 Discord 提醒 | ✅ 生产 |
 | `/api/backfill-iv-history` | GET | 回填历史波动率数据以建立基准 | ✅ 生产 |
+| `/api/score-validation` | GET | 按评分段统计候选分布（0-30/30-50/50-70/70-100），用于实证验证 | ✅ 生产 |
+| `/api/execution-quality` | GET | 基于 Delta 代理对入场时机分类（early/late/at-market） | ✅ 生产 |
 
 **评分逻辑统一**：所有 API 均引用 `api/_shared/scoring.cjs` / `api/_shared/ivHistory.cjs`，与前端 `src/lib/oss-core.ts` 逻辑镜像，保证扫描结果、策略推荐与持仓卡片 OSS 分数一致。
+
+**数据质量保障**：`scan-options.js` 与 `strategy-recommend.js` 均检测降级数据——当 `zeroGreeks/total > 50%` 时响应中包含 `dataQuality: 'degraded'`，前端展示黄色警告横幅。
 
 ---
 
@@ -304,7 +308,13 @@ GET /api/strategy-recommend
 | `Long Put` | `scoreSingleLegs('Put')` | `HARD_FILTER_DEFAULTS` |
 | `Iron Condor` | `buildIronCondors()` ✅ v2.6 | `HARD_FILTER_CREDIT` |
 
-**`setup` 参数作用**：传入后会激活 [Pine Script 设置感知权重](#)（EV 40%→35%，Regime 25%→30%）。`Mixed`/`Other` 不激活权重切换。
+**`setup` 参数作用**：传入后会激活 Pine Script 设置感知权重（`hasPineSetup=true`：`wEV=0.45/wRegime=0.20`）。`Mixed`/`Other` 不激活权重切换。
+
+**候选快照（v2.7 Deep Audit）**：每次推荐完成后，Top-5 候选自动 Fire-and-Forget 写入 `candidate_snapshots` 表，用于后续 Score→P&L 实证分析。
+
+**Regime 迟滞（v2.7 Deep Audit）**：CREDIT→DEBIT 需 `termRatio<0.90`，DEBIT→CREDIT 需 `>1.10`，防止 Regime 频繁翻转影响推荐稳定性。
+
+**数据质量字段**：响应中包含 `dataQuality: 'ok' | 'degraded'`。降级时前端展示黄色横幅提示用户数据可信度不足（Greeks 零值率 > 50%）。
 
 ---
 
@@ -320,6 +330,7 @@ GET /api/check-alerts
 - ✅ Polygon 下获取当前价格（无延迟）；CBOE 为 15 分钟延迟
 - ✅ 支持多腿策略的 Net Value 计算
 - ✅ Polygon 失败时自动降级到 CBOE
+- ✅ **价差提醒（v2.7）**：2 腿持仓纳入监控，当 cost-to-close 超过 entry credit 阈值时发送 Discord 提醒
 
 ---
 
@@ -370,14 +381,81 @@ GET/POST /api/batch-refresh-tech
 **实现**: 查询 Supabase 数据库 `ticker_iv_snapshots` 表中的历史快照，计算当前排位。
 
 ### 2. 定时写入每日 IV 快照
-**端点**: `GET/POST /api/cron-iv-snapshot`  
-**用途**: 由 Vercel Cron 每交易日盘后触发（如 16:30 ET），自动获取所有活跃持仓标的及特定热门标的（如 SPY, QQQ, AAPL 等）当天的 IV30 与 IV90 值，并写入数据库 `ticker_iv_snapshots` 记录当日快照。  
+**端点**: `GET/POST /api/cron-iv-snapshot`
+**用途**: 由 Vercel Cron 每交易日盘后触发（如 16:30 ET），自动获取所有活跃持仓标的及特定热门标的（如 SPY, QQQ, AAPL 等）当天的 IV30 与 IV90 值，并写入数据库 `ticker_iv_snapshots` 记录当日快照。
+**Regime 切换检测（v2.7）**：写入快照后查询近 5 日 Regime 历史，若检测到 CREDIT↔DEBIT 翻转则发送 Discord 提醒（`DISCORD_WEBHOOK_URL`）。
 **注意**: 此端点通过获取单条期权链在内存中计算 IV 期权结构，每次耗费 2 个 Polygon API Quota（一次合约、一次快照）。需要使用带有 `SUPABASE_SERVICE_ROLE_KEY` 权限的后端脚本执行。
 
 ### 3. 回填历史波动率数据
 **端点**: `GET /api/backfill-iv-history?ticker={TICKER}` 或 `?mode=popular`  
 **用途**: 为新关注或尚无 IV 历史的标的极速回填过去 ~1.5 年的滚动 30 日实现波动率（RV30）作为初始 IV 比较基准，避免因样本缺失无法计算 Rank。  
 **处理机制**: 一次请求批量摄取历史 K 线并按天计算实现波动率后，批量存入数据表。
+
+---
+
+## 📊 评分验证 API
+
+### 端点
+
+```
+GET /api/score-validation
+```
+
+### 用途
+
+查询 `candidate_snapshots` 表，按统一评分段统计候选数量与实际 P&L 分布，用于实证验证评分系统的预测效力（Score → P&L 映射质量）。
+
+### 响应结构
+
+```json
+{
+  "buckets": [
+    { "range": "70-100", "count": 42, "avg_pnl": 183.5, "win_rate": 0.71 },
+    { "range": "50-70",  "count": 88, "avg_pnl": 42.1,  "win_rate": 0.54 },
+    { "range": "30-50",  "count": 61, "avg_pnl": -12.3, "win_rate": 0.41 },
+    { "range": "0-30",   "count": 14, "avg_pnl": -89.7, "win_rate": 0.21 }
+  ],
+  "total": 205,
+  "with_outcome": 112
+}
+```
+
+**说明**: 仅已平仓且填入 `actual_pnl` 的快照参与统计。
+
+---
+
+## ⏱️ 执行质量 API
+
+### 端点
+
+```
+GET /api/execution-quality?positionId={UUID}
+```
+
+### 用途
+
+基于 Delta 代理，对持仓的入场时机进行分类，量化执行效率（相对理想入场偏早/偏晚/贴近市价）。
+
+### 参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| positionId | UUID | ✅ | 持仓 ID |
+
+### 响应结构
+
+```json
+{
+  "positionId": "uuid-123",
+  "timing": "early",
+  "deltaAtEntry": 0.38,
+  "deltaIdeal": 0.45,
+  "deltaDeviation": -0.07,
+  "classification": "early — entered before optimal delta window"
+}
+```
+
+**`timing` 取值**: `early` / `at-market` / `late`
 
 ---
 
@@ -423,5 +501,5 @@ vercel --prod
 
 ---
 
-*文档维护者: Trading Journal Team*  
-*最后更新: 2026年2月23日*
+*文档维护者: Trading Journal Team*
+*最后更新: 2026年3月1日*

@@ -231,7 +231,7 @@ export interface SingleLegRecommendation {
     theta: number;
     vega: number;
     lambda: number;
-    gammaEff: number;
+    dollarGamma: number;
     thetaBurn: number;
     volume: number;
     openInterest: number;
@@ -262,6 +262,12 @@ export interface StrategyResult {
     autoBackfillTriggered?: boolean;
     /** Which options data source was used: 'POLYGON' (real-time) or 'CBOE' (15-min delayed). */
     dataSource?: 'POLYGON' | 'CBOE';
+    /** 'degraded' when >50% of parsed options have zero Greeks (CBOE data quality issue). */
+    dataQuality?: 'ok' | 'degraded';
+    /** false when CBOE + degraded data → scores are meaningless (~50 for everything). */
+    scoresReliable?: boolean;
+    /** Quote freshness info from Polygon (null for CBOE). */
+    quoteFreshness?: { isStale: boolean; staleQuotes: number; oldestQuoteAgeMs: number } | null;
     context: StrategyContext;
     regime: StrategyRegime;
     recommendedStrategy: 'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SINGLE_LEG';

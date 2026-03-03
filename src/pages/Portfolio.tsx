@@ -7,7 +7,7 @@ import { RollModal } from '../components/RollModal';
 import { DataFooter } from '../components/DataFooter';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { useAppSettings } from '../context/AppSettingsContext';
-import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
+import { getPositionRiskAtStopOutDollars, aggregatePortfolioGreeks } from '../lib/riskSizing';
 import { SETUPS, STRATEGIES, formatCurrency } from '../lib/utils';
 
 interface PortfolioPageProps {
@@ -64,85 +64,9 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     }, 0);
     const totalRiskPct = portfolioTotal > 0 ? (totalRiskDollars / portfolioTotal) * 100 : 0;
 
-    // Portfolio-level Greeks aggregation from live bulk data
+    // Portfolio-level Greeks aggregation + concentration warnings from shared utility
     const portfolioGreeks = useMemo(() => {
-        let netDelta = 0, netGamma = 0, netTheta = 0, netVega = 0;
-        let positionsWithData = 0;
-        let largestRiskPct = 0;
-        let largestRiskTicker = '';
-
-        activePositions.forEach(pos => {
-            const legData = bulkData[pos.id];
-            if (!legData || legData.length === 0) return;
-
-            // Net quantity + entry price from transactions
-            const posTxns = transactions.filter(t => t.position_id === pos.id);
-            let qtyBought = 0, qtySold = 0, entryPrice = 0;
-            posTxns.forEach(t => {
-                if (t.quantity > 0) {
-                    if (entryPrice === 0) entryPrice = t.price;
-                    qtyBought += t.quantity;
-                } else {
-                    qtySold += Math.abs(t.quantity);
-                }
-            });
-            const qty = qtyBought - qtySold;
-            if (qty <= 0) return;
-
-            // Compute per-position net Greeks from bulk data
-            let posNetDelta = 0, posNetGamma = 0, posNetTheta = 0, posNetVega = 0;
-            let hasData = false;
-
-            if (pos.legs && pos.legs.length > 0) {
-                pos.legs.forEach(leg => {
-                    const legResult = (legData as any[]).find(d =>
-                        d.expiration === leg.expiration &&
-                        String(d.strike) === String(leg.strike) &&
-                        d.type === leg.type
-                    );
-                    const data = legResult?.data;
-                    if (!data) return;
-                    const mult = leg.side === 'short' ? -1 : 1;
-                    posNetDelta += (data.delta || 0) * mult;
-                    posNetGamma += (data.gamma || 0) * mult;
-                    posNetTheta += (data.theta || 0) * mult;
-                    posNetVega += (data.vega || 0) * mult;
-                    hasData = true;
-                });
-            } else {
-                const item = (legData as any[])[0];
-                const data = item?.data || item;
-                if (data && (data.delta != null || data.theta != null)) {
-                    posNetDelta = data.delta || 0;
-                    posNetGamma = data.gamma || 0;
-                    posNetTheta = data.theta || 0;
-                    posNetVega = data.vega || 0;
-                    hasData = true;
-                }
-            }
-
-            if (!hasData) return;
-            positionsWithData++;
-
-            // Scale by contract qty × 100 shares/contract
-            netDelta += posNetDelta * qty * 100;
-            netGamma += posNetGamma * qty * 100;
-            netTheta += posNetTheta * qty * 100;
-            netVega += posNetVega * qty * 100;
-
-            // Track largest single-position risk %
-            if (portfolioTotal > 0) {
-                const riskDollars = getPositionRiskAtStopOutDollars(pos, qty, entryPrice, stopOutFraction);
-                const riskPctPos = (riskDollars / portfolioTotal) * 100;
-                if (riskPctPos > largestRiskPct) {
-                    largestRiskPct = riskPctPos;
-                    largestRiskTicker = pos.ticker;
-                }
-            }
-        });
-
-        if (positionsWithData === 0) return null;
-        return { netDelta, netGamma, netTheta, netVega, positionsWithData, largestRiskPct, largestRiskTicker };
+        return aggregatePortfolioGreeks(activePositions, transactions, bulkData, portfolioTotal, stopOutFraction);
     }, [activePositions, bulkData, transactions, portfolioTotal, stopOutFraction]);
 
     const sortedPositions = [...activePositions].sort((a, b) => {
@@ -439,24 +363,37 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             <div className="text-[10px] text-text-tertiary mt-0.5">Net Vega (per 1% IV)</div>
                         </div>
                         <div>
-                            {portfolioGreeks.largestRiskTicker && portfolioGreeks.largestRiskPct > 0 ? (
-                                <>
-                                    <div className={`text-base sm:text-lg font-bold font-mono ${portfolioGreeks.largestRiskPct > 10 ? 'text-accent-red' :
-                                            portfolioGreeks.largestRiskPct > 5 ? 'text-accent-yellow' :
-                                                'text-text-primary'
-                                        }`}>
-                                        {portfolioGreeks.largestRiskTicker} {portfolioGreeks.largestRiskPct.toFixed(1)}%
-                                    </div>
-                                    <div className="text-[10px] text-text-tertiary mt-0.5">Largest Position Risk</div>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="text-base sm:text-lg font-bold font-mono text-text-tertiary">—</div>
-                                    <div className="text-[10px] text-text-tertiary mt-0.5">Largest Position Risk</div>
-                                </>
-                            )}
+                            <div className={`text-base sm:text-lg font-bold font-mono ${portfolioGreeks.netGamma > 20 ? 'text-emerald-400' :
+                                    portfolioGreeks.netGamma < -20 ? 'text-accent-red' :
+                                        'text-text-primary'
+                                }`}>
+                                {portfolioGreeks.netGamma >= 0 ? '+' : ''}{portfolioGreeks.netGamma.toFixed(2)}
+                            </div>
+                            <div className="text-[10px] text-text-tertiary mt-0.5">Net Gamma (Γ)</div>
                         </div>
                     </div>
+                    {/* Largest position risk — shown beneath main Greeks row */}
+                    {portfolioGreeks.largestRiskTicker && portfolioGreeks.largestRiskPct > 0 && (
+                        <div className="mt-3 pt-3 border-t border-border-default/20 flex items-center gap-2 text-[11px]">
+                            <span className="text-text-tertiary">Largest position risk:</span>
+                            <span className={`font-mono font-semibold ${portfolioGreeks.largestRiskPct > 10 ? 'text-accent-red' :
+                                    portfolioGreeks.largestRiskPct > 5 ? 'text-accent-yellow' :
+                                        'text-text-primary'
+                                }`}>{portfolioGreeks.largestRiskTicker} {portfolioGreeks.largestRiskPct.toFixed(1)}%</span>
+                        </div>
+                    )}
+                    {/* Concentration warnings (F5.2) */}
+                    {portfolioGreeks.concentrationWarnings && portfolioGreeks.concentrationWarnings.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                            {portfolioGreeks.concentrationWarnings.map((w, i) => (
+                                <div key={i} className="flex items-center gap-2 text-[11px] text-accent-red/90">
+                                    <span className="font-semibold">CONCENTRATION:</span>
+                                    <span className="font-mono">{w.label} @ {w.pct}%</span>
+                                    <span className="text-text-tertiary">(limit {w.limit}%)</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 

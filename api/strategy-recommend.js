@@ -41,7 +41,7 @@ function _dbg(payload) {
 }
 // #endregion
 
-let compressLambda, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
+let compressLambda, calculateDollarGamma, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
     calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, zScoresByBucket, HARD_FILTER_DEFAULTS, HARD_FILTER_CREDIT,
     getIVRiskFactor, getIVAdjustment, getIVRankAdjustment, getRelativeIVAdjustmentLOQ, getRelativeIVAdjustmentCSQ,
     calculateLOQRaw, normalizeScoreTo100, normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct,
@@ -59,6 +59,7 @@ async function ensureScoring() {
         throw new Error('Scoring module load failed: missing exports');
     }
     compressLambda = scoring.compressLambda;
+    calculateDollarGamma = scoring.calculateDollarGamma;
     calculateGammaThetaRatio = scoring.calculateGammaThetaRatio;
     calculateBreakevenMove = scoring.calculateBreakevenMove;
     getBreakevenPenalty = scoring.getBreakevenPenalty;
@@ -509,10 +510,10 @@ function getProbITMAtStrike(chain, optionType, expiration, targetStrike) {
     return a.probabilityITM + t * (b.probabilityITM - a.probabilityITM);
 }
 
-function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, dtePeak = 37) {
+function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, dtePeak = 37, sampleDays = 60) {
     const results = [];
     const widths = customWidth ? [customWidth] : [5, 10];
-    const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short');
+    const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short', sampleDays);
     const atmIV = getCleanATM_IV(chain, currentPrice);
 
     const shorts = chain.filter(o =>
@@ -584,9 +585,10 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             if (earningsRisk) continue;
 
             // 4. Slippage Modeling — OI-adjusted (illiquid options penalized even with tight quoted spreads)
+            // 2.5: brokers fill 2-leg spread orders as packages, so multiply per-leg sum by 0.7
             const slippage1 = estimateSlippage(shortLeg.bid, shortLeg.ask, shortLeg.openInterest);
             const slippage2 = estimateSlippage(longLeg.bid, longLeg.ask, longLeg.openInterest);
-            const totalSlippage = slippage1 + slippage2;
+            const totalSlippage = (slippage1 + slippage2) * 0.7;
             const effectiveCredit = credit - totalSlippage; // Real-world fill
 
             if (effectiveCredit <= 0) continue; // If slippage eats all profit, skip
@@ -619,9 +621,16 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             // Momentum setups (Breakout, Perfect Storm) peak at DTE=14; Trend at 37; Pullback at 28
             const scoreDTE = Math.round(100 * Math.exp(-0.5 * Math.pow((dte - dtePeak) / 15, 2)));
 
+            // Earnings penalty scaling (2.6): proportional to implied move size
+            const earningsPremium = includesEarnings
+                ? estimateEarningsPremium(daysUntilEarnings, dte, shortLeg.iv, currentPrice)
+                : null;
+            const earningsMovePct = earningsPremium?.earningsMovePct ?? 5;
+            const earningsScale = includesEarnings ? Math.min(2.0, Math.max(1.0, earningsMovePct / 5)) : 1.0;
+
             let finalScore = (0.20 * scoreEV) + (0.20 * scoreROI) + (0.20 * scorePOP) + (0.15 * scoreDistance) + (0.25 * scoreDTE) + skewBonus + gammaPenalty + relativeIVBonus;
             finalScore += ivRankAdj * 2;
-            if (includesEarnings) finalScore -= 25;
+            if (includesEarnings) finalScore -= 25 * earningsScale;
             if (anomaly && dte <= 35) finalScore -= 30; // Anomaly IV (e.g. Earnings) → Penalize short-dated short sellers
 
             if (effectiveROI < 10) continue; // Lowered ROI floor because we are using net effective ROI now
@@ -644,10 +653,6 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
                 slippageImpact: totalSlippage / credit, // % of credit lost to slippage
                 dte
             });
-
-            const earningsPremium = includesEarnings
-                ? estimateEarningsPremium(daysUntilEarnings, dte, shortLeg.iv, currentPrice)
-                : null;
 
             results.push({
                 type: type === 'Put' ? 'Credit Put Spread' : 'Credit Call Spread',
@@ -685,10 +690,10 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
-function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null, daysUntilEarnings = null, anomaly = false, dtePeak = 37, deltaRange = [0.45, 0.70]) {
+function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null, daysUntilEarnings = null, anomaly = false, dtePeak = 37, deltaRange = [0.45, 0.70], sampleDays = 60) {
     const results = [];
     const widths = customWidth ? [customWidth] : [2.5, 5];
-    const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'long');
+    const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'long', sampleDays);
     const [deltaMin, deltaMax] = deltaRange;
 
     const longs = chain.filter(o =>
@@ -735,9 +740,10 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
             if (spreadPctVal > HARD_FILTER_DEFAULTS.maxSpreadPctCeiling) continue; // Consistent with credit spreads
 
             // 4. Slippage (Debit) — OI-adjusted
+            // 2.5: brokers fill 2-leg spread orders as packages, so multiply per-leg sum by 0.7
             const slippage1 = estimateSlippage(longLeg.bid, longLeg.ask, longLeg.openInterest);
             const slippage2 = estimateSlippage(shortLeg.bid, shortLeg.ask, shortLeg.openInterest);
-            const totalSlippage = slippage1 + slippage2;
+            const totalSlippage = (slippage1 + slippage2) * 0.7;
             const effectiveDebit = debit + totalSlippage; // Higher cost
             const effectiveMaxProfit = width - effectiveDebit;
 
@@ -794,9 +800,19 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
             // Weighted scoring: lambda(25%) + R:R(25%) + delta(15%) + EV(20%) + BE(10%) + theta(-5%)
             // DTE score uses setup-tuned Gaussian peak (dtePeak)
             const scoreDTEDebit = Math.round(100 * Math.exp(-0.5 * Math.pow((longLeg.dte - dtePeak) / 15, 2)));
+            // Earnings penalty scaling for debit spreads (2.6)
+            const dteDS = longLeg.dte || 30;
+            const includesEarningsDS = daysUntilEarnings !== null && daysUntilEarnings >= 0 && daysUntilEarnings <= dteDS;
+            const earningsPremiumDS = includesEarningsDS
+                ? estimateEarningsPremium(daysUntilEarnings, dteDS, longLeg.iv, currentPrice)
+                : null;
+            const earningsMovePctDS = earningsPremiumDS?.earningsMovePct ?? 5;
+            const earningsScaleDS = includesEarningsDS ? Math.min(2.0, Math.max(1.0, earningsMovePctDS / 5)) : 1.0;
+
             let finalScore = (0.25 * lambdaScore) + (0.25 * rrScore) + (0.15 * deltaScore) +
                 (0.20 * evScore) + (0.10 * (50 + bePenalty * 12.5)) - (0.05 * thetaPenalty) + (0.05 * scoreDTEDebit);
             finalScore += ivRankAdj * 2;
+            if (includesEarningsDS) finalScore -= 15 * earningsScaleDS; // Earnings → IV crush risk for debit buyers
             if (anomaly && (longLeg.dte || 30) <= 35) finalScore -= 20; // Anomaly IV → Penalize buyers due to IV crush risk
 
             // When IV/RV > 1.10 (contango but paying VRP), favor more selective debits: R:R ≥ 1.5, DTE 30–45, delta 0.50–0.65
@@ -817,13 +833,6 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
                 slippageImpact: totalSlippage / debit,
                 deltaBonus
             });
-
-            // Earnings premium: for debit spreads spanning earnings, this is the key thesis
-            const dteDS = longLeg.dte || 30;
-            const includesEarningsDS = daysUntilEarnings !== null && daysUntilEarnings >= 0 && daysUntilEarnings <= dteDS;
-            const earningsPremiumDS = includesEarningsDS
-                ? estimateEarningsPremium(daysUntilEarnings, dteDS, longLeg.iv, currentPrice)
-                : null;
 
             results.push({
                 type: type === 'Call' ? 'Debit Call Spread' : 'Debit Put Spread',
@@ -851,7 +860,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
-function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, ivRank = null) {
+function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, ivRank = null, sampleDays = 60) {
     const filtered = chain.filter(o =>
         o.type === type &&
         Math.abs(o.delta) >= 0.25 &&
@@ -870,35 +879,35 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, iv
         const spreadPctVal = (opt.ask - opt.bid) / mid;
         if (spreadPctVal > HARD_FILTER_DEFAULTS.maxSpreadPctCeiling) continue;
         const lambda = Math.abs(opt.delta) * (currentPrice / mid);
-        const gammaEff = opt.gamma / mid;
+        const dollarGamma = calculateDollarGamma(opt.gamma, currentPrice);
         const thetaBurn = Math.abs(opt.theta) / mid;
         const gammaThetaRatio = calculateGammaThetaRatio(opt.gamma, opt.theta);
         const breakevenMove = calculateBreakevenMove(opt.strike, mid, currentPrice, opt.type);
-        processed.push({ opt, mid, lambda, gammaEff, thetaBurn, gammaThetaRatio, breakevenMove, spreadPct: spreadPctVal });
+        processed.push({ opt, mid, lambda, dollarGamma, thetaBurn, gammaThetaRatio, breakevenMove, spreadPct: spreadPctVal });
     }
 
     if (processed.length === 0) return [];
 
     const compressedLambdas = processed.map(p => compressLambda(p.lambda));
-    const gammas = processed.map(p => p.gammaEff);
+    const dollarGammas = processed.map(p => p.dollarGamma);
     const thetas = processed.map(p => p.thetaBurn);
     const gtRatios = processed.map(p => p.gammaThetaRatio);
     const dtes = processed.map(p => p.opt.dte);
     const vegaEfficiencies = processed.map(p => (p.opt.vega || 0) / (p.mid || 0.01));
     const zL = zScoresByBucket(compressedLambdas, dtes);
-    const zG = zScoresByBucket(gammas, dtes);
+    const zDG = zScoresByBucket(dollarGammas, dtes);
     const zT = zScoresByBucket(thetas, dtes);
     const zGT = zScoresByBucket(gtRatios, dtes);
     const zVegaEff = zScoresByBucket(vegaEfficiencies, dtes);
 
     const atmIV = getCleanATM_IV(chain, currentPrice);
     const ivAdjustment = getIVAdjustment(ivRatio ?? 1.0, 'long');
-    const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'long');
+    const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'long', sampleDays);
     const rawScores = processed.map((p, i) => {
         const relIvAdj = getRelativeIVAdjustmentLOQ(p.opt.iv, atmIV);
         const deltaBonus = getDeltaBonus(p.opt.delta);
         const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
-        return calculateLOQRaw(zL[i], zG[i], zT[i], ivAdjustment + ivRankAdj + relIvAdj, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty, p.opt.dte, zVegaEff[i]);
+        return calculateLOQRaw(zL[i], zDG[i], zT[i], ivAdjustment + ivRankAdj + relIvAdj, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty, p.opt.dte, zVegaEff[i]);
     });
     const scores = normalizeLOQScoresWithDynamicBaseline(rawScores);
     return processed.map((p, i) => {
@@ -939,7 +948,7 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, iv
             theta: p.opt.theta,
             vega: p.opt.vega,
             lambda: p.lambda,
-            gammaEff: p.gammaEff,
+            dollarGamma: p.dollarGamma,
             thetaBurn: p.thetaBurn,
             volume: p.opt.volume,
             openInterest: p.opt.openInterest,
@@ -957,10 +966,10 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, iv
 // IRON CONDOR BUILDER
 // =============================================================================
 
-function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false) {
+function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, sampleDays = 60) {
     const results = [];
     const widths = customWidth ? [customWidth] : [5, 10];
-    const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short');
+    const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short', sampleDays);
     const HF = HARD_FILTER_CREDIT;
 
     // Find unique expirations that have both put and call options
@@ -1039,12 +1048,13 @@ function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, ske
                     const maxRisk = width - totalCredit;
                     if (maxRisk <= 0) continue;
 
-                    // Slippage on all 4 legs
-                    const totalSlippage =
+                    // Slippage on all 4 legs — brokers fill spread orders as packages (2.5: multiply by 0.5)
+                    const rawSlippage =
                         estimateSlippage(shortPut.bid, shortPut.ask, shortPut.openInterest) +
                         estimateSlippage(longPut.bid, longPut.ask, longPut.openInterest) +
                         estimateSlippage(shortCall.bid, shortCall.ask, shortCall.openInterest) +
                         estimateSlippage(longCall.bid, longCall.ask, longCall.openInterest);
+                    const totalSlippage = rawSlippage * 0.5;
                     const effectiveCredit = totalCredit - totalSlippage;
                     if (effectiveCredit <= 0) continue;
 
@@ -1066,18 +1076,34 @@ function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, ske
                     const pAboveUpper = _bsmN2(currentPrice, upperBreakeven, T, iv);  // P(S > upperBE)
                     const pop = pAboveLower - pAboveUpper; // P(lowerBE < S < upperBE)
 
-                    // Wing symmetry: prefer balanced wings (short put distance ≈ short call distance)
+                    // Directional alignment score (2.4): reward wider wing on the skew-favored side.
+                    // skew > 0 (puts rich) → wider put wing is better. skew < 0 → wider call wing.
                     const putDistance = (currentPrice - shortPut.strike) / currentPrice;
                     const callDistance = (shortCall.strike - currentPrice) / currentPrice;
-                    const symmetryRatio = Math.min(putDistance, callDistance) / Math.max(putDistance, callDistance);
+                    let alignmentScore;
+                    const absSkewIC = Math.abs(skew || 0);
+                    if (absSkewIC > 0.03) {
+                        // Directionally skewed: reward wider wing on the expensive side
+                        const putWingWider = putDistance > callDistance;
+                        const aligned = (skew > 0 && putWingWider) || (skew < 0 && !putWingWider);
+                        if (aligned) {
+                            const widthRatio = Math.min(putDistance, callDistance) / Math.max(putDistance, callDistance);
+                            alignmentScore = 60 + (1 - widthRatio) * 40; // Wider divergence → higher score
+                        } else {
+                            alignmentScore = 40 * (Math.min(putDistance, callDistance) / Math.max(putDistance, callDistance));
+                        }
+                    } else {
+                        // Neutral skew: fall back to symmetry
+                        const symmetryRatio = Math.min(putDistance, callDistance) / Math.max(putDistance, callDistance);
+                        alignmentScore = symmetryRatio * 100;
+                    }
 
-                    // Scoring: POP (40%) + Credit/Risk (25%) + Wing Symmetry (15%) + DTE curve (20%)
+                    // Scoring: POP (40%) + Credit/Risk (25%) + Alignment (15%) + DTE curve (20%)
                     const scorePOP = pop * 100;
                     const scoreROI = Math.min(effectiveROI * 3, 100);
-                    const scoreSymmetry = symmetryRatio * 100;
                     const scoreDTE = Math.round(100 * Math.exp(-0.5 * Math.pow((dte - 37) / 15, 2)));
 
-                    let finalScore = (0.40 * scorePOP) + (0.25 * scoreROI) + (0.15 * scoreSymmetry) + (0.20 * scoreDTE);
+                    let finalScore = (0.40 * scorePOP) + (0.25 * scoreROI) + (0.15 * alignmentScore) + (0.20 * scoreDTE);
                     finalScore += ivRankAdj * 2;
 
                     // IV/RV bonus: IC benefits from high IV (selling premium on both sides)
@@ -1086,12 +1112,17 @@ function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, ske
 
                     // Anomaly penalty: IV spike makes short-term ICs risky
                     if (anomaly && dte <= 35) finalScore -= 25;
-                    if (includesEarnings) finalScore -= 20;
+                    if (includesEarnings) {
+                        const earningsPremiumIC = estimateEarningsPremium(daysUntilEarnings, dte, (shortPut.iv + shortCall.iv) / 2 || 0.3, currentPrice);
+                        const earningsMovePctIC = earningsPremiumIC?.earningsMovePct ?? 5;
+                        const earningsScaleIC = Math.min(2.0, Math.max(1.0, earningsMovePctIC / 5));
+                        finalScore -= 20 * earningsScaleIC;
+                    }
 
                     const whyThisParts = [];
                     if (pop > 0.50) whyThisParts.push(`${(pop * 100).toFixed(0)}% POP`);
                     if (effectiveROI > 12) whyThisParts.push(`${effectiveROI.toFixed(0)}% ROI`);
-                    if (symmetryRatio > 0.85) whyThisParts.push('Balanced Wings');
+                    if (alignmentScore > 75) whyThisParts.push(absSkewIC > 0.03 ? 'Good Wing Alignment' : 'Balanced Wings');
                     if (ivRvRatio && ivRvRatio > 1.20) whyThisParts.push('Rich Premium');
                     if (rangePct > 0.10) whyThisParts.push(`${(rangePct * 100).toFixed(1)}% Range`);
 
@@ -1120,7 +1151,7 @@ function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, ske
                         lowerBreakeven: Number(lowerBreakeven.toFixed(2)),
                         upperBreakeven: Number(upperBreakeven.toFixed(2)),
                         rangePct: Number((rangePct * 100).toFixed(1)),
-                        symmetry: Number((symmetryRatio * 100).toFixed(0)),
+                        alignment: Number(alignmentScore.toFixed(0)),
                         score: Math.min(100, Math.max(0, Math.round(finalScore))),
                         whyThis: whyThisParts.join(', ') || 'Neutral Premium Collection',
                         recommendation: {
@@ -1148,7 +1179,7 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const { ticker, direction = 'BULL', targetDte, spreadWidth, targetStrategy, setup } = req.query;
+    const { ticker, direction = 'BULL', targetDte, spreadWidth, targetStrategy, setup, entryContext, entryQuality } = req.query;
 
     if (!ticker) {
         return res.status(400).json({ error: 'Missing ticker parameter' });
@@ -1158,6 +1189,13 @@ export default async function handler(req, res) {
     // Used to auto-detect 'overextended' without requiring the user to check it manually.
     const d8Str = req.query.d8 ? String(req.query.d8).replace(/[^-0-9.]/g, '') : null;
     const d8Param = d8Str != null ? parseFloat(d8Str) : null;
+
+    // v4 Entry Context: 'OPTIMAL' | 'ACCEPTABLE' | 'MARGINAL' | 'CHASING'
+    // entryQuality: 0-100 numeric score from calculateTechScoreV4()
+    const entryCtx = entryContext ? String(entryContext).toUpperCase() : null;
+    const entryQualityNum = entryQuality
+        ? Math.min(100, Math.max(0, parseFloat(String(entryQuality).replace(/[^0-9.]/g, ''))))
+        : null;
 
     const upperTicker = ticker.toUpperCase();
     const isBull = direction.toUpperCase() === 'BULL';
@@ -1179,6 +1217,7 @@ export default async function handler(req, res) {
         let cboeRes = null;
         let rv30 = null;
         let daysUntilEarnings = null;
+        let quoteFreshness = null;
 
         // Pre-declare candle arrays at handler scope so batch 1 can share them
         let dailyCandles = null;
@@ -1187,7 +1226,7 @@ export default async function handler(req, res) {
 
         if (dataSource === 'POLYGON') {
             console.log(`Using Polygon.io for ${upperTicker}`);
-            const { getOptionChain, getUnderlyingPrice, getCandles } = await import('../lib/polygon-client.js');
+            const { getOptionChain, getUnderlyingPrice, getCandles, checkQuoteFreshness } = await import('../lib/polygon-client.js');
 
             // Date ranges for candle fetches
             const toDate = new Date();
@@ -1252,6 +1291,10 @@ export default async function handler(req, res) {
                         }
 
                         polygonSuccess = true;
+                        quoteFreshness = checkQuoteFreshness(chainData);
+                        if (quoteFreshness.isStale) {
+                            console.warn(`[Polygon] Stale quotes detected: ${quoteFreshness.staleQuotes}/${chainData.length} older than 5min (oldest: ${Math.round(quoteFreshness.oldestQuoteAgeMs / 60000)}min)`);
+                        }
                     } else {
                         console.warn('Polygon returned 0 bids/asks (Free Tier?). Falling back to CBOE...');
                     }
@@ -1305,6 +1348,14 @@ export default async function handler(req, res) {
         }
 
         const fullChain = parseChain(allOptions, currentPrice, null);
+
+        // 4.1 — Degraded data detection: CBOE sometimes returns chains with all-zero Greeks.
+        const zeroGreeksCount = fullChain.filter(o => o.delta === 0 && o.gamma === 0 && o.vega === 0).length;
+        const dataQuality = fullChain.length > 0 && zeroGreeksCount / fullChain.length > 0.5 ? 'degraded' : 'ok';
+
+        // F6.4 — CBOE fallback produces meaningless scores (all Greeks=0 → LOQ/CSQ ≈ 50)
+        const scoresReliable = !(actualDataSource !== 'POLYGON' && dataQuality === 'degraded');
+
         // Derive strategyChain by filtering fullChain in-memory (avoids double iteration of allOptions)
         const strategyChain = dteTarget != null
             ? fullChain.filter(o => Math.abs(o.dte - dteTarget) <= 5)
@@ -1332,6 +1383,47 @@ export default async function handler(req, res) {
 
         if (iv30 != null) {
             await saveTickerIVSnapshot(upperTicker, iv30, iv90);
+        }
+
+        // 2.3 — Regime Hysteresis: prevent flapping near thresholds.
+        // Require stronger signal to flip: CREDIT→DEBIT needs termRatio < 0.90, DEBIT→CREDIT needs > 1.10.
+        const termRatio = (iv30 && iv90 > 0) ? iv30 / iv90 : 1.0;
+        try {
+            const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+            const sbKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+            if (sbUrl && sbKey) {
+                const threeDaysAgo = new Date();
+                threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+                const fromDate = threeDaysAgo.toISOString().slice(0, 10);
+                const hParams = new URLSearchParams({ ticker: `eq.${upperTicker}`, recorded_date: `gte.${fromDate}`, order: 'recorded_date.desc', limit: '3' });
+                const hRes = await fetch(`${sbUrl}/rest/v1/ticker_iv_snapshots?${hParams}`, {
+                    headers: { 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}` },
+                    signal: AbortSignal.timeout(2000),
+                });
+                if (hRes.ok) {
+                    const snapRows = await hRes.json();
+                    if (snapRows && snapRows.length >= 2) {
+                        const historicalModes = snapRows.map(r => {
+                            const ratio = r.iv30 && r.iv90 > 0 ? r.iv30 / r.iv90 : 1.0;
+                            return ratio > 1.05 ? 'CREDIT' : ratio < 0.95 ? 'DEBIT' : 'NEUTRAL';
+                        });
+                        const persistentMode = historicalModes.every(m => m === historicalModes[0]) ? historicalModes[0] : null;
+                        if (persistentMode && persistentMode !== regime.mode && regime.mode !== 'NEUTRAL') {
+                            if (persistentMode === 'CREDIT' && regime.mode === 'DEBIT' && termRatio >= 0.90) {
+                                regime.mode = 'CREDIT';
+                                regime.advice += ' [Regime stable: Hysteresis applied]';
+                                console.log(`[Hysteresis] ${upperTicker}: Keeping CREDIT (termRatio=${termRatio.toFixed(3)}, needs <0.90 to flip)`);
+                            } else if (persistentMode === 'DEBIT' && regime.mode === 'CREDIT' && termRatio <= 1.10) {
+                                regime.mode = 'DEBIT';
+                                regime.advice += ' [Regime stable: Hysteresis applied]';
+                                console.log(`[Hysteresis] ${upperTicker}: Keeping DEBIT (termRatio=${termRatio.toFixed(3)}, needs >1.10 to flip)`);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (hysteresisErr) {
+            console.warn('[Hysteresis] Non-critical query failed:', hysteresisErr.message);
         }
 
         const ivRankResult = await getIVRank(upperTicker);
@@ -1376,7 +1468,26 @@ export default async function handler(req, res) {
 
         // --- Entry Profile: convert setup name → concrete builder params ---
         const entryProfile = getEntryProfile(decodedSetup);
-        const { dtePeak, deltaRange, allowChase } = entryProfile;
+        let { dtePeak, deltaRange, allowChase } = entryProfile;
+
+        // v4 Entry Context overrides: adjust DTE peak and delta range based on entry quality
+        //   OPTIMAL  → pullback to 4H EMA support; tighten DTE (less theta bleed) + raise delta
+        //   CHASING  → extended above EMA; lengthen DTE (more time for pullback) + lower delta
+        if (entryCtx === 'OPTIMAL') {
+            dtePeak = Math.max(14, Math.round(dtePeak * 0.75));
+            deltaRange = [
+                Math.min(parseFloat((deltaRange[0] + 0.05).toFixed(2)), 0.65),
+                Math.min(parseFloat((deltaRange[1] + 0.05).toFixed(2)), 0.80)
+            ];
+            console.log(`[EntryContext] ${entryCtx}: dtePeak→${dtePeak}, deltaRange→[${deltaRange}]`);
+        } else if (entryCtx === 'CHASING') {
+            dtePeak = Math.min(45, Math.round(dtePeak * 1.25));
+            deltaRange = [
+                Math.max(parseFloat((deltaRange[0] - 0.05).toFixed(2)), 0.35),
+                Math.max(parseFloat((deltaRange[1] - 0.10).toFixed(2)), 0.50)
+            ];
+            console.log(`[EntryContext] ${entryCtx}: dtePeak→${dtePeak}, deltaRange→[${deltaRange}]`);
+        }
 
         // Auto-detect overextended from d8:
         //   If d8 > 1.5% for BULL (price is >1.5% above EMA-8) it's a chase entry.
@@ -1393,33 +1504,33 @@ export default async function handler(req, res) {
         if (decodedStrategy === 'Auto-Select Strategy') {
             if (isBull) {
                 targetRecs = [
-                    ...buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak),
-                    ...buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange),
-                    ...scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput),
-                    ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly)
+                    ...buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays),
+                    ...buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays),
+                    ...scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays),
+                    ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays)
                 ];
             } else {
                 targetRecs = [
-                    ...buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak),
-                    ...buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange),
-                    ...scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput),
-                    ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly)
+                    ...buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays),
+                    ...buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays),
+                    ...scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays),
+                    ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays)
                 ];
             }
         } else if (decodedStrategy === 'Credit Put Spread') {
-            targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak);
+            targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays);
         } else if (decodedStrategy === 'Debit Call Spread') {
-            targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange);
+            targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays);
         } else if (decodedStrategy === 'Long Call') {
-            targetRecs = scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput);
+            targetRecs = scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays);
         } else if (decodedStrategy === 'Credit Call Spread') {
-            targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak);
+            targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays);
         } else if (decodedStrategy === 'Debit Put Spread') {
-            targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange);
+            targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays);
         } else if (decodedStrategy === 'Long Put') {
-            targetRecs = scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput);
+            targetRecs = scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays);
         } else if (decodedStrategy === 'Iron Condor') {
-            targetRecs = buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly);
+            targetRecs = buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays);
         }
 
         // 3. Score the targeted strategy using the unified algorithm
@@ -1555,6 +1666,53 @@ export default async function handler(req, res) {
                     });
                 }
             }
+
+            // 3d. v4 Entry Context adjustments
+            // OPTIMAL  → pullback entry at 4H EMA support → debit strategies get maximum leverage
+            // CHASING  → extended entry above 4H EMA → credit collects theta while waiting for PB
+            // MARGINAL → entry quality borderline → slight debit penalty
+            // ACCEPTABLE → neutral; no adjustment
+            if (entryCtx) {
+                let ecBonus = 0;
+                const ecNotes = [];
+
+                if (entryCtx === 'OPTIMAL') {
+                    if (isDebit) {
+                        ecBonus += 20;
+                        ecNotes.push('✦ OPTIMAL Entry: Price at 4H EMA support with momentum reset — debit strategies boosted for max leverage at pullback low.');
+                    } else if (isCredit) {
+                        ecBonus -= 10;
+                        ecNotes.push('↓ OPTIMAL Entry: At-support pullback favors debit over credit; credit still valid if IV regime strongly favors selling.');
+                    }
+                } else if (entryCtx === 'CHASING') {
+                    if (isCredit) {
+                        ecBonus += 15;
+                        ecNotes.push('🛡️ CHASING Entry: Price extended above 4H EMA — credit spreads collect theta while waiting for a pullback to materialize.');
+                    } else if (isDebit) {
+                        ecBonus -= 20;
+                        ecNotes.push('⚠️ CHASING Entry: Entering after 4H extension — debit strategies face mean-reversion risk; consider waiting for pullback or use credit.');
+                    }
+                } else if (entryCtx === 'MARGINAL') {
+                    if (isDebit) {
+                        ecBonus -= 5;
+                        ecNotes.push('⚠️ MARGINAL Entry: Entry quality suboptimal — reduce size; wait for a better 4H setup before adding debit exposure.');
+                    }
+                }
+                // ACCEPTABLE: no adjustment
+
+                if (ecBonus !== 0) {
+                    pick.score = Math.max(0, Math.min(100, (pick.score || 0) + ecBonus));
+                    pick.unifiedScore = Math.max(0, Math.min(100, (pick.unifiedScore || 0) + ecBonus));
+                    if (Array.isArray(pick.factors)) {
+                        pick.factors.push({
+                            name: 'v4 Entry Context',
+                            impact: ecBonus,
+                            description: ecNotes.join(' '),
+                            value: entryCtx,
+                        });
+                    }
+                }
+            }
         }
         targetRecs.sort((a, b) => b.unifiedScore - a.unifiedScore);
 
@@ -1568,10 +1726,58 @@ export default async function handler(req, res) {
             ? estimateEarningsPremium(daysUntilEarnings, dteTarget, contextIV, currentPrice)
             : null;
 
+        // 4.2 — Fire-and-forget: persist top-5 candidates for Score→P&L validation
+        try {
+            const sbUrl2 = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+            const sbKey2 = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+            const top5 = targetRecs.slice(0, 5);
+            if (top5.length > 0 && sbUrl2 && sbKey2) {
+                const rows = top5.map(r => {
+                    const isSpread = 'shortLeg' in r && 'longLeg' in r;
+                    return {
+                        ticker: upperTicker,
+                        strategy_type: r.type || 'UNKNOWN',
+                        strategy_category: r.strategyCategory || (isSpread ? 'CREDIT_SPREAD' : 'SINGLE_LEG'),
+                        unified_score: typeof r.unifiedScore === 'number' ? r.unifiedScore : null,
+                        ev_risk_ratio: typeof r.evRiskRatio === 'number' ? r.evRiskRatio : null,
+                        pop: typeof r.pop === 'number' ? r.pop : null,
+                        regime_mode: regime.mode || null,
+                        iv_rank: ivRank != null ? ivRank : null,
+                        direction: isBull ? 'BULL' : 'BEAR',
+                        short_strike: isSpread ? (r.shortLeg?.strike ?? null) : (r.strike ?? null),
+                        long_strike: isSpread ? (r.longLeg?.strike ?? null) : null,
+                        expiration: isSpread ? (r.shortLeg?.expiration ?? null) : (r.expiration ?? null),
+                        entry_mid: isSpread
+                            ? (r.netCredit ?? r.netDebit ?? null)
+                            : (r.price ?? null),
+                    };
+                });
+                // Fire-and-forget — don't await, don't block response
+                fetch(`${sbUrl2}/rest/v1/candidate_snapshots`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': sbKey2,
+                        'Authorization': `Bearer ${sbKey2}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal',
+                    },
+                    body: JSON.stringify(rows),
+                    signal: AbortSignal.timeout(3000),
+                }).then(r => {
+                    if (!r.ok) r.text().then(t => console.warn('[Strategy Recommend] candidate_snapshots insert failed:', t));
+                }).catch(e => console.warn('[Strategy Recommend] candidate_snapshots fetch error:', e?.message));
+            }
+        } catch (snapErr) {
+            console.warn('[Strategy Recommend] candidate_snapshots fire-and-forget error:', snapErr?.message);
+        }
+
         return res.status(200).json({
             success: true,
             autoBackfillTriggered,
             dataSource: actualDataSource,   // 'POLYGON' (real-time) or 'CBOE' (15-min delayed)
+            dataQuality,                    // 'degraded' when >50% of options have zero Greeks
+            scoresReliable,                 // false when CBOE + degraded → scores are meaningless
+            quoteFreshness: quoteFreshness ?? null, // { isStale, staleQuotes, oldestQuoteAgeMs }
             context: {
                 ticker: upperTicker,
                 currentPrice,
@@ -1618,6 +1824,8 @@ export default async function handler(req, res) {
                 allowChase,
                 autoOverextended,
                 d8: d8Param,
+                entryContext: entryCtx,
+                entryQuality: entryQualityNum,
             },
             strategies: {
                 TARGET_STRATEGY: targetRecs,

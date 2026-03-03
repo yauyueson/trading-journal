@@ -615,14 +615,40 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                 </div>
             )}
 
-            {/* CBOE data source notice: 15-min delayed */}
+            {/* CBOE data source notice — escalated warning when scores are unreliable */}
             {result?.dataSource === 'CBOE' && (
-                <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 p-3 rounded-xl mb-4 flex items-center gap-3">
-                    <AlertCircle size={16} className="shrink-0 text-amber-400" />
+                <div className={`border p-3 rounded-xl mb-4 flex items-center gap-3 ${
+                    result?.scoresReliable === false
+                        ? 'bg-red-500/15 border-red-500/40 text-red-300'
+                        : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                }`}>
+                    <AlertCircle size={16} className={`shrink-0 ${result?.scoresReliable === false ? 'text-red-400' : 'text-amber-400'}`} />
                     <span className="text-xs font-medium">
-                        <span className="font-bold text-amber-200">Data Source: CBOE</span>
-                        {' '}— Options quotes are <span className="font-bold">15 minutes delayed</span>.
-                        For real-time Greeks &amp; IV, set <code className="bg-black/40 px-1 rounded text-amber-300">DATA_SOURCE=POLYGON</code> in your environment.
+                        {result?.scoresReliable === false ? (
+                            <>
+                                <span className="font-bold text-red-200">Scores Unreliable — CBOE (No Greeks)</span>
+                                {' '}— CBOE data has no real Greeks. All LOQ/CSQ scores are ~50 (random).
+                                Do NOT act on these scores. Set <code className="bg-black/40 px-1 rounded text-red-300">DATA_SOURCE=POLYGON</code> for real scoring.
+                            </>
+                        ) : (
+                            <>
+                                <span className="font-bold text-amber-200">Data Source: CBOE</span>
+                                {' '}— Options quotes are <span className="font-bold">15 minutes delayed</span>.
+                                For real-time Greeks &amp; IV, set <code className="bg-black/40 px-1 rounded text-amber-300">DATA_SOURCE=POLYGON</code> in your environment.
+                            </>
+                        )}
+                    </span>
+                </div>
+            )}
+
+            {/* Degraded data warning: >50% of options have zero Greeks */}
+            {result?.dataQuality === 'degraded' && (
+                <div className="bg-yellow-500/10 border border-yellow-500/40 text-yellow-300 p-3 rounded-xl mb-4 flex items-center gap-3">
+                    <AlertCircle size={16} className="shrink-0 text-yellow-400" />
+                    <span className="text-xs font-medium">
+                        <span className="font-bold text-yellow-200">Degraded Data Quality</span>
+                        {' '}— More than half of the options in this chain have zero Greeks.
+                        LOQ scores and sizing suggestions may be unreliable. Try refreshing or waiting for updated chain data.
                     </span>
                 </div>
             )}
