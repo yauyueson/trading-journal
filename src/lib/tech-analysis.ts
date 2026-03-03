@@ -384,7 +384,7 @@ function calcTrendFactor(dir: number, mb: number, iss: boolean, bxs: number, bxl
 // ── Factor 2: Structure Quality ──────────────────────────────────────────────
 // TypeScript mirror of Pine s_calc_structure_factor
 function calcStructureFactor(
-    dir: number, d1: number, d2: number, d3: number,
+    dir: number, d1: number, d2: number, _d3: number,
     bstk: boolean, brstk: boolean, adxV: number, setupName: string
 ): number {
     const emaAligned = (dir > 0 && bstk) || (dir < 0 && brstk);
@@ -528,7 +528,6 @@ export function calculateTechScoreV4(
     const mabxs     = mstX[last] ?? 0;
     const prevMabxs = mstX[last - 1] ?? 0;
     const rev_up = mabxs > prevMabxs && prevMabxs < (mstX[last - 2] ?? 0);
-    const rev_dn = mabxs < prevMabxs && prevMabxs > (mstX[last - 2] ?? 0);
 
     // ── EMA Stack ────────────────────────────────────────────────────────────
     const e8s  = emaFullSeries(closes, 8);

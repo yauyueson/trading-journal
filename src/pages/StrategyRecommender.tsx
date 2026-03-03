@@ -1147,7 +1147,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                     </div>
                                                                     <div>
                                                                         <div className="text-gray-500 text-[10px] uppercase">Gamma Eff</div>
-                                                                        <div className="text-accent-green font-mono">{(rec as SingleLegRecommendation).gammaEff?.toFixed(4)}</div>
+                                                                        <div className="text-accent-green font-mono">{(rec as SingleLegRecommendation).dollarGamma?.toFixed(4)}</div>
                                                                     </div>
                                                                 </div>
                                                             </div>

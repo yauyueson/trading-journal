@@ -274,7 +274,7 @@ function buildLOQFactors(
     const vegaBonus = vegaWeight * zVegaEff;
     const items: ScoreFactor[] = [
         { name: 'Lambda', impact: w.lambda * zLambda, description: 'Leverage (compressed); higher in sweet spot helps.', value: undefined },
-        { name: 'Gamma Eff', impact: w.gammaEff * zGammaEff, description: 'Explosiveness per dollar.', value: undefined },
+        { name: 'Gamma Eff', impact: w.dollarGamma * zGammaEff, description: 'Explosiveness per dollar.', value: undefined },
         { name: 'Theta (Z)', impact: w.thetaBurn * zThetaBurn, description: 'Relative theta burn vs pool.', value: undefined },
         { name: 'G/T Ratio', impact: w.gammaThetaRatio * zGT, description: 'Gamma per unit theta (cost of gamma).', value: undefined },
         { name: 'Delta Bonus', impact: w.deltaBonus * deltaBonus, description: 'Strike alignment; sweet spot 0.30–0.50.', value: undefined },

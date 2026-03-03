@@ -372,7 +372,6 @@ export function calcRVOL(
     volumes: number[],
     period: number = 20
 ): { rvol: number[]; rvol2Bar: number[] } {
-    const n = volumes.length;
     const volSma = sma(volumes, period);
 
     const rvol: number[] = volSma.map((avg, i) =>
