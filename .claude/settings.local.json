@@ -42,7 +42,8 @@
       "Bash(node_modules/.bin/vite.cmd --version)",
       "mcp__ide__getDiagnostics",
       "WebFetch(domain:supabase.com)",
-      "Bash(claude mcp:*)"
+      "Bash(claude mcp:*)",
+      "Bash(rm:*)"
     ]
   }
 }
