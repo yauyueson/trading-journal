@@ -157,8 +157,8 @@
 | Dollar Gamma | `gammaEff = gamma/mid`（权利金相对值，非绝对） | `gamma × S² / 100`（标准美元 Gamma） | `oss-core.ts`, `scoring.cjs`, `strategy-recommend.js`, `scan-options.js` |
 | DTE 分桶 | `'0-14'` 单一桶 | 拆分为 `'0-7'` + `'8-14'` | 同上 |
 | Sigmoid 调谐 | k=12, x0=1.10 | k=8, x0=1.00 | 同上 |
-| IV Rank 置信度 | 直接使用原始 IV Rank | 乘以 `min(1, sampleDays/60)` 置信权重 | 同上 |
-| Vega 惩罚条件化 | 无条件惩罚 | `-0.05 × max(0, 1−ivRank) × zVegaEff`（IV Rank 低时才惩罚） | 同上 |
+| IV Rank 置信度 | 直接使用原始 IV Rank | 乘以 `min(1, sampleDays/180)` 置信权重 | 同上 |
+| Vega 惩罚条件化 | 无条件静态权重（+0.05/−0.03） | DTE 自适应 `getLOQVegaWeight(dte, ivAdj)`：基础权重 0.03（DTE≤5）→0.15（DTE≥60）线性插值；ivAdj>0 时正权重（奖励低 IV 做多 Vega），ivAdj<0 时 `−baseWeight×0.6`（温和惩罚高 IV 买权） | 同上 |
 | 过滤器统一 | `HARD_FILTER_DEFAULTS` 与 `HARD_FILTER_CREDIT` 在 oss-core 中缺失 | 两层过滤器同步至 `oss-core.ts` | `oss-core.ts` |
 
 **oss-core.ts 与 scoring.cjs 必须保持同步**，所有评分变更需同时在两个文件中更新。
@@ -185,7 +185,7 @@
 | 价差提醒 | 2 腿持仓纳入监控：监控 cost-to-close vs entry credit | `check-alerts.js` |
 | 组合 Greeks 组件 | 4 列显示 Δ/Θ/Vega/Γ + 最大风险行 | `Portfolio.tsx` |
 | `aggregatePortfolioGreeks()` | 聚合工具函数，汇总所有持仓 Greeks | `riskSizing.ts` |
-| 动态 Kelly | `winPerContract = lossPerContract × min(5, max(1, lambda))` | `riskSizing.ts` |
+| 动态 Kelly | Quarter-Kelly：`b = winPerContract / lossPerContract`（TP/SL 比率），`f = (b×p − q) / b`，实际仓位 `f × 0.25`（默认 kellyFraction） | `riskSizing.ts` |
 
 ---
 
@@ -196,7 +196,7 @@
 | 降级数据警告 | `zeroGreeks/total > 50%` → 响应中包含 `dataQuality='degraded'` | `scan-options.js`, `strategy-recommend.js` |
 | 前端黄色横幅 | `dataQuality === 'degraded'` 时展示黄色警告条 | `StrategyRecommender.tsx` |
 | candidate_snapshots 写入 | 策略推荐时 Fire-and-Forget 写入 Top-5 候选（REST fetch，非 JS 客户端） | `strategy-recommend.js` |
-| 评分验证端点 | `GET /api/score-validation`：按得分段统计分布（0-30/30-50/50-70/70-100） | `api/score-validation.js` |
+| 评分验证端点 | `GET /api/analytics?type=score-validation`：按得分段统计分布（0-30/30-50/50-70/70-100） | `api/analytics.js` |
 | Migration 007 | `candidate_snapshots` 表部署（2026-03-01） | `docs/migrations/007_candidate_snapshots.sql` |
 
 ---
@@ -206,7 +206,7 @@
 | 功能 | 说明 | 文件 |
 |------|------|------|
 | Regime 切换提醒 | 每日快照 Cron 查询近 5 日 Regime，检测到翻转时发送 Discord 提醒 | `cron-iv-snapshot.js` |
-| 执行质量端点 | `GET /api/execution-quality`：基于 Delta 代理对入场时机分类（早/晚/市价） | `api/execution-quality.js` |
+| 执行质量端点 | `GET /api/analytics?type=execution-quality`：基于 Delta 代理对入场时机分类（早/晚/市价） | `api/analytics.js` |
 
 ---
 

@@ -1,6 +1,6 @@
 # Trading Journal - 文档总览
 
-> 最后更新: 2026年2月14日
+> 最后更新: 2026年3月2日
 
 欢迎来到Trading Journal项目文档中心！这里包含了项目的完整技术文档和使用指南。
 
@@ -58,7 +58,7 @@
 - OSS评分系统详解
 - LOQ算法（买方评分）
   - Lambda（杠杆率）
-  - Gamma Efficiency（爆发力）
+  - Dollar Gamma（gamma × S² / 100）
   - Theta Burn（时间衰减）
   - Delta Bonus（ATM奖励）
 - CSQ算法（卖方评分）
@@ -181,15 +181,15 @@ docs/
 ├── 00_PRD_总览.md               # 产品需求文档总览
 ├── 01_项目概览.md               # 项目简介和架构
 ├── 02_技术路径.md               # 技术栈和实现细节
-├── 03_核心算法.md               # 评分算法详解（OSS v2.5）
+├── 03_核心算法.md               # 评分算法详解（OSS v2.7）
 ├── 04_数据库设计.md             # 数据模型和SQL
 ├── 05_API文档.md                # API 接口与数据源配置
 ├── 06_用户工作流.md             # 使用指南和最佳实践
 ├── 07_止损与目标价短信提醒方案.md  # Discord 提醒实现方案
 ├── 08_IV_Rank_上线步骤.md       # IV Rank 上线步骤
 ├── 09_Polygon集成.md            # Polygon 数据源集成
-├── 算法改进总览_OSS_v2.4.md     # OSS v2.4 改进记录（已合并精简）
-└── 算法改进总览_OSS_v2.2.md     # OSS v2.2 改进记录（历史）
+├── 算法改进总览_OSS_v2.7.md     # OSS v2.7 改进记录（当前版本）
+└── AUDIT_10D_v1.md              # 10 维度独立审计报告
 ```
 
 ---
@@ -248,6 +248,12 @@ docs/
 ---
 
 ## 🔄 文档更新日志
+
+### 2026-03-02（文档整理 + API 合并）
+- ✅ **API 合并**: `/api/score-validation` + `/api/execution-quality` → `/api/analytics?type=...`（Vercel Hobby 12 函数限制）
+- ✅ **gammaEff → dollarGamma**: 全文档术语更新，反映 v2.7 Deep Audit 中 Dollar Gamma (`gamma × S² / 100`) 替代旧 `gamma/mid`
+- ✅ **文档清理**: 删除已废弃的 `算法改进总览_OSS_v2.2.md`、`算法改进总览_OSS_v2.4.md`（内容已被 v2.7 覆盖）；删除已实现的 `plans/2026-02-14-global-app-settings.md`
+- ✅ **新增文档索引**: `算法改进总览_OSS_v2.7.md`、`AUDIT_10D_v1.md`
 
 ### 2026-02-14（OSS v2.5 代码审查全面优化）
 - ✅ **BSM N(d2) POP 回退**：信用价差/借方价差/单腿 POP 从 `1-|delta|` 升级为 Black-Scholes N(d2)（`src/lib/bsm.ts` 新文件）
@@ -329,4 +335,4 @@ docs/
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年2月14日*
+*最后更新: 2026年3月2日*
