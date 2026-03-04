@@ -22,6 +22,7 @@ export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddTo
     const [form, setForm] = useState({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const [bulkPrices, setBulkPrices] = useState<Record<string, number>>({});
+    const [expandedId, setExpandedId] = useState<string | null>(null);
     const watchlistItems = positions.filter(p => p.status === 'watchlist');
 
     // Bulk fetch prices for all watchlist items on mount (one POST instead of N GETs)
@@ -176,6 +177,8 @@ export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddTo
                             onDataUpdate={setLastTimestamp}
                             fetchEarningsForTicker={fetchEarningsForTicker}
                             initialPrice={bulkPrices[item.id] ?? null}
+                            isExpanded={expandedId === item.id}
+                            onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
                         />
                     ))}
                 </div>

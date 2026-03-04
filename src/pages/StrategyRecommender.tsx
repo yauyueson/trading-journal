@@ -601,16 +601,13 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                 </div>
             )}
 
-            {/* Auto-backfill notice: shown when ticker had no IV history */}
+            {/* Auto-backfill notice: shown when ticker's IV history was just backfilled from RV proxy */}
             {result?.autoBackfillTriggered && (
-                <div className="bg-blue-500/10 border border-blue-500/30 text-blue-300 p-4 rounded-xl mb-6 flex items-start gap-3 animate-pulse-slow">
-                    <RefreshCw size={20} className="mt-0.5 shrink-0 text-blue-400 animate-spin" style={{ animationDuration: '2s' }} />
-                    <div>
-                        <div className="font-bold text-sm text-blue-300 mb-0.5">Building IV History for {result.context.ticker}…</div>
-                        <div className="text-xs text-blue-400/80 leading-relaxed">
-                            No historical IV data was found for this ticker. A backfill is running in the background (~30s).
-                            Once complete, re-click <strong>Analyze Strategy</strong> to get accurate IV Rank &amp; Percentile.
-                        </div>
+                <div className="bg-blue-500/10 border border-blue-500/30 text-blue-300 p-3 rounded-xl mb-4 flex items-start gap-3">
+                    <RefreshCw size={16} className="mt-0.5 shrink-0 text-blue-400" />
+                    <div className="text-xs text-blue-400/80 leading-relaxed">
+                        IV history for <strong>{result.context.ticker}</strong> was auto-backfilled from realized volatility (~{result.regime.ivRankSampleDays || 0}d).
+                        IV Rank shown as <span className="text-yellow-400">(est.)</span> — live IV snapshots will replace over time.
                     </div>
                 </div>
             )}
@@ -778,14 +775,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                 <div className="text-[10px] text-gray-500 font-mono">
                                                     {result.regime.ivRankSampleDays != null && result.regime.ivRankSampleDays > 0 ? `${result.regime.ivRankSampleDays}d` : ''}
                                                     {result.regime.ivRank == null && (
-                                                        <a
-                                                            href={`/api/backfill-iv-history?ticker=${encodeURIComponent(result.context.ticker)}`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-accent-green/80 hover:text-accent-green ml-1 underline"
-                                                        >
-                                                            回填
-                                                        </a>
+                                                        <span className="text-yellow-400/80 ml-1">no data</span>
                                                     )}
                                                 </div>
                                             </div>

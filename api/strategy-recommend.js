@@ -1532,6 +1532,7 @@ export default async function handler(req, res) {
             console.warn('[Hysteresis] Non-critical query failed:', hysteresisErr.message);
         }
 
+        // getIVRank now auto-backfills inline when < 200 samples (see ivHistory.cjs)
         const ivRankResult = await getIVRank(upperTicker);
         const ivRank = ivRankResult?.ivRank ?? null;
         const ivPercentile = ivRankResult?.ivPercentile ?? null;
@@ -1540,32 +1541,7 @@ export default async function handler(req, res) {
         // IV Momentum: 5-trading-day change (prevents selling into rising IV)
         const iv5dChange = ivRankResult?.iv5dChange ?? null;
         const ivTrend = ivRankResult?.ivTrend ?? null;
-
-        // Auto-backfill: if this ticker has no historical IV data, kick off a background backfill
-        // so that IV Rank/Percentile will be available on the next analysis. (<=1 because today's is inserted right before this)
-        let autoBackfillTriggered = false;
-        if (ivRankSampleDays <= 1) {
-            console.log(`[Strategy Recommend] ${upperTicker}: Insufficient IV history (${ivRankSampleDays} samples) — triggering auto-backfill in background.`);
-            autoBackfillTriggered = true;
-            // Fire-and-forget: don't await so it doesn't block the current response
-            (async () => {
-                try {
-                    const backfillMod = await import('./backfill-iv-history.js');
-                    const backfillHandler = backfillMod.default ?? backfillMod;
-                    // Create a minimal mock req/res to reuse the existing handler
-                    const mockReq = { method: 'GET', query: { ticker: upperTicker } };
-                    const mockRes = {
-                        status: (code) => ({ json: (body) => { console.log(`[AutoBackfill] ${upperTicker}: status=${code}`, JSON.stringify(body).slice(0, 200)); return mockRes; }, end: () => mockRes }),
-                        setHeader: () => mockRes,
-                        json: (body) => { console.log(`[AutoBackfill] ${upperTicker}: done`, JSON.stringify(body).slice(0, 200)); return mockRes; },
-                    };
-                    await backfillHandler(mockReq, mockRes);
-                    console.log(`[AutoBackfill] ${upperTicker}: complete.`);
-                } catch (e) {
-                    console.warn(`[AutoBackfill] ${upperTicker}: failed —`, e.message);
-                }
-            })();
-        }
+        const autoBackfillTriggered = ivRankResult?.autoBackfilled ?? false;
 
         // 2. Build Targeted Strategy based on Pine Script recommendation
         const ivScoreInput = ivPercentile ?? ivRank;

@@ -35,6 +35,8 @@ export default async function handler(req, res) {
             minIv: result.minIv != null ? Number((result.minIv * 100).toFixed(2)) : null,
             maxIv: result.maxIv != null ? Number((result.maxIv * 100).toFixed(2)) : null,
             sampleDays: result.sampleDays,
+            ivRankSource: result.ivRankSource,
+            autoBackfilled: result.autoBackfilled,
         });
     } catch (e) {
         console.error('IV Rank API Error:', e.message);
