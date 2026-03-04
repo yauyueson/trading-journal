@@ -3,6 +3,7 @@ import { BarChart3 } from 'lucide-react';
 import { Position, Transaction } from '../lib/types';
 import { formatCurrency, CONTRACT_MULTIPLIER } from '../lib/utils';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { ScoreValidation } from '../components/ScoreValidation';
 
 interface StatsPageProps {
     positions: Position[];
@@ -274,6 +275,11 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions, transactions, l
                             </div>
                         </>
                     )}
+
+                    {/* Score → P&L Validation (F3: Forensic Audit v1.1) */}
+                    <div className="mt-8">
+                        <ScoreValidation />
+                    </div>
                 </>
             )}
         </div>

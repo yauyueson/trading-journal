@@ -91,7 +91,15 @@ async function handleScoreValidation(req, res) {
         { label: '70-100', min: 70, max: 100 },
     ];
 
-    const bucketStats = BUCKETS.map(b => ({ ...b, count: 0, closedCount: 0, winCount: 0, totalPnl: 0 }));
+    const bucketStats = BUCKETS.map(b => ({ ...b, count: 0, closedCount: 0, winCount: 0, totalPnl: 0, pnls: [] }));
+
+    // Map position_id → entry cost for return % calculation
+    const entryCostByPosition = {};
+    for (const snap of snapshots) {
+        if (snap.entry_mid != null && snap.entry_mid > 0) {
+            entryCostByPosition[snap.position_id] = snap.entry_mid * 100; // per-contract $
+        }
+    }
 
     for (const snap of snapshots) {
         const score = snap.unified_score;
@@ -105,22 +113,42 @@ async function handleScoreValidation(req, res) {
         if (pnl == null) continue;
         bucket.closedCount++;
         bucket.totalPnl += pnl;
+        bucket.pnls.push(pnl);
         if (pnl > 0) bucket.winCount++;
+    }
+
+    // Check monotonicity: higher score buckets should have higher win rates
+    const winRates = bucketStats.map(b => b.closedCount > 0 ? b.winCount / b.closedCount : null);
+    let monotonic = true;
+    let lastWR = -1;
+    for (const wr of winRates) {
+        if (wr == null) continue;
+        if (wr < lastWR - 0.02) { monotonic = false; break; } // 2% tolerance
+        lastWR = wr;
     }
 
     return res.status(200).json({
         success: true,
         totalLinked: snapshots.length,
         totalClosed: closedIds.size,
-        buckets: bucketStats.map(b => ({
-            label: b.label,
-            scoreRange: [b.min, b.max],
-            candidateCount: b.count,
-            closedCount: b.closedCount,
-            hitRate: b.closedCount > 0 ? Math.round((b.winCount / b.closedCount) * 1000) / 10 : null,
-            avgPnl: b.closedCount > 0 ? Math.round(b.totalPnl / b.closedCount) : null,
-            totalPnl: Math.round(b.totalPnl),
-        })),
+        monotonic,
+        buckets: bucketStats.map(b => {
+            const avgPnl = b.closedCount > 0 ? Math.round(b.totalPnl / b.closedCount) : null;
+            // Profit factor: gross wins / gross losses
+            const grossWin = b.pnls.filter(p => p > 0).reduce((s, p) => s + p, 0);
+            const grossLoss = Math.abs(b.pnls.filter(p => p < 0).reduce((s, p) => s + p, 0));
+            const profitFactor = grossLoss > 0 ? Math.round(grossWin / grossLoss * 100) / 100 : (grossWin > 0 ? Infinity : null);
+            return {
+                label: b.label,
+                scoreRange: [b.min, b.max],
+                candidateCount: b.count,
+                closedCount: b.closedCount,
+                hitRate: b.closedCount > 0 ? Math.round((b.winCount / b.closedCount) * 1000) / 10 : null,
+                avgPnl,
+                totalPnl: Math.round(b.totalPnl),
+                profitFactor,
+            };
+        }),
     });
 }
 

@@ -174,8 +174,10 @@ export function calculateTechScore(
     // penalize for bearish reversals (rev_dn). Prevents bearish pivots from inflating the score.
     sc_bxs += (rev_up ? 15 : rev_dn ? -15 : 0);
 
-    // Score BX Long
-    // sc_bxl = 50.0 + min(max(bxl*3, -50), 50)
+    // Score BX Long — intentionally simpler than BXS (no reversal logic).
+    // BXL reversals are multi-week events (RSI of EMA-20, period 15). By the time a BXL
+    // reversal is confirmed, the move is already underway — not actionable at daily signal level.
+    // BXS reversals, in contrast, are intra-week and serve as entry timing triggers.
     let sc_bxl = 50.0 + Math.min(Math.max(currBxl * 3, -50), 50);
 
 

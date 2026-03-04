@@ -41,7 +41,9 @@ export const DTE_BUCKETS = [
     { label: '121+', min: 121, max: Infinity },
 ] as const;
 
-export const MIN_BUCKET_SIZE = 3;
+// Z-scores from fewer than 8 samples have chi-squared df<7 variance — effectively noise.
+// Thin buckets (0-7 DTE, 121+) fall back to pool-wide stats, which is the correct behavior.
+export const MIN_BUCKET_SIZE = 8;
 
 export type Strategy = 'long' | 'short';
 
@@ -417,11 +419,11 @@ export function getIVAdjustment(ivRatio: number, strategy: Strategy): number {
  */
 export function getIVRankAdjustment(ivRank: number | null, strategy: Strategy, sampleDays: number = 180): number {
     if (ivRank == null || ivRank < 0 || ivRank > 1) return 0;
-    // Confidence discount: scale by min(1, sampleDays / 180)
-    // 180 days = ~3/4 of the 252-day lookback. IV Rank from fewer samples has higher
-    // std error — reduce its influence proportionally. Old threshold of 60 was too lenient,
-    // giving full confidence with only ~24% of the lookback window filled.
-    const confidence = Math.min(1, sampleDays / 180);
+    // Confidence discount: scale by sqrt(sampleDays / 180)
+    // Information grows as sqrt(n), not linearly. At 45 days: sqrt(0.25)=50% vs linear 25%.
+    // 180 days = ~3/4 of the 252-day lookback. Old linear scaling underweighted IV Rank
+    // for moderate sample sizes and overweighted it near 180 days.
+    const confidence = Math.min(1, Math.sqrt(sampleDays / 180));
     let raw: number;
     if (strategy === 'long') {
         if (ivRank < 0.3) raw = 0.5;
@@ -473,7 +475,15 @@ export function getRelativeIVAdjustmentCSQ(
 // LOQ Weights & Score
 // ────────────────────────────────────────────────────────────────
 
-/** Standard mode weights (v2.8 — Dollar Gamma replaces Gamma Efficiency) */
+/**
+ * Standard mode weights (v2.8 — Dollar Gamma replaces Gamma Efficiency).
+ *
+ * DESIGN NOTE: These z-score coefficients intentionally sum to 0.95, not 1.0.
+ * The "missing" 0.05 is by design — ivAdjustment and vegaBonus are additive terms
+ * outside the weighted z-score framework (they operate on different scales: raw points
+ * vs normalized z-scores). The weights are NOT probability weights that must sum to 1.
+ * Day-trade weights sum to 0.90 for the same reason (heavier gamma emphasis crowds out BE).
+ */
 export const LOQ_WEIGHTS = {
     lambda: 0.30,
     dollarGamma: 0.20,

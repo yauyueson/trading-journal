@@ -106,11 +106,18 @@ async function ensureScoring() {
 // =============================================================================
 // RV (Realized Volatility): Polygon does NOT provide RV. We always compute it
 // ourselves from historical prices: fetch candles (or Nasdaq history), then
-// log returns → sample variance (÷N-1) → annualize (sqrt(252)*100).
+// log returns → population variance (÷N) → annualize (sqrt(252)*100).
+//
+// NOTE (F13 — Forensic Audit v1.1): We use ÷N (population variance), not ÷N-1
+// (Bessel correction). This is consistent with market convention — most vol desks,
+// Bloomberg HIVG, CBOE VIX methodology, and risk systems use ÷N. The ÷N-1 correction
+// upward-biases RV30 by ~3% for N=30, making IV/RV ratios look lower than market standard
+// and weakly biasing regime detection toward DEBIT. For N=30, the difference is small
+// (sqrt(30/29) ≈ 1.017) but systematic.
 
 /**
  * Shared RV30 computation from an array of closing prices.
- * Uses sample variance (÷N-1) for unbiased estimation.
+ * Uses population variance (÷N) — market convention for realized vol.
  * @param {number[]} closes Array of closing prices (chronological order)
  * @returns {number|null} Annualized RV as % (e.g., 25.5 = 25.5%), or null if insufficient data
  */
@@ -1769,6 +1776,43 @@ export default async function handler(req, res) {
             }
         } catch (snapErr) {
             console.warn('[Strategy Recommend] candidate_snapshots fire-and-forget error:', snapErr?.message);
+        }
+
+        // ── Score History Audit Trail (F10 — Forensic Audit v1.1) ──────────
+        // Fire-and-forget: log top scored options for drift analysis.
+        try {
+            const sbUrl3 = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+            const sbKey3 = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+            if (sbUrl3 && sbKey3 && targetRecs.length > 0) {
+                const isSpreadRec = (r) => 'shortLeg' in r && 'longLeg' in r;
+                const historyRows = targetRecs.slice(0, 10).map(r => ({
+                    ticker: upperTicker,
+                    expiration: isSpreadRec(r) ? (r.shortLeg?.expiration || null) : (r.expiration ?? null),
+                    strike: isSpreadRec(r) ? (r.shortLeg?.strike || null) : (r.strike ?? null),
+                    option_type: isSpreadRec(r) ? null : (r.type ?? null),
+                    score: r.unifiedScore ?? r.score ?? 0,
+                    score_type: r.strategyCategory || 'UNIFIED',
+                    factors: r.unifiedFactors ? JSON.stringify(r.unifiedFactors) : null,
+                    regime_mode: regime.mode,
+                    iv_rank: ivRank,
+                    data_source: actualDataSource,
+                }));
+                fetch(`${sbUrl3}/rest/v1/score_history`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': sbKey3,
+                        'Authorization': `Bearer ${sbKey3}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal',
+                    },
+                    body: JSON.stringify(historyRows),
+                    signal: AbortSignal.timeout(3000),
+                }).then(r => {
+                    if (!r.ok) r.text().then(t => console.warn('[Strategy Recommend] score_history insert failed:', t));
+                }).catch(e => console.warn('[Strategy Recommend] score_history fetch error:', e?.message));
+            }
+        } catch (histErr) {
+            console.warn('[Strategy Recommend] score_history fire-and-forget error:', histErr?.message);
         }
 
         return res.status(200).json({

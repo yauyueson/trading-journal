@@ -138,17 +138,23 @@ export function getSuggestedContracts(
     // Single leg: proper Kelly using TP/SL ratios, not leverage (F5.1 fix)
     // b = TP_pct / SL_pct (reward/risk ratio at target exit levels)
     // p = |delta| as POP proxy with 5% haircut for slippage + fees
-    // Default: TP at +50% of entry, SL at -50% → b = 1.0
+    //
+    // Delta-adjusted TP (F9 — Forensic Audit v1.1):
+    // OTM options (|delta|<0.30) have asymmetric payoff: low P(ITM) but high reward when correct.
+    // Fixed TP=50%/SL=50% → b=1.0 always, ignoring this asymmetry.
+    // Fix: OTM → tpPct=1.00 (b=2.0); moderate → 0.75 (b=1.5); ATM → 0.50 (b=1.0).
     if (options?.useKelly && contractsKelly == null && 'price' in rec && 'delta' in rec) {
         const single = rec as SingleLegRecommendation;
         const costPerShare = single.price ?? 0;
         if (costPerShare > 0) {
-            const tpPct = 0.50; // take profit at +50%
-            const slPct = 0.50; // stop loss at -50%
+            const absDelta = Math.abs(single.delta ?? 0);
+            const slPct = 0.50; // stop loss at -50% (constant)
+            // Delta-adjusted TP: OTM options have higher reward targets
+            const tpPct = absDelta < 0.30 ? 1.00 : absDelta < 0.50 ? 0.75 : 0.50;
             const winPerContract = costPerShare * tpPct * CONTRACT_MULTIPLIER;
             const lossPerContract = costPerShare * slPct * CONTRACT_MULTIPLIER;
             // POP proxy: |delta| gives rough P(ITM); haircut 5% for transaction costs
-            const pop = Math.max(0, (Math.abs(single.delta ?? 0) - 0.05)) * 100;
+            const pop = Math.max(0, (absDelta - 0.05)) * 100;
             contractsKelly = getKellyContracts(winPerContract, lossPerContract, pop, portfolioTotal, 0.25);
         }
     }

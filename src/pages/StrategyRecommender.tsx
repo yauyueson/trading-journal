@@ -653,6 +653,19 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                 </div>
             )}
 
+            {/* Stale quote warning: Polygon quotes older than 5 minutes */}
+            {result?.quoteFreshness?.isStale && (
+                <div className="bg-orange-500/10 border border-orange-500/40 text-orange-300 p-3 rounded-xl mb-4 flex items-center gap-3">
+                    <AlertCircle size={16} className="shrink-0 text-orange-400" />
+                    <span className="text-xs font-medium">
+                        <span className="font-bold text-orange-200">Stale Quotes</span>
+                        {' '}— {result.quoteFreshness.staleQuotes} options have quotes older than 5 minutes
+                        (oldest: {Math.round((result.quoteFreshness.oldestQuoteAgeMs || 0) / 60000)}min).
+                        Scores and greeks may not reflect current market. Consider refreshing.
+                    </span>
+                </div>
+            )}
+
             {/* Results */}
             {result && (
                 <div className="space-y-6 animate-fade-in">
