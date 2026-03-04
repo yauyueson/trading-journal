@@ -161,6 +161,8 @@ export interface StrategyRegime {
     ivPercentile: number | null;
     /** Number of days in ticker_iv_snapshots used to compute IV Rank. */
     ivRankSampleDays?: number;
+    /** Source of IV Rank data: 'live_iv' (real IV), 'rv_proxy' (estimated from RV), or null. */
+    ivRankSource?: 'live_iv' | 'rv_proxy' | null;
     /** IV30 change over last 5 trading days (pp). Positive = rising IV. */
     iv5dChange?: number | null;
     /** IV trend direction derived from 5d change. Rising IV = avoid selling premium. */

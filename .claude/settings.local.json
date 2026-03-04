@@ -43,7 +43,10 @@
       "mcp__ide__getDiagnostics",
       "WebFetch(domain:supabase.com)",
       "Bash(claude mcp:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(npx:*)",
+      "Bash(supabase:*)",
+      "Bash(curl:*)"
     ]
   }
 }

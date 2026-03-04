@@ -771,6 +771,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                 </div>
                                                 <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${result.regime.ivRank != null ? (result.regime.ivRank < 0.3 ? 'text-emerald-400' : result.regime.ivRank > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
                                                     {result.regime.ivRank != null ? `${(result.regime.ivRank * 100).toFixed(0)}%` : 'N/A'}
+                                                    {result.regime.ivRank != null && result.regime.ivRankSource === 'rv_proxy' && (
+                                                        <span className="text-xs text-yellow-400/70 ml-1">(est.)</span>
+                                                    )}
                                                 </div>
                                                 <div className="text-[10px] text-gray-500 font-mono">
                                                     {result.regime.ivRankSampleDays != null && result.regime.ivRankSampleDays > 0 ? `${result.regime.ivRankSampleDays}d` : ''}

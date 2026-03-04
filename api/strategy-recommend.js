@@ -140,6 +140,61 @@ function _computeRV30(closes) {
 }
 
 /**
+ * Derive underlying stock price from put-call parity on the option chain.
+ * S ≈ call_mid - put_mid + strike (for ATM options with same strike/expiry).
+ * Returns derived price if within 10% of lastClose, else null.
+ */
+function _derivePriceFromPutCallParity(chainData, lastClose) {
+    if (!chainData || chainData.length === 0 || !lastClose) return null;
+
+    // Group by strike+expiry, find pairs with both Call and Put
+    const pairs = {};
+    for (const o of chainData) {
+        if (!o.strike || !o.expiry) continue;
+        // Skip very short or very long DTE
+        const dte = o.dte ?? 0;
+        if (dte < 7 || dte > 60) continue;
+        const key = `${o.strike}_${o.expiry}`;
+        if (!pairs[key]) pairs[key] = { strike: o.strike, expiry: o.expiry, dte };
+        if (o.type === 'call' || o.type === 'Call') pairs[key].call = o;
+        if (o.type === 'put' || o.type === 'Put') pairs[key].put = o;
+    }
+
+    // Find the pair closest to lastClose with valid prices on both sides
+    let bestPair = null;
+    let bestDist = Infinity;
+    for (const p of Object.values(pairs)) {
+        if (!p.call || !p.put) continue;
+        const callMid = _getMid(p.call);
+        const putMid = _getMid(p.put);
+        if (callMid <= 0 || putMid <= 0) continue;
+        const dist = Math.abs(p.strike - lastClose);
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestPair = { ...p, callMid, putMid };
+        }
+    }
+
+    if (!bestPair) return null;
+
+    // Put-call parity: S = C - P + K (ignoring dividends/interest for short DTE)
+    const derived = bestPair.callMid - bestPair.putMid + bestPair.strike;
+
+    // Sanity check: within 10% of lastClose
+    if (Math.abs(derived - lastClose) / lastClose > 0.10) return null;
+
+    return Number(derived.toFixed(2));
+}
+
+function _getMid(opt) {
+    if (opt.bid > 0 && opt.ask > 0) return (opt.bid + opt.ask) / 2;
+    if (opt.day?.close > 0) return opt.day.close;
+    if (opt.day?.vwap > 0) return opt.day.vwap;
+    if (opt.close > 0) return opt.close;
+    return 0;
+}
+
+/**
  * Calculate 30-day Realized Volatility from our own computation using Polygon candles.
  * @param {string} ticker Stock symbol
  * @returns {Promise<number|null>} RV30 as annualized % (e.g., 25.5 = 25.5%) or null on failure
@@ -1285,6 +1340,21 @@ export default async function handler(req, res) {
                         const valid = chainData.find(o => o.underlyingPrice > 0);
                         currentPrice = valid ? valid.underlyingPrice : (lastClose ?? 0);
 
+                        // Put-call parity derivation: get intraday-accurate price from option chain
+                        // when underlying_asset.price is missing (common on basic Polygon plans).
+                        // S ≈ call_mid - put_mid + strike (for same strike/expiry)
+                        if ((!currentPrice || currentPrice === 0 || currentPrice === lastClose) && lastClose > 0) {
+                            try {
+                                const pcpPrice = _derivePriceFromPutCallParity(chainData, lastClose);
+                                if (pcpPrice != null) {
+                                    console.log(`[Put-Call Parity] ${upperTicker}: derived $${pcpPrice.toFixed(2)} vs candle close $${lastClose.toFixed(2)}`);
+                                    currentPrice = pcpPrice;
+                                }
+                            } catch (e) {
+                                console.warn('[Put-Call Parity] derivation failed:', e.message);
+                            }
+                        }
+
                         // Fallback: If Polygon stock data failed (Free Tier rate limit) but options worked,
                         // get the underlying price from CBOE (since term structure needs a valid currentPrice).
                         if (!currentPrice || currentPrice === 0) {
@@ -1437,6 +1507,7 @@ export default async function handler(req, res) {
         const ivRank = ivRankResult?.ivRank ?? null;
         const ivPercentile = ivRankResult?.ivPercentile ?? null;
         const ivRankSampleDays = ivRankResult?.sampleDays ?? 0;
+        const ivRankSource = ivRankResult?.ivRankSource ?? null;
         // IV Momentum: 5-trading-day change (prevents selling into rising IV)
         const iv5dChange = ivRankResult?.iv5dChange ?? null;
         const ivTrend = ivRankResult?.ivTrend ?? null;
@@ -1841,6 +1912,7 @@ export default async function handler(req, res) {
                 ivRank: ivRank != null ? Number(ivRank.toFixed(3)) : null,
                 ivPercentile: ivPercentile != null ? Number(ivPercentile.toFixed(3)) : null,
                 ivRankSampleDays: ivRankSampleDays,
+                ivRankSource: ivRankSource,
                 // IV Momentum (v2.4): direction of IV30 over last 5 trading days
                 iv5dChange: iv5dChange,
                 ivTrend: ivTrend,

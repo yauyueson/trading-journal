@@ -158,5 +158,12 @@ export default async function handler(req, res) {
         }
     }
 
-    return res.status(200).json({ success: true, results });
+    const totalBackfilled = results.filter(r => r.status === 'ok').reduce((sum, r) => sum + (r.daysBackfilled || 0), 0);
+    return res.status(200).json({
+        success: true,
+        results,
+        message: totalBackfilled > 0
+            ? `Backfilled ${totalBackfilled} days of realized volatility (rv_proxy). IV Rank will now show as estimated (est.) using RV data scaled to approximate IV. For accurate IV Rank, daily live snapshots will accumulate over time.`
+            : 'No data was backfilled. Check that tickers are valid and have sufficient candle history.',
+    });
 }
