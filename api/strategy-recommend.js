@@ -1338,12 +1338,25 @@ export default async function handler(req, res) {
                     if (hasQuotes) {
                         allOptions = chainData;
                         const valid = chainData.find(o => o.underlyingPrice > 0);
-                        currentPrice = valid ? valid.underlyingPrice : (lastClose ?? 0);
+                        const chainUnderlying = valid ? valid.underlyingPrice : 0;
+
+                        // Validate chain underlying against last daily close.
+                        // Polygon option snapshots can return stale/wrong underlying prices.
+                        // If divergence > 15%, treat as unreliable and fall back.
+                        const divergence = lastClose && chainUnderlying ? Math.abs(chainUnderlying - lastClose) / lastClose : 1;
+                        if (chainUnderlying > 0 && divergence <= 0.15) {
+                            currentPrice = chainUnderlying;
+                        } else {
+                            if (chainUnderlying > 0 && divergence > 0.15) {
+                                console.warn(`[Underlying] ${upperTicker}: chain says $${chainUnderlying.toFixed(2)} but daily close is $${lastClose?.toFixed(2)} (${(divergence * 100).toFixed(1)}% divergence) — discarding stale chain price`);
+                            }
+                            currentPrice = lastClose ?? 0;
+                        }
 
                         // Put-call parity derivation: get intraday-accurate price from option chain
-                        // when underlying_asset.price is missing (common on basic Polygon plans).
+                        // when underlying_asset.price is missing, unreliable, or matches stale close.
                         // S ≈ call_mid - put_mid + strike (for same strike/expiry)
-                        if ((!currentPrice || currentPrice === 0 || currentPrice === lastClose) && lastClose > 0) {
+                        if ((!currentPrice || currentPrice === 0 || currentPrice === lastClose || divergence > 0.15) && lastClose > 0) {
                             try {
                                 const pcpPrice = _derivePriceFromPutCallParity(chainData, lastClose);
                                 if (pcpPrice != null) {
@@ -1355,8 +1368,20 @@ export default async function handler(req, res) {
                             }
                         }
 
-                        // Fallback: If Polygon stock data failed (Free Tier rate limit) but options worked,
-                        // get the underlying price from CBOE (since term structure needs a valid currentPrice).
+                        // Fallback: Use Polygon stock snapshot (more reliable than option snapshot)
+                        if (!currentPrice || currentPrice === 0 || currentPrice === lastClose) {
+                            try {
+                                const freshPrice = await getUnderlyingPrice(upperTicker);
+                                if (freshPrice != null && freshPrice > 0) {
+                                    console.log(`[getUnderlyingPrice] ${upperTicker}: $${freshPrice.toFixed(2)}`);
+                                    currentPrice = freshPrice;
+                                }
+                            } catch (e) {
+                                console.warn('[getUnderlyingPrice] failed:', e.message);
+                            }
+                        }
+
+                        // Last resort: CBOE underlying price
                         if (!currentPrice || currentPrice === 0) {
                             try {
                                 console.log(`[Polygon Fallback] Fetching CBOE for ${upperTicker} underlying price...`);

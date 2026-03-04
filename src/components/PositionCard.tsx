@@ -116,20 +116,17 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 let results;
 
                 if (effectiveData && effectiveData.length > 0) {
-                    // Map initialData back to legs order
+                    // Map initialData back to legs order.
+                    // Bulk API returns: { ...leg, price, bid, ask, data: {normalized option}, underlyingPrice, delta, ... }
+                    // Use the TOP-LEVEL result (which has price, bid, ask, delta etc.) not d.data
+                    // (d.data is the raw normalized option which lacks a computed `price` field).
                     results = position.legs.map(leg => {
-                        // Find matching data in effectiveData
-                        // effectiveData array has items with { expiration, strike, type, ...data }
-                        return effectiveData.find(d =>
+                        const match = effectiveData.find(d =>
                             d.expiration === leg.expiration &&
-                            d.strike === leg.strike &&
+                            String(d.strike) === String(leg.strike) &&
                             d.type === leg.type
-                        )?.data || null; // .data contains the mapped response format from API
-
-                        // Note: Bulk API returns result.data as the formatted option object.
-                        // But option-price.js returns it at root.
-                        // My bulk API implementation returns: { ...leg, data: { ...optionObj } }
-                        // So here we want `d.data`.
+                        );
+                        return match || null;
                     });
                     console.log(`[Card] Using Bulk Data for ${position.ticker}`);
                 } else {
@@ -281,9 +278,8 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                 let data;
 
                 if (effectiveData && effectiveData.length > 0) {
-                    // Single position, effectiveData array should have one item with .data
-                    // Or match by attributes if array has multiples (unlikely for single pos ID but safe)
-                    data = effectiveData[0].data || null;
+                    // Single position — use top-level result (has price, bid, ask, delta etc.)
+                    data = effectiveData[0] || null;
                 } else {
                     const expNorm = normalizeExpiration(position.expiration);
                     const params = new URLSearchParams({ ticker: position.ticker, expiration: expNorm, strike: position.strike.toString(), type: position.type });

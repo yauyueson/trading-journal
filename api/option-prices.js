@@ -106,7 +106,7 @@ export default async function handler(req, res) {
 
 async function handlePolygon(legs, res) {
     try {
-        const { getOptionChain } = await import('../lib/polygon-client.js');
+        const { getOptionChain, getUnderlyingPrice } = await import('../lib/polygon-client.js');
 
         // Group legs by ticker so we fetch one chain per ticker (2 API calls per ticker instead of N per leg)
         const tickerToLegs = new Map();
@@ -118,9 +118,16 @@ async function handlePolygon(legs, res) {
         }
 
         const chainByTicker = new Map();
+        const freshUnderlyingByTicker = new Map();
         for (const ticker of tickerToLegs.keys()) {
-            const chain = await getOptionChain(ticker, {});
+            const [chain, freshPrice] = await Promise.all([
+                getOptionChain(ticker, {}),
+                getUnderlyingPrice(ticker)
+            ]);
             chainByTicker.set(ticker, chain || []);
+            if (freshPrice != null && freshPrice > 0) {
+                freshUnderlyingByTicker.set(ticker, freshPrice);
+            }
         }
 
         // Resolve each leg from the chain for its ticker (match by expiration, strike, type)
@@ -140,19 +147,29 @@ async function handlePolygon(legs, res) {
             );
 
             if (option) {
-                const price = option.last > 0 ? option.last : (option.bid + option.ask) / 2 || 0;
+                // Prefer mid (live bid/ask) over stale last trade price.
+                // option.mid is computed in normalizePolygonOption from live bid/ask.
+                const mid = option.mid || ((option.bid > 0 && option.ask > 0) ? (option.bid + option.ask) / 2 : 0);
+                const price = mid > 0 ? mid : (option.last > 0 ? option.last : 0);
+                const priceSource = mid > 0 ? 'mid' : (option.last > 0 ? 'last' : 'none');
+
+                // Use fresh underlying price from stock snapshot (more reliable than options snapshot)
+                const freshUnderlying = freshUnderlyingByTicker.get(ticker);
+                const underlyingPrice = freshUnderlying || option.underlyingPrice || 0;
+
                 results.push({
                     ...leg,
                     success: true,
                     price,
                     symbol: option.symbol || generateOCCSymbol(leg.ticker, exp, leg.type, leg.strike),
-                    data: option,
-                    priceSource: option.last > 0 ? 'last' : 'mid',
+                    data: { ...option, mid, underlyingPrice },
+                    priceSource,
                     bid: option.bid,
                     ask: option.ask,
+                    underlyingPrice,
                     ...validateGreeks(
                         { delta: option.delta, gamma: option.gamma, theta: option.theta, vega: option.vega, iv: option.iv },
-                        option.underlyingPrice || 0,
+                        underlyingPrice,
                         strikeNum,
                         option.dte || 30,
                         leg.type

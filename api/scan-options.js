@@ -105,8 +105,14 @@ export default async function handler(req, res) {
 
             if (chainData && chainData.length > 0) {
                 options = chainData;
-                const valid = chainData.find(o => o.underlyingPrice > 0);
-                currentPrice = valid ? valid.underlyingPrice : (underlyingPrice || 0);
+                // Prefer fresh stock snapshot price; only use chain underlying if it agrees
+                const chainUP = chainData.find(o => o.underlyingPrice > 0)?.underlyingPrice || 0;
+                if (underlyingPrice > 0) {
+                    const div = chainUP > 0 ? Math.abs(chainUP - underlyingPrice) / underlyingPrice : 1;
+                    currentPrice = div <= 0.15 ? chainUP : underlyingPrice;
+                } else {
+                    currentPrice = chainUP;
+                }
                 quoteFreshness = checkQuoteFreshness(chainData);
             } else {
                 return res.status(200).json({ success: true, results: [], context: { note: 'No data from Polygon.io' } });
