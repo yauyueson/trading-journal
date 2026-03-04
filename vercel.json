@@ -32,10 +32,7 @@
     "api/check-alerts.js": {
       "maxDuration": 60
     },
-    "api/backfill-iv-history.js": {
-      "maxDuration": 30
-    },
-    "api/daily-recap.js": {
+"api/daily-recap.js": {
       "maxDuration": 60
     },
     "api/batch-refresh-tech.js": {
