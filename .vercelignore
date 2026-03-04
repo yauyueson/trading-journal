@@ -1,0 +1,22 @@
+# Debug/test scripts at project root
+_test_strategy.js
+_verify_fixes.js
+check_timestamps.js
+debug_fetch_only.js
+debug_fetch_SIMPLE.js
+debug_tech_score_failure.js
+repro_tech_score.js
+simple_log.js
+test_candles.js
+test_feasibility.js
+test_feasibility_2.js
+test_feasibility_file.js
+test_simple.js
+test_tech_api.js
+test_tech_api_simple.js
+verify_pop.js
+verify_tech_score.js
+wrapper.js
+
+# Scripts directory
+scripts/
