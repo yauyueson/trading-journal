@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { RefreshCw, ChevronDown, Settings2 } from 'lucide-react';
 import { Position, Transaction, PositionAction, DirectAddItem, RollData, PositionLeg } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -8,7 +8,10 @@ import { DataFooter } from '../components/DataFooter';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { getPositionRiskAtStopOutDollars, aggregatePortfolioGreeks } from '../lib/riskSizing';
-import { SETUPS, STRATEGIES, formatCurrency } from '../lib/utils';
+import { SETUPS, formatCurrency } from '../lib/utils';
+
+const TV_GRADES = ['', 'S', 'A', 'B', 'C', 'D'] as const;
+const TV_GRADE_TO_SCORE: Record<string, number> = { S: 95, A: 80, B: 60, C: 40, D: 20 };
 
 interface PortfolioPageProps {
     positions: Position[];
@@ -38,10 +41,61 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     const [positionType, setPositionType] = useState<'single' | 'credit' | 'debit'>('single');
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
-    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: 'Credit Put Spread', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL' as 'BULL' | 'BEAR', iv_regime_entry: '' });
+    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL' as 'BULL' | 'BEAR', iv_regime_entry: '' });
     const [bulkData, setBulkData] = useState<Record<string, any>>({});
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [scoreFetching, setScoreFetching] = useState(false);
+    const scoreFetchRef = useRef(0); // dedup concurrent fetches
+
+    // Auto-fetch OSS entry score when ticker + strike + expiration + type are filled
+    const fetchEntryScore = useCallback(async (ticker: string, strike: string, expiration: string, optType: string) => {
+        if (!ticker || !strike || !expiration || !optType) return;
+        const fetchId = ++scoreFetchRef.current;
+        setScoreFetching(true);
+        try {
+            const strikeNum = parseFloat(strike);
+            const params = new URLSearchParams({
+                ticker,
+                strategy: 'long',
+                dteMin: '0',
+                dteMax: '365',
+                strikeRange: '1.0',
+                minVolume: '0',
+                maxSpreadPct: '1.0',
+                minDelta: '0',
+                maxDelta: '1',
+                direction: optType === 'Call' ? 'bullish' : 'bearish'
+            });
+            const res = await fetch(`/api/scan-options?${params}`);
+            if (fetchId !== scoreFetchRef.current) return; // stale
+            if (!res.ok) return;
+            const data = await res.json();
+            if (fetchId !== scoreFetchRef.current) return;
+            // Find matching option by strike + expiration + type
+            const match = data.results?.find((r: any) =>
+                Math.abs(r.strike - strikeNum) < 0.01 &&
+                r.expiration === expiration &&
+                r.type?.toLowerCase() === optType.toLowerCase()
+            );
+            if (match?.score != null) {
+                setForm(prev => ({ ...prev, entry_score: String(Math.round(match.score)) }));
+            }
+        } catch {
+            // silent — user can still enter manually
+        } finally {
+            if (fetchId === scoreFetchRef.current) setScoreFetching(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (form.ticker && form.strike && form.expiration && form.type) {
+            const timer = setTimeout(() => {
+                fetchEntryScore(form.ticker, form.strike, form.expiration, form.type);
+            }, 600); // debounce 600ms
+            return () => clearTimeout(timer);
+        }
+    }, [form.ticker, form.strike, form.expiration, form.type, fetchEntryScore]);
 
     const allActivePositions = positions.filter(p => p.status === 'active');
     const activePositions = ownerFilter === 'All' ? allActivePositions : allActivePositions.filter(p => p.owner === ownerFilter);
@@ -172,9 +226,18 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    const deriveStrategy = (posType: string, optType: string): string => {
+        if (posType === 'single') return `Long ${optType}`;
+        if (posType === 'credit') return `Credit ${optType} Spread`;
+        return `Debit ${optType} Spread`;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSubmitting(true);
+
+        const strategy = deriveStrategy(positionType, form.type);
+        const techScoreNum = form.tech_score ? TV_GRADE_TO_SCORE[form.tech_score] : undefined;
 
         if (positionType === 'single') {
             await onAddDirect({
@@ -183,9 +246,9 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 type: form.type,
                 expiration: form.expiration,
                 setup: form.setup,
-                strategy: form.strategy,
+                strategy,
                 entry_score: parseInt(form.entry_score),
-                tech_score: form.tech_score ? parseInt(form.tech_score) : undefined,
+                tech_score: techScoreNum,
                 stop_reason: form.stop_reason,
                 quantity: parseInt(form.quantity),
                 entry_price: parseFloat(form.entry_price),
@@ -213,9 +276,9 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 type: typeName,
                 expiration: form.expiration,
                 setup: form.setup,
-                strategy: form.strategy,
+                strategy,
                 entry_score: parseInt(form.entry_score),
-                tech_score: form.tech_score ? parseInt(form.tech_score) : undefined,
+                tech_score: techScoreNum,
                 stop_reason: form.stop_reason,
                 quantity: parseInt(form.quantity),
                 entry_price: parseFloat(form.entry_price),
@@ -227,7 +290,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
         }
 
         setSubmitting(false);
-        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: 'Credit Put Spread', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL', iv_regime_entry: '' });
+        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL', iv_regime_entry: '' });
         setPositionType('single');
         setShowForm(false);
     };
@@ -554,30 +617,17 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             </div>
 
                             {positionType === 'single' && (
-                                <>
-                                    <div className="space-y-1.5">
-                                        <label htmlFor="setup">Setup</label>
-                                        <select
-                                            id="setup"
-                                            className="input-field"
-                                            value={form.setup}
-                                            onChange={e => setForm({ ...form, setup: e.target.value })}
-                                        >
-                                            {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label htmlFor="strategy-single">Strategy</label>
-                                        <select
-                                            id="strategy-single"
-                                            className="input-field"
-                                            value={form.strategy}
-                                            onChange={e => setForm({ ...form, strategy: e.target.value })}
-                                        >
-                                            {STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
-                                        </select>
-                                    </div>
-                                </>
+                                <div className="space-y-1.5">
+                                    <label htmlFor="setup">Setup</label>
+                                    <select
+                                        id="setup"
+                                        className="input-field"
+                                        value={form.setup}
+                                        onChange={e => setForm({ ...form, setup: e.target.value })}
+                                    >
+                                        {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
                             )}
                         </div>
 
@@ -595,28 +645,17 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                                         {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
                                     </select>
                                 </div>
-                                <div className="space-y-1.5">
-                                    <label htmlFor="strategy-spread">Strategy</label>
-                                    <select
-                                        id="strategy-spread"
-                                        className="input-field"
-                                        value={form.strategy}
-                                        onChange={e => setForm({ ...form, strategy: e.target.value })}
-                                    >
-                                        {STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                </div>
                             </div>
                         )}
 
                         {/* Row 2: Analysis & Execution */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                             <div className="space-y-1.5">
-                                <label htmlFor="score">Entry Score</label>
+                                <label htmlFor="score">Entry Score {scoreFetching && <span className="text-xs text-text-tertiary animate-pulse ml-1">fetching…</span>}</label>
                                 <input
                                     id="score"
                                     type="number"
-                                    placeholder="0-100"
+                                    placeholder={scoreFetching ? '…' : 'auto'}
                                     className="input-field"
                                     value={form.entry_score}
                                     onChange={e => setForm({ ...form, entry_score: e.target.value })}
@@ -624,15 +663,26 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             </div>
 
                             <div className="space-y-1.5">
-                                <label htmlFor="tech_score">TV Score</label>
-                                <input
-                                    id="tech_score"
-                                    type="number"
-                                    placeholder="0-100"
-                                    className="input-field"
-                                    value={form.tech_score}
-                                    onChange={e => setForm({ ...form, tech_score: e.target.value })}
-                                />
+                                <label htmlFor="tech_score">TV Grade</label>
+                                <div className="flex gap-1.5">
+                                    {TV_GRADES.filter(g => g !== '').map(grade => (
+                                        <button
+                                            key={grade}
+                                            type="button"
+                                            onClick={() => setForm({ ...form, tech_score: form.tech_score === grade ? '' : grade })}
+                                            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${form.tech_score === grade
+                                                ? grade === 'S' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40'
+                                                : grade === 'A' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                                : grade === 'B' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                                : grade === 'C' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40'
+                                                : 'bg-red-500/20 text-red-400 border border-red-500/40'
+                                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                            }`}
+                                        >
+                                            {grade}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
                             <div className="space-y-1.5 lg:col-span-1">

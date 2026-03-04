@@ -962,4 +962,45 @@ After implementing fixes, track these metrics weekly:
 
 ---
 
+## Post-Audit: v2.8 Price Accuracy Fix (2026-03-03)
+
+User-reported bug: QQQ stock price showing 608 (stale daily close) instead of ~601 (live); option spread pricing inconsistent across Watchlist (correct 1.87) vs Portfolio/Strategy Recommender (wrong 0.54).
+
+### Root Causes Found
+
+| ID | Severity | Issue | Impact |
+|---|---|---|---|
+| PA-1 | P0 | `_derivePriceFromPutCallParity` checks `o.expiry` but Polygon normalized options use `o.expiration` — PCP always returned null silently | `currentPrice` always fell back to stale daily candle close; ATM IV, term structure, IV/RV ratio, IV Rank all shifted |
+| PA-2 | P0 | `normalizePolygonOption` bid/ask uses `\|\|` (logical OR) — `bid=0` falls back to `day.vwap`/`day.previous_close` | Genuine zero bids overwritten with stale day data; mid price wrong |
+| PA-3 | P0 | `getUnderlyingPrice()` returns 403 NOT_AUTHORIZED on basic Polygon plans (stock snapshot endpoint not included) | No fresh underlying price source; only fallback is stale chain data or daily close |
+| PA-4 | P1 | `option-prices.js` prefers `last` over `mid`: `option.last > 0 ? option.last : mid` | Hours-old last trade used instead of current bid/ask midpoint |
+| PA-5 | P1 | `PositionCard.tsx` bulk data path accesses `d.data` (normalized option without `price` field) instead of top-level API result | `shortData.price = undefined` in portfolio spread pricing; score calculation receives NaN |
+
+### Fixes Applied
+
+1. **Multi-tier underlying price resolution** — strategy-recommend, option-prices, scan-options all validate chain underlying against reference (≤15% divergence); fallback: daily close → PCP (field name fixed) → stock snapshot → CBOE
+2. **Nullish coalescing for bid/ask/last** — `??` instead of `||` in `normalizePolygonOption`; added computed `mid` field
+3. **Mid-preferred pricing** — `option-prices.js` now: `mid > 0 ? mid : (last > 0 ? last : 0)`
+4. **PositionCard bulk data** — uses top-level API response (has `price`, `bid`, `ask`, `underlyingPrice`) not `d.data`
+5. **PCP median derivation** added to `option-prices.js` for portfolio/watchlist underlying price
+
+### Downstream IV Metric Impact
+
+All IV-derived metrics that depend on `currentPrice` are now more accurate (no code changes needed — parameter propagation):
+- **ATM IV**: `getCleanATM_IV(chain, currentPrice)` — selects different ATM strike (~602 vs ~608)
+- **Term Structure**: `buildIVTermStructure` → all `calculateTargetIV` calls shift
+- **IV/RV Ratio**: numerator (IV30) changes with ATM IV
+- **IV Rank**: comparison point (current ATM IV) changes
+- **Strike Filter**: `parseChain` ±15% window shifts
+- **Skew**: NOT affected (delta-based selection, does not use `currentPrice`)
+
+### Verified Results
+
+| Source | Before (stale) | After (fixed) | Reference (CBOE) |
+|---|---|---|---|
+| QQQ underlying | $608.09 (daily close) | $601.71 (PCP) | $601.45 |
+| PCP median (option-prices.js) | N/A (not implemented) | $602.91 | $601.45 |
+
+---
+
 *End of Audit Report*

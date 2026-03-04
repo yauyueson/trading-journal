@@ -74,6 +74,7 @@ Polygon.io 通过以下端点提供期权数据：
 | 到期日 | `details.expiration_date` (YYYY-MM-DD) | `expiration` (YYYY-MM-DD) |
 | Bid/Ask | `last_quote.bid` / `last_quote.ask` | `bid` / `ask` |
 | 最新价 | `last_trade.price` | `last` |
+| 中间价 | _(computed)_ `(bid+ask)/2` fallback `last` | `mid` |
 | Delta | `greeks.delta` | `delta` |
 | Gamma | `greeks.gamma` | `gamma` |
 | Theta | `greeks.theta` | `theta` |
@@ -82,6 +83,11 @@ Polygon.io 通过以下端点提供期权数据：
 | 成交量 | `day.volume` | `volume` |
 | 持仓量 | `open_interest` | `openInterest` |
 | 标的价格 | `underlying_asset.price` | `underlyingPrice` |
+
+> **v2.8 重要变更（2026-03-03 Price Accuracy Fix）**:
+> - **Bid/Ask 使用 `??`（nullish coalescing）而非 `||`**：`bid=0` 不再错误回退到 `day.vwap`/`day.close`
+> - **新增 `mid` 字段**：`normalizePolygonOption` 计算 `(bid+ask)/2`，优先于 stale `last` trade
+> - **`underlyingPrice` 可能不可用**：部分 Polygon plan 的 option snapshot 中 `underlying_asset.price` 为空/过期，需通过 PCP 或 stock snapshot 补充（见下文）
 
 ---
 
@@ -99,6 +105,53 @@ Polygon.io 通过以下端点提供期权数据：
 | **期权链缓存** | `getOptionChain` 对同一 `(ticker, filters)` 结果做 **内存缓存**（链 10 分钟、标的价 2 分钟 TTL），重复请求命中缓存。 |
 
 详见 `api/polygon-client.js`（`getUnderlyingPrice`、`optionChainCache`、`OPTION_CHAIN_CACHE_TTL_MS`）。
+
+---
+
+## 标的价格获取策略（v2.8 Price Accuracy Fix）
+
+Polygon 不同 plan 对标的价格的可用性不同。系统采用**多级回退**确保准确性：
+
+### 问题背景
+
+| 数据源 | Polygon 端点 | 可用性 |
+|--------|-------------|--------|
+| 股票快照 | `GET /v2/snapshot/.../tickers/{ticker}` | 需 Stocks Advanced plan（403 if Basic） |
+| 期权快照内嵌 | `underlying_asset.price` | 部分 plan 为空/0 |
+| 每日K线收盘 | `GET /v2/aggs/...` → 最后一根 `.close` | 始终可用，但仅为昨日收盘 |
+| CBOE 延迟报价 | `cdn.cboe.com/.../delayed_quotes/options/{ticker}.json` | 免费，15分钟延迟 |
+| Put-Call Parity | 从期权链推算：`S ≈ C_mid - P_mid + K` | 始终可用（需有效链） |
+
+### 各 API 回退链
+
+**strategy-recommend.js**（影响 IV 期限结构、ATM IV、评分）：
+```
+1. chain underlying_asset.price（若与 lastClose 偏差 ≤15%）
+2. Daily candle lastClose（昨日收盘）
+3. Put-Call Parity（从 ATM call/put 推导，精度 ±0.5%）  ← v2.8 修复：字段名 expiry→expiration
+4. getUnderlyingPrice()（股票快照，若 plan 支持）       ← v2.8 新增
+5. CBOE delayed_quotes（最终兜底）
+```
+
+**option-prices.js**（影响 Portfolio / Watchlist 定价）：
+```
+1. getUnderlyingPrice()（股票快照，若 plan 支持）
+2. Put-Call Parity 中位数（从全链推导）                  ← v2.8 新增
+3. chain underlying_asset.price（内嵌值）
+```
+
+**scan-options.js**（影响 Scanner 行权范围 + 评分）：
+```
+1. getUnderlyingPrice()（股票快照）
+2. chain underlying_asset.price（若与 stock snapshot 偏差 ≤15%）
+```
+
+### 偏差保护
+
+当 `chain underlying_asset.price` 与参考价偏差 >15%，视为 stale 并丢弃，降级到下一回退源。日志会打印警告：
+```
+[Underlying] QQQ: chain says $608.09 but daily close is $490.00 (24.1% divergence) — discarding stale chain price
+```
 
 ---
 
@@ -263,15 +316,20 @@ node api/setup-iv-rank.js
 ### 当前策略
 
 1. **缓存机制**：
-   - 内存缓存（5 秒 TTL）
-   - 相同请求在 5 秒内返回缓存数据
+   - 期权链缓存 5 分钟 TTL（per ticker+filters）
+   - 标的股票价格缓存 2 分钟 TTL
+   - 日K线缓存 10 分钟 TTL（immutable after close）
+   - 通用端点缓存 60 秒 TTL
+   - In-flight 请求合并（同一 cacheKey 共享 Promise）
 
 2. **并发控制**：
+   - 客户端 RPM limiter（默认 5，可配 POLYGON_RATE_LIMIT_RPM）
    - 批量请求分块处理（CHUNK_SIZE = 10）
    - 使用 `Promise.all()` 并发执行
 
 3. **降级处理**：
    - Polygon 失败时自动 fallback 到 CBOE 免费延迟数据
+   - 股票快照 403 时回退到 Put-Call Parity / CBOE
 
 ### 建议优化（生产环境）
 
@@ -508,4 +566,4 @@ curl "http://localhost:5177/api/option-price?ticker=SPY&expiration=2025-03-21&st
 
 ---
 
-*最后更新：2026-02-14*
+*最后更新：2026-03-03*

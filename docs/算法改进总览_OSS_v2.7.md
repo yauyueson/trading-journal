@@ -1,6 +1,6 @@
-# OSS 算法改进总览 v2.7
+# OSS 算法改进总览 v2.8
 
-> 版本: v2.7 · 更新: 2026-02-27 · 类型: Bug 修复 (P0/P1/P2) — Code Audit 专项
+> 版本: v2.8 · 更新: 2026-03-03 · 类型: Price Accuracy Fix + Bug 修复 (P0/P1/P2) — Code Audit 专项
 
 ---
 
@@ -8,14 +8,48 @@
 
 | 类别 | 数量 |
 |------|------|
-| Bug 修复 (P0 — 影响交易) | 4 |
-| 系统性偏差修复 (P1) | 3 |
-| 精度改进 (P2) | 5 |
-| 修改文件 | 4 |
+| Price Accuracy Fix (P0 — v2.8) | 3 |
+| Price Accuracy Fix (P1 — v2.8) | 2 |
+| Bug 修复 (P0 — 影响交易, v2.7) | 4 |
+| 系统性偏差修复 (P1, v2.7) | 3 |
+| 精度改进 (P2, v2.7) | 5 |
+| 修改文件 | 9 |
 
 ---
 
-## P0：关键 Bug 修复（影响交易决策）
+## v2.8 Price Accuracy Fix（2026-03-03）
+
+### P0：标的价格与期权定价错误
+
+| ID | 问题 | 修复 | 文件 |
+|----|------|------|------|
+| PA-1 | PCP 字段名不匹配：`o.expiry` vs Polygon 的 `o.expiration`，导致 PCP 推导始终返回 null | 改为 `o.expiration \|\| o.expiry` 兼容两种格式 | `strategy-recommend.js` |
+| PA-2 | `normalizePolygonOption` bid/ask 使用 `\|\|`：`bid=0` 回退到 `day.vwap`/`day.previous_close` | 改为 `??`（nullish coalescing），新增 `mid` 字段 | `polygon-client.js` |
+| PA-3 | `getUnderlyingPrice()` 在基础 Polygon plan 返回 403，无 stock snapshot 权限 | 新增 PCP 中位数回退（从期权链推导，精度±0.5%）+ CBOE 兜底；chain 价偏差>15% 自动丢弃 | `option-prices.js`, `strategy-recommend.js`, `scan-options.js` |
+
+### P1：定价一致性
+
+| ID | 问题 | 修复 | 文件 |
+|----|------|------|------|
+| PA-4 | 优先使用 stale `last` trade：`last > 0 ? last : mid` | 改为 `mid > 0 ? mid : last`，优先实时 bid/ask 中间价 | `option-prices.js` |
+| PA-5 | PositionCard 批量数据路径访问 `d.data`（无 `price` 字段），下游评分收到 undefined/NaN | 改为使用顶层 API 响应（含 `price`, `bid`, `ask`, `underlyingPrice`） | `PositionCard.tsx` |
+
+### 下游影响（自动修正，无需代码变更）
+
+`currentPrice` 准确性提升后，以下 IV 衍生指标精度同步改善：
+
+| 指标 | 使用 currentPrice 的方式 | 影响程度 |
+|------|------------------------|----------|
+| ATM IV | `getCleanATM_IV(chain, currentPrice)` — 选取最近 ATM 行权价 | 中等（ATM strike 偏移一档 ~$5） |
+| IV 期限结构 | `buildIVTermStructure` 全部 DTE 点位 | 中等（各点位 ATM IV 偏移） |
+| IV/RV 比值 | 分子 IV30 来自期限结构 | 轻微（~0.5-1%） |
+| IV Rank | 当前 ATM IV vs 历史比较 | 轻微（起始点偏移） |
+| Strike Filter | `parseChain` ±15% 窗口 | 轻微（窗口移动 ~6 点） |
+| Skew | delta 选取，不依赖 currentPrice | **无影响** |
+
+---
+
+## v2.7 P0：关键 Bug 修复（影响交易决策）
 
 | ID | 问题 | 修复 | 文件 |
 |----|------|------|------|

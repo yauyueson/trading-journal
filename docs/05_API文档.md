@@ -205,8 +205,9 @@ Body 格式:
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| dataSource | string | 数据来源：`Polygon`（主）或 `CBOE`（备） |
-| priceSource | string | 定价方式：`'last'` 或 `'mid'` |
+| dataSource | string | 数据来源：`Polygon.io`（主）或 `CBOE`（备） |
+| priceSource | string | 定价方式：`'mid'`（优先）、`'last'`（回退）或 `'none'` |
+| underlyingPrice | number | 标的股票价格（v2.8：多级回退保障准确性） |
 | delta | number | Delta值（-1到1）；Polygon 提供真实值，CBOE 为 0 |
 | gamma | number | Gamma值；Polygon 提供真实值 |
 | theta | number | Theta值（每日衰减）；Polygon 提供真实值 |
@@ -214,6 +215,11 @@ Body 格式:
 | iv | number | 隐含波动率（小数形式）；Polygon 提供真实值 |
 | greeksSuspicious | boolean | 市场 Greeks 与 BSM 偏差 > 0.15 时为 true |
 | greeksNote | string | 可疑 Greek 的解释说明（仅当 greeksSuspicious=true） |
+
+> **v2.8 Price Fix**:
+> - `price` 优先使用 mid (bid+ask)/2，仅 bid/ask 均不可用时回退到 last trade（之前反之）
+> - `underlyingPrice` 通过股票快照/PCP 多级回退获取，不再依赖可能 stale 的 option snapshot
+> - Polygon plan 无 stock snapshot 权限时，自动通过 Put-Call Parity 从期权链推导（精度 ±0.5%）
 
 ---
 
@@ -531,4 +537,4 @@ vercel --prod
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年3月2日*
+*最后更新: 2026年3月3日*
