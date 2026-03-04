@@ -134,7 +134,8 @@ export default async function handler(req, res) {
                     ticker: t,
                     recorded_date: s.date,
                     iv30: s.rv30,
-                    iv90: null, // RV30 backfill, no IV data
+                    iv90: null,
+                    source: 'rv_proxy', // Realized vol, NOT implied vol — excluded from IV Rank
                 }));
 
                 const { error } = await supabase

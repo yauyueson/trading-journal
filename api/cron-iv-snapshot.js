@@ -98,7 +98,8 @@ export default async function handler(req, res) {
                 ticker: data.ticker,
                 recorded_date: new Date().toISOString().split('T')[0], // Today's date (UTC)
                 iv30: data.iv30,
-                iv90: data.iv90
+                iv90: data.iv90,
+                source: 'live_iv',
             });
             results.push({ ticker, status: 'ok', iv30: data.iv30 });
         } else {
