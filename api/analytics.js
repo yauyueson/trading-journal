@@ -280,6 +280,73 @@ async function handleExecutionQuality(req, res) {
     });
 }
 
+// ── Underlying RV ────────────────────────────────────────────────────────────
+async function handleUnderlyingRV(req, res) {
+    const { ticker } = req.query;
+    if (!ticker) return res.status(400).json({ error: 'Missing ticker parameter' });
+
+    const upperTicker = ticker.toUpperCase();
+
+    try {
+        const toDate = new Date();
+        const fromDate = new Date();
+        fromDate.setDate(toDate.getDate() - 45);
+
+        const toStr = toDate.toISOString().split('T')[0];
+        const fromStr = fromDate.toISOString().split('T')[0];
+
+        const url = `https://api.nasdaq.com/api/quote/${upperTicker}/historical?assetclass=stocks&fromdate=${fromStr}&todate=${toStr}&limit=40`;
+
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        });
+
+        if (!response.ok) throw new Error(`Nasdaq API failed with status ${response.status}`);
+
+        const data = await response.json();
+        const rows = data?.data?.tradesTable?.rows || [];
+
+        if (rows.length < 2) {
+            return res.status(200).json({ success: true, ticker: upperTicker, rv30: null, error: 'Not enough historical data' });
+        }
+
+        const prices = rows
+            .map(row => parseFloat(row.close.replace('$', '').replace(',', '')))
+            .filter(price => !isNaN(price))
+            .reverse();
+
+        if (prices.length < 5) {
+            return res.status(200).json({ success: true, ticker: upperTicker, rv30: null, error: 'Too few valid prices' });
+        }
+
+        const returns = [];
+        for (let i = 1; i < prices.length; i++) {
+            returns.push(Math.log(prices[i] / prices[i - 1]));
+        }
+
+        const recentReturns = returns.slice(-30);
+        const mean = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
+        const variance = recentReturns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentReturns.length;
+        const stdDev = Math.sqrt(variance);
+        const annualizedRV = stdDev * Math.sqrt(252) * 100;
+
+        return res.status(200).json({
+            success: true,
+            ticker: upperTicker,
+            rv30: Number(annualizedRV.toFixed(2)),
+            daysProcessed: recentReturns.length,
+            lastClose: prices[prices.length - 1]
+        });
+    } catch (error) {
+        console.error('RV API Error:', error.message);
+        return res.status(200).json({ success: false, ticker: upperTicker, error: error.message });
+    }
+}
+
 // ── Router ──────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
     if (req.method !== 'GET') return res.status(405).json({ error: 'Method Not Allowed' });
@@ -292,10 +359,12 @@ export default async function handler(req, res) {
                 return await handleScoreValidation(req, res);
             case 'execution-quality':
                 return await handleExecutionQuality(req, res);
+            case 'underlying-rv':
+                return await handleUnderlyingRV(req, res);
             default:
                 return res.status(400).json({
                     error: 'Missing or invalid type parameter',
-                    usage: '?type=score-validation or ?type=execution-quality',
+                    usage: '?type=score-validation or ?type=execution-quality or ?type=underlying-rv',
                 });
         }
     } catch (err) {
