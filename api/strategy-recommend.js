@@ -148,14 +148,16 @@ function _derivePriceFromPutCallParity(chainData, lastClose) {
     if (!chainData || chainData.length === 0 || !lastClose) return null;
 
     // Group by strike+expiry, find pairs with both Call and Put
+    // Note: Polygon uses 'expiration', CBOE uses 'expiry' — handle both
     const pairs = {};
     for (const o of chainData) {
-        if (!o.strike || !o.expiry) continue;
+        const exp = o.expiration || o.expiry;
+        if (!o.strike || !exp) continue;
         // Skip very short or very long DTE
         const dte = o.dte ?? 0;
         if (dte < 7 || dte > 60) continue;
-        const key = `${o.strike}_${o.expiry}`;
-        if (!pairs[key]) pairs[key] = { strike: o.strike, expiry: o.expiry, dte };
+        const key = `${o.strike}_${exp}`;
+        if (!pairs[key]) pairs[key] = { strike: o.strike, expiry: exp, dte };
         if (o.type === 'call' || o.type === 'Call') pairs[key].call = o;
         if (o.type === 'put' || o.type === 'Put') pairs[key].put = o;
     }
@@ -187,7 +189,9 @@ function _derivePriceFromPutCallParity(chainData, lastClose) {
 }
 
 function _getMid(opt) {
+    if (opt.mid > 0) return opt.mid;
     if (opt.bid > 0 && opt.ask > 0) return (opt.bid + opt.ask) / 2;
+    if (opt.last > 0) return opt.last;
     if (opt.day?.close > 0) return opt.day.close;
     if (opt.day?.vwap > 0) return opt.day.vwap;
     if (opt.close > 0) return opt.close;

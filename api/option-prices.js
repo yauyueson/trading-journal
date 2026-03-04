@@ -70,6 +70,39 @@ function validateGreeks(greeks, S, K, dte, type) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Derive underlying price from put-call parity: S ≈ C_mid - P_mid + K
+ * Uses near-ATM options (30-60 DTE) for best accuracy.
+ */
+function _deriveUnderlyingFromChain(chain) {
+    // Group by strike+expiration, find call/put pairs
+    const pairs = {};
+    for (const o of chain) {
+        const exp = o.expiration || o.expiry;
+        if (!o.strike || !exp) continue;
+        const dte = o.dte ?? 0;
+        if (dte < 7 || dte > 60) continue;
+        const key = `${o.strike}_${exp}`;
+        if (!pairs[key]) pairs[key] = { strike: o.strike };
+        const mid = o.mid > 0 ? o.mid : (o.bid > 0 && o.ask > 0 ? (o.bid + o.ask) / 2 : 0);
+        if ((o.type === 'Call' || o.type === 'call') && mid > 0) pairs[key].callMid = mid;
+        if ((o.type === 'Put' || o.type === 'put') && mid > 0) pairs[key].putMid = mid;
+    }
+
+    // Collect derived prices from all valid pairs, take median for robustness
+    const derivedPrices = [];
+    for (const p of Object.values(pairs)) {
+        if (!p.callMid || !p.putMid) continue;
+        const s = p.callMid - p.putMid + p.strike;
+        if (s > 0) derivedPrices.push(s);
+    }
+
+    if (derivedPrices.length < 3) return null;
+    derivedPrices.sort((a, b) => a - b);
+    const median = derivedPrices[Math.floor(derivedPrices.length / 2)];
+    return Number(median.toFixed(2));
+}
+
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -122,11 +155,17 @@ async function handlePolygon(legs, res) {
         for (const ticker of tickerToLegs.keys()) {
             const [chain, freshPrice] = await Promise.all([
                 getOptionChain(ticker, {}),
-                getUnderlyingPrice(ticker)
+                getUnderlyingPrice(ticker).catch(() => null)
             ]);
             chainByTicker.set(ticker, chain || []);
             if (freshPrice != null && freshPrice > 0) {
                 freshUnderlyingByTicker.set(ticker, freshPrice);
+            } else if (chain && chain.length > 0) {
+                // Fallback: derive underlying from put-call parity when stock snapshot is unavailable
+                const pcpPrice = _deriveUnderlyingFromChain(chain);
+                if (pcpPrice != null) {
+                    freshUnderlyingByTicker.set(ticker, pcpPrice);
+                }
             }
         }
 
