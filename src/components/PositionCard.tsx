@@ -10,6 +10,17 @@ import { ScoreFactorsView } from './ScoreFactorsView';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
 import { useAppSettings } from '../context/AppSettingsContext';
 
+const TV_GRADES = ['S', 'A', 'B', 'C', 'D'] as const;
+const TV_GRADE_TO_SCORE: Record<string, number> = { S: 95, A: 80, B: 60, C: 40, D: 20 };
+const SCORE_TO_TV_GRADE = (score: number | undefined | null): string => {
+    if (score == null) return '';
+    if (score >= 88) return 'S';
+    if (score >= 70) return 'A';
+    if (score >= 50) return 'B';
+    if (score >= 30) return 'C';
+    return 'D';
+};
+
 /** Normalize expiration to YYYY-MM-DD for option-price API (avoids wrong contract match). */
 function normalizeExpiration(exp: string): string {
     if (!exp || typeof exp !== 'string') return exp;
@@ -471,10 +482,11 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
         setActionQty(1);
     };
 
-    const handleScoreSave = async () => {
-        const newScore = parseInt(scoreInput);
-        if (!isNaN(newScore)) {
+    const handleScoreSave = async (grade: string) => {
+        const newScore = TV_GRADE_TO_SCORE[grade];
+        if (newScore != null) {
             await onUpdateScore(position.id, newScore);
+            setScoreInput(grade);
             setIsEditingScore(false);
         }
     };
