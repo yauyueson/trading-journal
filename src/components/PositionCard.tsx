@@ -715,99 +715,56 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                             <div className="metric-value text-accent-red">{formatPrice(currentStopLoss)}</div>
                         )}
                     </div>
-                    {/* Tech Score */}
+                    {/* TV Grade */}
                     <div>
                         <div className="mb-1 flex items-center gap-1 h-5">
-                            <Tooltip label="Tech Score" explanation="Manual Technical Analysis Score (0-100)." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
-                            <button
-                                onClick={() => { setIsEditingScore(true); setScoreInput(effectiveScore ? effectiveScore.toString() : ''); }}
-                                className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
-                                aria-label="Edit score"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-                            </button>
+                            <Tooltip label="TV Grade" explanation="TradingView Technical Grade (S/A/B/C/D). Click a grade to set." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         {isEditingScore ? (
                             <div className="flex items-center gap-1">
-                                <input
-                                    type="number"
-                                    value={scoreInput}
-                                    onChange={e => setScoreInput(e.target.value)}
-                                    className="w-12 px-1 py-0.5 text-sm bg-bg-secondary rounded border border-border-default font-mono"
-                                    autoFocus
-                                />
-                                <button onClick={handleScoreSave} className="text-accent-green hover:bg-accent-green/10 p-0.5 rounded cursor-pointer">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                </button>
-                                <button onClick={() => setIsEditingScore(false)} className="text-accent-red hover:bg-accent-red/10 p-0.5 rounded cursor-pointer">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                {TV_GRADES.map(grade => {
+                                    const colors: Record<string, string> = {
+                                        S: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40',
+                                        A: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
+                                        B: 'bg-blue-500/20 text-blue-400 border-blue-500/40',
+                                        C: 'bg-orange-500/20 text-orange-400 border-orange-500/40',
+                                        D: 'bg-red-500/20 text-red-400 border-red-500/40',
+                                    };
+                                    return (
+                                        <button
+                                            key={grade}
+                                            onClick={() => handleScoreSave(grade)}
+                                            className={`px-2 py-1 rounded text-xs font-bold border transition-all cursor-pointer ${scoreInput === grade ? colors[grade] : 'bg-bg-secondary/30 text-text-tertiary border-border-default/50 hover:text-text-secondary'}`}
+                                        >
+                                            {grade}
+                                        </button>
+                                    );
+                                })}
+                                <button onClick={() => setIsEditingScore(false)} className="text-text-tertiary hover:text-text-primary ml-1 p-0.5 rounded cursor-pointer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                                 </button>
                             </div>
                         ) : (
-                            <div className="flex flex-col">
-                                <div className="flex items-center gap-1.5">
-                                    <span className={`metric-value ${effectiveScore ? (effectiveScore >= 70 ? 'text-accent-green' : effectiveScore >= 60 ? 'text-accent-yellow' : 'text-accent-red') : 'text-text-primary'}`}>
-                                        {effectiveScore || '—'}
-                                    </span>
-                                    {position.tech_score_source === 'manual' && (
-                                        <span className="text-[10px] uppercase font-bold text-text-tertiary bg-white/5 px-1 rounded tracking-wider" title="Manual Override">
-                                            Man
-                                        </span>
-                                    )}
-                                    {position.tech_score_source === 'auto' && (
-                                        <span className="text-[10px] uppercase font-bold text-blue-400 bg-blue-500/10 px-1 rounded tracking-wider" title="Auto Calculation">
-                                            Auto
-                                        </span>
-                                    )}
-                                </div>
-
-                                {position.tech_data && typeof position.tech_data === 'object' && (
-                                    <div className="text-[10px] text-text-tertiary mt-0.5 group relative cursor-help">
-                                        <span className="border-b border-dotted border-text-tertiary/50">Breakdown</span>
-                                        {/* Detailed Tooltip */}
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-bg-elevated border border-border-default rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-[10px]">
-                                            <div className="space-y-1">
-                                                <div className="flex justify-between">
-                                                    <span>Bias</span>
-                                                    <span className={position.tech_data.marketBias?.score === 30 ? 'text-accent-green' : 'text-text-secondary'}>
-                                                        {position.tech_data.marketBias?.score ?? '?'} / 30
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span>Short-T</span>
-                                                    <span className={position.tech_data.bxtrenderShort?.score === 25 ? 'text-accent-green' : 'text-text-secondary'}>
-                                                        {position.tech_data.bxtrenderShort?.score ?? '?'} / 25
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span>Long-T</span>
-                                                    <span className={position.tech_data.bxtrenderLong?.score === 20 ? 'text-accent-green' : 'text-text-secondary'}>
-                                                        {position.tech_data.bxtrenderLong?.score ?? '?'} / 20
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span>EMA</span>
-                                                    <span className={position.tech_data.emaStack?.score === 15 ? 'text-accent-green' : 'text-text-secondary'}>
-                                                        {position.tech_data.emaStack?.score ?? '?'} / 15
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span>Mom</span>
-                                                    <span className={position.tech_data.momentum?.score === 10 ? 'text-accent-green' : 'text-text-secondary'}>
-                                                        {position.tech_data.momentum?.score ?? '?'} / 10
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {(!position.tech_data && position.current_score && position.current_score !== position.entry_score) && (
-                                    <span className="text-xs text-text-tertiary flex items-center">
-                                        from {position.entry_score}
-                                        {position.current_score < position.entry_score && <span className="ml-1 text-accent-red">↓</span>}
-                                    </span>
-                                )}
+                            <div className="flex items-center gap-1.5">
+                                {(() => {
+                                    const grade = SCORE_TO_TV_GRADE(effectiveScore);
+                                    const colors: Record<string, string> = {
+                                        S: 'text-yellow-400', A: 'text-emerald-400', B: 'text-blue-400',
+                                        C: 'text-orange-400', D: 'text-red-400'
+                                    };
+                                    return grade ? (
+                                        <span className={`metric-value font-bold ${colors[grade] || 'text-text-primary'}`}>{grade}</span>
+                                    ) : (
+                                        <span className="metric-value text-text-tertiary">—</span>
+                                    );
+                                })()}
+                                <button
+                                    onClick={() => { setIsEditingScore(true); setScoreInput(SCORE_TO_TV_GRADE(effectiveScore)); }}
+                                    className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+                                    aria-label="Edit TV grade"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                </button>
                             </div>
                         )}
                     </div>
