@@ -106,25 +106,38 @@ export const DisciplineCard: React.FC<DisciplineCardProps> = ({ closedPositions,
                 </div>
             )}
 
-            {/* Top metric cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="card p-4">
-                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">TP/SL Win Rate</div>
-                    <div className={`text-2xl font-bold ${metrics.tpSlWinRate != null && metrics.tpSlWinRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>
+            {/* Hero: TP/SL Win Rate */}
+            <div className="card p-5">
+                <div className="text-text-tertiary text-xs uppercase tracking-wider mb-2">TP / SL Win Rate</div>
+                <div className="flex items-baseline gap-3">
+                    <span className={`text-4xl font-bold ${metrics.tpSlWinRate != null && metrics.tpSlWinRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>
                         {metrics.tpSlWinRate != null ? `${metrics.tpSlWinRate.toFixed(1)}%` : '—'}
-                    </div>
+                    </span>
+                    {metrics.byType.TP.count + metrics.byType.SL.count > 0 && (
+                        <span className="text-sm text-text-tertiary">
+                            <span className="text-accent-green">{metrics.byType.TP.count} TP</span>
+                            {' / '}
+                            <span className="text-accent-red">{metrics.byType.SL.count} SL</span>
+                        </span>
+                    )}
                 </div>
+            </div>
+
+            {/* Secondary metrics */}
+            <div className="grid grid-cols-2 gap-3">
                 <div className="card p-4">
                     <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Discipline Rate</div>
-                    <div className={`text-2xl font-bold ${metrics.disciplineRate != null && metrics.disciplineRate >= 50 ? 'text-accent-green' : 'text-text-secondary'}`}>
+                    <div className={`text-xl font-bold ${metrics.disciplineRate != null && metrics.disciplineRate >= 50 ? 'text-accent-green' : 'text-text-secondary'}`}>
                         {metrics.disciplineRate != null ? `${metrics.disciplineRate.toFixed(1)}%` : '—'}
                     </div>
+                    <div className="text-[11px] text-text-tertiary mt-0.5">TP+SL / total closes</div>
                 </div>
-                <div className="card p-4 col-span-2 sm:col-span-1">
+                <div className="card p-4">
                     <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Expectancy</div>
-                    <div className={`text-2xl font-bold font-mono ${metrics.expectancy != null && metrics.expectancy >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                    <div className={`text-xl font-bold font-mono ${metrics.expectancy != null && metrics.expectancy >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                         {metrics.expectancy != null ? `${metrics.expectancy >= 0 ? '+' : ''}${formatCurrency(metrics.expectancy)}` : '—'}
                     </div>
+                    <div className="text-[11px] text-text-tertiary mt-0.5">per TP/SL trade</div>
                 </div>
             </div>
 
