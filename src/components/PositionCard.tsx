@@ -9,6 +9,15 @@ import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleL
 import { ScoreFactorsView } from './ScoreFactorsView';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
 import { useAppSettings } from '../context/AppSettingsContext';
+import {
+    usePositionAction,
+    useUpdateScore,
+    useUpdatePrice,
+    useUpdateTarget,
+    useUpdateStop,
+    useUpdateOwner,
+    useDeletePosition,
+} from '../hooks/usePositionMutations';
 
 const TV_GRADES = ['S', 'A', 'B', 'C', 'D'] as const;
 const TV_GRADE_TO_SCORE: Record<string, number> = { S: 95, A: 80, B: 60, C: 40, D: 20 };
@@ -40,26 +49,45 @@ function normalizeExpiration(exp: string): string {
 interface PositionCardProps {
     position: Position;
     transactions: Transaction[];
-    onAction: (id: string, action: PositionAction) => Promise<void>;
-    onUpdateScore: (id: string, score: number) => Promise<void>; // Kept for interface compatibility
-    onUpdatePrice: (id: string, price: number) => Promise<void>;
-    onUpdateTarget: (id: string, target: number) => Promise<void>;
+    onAction?: (id: string, action: PositionAction) => Promise<void>;
+    onUpdateScore?: (id: string, score: number) => Promise<void>;
+    onUpdatePrice?: (id: string, price: number) => Promise<void>;
+    onUpdateTarget?: (id: string, target: number) => Promise<void>;
     onUpdateStop?: (id: string, stopPrice: number) => Promise<void>;
-    onDelete: (id: string) => Promise<void>;
+    onDelete?: (id: string) => Promise<void>;
     onUpdateOwner?: (id: string, owner: 'Yuchen' | 'Annie' | null) => Promise<void>;
     onDataUpdate?: (timestamp: string) => void;
     refreshTrigger?: number;
     index?: number;
     onRollClick?: (qty: number) => void;
-    /** Portfolio total for risk %; falls back to context if omitted */
     portfolioTotal?: number;
-    /** Array of leg data from bulk fetch */
     initialData?: any[];
-    /** Cached earnings lookup — avoids duplicate API calls per ticker */
     fetchEarningsForTicker?: (ticker: string) => Promise<{ daysUntil: number | null; date: string | null }>;
 }
 
-export const PositionCard: React.FC<PositionCardProps> = ({ position, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onDelete, onUpdateOwner, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick, portfolioTotal: portfolioTotalProp, initialData, fetchEarningsForTicker }) => {
+export const PositionCard: React.FC<PositionCardProps> = (props) => {
+    const { position, transactions, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick, portfolioTotal: portfolioTotalProp, initialData, fetchEarningsForTicker } = props;
+
+    // Mutation hooks as fallbacks when callback props not provided
+    const positionActionMut = usePositionAction();
+    const updateScoreMut = useUpdateScore();
+    const updatePriceMut = useUpdatePrice();
+    const updateTargetMut = useUpdateTarget();
+    const updateStopMut = useUpdateStop();
+    const updateOwnerMut = useUpdateOwner();
+    const deletePositionMut = useDeletePosition();
+
+    const onAction = props.onAction ?? (async (id: string, action: PositionAction) => { positionActionMut.mutate({ id, action }); });
+    const onUpdateScore = props.onUpdateScore ?? (async (id: string, score: number) => { updateScoreMut.mutate({ id, score }); });
+    const onUpdatePrice = props.onUpdatePrice ?? (async (id: string, price: number) => { updatePriceMut.mutate({ id, price }); });
+    const onUpdateTarget = props.onUpdateTarget ?? (async (id: string, target: number) => { updateTargetMut.mutate({ id, target }); });
+    const onUpdateStop = props.onUpdateStop ?? (async (id: string, stopPrice: number) => { updateStopMut.mutate({ id, stopPrice }); });
+    const onUpdateOwner = props.onUpdateOwner ?? (async (id: string, owner: 'Yuchen' | 'Annie' | null) => { updateOwnerMut.mutate({ id, owner }); });
+    const onDelete = props.onDelete ?? (async (id: string) => {
+        if (window.confirm('Are you sure you want to permanently delete this position? This cannot be undone.')) {
+            deletePositionMut.mutate(id);
+        }
+    });
     const { settings: appSettings, stopOutFraction } = useAppSettings();
     const portfolioTotal = portfolioTotalProp ?? appSettings.portfolio.accountSize;
     const [loading, setLoading] = useState(false);
@@ -684,7 +712,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                     <div>
                         <div className="mb-1 flex items-center gap-1 h-5">
                             <Tooltip label="Stop" explanation="Stop loss price. Click to edit." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
-                            {onUpdateStop && (
+                            {(
                                 <button
                                     onClick={() => { setIsEditingStop(true); setStopInput(currentStopLoss.toString()); }}
                                     className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
@@ -694,7 +722,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({ position, transactio
                                 </button>
                             )}
                         </div>
-                        {isEditingStop && onUpdateStop ? (
+                        {isEditingStop ? (
                             <div className="flex items-center gap-1">
                                 <input
                                     type="number"

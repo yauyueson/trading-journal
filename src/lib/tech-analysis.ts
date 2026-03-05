@@ -287,7 +287,7 @@ export function calculateTechScore(
     } else if (!bull && oscVal < -1 && currBxs < 0 && !cr_up && currBxl < 0 && (t21 || t34) && d8 < 2 && br_stack) {
         name = "Failed Rally"; type = "PUT"; conf = 2;
     } else if (!bull && oscVal < -2 && currBxs < -10 && currBxl < -5 && cdn8 && d8 < -1 && d21 < 0) {
-        name = "Breakdown"; type = "PUT", conf = 3;
+        name = "Breakdown"; type = "PUT"; conf = 3;
     } else if ((bs_bear || oscVal < 0) && rev_dn && currBxs < 10 && cdn8) {
         name = "Distribution"; type = "PUT"; conf = 1;
     } else if (!bull && oscVal < -2 && currBxs < -5 && currBxl < -8 && d8 < 0 && br_stack) {

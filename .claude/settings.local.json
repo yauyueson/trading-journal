@@ -47,7 +47,9 @@
       "Bash(npx:*)",
       "Bash(supabase:*)",
       "Bash(curl:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Search, Info, Plus, Activity } from 'lucide-react';
 import { ScoredResult, Strategy, WatchlistItem, ScannerApiContext } from '../lib/types';
+import { useAddToWatchlist } from '../hooks/usePositionMutations';
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
 import { ScoreFactorsView } from '../components/ScoreFactorsView';
@@ -10,7 +11,11 @@ interface ScannerPageProps {
     onAddToWatchlist?: (position: WatchlistItem) => void;
 }
 
-export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist }) => {
+export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAddToWatchlistProp }) => {
+    const addToWatchlistMut = useAddToWatchlist();
+    const onAddToWatchlist = onAddToWatchlistProp ?? ((item: WatchlistItem) => {
+        addToWatchlistMut.mutate(item);
+    });
     // Search State
     const [ticker, setTicker] = useState('SPY');
     const [strategy, setStrategy] = useState<Strategy>('long');

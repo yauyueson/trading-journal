@@ -1,12 +1,21 @@
 import React, { useRef, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, List, History, BarChart3, Search, Target, BookOpen } from 'lucide-react';
+import { PATH_TO_TAB, TAB_PATHS } from '../router';
 
 interface TabNavProps {
-    activeTab: string;
-    setActiveTab: (tab: string) => void;
+    activeTab?: string;
+    setActiveTab?: (tab: string) => void;
 }
 
-export const TabNav: React.FC<TabNavProps> = ({ activeTab, setActiveTab }) => {
+export const TabNav: React.FC<TabNavProps> = ({ activeTab: activeTabProp, setActiveTab: setActiveTabProp }) => {
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    // Derive from URL if props not provided (backwards-compatible)
+    const activeTab = activeTabProp ?? (PATH_TO_TAB[location.pathname] || 'portfolio');
+    const setActiveTab = setActiveTabProp ?? ((tab: string) => navigate(TAB_PATHS[tab] || '/portfolio'));
+
     const tabs = [
         { id: 'scanner', label: 'Scan', mobileLabel: 'Scan', Icon: Search },
         { id: 'selector', label: 'Option Selector', mobileLabel: 'Selector', Icon: Target },

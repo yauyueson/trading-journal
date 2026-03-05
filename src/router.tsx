@@ -1,0 +1,63 @@
+import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { AppLayout } from './layouts/AppLayout';
+
+// Tab ID <-> URL path mapping (used by TabNav)
+export const TAB_PATHS: Record<string, string> = {
+  scanner: '/scanner',
+  selector: '/selector',
+  watchlist: '/watchlist',
+  portfolio: '/portfolio',
+  history: '/history',
+  stats: '/stats',
+  academy: '/academy',
+  settings: '/settings',
+};
+
+// Reverse: path -> tab ID
+export const PATH_TO_TAB: Record<string, string> = Object.fromEntries(
+  Object.entries(TAB_PATHS).map(([tab, path]) => [path, tab])
+);
+
+export const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <Navigate to="/portfolio" replace />,
+  },
+  {
+    element: <AppLayout />,
+    children: [
+      {
+        path: '/portfolio',
+        lazy: () => import('./pages/Portfolio').then(m => ({ Component: m.PortfolioPage })),
+      },
+      {
+        path: '/watchlist',
+        lazy: () => import('./pages/Watchlist').then(m => ({ Component: m.WatchlistPage })),
+      },
+      {
+        path: '/scanner',
+        lazy: () => import('./pages/Scanner').then(m => ({ Component: m.ScannerPage })),
+      },
+      {
+        path: '/selector',
+        lazy: () => import('./pages/StrategyRecommender').then(m => ({ Component: m.OptionSelector })),
+      },
+      {
+        path: '/history',
+        lazy: () => import('./pages/History').then(m => ({ Component: m.HistoryPage })),
+      },
+      {
+        path: '/stats',
+        lazy: () => import('./pages/Stats').then(m => ({ Component: m.StatsPage })),
+      },
+      {
+        path: '/academy',
+        lazy: () => import('./pages/Academy').then(m => ({ Component: m.Academy })),
+      },
+      {
+        path: '/settings',
+        lazy: () => import('./pages/AppSettings').then(m => ({ Component: m.AppSettingsPage })),
+      },
+    ],
+  },
+]);

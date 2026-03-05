@@ -3,16 +3,36 @@ import { History, Check, Trash2 } from 'lucide-react';
 import { Position, Transaction } from '../lib/types';
 import { formatCurrency, formatPercent, CONTRACT_MULTIPLIER } from '../lib/utils';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { usePositions } from '../hooks/usePositions';
+import { useTransactions } from '../hooks/useTransactions';
+import { useDeletePosition, useUpdateOwner } from '../hooks/usePositionMutations';
 
 interface HistoryPageProps {
-    positions: Position[];
-    transactions: Transaction[];
-    loading: boolean;
-    onDelete: (id: string) => Promise<void>;
+    positions?: Position[];
+    transactions?: Transaction[];
+    loading?: boolean;
+    onDelete?: (id: string) => Promise<void>;
     onUpdateOwner?: (id: string, owner: 'Yuchen' | 'Annie' | null) => Promise<void>;
 }
 
-export const HistoryPage: React.FC<HistoryPageProps> = ({ positions, transactions, loading, onDelete, onUpdateOwner }) => {
+export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsProp, transactions: transactionsProp, loading: loadingProp, onDelete: onDeleteProp, onUpdateOwner: onUpdateOwnerProp }) => {
+    const { data: positionsQuery = [], isLoading: positionsLoading } = usePositions();
+    const { data: transactionsQuery = [], isLoading: transactionsLoading } = useTransactions();
+    const deletePositionMut = useDeletePosition();
+    const updateOwnerMut = useUpdateOwner();
+
+    const positions = positionsProp ?? positionsQuery;
+    const transactions = transactionsProp ?? transactionsQuery;
+    const loading = loadingProp ?? (positionsLoading || transactionsLoading);
+    const onDelete = onDeleteProp ?? (async (id: string) => {
+        if (window.confirm('Are you sure you want to permanently delete this position? This cannot be undone.')) {
+            deletePositionMut.mutate(id);
+        }
+    });
+    const onUpdateOwner = onUpdateOwnerProp ?? (async (id: string, owner: 'Yuchen' | 'Annie' | null) => {
+        updateOwnerMut.mutate({ id, owner });
+    });
+
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
     const allClosedPositions = positions.filter(p => p.status === 'closed');
     const closedPositions = ownerFilter === 'All' ? allClosedPositions : allClosedPositions.filter(p => p.owner === ownerFilter);

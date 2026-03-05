@@ -9,27 +9,71 @@ import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { getPositionRiskAtStopOutDollars, aggregatePortfolioGreeks } from '../lib/riskSizing';
 import { SETUPS, formatCurrency } from '../lib/utils';
+import { usePositions } from '../hooks/usePositions';
+import { useTransactions } from '../hooks/useTransactions';
+import {
+    usePositionAction,
+    useUpdateScore,
+    useUpdatePrice,
+    useUpdateTarget,
+    useUpdateStop,
+    useUpdateOwner,
+    useAddDirect,
+    useRollPosition,
+    useDeletePosition,
+} from '../hooks/usePositionMutations';
 
 const TV_GRADES = ['', 'S', 'A', 'B', 'C', 'D'] as const;
 const TV_GRADE_TO_SCORE: Record<string, number> = { S: 95, A: 80, B: 60, C: 40, D: 20 };
 
 interface PortfolioPageProps {
-    positions: Position[];
-    transactions: Transaction[];
-    onAction: (id: string, action: PositionAction) => Promise<void>;
-    onUpdateScore: (id: string, score: number) => Promise<void>;
-    onUpdatePrice: (id: string, price: number) => Promise<void>;
-    onUpdateTarget: (id: string, target: number) => Promise<void>;
-    onUpdateStop: (id: string, stopPrice: number) => Promise<void>;
-    onUpdateOwner: (id: string, owner: 'Yuchen' | 'Annie' | null) => Promise<void>;
-    onAddDirect: (item: DirectAddItem) => Promise<void>;
-    onRoll: (originalPositionId: string, rollData: RollData) => Promise<void>;
-    onDelete: (id: string) => Promise<void>;
-    loading: boolean;
-    fetchEarningsForTicker?: (ticker: string) => Promise<{ daysUntil: number | null; date: string | null }>;
+    positions?: Position[];
+    transactions?: Transaction[];
+    onAction?: (id: string, action: PositionAction) => Promise<void>;
+    onUpdateScore?: (id: string, score: number) => Promise<void>;
+    onUpdatePrice?: (id: string, price: number) => Promise<void>;
+    onUpdateTarget?: (id: string, target: number) => Promise<void>;
+    onUpdateStop?: (id: string, stopPrice: number) => Promise<void>;
+    onUpdateOwner?: (id: string, owner: 'Yuchen' | 'Annie' | null) => Promise<void>;
+    onAddDirect?: (item: DirectAddItem) => Promise<void>;
+    onRoll?: (originalPositionId: string, rollData: RollData) => Promise<void>;
+    onDelete?: (id: string) => Promise<void>;
+    loading?: boolean;
 }
 
-export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transactions, onAction, onUpdateScore, onUpdatePrice, onUpdateTarget, onUpdateStop, onUpdateOwner, onAddDirect, onRoll, onDelete, loading, fetchEarningsForTicker }) => {
+export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
+    // React Query hooks as fallbacks when props not provided
+    const { data: positionsQuery = [], isLoading: positionsLoading } = usePositions();
+    const { data: transactionsQuery = [], isLoading: transactionsLoading } = useTransactions();
+    const positionActionMut = usePositionAction();
+    const updateScoreMut = useUpdateScore();
+    const updatePriceMut = useUpdatePrice();
+    const updateTargetMut = useUpdateTarget();
+    const updateStopMut = useUpdateStop();
+    const updateOwnerMut = useUpdateOwner();
+    const addDirectMut = useAddDirect();
+    const rollPositionMut = useRollPosition();
+    const deletePositionMut = useDeletePosition();
+
+    const positions = props.positions ?? positionsQuery;
+    const transactions = props.transactions ?? transactionsQuery;
+    const loading = props.loading ?? (positionsLoading || transactionsLoading);
+    const onAction = props.onAction ?? (async (id: string, action: PositionAction) => { positionActionMut.mutate({ id, action }); });
+    const onUpdateScore = props.onUpdateScore ?? (async (id: string, score: number) => { updateScoreMut.mutate({ id, score }); });
+    const onUpdatePrice = props.onUpdatePrice ?? (async (id: string, price: number) => { updatePriceMut.mutate({ id, price }); });
+    const onUpdateTarget = props.onUpdateTarget ?? (async (id: string, target: number) => { updateTargetMut.mutate({ id, target }); });
+    const onUpdateStop = props.onUpdateStop ?? (async (id: string, stopPrice: number) => { updateStopMut.mutate({ id, stopPrice }); });
+    const onUpdateOwner = props.onUpdateOwner ?? (async (id: string, owner: 'Yuchen' | 'Annie' | null) => { updateOwnerMut.mutate({ id, owner }); });
+    const onAddDirect = props.onAddDirect ?? (async (item: DirectAddItem) => { addDirectMut.mutate(item); });
+    const onRoll = props.onRoll ?? (async (originalPositionId: string, rollData: RollData) => {
+        const originalPosition = positions.find(p => p.id === originalPositionId);
+        if (originalPosition) rollPositionMut.mutate({ originalPosition, rollData });
+    });
+    const onDelete = props.onDelete ?? (async (id: string) => {
+        if (window.confirm('Are you sure you want to permanently delete this position? This cannot be undone.')) {
+            deletePositionMut.mutate(id);
+        }
+    });
     const { settings, maxRiskPerTrade, stopOutFraction } = useAppSettings();
     const { accountSize: portfolioTotal, riskPct, stopOutPct } = settings.portfolio;
     const [showForm, setShowForm] = useState(false);
@@ -845,7 +889,6 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             onRollClick={(qty) => setRollingPosition({ position, qty })}
                             portfolioTotal={portfolioTotal}
                             initialData={bulkData[position.id]}
-                            fetchEarningsForTicker={fetchEarningsForTicker}
                         />
                     ))}
                 </div>

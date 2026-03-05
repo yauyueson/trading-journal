@@ -5,17 +5,34 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { WatchlistItem } from '../components/WatchlistItem';
 import { DataFooter } from '../components/DataFooter';
 import { SETUPS } from '../lib/utils';
+import { usePositions } from '../hooks/usePositions';
+import { useAddToWatchlist, useDeletePosition } from '../hooks/usePositionMutations';
+import { useBuyModal } from '../context/BuyModalContext';
 
 interface WatchlistPageProps {
-    positions: Position[];
-    onAddToWatchlist: (item: WatchlistItemType) => Promise<void>;
-    onMoveToActive: (item: Position) => void;
-    onDelete: (id: string) => Promise<void>;
-    loading: boolean;
-    fetchEarningsForTicker?: (ticker: string) => Promise<{ daysUntil: number | null; date: string | null }>;
+    positions?: Position[];
+    onAddToWatchlist?: (item: WatchlistItemType) => Promise<void>;
+    onMoveToActive?: (item: Position) => void;
+    onDelete?: (id: string) => Promise<void>;
+    loading?: boolean;
 }
 
-export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddToWatchlist, onMoveToActive, onDelete, loading, fetchEarningsForTicker }) => {
+export const WatchlistPage: React.FC<WatchlistPageProps> = (props) => {
+    // React Query hooks as fallbacks
+    const { data: positionsQuery = [], isLoading: positionsLoading } = usePositions();
+    const addToWatchlistMut = useAddToWatchlist();
+    const deletePositionMut = useDeletePosition();
+    const buyModal = useBuyModal();
+
+    const positions = props.positions ?? positionsQuery;
+    const loading = props.loading ?? positionsLoading;
+    const onAddToWatchlist = props.onAddToWatchlist ?? (async (item: WatchlistItemType) => { addToWatchlistMut.mutate(item); });
+    const onMoveToActive = props.onMoveToActive ?? ((item: Position) => { buyModal.openBuyModal(item); });
+    const onDelete = props.onDelete ?? (async (id: string) => {
+        if (window.confirm('Are you sure you want to permanently delete this position? This cannot be undone.')) {
+            deletePositionMut.mutate(id);
+        }
+    });
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
@@ -175,7 +192,6 @@ export const WatchlistPage: React.FC<WatchlistPageProps> = ({ positions, onAddTo
                             onMoveToActive={onMoveToActive}
                             onDelete={onDelete}
                             onDataUpdate={setLastTimestamp}
-                            fetchEarningsForTicker={fetchEarningsForTicker}
                             initialPrice={bulkPrices[item.id] ?? null}
                             isExpanded={expandedId === item.id}
                             onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}

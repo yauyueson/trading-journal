@@ -4,11 +4,13 @@ import { Position, Transaction } from '../lib/types';
 import { formatCurrency, CONTRACT_MULTIPLIER } from '../lib/utils';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ScoreValidation } from '../components/ScoreValidation';
+import { usePositions } from '../hooks/usePositions';
+import { useTransactions } from '../hooks/useTransactions';
 
 interface StatsPageProps {
-    positions: Position[];
-    transactions: Transaction[];
-    loading: boolean;
+    positions?: Position[];
+    transactions?: Transaction[];
+    loading?: boolean;
 }
 
 interface BucketStats {
@@ -57,7 +59,12 @@ const BucketMeta: React.FC<{ data: BucketStats }> = ({ data }) => {
     );
 };
 
-export const StatsPage: React.FC<StatsPageProps> = ({ positions, transactions, loading }) => {
+export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, transactions: transactionsProp, loading: loadingProp }) => {
+    const { data: positionsQuery = [], isLoading: positionsLoading } = usePositions();
+    const { data: transactionsQuery = [], isLoading: transactionsLoading } = useTransactions();
+    const positions = positionsProp ?? positionsQuery;
+    const transactions = transactionsProp ?? transactionsQuery;
+    const loading = loadingProp ?? (positionsLoading || transactionsLoading);
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
     const allClosedPositions = positions.filter(p => p.status === 'closed');
     const closedPositions = ownerFilter === 'All'
