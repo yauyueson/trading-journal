@@ -6,6 +6,9 @@ export default {
     ],
     theme: {
         extend: {
+            screens: {
+                xs: '475px'
+            },
             fontFamily: {
                 sans: ['DM Sans', 'system-ui', 'sans-serif'],
                 mono: ['DM Mono', 'monospace']

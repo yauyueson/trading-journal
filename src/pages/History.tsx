@@ -179,7 +179,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
                                                 e.stopPropagation();
                                                 onDelete(p.id);
                                             }}
-                                            className="p-1.5 text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                                            className="p-2.5 min-w-[44px] min-h-[44px] text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 text-xs"
                                             title="Delete Record"
                                         >
                                             <Trash2 size={14} />

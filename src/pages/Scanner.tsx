@@ -168,6 +168,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
                         <div className="flex gap-2">
                             <input
                                 type="number"
+                                inputMode="numeric"
                                 value={dteMin}
                                 onChange={(e) => setDteMin(Number(e.target.value))}
                                 className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-2 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:border-accent-green"
@@ -175,6 +176,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
                             <span className="text-gray-500 self-center">-</span>
                             <input
                                 type="number"
+                                inputMode="numeric"
                                 value={dteMax}
                                 onChange={(e) => setDteMax(Number(e.target.value))}
                                 className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-2 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:border-accent-green"
@@ -186,6 +188,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
                         <div className="flex gap-2">
                             <input
                                 type="number"
+                                inputMode="decimal"
                                 step="0.05"
                                 value={deltaMin}
                                 onChange={(e) => setDeltaMin(Number(e.target.value))}
@@ -194,6 +197,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
                             <span className="text-gray-500 self-center">-</span>
                             <input
                                 type="number"
+                                inputMode="decimal"
                                 step="0.05"
                                 value={deltaMax}
                                 onChange={(e) => setDeltaMax(Number(e.target.value))}
@@ -205,6 +209,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
                         <label className="text-xs text-gray-400 font-medium mb-1.5 block">Min Volume</label>
                         <input
                             type="number"
+                            inputMode="numeric"
                             value={minVolume}
                             onChange={(e) => setMinVolume(Number(e.target.value))}
                             className="w-full bg-[#2C2C2E] border border-[#3A3A3C] text-white rounded-lg px-3 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:border-accent-green"
@@ -268,7 +273,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
             {/* Results Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 animate-fade-in">
                 {results.map((res, idx) => (
-                    <div key={`${res.symbol}-${idx}`} className="group bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl p-3.5 sm:p-4 hover:border-accent-green/30 transition-all hover:shadow-[0_4px_20px_-10px_rgba(208,253,62,0.1)] relative">
+                    <div key={`${res.symbol}-${idx}`} className="group bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl p-3.5 sm:p-4 hover:border-accent-green/30 transition-all hover:shadow-[0_4px_20px_-10px_rgba(208,253,62,0.1)] active:scale-[0.98] relative">
                         {/* Header */}
                         <div className="flex justify-between items-start mb-3">
                             <div>

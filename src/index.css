@@ -185,7 +185,11 @@
     }
 
     .action-btn {
-        @apply flex-1 p-3 rounded-xl font-semibold text-sm transition-all duration-150;
+        @apply flex-1 p-3 rounded-xl font-semibold text-sm transition-all duration-150 min-h-[44px];
+    }
+
+    .touch-feedback {
+        @apply active:opacity-80 transition-opacity;
     }
 
     .modal-overlay {

@@ -536,7 +536,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                                         key={value}
                                         type="button"
                                         onClick={() => setPositionType(value)}
-                                        className={`px-3 py-3 rounded-lg text-sm font-medium transition-all ${positionType === value
+                                        className={`px-3 py-3 rounded-lg text-xs sm:text-sm font-medium transition-all ${positionType === value
                                             ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                                             : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
                                             }`}
@@ -566,7 +566,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                         </div>
 
                         {/* Row 1: Basic Info */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
                             <div className="space-y-1.5">
                                 <label htmlFor="ticker">Symbol</label>
                                 <input
@@ -679,7 +679,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
 
                         {/* Setup row for spreads (needs its own row since strikes take more space) */}
                         {positionType !== 'single' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
                                 <div className="space-y-1.5">
                                     <label htmlFor="setup-spread">Setup</label>
                                     <select
@@ -695,7 +695,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                         )}
 
                         {/* Row 2: Analysis & Execution */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 sm:gap-6">
                             <div className="space-y-1.5">
                                 <label htmlFor="score">Entry Score {scoreFetching && <span className="text-xs text-text-tertiary animate-pulse ml-1">fetching…</span>}</label>
                                 <input

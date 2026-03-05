@@ -557,7 +557,7 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
     };
 
     return (
-        <div className={`${cardClass} p-5 fade-in`}>
+        <div className={`${cardClass} p-4 sm:p-5 fade-in`}>
             {/* Header */}
             <div className="flex justify-between items-start gap-3 mb-4">
                 <div className="min-w-0 flex-1">
@@ -674,7 +674,7 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
             {/* Metrics Grid */}
             <div className="flex flex-col gap-4 mb-4 py-4 border-y border-border-default">
                 {/* Row 1: Trade Management */}
-                <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-4">
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 sm:gap-4">
                     {/* Entry */}
                     <div>
                         <div className="mb-1 flex items-center h-5">
@@ -822,7 +822,7 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
 
 
                 {/* Row 3: Mechanics & Option Score */}
-                <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-4 pt-4 border-t border-border-light/50">
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 sm:gap-4 pt-4 border-t border-border-light/50">
                     <div>
                         <div className="mb-1">
                             <Tooltip label="Delta" explanation="Net Position Delta." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
@@ -939,20 +939,20 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
 
             {/* Action Buttons */}
             {!actionMode ? (
-                <div className="flex gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide">
-                    <button onClick={() => void fetchGreeksAndPrice()} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-1.5 cursor-pointer shrink-0 px-2.5 sm:px-3" aria-label="Refresh price">
+                <div className="flex flex-wrap gap-2">
+                    <button onClick={() => void fetchGreeksAndPrice()} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-1.5 cursor-pointer px-2.5 sm:px-3" aria-label="Refresh price">
                         {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={15} />}
                         <span className="hidden sm:inline text-sm">Refresh</span>
                     </button>
-                    <button onClick={() => setActionMode('Add')} className="action-btn btn-secondary shrink-0 text-sm">+ Add</button>
-                    <button onClick={() => setActionMode('TakeProfit')} className="action-btn btn-secondary shrink-0 text-sm">Profit</button>
+                    <button onClick={() => setActionMode('Add')} className="action-btn btn-secondary text-sm">+ Add</button>
+                    <button onClick={() => setActionMode('TakeProfit')} className="action-btn btn-secondary text-sm">Profit</button>
                     {onRollClick && (
-                        <button onClick={() => onRollClick(totalQty)} className="action-btn btn-secondary text-text-secondary hover:text-white flex items-center gap-1 shrink-0 text-sm">
+                        <button onClick={() => onRollClick(totalQty)} className="action-btn btn-secondary text-text-secondary hover:text-white flex items-center gap-1 text-sm">
                             <ArrowRightLeft size={14} /> Roll
                         </button>
                     )}
-                    <button onClick={() => setActionMode('Close')} className="action-btn btn-secondary text-text-secondary hover:text-accent-red hover:bg-accent-red/10 shrink-0 text-sm">Close</button>
-                    <button onClick={() => onDelete(position.id)} className="action-btn btn-secondary text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 px-2.5 shrink-0" aria-label="Delete Position">
+                    <button onClick={() => setActionMode('Close')} className="action-btn btn-secondary text-text-secondary hover:text-accent-red hover:bg-accent-red/10 text-sm">Close</button>
+                    <button onClick={() => onDelete(position.id)} className="action-btn btn-secondary text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 px-2.5" aria-label="Delete Position">
                         <Trash2 size={15} />
                     </button>
                 </div>

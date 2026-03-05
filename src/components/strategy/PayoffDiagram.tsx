@@ -55,7 +55,7 @@ export const PayoffDiagram: React.FC<PayoffDiagramProps> = ({ recommendation, cu
     const pathD = `M ${points.join(' L ')}`;
 
     return (
-        <div className="flex flex-col items-center w-full max-w-[340px]">
+        <div className="flex flex-col items-center w-full max-w-[400px]">
             {/* View Mode Toggle */}
             <div className="flex bg-[#111] p-1 rounded-lg border border-[#333] mb-4 w-full">
                 <button
@@ -75,9 +75,9 @@ export const PayoffDiagram: React.FC<PayoffDiagramProps> = ({ recommendation, cu
             {/* SVG Graph */}
             <div className="relative w-full bg-[#0a0a0a] rounded-xl border border-[#222] p-2 mb-4 overflow-hidden shadow-inner">
                 <svg
-                    width="100%"
+                    className="w-full h-auto overflow-visible cursor-crosshair select-none"
                     viewBox={`0 0 ${width} ${height}`}
-                    className="overflow-visible cursor-crosshair select-none"
+                    preserveAspectRatio="xMidYMid meet"
                     onMouseMove={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
                         const x = ((e.clientX - rect.left) / rect.width) * width;
@@ -86,7 +86,17 @@ export const PayoffDiagram: React.FC<PayoffDiagramProps> = ({ recommendation, cu
                             setIsHovered(true);
                         }
                     }}
+                    onTouchMove={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const touch = e.touches[0];
+                        const x = ((touch.clientX - rect.left) / rect.width) * width;
+                        if (x >= padding && x <= width - padding) {
+                            setHoverPrice(xToPrice(x));
+                            setIsHovered(true);
+                        }
+                    }}
                     onMouseLeave={() => setIsHovered(false)}
+                    onTouchEnd={() => setIsHovered(false)}
                 >
                     {/* Grid/Zero Line */}
                     <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke="#333" strokeDasharray="4" />

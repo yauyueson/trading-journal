@@ -40,10 +40,43 @@ export const MonthlyHeatmap: React.FC<MonthlyHeatmapProps> = ({ trades }) => {
             : `rgba(239,68,68,${alpha})`;
     };
 
+    const formatVal = (val: number) =>
+        val >= 0
+            ? `+${Math.abs(val) >= 1000 ? `${(val / 1000).toFixed(1)}K` : `$${val.toFixed(0)}`}`
+            : `${Math.abs(val) >= 1000 ? `${(val / 1000).toFixed(1)}K` : `-$${Math.abs(val).toFixed(0)}`}`;
+
     return (
         <div className="card p-4">
             <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">Monthly P&L</h3>
-            <div className="overflow-x-auto">
+
+            {/* Mobile: vertical list */}
+            <div className="sm:hidden space-y-1">
+                {years.map(year => {
+                    const monthsWithData = Array.from({ length: 12 }, (_, m) => ({ m, val: grid[`${year}-${m}`] }))
+                        .filter(({ val }) => val != null && val !== 0);
+                    if (monthsWithData.length === 0) return null;
+                    return (
+                        <div key={year}>
+                            <div className="text-xs text-text-tertiary font-mono mb-1 mt-2">{year}</div>
+                            {monthsWithData.map(({ m, val }) => (
+                                <div
+                                    key={m}
+                                    className="flex items-center justify-between rounded-lg px-3 py-2 mb-1"
+                                    style={{ backgroundColor: cellBg(val) }}
+                                >
+                                    <span className="text-xs text-text-secondary font-medium">{MONTHS[m]}</span>
+                                    <span className={`text-sm font-mono font-semibold ${val! >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        {formatVal(val!)}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Desktop: grid heatmap */}
+            <div className="hidden sm:block overflow-x-auto">
                 <div className="min-w-[600px]">
                     {/* Month headers */}
                     <div className="grid grid-cols-[60px_repeat(12,1fr)] gap-1 mb-1">
