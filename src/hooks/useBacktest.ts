@@ -15,7 +15,7 @@ import type {
 } from '../lib/backtest/types';
 import { DEFAULT_CONFIG } from '../lib/backtest/types';
 import { runBacktest } from '../lib/backtest/engine';
-import { runSweep, runOptimize } from '../lib/backtest/sweep';
+import { runSweep, runGeneticOptimize } from '../lib/backtest/sweep';
 
 export type BacktestMode = 'single' | 'sweep' | 'optimize';
 
@@ -149,8 +149,8 @@ export function useBacktest(): UseBacktestReturn {
         throw new Error(`Need 350+ candles for stable backtest, got ${c.length}. Try a longer date range.`);
       }
 
-      const result = runOptimize(c, optCfg, (done, total) => {
-        setProgress(Math.round((done / total) * 100));
+      const result = runGeneticOptimize(c, optCfg, (gen, totalGens) => {
+        setProgress(Math.round((gen / totalGens) * 100));
       });
       setOptimizeResult(result);
     } catch (err: any) {

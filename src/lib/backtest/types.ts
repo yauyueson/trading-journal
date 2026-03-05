@@ -217,7 +217,7 @@ export interface SweepConfig {
   indicatorSweep?: IndicatorSweepParams;
 }
 
-/** Optimize mode: sweep indicator params with fixed TP/SL */
+/** Optimize mode: GA-based indicator param optimization with fixed TP/SL */
 export interface OptimizeConfig {
   ticker: string;
   startDate: string;
@@ -228,8 +228,9 @@ export interface OptimizeConfig {
   minScore: number;
   minConfidence: number;
   thetaDecayRate: number;
-  // Indicator params to sweep
-  indicatorSweep: IndicatorSweepParams;
+  // GA settings (optional — sensible defaults)
+  populationSize?: number;   // default 40
+  generations?: number;      // default 30
 }
 
 export interface OptimizeResult {
@@ -239,6 +240,7 @@ export interface OptimizeResult {
   bestOverall: BacktestResult | null;
   totalCombos: number;
   elapsedMs: number;
+  generationHistory: { gen: number; bestFitness: number; avgFitness: number }[];
 }
 
 export interface SweepResult {

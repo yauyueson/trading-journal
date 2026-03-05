@@ -3,7 +3,7 @@ import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, Tr
 import { useBacktest, type BacktestMode } from '../hooks/useBacktest';
 import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, IndicatorSweepParams, OptimizeConfig } from '../lib/backtest/types';
 import type { TechScoreOptions } from '../lib/tech-analysis';
-import { DEFAULT_SWEEP, DEFAULT_INDICATOR_SWEEP, generateIndicatorCombos } from '../lib/backtest/sweep';
+import { DEFAULT_SWEEP } from '../lib/backtest/sweep';
 
 // ── Stat Card ───────────────────────────────────────────
 
@@ -61,8 +61,8 @@ const ConfigPanel: React.FC<{
 
   const totalSweepCombos = tradeCombos * indicatorCombos;
 
-  // Optimize combos count
-  const optimizeCombos = generateIndicatorCombos(DEFAULT_INDICATOR_SWEEP).length;
+  // GA optimizer: ~1,120 evaluations (40 pop × 30 gen)
+  const gaEvals = '~1,120';
 
   const handleRun = () => {
     if (mode === 'single') {
@@ -86,7 +86,6 @@ const ConfigPanel: React.FC<{
         minScore: config.minScore,
         minConfidence: config.minConfidence,
         thetaDecayRate: config.thetaDecayRate,
-        indicatorSweep: DEFAULT_INDICATOR_SWEEP,
       });
     }
   };
@@ -230,7 +229,7 @@ const ConfigPanel: React.FC<{
       <div className="text-[10px] text-text-tertiary">
         {mode === 'single' && 'Run one backtest with current settings'}
         {mode === 'sweep' && `Sweep ${totalSweepCombos} TP/SL combos`}
-        {mode === 'optimize' && `Sweep ${optimizeCombos.toLocaleString()} indicator weight/period combos to find the best signal config`}
+        {mode === 'optimize' && `GA optimizer: evolve ${gaEvals} configs across 30 generations to find the best signal weights & periods`}
       </div>
 
       {/* Sweep: indicator sweep toggle */}
@@ -285,7 +284,7 @@ const ConfigPanel: React.FC<{
         ) : mode === 'sweep' ? (
           <><Zap size={16} /> Run Sweep ({totalSweepCombos} combos)</>
         ) : (
-          <><Rocket size={16} /> Optimize Signals ({optimizeCombos.toLocaleString()} combos)</>
+          <><Rocket size={16} /> Optimize Signals (GA)</>
         )}
       </button>
     </div>
@@ -905,8 +904,8 @@ export const BacktestPage: React.FC = () => {
           {bt.mode === 'optimize' && bt.optimizeResult && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 text-sm text-text-tertiary">
-                <span>{bt.optimizeResult.totalCombos} indicator combos</span>
-                <span>{bt.optimizeResult.elapsedMs.toFixed(0)}ms</span>
+                <span>{bt.optimizeResult.totalCombos} evals over {bt.optimizeResult.generationHistory.length} gens</span>
+                <span>{(bt.optimizeResult.elapsedMs / 1000).toFixed(1)}s</span>
                 <span>{bt.optimizeResult.results.filter(r => r.analytics.totalTrades >= 3).length} with 3+ trades</span>
               </div>
 
