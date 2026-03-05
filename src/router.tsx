@@ -10,6 +10,7 @@ export const TAB_PATHS: Record<string, string> = {
   history: '/history',
   stats: '/stats',
   academy: '/academy',
+  backtest: '/backtest',
   settings: '/settings',
 };
 
@@ -53,6 +54,10 @@ export const router = createBrowserRouter([
       {
         path: '/academy',
         lazy: () => import('./pages/Academy').then(m => ({ Component: m.Academy })),
+      },
+      {
+        path: '/backtest',
+        lazy: () => import('./pages/Backtest').then(m => ({ Component: m.BacktestPage })),
       },
       {
         path: '/settings',

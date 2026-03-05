@@ -83,19 +83,9 @@ Supabase 里查 URL 和 Key：Supabase 项目 → **Settings** → **API** → *
 
 由于新表开始是空的，IV Rank 需要积累 252 天数据才能达到最佳精度。你可以使用内置回填脚本利用 Polygon 的历史价格数据（RV30）生成初始历史。
 
-### 3.1 准备脚本
-确保 `api/setup-iv-rank.js` 存在且配置为使用 `polygon-client.js`。
-
-### 3.2 运行回填
-在终端执行：
-```bash
-node api/setup-iv-rank.js
-```
-
-**注意事项**：
-- **速率限制**：如果你使用的是 Polygon 免费版/入门版，每分钟限制 5 次请求。脚本已内置 15 秒延时和逐条写入逻辑。
-- **覆盖标的**：默认脚本包含 `SPY`, `QQQ` 等主流标的。如果需要回填其他标的，请修改脚本中的 `tickers` 数组。
-- **数据冲突**：如果标的已有数据，脚本会跳过冲突日期，确保数据不重复。
+> ✅ **历史回填已完成**。`api/setup-iv-rank.js` 回填脚本已退役。SPY, QQQ, MSFT, META, TSLA, AMD, COST, IREN 等主流标的均已回填 200+ 天历史数据，回填行在 Migration 009 中标记为 `source='rv_proxy'`。
+>
+> IV 数据现通过 `cron-iv-snapshot.js` 每日自动积累，新标的会在首次被 Scanner 或 Strategy Recommender 请求时开始积累历史。
 
 ---
 

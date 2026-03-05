@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, List, History, BarChart3, Search, Target, BookOpen } from 'lucide-react';
+import { LayoutDashboard, List, History, BarChart3, Search, Target, BookOpen, FlaskConical } from 'lucide-react';
 import { PATH_TO_TAB, TAB_PATHS } from '../router';
 
 interface TabNavProps {
@@ -23,7 +23,8 @@ export const TabNav: React.FC<TabNavProps> = ({ activeTab: activeTabProp, setAct
         { id: 'portfolio', label: 'Portfolio', mobileLabel: 'Portfolio', Icon: LayoutDashboard },
         { id: 'history', label: 'History', mobileLabel: 'History', Icon: History },
         { id: 'stats', label: 'Stats', mobileLabel: 'Stats', Icon: BarChart3 },
-        { id: 'academy', label: 'Academy', mobileLabel: 'Learn', Icon: BookOpen }
+        { id: 'academy', label: 'Academy', mobileLabel: 'Learn', Icon: BookOpen },
+        { id: 'backtest', label: 'Backtest', mobileLabel: 'Test', Icon: FlaskConical }
     ];
 
     const scrollRef = useRef<HTMLDivElement>(null);

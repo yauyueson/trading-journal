@@ -40,11 +40,11 @@ Supabase PostgreSQL (数据存储)
 | `/api/check-alerts` | GET | 止损/目标价 Discord 自动提醒 | ✅ 生产 |
 | `/api/daily-recap` | GET | 每日持仓汇总 Discord 消息 | ✅ 生产 |
 | `/api/batch-refresh-tech` | GET/POST | 批量刷新技术面评分（Tech Score 自动化） | ⏸️ 已禁用 |
-| `/api/underlying-rv` | GET | 标的已实现波动率（Nasdaq 历史） | ✅ 生产 |
+| ~~`/api/underlying-rv`~~ | ~~GET~~ | ~~标的已实现波动率~~ | ❌ 已移除 |
 | `/api/earnings` | GET | 获取财报日期（通过 Nasdaq API） | ✅ 生产 |
 | `/api/iv-rank` | GET | 获取指定 Ticker 的 IV Rank 与 Percentile | ✅ 生产 |
 | `/api/cron-iv-snapshot` | GET/POST | 定时任务，每日收集活跃持仓与热门标的 IV 快照并写入；检测 Regime 切换并发 Discord 提醒 | ✅ 生产 |
-| `/api/backfill-iv-history` | GET | 回填历史波动率数据以建立基准 | ✅ 生产 |
+| ~~`/api/backfill-iv-history`~~ | ~~GET~~ | ~~回填历史波动率数据~~ | ❌ 已移除（回填已完成，脚本退役） |
 | `/api/analytics?type=score-validation` | GET | 按评分段统计候选分布（0-30/30-50/50-70/70-100），用于实证验证 | ✅ 生产 |
 | `/api/analytics?type=execution-quality` | GET | 基于 Delta 代理对入场时机分类（early/late/at-market） | ✅ 生产 |
 
@@ -443,10 +443,9 @@ GET/POST /api/batch-refresh-tech
 **限速**：环境变量 `CRON_IV_DELAY_MS`（默认 300ms）控制每个 ticker 之间的请求延迟。
 **注意**: 此端点通过获取单条期权链在内存中计算 IV 期权结构，每次耗费 2 个 Polygon API Quota（一次合约、一次快照）。需要使用带有 `SUPABASE_SERVICE_ROLE_KEY` 权限的后端脚本执行。
 
-### 3. 回填历史波动率数据
-**端点**: `GET /api/backfill-iv-history?ticker={TICKER}` 或 `?ticker=SPY,QQQ,AAPL`（逗号分隔多个）或 `?mode=popular`  
-**用途**: 为新关注或尚无 IV 历史的标的极速回填过去 ~1.5 年的滚动 30 日实现波动率（RV30）作为初始 IV 比较基准，避免因样本缺失无法计算 Rank。  
-**处理机制**: 一次请求批量摄取历史 K 线并按天计算实现波动率后，批量存入数据表。
+### 3. ~~回填历史波动率数据~~ (已移除)
+
+> ❌ **`/api/backfill-iv-history` 和 `api/setup-iv-rank.js` 已退役**。历史 RV30 回填已完成（SPY, QQQ, MSFT, META, TSLA, AMD, COST, IREN），回填行在 Migration 009 中标记为 `source='rv_proxy'`。IV 数据现通过 `cron-iv-snapshot.js` 每日自动积累。
 
 ---
 
