@@ -17,17 +17,19 @@ interface EquityCurveProps {
 
 export const EquityCurve: React.FC<EquityCurveProps> = ({ trades }) => {
     const chartData = useMemo(() => {
-        let cumulative = 0;
-        return trades.map((t, i) => {
-            cumulative += t.pnl;
-            return {
+        const result: { index: number; date: string; cumPnL: number; ticker: string; pnl: number }[] = [];
+        trades.reduce((cum, t, i) => {
+            const cumPnL = cum + t.pnl;
+            result.push({
                 index: i + 1,
                 date: new Date(t.closedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                cumPnL: cumulative,
+                cumPnL,
                 ticker: t.ticker,
                 pnl: t.pnl,
-            };
-        });
+            });
+            return cumPnL;
+        }, 0);
+        return result;
     }, [trades]);
 
     if (trades.length < 2) {

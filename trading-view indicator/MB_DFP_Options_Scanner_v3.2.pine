@@ -1975,22 +1975,51 @@ if show_backtest
             f_tpsl_row(bt_tbl, 8,  tpsl_lbl + " S Call", tpsl_c_s_tot, tpsl_c_s_win, tpsl_c_s_tp, tpsl_c_s_sl, tpsl_c_s_ret, bg_c)
             f_tpsl_row(bt_tbl, 9,  tpsl_lbl + " A Call", tpsl_c_a_tot, tpsl_c_a_win, tpsl_c_a_tp, tpsl_c_a_sl, tpsl_c_a_ret, bg_c)
             f_tpsl_row(bt_tbl, 10, tpsl_lbl + " B Call", tpsl_c_b_tot, tpsl_c_b_win, tpsl_c_b_tp, tpsl_c_b_sl, tpsl_c_b_ret, bg_c)
+            // TP/SL Call Total summary
+            f_tpsl_row(bt_tbl, 11, "► " + tpsl_lbl + " CALL", tpsl_call_total, tpsl_call_wins, tpsl_call_tp, tpsl_call_sl, tpsl_call_ret, color.new(color.green, 80))
 
         // --- PUT SECTION ---
-        table.merge_cells(bt_tbl, 0, 11, 10, 11)
-        table.cell(bt_tbl, 0, 11, "PUT STRATEGIES", text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.red, 70))
-        
-        f_draw_bt_row(bt_tbl, 12, "PUT Only (ALL)",  t_puts,  c7_puts,  s7_puts,   sum_m7_puts, a7_puts,  c14_puts,  s14_puts,   sum_m14_puts, a14_puts,  c30_puts,  s30_puts,    sum_m30_puts, a30_puts)
-        f_draw_bt_row(bt_tbl, 13, "└ S(90+) Put",   t_put_s, c7_put_s, s7_put_s, sum_m7_put_s, a7_put_s, c14_put_s, s14_put_s, sum_m14_put_s, a14_put_s, c20_put_s, s20_put_s, sum_m20_put_s, a20_put_s)
-        f_draw_bt_row(bt_tbl, 14, "└ A(80+) Put",   t_put_a, c7_put_a, s7_put_a, sum_m7_put_a, a7_put_a, c14_put_a, s14_put_a, sum_m14_put_a, a14_put_a, c20_put_a, s20_put_a, sum_m20_put_a, a20_put_a)
-        f_draw_bt_row(bt_tbl, 15, "└ B(70+) Put",   t_put_b, c7_put_b, s7_put_b, sum_m7_put_b, a7_put_b, c14_put_b, s14_put_b, sum_m14_put_b, a14_put_b, c20_put_b, s20_put_b, sum_m20_put_b, a20_put_b)
+        table.merge_cells(bt_tbl, 0, 12, 10, 12)
+        table.cell(bt_tbl, 0, 12, "PUT STRATEGIES", text_color=color.white, text_size=size.tiny, bgcolor=color.new(color.red, 70))
+
+        f_draw_bt_row(bt_tbl, 13, "PUT Only (ALL)",  t_puts,  c7_puts,  s7_puts,   sum_m7_puts, a7_puts,  c14_puts,  s14_puts,   sum_m14_puts, a14_puts,  c30_puts,  s30_puts,    sum_m30_puts, a30_puts)
+        f_draw_bt_row(bt_tbl, 14, "└ S(90+) Put",   t_put_s, c7_put_s, s7_put_s, sum_m7_put_s, a7_put_s, c14_put_s, s14_put_s, sum_m14_put_s, a14_put_s, c20_put_s, s20_put_s, sum_m20_put_s, a20_put_s)
+        f_draw_bt_row(bt_tbl, 15, "└ A(80+) Put",   t_put_a, c7_put_a, s7_put_a, sum_m7_put_a, a7_put_a, c14_put_a, s14_put_a, sum_m14_put_a, a14_put_a, c20_put_a, s20_put_a, sum_m20_put_a, a20_put_a)
+        f_draw_bt_row(bt_tbl, 16, "└ B(70+) Put",   t_put_b, c7_put_b, s7_put_b, sum_m7_put_b, a7_put_b, c14_put_b, s14_put_b, sum_m14_put_b, a14_put_b, c20_put_b, s20_put_b, sum_m20_put_b, a20_put_b)
 
         if use_tpsl
             tpsl_lbl = "TP" + str.tostring(tp_atr) + "A/SL" + str.tostring(sl_atr) + "A"
             bg_p = color.new(color.red, 92)
-            f_tpsl_row(bt_tbl, 16, tpsl_lbl + " S Put", tpsl_p_s_tot, tpsl_p_s_win, tpsl_p_s_tp, tpsl_p_s_sl, tpsl_p_s_ret, bg_p)
-            f_tpsl_row(bt_tbl, 17, tpsl_lbl + " A Put", tpsl_p_a_tot, tpsl_p_a_win, tpsl_p_a_tp, tpsl_p_a_sl, tpsl_p_a_ret, bg_p)
-            f_tpsl_row(bt_tbl, 18, tpsl_lbl + " B Put", tpsl_p_b_tot, tpsl_p_b_win, tpsl_p_b_tp, tpsl_p_b_sl, tpsl_p_b_ret, bg_p)
+            f_tpsl_row(bt_tbl, 17, tpsl_lbl + " S Put", tpsl_p_s_tot, tpsl_p_s_win, tpsl_p_s_tp, tpsl_p_s_sl, tpsl_p_s_ret, bg_p)
+            f_tpsl_row(bt_tbl, 18, tpsl_lbl + " A Put", tpsl_p_a_tot, tpsl_p_a_win, tpsl_p_a_tp, tpsl_p_a_sl, tpsl_p_a_ret, bg_p)
+            f_tpsl_row(bt_tbl, 19, tpsl_lbl + " B Put", tpsl_p_b_tot, tpsl_p_b_win, tpsl_p_b_tp, tpsl_p_b_sl, tpsl_p_b_ret, bg_p)
+            // TP/SL Put Total summary
+            f_tpsl_row(bt_tbl, 20, "► " + tpsl_lbl + " PUT", tpsl_put_total, tpsl_put_wins, tpsl_put_tp, tpsl_put_sl, tpsl_put_ret, color.new(color.red, 80))
+
+            // TP/SL OVERALL summary with profit factor
+            tpsl_wr_all = tpsl_total > 0 ? (tpsl_wins / math.max(1, tpsl_total)) * 100 : 0.0
+            tpsl_avg_all = tpsl_total > 0 ? tpsl_sum_ret * 100 / math.max(1, tpsl_total) : 0.0
+            // Profit factor: gross wins / gross losses across all tiers
+            tpsl_gw = 0.0
+            tpsl_gl = 0.0
+            for _ret in array.from(tpsl_c_s_ret, tpsl_c_a_ret, tpsl_c_b_ret, tpsl_p_s_ret, tpsl_p_a_ret, tpsl_p_b_ret)
+                if _ret > 0
+                    tpsl_gw += _ret
+                else
+                    tpsl_gl += math.abs(_ret)
+            pf = tpsl_gl > 0 ? tpsl_gw / tpsl_gl : 0.0
+            pf_color = pf >= 1.5 ? color.lime : pf >= 1.0 ? color.yellow : color.red
+            bg_all = color.new(color.blue, 80)
+            table.cell(bt_tbl, 0, 21, "► " + tpsl_lbl + " TOTAL",                                       text_color=color.white,                            text_size=size.small, text_halign=text.align_left, bgcolor=bg_all)
+            table.cell(bt_tbl, 1, 21, str.tostring(tpsl_total),                                          text_color=color.white,                            text_size=size.small, bgcolor=bg_all)
+            table.cell(bt_tbl, 2, 21, str.tostring(math.round(tpsl_wr_all, 1)) + "%",                    text_color=tpsl_wr_all >= 55 ? color.lime : color.white, text_size=size.small, bgcolor=bg_all)
+            table.cell(bt_tbl, 3, 21, (tpsl_avg_all >= 0 ? "+" : "") + str.tostring(math.round(tpsl_avg_all, 2)) + "%", text_color=tpsl_avg_all >= 0 ? color.lime : color.red, text_size=size.small, bgcolor=bg_all)
+            table.cell(bt_tbl, 4, 21, "TP:" + str.tostring(tpsl_tp_hits),                                text_color=color.lime,                             text_size=size.small, bgcolor=bg_all)
+            table.cell(bt_tbl, 5, 21, "SL:" + str.tostring(tpsl_sl_hits),                                text_color=color.red,                              text_size=size.small, bgcolor=bg_all)
+            table.cell(bt_tbl, 6, 21, "PF:" + str.tostring(math.round(pf, 2)),                           text_color=pf_color,                               text_size=size.small, bgcolor=bg_all)
+            table.merge_cells(bt_tbl, 7, 21, 10, 21)
+            table.cell(bt_tbl, 7, 21, "", bgcolor=bg_all)
+            table.merge_cells(bt_tbl, 0, 21, 1, 21)
 
         if setup_filt_bt != "All"
-            f_draw_bt_row(bt_tbl, 19, setup_filt_bt, t_filt, c7_filt, s7_filt, sum_m7_filt, a7_filt, c14_filt, s14_filt, sum_m14_filt, a14_filt, c30_filt, s30_filt, sum_m30_filt, a30_filt)
+            f_draw_bt_row(bt_tbl, 22, setup_filt_bt, t_filt, c7_filt, s7_filt, sum_m7_filt, a7_filt, c14_filt, s14_filt, sum_m14_filt, a14_filt, c30_filt, s30_filt, sum_m30_filt, a30_filt)
