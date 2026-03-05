@@ -1,9 +1,8 @@
 /**
- * Signal Quality Backtester — Parameter Sweep
+ * Signal Quality Backtester — Parameter Sweep & Optimizer
  *
- * Two-level sweep:
- * 1. Indicator params (weights, periods) → recompute signals per unique set
- * 2. Trade params (TP/SL, score, confidence) → cheap TP/SL loop per config
+ * Sweep: vary TP/SL and trade params with fixed indicators
+ * Optimize: vary indicator params (weights, periods) with fixed TP/SL
  *
  * Signals are cached per unique indicator param set, so sweeping
  * 96 trade combos × 4 indicator combos = 384 runs but only 4 signal computations.
@@ -15,6 +14,8 @@ import type {
   BacktestResult,
   SweepConfig,
   SweepResult,
+  OptimizeConfig,
+  OptimizeResult,
   IndicatorSweepParams,
 } from './types';
 import { DEFAULT_CONFIG } from './types';
@@ -23,7 +24,7 @@ import type { TechScoreOptions } from '../tech-analysis';
 
 // ── Indicator Param Combos ──────────────────────────────
 
-function generateIndicatorCombos(params?: IndicatorSweepParams): TechScoreOptions[] {
+export function generateIndicatorCombos(params?: IndicatorSweepParams): TechScoreOptions[] {
   if (!params) return [{}]; // Single combo: all defaults
 
   // Collect all fields that have ranges
@@ -89,7 +90,7 @@ function generateTradeConfigs(sweep: SweepConfig, indicatorOpts: TechScoreOption
   return configs;
 }
 
-// ── Sweep Runner ────────────────────────────────────────
+// ── Sweep Runner (trade params) ─────────────────────────
 
 export function runSweep(
   candles: BacktestCandle[],
@@ -98,10 +99,8 @@ export function runSweep(
 ): SweepResult {
   const t0 = performance.now();
 
-  // Generate indicator param combos
   const indicatorCombos = generateIndicatorCombos(sweepConfig.indicatorSweep);
 
-  // Count total configs for progress
   const tradeConfigsPerIndicator = sweepConfig.tpAtrRange.length *
     sweepConfig.slAtrRange.length * sweepConfig.minScoreRange.length *
     sweepConfig.minConfidenceRange.length * sweepConfig.setupGroups.length *
@@ -111,15 +110,9 @@ export function runSweep(
   const results: BacktestResult[] = [];
   let completed = 0;
 
-  // For each unique indicator param set, compute signals once, then sweep trade params
   for (const indOpts of indicatorCombos) {
-    // Compute signals for this indicator configuration (expensive)
-    const { signals, simCandles } = precomputeSignals(candles, sweepConfig.timeframe, indOpts);
-
-    // Generate trade param configs for this indicator set
+    const { signals, simCandles } = precomputeSignals(candles, '1D', indOpts);
     const tradeConfigs = generateTradeConfigs(sweepConfig, indOpts);
-
-    // Run each trade config (cheap — just TP/SL loop)
     for (const cfg of tradeConfigs) {
       results.push(runBacktestFull(signals, simCandles, cfg));
       completed++;
@@ -127,22 +120,65 @@ export function runSweep(
     }
   }
 
-  // Filter meaningful results
   const meaningful = results.filter(r => r.analytics.totalTrades >= 5);
-
   const rankedBySharpe = [...meaningful].sort((a, b) => b.analytics.sharpe - a.analytics.sharpe);
   const rankedByWinRate = [...meaningful].sort((a, b) => b.analytics.winRateTheta - a.analytics.winRateTheta);
   const rankedByProfitFactor = [...meaningful].sort((a, b) => b.analytics.profitFactor - a.analytics.profitFactor);
   const bestOverall = pickBest(meaningful);
 
   return {
-    results,
-    rankedBySharpe,
-    rankedByWinRate,
-    rankedByProfitFactor,
-    bestOverall,
-    totalCombos: total,
-    elapsedMs: performance.now() - t0,
+    results, rankedBySharpe, rankedByWinRate, rankedByProfitFactor,
+    bestOverall, totalCombos: total, elapsedMs: performance.now() - t0,
+  };
+}
+
+// ── Optimize Runner (indicator params) ──────────────────
+
+export function runOptimize(
+  candles: BacktestCandle[],
+  config: OptimizeConfig,
+  onProgress?: (completed: number, total: number) => void
+): OptimizeResult {
+  const t0 = performance.now();
+
+  const indicatorCombos = generateIndicatorCombos(config.indicatorSweep);
+  const total = indicatorCombos.length;
+
+  const results: BacktestResult[] = [];
+
+  for (let i = 0; i < indicatorCombos.length; i++) {
+    const indOpts = indicatorCombos[i];
+
+    // Each indicator combo = one expensive signal recomputation
+    const { signals, simCandles } = precomputeSignals(candles, '1D', indOpts);
+
+    // One backtest with fixed trade params
+    const backtestConfig: BacktestConfig = {
+      ...DEFAULT_CONFIG,
+      ticker: config.ticker,
+      startDate: config.startDate,
+      endDate: config.endDate,
+      timeframe: '1D',
+      tpAtr: config.tpAtr,
+      slAtr: config.slAtr,
+      minScore: config.minScore,
+      minConfidence: config.minConfidence,
+      thetaDecayRate: config.thetaDecayRate,
+      indicatorOptions: indOpts,
+    };
+
+    results.push(runBacktestFull(signals, simCandles, backtestConfig));
+    if (onProgress) onProgress(i + 1, total);
+  }
+
+  const meaningful = results.filter(r => r.analytics.totalTrades >= 3);
+  const rankedBySharpe = [...meaningful].sort((a, b) => b.analytics.sharpe - a.analytics.sharpe);
+  const rankedByWinRate = [...meaningful].sort((a, b) => b.analytics.winRateTheta - a.analytics.winRateTheta);
+  const bestOverall = pickBest(meaningful);
+
+  return {
+    results, rankedBySharpe, rankedByWinRate,
+    bestOverall, totalCombos: total, elapsedMs: performance.now() - t0,
   };
 }
 
@@ -192,4 +228,19 @@ export const DEFAULT_SWEEP: Omit<SweepConfig, 'ticker' | 'startDate' | 'endDate'
   minConfidenceRange: [1, 2],
   setupGroups: [['All']],
   thetaDecayRange: [0.03],
+};
+
+/** Default indicator param ranges for optimization */
+export const DEFAULT_INDICATOR_SWEEP: IndicatorSweepParams = {
+  w_mb: [20, 25, 30, 35, 40],
+  w_bxs: [15, 20, 25, 30],
+  w_bxl: [10, 15, 20, 25],
+  w_ema: [10, 15, 20],
+  w_mom: [5, 10, 15],
+  sc_mb_len: [60, 80, 100, 120],
+  sc_osc_len: [5, 7, 10],
+  sc_bx_s1: [3, 5, 8],
+  sc_bx_s2: [15, 20, 25],
+  sc_bx_l1: [15, 20, 25],
+  sc_bx_l2: [10, 15, 20],
 };

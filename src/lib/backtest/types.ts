@@ -9,30 +9,30 @@ import type { TechScoreOptions } from '../tech-analysis';
 
 // ── Config ──────────────────────────────────────────────
 
-export type Timeframe = '1D' | '4H';
+export type Timeframe = '1D';
 
 export interface BacktestConfig {
   ticker: string;
   startDate: string;              // YYYY-MM-DD
   endDate: string;                // YYYY-MM-DD
-  timeframe: Timeframe;           // '1D' = daily v3, '4H' = 4-hour v4
+  timeframe: Timeframe;           // '1D' = daily
   // Signal filters
   minScore: number;               // Min tech score to trigger (default 70)
   minConfidence: number;          // Min setup confidence 0-3 (default 2)
   allowedSetups: string[];        // ['All'] or specific setup names
   directionFilter: 'ALL' | 'CALL' | 'PUT';
   // Entry
-  cooldownBars: number;           // Min bars between entries (default 21 daily / 35 4H)
+  cooldownBars: number;           // Min bars between entries (default 21)
   // TP/SL (ATR multiples)
   tpAtr: number;                  // TP = entry ± tpAtr × ATR (default 2.5)
   slAtr: number;                  // SL = entry ∓ slAtr × ATR (default 1.5)
   useEntryQualityAdjust: boolean; // Adjust TP/SL by entry quality (default true)
-  timeStopBars: number;           // Force close after N bars (default 21 daily / 35 4H)
+  timeStopBars: number;           // Force close after N bars (default 21)
   // Options-aware
   thetaDecayRate: number;         // Decay rate for time penalty (default 0.03)
   // Look-forward windows for MFE/MAE
   mfeWindows: number[];           // [3, 5, 7, 10, 14, 21, 30]
-  // Indicator tuning (v3 only — v4 uses fixed internal params)
+  // Indicator tuning
   indicatorOptions: TechScoreOptions;
 }
 
@@ -40,16 +40,16 @@ export const DEFAULT_CONFIG: BacktestConfig = {
   ticker: 'SPY',
   startDate: '2024-01-01',
   endDate: '2026-03-05',
-  timeframe: '4H',
+  timeframe: '1D',
   minScore: 70,
   minConfidence: 2,
   allowedSetups: ['All'],
   directionFilter: 'ALL',
-  cooldownBars: 35,
-  tpAtr: 2.0,
-  slAtr: 1.0,
+  cooldownBars: 21,
+  tpAtr: 2.5,
+  slAtr: 1.5,
   useEntryQualityAdjust: true,
-  timeStopBars: 35,
+  timeStopBars: 21,
   thetaDecayRate: 0.03,
   mfeWindows: [3, 5, 7, 10, 14, 21, 30],
   indicatorOptions: {},
@@ -215,6 +215,30 @@ export interface SweepConfig {
   thetaDecayRange: number[];
   // Indicator param sweep (optional — if omitted, uses defaults)
   indicatorSweep?: IndicatorSweepParams;
+}
+
+/** Optimize mode: sweep indicator params with fixed TP/SL */
+export interface OptimizeConfig {
+  ticker: string;
+  startDate: string;
+  endDate: string;
+  // Fixed trade params (not swept)
+  tpAtr: number;
+  slAtr: number;
+  minScore: number;
+  minConfidence: number;
+  thetaDecayRate: number;
+  // Indicator params to sweep
+  indicatorSweep: IndicatorSweepParams;
+}
+
+export interface OptimizeResult {
+  results: BacktestResult[];
+  rankedBySharpe: BacktestResult[];
+  rankedByWinRate: BacktestResult[];
+  bestOverall: BacktestResult | null;
+  totalCombos: number;
+  elapsedMs: number;
 }
 
 export interface SweepResult {
