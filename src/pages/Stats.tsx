@@ -4,6 +4,9 @@ import { Position, Transaction } from '../lib/types';
 import { formatCurrency, CONTRACT_MULTIPLIER } from '../lib/utils';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ScoreValidation } from '../components/ScoreValidation';
+import { EquityCurve } from '../components/stats/EquityCurve';
+import { MonthlyHeatmap } from '../components/stats/MonthlyHeatmap';
+import { DisciplineCard } from '../components/stats/DisciplineCard';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 
@@ -59,6 +62,43 @@ const BucketMeta: React.FC<{ data: BucketStats }> = ({ data }) => {
     );
 };
 
+/** Reusable bucket list renderer */
+const BucketList: React.FC<{ entries: [string, BucketStats][]; renderLabel?: (key: string) => React.ReactNode }> = ({ entries, renderLabel }) => (
+    <div className="space-y-3">
+        {entries
+            .sort((a, b) => b[1].pnl - a[1].pnl)
+            .map(([key, data]) => {
+                const total = data.wins + data.losses;
+                const wr = total > 0 ? (data.wins / total) * 100 : 0;
+                return (
+                    <div key={key} className="card p-4 flex justify-between items-center bg-[#242426]/50">
+                        <div>
+                            {renderLabel ? renderLabel(key) : (
+                                <div className="font-medium text-[#E0E0E0]">{key || 'Unknown'}</div>
+                            )}
+                            <div className="text-text-secondary text-sm">
+                                <span className="text-accent-green">{data.wins}W</span> / <span className="text-red-400">{data.losses}L</span> · {wr.toFixed(0)}%
+                            </div>
+                            <BucketMeta data={data} />
+                        </div>
+                        <div className={`text-xl font-bold font-mono ${data.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                            {data.pnl >= 0 ? '+' : ''}{formatCurrency(data.pnl)}
+                        </div>
+                    </div>
+                );
+            })}
+    </div>
+);
+
+type StatsTab = 'overview' | 'breakdowns' | 'discipline' | 'validation';
+
+const TABS: { key: StatsTab; label: string }[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'breakdowns', label: 'Breakdowns' },
+    { key: 'discipline', label: 'Discipline' },
+    { key: 'validation', label: 'Validation' },
+];
+
 export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, transactions: transactionsProp, loading: loadingProp }) => {
     const { data: positionsQuery = [], isLoading: positionsLoading } = usePositions();
     const { data: transactionsQuery = [], isLoading: transactionsLoading } = useTransactions();
@@ -66,6 +106,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
     const transactions = transactionsProp ?? transactionsQuery;
     const loading = loadingProp ?? (positionsLoading || transactionsLoading);
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
+    const [statsTab, setStatsTab] = useState<StatsTab>('overview');
     const allClosedPositions = positions.filter(p => p.status === 'closed');
     const closedPositions = ownerFilter === 'All'
         ? allClosedPositions
@@ -76,6 +117,14 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
         const setupStats: Record<string, BucketStats> = {};
         const strategyStats: Record<string, BucketStats> = {};
         const crossTabStats: Record<string, BucketStats> = {};
+        const dteStats: Record<string, BucketStats> = {};
+        const regimeStats: Record<string, BucketStats> = {};
+        const holdDurationStats: Record<string, BucketStats> = {};
+
+        // Equity curve data
+        const equityTrades: { closedAt: string; pnl: number; ticker: string }[] = [];
+        // Monthly heatmap data
+        const heatmapTrades: { closedAt: string; pnl: number }[] = [];
 
         closedPositions.forEach(p => {
             const txns = transactions.filter(t => t.position_id === p.id);
@@ -95,26 +144,57 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                 ? Math.round((new Date(p.closed_at).getTime() - new Date(p.created_at).getTime()) / 86400000)
                 : null;
 
-            // R-Multiple: pnl / (max_risk_entry per contract × qty × multiplier)
+            // R-Multiple
             const maxRiskDollars = (p.max_risk_entry != null && totalQty > 0)
                 ? p.max_risk_entry * totalQty * CONTRACT_MULTIPLIER
                 : null;
             const rMult = (maxRiskDollars != null && maxRiskDollars !== 0) ? pnl / maxRiskDollars : null;
 
-            // Accumulate setup bucket
+            // Setup bucket
             if (!setupStats[p.setup]) setupStats[p.setup] = emptyBucket();
             accumulateBucket(setupStats[p.setup], pnl, holdDays, rMult);
 
-            // Accumulate strategy bucket
+            // Strategy bucket
             const strategyType = p.type || 'Unknown';
             if (!strategyStats[strategyType]) strategyStats[strategyType] = emptyBucket();
             accumulateBucket(strategyStats[strategyType], pnl, holdDays, rMult);
 
-            // Setup × Strategy cross-tab
+            // Cross-tab
             const crossKey = `${p.setup || 'Unknown'}|${p.strategy || p.type || 'Unknown'}`;
             if (!crossTabStats[crossKey]) crossTabStats[crossKey] = emptyBucket();
             accumulateBucket(crossTabStats[crossKey], pnl, holdDays, rMult);
+
+            // DTE bucket (days from open to expiration)
+            if (p.expiration && p.created_at) {
+                const openDate = new Date(p.created_at);
+                const expDate = new Date(p.expiration);
+                const dte = Math.round((expDate.getTime() - openDate.getTime()) / 86400000);
+                const dteBucket = dte <= 7 ? '0-7' : dte <= 14 ? '8-14' : dte <= 30 ? '15-30' : '30+';
+                if (!dteStats[dteBucket]) dteStats[dteBucket] = emptyBucket();
+                accumulateBucket(dteStats[dteBucket], pnl, holdDays, rMult);
+            }
+
+            // Regime bucket
+            const regime = p.iv_regime_entry || 'Unknown';
+            if (!regimeStats[regime]) regimeStats[regime] = emptyBucket();
+            accumulateBucket(regimeStats[regime], pnl, holdDays, rMult);
+
+            // Hold duration bucket
+            if (holdDays != null) {
+                const holdBucket = holdDays < 3 ? '<3d' : holdDays <= 7 ? '3-7d' : holdDays <= 14 ? '7-14d' : '14+d';
+                if (!holdDurationStats[holdBucket]) holdDurationStats[holdBucket] = emptyBucket();
+                accumulateBucket(holdDurationStats[holdBucket], pnl, holdDays, rMult);
+            }
+
+            // Equity curve + heatmap data
+            if (p.closed_at) {
+                equityTrades.push({ closedAt: p.closed_at, pnl, ticker: p.ticker });
+                heatmapTrades.push({ closedAt: p.closed_at, pnl });
+            }
         });
+
+        // Sort equity trades by close date
+        equityTrades.sort((a, b) => new Date(a.closedAt).getTime() - new Date(b.closedAt).getTime());
 
         const winRate = closedPositions.length > 0 ? (wins / closedPositions.length) * 100 : 0;
         const avgWin = wins > 0 ? totalWinPnL / wins : 0;
@@ -123,7 +203,12 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
             ? Math.abs(totalWinPnL / totalLossPnL)
             : totalWinPnL > 0 ? Infinity : 0;
 
-        return { totalPnL, wins, losses, winRate, avgWin, avgLoss, profitFactor, setupStats, strategyStats, crossTabStats };
+        return {
+            totalPnL, wins, losses, winRate, avgWin, avgLoss, profitFactor,
+            setupStats, strategyStats, crossTabStats,
+            dteStats, regimeStats, holdDurationStats,
+            equityTrades, heatmapTrades,
+        };
     }, [closedPositions, transactions]);
 
     if (loading) return <LoadingSpinner />;
@@ -133,7 +218,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
             <h2 className="text-2xl font-bold mb-4">Performance Stats</h2>
 
             {/* Owner Filter */}
-            <div className="flex items-center gap-1.5 mb-6">
+            <div className="flex items-center gap-1.5 mb-4">
                 {(['All', 'Yuchen', 'Annie'] as const).map(value => (
                     <button
                         key={value}
@@ -162,131 +247,161 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                 </div>
             ) : (
                 <>
-                    {/* Key Metrics */}
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div className="card p-5">
-                            <div className="text-text-tertiary text-xs uppercase tracking-wider mb-2">Total P&L</div>
-                            <div className={`text-3xl font-bold font-mono ${stats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
-                                {stats.totalPnL >= 0 ? '+' : ''}{formatCurrency(stats.totalPnL)}
-                            </div>
-                        </div>
-                        <div className="card p-5">
-                            <div className="text-text-tertiary text-xs uppercase tracking-wider mb-2">Win Rate</div>
-                            <div className={`text-3xl font-bold ${stats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>
-                                {stats.winRate.toFixed(1)}%
-                            </div>
-                        </div>
+                    {/* Sub-tab pills */}
+                    <div className="flex items-center gap-1.5 mb-6 overflow-x-auto scrollbar-hide">
+                        {TABS.map(tab => (
+                            <button
+                                key={tab.key}
+                                type="button"
+                                onClick={() => setStatsTab(tab.key)}
+                                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                                    statsTab === tab.key
+                                        ? 'bg-white/10 text-text-primary border border-white/20'
+                                        : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                        <div className="card p-4">
-                            <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Avg Win</div>
-                            <div className="text-xl font-bold font-mono text-accent-green">{formatCurrency(stats.avgWin)}</div>
-                        </div>
-                        <div className="card p-4">
-                            <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Avg Loss</div>
-                            <div className="text-xl font-bold font-mono text-accent-red">{formatCurrency(Math.abs(stats.avgLoss))}</div>
-                        </div>
-                        <div className="card p-4">
-                            <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Profit Factor</div>
-                            <div className={`text-xl font-bold ${stats.profitFactor >= 1 ? 'text-accent-green' : 'text-accent-red'}`}>
-                                {stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(2)}
-                            </div>
-                        </div>
-                        <div className="card p-4">
-                            <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Total Trades</div>
-                            <div className="text-xl font-bold">{closedPositions.length}</div>
-                        </div>
-                    </div>
-
-                    {/* Strategy Breakdown */}
-                    <h3 className="text-lg font-semibold mb-4 text-white/90">By Strategy</h3>
-                    <div className="space-y-3 mb-8">
-                        {Object.entries(stats.strategyStats)
-                            .sort((a, b) => b[1].pnl - a[1].pnl)
-                            .map(([strat, data]) => {
-                                const total = data.wins + data.losses;
-                                const wr = total > 0 ? (data.wins / total) * 100 : 0;
-                                return (
-                                    <div key={strat} className="card p-4 flex justify-between items-center bg-[#242426]/50">
-                                        <div>
-                                            <div className="font-medium text-[#E0E0E0]">{strat}</div>
-                                            <div className="text-text-secondary text-sm">
-                                                <span className="text-accent-green">{data.wins}W</span> / <span className="text-red-400">{data.losses}L</span> · {wr.toFixed(0)}%
-                                            </div>
-                                            <BucketMeta data={data} />
-                                        </div>
-                                        <div className={`text-xl font-bold font-mono ${data.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
-                                            {data.pnl >= 0 ? '+' : ''}{formatCurrency(data.pnl)}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                    </div>
-
-                    {/* Setup Breakdown */}
-                    <h3 className="text-lg font-semibold mb-4 text-white/90">By Setup</h3>
-                    <div className="space-y-3">
-                        {Object.entries(stats.setupStats)
-                            .sort((a, b) => b[1].pnl - a[1].pnl)
-                            .map(([setup, data]) => {
-                                const total = data.wins + data.losses;
-                                const wr = total > 0 ? (data.wins / total) * 100 : 0;
-                                return (
-                                    <div key={setup} className="card p-4 flex justify-between items-center bg-[#242426]/50">
-                                        <div>
-                                            <div className="font-medium text-[#E0E0E0]">{setup || 'Unknown Setup'}</div>
-                                            <div className="text-text-secondary text-sm">
-                                                <span className="text-accent-green">{data.wins}W</span> / <span className="text-red-400">{data.losses}L</span> · {wr.toFixed(0)}%
-                                            </div>
-                                            <BucketMeta data={data} />
-                                        </div>
-                                        <div className={`text-xl font-bold font-mono ${data.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
-                                            {data.pnl >= 0 ? '+' : ''}{formatCurrency(data.pnl)}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                    </div>
-
-                    {/* Setup × Strategy Cross-Tab */}
-                    {Object.keys(stats.crossTabStats).length > 0 && (
+                    {/* ═══ OVERVIEW TAB ═══ */}
+                    {statsTab === 'overview' && (
                         <>
-                            <h3 className="text-lg font-semibold mb-4 mt-8 text-white/90">Setup × Strategy</h3>
-                            <div className="space-y-3">
-                                {Object.entries(stats.crossTabStats)
-                                    .sort((a, b) => b[1].pnl - a[1].pnl)
-                                    .map(([key, data]) => {
-                                        const [setup, strategy] = key.split('|');
-                                        const total = data.wins + data.losses;
-                                        const wr = total > 0 ? (data.wins / total) * 100 : 0;
-                                        return (
-                                            <div key={key} className="card p-4 flex justify-between items-center bg-[#242426]/50">
-                                                <div>
+                            {/* Key Metrics */}
+                            <div className="grid grid-cols-2 gap-4 mb-6">
+                                <div className="card p-5">
+                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-2">Total P&L</div>
+                                    <div className={`text-3xl font-bold font-mono ${stats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                        {stats.totalPnL >= 0 ? '+' : ''}{formatCurrency(stats.totalPnL)}
+                                    </div>
+                                </div>
+                                <div className="card p-5">
+                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-2">Win Rate</div>
+                                    <div className={`text-3xl font-bold ${stats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                        {stats.winRate.toFixed(1)}%
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                                <div className="card p-4">
+                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Avg Win</div>
+                                    <div className="text-xl font-bold font-mono text-accent-green">{formatCurrency(stats.avgWin)}</div>
+                                </div>
+                                <div className="card p-4">
+                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Avg Loss</div>
+                                    <div className="text-xl font-bold font-mono text-accent-red">{formatCurrency(Math.abs(stats.avgLoss))}</div>
+                                </div>
+                                <div className="card p-4">
+                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Profit Factor</div>
+                                    <div className={`text-xl font-bold ${stats.profitFactor >= 1 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                        {stats.profitFactor === Infinity ? '\u221E' : stats.profitFactor.toFixed(2)}
+                                    </div>
+                                </div>
+                                <div className="card p-4">
+                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Total Trades</div>
+                                    <div className="text-xl font-bold">{closedPositions.length}</div>
+                                </div>
+                            </div>
+
+                            {/* Equity Curve */}
+                            <div className="mb-6">
+                                <EquityCurve trades={stats.equityTrades} />
+                            </div>
+
+                            {/* Monthly Heatmap */}
+                            <MonthlyHeatmap trades={stats.heatmapTrades} />
+                        </>
+                    )}
+
+                    {/* ═══ BREAKDOWNS TAB ═══ */}
+                    {statsTab === 'breakdowns' && (
+                        <>
+                            <h3 className="text-lg font-semibold mb-4 text-white/90">By Strategy</h3>
+                            <div className="mb-8">
+                                <BucketList entries={Object.entries(stats.strategyStats)} />
+                            </div>
+
+                            <h3 className="text-lg font-semibold mb-4 text-white/90">By Setup</h3>
+                            <div className="mb-8">
+                                <BucketList entries={Object.entries(stats.setupStats)} renderLabel={key => (
+                                    <div className="font-medium text-[#E0E0E0]">{key || 'Unknown Setup'}</div>
+                                )} />
+                            </div>
+
+                            {Object.keys(stats.crossTabStats).length > 0 && (
+                                <>
+                                    <h3 className="text-lg font-semibold mb-4 text-white/90">Setup x Strategy</h3>
+                                    <div className="mb-8">
+                                        <BucketList
+                                            entries={Object.entries(stats.crossTabStats)}
+                                            renderLabel={key => {
+                                                const [setup, strategy] = key.split('|');
+                                                return (
                                                     <div className="flex items-center gap-2 mb-1">
                                                         <span className="badge bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-xs">{setup}</span>
                                                         <span className="text-text-tertiary">+</span>
                                                         <span className="badge bg-violet-500/10 text-violet-400 border border-violet-500/20 text-xs">{strategy}</span>
                                                     </div>
-                                                    <div className="text-text-secondary text-sm">
-                                                        <span className="text-accent-green">{data.wins}W</span> / <span className="text-red-400">{data.losses}L</span> · {wr.toFixed(0)}%
-                                                    </div>
-                                                    <BucketMeta data={data} />
-                                                </div>
-                                                <div className={`text-xl font-bold font-mono ${data.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
-                                                    {data.pnl >= 0 ? '+' : ''}{formatCurrency(data.pnl)}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                            </div>
+                                                );
+                                            }}
+                                        />
+                                    </div>
+                                </>
+                            )}
+
+                            {/* DTE Breakdown */}
+                            {Object.keys(stats.dteStats).length > 0 && (
+                                <>
+                                    <h3 className="text-lg font-semibold mb-4 text-white/90">By DTE at Entry</h3>
+                                    <div className="mb-8">
+                                        <BucketList entries={Object.entries(stats.dteStats).sort((a, b) => {
+                                            const order = ['0-7', '8-14', '15-30', '30+'];
+                                            return order.indexOf(a[0]) - order.indexOf(b[0]);
+                                        })} renderLabel={key => (
+                                            <div className="font-medium text-[#E0E0E0]">{key} DTE</div>
+                                        )} />
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Regime Breakdown */}
+                            {Object.keys(stats.regimeStats).length > 0 && (
+                                <>
+                                    <h3 className="text-lg font-semibold mb-4 text-white/90">By IV Regime</h3>
+                                    <div className="mb-8">
+                                        <BucketList entries={Object.entries(stats.regimeStats)} />
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Hold Duration Breakdown */}
+                            {Object.keys(stats.holdDurationStats).length > 0 && (
+                                <>
+                                    <h3 className="text-lg font-semibold mb-4 text-white/90">By Hold Duration</h3>
+                                    <div className="mb-8">
+                                        <BucketList entries={Object.entries(stats.holdDurationStats).sort((a, b) => {
+                                            const order = ['<3d', '3-7d', '7-14d', '14+d'];
+                                            return order.indexOf(a[0]) - order.indexOf(b[0]);
+                                        })} />
+                                    </div>
+                                </>
+                            )}
                         </>
                     )}
 
-                    {/* Score → P&L Validation (F3: Forensic Audit v1.1) */}
-                    <div className="mt-8">
-                        <ScoreValidation />
-                    </div>
+                    {/* ═══ DISCIPLINE TAB ═══ */}
+                    {statsTab === 'discipline' && (
+                        <DisciplineCard closedPositions={closedPositions} transactions={transactions} />
+                    )}
+
+                    {/* ═══ VALIDATION TAB ═══ */}
+                    {statsTab === 'validation' && (
+                        <div className="mt-2">
+                            <ScoreValidation />
+                        </div>
+                    )}
                 </>
             )}
         </div>

@@ -49,7 +49,7 @@ function normalizeExpiration(exp: string): string {
 interface PositionCardProps {
     position: Position;
     transactions: Transaction[];
-    onAction?: (id: string, action: PositionAction) => Promise<void>;
+    onAction?: (id: string, action: PositionAction, exitType?: Position['exit_type']) => Promise<void>;
     onUpdateScore?: (id: string, score: number) => Promise<void>;
     onUpdatePrice?: (id: string, price: number) => Promise<void>;
     onUpdateTarget?: (id: string, target: number) => Promise<void>;
@@ -77,7 +77,7 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
     const updateOwnerMut = useUpdateOwner();
     const deletePositionMut = useDeletePosition();
 
-    const onAction = props.onAction ?? (async (id: string, action: PositionAction) => { positionActionMut.mutate({ id, action }); });
+    const onAction = props.onAction ?? (async (id: string, action: PositionAction, exitType?: Position['exit_type']) => { positionActionMut.mutate({ id, action, exitType }); });
     const onUpdateScore = props.onUpdateScore ?? (async (id: string, score: number) => { updateScoreMut.mutate({ id, score }); });
     const onUpdatePrice = props.onUpdatePrice ?? (async (id: string, price: number) => { updatePriceMut.mutate({ id, price }); });
     const onUpdateTarget = props.onUpdateTarget ?? (async (id: string, target: number) => { updateTargetMut.mutate({ id, target }); });
@@ -495,7 +495,7 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
 
     const pnlColor = unrealizedPnL >= 0 ? 'text-accent-green' : 'text-accent-red';
 
-    const handleAction = async (type: 'Size Up' | 'Take Profit' | 'Close') => {
+    const handleAction = async (type: 'Size Up' | 'Take Profit' | 'Close', exitTypeOverride?: Position['exit_type']) => {
         if (!actionPrice) return;
         setLoading(true);
         const qty = ['Size Down', 'Take Profit', 'Close'].includes(type) ? -Math.abs(actionQty) : Math.abs(actionQty);
@@ -503,11 +503,32 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
             type,
             quantity: type === 'Close' ? -totalQty : qty,
             price: parseFloat(actionPrice)
-        });
+        }, exitTypeOverride);
         setLoading(false);
         setActionMode(null);
         setActionPrice('');
         setActionQty(1);
+    };
+
+    /** Detect exit type for a close action based on P&L, prior txns, and DTE. */
+    const detectExitType = (): { autoType: Position['exit_type'] | null; needsChoice: boolean; pnl: number } => {
+        const closePrice = parseFloat(actionPrice);
+        if (isNaN(closePrice)) return { autoType: null, needsChoice: false, pnl: 0 };
+        // Simulate P&L with the pending close txn
+        const allTxns = [...transactions, { quantity: -totalQty, price: closePrice }];
+        let cost = 0, proceeds = 0;
+        allTxns.forEach(t => {
+            const dollars = t.price * CONTRACT_MULTIPLIER;
+            if (t.quantity > 0) cost += t.quantity * dollars;
+            else proceeds += Math.abs(t.quantity) * dollars;
+        });
+        const pnl = proceeds - cost;
+        const hasPriorTP = transactions.some(t => t.type === 'Take Profit');
+        const dte = daysUntil(position.expiration);
+        if (dte <= 0) return { autoType: 'TIME', needsChoice: false, pnl };
+        if (pnl >= 0 && hasPriorTP) return { autoType: 'TP', needsChoice: false, pnl };
+        if (pnl < 0) return { autoType: null, needsChoice: true, pnl };
+        return { autoType: 'MANUAL', needsChoice: false, pnl };
     };
 
     const handleScoreSave = async (grade: string) => {
@@ -950,10 +971,35 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
                     </div>
                     <div className="flex gap-2">
                         <button onClick={() => setActionMode(null)} className="flex-1 py-3 btn-secondary rounded-xl">Cancel</button>
-                        <button onClick={() => handleAction(actionMode === 'Add' ? 'Size Up' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close')}
-                            disabled={!actionPrice || loading} className="flex-1 py-3 btn-primary rounded-xl">
-                            {loading ? '...' : 'Confirm'}
-                        </button>
+                        {actionMode === 'Close' && actionPrice && (() => {
+                            const { autoType, needsChoice } = detectExitType();
+                            if (needsChoice) {
+                                return (
+                                    <>
+                                        <button onClick={() => handleAction('Close', 'SL')}
+                                            disabled={loading} className="flex-1 py-3 rounded-xl font-semibold bg-accent-red/20 text-accent-red border border-accent-red/40 hover:bg-accent-red/30 transition-colors">
+                                            {loading ? '...' : 'Stop Loss'}
+                                        </button>
+                                        <button onClick={() => handleAction('Close', 'MANUAL')}
+                                            disabled={loading} className="flex-1 py-3 rounded-xl font-semibold bg-white/5 text-text-secondary border border-white/10 hover:bg-white/10 transition-colors">
+                                            {loading ? '...' : 'Manual'}
+                                        </button>
+                                    </>
+                                );
+                            }
+                            return (
+                                <button onClick={() => handleAction('Close', autoType ?? 'MANUAL')}
+                                    disabled={!actionPrice || loading} className="flex-1 py-3 btn-primary rounded-xl">
+                                    {loading ? '...' : autoType === 'TP' ? 'Close (TP)' : autoType === 'TIME' ? 'Close (Expiry)' : 'Confirm'}
+                                </button>
+                            );
+                        })()}
+                        {actionMode !== 'Close' && (
+                            <button onClick={() => handleAction(actionMode === 'Add' ? 'Size Up' : 'Take Profit')}
+                                disabled={!actionPrice || loading} className="flex-1 py-3 btn-primary rounded-xl">
+                                {loading ? '...' : 'Confirm'}
+                            </button>
+                        )}
                     </div>
                 </div>
             )}

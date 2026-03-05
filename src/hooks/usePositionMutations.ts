@@ -16,7 +16,7 @@ function useInvalidatePositionsAndTransactions() {
 export function usePositionAction() {
   const invalidate = useInvalidatePositionsAndTransactions();
   return useMutation({
-    mutationFn: async ({ id, action }: { id: string; action: PositionAction }) => {
+    mutationFn: async ({ id, action, exitType }: { id: string; action: PositionAction; exitType?: Position['exit_type'] }) => {
       await supabase.from('transactions').insert([{
         position_id: id,
         type: action.type,
@@ -28,6 +28,7 @@ export function usePositionAction() {
         await supabase.from('positions').update({
           status: 'closed',
           closed_at: new Date().toISOString(),
+          ...(exitType ? { exit_type: exitType } : {}),
         }).eq('id', id);
       }
     },
@@ -149,6 +150,12 @@ export function useRollPosition() {
         price: rollData.closePrice,
         note: 'Rolled Position',
       }]);
+
+      await supabase.from('positions').update({
+        status: 'closed',
+        closed_at: new Date().toISOString(),
+        exit_type: 'ROLL',
+      }).eq('id', originalPosition.id);
 
       // Open new
       const { data: newPosData } = await supabase.from('positions').insert([{

@@ -36,7 +36,9 @@
 
 ### 前端
 - **React 18** + **TypeScript** - 类型安全的组件化开发
-- **Vite** - 极速开发服务器
+- **React Router v6** - 客户端路由，每页独立 URL，懒加载
+- **React Query v5** (TanStack Query) - 数据缓存、自动失效、mutation 管理
+- **Vite 5** - 极速开发服务器
 - **Tailwind CSS** - 现代化 UI 设计
 - **Recharts** - 数据可视化
 
@@ -46,8 +48,13 @@
 - **Polygon.io** - 实时期权数据 + Greeks + IV（主数据源）
 - **CBOE API** - 备用数据源（15 分钟延迟，免费）
 
+### 测试与 CI
+- **Vitest** - 241 项自动化测试（评分对等 + 单元 + 风控）
+- **GitHub Actions** - CI 流水线（lint → build → test）
+- **ESLint 9** - 代码质量检查
+
 ### 核心算法
-- **OSS v2.3** - Options Scoring System
+- **OSS v2.8** - Options Scoring System
 - **IV Term Structure** - 完整波动率曲线构建
 - **Regime Detection** - 智能市场环境判断
 - **Skew Calculation** - 25-delta Put/Call Skew
@@ -131,21 +138,24 @@ vercel --prod
 
 ## 🧪 测试
 
+### 自动化测试（241 项）
+```bash
+npm run test        # 运行全部测试
+npm run test:watch  # 开发时实时监听
+```
+
+| 测试套件 | 测试数 | 覆盖内容 |
+|---------|--------|---------|
+| `tests/scoring-parity.test.ts` | 174 | 前端 (oss-core.ts) 与 API (scoring.cjs) 输出一致性 |
+| `src/lib/__tests__/oss-core.test.ts` | 48 | 评分函数已知 input→output 回归 |
+| `src/lib/__tests__/riskSizing.test.ts` | 19 | 持仓定寸、Kelly、集中度预警 |
+
+### CI/CD
+每次 push/PR 自动运行 GitHub Actions：`lint → build → test`
+
 ### 本地 API 测试
 ```bash
-node _test_strategy.js
-```
-
-### Vite 开发环境
-```bash
-npm run dev  # ⚠️ 使用简化的 CBOE 处理器
-```
-
-### 完整功能测试
-```bash
 vercel dev   # 使用真实 API 文件
-# 或
-vercel --prod  # 部署到生产环境
 ```
 
 ---
@@ -154,24 +164,35 @@ vercel --prod  # 部署到生产环境
 
 ```
 trading-journal/
-├── api/                      # Serverless Functions
+├── .github/workflows/ci.yml  # GitHub Actions CI
+├── api/                       # Vercel Serverless Functions
 │   ├── _shared/
-│   │   └── scoring.cjs      # 共享评分逻辑
-│   ├── strategy-recommend.js # 策略推荐
-│   ├── scan-options.js       # 期权扫描器
-│   ├── option-price.js       # 单合约报价
-│   ├── check-alerts.js       # 止损/目标价提醒
-│   └── daily-recap.js        # 每日汇总
+│   │   └── scoring.cjs       # 共享评分逻辑（与 oss-core.ts 镜像）
+│   ├── strategy-recommend.js  # 策略推荐
+│   ├── scan-options.js        # 期权扫描器
+│   ├── option-price.js        # 单合约报价
+│   ├── check-alerts.js        # 止损/目标价提醒
+│   └── daily-recap.js         # 每日汇总
 ├── src/
-│   ├── components/           # React 组件
-│   ├── pages/                # 页面组件
+│   ├── components/            # React 组件
+│   │   └── strategy/          # 策略推荐子组件
+│   ├── context/               # React Context (Auth, BuyModal)
+│   ├── hooks/                 # React Query hooks (数据获取 + mutations)
+│   ├── layouts/               # AppLayout (Shell)
+│   ├── pages/                 # 页面组件（懒加载，自治）
 │   ├── lib/
-│   │   ├── oss-core.ts      # OSS 评分算法
-│   │   ├── scoring.ts       # 批量评分
-│   │   └── supabase.ts      # Supabase 客户端
-│   └── App.tsx              # 主应用
-├── docs/                     # 文档
-└── vite.config.ts           # Vite 配置
+│   │   ├── oss-core.ts       # OSS 评分算法（单点事实）
+│   │   ├── scoring.ts        # 批量评分，re-export oss-core
+│   │   ├── riskSizing.ts     # 风控定寸 + Kelly + 集中度
+│   │   ├── queryClient.ts    # React Query 客户端
+│   │   ├── queryKeys.ts      # 缓存 key 工厂
+│   │   └── supabase.ts       # Supabase 客户端
+│   ├── router.tsx             # React Router 路由配置
+│   └── main.tsx               # 应用入口（Provider 组合）
+├── tests/                     # 对等测试
+├── docs/                      # 文档
+├── eslint.config.js           # ESLint 9 flat config
+└── vite.config.ts             # Vite + Vitest 配置
 ```
 
 ---
@@ -193,10 +214,12 @@ trading-journal/
 - [x] Skew 精准化
 - [x] Regime Detection 增强
 - [x] 实时 Greeks 和报价（Polygon）
+- [x] React Router v6 + React Query v5 架构重构
+- [x] 241 项自动化测试 + GitHub Actions CI
+- [x] 懒加载路由（包大小 983KB → 430KB）
 
 ### 进行中 🔄
 - [ ] 前端 IV 曲线可视化
-- [ ] Vega 加权评分
 
 ### 计划中 📋
 - [ ] 服务端预过滤优化
@@ -225,4 +248,4 @@ MIT License
 
 ---
 
-*最后更新: 2026年2月12日*
+*最后更新: 2026年3月5日*

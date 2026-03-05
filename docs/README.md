@@ -1,6 +1,6 @@
 # Trading Journal - 文档总览
 
-> 最后更新: 2026年3月2日
+> 最后更新: 2026年3月5日
 
 欢迎来到Trading Journal项目文档中心！这里包含了项目的完整技术文档和使用指南。
 
@@ -40,12 +40,13 @@
 **适合**: 开发者、技术负责人
 
 **内容**:
-- 前端技术栈详解（React, TypeScript, Vite, Tailwind）
+- 前端技术栈详解（React 18, TypeScript, Vite 5, Tailwind, React Router v6, React Query v5）
 - 后端架构设计（Supabase, Vercel Serverless）
-- 数据流设计
+- 数据流设计（React Query 缓存 + Supabase 实时失效）
 - API集成方案
-- 状态管理策略
-- 性能优化技巧
+- 状态管理策略（Context + React Query，无 prop drilling）
+- 测试体系（241 项 Vitest 测试 + GitHub Actions CI）
+- 性能优化技巧（懒加载路由、代码分割）
 
 **阅读时间**: 25分钟
 
@@ -249,6 +250,13 @@ docs/
 
 ## 🔄 文档更新日志
 
+### 2026-03-05（v3.0 架构重构）
+- ✅ **架构文档更新**: React Router v6、React Query v5、Context 架构、懒加载路由
+- ✅ **新增测试体系**: 241 项 Vitest 测试（scoring parity 174 + oss-core 48 + riskSizing 19）
+- ✅ **CI/CD**: GitHub Actions `lint → build → test`
+- ✅ **状态管理**: 从 App.tsx prop drilling → hooks + contexts 自治页面
+- ✅ **项目结构更新**: 新增 hooks/、context/、layouts/、tests/ 目录
+
 ### 2026-03-02（文档整理 + API 合并）
 - ✅ **API 合并**: `/api/score-validation` + `/api/execution-quality` → `/api/analytics?type=...`（Vercel Hobby 12 函数限制）
 - ✅ **gammaEff → dollarGamma**: 全文档术语更新，反映 v2.7 Deep Audit 中 Dollar Gamma (`gamma × S² / 100`) 替代旧 `gamma/mid`
@@ -335,4 +343,4 @@ docs/
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年3月2日*
+*最后更新: 2026年3月5日*

@@ -4,6 +4,65 @@
 
 ---
 
+## [3.0.0] - 2026-03-05
+
+### 🏗️ 架构重构: React Router + React Query + 自动化测试
+
+#### 核心架构变更
+- ✅ **React Router v6**: 所有页面有独立 URL（`/portfolio`, `/scanner`, `/history` 等），浏览器前进/后退正常工作，支持书签与直链
+- ✅ **React Query v5 (TanStack Query)**: 数据缓存（30s staleTime），切换标签不再重新加载，mutation 自动失效对应缓存
+- ✅ **懒加载路由**: 每个页面独立 chunk，初始包从 ~983KB 降至 ~430KB
+- ✅ **Context 架构**: AuthContext（认证）、BuyModalContext（买入弹窗）、AppSettingsContext（全局设置）
+- ✅ **消除 Prop Drilling**: 9 个回调函数不再逐层传递，页面通过 hooks 自行获取数据和执行操作
+
+#### 新增文件
+- `src/router.tsx` — React Router 路由配置（懒加载）
+- `src/lib/queryClient.ts` — React Query 客户端配置
+- `src/lib/queryKeys.ts` — 类型化缓存 key 工厂
+- `src/hooks/usePositions.ts` — 持仓数据 hook
+- `src/hooks/useTransactions.ts` — 交易记录 hook
+- `src/hooks/useEarnings.ts` — 财报日期 hook（4h staleTime）
+- `src/hooks/useBulkOptionPrices.ts` — 批量期权价格 hook
+- `src/hooks/useStrategyRecommend.ts` — 策略推荐 hook
+- `src/hooks/usePositionMutations.ts` — 11 个 mutation hooks（替代 App.tsx 中的 9+ 回调）
+- `src/hooks/useRealtimeInvalidation.ts` — Supabase 实时订阅 → React Query 缓存失效
+- `src/context/AuthContext.tsx` — 认证上下文
+- `src/context/BuyModalContext.tsx` — 买入弹窗上下文
+- `src/layouts/AppLayout.tsx` — 应用 Shell（Header + TabNav + Outlet）
+- `src/components/strategy/PayoffDiagram.tsx` — 从 StrategyRecommender 提取的收益图组件
+- `eslint.config.js` — ESLint 9 flat config
+- `src/test/setup.ts` — Vitest 测试环境配置
+- `.github/workflows/ci.yml` — GitHub Actions CI（lint → build → test）
+
+#### 测试体系（241 tests）
+- `tests/scoring-parity.test.ts` — **174 项对等测试**：确保 `oss-core.ts`（前端）与 `scoring.cjs`（API）对所有共享函数输出一致
+- `src/lib/__tests__/oss-core.test.ts` — **48 项单元测试**：评分函数已知 input→output 回归验证
+- `src/lib/__tests__/riskSizing.test.ts` — **19 项单元测试**：持仓定寸、Kelly、组合 Greeks、集中度预警
+
+#### Bug 修复（测试发现）
+- 🐛 **scoring.cjs `calculateExpectedValue`**: 缺少 `exitMultiplier` 参数（默认 0.75），导致 API 侧 EV 偏差 15-25%。已修复同步。
+- 🐛 **tech-analysis.ts**: 第 290 行逗号表达式 bug（`type = "PUT", conf = 3` → `type = "PUT"; conf = 3`）
+
+#### 技术栈新增
+- `@tanstack/react-query@5` — 数据缓存与同步
+- `react-router-dom@6` — 客户端路由
+- `vitest` — 测试运行器
+- `@testing-library/react` + `@testing-library/jest-dom` — 组件测试工具
+- `eslint@9` + `@typescript-eslint` — 代码质量
+
+#### 架构对比
+
+| 方面 | Before (v2.x) | After (v3.0) |
+|------|---------------|--------------|
+| 路由 | `activeTab` useState | React Router v6 URL 路由 |
+| 数据获取 | `fetchData()` 全量刷新 | React Query 缓存 + 精确失效 |
+| 状态管理 | App.tsx 617 行 + 9 回调 prop drill | 自治页面 + hooks + contexts |
+| 初始包大小 | ~983KB | ~430KB（懒加载） |
+| 测试 | 0 | 241（parity + unit） |
+| CI/CD | 无 | GitHub Actions lint→build→test |
+
+---
+
 ## [2.1.0] - 2026-02-12
 
 ### 策略推荐 / 扫描器：仅请求所需到期与行权范围 + 期权链短期缓存
