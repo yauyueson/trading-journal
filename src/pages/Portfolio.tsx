@@ -41,7 +41,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
     const [positionType, setPositionType] = useState<'single' | 'credit' | 'debit'>('single');
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
-    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL' as 'BULL' | 'BEAR', iv_regime_entry: '' });
+    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL' as 'BULL' | 'BEAR', iv_regime_entry: '', market_state: '' });
     const [bulkData, setBulkData] = useState<Record<string, any>>({});
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -254,6 +254,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 entry_price: parseFloat(form.entry_price),
                 direction: form.direction as 'BULL' | 'BEAR',
                 iv_regime_entry: form.iv_regime_entry || undefined,
+                market_state: form.market_state || undefined,
                 owner: formOwner
             });
         } else {
@@ -285,12 +286,13 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                 legs,
                 direction: form.direction as 'BULL' | 'BEAR',
                 iv_regime_entry: form.iv_regime_entry || undefined,
+                market_state: form.market_state || undefined,
                 owner: formOwner
             });
         }
 
         setSubmitting(false);
-        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL', iv_regime_entry: '' });
+        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL', iv_regime_entry: '', market_state: '' });
         setPositionType('single');
         setShowForm(false);
     };
@@ -727,10 +729,10 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                             </div>
                         </div>
 
-                        {/* Row 3: Direction + IV Regime */}
-                        <div className="grid grid-cols-2 gap-6">
+                        {/* Row 3: Direction + Market State + IV Regime */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Direction (from Pine)</label>
+                                <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Direction</label>
                                 <div className="flex gap-2">
                                     {(['BULL', 'BEAR'] as const).map(d => (
                                         <button
@@ -750,7 +752,30 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({ positions, transac
                                 </div>
                             </div>
                             <div className="space-y-1.5">
-                                <label htmlFor="iv_regime" className="text-xs font-medium text-text-secondary uppercase tracking-wider">IV Regime (from Pine HV col)</label>
+                                <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Market State</label>
+                                <div className="grid grid-cols-4 gap-1.5">
+                                    {[
+                                        { label: 'TREND', value: 'TRENDING' },
+                                        { label: 'EXPL', value: 'EXPLOSIVE' },
+                                        { label: 'RANGE', value: 'RANGING' },
+                                        { label: 'REV', value: 'REVERTING' },
+                                    ].map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            type="button"
+                                            onClick={() => setForm({ ...form, market_state: form.market_state === opt.value ? '' : opt.value })}
+                                            className={`py-2 rounded-lg text-[10px] font-bold transition-all ${form.market_state === opt.value
+                                                ? 'bg-accent-green/20 text-accent-green border border-accent-green/40'
+                                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                                }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label htmlFor="iv_regime" className="text-xs font-medium text-text-secondary uppercase tracking-wider">IV Regime</label>
                                 <select
                                     id="iv_regime"
                                     className="input-field"

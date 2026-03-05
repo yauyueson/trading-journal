@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark, Settings2, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark, Settings2, RefreshCw, ShoppingCart } from 'lucide-react';
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
 import { ScoreFactorsView } from '../components/ScoreFactorsView';
@@ -14,6 +14,8 @@ import type {
     Recommendation,
     StrategyResult,
     WatchlistItem,
+    DirectAddItem,
+    PositionLeg,
     UnifiedCandidateType,
     StrategyCategory,
 } from '../lib/types';
@@ -161,14 +163,29 @@ const PayoffDiagram: React.FC<{ recommendation: Recommendation; currentPrice: nu
 
 interface OptionSelectorProps {
     onAddToWatchlist?: (item: WatchlistItem) => Promise<void>;
+    onAddDirect?: (item: DirectAddItem) => Promise<void>;
 }
 
-export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist }) => {
+// localStorage key for persisting selector state
+const LS_KEY = 'optionSelector:state';
+
+function loadPersistedState() {
+    try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) return JSON.parse(raw);
+    } catch { /* ignore */ }
+    return {};
+}
+
+export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist, onAddDirect }) => {
     const { settings, stopOutFraction } = useAppSettings();
     const { accountSize: portfolioTotal, riskPct } = settings.portfolio;
+    const tickerRef = useRef<HTMLInputElement>(null);
+    const persisted = useRef(loadPersistedState());
+
     const [ticker, setTicker] = useState('SPY');
-    const [direction, setDirection] = useState<'BULL' | 'BEAR'>('BULL');
-    const [marketState, setMarketState] = useState<string>('TRENDING');
+    const [direction, setDirection] = useState<'BULL' | 'BEAR'>(persisted.current.direction || 'BULL');
+    const [marketState, setMarketState] = useState<string>(persisted.current.marketState || 'TRENDING');
     const [riskFlags, setRiskFlags] = useState({
         overextended: false,
         mtfConflict: false,
@@ -178,16 +195,31 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         priceReversing: false
     });
     const [targetStrategy, setTargetStrategy] = useState('Auto-Select Strategy');
-    const [setup, setSetup] = useState('Pullback Buy');
+    const [setup, setSetup] = useState(persisted.current.setup || 'Pullback Buy');
     const [techScoreTier, setTechScoreTier] = useState<{ label: string; value: number; range: string; color: string } | null>(null);
-    const [techD8, setTechD8] = useState<number | null>(null); // EMA-8 distance from last tech score run
-    const [targetDte, setTargetDte] = useState(30);
+    const [techD8, setTechD8] = useState<number | null>(null);
+    const [targetDte, setTargetDte] = useState(persisted.current.targetDte || 30);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [result, setResult] = useState<StrategyResult | null>(null);
     const [expandedCard, setExpandedCard] = useState<number | null>(null);
     const [showSettings, setShowSettings] = useState(false);
-    const [spreadWidth, setSpreadWidth] = useState(5);
+    const [spreadWidth, setSpreadWidth] = useState(persisted.current.spreadWidth || 5);
+    const [showPineContext, setShowPineContext] = useState(true);
+    // Open Position inline form state
+    const [openPosIdx, setOpenPosIdx] = useState<number | null>(null);
+    const [openPosQty, setOpenPosQty] = useState('');
+    const [openPosPrice, setOpenPosPrice] = useState('');
+    const [openPosOwner, setOpenPosOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
+    const [openPosSubmitting, setOpenPosSubmitting] = useState(false);
+
+    // Auto-focus ticker on mount
+    useEffect(() => { tickerRef.current?.focus(); }, []);
+
+    // Persist selector state to localStorage
+    useEffect(() => {
+        localStorage.setItem(LS_KEY, JSON.stringify({ direction, marketState, targetDte, spreadWidth, setup }));
+    }, [direction, marketState, targetDte, spreadWidth, setup]);
 
     const handleAnalyze = async () => {
         if (!ticker) return;
@@ -323,6 +355,72 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         setExpandedCard(null);
     };
 
+    const handleOpenPosition = useCallback(async (rec: Recommendation) => {
+        if (!onAddDirect || !result) return;
+        setOpenPosSubmitting(true);
+
+        const isSpreadType = isSpread(rec);
+
+        // Reuse same trade profile logic as watchlist
+        const entryIsCredit = result.recommendedStrategy === 'CREDIT_SPREAD' || result.regime.mode === 'CREDIT';
+        const entryIvRegime = result.regime.mode === 'CREDIT' ? 'backwardation' : result.regime.mode === 'DEBIT' ? 'contango' : 'flat';
+        const entryDelta = isSpreadType
+            ? Math.abs((rec as SpreadRecommendation).shortLeg?.delta || 0.3)
+            : Math.abs((rec as SingleLegRecommendation).delta || 0.3);
+        const entryGT = !isSpreadType && (rec as SingleLegRecommendation).gamma != null
+            ? ((rec as SingleLegRecommendation).gamma || 0) / Math.max(Math.abs((rec as SingleLegRecommendation).theta || 1), 0.001)
+            : 0;
+        const entryTradeProfile = classifyTradeProfile({
+            isCredit: entryIsCredit,
+            ivRegime: entryIvRegime as 'contango' | 'backwardation' | 'flat',
+            ivRank: result.regime.ivRank,
+            dte: result.context.targetDte,
+            gtRatio: entryGT,
+            delta: entryDelta,
+            marketState,
+        });
+
+        let legs: PositionLeg[] | undefined = undefined;
+        if (isSpreadType) {
+            const spreadRec = rec as SpreadRecommendation;
+            const legType = spreadRec.type.includes('Call') ? 'Call' : 'Put';
+            legs = [
+                { strike: spreadRec.shortLeg.strike, type: legType, side: 'short', expiration: spreadRec.shortLeg.expiration },
+                { strike: spreadRec.longLeg.strike, type: legType, side: 'long', expiration: spreadRec.longLeg.expiration }
+            ];
+        }
+
+        const item: DirectAddItem = {
+            ticker: result.context.ticker,
+            strike: isSpreadType ? (rec as SpreadRecommendation).shortLeg.strike : (rec as SingleLegRecommendation).strike,
+            type: rec.type,
+            expiration: isSpreadType ? (rec as SpreadRecommendation).shortLeg.expiration : (rec as SingleLegRecommendation).expiration,
+            setup: setup || 'Algorithm Rec',
+            strategy: targetStrategy,
+            entry_score: rec.score,
+            stop_reason: `Algorithm Rec: ${rec.whyThis}`,
+            quantity: parseInt(openPosQty) || 1,
+            entry_price: parseFloat(openPosPrice) || 0,
+            legs,
+            owner: openPosOwner,
+            tech_score: techScoreTier?.value ?? undefined,
+            tech_score_source: 'manual',
+            direction,
+            market_state: marketState,
+            trade_profile: entryTradeProfile,
+            iv_rank_entry: result.regime.ivRank != null ? result.regime.ivRank : undefined,
+            iv_regime_entry: entryIvRegime,
+            max_risk_entry: isSpreadType ? (rec as SpreadRecommendation).maxRisk * 100 : undefined,
+        };
+
+        await onAddDirect(item);
+        setOpenPosSubmitting(false);
+        setOpenPosIdx(null);
+        setOpenPosQty('');
+        setOpenPosPrice('');
+        setExpandedCard(null);
+    }, [onAddDirect, result, setup, targetStrategy, openPosQty, openPosPrice, openPosOwner, techScoreTier, direction, marketState, isSpread]);
+
     return (
         <div className="fade-in pb-24 sm:pb-0 font-sans">
             {/* Header */}
@@ -335,18 +433,18 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             </div>
 
             {/* Input Panel */}
-            <div className="bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl p-6 mb-6 shadow-sm">
-                <div className="flex flex-col gap-6">
+            <div className="bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl p-4 sm:p-6 mb-6 shadow-sm">
+                <div className="flex flex-col gap-4">
                     {/* Portfolio / Risk Settings */}
                     <div className="border border-[#2A2A2A] rounded-lg overflow-hidden">
                         <button
                             type="button"
                             onClick={() => setShowSettings(!showSettings)}
-                            className="w-full flex items-center justify-between px-4 py-3 bg-[#0a0a0a] hover:bg-[#111] transition-colors text-left"
+                            className="w-full flex items-center justify-between px-4 py-2.5 bg-[#0a0a0a] hover:bg-[#111] transition-colors text-left"
                         >
                             <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
                                 <Settings2 size={16} className="text-accent-green" />
-                                Portfolio Total / Account Size & Risk
+                                Portfolio / Risk Settings
                             </span>
                             <ChevronDown size={18} className={`text-gray-500 transition-transform ${showSettings ? 'rotate-180' : ''}`} />
                         </button>
@@ -356,24 +454,58 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                             </div>
                         )}
                     </div>
-                    {/* Top Row: Ticker, TV Score, Setup, Strategy */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
-                        <div className="md:col-span-3">
-                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Ticker Symbol</label>
+
+                    {/* Row 1: Ticker + Direction + Analyze (always visible, minimum viable input) */}
+                    <div className="flex flex-col md:flex-row gap-3 items-end">
+                        <div className="flex-1 min-w-0">
+                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Ticker</label>
                             <div className="relative">
                                 <input
+                                    ref={tickerRef}
                                     type="text"
                                     value={ticker}
                                     onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                                    className="w-full bg-[#000] border border-[#333] text-white rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:border-accent-green text-lg font-bold tracking-wide placeholder-gray-600 transition-colors"
-                                    placeholder="e.g. SPY"
+                                    className="w-full bg-[#000] border border-[#333] text-white rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:border-accent-green text-xl font-black tracking-wide placeholder-gray-600 transition-colors"
+                                    placeholder="SPY"
                                     onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
                                 />
                                 <Search className="absolute left-3 top-3.5 text-gray-500" size={20} />
                             </div>
                         </div>
-                        <div className="md:col-span-2">
-                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">TV Score Tier</label>
+                        <div className="w-44">
+                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Direction</label>
+                            <div className="grid grid-cols-2 gap-2 bg-[#000] p-1 rounded-lg border border-[#333]">
+                                {(['BULL', 'BEAR'] as const).map((d) => (
+                                    <button
+                                        key={d}
+                                        type="button"
+                                        onClick={() => setDirection(d)}
+                                        className={`py-2.5 rounded text-xs font-bold transition-all ${direction === d
+                                            ? d === 'BULL'
+                                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                                : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                            : 'text-gray-500 hover:text-gray-300'
+                                            }`}
+                                    >
+                                        {d === 'BULL' ? '🐂' : '🐻'} {d}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleAnalyze}
+                            disabled={loading || !ticker}
+                            className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-lg transition-all shadow-lg shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[140px]"
+                        >
+                            {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Activity size={20} />}
+                            Analyze
+                        </button>
+                    </div>
+
+                    {/* Row 2: TV Score Tier + Setup + Strategy (compact) */}
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                        <div className="md:col-span-3">
+                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">TV Score</label>
                             <div className="grid grid-cols-3 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
                                 {[
                                     { label: 'S', value: 92, range: '90+', color: 'text-emerald-400 border-emerald-500/50 bg-emerald-500/20' },
@@ -384,7 +516,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                         key={tier.label}
                                         type="button"
                                         onClick={() => setTechScoreTier(techScoreTier?.label === tier.label ? null : tier)}
-                                        className={`py-2.5 rounded text-center transition-all border ${techScoreTier?.label === tier.label
+                                        className={`py-2 rounded text-center transition-all border ${techScoreTier?.label === tier.label
                                             ? `${tier.color} shadow-sm`
                                             : 'text-gray-500 border-transparent hover:text-gray-300'
                                             }`}
@@ -394,28 +526,13 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                     </button>
                                 ))}
                             </div>
-                            {/* d8 input: % distance of price from EMA-8, from TV scanner debug output */}
-                            <div className="mt-2 flex items-center gap-2">
-                                <label className="text-[10px] text-gray-500 uppercase tracking-wider whitespace-nowrap">EMA-8 d8%</label>
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    placeholder="e.g. 1.8"
-                                    value={techD8 ?? ''}
-                                    onChange={(e) => setTechD8(e.target.value === '' ? null : parseFloat(e.target.value))}
-                                    className="w-full bg-[#000] border border-[#333] text-white rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-accent-green placeholder-gray-600"
-                                />
-                                {techD8 != null && Math.abs(techD8) > 1.5 && (
-                                    <span className="text-[10px] text-orange-400 font-bold whitespace-nowrap">⚠️ Extended</span>
-                                )}
-                            </div>
                         </div>
-                        <div className="md:col-span-3">
+                        <div className="md:col-span-4">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Setup</label>
                             <select
                                 value={setup}
                                 onChange={(e) => setSetup(e.target.value)}
-                                className="w-full bg-[#000] border border-[#333] text-white rounded-lg px-4 py-3 focus:outline-none focus:border-accent-green appearance-none cursor-pointer text-lg font-bold tracking-wide transition-colors"
+                                className="w-full bg-[#000] border border-[#333] text-white rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-green appearance-none cursor-pointer text-sm font-bold transition-colors"
                             >
                                 <option value="" disabled>Select Setup</option>
                                 {SETUPS.filter(s => s !== 'Other').map(s => (
@@ -424,12 +541,12 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                 <option value="Other">Other</option>
                             </select>
                         </div>
-                        <div className="md:col-span-4">
-                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Strategy Type</label>
+                        <div className="md:col-span-5">
+                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Strategy</label>
                             <select
                                 value={targetStrategy}
                                 onChange={(e) => setTargetStrategy(e.target.value)}
-                                className="w-full bg-[#000] border border-[#333] text-white rounded-lg px-4 py-3 focus:outline-none focus:border-accent-green appearance-none cursor-pointer text-lg font-bold tracking-wide transition-colors"
+                                className="w-full bg-[#000] border border-[#333] text-white rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-green appearance-none cursor-pointer text-sm font-bold transition-colors"
                             >
                                 {STRATEGIES.map(s => (
                                     <option key={s} value={s}>{s}</option>
@@ -438,158 +555,159 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         </div>
                     </div>
 
-                    {/* Pine Signal Row: Direction + Market State */}
-                    <div className="border border-accent-green/20 bg-accent-green/5 rounded-lg p-4">
-                        <div className="text-[10px] text-accent-green/70 font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                            <TrendingUp size={12} />
-                            Pine Signal Inputs — copy from TradingView scanner
-                        </div>
-                        <div className="flex flex-col md:flex-row gap-4 items-end">
-                            <div>
-                                <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Direction</label>
-                                <div className="grid grid-cols-2 gap-2 bg-[#000] p-1 rounded-lg border border-[#333] w-44">
-                                    {(['BULL', 'BEAR'] as const).map((d) => (
-                                        <button
-                                            key={d}
-                                            onClick={() => setDirection(d)}
-                                            className={`py-2.5 rounded text-xs font-bold transition-all ${direction === d
-                                                ? d === 'BULL'
-                                                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                                    : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                                                : 'text-gray-500 hover:text-gray-300'
-                                                }`}
-                                        >
-                                            {d === 'BULL' ? '🐂' : '🐻'} {d}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="flex-1">
-                                <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">
-                                    Market State
-                                    <span className="ml-1.5 text-gray-600 normal-case font-normal">(from ADX + MB oscillator)</span>
-                                </label>
-                                <div className="grid grid-cols-4 gap-2 bg-[#000] p-1 rounded-lg border border-[#333]">
-                                    {[
-                                        { label: 'TRENDING', desc: 'ADX↑' },
-                                        { label: 'EXPLOSIVE', desc: 'MB↑↑' },
-                                        { label: 'RANGING', desc: 'ADX↓' },
-                                        { label: 'REVERTING', desc: 'Fade' },
-                                    ].map((opt) => (
-                                        <button
-                                            key={opt.label}
-                                            onClick={() => setMarketState(opt.label)}
-                                            className={`py-2 rounded px-1 text-xs font-bold transition-all ${marketState === opt.label
-                                                ? 'bg-[#3A3A3C] text-white shadow-sm'
-                                                : 'text-gray-500 hover:text-gray-300'
-                                                }`}
-                                        >
-                                            <div className="flex flex-col items-center">
-                                                <span className="text-[9px] sm:text-[10px]">{opt.label}</span>
-                                                <span className="text-[8px] font-normal opacity-70">{opt.desc}</span>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Pine Risk Flags Row */}
-                        <div className="mt-4 pt-4 border-t border-accent-green/20">
-                            <label className="text-xs text-accent-green/70 font-bold mb-2 flex items-center gap-1.5 uppercase tracking-wider">
-                                <AlertCircle size={12} className="text-yellow-500" />
-                                Risk Flags (Check if indicated by Pine)
-                            </label>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                {[
-                                    { key: 'overextended', label: 'Overextended', icon: '⚠️' },
-                                    { key: 'mtfConflict', label: 'MTF Conflict', icon: '⬆️' },
-                                    { key: 'lowVolume', label: 'Low Volume', icon: '⏳' },
-                                    { key: 'nearEarnings', label: 'Near Earnings', icon: '⚠️' },
-                                    { key: 'highVolatility', label: 'High Volatility', icon: '🔥' },
-                                    { key: 'priceReversing', label: 'Price Reversing', icon: '🔄' }
-                                ].map((flag) => {
-                                    const isActive = riskFlags[flag.key as keyof typeof riskFlags];
-                                    return (
-                                        <button
-                                            key={flag.key}
-                                            onClick={() => setRiskFlags(prev => ({ ...prev, [flag.key]: !prev[flag.key as keyof typeof riskFlags] }))}
-                                            className={`py-2 px-3 rounded text-xs font-bold transition-all border flex items-center justify-center gap-1.5 ${isActive
-                                                ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/40 shadow-sm'
-                                                : 'bg-[#0a0a0a] text-gray-500 border-[#333] hover:text-gray-300 hover:border-[#444]'
-                                                }`}
-                                        >
-                                            <span className="opacity-80">{flag.icon}</span>
-                                            {flag.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Bottom Row: DTE, Spread Width & Analyze */}
-                    <div className="flex flex-col md:flex-row gap-6 items-end">
-                        <div className="w-full md:flex-1">
-                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Target Expiration (DTE)</label>
-                            <div className="grid grid-cols-5 gap-2 bg-[#000] p-1 rounded-lg border border-[#333]">
-                                {[
-                                    { label: 'Ultra', val: 7, text: '7-14d' },
-                                    { label: 'Short', val: 14, text: '14-30d' },
-                                    { label: 'Med', val: 30, text: '30-45d' },
-                                    { label: 'Long', val: 45, text: '45-90d' },
-                                    { label: 'Leaps', val: 90, text: '90d+' }
-                                ].map((opt) => (
-                                    <button
-                                        key={opt.val}
-                                        onClick={() => setTargetDte(opt.val)}
-                                        className={`py-2 rounded px-2 text-xs font-bold transition-all ${targetDte === opt.val
-                                            ? 'bg-[#3A3A3C] text-white shadow-sm'
-                                            : 'text-gray-500 hover:text-gray-300'
-                                            }`}
-                                    >
-                                        <div className="flex flex-col items-center">
-                                            <span>{opt.label}</span>
-                                            <span className="text-[10px] font-normal opacity-70">{opt.text}</span>
+                    {/* Row 3: Pine context (collapsible — default open) */}
+                    <div className="border border-accent-green/20 bg-accent-green/5 rounded-lg overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setShowPineContext(!showPineContext)}
+                            className="w-full flex items-center justify-between px-4 py-2.5 text-left"
+                        >
+                            <span className="text-[10px] text-accent-green/70 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                                <TrendingUp size={12} />
+                                Pine Context — Market State, Risk Flags, DTE, Width
+                            </span>
+                            <ChevronDown size={16} className={`text-accent-green/50 transition-transform ${showPineContext ? 'rotate-180' : ''}`} />
+                        </button>
+                        {showPineContext && (
+                            <div className="px-4 pb-4 space-y-4">
+                                {/* Market State + d8 */}
+                                <div className="flex flex-col md:flex-row gap-4 items-end">
+                                    <div className="flex-1">
+                                        <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">
+                                            Market State
+                                            <span className="ml-1.5 text-gray-600 normal-case font-normal">(ADX + MB)</span>
+                                        </label>
+                                        <div className="grid grid-cols-4 gap-2 bg-[#000] p-1 rounded-lg border border-[#333]">
+                                            {[
+                                                { label: 'TRENDING', desc: 'ADX↑' },
+                                                { label: 'EXPLOSIVE', desc: 'MB↑↑' },
+                                                { label: 'RANGING', desc: 'ADX↓' },
+                                                { label: 'REVERTING', desc: 'Fade' },
+                                            ].map((opt) => (
+                                                <button
+                                                    key={opt.label}
+                                                    type="button"
+                                                    onClick={() => setMarketState(opt.label)}
+                                                    className={`py-2 rounded px-1 text-xs font-bold transition-all ${marketState === opt.label
+                                                        ? 'bg-[#3A3A3C] text-white shadow-sm'
+                                                        : 'text-gray-500 hover:text-gray-300'
+                                                        }`}
+                                                >
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="text-[9px] sm:text-[10px]">{opt.label}</span>
+                                                        <span className="text-[8px] font-normal opacity-70">{opt.desc}</span>
+                                                    </div>
+                                                </button>
+                                            ))}
                                         </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                                    </div>
+                                    <div className="w-full md:w-36">
+                                        <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 block">EMA-8 d8%</label>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                placeholder="e.g. 1.8"
+                                                value={techD8 ?? ''}
+                                                onChange={(e) => setTechD8(e.target.value === '' ? null : parseFloat(e.target.value))}
+                                                className="w-full bg-[#000] border border-[#333] text-white rounded px-2 py-2 text-xs font-mono focus:outline-none focus:border-accent-green placeholder-gray-600"
+                                            />
+                                            {techD8 != null && Math.abs(techD8) > 1.5 && (
+                                                <span className="text-[10px] text-orange-400 font-bold whitespace-nowrap">Ext</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
 
-                        <div className="w-full md:w-56">
-                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Spread Width</label>
-                            <div className="grid grid-cols-4 gap-2 bg-[#000] p-1 rounded-lg border border-[#333]">
-                                {[
-                                    { label: '$2.5', val: 2.5 },
-                                    { label: '$5', val: 5 },
-                                    { label: '$10', val: 10 },
-                                    { label: '$20', val: 20 }
-                                ].map((opt) => (
-                                    <button
-                                        key={opt.val}
-                                        onClick={() => setSpreadWidth(opt.val)}
-                                        className={`py-2.5 rounded px-2 text-xs font-bold transition-all ${spreadWidth === opt.val
-                                            ? 'bg-[#3A3A3C] text-white shadow-sm'
-                                            : 'text-gray-500 hover:text-gray-300'
-                                            }`}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                                {/* Risk Flags */}
+                                <div>
+                                    <label className="text-xs text-accent-green/70 font-bold mb-2 flex items-center gap-1.5 uppercase tracking-wider">
+                                        <AlertCircle size={12} className="text-yellow-500" />
+                                        Risk Flags
+                                    </label>
+                                    <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5">
+                                        {[
+                                            { key: 'overextended', label: 'Overext', icon: '⚠️' },
+                                            { key: 'mtfConflict', label: 'MTF', icon: '⬆️' },
+                                            { key: 'lowVolume', label: 'LowVol', icon: '⏳' },
+                                            { key: 'nearEarnings', label: 'Earn', icon: '⚠️' },
+                                            { key: 'highVolatility', label: 'HiVol', icon: '🔥' },
+                                            { key: 'priceReversing', label: 'Rev', icon: '🔄' }
+                                        ].map((flag) => {
+                                            const isActive = riskFlags[flag.key as keyof typeof riskFlags];
+                                            return (
+                                                <button
+                                                    key={flag.key}
+                                                    type="button"
+                                                    onClick={() => setRiskFlags(prev => ({ ...prev, [flag.key]: !prev[flag.key as keyof typeof riskFlags] }))}
+                                                    className={`py-1.5 px-2 rounded text-[10px] font-bold transition-all border flex items-center justify-center gap-1 ${isActive
+                                                        ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/40 shadow-sm'
+                                                        : 'bg-[#0a0a0a] text-gray-500 border-[#333] hover:text-gray-300 hover:border-[#444]'
+                                                        }`}
+                                                >
+                                                    <span className="opacity-80">{flag.icon}</span>
+                                                    {flag.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
 
-                        <div className="w-full md:w-auto">
-                            <button
-                                onClick={handleAnalyze}
-                                disabled={loading || !ticker}
-                                className="w-full md:w-auto bg-purple-600 hover:bg-purple-500 text-white font-bold py-3.5 px-8 rounded-lg transition-all shadow-lg shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[140px]"
-                            >
-                                {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Activity size={20} />}
-                                Analyze Strategy
-                            </button>
-                        </div>
+                                {/* DTE + Spread Width */}
+                                <div className="flex flex-col md:flex-row gap-4 items-end">
+                                    <div className="flex-1">
+                                        <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Target DTE</label>
+                                        <div className="grid grid-cols-5 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
+                                            {[
+                                                { label: 'Ultra', val: 7, text: '7-14d' },
+                                                { label: 'Short', val: 14, text: '14-30d' },
+                                                { label: 'Med', val: 30, text: '30-45d' },
+                                                { label: 'Long', val: 45, text: '45-90d' },
+                                                { label: 'Leaps', val: 90, text: '90d+' }
+                                            ].map((opt) => (
+                                                <button
+                                                    key={opt.val}
+                                                    type="button"
+                                                    onClick={() => setTargetDte(opt.val)}
+                                                    className={`py-1.5 rounded px-1 text-xs font-bold transition-all ${targetDte === opt.val
+                                                        ? 'bg-[#3A3A3C] text-white shadow-sm'
+                                                        : 'text-gray-500 hover:text-gray-300'
+                                                        }`}
+                                                >
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="text-[10px]">{opt.label}</span>
+                                                        <span className="text-[9px] font-normal opacity-70">{opt.text}</span>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="w-full md:w-48">
+                                        <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Spread Width</label>
+                                        <div className="grid grid-cols-4 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
+                                            {[
+                                                { label: '$2.5', val: 2.5 },
+                                                { label: '$5', val: 5 },
+                                                { label: '$10', val: 10 },
+                                                { label: '$20', val: 20 }
+                                            ].map((opt) => (
+                                                <button
+                                                    key={opt.val}
+                                                    type="button"
+                                                    onClick={() => setSpreadWidth(opt.val)}
+                                                    className={`py-2 rounded px-1 text-xs font-bold transition-all ${spreadWidth === opt.val
+                                                        ? 'bg-[#3A3A3C] text-white shadow-sm'
+                                                        : 'text-gray-500 hover:text-gray-300'
+                                                        }`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1161,17 +1279,107 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     )}
 
                                                     {/* Action Buttons */}
-                                                    <div className="mt-6 pt-4 border-t border-[#3A3A3C] flex justify-end">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleAddToWatchlist(rec);
-                                                            }}
-                                                            className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg text-sm font-bold transition-all border border-blue-500/30 hover:border-blue-500/50"
-                                                        >
-                                                            <Bookmark size={16} />
-                                                            Add to Watchlist
-                                                        </button>
+                                                    <div className="mt-6 pt-4 border-t border-[#3A3A3C]">
+                                                        {openPosIdx === idx ? (
+                                                            /* Inline Open Position form */
+                                                            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4 space-y-3">
+                                                                <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                                    <ShoppingCart size={14} />
+                                                                    Open Position
+                                                                </div>
+                                                                <div className="flex flex-wrap gap-3 items-end">
+                                                                    <div className="w-20">
+                                                                        <label className="text-[10px] text-gray-500 uppercase block mb-1">Qty</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="1"
+                                                                            value={openPosQty}
+                                                                            onChange={(e) => setOpenPosQty(e.target.value)}
+                                                                            className="w-full bg-[#000] border border-[#333] text-white rounded px-2 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500"
+                                                                            placeholder="1"
+                                                                            autoFocus
+                                                                        />
+                                                                    </div>
+                                                                    <div className="w-28">
+                                                                        <label className="text-[10px] text-gray-500 uppercase block mb-1">Entry $</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            value={openPosPrice}
+                                                                            onChange={(e) => setOpenPosPrice(e.target.value)}
+                                                                            className="w-full bg-[#000] border border-[#333] text-white rounded px-2 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500"
+                                                                            placeholder="0.00"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="flex gap-1">
+                                                                        {(['Yuchen', 'Annie'] as const).map(name => (
+                                                                            <button
+                                                                                key={name}
+                                                                                type="button"
+                                                                                onClick={() => setOpenPosOwner(name)}
+                                                                                className={`px-2.5 py-2 rounded text-xs font-semibold transition-all ${openPosOwner === name
+                                                                                    ? name === 'Yuchen'
+                                                                                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                                                                        : 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
+                                                                                    : 'bg-[#111] text-gray-500 border border-[#333] hover:text-gray-300'
+                                                                                    }`}
+                                                                            >
+                                                                                {name}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleOpenPosition(rec);
+                                                                        }}
+                                                                        disabled={openPosSubmitting || !openPosPrice}
+                                                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-1.5"
+                                                                    >
+                                                                        {openPosSubmitting ? <RefreshCw size={14} className="animate-spin" /> : <ShoppingCart size={14} />}
+                                                                        Confirm
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); setOpenPosIdx(null); }}
+                                                                        className="px-3 py-2 text-gray-500 hover:text-gray-300 text-sm transition-colors"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex justify-end gap-3">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleAddToWatchlist(rec);
+                                                                    }}
+                                                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg text-sm font-bold transition-all border border-blue-500/30 hover:border-blue-500/50"
+                                                                >
+                                                                    <Bookmark size={16} />
+                                                                    Watchlist
+                                                                </button>
+                                                                {onAddDirect && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            // Pre-fill qty from Kelly sizing, price from recommendation
+                                                                            const sizing = getSuggestedContracts(rec, portfolioTotal, riskPct, { useKelly: true, stopOutFraction });
+                                                                            setOpenPosQty(String(sizing.suggestedContracts || 1));
+                                                                            const prefillPrice = isSpread(rec)
+                                                                                ? ((rec as SpreadRecommendation).netCredit ?? (rec as SpreadRecommendation).netDebit ?? 0)
+                                                                                : (rec as SingleLegRecommendation).price ?? 0;
+                                                                            setOpenPosPrice(String(prefillPrice));
+                                                                            setOpenPosIdx(idx);
+                                                                        }}
+                                                                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-lg text-sm font-bold transition-all border border-emerald-500/30 hover:border-emerald-500/50"
+                                                                    >
+                                                                        <ShoppingCart size={16} />
+                                                                        Open Position
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )}

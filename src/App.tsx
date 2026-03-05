@@ -180,8 +180,11 @@ function App() {
             tech_score_manual: item.tech_score,
             // Pine Signal + entry analytics
             direction: item.direction || null,
+            market_state: item.market_state || null,
             iv_regime_entry: item.iv_regime_entry || null,
             max_risk_entry: item.max_risk_entry || null,
+            trade_profile: item.trade_profile || null,
+            iv_rank_entry: item.iv_rank_entry ?? null,
         }]).select();
 
         if (data && data[0]) {
@@ -400,7 +403,7 @@ function App() {
                     <ScannerPage onAddToWatchlist={onAddToWatchlist} />
                 )}
                 {activeTab === 'selector' && (
-                    <OptionSelector onAddToWatchlist={onAddToWatchlist} />
+                    <OptionSelector onAddToWatchlist={onAddToWatchlist} onAddDirect={onAddDirect} />
                 )}
                 {activeTab === 'history' && (
                     <HistoryPage

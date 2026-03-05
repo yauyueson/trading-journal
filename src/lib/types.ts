@@ -135,8 +135,11 @@ export interface DirectAddItem {
     tech_score_source?: 'auto' | 'manual';
     // Pine Signal inputs + entry analytics (mirrors WatchlistItem)
     direction?: 'BULL' | 'BEAR';
+    market_state?: string;
     iv_regime_entry?: string;   // 'CREDIT' | 'DEBIT' | 'NEUTRAL'
     max_risk_entry?: number;    // net debit, or (spread width − credit) × 100
+    trade_profile?: string;
+    iv_rank_entry?: number;
 }
 
 // ────────────────────────────────────────────────────────────────
