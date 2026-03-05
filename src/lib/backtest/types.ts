@@ -5,51 +5,61 @@
  * No options data needed — validates signal quality before committing to options trades.
  */
 
+import type { TechScoreOptions } from '../tech-analysis';
+
 // ── Config ──────────────────────────────────────────────
+
+export type Timeframe = '1D' | '4H';
 
 export interface BacktestConfig {
   ticker: string;
   startDate: string;              // YYYY-MM-DD
   endDate: string;                // YYYY-MM-DD
+  timeframe: Timeframe;           // '1D' = daily v3, '4H' = 4-hour v4
   // Signal filters
   minScore: number;               // Min tech score to trigger (default 70)
   minConfidence: number;          // Min setup confidence 0-3 (default 2)
   allowedSetups: string[];        // ['All'] or specific setup names
   directionFilter: 'ALL' | 'CALL' | 'PUT';
   // Entry
-  cooldownBars: number;           // Min bars between entries (default 21)
+  cooldownBars: number;           // Min bars between entries (default 21 daily / 35 4H)
   // TP/SL (ATR multiples)
   tpAtr: number;                  // TP = entry ± tpAtr × ATR (default 2.5)
   slAtr: number;                  // SL = entry ∓ slAtr × ATR (default 1.5)
   useEntryQualityAdjust: boolean; // Adjust TP/SL by entry quality (default true)
-  timeStopBars: number;           // Force close after N bars (default 21)
+  timeStopBars: number;           // Force close after N bars (default 21 daily / 35 4H)
   // Options-aware
   thetaDecayRate: number;         // Decay rate for time penalty (default 0.03)
   // Look-forward windows for MFE/MAE
   mfeWindows: number[];           // [3, 5, 7, 10, 14, 21, 30]
+  // Indicator tuning (v3 only — v4 uses fixed internal params)
+  indicatorOptions: TechScoreOptions;
 }
 
 export const DEFAULT_CONFIG: BacktestConfig = {
   ticker: 'SPY',
   startDate: '2024-01-01',
   endDate: '2026-03-05',
+  timeframe: '4H',
   minScore: 70,
   minConfidence: 2,
   allowedSetups: ['All'],
   directionFilter: 'ALL',
-  cooldownBars: 21,
-  tpAtr: 2.5,
-  slAtr: 1.5,
+  cooldownBars: 35,
+  tpAtr: 2.0,
+  slAtr: 1.0,
   useEntryQualityAdjust: true,
-  timeStopBars: 21,
+  timeStopBars: 35,
   thetaDecayRate: 0.03,
   mfeWindows: [3, 5, 7, 10, 14, 21, 30],
+  indicatorOptions: {},
 };
 
 // ── Candle (matches polygon-client.js output) ───────────
 
 export interface BacktestCandle {
-  date: string;       // YYYY-MM-DD
+  date: string;       // YYYY-MM-DD (or YYYY-MM-DDTHH:mm for 4H)
+  timestamp: number;  // Unix ms
   open: number;
   high: number;
   low: number;
@@ -69,6 +79,10 @@ export interface PrecomputedSignal {
   d8: number;         // EMA-8 distance % (for entry quality)
   atr: number;        // ATR(14) at this bar
   close: number;
+  // V4-specific (optional, populated in 4H mode)
+  entryContext?: EntryQuality;
+  dynamicTP?: number;   // V4's dynamic TP ATR mult
+  dynamicSL?: number;   // V4's dynamic SL ATR mult
 }
 
 // ── Trade ───────────────────────────────────────────────
@@ -173,16 +187,34 @@ export interface BacktestResult {
 
 // ── Sweep ───────────────────────────────────────────────
 
+/** Indicator parameter set for sweep — each field is an array of values to try */
+export interface IndicatorSweepParams {
+  w_mb?: number[];          // e.g. [25, 30, 35]
+  w_bxs?: number[];         // e.g. [20, 25, 30]
+  w_bxl?: number[];         // e.g. [15, 20, 25]
+  w_ema?: number[];         // e.g. [10, 15, 20]
+  w_mom?: number[];         // e.g. [5, 10, 15]
+  sc_mb_len?: number[];     // e.g. [60, 80, 100, 120]
+  sc_osc_len?: number[];    // e.g. [5, 7, 10]
+  sc_bx_s1?: number[];      // e.g. [3, 5, 8]
+  sc_bx_s2?: number[];      // e.g. [15, 20, 25]
+  sc_bx_l1?: number[];      // e.g. [15, 20, 25]
+  sc_bx_l2?: number[];      // e.g. [10, 15, 20]
+}
+
 export interface SweepConfig {
   ticker: string;
   startDate: string;
   endDate: string;
+  timeframe: Timeframe;
   tpAtrRange: number[];
   slAtrRange: number[];
   minScoreRange: number[];
   minConfidenceRange: number[];
   setupGroups: string[][];
   thetaDecayRange: number[];
+  // Indicator param sweep (optional — if omitted, uses defaults)
+  indicatorSweep?: IndicatorSweepParams;
 }
 
 export interface SweepResult {

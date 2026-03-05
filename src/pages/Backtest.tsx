@@ -1,8 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown } from 'lucide-react';
-import { useBacktest, type BacktestMode } from '../hooks/useBacktest';
-import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade } from '../lib/backtest/types';
+import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Rocket } from 'lucide-react';
+import { useBacktest, type BacktestMode, type TickerOptResult } from '../hooks/useBacktest';
+import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, Timeframe, IndicatorSweepParams } from '../lib/backtest/types';
+import type { TechScoreOptions } from '../lib/tech-analysis';
 import { DEFAULT_SWEEP } from '../lib/backtest/sweep';
+
+const DEFAULT_OPT_TICKERS = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'AMZN', 'META', 'GOOGL', 'TSLA', 'AMD'];
 
 // ── Stat Card ───────────────────────────────────────────
 
@@ -20,6 +23,13 @@ const Stat: React.FC<{ label: string; value: string | number; sub?: string; good
 
 const SETUPS = ['All', 'Perfect Storm', 'Breakout', 'Pullback Buy', 'Strong Trend', 'Breakdown', 'Failed Rally', 'Strong Down', 'Bullish', 'Bearish'];
 
+// Default indicator values for display
+const IND_DEFAULTS: Record<string, number> = {
+  w_mb: 30, w_bxs: 25, w_bxl: 20, w_ema: 15, w_mom: 10,
+  sc_mb_len: 100, sc_osc_len: 7,
+  sc_bx_s1: 5, sc_bx_s2: 20, sc_bx_l1: 20, sc_bx_l2: 15,
+};
+
 const ConfigPanel: React.FC<{
   config: BacktestConfig;
   onChange: (c: BacktestConfig) => void;
@@ -27,26 +37,70 @@ const ConfigPanel: React.FC<{
   onModeChange: (m: BacktestMode) => void;
   onRun: () => void;
   onRunSweep: (s: SweepConfig) => void;
+  onRunOptimize: (tickers: string[]) => void;
   loading: boolean;
   progress: number;
-}> = ({ config, onChange, mode, onModeChange, onRun, onRunSweep, loading, progress }) => {
+}> = ({ config, onChange, mode, onModeChange, onRun, onRunSweep, onRunOptimize, loading, progress }) => {
+  const [showIndicators, setShowIndicators] = useState(false);
+  const [indicatorSweep, setIndicatorSweep] = useState<IndicatorSweepParams>({});
+  const [sweepIndicators, setSweepIndicators] = useState(false);
+  const [optTickers, setOptTickers] = useState(DEFAULT_OPT_TICKERS.join(', '));
+
   const upd = (partial: Partial<BacktestConfig>) => onChange({ ...config, ...partial });
+  const updInd = (key: keyof TechScoreOptions, val: number) => {
+    onChange({ ...config, indicatorOptions: { ...config.indicatorOptions, [key]: val } });
+  };
+
+  const indVal = (key: keyof TechScoreOptions): number =>
+    (config.indicatorOptions[key] as number) ?? IND_DEFAULTS[key] ?? 0;
+
+  // Count total sweep combos including indicator sweep
+  const tradeCombos = DEFAULT_SWEEP.tpAtrRange.length * DEFAULT_SWEEP.slAtrRange.length *
+    DEFAULT_SWEEP.minScoreRange.length * DEFAULT_SWEEP.minConfidenceRange.length;
+
+  const indicatorCombos = sweepIndicators
+    ? Object.values(indicatorSweep).reduce((acc, arr) => acc * (arr && arr.length > 0 ? arr.length : 1), 1)
+    : 1;
+
+  const totalCombos = tradeCombos * indicatorCombos;
 
   const handleRun = () => {
     if (mode === 'single') {
       onRun();
-    } else {
+    } else if (mode === 'sweep') {
       onRunSweep({
+        ...DEFAULT_SWEEP,
         ticker: config.ticker,
         startDate: config.startDate,
         endDate: config.endDate,
-        ...DEFAULT_SWEEP,
+        timeframe: config.timeframe,
+        indicatorSweep: sweepIndicators ? indicatorSweep : undefined,
       });
+    } else {
+      const tickers = optTickers.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+      if (tickers.length > 0) onRunOptimize(tickers);
     }
   };
 
   return (
     <div className="space-y-3">
+      {/* Timeframe toggle */}
+      <div className="flex gap-1 bg-[#111] rounded-lg p-0.5">
+        {(['4H', '1D'] as Timeframe[]).map(tf => (
+          <button key={tf} onClick={() => upd({
+            timeframe: tf,
+            cooldownBars: tf === '4H' ? 35 : 21,
+            timeStopBars: tf === '4H' ? 35 : 21,
+            tpAtr: tf === '4H' ? 2.0 : 2.5,
+            slAtr: tf === '4H' ? 1.0 : 1.5,
+          })}
+            className={`flex-1 py-1.5 rounded text-sm font-medium transition-colors ${
+              config.timeframe === tf ? 'bg-accent-green/20 text-accent-green' : 'text-text-tertiary hover:text-text-secondary'
+            }`}
+          >{tf === '4H' ? '4H (v4)' : 'Daily (v3)'}</button>
+        ))}
+      </div>
+
       {/* Ticker + Dates */}
       <div className="grid grid-cols-3 gap-2">
         <Field label="Ticker" value={config.ticker} onChange={v => upd({ ticker: v.toUpperCase() })} />
@@ -112,30 +166,143 @@ const ConfigPanel: React.FC<{
         Entry quality adjustment
       </label>
 
+      {/* Indicator Tuning */}
+      <div>
+        <button onClick={() => setShowIndicators(!showIndicators)}
+          className="flex items-center gap-1 text-sm text-text-secondary hover:text-white w-full py-1">
+          {showIndicators ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          Indicator Params {config.timeframe === '4H' && <span className="text-[10px] text-text-tertiary ml-1">(v3 only)</span>}
+        </button>
+        {showIndicators && (
+          <div className="space-y-2 mt-1">
+            <div className="text-[10px] text-text-tertiary">Component Weights (must sum to 100)</div>
+            <div className="grid grid-cols-5 gap-1">
+              {(['w_mb', 'w_bxs', 'w_bxl', 'w_ema', 'w_mom'] as const).map(k => (
+                <div key={k}>
+                  <label className="text-[9px] text-text-tertiary uppercase block">{k.replace('w_', '')}</label>
+                  <input type="number" value={indVal(k)} onChange={e => updInd(k, Number(e.target.value))}
+                    step={5} min={0} max={60}
+                    className="w-full bg-[#111] border border-white/10 rounded px-1 py-1 text-[11px] text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+                </div>
+              ))}
+            </div>
+            <div className="text-[10px] text-text-tertiary">Criteria Periods</div>
+            <div className="grid grid-cols-3 gap-1">
+              <div>
+                <label className="text-[9px] text-text-tertiary block">MB Len</label>
+                <input type="number" value={indVal('sc_mb_len')} onChange={e => updInd('sc_mb_len', Number(e.target.value))}
+                  step={10} min={20} max={200}
+                  className="w-full bg-[#111] border border-white/10 rounded px-1 py-1 text-[11px] text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-[9px] text-text-tertiary block">Osc Len</label>
+                <input type="number" value={indVal('sc_osc_len')} onChange={e => updInd('sc_osc_len', Number(e.target.value))}
+                  step={1} min={3} max={20}
+                  className="w-full bg-[#111] border border-white/10 rounded px-1 py-1 text-[11px] text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-[9px] text-text-tertiary block">BXS p1</label>
+                <input type="number" value={indVal('sc_bx_s1')} onChange={e => updInd('sc_bx_s1', Number(e.target.value))}
+                  step={1} min={2} max={15}
+                  className="w-full bg-[#111] border border-white/10 rounded px-1 py-1 text-[11px] text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              {(['sc_bx_s2', 'sc_bx_l1', 'sc_bx_l2'] as const).map(k => (
+                <div key={k}>
+                  <label className="text-[9px] text-text-tertiary block">{k.replace('sc_bx_', 'BX ')}</label>
+                  <input type="number" value={indVal(k)} onChange={e => updInd(k, Number(e.target.value))}
+                    step={5} min={5} max={50}
+                    className="w-full bg-[#111] border border-white/10 rounded px-1 py-1 text-[11px] text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+                </div>
+              ))}
+            </div>
+
+            {/* Sweep indicator toggle */}
+            {mode === 'sweep' && (
+              <div className="mt-2 border-t border-white/5 pt-2">
+                <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+                  <input type="checkbox" checked={sweepIndicators}
+                    onChange={e => setSweepIndicators(e.target.checked)}
+                    className="accent-accent-green" />
+                  Sweep indicator params too
+                </label>
+                {sweepIndicators && (
+                  <div className="mt-2 space-y-1">
+                    <div className="text-[10px] text-text-tertiary">Enter comma-separated values to try</div>
+                    {[
+                      { key: 'w_mb' as const, label: 'MB weight', placeholder: '25,30,35' },
+                      { key: 'w_bxs' as const, label: 'BXS weight', placeholder: '20,25,30' },
+                      { key: 'sc_mb_len' as const, label: 'MB length', placeholder: '60,80,100' },
+                      { key: 'sc_osc_len' as const, label: 'Osc length', placeholder: '5,7,10' },
+                      { key: 'sc_bx_s1' as const, label: 'BXS p1', placeholder: '3,5,8' },
+                    ].map(({ key, label, placeholder }) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <label className="text-[10px] text-text-tertiary w-16 shrink-0">{label}</label>
+                        <input
+                          type="text"
+                          placeholder={placeholder}
+                          value={(indicatorSweep[key] ?? []).join(',')}
+                          onChange={e => {
+                            const vals = e.target.value.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n) && n > 0);
+                            setIndicatorSweep(prev => ({ ...prev, [key]: vals.length > 0 ? vals : undefined }));
+                          }}
+                          className="flex-1 bg-[#111] border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-white font-mono focus:border-accent-green/50 focus:outline-none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Mode Toggle */}
       <div className="flex gap-1 bg-[#111] rounded-lg p-0.5">
-        {(['single', 'sweep'] as BacktestMode[]).map(m => (
+        {(['single', 'sweep', 'optimize'] as BacktestMode[]).map(m => (
           <button key={m} onClick={() => onModeChange(m)}
-            className={`flex-1 py-1.5 rounded text-sm font-medium transition-colors ${
+            className={`flex-1 py-1.5 rounded text-[12px] font-medium transition-colors ${
               mode === m ? 'bg-[#2A2A2A] text-white' : 'text-text-tertiary hover:text-text-secondary'
             }`}
-          >{m === 'single' ? 'Single Run' : 'Sweep'}</button>
+          >{m === 'single' ? 'Single' : m === 'sweep' ? 'Sweep' : 'Optimize'}</button>
         ))}
       </div>
 
+      {/* Optimize: ticker list */}
+      {mode === 'optimize' && (
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">Tickers (comma-separated)</label>
+          <textarea
+            value={optTickers}
+            onChange={e => setOptTickers(e.target.value)}
+            rows={2}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none resize-none"
+            placeholder="SPY, QQQ, AAPL, ..."
+          />
+          <div className="text-[10px] text-text-tertiary mt-1">
+            Sweeps {totalCombos} configs per ticker
+          </div>
+        </div>
+      )}
+
       {/* Run Button */}
       <button onClick={handleRun} disabled={loading}
-        className="w-full py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors bg-accent-green text-black hover:bg-accent-green/90 disabled:opacity-50"
+        className={`w-full py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${
+          mode === 'optimize'
+            ? 'bg-purple-500 text-white hover:bg-purple-400'
+            : 'bg-accent-green text-black hover:bg-accent-green/90'
+        }`}
       >
         {loading ? (
           <><Zap size={16} className="animate-pulse" /> Running... {progress}%</>
         ) : mode === 'single' ? (
           <><Play size={16} /> Run Backtest</>
+        ) : mode === 'sweep' ? (
+          <><Zap size={16} /> Run Sweep ({totalCombos} combos)</>
         ) : (
-          <><Zap size={16} /> Run Sweep ({
-            DEFAULT_SWEEP.tpAtrRange.length * DEFAULT_SWEEP.slAtrRange.length *
-            DEFAULT_SWEEP.minScoreRange.length * DEFAULT_SWEEP.minConfidenceRange.length
-          } combos)</>
+          <><Rocket size={16} /> Optimize {optTickers.split(',').filter(t => t.trim()).length} Tickers</>
         )}
       </button>
     </div>
@@ -575,6 +742,132 @@ const SingleResultView: React.FC<{ result: BacktestResult }> = ({ result }) => {
   );
 };
 
+// ── Optimize Results (Multi-Ticker) ─────────────────────
+
+const OptimizeResultsView: React.FC<{
+  results: TickerOptResult[];
+  status: string;
+  loading: boolean;
+}> = ({ results, status, loading }) => {
+  const [expandedTicker, setExpandedTicker] = useState<string | null>(null);
+  const [selectedResult, setSelectedResult] = useState<BacktestResult | null>(null);
+
+  if (results.length === 0 && !loading) return null;
+
+  return (
+    <div className="space-y-3">
+      {/* Status */}
+      <div className="flex items-center gap-2 text-sm">
+        {loading && <Zap size={14} className="text-purple-400 animate-pulse" />}
+        <span className="text-text-tertiary">{status}</span>
+      </div>
+
+      {/* Per-ticker cards */}
+      <div className="grid grid-cols-1 gap-3">
+        {results.map(tr => {
+          const best = tr.sweep.bestOverall;
+          const hasError = !!tr.error;
+          const isExpanded = expandedTicker === tr.ticker;
+
+          return (
+            <div key={tr.ticker} className={`rounded-lg border p-3 ${
+              hasError ? 'bg-red-500/5 border-red-500/20' : 'bg-[#1A1A1A] border-white/10'
+            }`}>
+              {/* Ticker header */}
+              <button
+                onClick={() => {
+                  setExpandedTicker(isExpanded ? null : tr.ticker);
+                  setSelectedResult(null);
+                }}
+                className="w-full flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-bold">{tr.ticker}</span>
+                  {hasError && <span className="text-xs text-red-400">{tr.error}</span>}
+                  {best && (
+                    <span className="text-xs text-text-tertiary">
+                      {tr.candleCount} bars | {tr.sweep.elapsedMs.toFixed(0)}ms
+                    </span>
+                  )}
+                </div>
+                {best && (
+                  <div className="flex items-center gap-3 text-xs font-mono">
+                    <span className="text-purple-400">
+                      TP:{best.config.tpAtr} SL:{best.config.slAtr} S{'\u2265'}{best.config.minScore}
+                    </span>
+                    <span className={best.analytics.winRateTheta > 50 ? 'text-emerald-400' : 'text-red-400'}>
+                      {best.analytics.winRateTheta.toFixed(0)}% WR
+                    </span>
+                    <span className={best.analytics.sharpe > 1 ? 'text-emerald-400' : 'text-yellow-400'}>
+                      {best.analytics.sharpe.toFixed(2)} Sharpe
+                    </span>
+                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </div>
+                )}
+              </button>
+
+              {/* Expanded: best config details + sweep table */}
+              {isExpanded && best && (
+                <div className="mt-3 space-y-3 border-t border-white/5 pt-3">
+                  {/* Best config stats */}
+                  <div>
+                    <div className="text-[11px] text-purple-400 uppercase tracking-wider mb-2">Best Config</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      <Stat label="TP ATR" value={best.config.tpAtr} />
+                      <Stat label="SL ATR" value={best.config.slAtr} />
+                      <Stat label="Min Score" value={best.config.minScore} />
+                      <Stat label="Confidence" value={best.config.minConfidence} />
+                    </div>
+                  </div>
+                  <AnalyticsGrid a={best.analytics} />
+
+                  {/* Equity curve */}
+                  <div className="bg-[#111] rounded-lg p-3">
+                    <EquityCurveSVG curves={[{
+                      data: best.analytics.equityCurve,
+                      color: '#a855f7',
+                      label: `${tr.ticker} best`,
+                    }]} />
+                  </div>
+
+                  {/* Top 10 configs */}
+                  <div>
+                    <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-2">
+                      Top Configs ({tr.sweep.results.filter(r => r.analytics.totalTrades >= 3).length} with 3+ trades)
+                    </div>
+                    <SweepTable
+                      results={tr.sweep.results}
+                      pinned={[]}
+                      onPin={() => {}}
+                      onSelect={setSelectedResult}
+                      best={best}
+                    />
+                  </div>
+
+                  {/* Selected config detail */}
+                  {selectedResult && (
+                    <div className="bg-[#111] rounded-lg border border-purple-500/30 p-3">
+                      <div className="flex justify-between items-center mb-3">
+                        <h3 className="text-sm font-medium">
+                          Detail: TP={selectedResult.config.tpAtr} SL={selectedResult.config.slAtr} Score{'\u2265'}{selectedResult.config.minScore}
+                        </h3>
+                        <button onClick={() => setSelectedResult(null)} className="text-text-tertiary hover:text-white">
+                          <X size={14} />
+                        </button>
+                      </div>
+                      <SingleResultView result={selectedResult} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ── Main Page ───────────────────────────────────────────
 
 export const BacktestPage: React.FC = () => {
@@ -610,6 +903,7 @@ export const BacktestPage: React.FC = () => {
             onModeChange={bt.setMode}
             onRun={bt.run}
             onRunSweep={bt.runSweepAction}
+            onRunOptimize={bt.runOptimize}
             loading={bt.loading}
             progress={bt.progress}
           />
@@ -659,6 +953,11 @@ export const BacktestPage: React.FC = () => {
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="text-sm font-medium">
                       Detail: TP={selectedSweepResult.config.tpAtr} SL={selectedSweepResult.config.slAtr} Score≥{selectedSweepResult.config.minScore}
+                      {Object.keys(selectedSweepResult.config.indicatorOptions).length > 0 && (
+                        <span className="text-text-tertiary text-[10px] ml-2">
+                          {Object.entries(selectedSweepResult.config.indicatorOptions).map(([k, v]) => `${k}=${v}`).join(' ')}
+                        </span>
+                      )}
                     </h3>
                     <button onClick={() => setSelectedSweepResult(null)} className="text-text-tertiary hover:text-white">
                       <X size={14} />
@@ -670,12 +969,22 @@ export const BacktestPage: React.FC = () => {
             </div>
           )}
 
+          {/* Optimize mode */}
+          {bt.mode === 'optimize' && (bt.optimizeResults.length > 0 || bt.loading) && (
+            <OptimizeResultsView
+              results={bt.optimizeResults}
+              status={bt.optimizeStatus}
+              loading={bt.loading}
+            />
+          )}
+
           {/* Empty state */}
-          {!bt.loading && !bt.singleResult && !bt.sweepResult && (
+          {!bt.loading && !bt.singleResult && !bt.sweepResult && bt.optimizeResults.length === 0 && (
             <div className="text-center py-16 text-text-tertiary">
               <FlaskConical size={48} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">Configure parameters and run a backtest</p>
               <p className="text-xs mt-1">Sweep mode tests 96 parameter combos automatically</p>
+              <p className="text-xs mt-0.5">Optimize mode finds the best config for each ticker</p>
             </div>
           )}
         </div>

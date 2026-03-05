@@ -5,11 +5,14 @@
  * 1. Pre-computes tech analysis signals (expensive, done once)
  * 2. Runs cheap TP/SL simulation loops for each config
  * 3. Supports MFE/MAE tracking at multiple time windows
+ * 4. Supports both Daily (v3) and 4H (v4) timeframes
  *
- * Mirrors Pine Script v3.2 entry/exit logic (lines 1284-1920).
+ * Daily: signals from calculateTechScore(), TP/SL on daily bars
+ * 4H:    signals from calculateTechScoreV4() on aggregated daily bars,
+ *        TP/SL on 4H bars for granular exit detection
  */
 
-import { calculateTechScore, type TechScoreResult } from '../tech-analysis';
+import { calculateTechScore, calculateTechScoreV4, aggregateToWeekly, type TechScoreResult, type TechScoreV4Result, type TechScoreOptions } from '../tech-analysis';
 import { calcATR, emaFullSeries } from '../indicators';
 import type {
   BacktestCandle,
@@ -25,8 +28,8 @@ import { computeAnalytics } from './analytics';
 
 // ── Constants ───────────────────────────────────────────
 
-/** Tech analysis needs ~300 bars of history for stable indicators */
-const LOOKBACK = 320;
+/** Daily tech analysis needs ~300 bars of history for stable indicators */
+const LOOKBACK_DAILY = 320;
 
 // ── Entry Quality (ported from Pine v3.2 lines 1510-1517) ──
 
@@ -38,35 +41,76 @@ export function classifyEntryQuality(d8: number): { quality: EntryQuality; eqNor
   return                     { quality: 'CHASING',    eqNorm: -0.40 };
 }
 
+function entryQualityToNorm(eq: EntryQuality): number {
+  switch (eq) {
+    case 'OPTIMAL': return 0.75;
+    case 'ACCEPTABLE': return 0.25;
+    case 'MARGINAL': return -0.10;
+    case 'CHASING': return -0.40;
+  }
+}
+
 function scoreTier(score: number): Tier {
   if (score >= 90) return 'S';
   if (score >= 80) return 'A';
   return 'B';
 }
 
-// ── Signal Pre-computation ──────────────────────────────
+// ── 4H → Daily Aggregation ──────────────────────────────
 
-/**
- * Run calculateTechScore() on every bar from LOOKBACK onward.
- * This is the expensive part — O(n × indicator_cost). Do it ONCE.
- */
-export function precomputeSignals(candles: BacktestCandle[]): PrecomputedSignal[] {
+/** Group 4H candles into daily candles by date string */
+export function aggregate4HToDaily(candles4h: BacktestCandle[]): BacktestCandle[] {
+  const byDate = new Map<string, BacktestCandle[]>();
+  for (const c of candles4h) {
+    const day = c.date.split('T')[0]; // YYYY-MM-DD from YYYY-MM-DDTHH:mm or YYYY-MM-DD
+    const arr = byDate.get(day);
+    if (arr) arr.push(c);
+    else byDate.set(day, [c]);
+  }
+
+  const daily: BacktestCandle[] = [];
+  for (const [day, bars] of byDate) {
+    daily.push({
+      date: day,
+      timestamp: bars[0].timestamp,
+      open: bars[0].open,
+      high: Math.max(...bars.map(b => b.high)),
+      low: Math.min(...bars.map(b => b.low)),
+      close: bars[bars.length - 1].close,
+      volume: bars.reduce((s, b) => s + b.volume, 0),
+    });
+  }
+
+  return daily;
+}
+
+/** Build a map: daily date → index of last 4H bar in that day */
+function buildDailyTo4HMap(candles4h: BacktestCandle[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (let i = 0; i < candles4h.length; i++) {
+    const day = candles4h[i].date.split('T')[0];
+    map.set(day, i); // last one wins = last bar of the day
+  }
+  return map;
+}
+
+// ── Signal Pre-computation (Daily / v3) ─────────────────
+
+export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptions?: TechScoreOptions): PrecomputedSignal[] {
   const signals: PrecomputedSignal[] = [];
   const len = candles.length;
 
-  if (len < LOOKBACK) return signals;
+  if (len < LOOKBACK_DAILY) return signals;
 
-  // Pre-compute ATR(14) and EMA(8) for entry quality classification
   const highs = candles.map(c => c.high);
   const lows = candles.map(c => c.low);
   const closes = candles.map(c => c.close);
   const atrSeries = calcATR(highs, lows, closes, 14);
   const ema8Series = emaFullSeries(closes, 8);
 
-  for (let i = LOOKBACK; i < len; i++) {
-    // Feed tech-analysis the full history up to bar i
+  for (let i = LOOKBACK_DAILY; i < len; i++) {
     const slice = candles.slice(0, i + 1);
-    const result: TechScoreResult = calculateTechScore(slice);
+    const result: TechScoreResult = calculateTechScore(slice, indicatorOptions);
 
     const atr = atrSeries[i];
     const ema8 = ema8Series[i];
@@ -89,12 +133,85 @@ export function precomputeSignals(candles: BacktestCandle[]): PrecomputedSignal[
   return signals;
 }
 
+// ── Signal Pre-computation (4H / v4) ────────────────────
+
+/**
+ * Pre-compute signals using V4 scoring on daily candles aggregated from 4H.
+ * Signals fire at end of each trading day. barIndex maps to the 4H array
+ * (last 4H bar of the signal day) for TP/SL simulation on 4H bars.
+ */
+export function precomputeSignals4H(
+  candles4h: BacktestCandle[],
+  dailyCandles: BacktestCandle[],
+): PrecomputedSignal[] {
+  const signals: PrecomputedSignal[] = [];
+  const len = dailyCandles.length;
+
+  if (len < LOOKBACK_DAILY) return signals;
+
+  // Map daily date → last 4H bar index (for TP/SL entry point)
+  const dailyTo4H = buildDailyTo4HMap(candles4h);
+
+  // Pre-compute daily ATR for TP/SL levels
+  const highs = dailyCandles.map(c => c.high);
+  const lows = dailyCandles.map(c => c.low);
+  const closes = dailyCandles.map(c => c.close);
+  const atrSeries = calcATR(highs, lows, closes, 14);
+
+  for (let i = LOOKBACK_DAILY; i < len; i++) {
+    const slice = dailyCandles.slice(0, i + 1);
+    const weekly = aggregateToWeekly(slice);
+    const result: TechScoreV4Result = calculateTechScoreV4(slice, weekly);
+
+    const atr = atrSeries[i];
+    const day = dailyCandles[i].date;
+    const barIdx4H = dailyTo4H.get(day);
+    if (barIdx4H === undefined) continue;
+
+    signals.push({
+      barIndex: barIdx4H, // Points into 4H array for TP/SL
+      date: day,
+      score: result.techScore,
+      type: result.type,
+      setup: result.setup,
+      confidence: result.confidence,
+      d8: result.debug.d1_ema8,
+      atr: isNaN(atr) ? 0 : atr,
+      close: result.debug.close,
+      // V4-specific: store entry context for TP/SL adjustment
+      entryContext: result.entryContext,
+      dynamicTP: result.dynamicTPSL.tpMult,
+      dynamicSL: result.dynamicTPSL.slMult,
+    });
+  }
+
+  return signals;
+}
+
+// ── Unified precomputeSignals ───────────────────────────
+
+export function precomputeSignals(
+  candles: BacktestCandle[],
+  timeframe: '1D' | '4H',
+  indicatorOptions?: TechScoreOptions,
+): { signals: PrecomputedSignal[]; simCandles: BacktestCandle[] } {
+  if (timeframe === '1D') {
+    return { signals: precomputeSignalsDaily(candles, indicatorOptions), simCandles: candles };
+  }
+  // 4H: aggregate to daily for signals, simulate on 4H bars
+  // Note: V4 scoring doesn't use TechScoreOptions (it has its own internal params)
+  const daily = aggregate4HToDaily(candles);
+  const signals = precomputeSignals4H(candles, daily);
+  return { signals, simCandles: candles };
+}
+
 // ── Core Backtest Loop ──────────────────────────────────
 
 interface OpenTrade {
   entryDate: string;
   entryPrice: number;
   entryBar: number;
+  entryTimestamp: number;
   direction: 'CALL' | 'PUT';
   setup: string;
   score: number;
@@ -104,20 +221,27 @@ interface OpenTrade {
   atrAtEntry: number;
   tpPrice: number;
   slPrice: number;
-  // MFE/MAE tracking
+  // MFE/MAE tracking (in calendar days)
   mfeByWindow: Record<number, number>;
   maeByWindow: Record<number, number>;
   highSinceEntry: number;
   lowSinceEntry: number;
 }
 
+/** Convert bar delta to calendar days */
+function barsToDays(bars: number, timeframe: '1D' | '4H'): number {
+  if (timeframe === '1D') return bars;
+  // 4H: ~2 bars per trading day (6.5 market hours, using 4H bars)
+  return Math.round(bars / 2);
+}
+
 /**
- * Run backtest from pre-computed signals (cheap — just TP/SL simulation).
- * Each call is O(signals × openTrades), typically <1ms for 500 bars.
+ * Run the full backtest loop: signals trigger entries,
+ * TP/SL checked on every bar.
  */
-export function runBacktestFromSignals(
+export function runBacktestFull(
   signals: PrecomputedSignal[],
-  candles: BacktestCandle[],
+  simCandles: BacktestCandle[],
   config: BacktestConfig,
   onProgress?: (pct: number) => void
 ): BacktestResult {
@@ -127,37 +251,36 @@ export function runBacktestFromSignals(
   let pendingSignal: PrecomputedSignal | null = null;
   let prevSignalKey = '';
   let totalSignals = 0;
+  let nextSignalIdx = 0;
 
-  // Filter signals by date range
   const startMs = new Date(config.startDate).getTime();
-  const endMs = new Date(config.endDate).getTime();
+  const endMs = new Date(config.endDate + 'T23:59:59').getTime();
 
-  for (let si = 0; si < signals.length; si++) {
-    const sig = signals[si];
-    const barDate = new Date(sig.date).getTime();
+  for (let barIdx = 0; barIdx < simCandles.length; barIdx++) {
+    const candle = simCandles[barIdx];
 
-    if (barDate < startMs || barDate > endMs) continue;
-
-    const barIdx = sig.barIndex;
-    const candle = candles[barIdx];
-
-    // ── 1. Process pending signal entry (enter on this bar's OPEN) ──
-    if (pendingSignal !== null) {
+    // ── 1. Process pending signal entry ──
+    if (pendingSignal !== null && barIdx > pendingSignal.barIndex) {
       const ps = pendingSignal;
       pendingSignal = null;
 
       const entryPrice = candle.open;
-      const { quality, eqNorm } = classifyEntryQuality(ps.d8);
+      let quality: EntryQuality;
+      let eqNorm: number;
+      if (ps.entryContext) {
+        quality = ps.entryContext;
+        eqNorm = entryQualityToNorm(quality);
+      } else {
+        ({ quality, eqNorm } = classifyEntryQuality(ps.d8));
+      }
 
-      // Apply entry quality adjustment to TP/SL ATR multiples
-      let effTP = config.tpAtr;
-      let effSL = config.slAtr;
-      if (config.useEntryQualityAdjust) {
+      let effTP = ps.dynamicTP ?? config.tpAtr;
+      let effSL = ps.dynamicSL ?? config.slAtr;
+      if (config.useEntryQualityAdjust && !ps.dynamicTP) {
         effTP = config.tpAtr * (1 + eqNorm * 0.25);
         effSL = config.slAtr * (1 - eqNorm * 0.30);
       }
 
-      // Set TP/SL prices
       let tpPrice: number, slPrice: number;
       if (ps.type === 'CALL') {
         tpPrice = entryPrice + ps.atr * effTP;
@@ -167,10 +290,11 @@ export function runBacktestFromSignals(
         slPrice = entryPrice + ps.atr * effSL;
       }
 
-      const trade: OpenTrade = {
+      openTrades.push({
         entryDate: candle.date,
         entryPrice,
         entryBar: barIdx,
+        entryTimestamp: candle.timestamp,
         direction: ps.type as 'CALL' | 'PUT',
         setup: ps.setup,
         score: ps.score,
@@ -184,24 +308,21 @@ export function runBacktestFromSignals(
         maeByWindow: {},
         highSinceEntry: candle.high,
         lowSinceEntry: candle.low,
-      };
-
-      openTrades.push(trade);
+      });
       lastEntryBar = barIdx;
     }
 
-    // ── 2. Check exits for open trades ──
+    // ── 2. Check exits ──
     for (let ti = openTrades.length - 1; ti >= 0; ti--) {
       const ot = openTrades[ti];
       const holdBars = barIdx - ot.entryBar;
+      const holdDays = barsToDays(holdBars, config.timeframe);
 
-      // Update high/low since entry
       ot.highSinceEntry = Math.max(ot.highSinceEntry, candle.high);
       ot.lowSinceEntry = Math.min(ot.lowSinceEntry, candle.low);
 
-      // Update MFE/MAE at window milestones
       for (const w of config.mfeWindows) {
-        if (holdBars === w) {
+        if (holdDays === w && !(w in ot.mfeByWindow)) {
           if (ot.direction === 'CALL') {
             ot.mfeByWindow[w] = (ot.highSinceEntry - ot.entryPrice) / ot.entryPrice;
             ot.maeByWindow[w] = (ot.lowSinceEntry - ot.entryPrice) / ot.entryPrice;
@@ -212,74 +333,33 @@ export function runBacktestFromSignals(
         }
       }
 
-      // Check exit conditions
       let exitPrice: number | null = null;
       let exitType: ExitType | null = null;
 
       if (ot.direction === 'CALL') {
-        // Gap slippage: open gaps past SL
-        if (candle.open <= ot.slPrice) {
-          exitPrice = candle.open;
-          exitType = 'SL';
-        }
-        // Both TP and SL hit same bar → conservative SL
-        else if (candle.low <= ot.slPrice && candle.high >= ot.tpPrice) {
-          exitPrice = ot.slPrice;
-          exitType = 'SL';
-        }
-        // TP hit
-        else if (candle.high >= ot.tpPrice) {
-          exitPrice = ot.tpPrice;
-          exitType = 'TP';
-        }
-        // SL hit
-        else if (candle.low <= ot.slPrice) {
-          exitPrice = ot.slPrice;
-          exitType = 'SL';
-        }
+        if (candle.open <= ot.slPrice) { exitPrice = candle.open; exitType = 'SL'; }
+        else if (candle.low <= ot.slPrice && candle.high >= ot.tpPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
+        else if (candle.high >= ot.tpPrice) { exitPrice = ot.tpPrice; exitType = 'TP'; }
+        else if (candle.low <= ot.slPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
       } else {
-        // PUT direction
-        // Gap slippage: open gaps past SL
-        if (candle.open >= ot.slPrice) {
-          exitPrice = candle.open;
-          exitType = 'SL';
-        }
-        // Both hit same bar → conservative SL
-        else if (candle.high >= ot.slPrice && candle.low <= ot.tpPrice) {
-          exitPrice = ot.slPrice;
-          exitType = 'SL';
-        }
-        // TP hit
-        else if (candle.low <= ot.tpPrice) {
-          exitPrice = ot.tpPrice;
-          exitType = 'TP';
-        }
-        // SL hit
-        else if (candle.high >= ot.slPrice) {
-          exitPrice = ot.slPrice;
-          exitType = 'SL';
-        }
+        if (candle.open >= ot.slPrice) { exitPrice = candle.open; exitType = 'SL'; }
+        else if (candle.high >= ot.slPrice && candle.low <= ot.tpPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
+        else if (candle.low <= ot.tpPrice) { exitPrice = ot.tpPrice; exitType = 'TP'; }
+        else if (candle.high >= ot.slPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
       }
 
-      // Time stop
       if (exitPrice === null && holdBars >= config.timeStopBars) {
-        exitPrice = candle.close;
-        exitType = 'TIME_STOP';
+        exitPrice = candle.close; exitType = 'TIME_STOP';
       }
 
-      // Close the trade
       if (exitPrice !== null && exitType !== null) {
         const rawReturn = ot.direction === 'CALL'
           ? (exitPrice - ot.entryPrice) / ot.entryPrice
           : (ot.entryPrice - exitPrice) / ot.entryPrice;
-
-        const holdDays = holdBars; // 1 bar = 1 trading day
         const thetaAdjReturn = rawReturn * Math.exp(-config.thetaDecayRate * holdDays);
 
-        // Fill any remaining MFE/MAE windows that weren't reached
         for (const w of config.mfeWindows) {
           if (!(w in ot.mfeByWindow)) {
-            // Trade closed before this window — use actual values at close
             if (ot.direction === 'CALL') {
               ot.mfeByWindow[w] = (ot.highSinceEntry - ot.entryPrice) / ot.entryPrice;
               ot.maeByWindow[w] = (ot.lowSinceEntry - ot.entryPrice) / ot.entryPrice;
@@ -291,123 +371,99 @@ export function runBacktestFromSignals(
         }
 
         trades.push({
-          entryDate: ot.entryDate,
-          entryPrice: ot.entryPrice,
-          entryBar: ot.entryBar,
-          direction: ot.direction,
-          setup: ot.setup,
-          score: ot.score,
-          confidence: ot.confidence,
-          tier: ot.tier,
-          entryQuality: ot.entryQuality,
-          atrAtEntry: ot.atrAtEntry,
-          tpPrice: ot.tpPrice,
-          slPrice: ot.slPrice,
-          exitDate: candle.date,
-          exitPrice,
-          exitType,
-          holdDays,
-          rawReturn,
-          thetaAdjReturn,
-          mfe: { ...ot.mfeByWindow },
-          mae: { ...ot.maeByWindow },
+          entryDate: ot.entryDate, entryPrice: ot.entryPrice, entryBar: ot.entryBar,
+          direction: ot.direction, setup: ot.setup, score: ot.score,
+          confidence: ot.confidence, tier: ot.tier, entryQuality: ot.entryQuality,
+          atrAtEntry: ot.atrAtEntry, tpPrice: ot.tpPrice, slPrice: ot.slPrice,
+          exitDate: candle.date, exitPrice, exitType, holdDays,
+          rawReturn, thetaAdjReturn,
+          mfe: { ...ot.mfeByWindow }, mae: { ...ot.maeByWindow },
         });
-
         openTrades.splice(ti, 1);
       }
     }
 
-    // ── 3. Check for new signal ──
-    if (sig.type === 'NEUTRAL') continue;
-    if (sig.score < config.minScore) continue;
-    if (sig.confidence < config.minConfidence) continue;
-    if (config.directionFilter !== 'ALL' && sig.type !== config.directionFilter) continue;
-    if (!config.allowedSetups.includes('All') && !config.allowedSetups.includes(sig.setup)) continue;
+    // ── 3. Check for new signal at this bar ──
+    while (nextSignalIdx < signals.length && signals[nextSignalIdx].barIndex <= barIdx) {
+      const sig = signals[nextSignalIdx];
+      nextSignalIdx++;
 
-    // Skip EXTENDED pullback (CHASING with very high distance)
-    if (Math.abs(sig.d8) > 3.0) continue;
+      if (sig.barIndex !== barIdx) continue;
 
-    totalSignals++;
+      const sigDate = new Date(sig.date).getTime();
+      if (sigDate < startMs || sigDate > endMs) continue;
+      if (sig.type === 'NEUTRAL') continue;
+      if (sig.score < config.minScore) continue;
+      if (sig.confidence < config.minConfidence) continue;
+      if (config.directionFilter !== 'ALL' && sig.type !== config.directionFilter) continue;
+      if (!config.allowedSetups.includes('All') && !config.allowedSetups.includes(sig.setup)) continue;
+      if (Math.abs(sig.d8) > 3.0) continue;
 
-    // Cooldown check
-    if (barIdx - lastEntryBar < config.cooldownBars) continue;
+      totalSignals++;
 
-    // Signal must be new or cooldown expired
-    const signalKey = `${sig.type}:${sig.setup}`;
-    if (signalKey === prevSignalKey && barIdx - lastEntryBar < config.cooldownBars) continue;
-    prevSignalKey = signalKey;
+      if (barIdx - lastEntryBar < config.cooldownBars) continue;
 
-    // Only one open trade at a time
-    if (openTrades.length > 0) continue;
+      const signalKey = `${sig.type}:${sig.setup}`;
+      if (signalKey === prevSignalKey && barIdx - lastEntryBar < config.cooldownBars) continue;
+      prevSignalKey = signalKey;
 
-    // Queue entry for next bar
-    pendingSignal = sig;
+      if (openTrades.length > 0) continue;
 
-    if (onProgress) {
-      onProgress(Math.round((si / signals.length) * 100));
+      pendingSignal = sig;
+    }
+
+    if (onProgress && barIdx % 200 === 0) {
+      onProgress(Math.round((barIdx / simCandles.length) * 100));
     }
   }
 
-  // Force-close any remaining open trades at last candle
-  const lastCandle = candles[candles.length - 1];
-  for (const ot of openTrades) {
-    const holdBars = (candles.length - 1) - ot.entryBar;
-    const rawReturn = ot.direction === 'CALL'
-      ? (lastCandle.close - ot.entryPrice) / ot.entryPrice
-      : (ot.entryPrice - lastCandle.close) / ot.entryPrice;
-    const thetaAdjReturn = rawReturn * Math.exp(-config.thetaDecayRate * holdBars);
+  // Force-close remaining
+  if (simCandles.length > 0 && openTrades.length > 0) {
+    const lastCandle = simCandles[simCandles.length - 1];
+    for (const ot of openTrades) {
+      const holdBars = (simCandles.length - 1) - ot.entryBar;
+      const holdDays = barsToDays(holdBars, config.timeframe);
+      const rawReturn = ot.direction === 'CALL'
+        ? (lastCandle.close - ot.entryPrice) / ot.entryPrice
+        : (ot.entryPrice - lastCandle.close) / ot.entryPrice;
+      const thetaAdjReturn = rawReturn * Math.exp(-config.thetaDecayRate * holdDays);
 
-    for (const w of config.mfeWindows) {
-      if (!(w in ot.mfeByWindow)) {
-        if (ot.direction === 'CALL') {
-          ot.mfeByWindow[w] = (ot.highSinceEntry - ot.entryPrice) / ot.entryPrice;
-          ot.maeByWindow[w] = (ot.lowSinceEntry - ot.entryPrice) / ot.entryPrice;
-        } else {
-          ot.mfeByWindow[w] = (ot.entryPrice - ot.lowSinceEntry) / ot.entryPrice;
-          ot.maeByWindow[w] = (ot.entryPrice - ot.highSinceEntry) / ot.entryPrice;
+      for (const w of config.mfeWindows) {
+        if (!(w in ot.mfeByWindow)) {
+          if (ot.direction === 'CALL') {
+            ot.mfeByWindow[w] = (ot.highSinceEntry - ot.entryPrice) / ot.entryPrice;
+            ot.maeByWindow[w] = (ot.lowSinceEntry - ot.entryPrice) / ot.entryPrice;
+          } else {
+            ot.mfeByWindow[w] = (ot.entryPrice - ot.lowSinceEntry) / ot.entryPrice;
+            ot.maeByWindow[w] = (ot.entryPrice - ot.highSinceEntry) / ot.entryPrice;
+          }
         }
       }
-    }
 
-    trades.push({
-      entryDate: ot.entryDate,
-      entryPrice: ot.entryPrice,
-      entryBar: ot.entryBar,
-      direction: ot.direction,
-      setup: ot.setup,
-      score: ot.score,
-      confidence: ot.confidence,
-      tier: ot.tier,
-      entryQuality: ot.entryQuality,
-      atrAtEntry: ot.atrAtEntry,
-      tpPrice: ot.tpPrice,
-      slPrice: ot.slPrice,
-      exitDate: lastCandle.date,
-      exitPrice: lastCandle.close,
-      exitType: 'TIME_STOP',
-      holdDays: holdBars,
-      rawReturn,
-      thetaAdjReturn,
-      mfe: { ...ot.mfeByWindow },
-      mae: { ...ot.maeByWindow },
-    });
+      trades.push({
+        entryDate: ot.entryDate, entryPrice: ot.entryPrice, entryBar: ot.entryBar,
+        direction: ot.direction, setup: ot.setup, score: ot.score,
+        confidence: ot.confidence, tier: ot.tier, entryQuality: ot.entryQuality,
+        atrAtEntry: ot.atrAtEntry, tpPrice: ot.tpPrice, slPrice: ot.slPrice,
+        exitDate: lastCandle.date, exitPrice: lastCandle.close, exitType: 'TIME_STOP',
+        holdDays, rawReturn, thetaAdjReturn,
+        mfe: { ...ot.mfeByWindow }, mae: { ...ot.maeByWindow },
+      });
+    }
   }
 
   const analytics = computeAnalytics(trades, config, totalSignals);
-
   return { config, trades, analytics };
 }
 
 /**
  * Full backtest: pre-compute signals + run simulation.
- * Use this for single runs. For sweeps, call precomputeSignals() once
- * then runBacktestFromSignals() for each config.
  */
 export function runBacktest(
   candles: BacktestCandle[],
   config: BacktestConfig,
   onProgress?: (pct: number) => void
 ): BacktestResult {
-  const signals = precomputeSignals(candles);
-  return runBacktestFromSignals(signals, candles, config, onProgress);
+  const { signals, simCandles } = precomputeSignals(candles, config.timeframe, config.indicatorOptions);
+  return runBacktestFull(signals, simCandles, config, onProgress);
 }

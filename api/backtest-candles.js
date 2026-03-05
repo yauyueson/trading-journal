@@ -1,18 +1,17 @@
 // api/backtest-candles.js
-// Fetch extended daily candle history for backtesting.
-// Returns 2+ years of OHLCV data from Polygon.
+// Fetch extended candle history for backtesting.
+// Supports daily and 4H timeframes.
 
 import { getCandles } from '../lib/polygon-client.js';
 
 export default async function handler(req, res) {
   try {
-    const { ticker, from, to } = req.query;
+    const { ticker, from, to, timeframe } = req.query;
 
     if (!ticker) {
       return res.status(400).json({ error: 'Missing ticker parameter' });
     }
 
-    // Default: 2.5 years of history (need ~320 bars lookback + trading period)
     const endDate = to || new Date().toISOString().split('T')[0];
     const startDate = from || (() => {
       const d = new Date();
@@ -21,7 +20,11 @@ export default async function handler(req, res) {
       return d.toISOString().split('T')[0];
     })();
 
-    const candles = await getCandles(ticker.toUpperCase(), startDate, endDate, 'day');
+    // 4H = 4-hour bars, 1D = daily bars
+    const timespan = timeframe === '4H' ? 'hour' : 'day';
+    const multiplier = timeframe === '4H' ? 4 : 1;
+
+    const candles = await getCandles(ticker.toUpperCase(), startDate, endDate, timespan, multiplier);
 
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=7200');
     return res.status(200).json({
@@ -29,6 +32,7 @@ export default async function handler(req, res) {
       ticker: ticker.toUpperCase(),
       from: startDate,
       to: endDate,
+      timeframe: timeframe || '1D',
       count: candles.length,
       candles,
     });
