@@ -175,6 +175,74 @@ export interface BacktestAnalytics {
   equityCurve: { date: string; cumReturn: number }[];
   sharpe: number;
   maxDrawdown: number;
+  // Extended metrics
+  sortino: number;              // Sharpe using downside deviation only
+  calmar: number;               // Annualized return / max drawdown
+  expectancy: number;           // avgWin×WR + avgLoss×LR (per trade expected %)
+  maxConsecutiveWins: number;
+  maxConsecutiveLosses: number;
+}
+
+// ── Monte Carlo ─────────────────────────────────────────
+
+export interface MonteCarloResult {
+  iterations: number;
+  sharpe: { p5: number; p50: number; p95: number };
+  maxDrawdown: { p5: number; p50: number; p95: number };
+  finalReturn: { p5: number; p50: number; p95: number };
+  isSignificant: boolean;       // true if p5 Sharpe > 0
+}
+
+// ── Walk-Forward ────────────────────────────────────────
+
+export type WalkForwardMode = 'rolling' | 'anchored';
+
+export interface WalkForwardConfig {
+  ticker: string;
+  startDate: string;
+  endDate: string;
+  timeframe: Timeframe;
+  /** In-sample window size in trading days */
+  isWindowDays: number;         // default 252 (1 year)
+  /** Out-of-sample window size in trading days */
+  oosWindowDays: number;        // default 63 (1 quarter)
+  /** 'rolling' = fixed IS window, 'anchored' = expanding IS from start */
+  mode: WalkForwardMode;        // default 'anchored'
+  /** Use GA ('ga') or grid sweep ('sweep') for IS optimization */
+  optimizer: 'ga' | 'sweep';
+  /** GA settings (when optimizer='ga') */
+  populationSize?: number;
+  generations?: number;
+  /** Sweep ranges (when optimizer='sweep') */
+  sweepRanges?: Omit<SweepConfig, 'ticker' | 'startDate' | 'endDate' | 'timeframe'>;
+  /** Whether to jointly optimize trade + indicator params (GA only) */
+  jointOptimize?: boolean;
+}
+
+export interface WalkForwardWindow {
+  windowIndex: number;
+  isStart: string;              // IS period start date
+  isEnd: string;                // IS period end date
+  oosStart: string;             // OOS period start date
+  oosEnd: string;               // OOS period end date
+  isBestConfig: BacktestConfig; // Best config found on IS data
+  isBestFitness: number;
+  oosResult: BacktestResult;    // Performance on OOS data
+}
+
+export interface WalkForwardResult {
+  config: WalkForwardConfig;
+  windows: WalkForwardWindow[];
+  /** Aggregated OOS-only analytics (the real measure) */
+  oosAnalytics: BacktestAnalytics;
+  /** All OOS trades concatenated */
+  oosTrades: BacktestTrade[];
+  /** Walk-forward efficiency: OOS performance / IS performance */
+  wfEfficiency: number;
+  /** Monte Carlo on OOS trades */
+  monteCarlo?: MonteCarloResult;
+  totalEvals: number;
+  elapsedMs: number;
 }
 
 // ── Results ─────────────────────────────────────────────
@@ -222,7 +290,7 @@ export interface OptimizeConfig {
   ticker: string;
   startDate: string;
   endDate: string;
-  // Fixed trade params (not swept)
+  // Fixed trade params (not swept — ignored when jointOptimize=true)
   tpAtr: number;
   slAtr: number;
   minScore: number;
@@ -231,6 +299,8 @@ export interface OptimizeConfig {
   // GA settings (optional — sensible defaults)
   populationSize?: number;   // default 40
   generations?: number;      // default 30
+  /** When true, GA also evolves tpAtr, slAtr, minScore, thetaDecayRate */
+  jointOptimize?: boolean;
 }
 
 export interface OptimizeResult {
