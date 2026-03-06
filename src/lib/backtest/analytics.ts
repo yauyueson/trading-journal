@@ -192,6 +192,54 @@ export function computeAnalytics(
   const maxConsecutiveWins = maxConsecutive(sortedTrades, true);
   const maxConsecutiveLosses = maxConsecutive(sortedTrades, false);
 
+  // BSM option return analytics (when repricing was active)
+  const optReturns = trades.map(t => t.optionReturn).filter((r): r is number => r != null);
+  const hasOptionReturns = optReturns.length > 0;
+
+  let optionAnalytics: Partial<BacktestAnalytics> = {};
+  if (hasOptionReturns) {
+    const optWins = optReturns.filter(r => r > 0);
+    const optLosses = optReturns.filter(r => r < 0);
+    const optGrossWins = optWins.reduce((s, r) => s + r, 0);
+    const optGrossLosses = Math.abs(optLosses.reduce((s, r) => s + r, 0));
+    const optPF = optGrossLosses > 0 ? optGrossWins / optGrossLosses : optGrossWins > 0 ? Infinity : 0;
+
+    const optStdVal = std(optReturns);
+    const optDD = downsideDev(optReturns);
+    const optSharpe = optStdVal > 0 ? (avg(optReturns) / optStdVal) * Math.sqrt(252 / avgHoldDaysVal) : 0;
+    const optSortino = optDD > 0 ? (avg(optReturns) / optDD) * Math.sqrt(252 / avgHoldDaysVal) : 0;
+
+    const optWR = optReturns.length > 0 ? (optWins.length / optReturns.length) * 100 : 0;
+    const optWRFrac = optWR / 100;
+    const optExpectancy = avg(optWins) * 100 * optWRFrac + avg(optLosses) * 100 * (1 - optWRFrac);
+
+    // Option equity curve & drawdown
+    let optCum = 0;
+    let optPeak = 0;
+    let optMaxDD = 0;
+    const optEquityCurve: { date: string; cumReturn: number }[] = [];
+    for (const t of sortedTrades) {
+      if (t.optionReturn != null) {
+        optCum += t.optionReturn;
+        optPeak = Math.max(optPeak, optCum);
+        optMaxDD = Math.max(optMaxDD, optPeak - optCum);
+        optEquityCurve.push({ date: t.exitDate, cumReturn: optCum * 100 });
+      }
+    }
+
+    optionAnalytics = {
+      optionMode: true,
+      optionAvgReturn: avg(optReturns) * 100,
+      optionWinRate: optWR,
+      optionSharpe: isFinite(optSharpe) ? optSharpe : 0,
+      optionSortino: isFinite(optSortino) ? optSortino : 0,
+      optionProfitFactor: optPF,
+      optionExpectancy: isFinite(optExpectancy) ? optExpectancy : 0,
+      optionMaxDrawdown: optMaxDD * 100,
+      optionEquityCurve: optEquityCurve,
+    };
+  }
+
   return {
     totalSignals,
     totalTrades: n,
@@ -223,6 +271,7 @@ export function computeAnalytics(
     maxConsecutiveWins,
     maxConsecutiveLosses,
     gateStats,
+    ...optionAnalytics,
   };
 }
 
@@ -247,7 +296,9 @@ export function monteCarloPermutation(
     };
   }
 
-  const returns = trades.map(t => t.rawReturn);
+  // Use option returns when all trades have BSM repricing data
+  const useOption = trades.every(t => t.optionReturn != null);
+  const returns = trades.map(t => useOption ? t.optionReturn! : t.rawReturn);
   const sharpes: number[] = [];
   const maxDDs: number[] = [];
   const finalReturns: number[] = [];

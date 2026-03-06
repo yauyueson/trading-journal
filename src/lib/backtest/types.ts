@@ -1,8 +1,8 @@
 /**
  * Signal Quality Backtester — Type Definitions
  *
- * Stock-price-only backtesting with ATR-based TP/SL and optional theta decay penalty.
- * No options data needed — validates signal quality before committing to options trades.
+ * ATR-based TP/SL backtesting with optional BSM synthetic options repricing.
+ * Phase 1: constant-IV BSM repricing converts stock returns to option returns.
  */
 
 import type { TechScoreOptions } from '../tech-analysis';
@@ -24,6 +24,25 @@ export const DEFAULT_QUALITY_GATES: QualityGates = {
   minRVOL: 0.5,
   useCoherence: true,
   useSqueeze: true,
+};
+
+// ── Options Pricing Config (BSM Repricing) ───────────────
+
+export type IVSource = 'hv20' | 'hv30' | 'fixed';
+
+export interface OptionsPricingConfig {
+  enabled: boolean;
+  entryDTE: number;           // DTE at entry (default 30)
+  riskFreeRate: number;       // decimal (0.04 = 4%)
+  ivSource: IVSource;         // 'hv20' | 'hv30' | 'fixed'
+  fixedIV?: number;           // decimal, used when ivSource='fixed' (e.g. 0.25)
+}
+
+export const DEFAULT_OPTIONS_PRICING: OptionsPricingConfig = {
+  enabled: false,
+  entryDTE: 30,
+  riskFreeRate: 0.04,
+  ivSource: 'hv20',
 };
 
 export interface BacktestConfig {
@@ -51,6 +70,8 @@ export interface BacktestConfig {
   indicatorOptions: TechScoreOptions;
   // V4 quality gates (fixed filters, not optimizable)
   qualityGates: QualityGates;
+  // BSM synthetic options repricing (Phase 1)
+  optionsPricing?: OptionsPricingConfig;
 }
 
 export const DEFAULT_CONFIG: BacktestConfig = {
@@ -106,6 +127,9 @@ export interface PrecomputedSignal {
   rvol?: number;
   isSqueeze?: boolean;
   coherence?: number;   // 0-3 count of MB/BXS/BXL directional agreement
+  // BSM repricing: rolling HV at signal bar (annualized decimal)
+  ivEstimate?: number;    // HV20
+  ivEstimate30?: number;  // HV30
 }
 
 // ── Trade ───────────────────────────────────────────────
@@ -138,6 +162,14 @@ export interface BacktestTrade {
   // MFE/MAE per window
   mfe: Record<number, number>;  // { 5: 0.032, 10: 0.045, ... }
   mae: Record<number, number>;  // { 5: -0.012, 10: -0.018, ... }
+  // BSM synthetic option return (populated when optionsPricing enabled)
+  optionReturn?: number;         // (V_exit - V_entry) / V_entry
+  optionPriceEntry?: number;     // BSM price at entry
+  optionPriceExit?: number;      // BSM price at exit
+  strikeUsed?: number;           // K used for BSM
+  ivAtEntry?: number;            // sigma used (annualized decimal)
+  entryDelta?: number;           // BSM delta at entry
+  exitDelta?: number;            // BSM delta at exit
 }
 
 // ── Analytics ───────────────────────────────────────────
@@ -207,6 +239,16 @@ export interface BacktestAnalytics {
   maxConsecutiveLosses: number;
   // Quality gate stats
   gateStats?: GateStats;
+  // BSM option return analytics (present when optionsPricing was enabled)
+  optionMode?: boolean;
+  optionAvgReturn?: number;
+  optionWinRate?: number;
+  optionSharpe?: number;
+  optionSortino?: number;
+  optionProfitFactor?: number;
+  optionExpectancy?: number;
+  optionMaxDrawdown?: number;
+  optionEquityCurve?: { date: string; cumReturn: number }[];
 }
 
 export interface GateStats {
@@ -297,6 +339,7 @@ export interface SweepConfig {
   minConfidenceRange: number[];
   setupGroups: string[][];
   thetaDecayRange: number[];
+  optionsPricing?: OptionsPricingConfig;
 }
 
 /** Optimize mode: GA-based indicator weight optimization with fixed TP/SL */
@@ -317,6 +360,7 @@ export interface OptimizeConfig {
   tickers?: string[];
   // Which parameter groups the GA optimizes (default: weights only)
   optimizeParams?: OptimizeParams;
+  optionsPricing?: OptionsPricingConfig;
 }
 
 /** Toggle which parameter groups are included in GA optimization */

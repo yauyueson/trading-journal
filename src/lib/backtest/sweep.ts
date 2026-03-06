@@ -48,6 +48,7 @@ function generateTradeConfigs(sweep: SweepConfig, indicatorOpts: TechScoreOption
                 allowedSetups: setups,
                 thetaDecayRate: decay,
                 indicatorOptions: indicatorOpts,
+                optionsPricing: sweep.optionsPricing,
               });
             }
           }
@@ -246,11 +247,18 @@ export function computeFitness(r: BacktestResult): number {
   const a = r.analytics;
   if (a.totalTrades < 10) return 0;
 
-  const sortinoContrib = 0.30 * Math.max(0, Math.min(a.sortino, 3)) / 3;
-  const pfContrib      = 0.20 * Math.max(0, Math.min(a.profitFactor, 5)) / 5;
-  const wrContrib      = 0.15 * (a.winRateTheta / 100);
-  const ddContrib      = 0.15 * Math.max(0, 1 - a.maxDrawdown / 100);
-  const expContrib     = 0.10 * Math.max(0, Math.min(a.expectancy, 5)) / 5;
+  // Use option-return metrics when BSM repricing was active
+  const sortino = a.optionMode ? (a.optionSortino ?? a.sortino) : a.sortino;
+  const pf = a.optionMode ? (a.optionProfitFactor ?? a.profitFactor) : a.profitFactor;
+  const wr = a.optionMode ? (a.optionWinRate ?? a.winRateTheta) : a.winRateTheta;
+  const dd = a.optionMode ? (a.optionMaxDrawdown ?? a.maxDrawdown) : a.maxDrawdown;
+  const exp = a.optionMode ? (a.optionExpectancy ?? a.expectancy) : a.expectancy;
+
+  const sortinoContrib = 0.30 * Math.max(0, Math.min(sortino, 3)) / 3;
+  const pfContrib      = 0.20 * Math.max(0, Math.min(pf, 5)) / 5;
+  const wrContrib      = 0.15 * (wr / 100);
+  const ddContrib      = 0.15 * Math.max(0, 1 - dd / 100);
+  const expContrib     = 0.10 * Math.max(0, Math.min(exp, 5)) / 5;
   const countContrib   = 0.10 * Math.min(1, a.totalTrades / 50);
 
   return sortinoContrib + pfContrib + wrContrib + ddContrib + expContrib + countContrib;
@@ -317,6 +325,7 @@ export function runGeneticOptimize(
         thetaDecayRate: config.thetaDecayRate,
         ...tradeOverrides,
         indicatorOptions: indicatorOpts,
+        optionsPricing: config.optionsPricing,
       };
       const r = runBacktestFull(signals, simCandles, backtestConfig);
       const fit = computeFitness(r);
@@ -498,6 +507,7 @@ export function runTwoStageOptimize(
           minConfidence: config.minConfidence,
           thetaDecayRate: bestCfg.thetaDecayRate,
           indicatorOptions: bestOpts,
+          optionsPricing: config.optionsPricing,
         };
         const r = runBacktestFull(signals, simCandles, cfg);
         if (isMulti) {
@@ -519,6 +529,7 @@ export function runTwoStageOptimize(
         minConfidence: config.minConfidence,
         thetaDecayRate: bestCfg.thetaDecayRate,
         indicatorOptions: bestOpts,
+        optionsPricing: config.optionsPricing,
       };
       const combinedAnalytics = computeAnalytics(allTrades, combinedConfig, totalSignals);
       tpslResults.push({ config: combinedConfig, trades: allTrades, analytics: combinedAnalytics });

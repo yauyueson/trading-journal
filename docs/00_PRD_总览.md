@@ -1,6 +1,6 @@
 # Trading Journal - 产品需求文档（PRD）总览
 
-> 版本 1.2 · 最后更新: 2026年2月12日
+> 版本 1.3 · 最后更新: 2026年3月6日
 
 ---
 
@@ -53,8 +53,8 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Trading Journal                         │
 ├─────────────┬─────────────┬─────────────┬─────────────┬─────────┤
-│  Scanner    │  Watchlist  │  Portfolio  │  Strategy   │ History │
-│  (OSS 扫描)  │  (计划入场)  │  (持仓管理)  │  Recommender│ /Stats  │
+│  Scanner    │  Watchlist  │  Portfolio  │  Strategy   │ History │ Backtest │
+│  (OSS 扫描)  │  (计划入场)  │  (持仓管理)  │  Recommender│ /Stats  │ /Signals │
 ├─────────────┴─────────────┴─────────────┴─────────────┴─────────┤
 │  数据与评分：Polygon.io(主)/CBOE(备) + Nasdaq · OSS (oss-core + api/_shared) │
 │  持久化：Supabase (positions, transactions, greeks_history)       │
@@ -77,6 +77,9 @@
 | P2 | Roll | 平旧仓开新仓（Roll 流程） | ✅ |
 | P2 | Academy | 内嵌学习/说明内容 | ✅ |
 | P1 | Discord 自动提醒 | 止损/目标价触及时自动发 Discord 推送 | ✅ |
+| P1 | Backtest | Tech Score 回测引擎（GA 优化、Walk-Forward、质量门控） | ✅ |
+| P1 | Signals | 实时信号扫描仪表盘（多 Ticker Tech Score 扫描） | ✅ |
+| P2 | Settings | 全局应用设置（Dark Mode、通知偏好等） | ✅ |
 | 后续 | 导出、短信提醒、多账户等 | 见「未来规划」 | 规划中 |
 
 ---
@@ -147,7 +150,7 @@
 |------|------|
 | [01_项目概览](./01_项目概览.md) | 项目简介、技术栈、功能模块概览 |
 | [02_技术路径](./02_技术路径.md) | 前端/后端技术选型、目录结构、数据流、API 与评分架构 |
-| [03_核心算法](./03_核心算法.md) | OSS v2.1 公式说明（LOQ/CSQ、IV、Delta Bonus、Theta 惩罚等） |
+| [03_核心算法](./03_核心算法.md) | OSS v2.8 公式说明（LOQ/CSQ、IV、Tech Score、质量门控等） |
 | [04_数据库设计](./04_数据库设计.md) | 表结构、RLS、索引 |
 | [05_API文档](./05_API文档.md) | 各 API 端点、参数、响应格式 |
 | [06_用户工作流](./06_用户工作流.md) | 从扫描到平仓的端到端流程 |
@@ -157,4 +160,4 @@
 
 ---
 
-*文档维护：Trading Journal Team · 2026年2月12日*
+*文档维护：Trading Journal Team · 2026年3月6日*

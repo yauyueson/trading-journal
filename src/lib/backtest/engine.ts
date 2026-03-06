@@ -14,6 +14,7 @@
 
 import { calculateTechScore, calculateTechScoreV4, aggregateToWeekly, type TechScoreResult, type TechScoreV4Result, type TechScoreOptions } from '../tech-analysis';
 import { calcATR, calcADX, calcRVOL, detectSqueeze, emaFullSeries } from '../indicators';
+import { bsmPrice, bsmDelta, computeRollingHV } from './bsm-pricing';
 import type {
   BacktestCandle,
   BacktestConfig,
@@ -122,6 +123,10 @@ export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptio
   const atrSeries = calcATR(highs, lows, closes, 14);
   const ema8Series = emaFullSeries(closes, 8);
 
+  // Rolling HV for BSM repricing (cheap O(n), always computed)
+  const hv20Series = computeRollingHV(closes, 20);
+  const hv30Series = computeRollingHV(closes, 30);
+
   // Pre-compute V4 quality gate series (O(n), negligible cost)
   const adxResult = calcADX(highs, lows, closes, 14);
   const rvolResult = calcRVOL(volumes, 20);
@@ -163,6 +168,8 @@ export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptio
       rvol: rvolResult.rvol[i],
       isSqueeze: squeezeSeries[i],
       coherence,
+      ivEstimate: hv20Series[i],
+      ivEstimate30: hv30Series[i],
     });
   }
 
@@ -262,6 +269,13 @@ interface OpenTrade {
   maeByWindow: Record<number, number>;
   highSinceEntry: number;
   lowSinceEntry: number;
+  // BSM repricing (populated when optionsPricing enabled)
+  bsmStrike?: number;
+  bsmEntryPrice?: number;
+  bsmIV?: number;
+  bsmEntryDTE?: number;
+  bsmIsCall?: boolean;
+  bsmEntryDelta?: number;
 }
 
 /** Convert bar delta to calendar days */
@@ -348,6 +362,37 @@ export function runBacktestFull(
         highSinceEntry: candle.high,
         lowSinceEntry: candle.low,
       });
+
+      // BSM entry pricing (when options repricing enabled)
+      if (config.optionsPricing?.enabled) {
+        const opc = config.optionsPricing;
+        const iv = opc.ivSource === 'fixed'
+          ? (opc.fixedIV ?? 0.25)
+          : opc.ivSource === 'hv30'
+            ? (ps.ivEstimate30 ?? ps.ivEstimate ?? NaN)
+            : (ps.ivEstimate ?? NaN);
+
+        if (!isNaN(iv) && iv > 0.01 && iv < 5.0) {
+          const isCall = ps.type === 'CALL';
+          const K = entryPrice; // ATM (Phase 1)
+          const T = opc.entryDTE / 365;
+          const r = opc.riskFreeRate;
+
+          const optPrice = bsmPrice(entryPrice, K, T, iv, r, isCall);
+          const delta = bsmDelta(entryPrice, K, T, iv, r, isCall);
+
+          if (optPrice > 0) {
+            const ot = openTrades[openTrades.length - 1];
+            ot.bsmStrike = K;
+            ot.bsmEntryPrice = optPrice;
+            ot.bsmIV = iv;
+            ot.bsmEntryDTE = opc.entryDTE;
+            ot.bsmIsCall = isCall;
+            ot.bsmEntryDelta = delta;
+          }
+        }
+      }
+
       lastEntryBar = barIdx;
     }
 
@@ -409,6 +454,21 @@ export function runBacktestFull(
           }
         }
 
+        // BSM exit repricing
+        let optionReturn: number | undefined;
+        let optionPriceExit: number | undefined;
+        let exitDelta: number | undefined;
+
+        if (ot.bsmEntryPrice != null && ot.bsmEntryPrice > 0) {
+          const opc = config.optionsPricing!;
+          const T_exit = Math.max(1 / 365, (ot.bsmEntryDTE! - holdDays) / 365);
+          const sigma_exit = ot.bsmIV!; // Phase 1: constant IV
+
+          optionPriceExit = bsmPrice(exitPrice, ot.bsmStrike!, T_exit, sigma_exit, opc.riskFreeRate, ot.bsmIsCall!);
+          exitDelta = bsmDelta(exitPrice, ot.bsmStrike!, T_exit, sigma_exit, opc.riskFreeRate, ot.bsmIsCall!);
+          optionReturn = Math.max(-1.0, (optionPriceExit - ot.bsmEntryPrice) / ot.bsmEntryPrice);
+        }
+
         trades.push({
           entryDate: ot.entryDate, entryPrice: ot.entryPrice, entryBar: ot.entryBar,
           direction: ot.direction, setup: ot.setup, score: ot.score,
@@ -417,6 +477,13 @@ export function runBacktestFull(
           exitDate: candle.date, exitPrice, exitType, holdDays,
           rawReturn, thetaAdjReturn,
           mfe: { ...ot.mfeByWindow }, mae: { ...ot.maeByWindow },
+          optionReturn,
+          optionPriceEntry: ot.bsmEntryPrice,
+          optionPriceExit,
+          strikeUsed: ot.bsmStrike,
+          ivAtEntry: ot.bsmIV,
+          entryDelta: ot.bsmEntryDelta,
+          exitDelta,
         });
         openTrades.splice(ti, 1);
       }
@@ -498,6 +565,21 @@ export function runBacktestFull(
         }
       }
 
+      // BSM exit repricing (force-close)
+      let optionReturn: number | undefined;
+      let optionPriceExit: number | undefined;
+      let exitDelta: number | undefined;
+
+      if (ot.bsmEntryPrice != null && ot.bsmEntryPrice > 0) {
+        const opc = config.optionsPricing!;
+        const T_exit = Math.max(1 / 365, (ot.bsmEntryDTE! - holdDays) / 365);
+        const sigma_exit = ot.bsmIV!;
+
+        optionPriceExit = bsmPrice(lastCandle.close, ot.bsmStrike!, T_exit, sigma_exit, opc.riskFreeRate, ot.bsmIsCall!);
+        exitDelta = bsmDelta(lastCandle.close, ot.bsmStrike!, T_exit, sigma_exit, opc.riskFreeRate, ot.bsmIsCall!);
+        optionReturn = Math.max(-1.0, (optionPriceExit - ot.bsmEntryPrice) / ot.bsmEntryPrice);
+      }
+
       trades.push({
         entryDate: ot.entryDate, entryPrice: ot.entryPrice, entryBar: ot.entryBar,
         direction: ot.direction, setup: ot.setup, score: ot.score,
@@ -506,6 +588,13 @@ export function runBacktestFull(
         exitDate: lastCandle.date, exitPrice: lastCandle.close, exitType: 'TIME_STOP',
         holdDays, rawReturn, thetaAdjReturn,
         mfe: { ...ot.mfeByWindow }, mae: { ...ot.maeByWindow },
+        optionReturn,
+        optionPriceEntry: ot.bsmEntryPrice,
+        optionPriceExit,
+        strikeUsed: ot.bsmStrike,
+        ivAtEntry: ot.bsmIV,
+        entryDelta: ot.bsmEntryDelta,
+        exitDelta,
       });
     }
   }

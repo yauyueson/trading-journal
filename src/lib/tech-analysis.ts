@@ -13,6 +13,8 @@ export interface TechScoreResult {
         sc_bxl: number;
         sc_ema: number;
         sc_mom: number;
+        sc_adx: number;
+        sc_vol: number;
     };
     debug: {
         mb_osc: number;
@@ -21,16 +23,21 @@ export interface TechScoreResult {
         d8: number;
         reversal: boolean;
         close: number;
+        adx: number;
+        rvol: number;
+        regime: 'trending' | 'ranging' | 'neutral';
     };
 }
 
-/** Optional weights and criteria periods (Pine Scanner defaults). Omit to use defaults. */
+/** Optional weights and criteria periods (Pine Scanner v3.2 defaults). Omit to use defaults. */
 export interface TechScoreOptions {
     w_mb?: number;
     w_bxs?: number;
     w_bxl?: number;
     w_ema?: number;
     w_mom?: number;
+    w_adx?: number;
+    w_vol?: number;
     sc_mb_len?: number;
     /** In Pine Scanner, o2/c2 use same period as sc_mb_len (ha_len2=len). Kept for compatibility. */
     sc_mb_smoothing?: number;
@@ -43,15 +50,17 @@ export interface TechScoreOptions {
     sc_bx_l2?: number;
 }
 
-// Aligned with Pine Script "Scanner: Criteria Periods" and "Scanner: Scoring" defaults
+// Aligned with Pine Script v3.2 "Scanner: Scoring" defaults (7 components)
 const DEFAULT_OPTIONS: Required<TechScoreOptions> = {
-    w_mb: 30,
-    w_bxs: 25,
-    w_bxl: 20,
-    w_ema: 15,
-    w_mom: 10,
-    sc_mb_len: 100,
-    sc_mb_smoothing: 100,
+    w_mb: 25,
+    w_bxs: 20,
+    w_bxl: 15,
+    w_ema: 12,
+    w_mom: 8,
+    w_adx: 12,
+    w_vol: 8,
+    sc_mb_len: 20,
+    sc_mb_smoothing: 20,
     sc_osc_len: 7,
     sc_bx_s1: 5,
     sc_bx_s2: 20,
@@ -61,12 +70,13 @@ const DEFAULT_OPTIONS: Required<TechScoreOptions> = {
 };
 
 /**
- * Calculate Tech Score based on user's PineScript logic ("MB+DFP + Options Scanner").
- * @param candles Daily candles (Open, High, Low, Close). Expects ~300+ candles.
+ * Calculate Tech Score aligned with Pine Script v3.2 ("MB+DFP + Options Scanner").
+ * 7 components: MB, BXS, BXL, EMA, MOM, ADX, RVOL — all direction-aware.
+ * @param candles Daily candles (OHLCV). Expects ~300+ candles. Volume optional (defaults to 1).
  * @param options Optional weights and criteria periods (match Pine Scanner inputs when set).
  */
 export function calculateTechScore(
-    candles: { open: number; high: number; low: number; close: number }[],
+    candles: { open: number; high: number; low: number; close: number; volume?: number }[],
     options?: TechScoreOptions
 ): TechScoreResult {
     const opts = { ...DEFAULT_OPTIONS, ...options };
@@ -74,7 +84,10 @@ export function calculateTechScore(
     const opens = candles.map(c => c.open);
     const highs = candles.map(c => c.high);
     const lows = candles.map(c => c.low);
+    const volumes = candles.map(c => c.volume ?? 1);
     const len = closes.length;
+
+    const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
     // Default return for insufficient data
     if (len < 50) {
@@ -84,15 +97,16 @@ export function calculateTechScore(
             signal: '⚪ WATCH',
             setup: 'Insufficient Data',
             confidence: 0,
-            components: { sc_mb: 50, sc_bxs: 50, sc_bxl: 50, sc_ema: 50, sc_mom: 50 },
-            debug: { mb_osc: 0, bxs: 0, bxl: 0, d8: 0, reversal: false, close: closes[len - 1] || 0 }
+            components: { sc_mb: 50, sc_bxs: 50, sc_bxl: 50, sc_ema: 50, sc_mom: 50, sc_adx: 50, sc_vol: 50 },
+            debug: { mb_osc: 0, bxs: 0, bxl: 0, d8: 0, reversal: false, close: closes[len - 1] || 0, adx: 20, rvol: 1, regime: 'neutral' }
         };
     }
 
-    // --- 1. Market Bias (Pine s_calc_mb: ha_len2 = len, so same period for o2/c2) ---
-    // All EMA calls use emaFullSeries to match Pine's ta.ema() (seeds from bar 0, no NaN warmup).
-    // SMA-seeded ema() produces NaN for bars 0..period-1, polluting heikinAshiPine and downstream
-    // RSI seeds. For shorter datasets (1H/4H), these lost warmup bars are significant.
+    // =====================================================================
+    // PHASE 1: Compute raw indicators
+    // =====================================================================
+
+    // --- MB (Market Bias) ---
     const haLen = opts.sc_mb_len;
     const mb_o = emaFullSeries(opens, haLen);
     const mb_c = emaFullSeries(closes, haLen);
@@ -105,10 +119,7 @@ export function calculateTechScore(
     const o2 = emaFullSeries(haOpens, haLen2);
     const c2 = emaFullSeries(haCloses, haLen2);
 
-    // Osc = 100 * (c2 - o2)
     const osc = c2.map((c, i) => 100 * (c - o2[i]));
-
-    // sm = ema(osc, sc_osc_len)
     const oscSmooth = emaFullSeries(osc, opts.sc_osc_len);
 
     const currOsc = osc[len - 1] || 0;
@@ -116,72 +127,37 @@ export function calculateTechScore(
     const prevOsc = osc[len - 2] || 0;
 
     const is_bull = currOsc > 0;
-    const is_str = is_bull ? (currOsc >= currSm) : (currOsc <= currSm); // Not used directly in score, but in identify?
+    const is_str = is_bull ? (currOsc >= currSm) : (currOsc <= currSm);
     const was_bear = prevOsc < 0;
     const bs_bull = is_bull && was_bear;
     const bs_bear = !is_bull && !was_bear;
-    const iss = is_str; // using variable name from script 'iss'
+    const iss = is_str;
 
-    // Score MB
-    // sc_mb = 50.0 + (isb ? min(mb*5, 30) : -min(abs(mb)*5, 30)) + (iss ? 20 : 5)
-    let sc_mb = 50.0;
-    if (is_bull) {
-        sc_mb += Math.min(currOsc * 5, 30);
-    } else {
-        sc_mb -= Math.min(Math.abs(currOsc) * 5, 30);
-    }
-    sc_mb += (iss ? 20 : 5);
-
-
-    // --- 2. B-Xtrender (Short & Long) ---
+    // --- BXS / BXL ---
     const s_l1 = opts.sc_bx_s1, s_l2 = opts.sc_bx_s2, s_l3 = opts.sc_bx_s3;
     const l_l1 = opts.sc_bx_l1, l_l2 = opts.sc_bx_l2;
 
-    // Short Term: RSI(EMA(c, 5) - EMA(c, 20), 15) - 50
     const ema5 = emaFullSeries(closes, s_l1);
     const ema20 = emaFullSeries(closes, s_l2);
     const shortDiff = ema5.map((v, i) => v - ema20[i]);
     const stX = rsi(shortDiff, s_l3).map(v => v - 50);
 
-    // Long Term: RSI(EMA(c, 20), 15) - 50
     const ema20_long = emaFullSeries(closes, l_l1);
     const ltX = rsi(ema20_long, l_l2).map(v => v - 50);
 
-    // T3 Smooth of Short Term
-    // mstX = s_t3_smooth(stX, 5)
-    // IMPORTANT: PineScript T3 implementation might handle NaNs differently.
-    // Our t3_smooth returns NaNs if inputs are NaN.
-    // stX has NaNs at start.
-    const mstX = t3_smooth(stX, 5); // b=0.7 default
+    const mstX = t3_smooth(stX, 5);
 
-    const currBxs = stX[len - 1] || 0;     // 'bxs' in script
-    const currMabxs = mstX[len - 1] || 0;  // 'mabxs' in script
+    const currBxs = stX[len - 1] || 0;
+    const currMabxs = mstX[len - 1] || 0;
     const prevMabxs = mstX[len - 2] || 0;
     const prev2Mabxs = mstX[len - 3] || 0;
 
-    // Rev Up/Down
     const rev_up = currMabxs > prevMabxs && prevMabxs < prev2Mabxs;
     const rev_dn = currMabxs < prevMabxs && prevMabxs > prev2Mabxs;
 
-    const currBxl = ltX[len - 1] || 0;     // 'bxl' in script
+    const currBxl = ltX[len - 1] || 0;
 
-    // Score BX Short (v2.7: direction-aware reversal + MA slope)
-    let sc_bxs = 50.0;
-    sc_bxs += Math.min(Math.max(currBxs * 2, -50), 50);  // Direction-aware: BXS drives sign
-    // MA slope: confirms momentum direction (+10 aligned, -5 opposing)
-    sc_bxs += (currMabxs > prevMabxs ? 10 : -5);
-    // Reversal bonus: only add for reversals in the bullish direction (rev_up),
-    // penalize for bearish reversals (rev_dn). Prevents bearish pivots from inflating the score.
-    sc_bxs += (rev_up ? 15 : rev_dn ? -15 : 0);
-
-    // Score BX Long — intentionally simpler than BXS (no reversal logic).
-    // BXL reversals are multi-week events (RSI of EMA-20, period 15). By the time a BXL
-    // reversal is confirmed, the move is already underway — not actionable at daily signal level.
-    // BXS reversals, in contrast, are intra-week and serve as entry timing triggers.
-    let sc_bxl = 50.0 + Math.min(Math.max(currBxl * 3, -50), 50);
-
-
-    // --- 3. EMA Stack (15%) ---
+    // --- EMA Stack ---
     const e8 = emaFullSeries(closes, 8);
     const e21 = emaFullSeries(closes, 21);
     const e34 = emaFullSeries(closes, 34);
@@ -190,76 +166,39 @@ export function calculateTechScore(
     const currE21 = e21[len - 1] || 0;
     const currE34 = e34[len - 1] || 0;
     const currClose = closes[len - 1] || 0;
+    const prevClose1 = closes[len - 2] || currClose;
 
-    // d8 = (c - e8)/e8 * 100 ...
     const d8 = ((currClose - currE8) / currE8) * 100;
     const d21 = ((currClose - currE21) / currE21) * 100;
-    // d34 calculated but not used in score directly, only relative sign
 
     const b_stack = currE8 > currE21 && currE21 > currE34;
     const br_stack = currE8 < currE21 && currE21 < currE34;
 
-    // Score EMA — direction-aware interpolation (v2.7)
-    // When price is above EMAs (d8>0, d21>0) → bullish → score above 50
-    // When price is below EMAs (d8<0, d21<0) → bearish → score below 50
-    let sc_ema = 50.0;
-    const signAligned = (d8 > 0 && d21 > 0) || (d8 < 0 && d21 < 0);
-    const bull_ema = d8 > 0 && d21 > 0;
-    const signStrength = signAligned ? Math.min(Math.abs(d8), Math.abs(d21)) : 0;
-    // Bullish: add up to 15 points. Bearish: subtract up to 15 points.
-    sc_ema += (bull_ema ? 1 : -1) * (10 + Math.min(signStrength / 2, 1) * 15);
+    // --- ATR, ADX, RVOL, Squeeze ---
+    const atrSeries = calcATR(highs, lows, closes, 14);
+    const atr14 = atrSeries[len - 1] || (currClose * 0.01);
 
-    // Stack-order component [±5..±25]: continuous gap between adjacent EMAs
-    const gap1 = currE8 - currE21;
-    const gap2 = currE21 - currE34;
-    const stackAligned = gap1 * gap2 > 0; // both same direction = ordered stack
-    const bullStack = stackAligned && gap1 > 0;  // E8>E21>E34: bull stack
-    const stackStrength = stackAligned
-        ? Math.min(Math.abs(gap1), Math.abs(gap2)) / currClose * 100 : 0;
-    // Bull stack: add up to 20 points. Bear stack (E8<E21<E34): subtract up to 20 points.
-    sc_ema += (bullStack ? 1 : (stackAligned ? -1 : 0)) * (5 + Math.min(stackStrength / 0.5, 1) * 20);
+    const { adx: adxSeries } = calcADX(highs, lows, closes, 14);
+    const adx_v = adxSeries[len - 1] ?? 20;
 
+    const { rvol2Bar } = calcRVOL(volumes, 20);
+    const rvol_now = rvol2Bar[len - 1] ?? 1.0;
 
-    // --- 4. Momentum (10%) ---
-    // ch1 = (close - close[1])/close[1]*100
-    // ch3 = (close - close[3])/close[3]*100
-    const prevClose1 = closes[len - 2] || currClose;
-    const prevClose3 = closes[len - 4] || currClose; // index len-1 is current (0 days ago). len-4 is 3 days ago?
-    // Pinscript: close[1] is 1 bar ago. close[3] is 3 bars ago.
-    // If len-1 is current. len-2 is 1 ago. len-4 is 3 ago.
+    const sqzSeries = detectSqueeze(closes, highs, lows);
+    const is_sqz_hist = sqzSeries[len - 1] || sqzSeries[len - 2] || sqzSeries[len - 3];
 
+    // --- Momentum raw values ---
+    const prevClose3 = closes[len - 4] || currClose;
+    const prevClose10 = closes[len - 11] || currClose;
     const ch1 = ((currClose - prevClose1) / prevClose1) * 100;
     const ch3 = ((currClose - prevClose3) / prevClose3) * 100;
+    const ch10 = ((currClose - prevClose10) / prevClose10) * 100;
 
-    // Momentum — signed interpolation (direction-aware, v2.7)
-    // Positive momentum → adds above baseline; negative momentum → subtracts from baseline.
-    // A -5% crash should reduce the score, not inflate it like a +5% rally.
-    let sc_mom = 50.0;
-    // 1-bar change: sign × 0–20 points (capped at |ch1| = 2%)
-    sc_mom += Math.sign(ch1) * Math.min(Math.abs(ch1) / 2, 1) * 20;
-    // 3-bar change: sign × 0–20 points (capped at |ch3| = 5%)
-    sc_mom += Math.sign(ch3) * Math.min(Math.abs(ch3) / 5, 1) * 20;
-
-
-    // --- 5. Total Score ---
-    const w_mb = opts.w_mb, w_bxs = opts.w_bxs, w_bxl = opts.w_bxl, w_ema = opts.w_ema, w_mom = opts.w_mom;
-    const totalW = w_mb + w_bxs + w_bxl + w_ema + w_mom;
-
-    // NaN Protection + [0,100] clamping (v2.7)
-    const f_mb = Math.max(0, Math.min(100, isNaN(sc_mb) ? 50 : sc_mb));
-    const f_bxs = Math.max(0, Math.min(100, isNaN(sc_bxs) ? 50 : sc_bxs));
-    const f_bxl = Math.max(0, Math.min(100, isNaN(sc_bxl) ? 50 : sc_bxl));
-    const f_ema = Math.max(0, Math.min(100, isNaN(sc_ema) ? 50 : sc_ema));
-    const f_mom = Math.max(0, Math.min(100, isNaN(sc_mom) ? 50 : sc_mom));
-
-    const comp = (f_mb * w_mb + f_bxs * w_bxs + f_bxl * w_bxl + f_ema * w_ema + f_mom * w_mom) / totalW;
-
-
-    // --- Identification / Signal ---
-    // Logic from s_identify
-    const oscVal = currOsc; // mb
+    // =====================================================================
+    // PHASE 2: Signal identification (s_identify) — BEFORE scoring
+    // =====================================================================
+    const oscVal = currOsc;
     const bull = is_bull;
-    // d8, d21, d34, cup8, cdn8, etc.
     const cup8 = currClose > currE8 && prevClose1 <= (e8[len - 2] || 0);
     const cdn8 = currClose < currE8 && prevClose1 >= (e8[len - 2] || 0);
     const cr_up = currBxs > 0 && (stX[len - 2] || 0) <= 0;
@@ -271,7 +210,6 @@ export function calculateTechScore(
     let type: 'CALL' | 'PUT' | 'NEUTRAL' = "NEUTRAL";
     let conf = 0;
 
-    // Note: This logic is complex, translating literally
     if ((bs_bull || (bull && oscVal > 2)) && (cr_up || (currBxs > 0 && rev_up)) && currBxl > 0 && cup8 && b_stack) {
         name = "Perfect Storm"; type = "CALL"; conf = 3;
     } else if (bull && oscVal > 1 && currBxs > 0 && !cr_dn && currBxl > 0 && (t21 || t34) && d8 > -2 && b_stack) {
@@ -297,7 +235,123 @@ export function calculateTechScore(
         else if (!bull && currBxs < 0) { name = "Bearish"; type = "PUT"; }
     }
 
-    // Signal String
+    // Direction from identified signal (Pine: st = 1 for CALL, -1 for PUT)
+    const dir = type === 'CALL' ? 1 : type === 'PUT' ? -1 : 0;
+
+    // =====================================================================
+    // PHASE 3: Direction-aware component scoring (Pine v3.2 aligned)
+    // =====================================================================
+
+    // --- MB Score (direction-aware) ---
+    const mb_aligned = currOsc * dir;
+    const mb_credit = mb_aligned > 0
+        ? Math.min(Math.abs(currOsc) * 3, 30)
+        : -Math.min(Math.abs(currOsc) * 2, 35);
+    const mb_str_bonus = mb_aligned > 0 && iss ? 20 : 0;
+    const sc_mb = clamp(50 + mb_credit + mb_str_bonus, 15, 100);
+
+    // --- BXS Score (direction-aware) ---
+    const bxs_aligned = currBxs * dir;
+    const bxs_credit = bxs_aligned > 0
+        ? Math.min(Math.abs(currBxs) * 1.5, 30)
+        : -Math.min(Math.abs(currBxs) * 1.5, 35);
+    const bxs_momentum_bonus = (currMabxs > prevMabxs && bxs_aligned > 0) ? 10 : 0;
+    const bxs_reversal_bonus = ((rev_up && type === 'CALL') || (rev_dn && type === 'PUT')) ? 10 : 0;
+    const sc_bxs = clamp(50 + bxs_credit + bxs_momentum_bonus + bxs_reversal_bonus, 15, 100);
+
+    // --- BXL Score (direction-aware) ---
+    const bxl_aligned = currBxl * dir;
+    const bxl_credit = bxl_aligned > 0
+        ? Math.min(Math.abs(currBxl) * 2, 50)
+        : -Math.min(Math.abs(currBxl) * 2, 35);
+    const sc_bxl = clamp(50 + bxl_credit, 15, 100);
+
+    // --- EMA Score (discrete 4-level, Pine v3.2) ---
+    const ema_call_aligned = d8 > 0 && d21 > 0 && b_stack;
+    const ema_put_aligned = d8 < 0 && d21 < 0 && br_stack;
+    const ema_with_dir = (type === 'CALL' && ema_call_aligned) || (type === 'PUT' && ema_put_aligned);
+    const ema_against = (type === 'CALL' && ema_put_aligned) || (type === 'PUT' && ema_call_aligned);
+    const ema_partial_call = d8 > 0 && type === 'CALL' && !ema_call_aligned;
+    const ema_partial_put = d8 < 0 && type === 'PUT' && !ema_put_aligned;
+    const sc_ema = ema_with_dir ? 90 : (ema_partial_call || ema_partial_put) ? 70 : ema_against ? 25 : 55;
+
+    // --- Momentum Score (3-tier ATR-normalized, Pine v3.2) ---
+    const atr_pct = (atr14 / currClose) * 100;
+    const norm_ch1 = atr_pct > 0 ? ch1 / atr_pct : 0;
+    const norm_ch3 = atr_pct > 0 ? ch3 / (atr_pct * Math.sqrt(3)) : 0;
+    const norm_ch10 = atr_pct > 0 ? ch10 / (atr_pct * Math.sqrt(10)) : 0;
+
+    function momTier(normVal: number): number {
+        const aligned = normVal * dir;
+        if (aligned > 0.5) return 30;      // strong aligned
+        if (aligned > 0) return 15;        // weak aligned
+        if (aligned > -0.3) return 5;      // flat
+        return aligned > -0.5 ? -5 : -10; // opposing
+    }
+    const mom_t1 = momTier(norm_ch1);
+    const mom_t3 = momTier(norm_ch3);
+    const mom_t10 = momTier(norm_ch10);
+    const sc_mom = clamp(50 + (mom_t1 * 0.25 + mom_t3 * 0.35 + mom_t10 * 0.40) * 1.6, 15, 100);
+
+    // --- ADX Regime Score (new component) ---
+    const is_trending = adx_v > 25;
+    const is_ranging = adx_v < 20;
+    const regime: 'trending' | 'ranging' | 'neutral' = is_trending ? 'trending' : is_ranging ? 'ranging' : 'neutral';
+
+    const is_strong_setup = ['Perfect Storm', 'Breakout', 'Breakdown', 'Strong Trend', 'Strong Down'].includes(name);
+    const is_mid_setup = ['Directional', 'Pullback Buy', 'Failed Rally', 'Divergence', 'Distribution'].includes(name);
+    let sc_adx: number;
+    if (is_trending) {
+        sc_adx = is_strong_setup ? 90 : is_mid_setup ? 70 : 45;
+    } else if (is_ranging) {
+        sc_adx = is_strong_setup ? 40 : is_mid_setup ? 55 : 65;
+    } else {
+        sc_adx = is_strong_setup ? 70 : is_mid_setup ? 60 : 55;
+    }
+
+    // --- RVOL Score (tiered, Pine v3.2) ---
+    const sc_vol = rvol_now >= 2.0 ? 100 : rvol_now >= 1.5 ? 90 : rvol_now >= 1.3 ? 75
+        : rvol_now >= 1.0 ? 60 : rvol_now >= 0.7 ? 40 : 25;
+
+    // =====================================================================
+    // PHASE 4: ADX dynamic weight adjustment + Composite
+    // =====================================================================
+    let dw_mb = opts.w_mb, dw_bxs = opts.w_bxs, dw_bxl = opts.w_bxl;
+    let dw_ema = opts.w_ema, dw_mom = opts.w_mom;
+    let dw_adx = opts.w_adx, dw_vol = opts.w_vol;
+
+    if (is_trending) {
+        dw_ema *= 1.5; dw_mb *= 0.9; dw_bxs *= 0.9;
+    } else if (is_ranging) {
+        dw_mb *= 1.2; dw_bxs *= 1.2; dw_ema *= 0.6;
+    }
+
+    // NaN protection + [0,100] clamping
+    const f_mb = clamp(isNaN(sc_mb) ? 50 : sc_mb, 0, 100);
+    const f_bxs = clamp(isNaN(sc_bxs) ? 50 : sc_bxs, 0, 100);
+    const f_bxl = clamp(isNaN(sc_bxl) ? 50 : sc_bxl, 0, 100);
+    const f_ema = clamp(isNaN(sc_ema) ? 50 : sc_ema, 0, 100);
+    const f_mom = clamp(isNaN(sc_mom) ? 50 : sc_mom, 0, 100);
+    const f_adx = clamp(isNaN(sc_adx) ? 50 : sc_adx, 0, 100);
+    const f_vol = clamp(isNaN(sc_vol) ? 50 : sc_vol, 0, 100);
+
+    const totalW = dw_mb + dw_bxs + dw_bxl + dw_ema + dw_mom + dw_adx + dw_vol;
+    let comp = (f_mb * dw_mb + f_bxs * dw_bxs + f_bxl * dw_bxl + f_ema * dw_ema +
+                f_mom * dw_mom + f_adx * dw_adx + f_vol * dw_vol) / totalW;
+
+    // Coherence multiplier (same as before — MB/BXS/BXL agreement)
+    const coreAgree = (currOsc * dir > 0 ? 1 : 0) + (currBxs * dir > 0 ? 1 : 0) + (currBxl * dir > 0 ? 1 : 0);
+    const coherence = coreAgree === 3 ? 1.10 : coreAgree === 2 ? 1.0 : coreAgree === 1 ? 0.85 : 0.70;
+    comp = Math.min(comp * coherence, 100);
+
+    // Squeeze bonus (Pine v3.2)
+    if (is_sqz_hist && (name === 'Squeeze Breakout' || name === 'Squeeze Breakdown')) {
+        comp = Math.min(comp + 5, 100);
+    }
+
+    // =====================================================================
+    // PHASE 5: Signal string
+    // =====================================================================
     let sig = "❌ AVOID";
     if (type === "CALL") {
         if (comp >= 85 && conf === 3) sig = "🟢 STR BUY";
@@ -322,7 +376,9 @@ export function calculateTechScore(
             sc_bxs: Math.round(f_bxs),
             sc_bxl: Math.round(f_bxl),
             sc_ema: Math.round(f_ema),
-            sc_mom: Math.round(f_mom)
+            sc_mom: Math.round(f_mom),
+            sc_adx: Math.round(f_adx),
+            sc_vol: Math.round(f_vol)
         },
         debug: {
             mb_osc: parseFloat(oscVal.toFixed(2)),
@@ -330,7 +386,10 @@ export function calculateTechScore(
             bxl: parseFloat(currBxl.toFixed(2)),
             d8: parseFloat(d8.toFixed(2)),
             reversal: rev_up || rev_dn,
-            close: currClose
+            close: currClose,
+            adx: parseFloat(adx_v.toFixed(1)),
+            rvol: parseFloat(rvol_now.toFixed(2)),
+            regime
         }
     };
 }

@@ -47,6 +47,7 @@ Supabase PostgreSQL (数据存储)
 | ~~`/api/backfill-iv-history`~~ | ~~GET~~ | ~~回填历史波动率数据~~ | ❌ 已移除（回填已完成，脚本退役） |
 | `/api/analytics?type=score-validation` | GET | 按评分段统计候选分布（0-30/30-50/50-70/70-100），用于实证验证 | ✅ 生产 |
 | `/api/analytics?type=execution-quality` | GET | 基于 Delta 代理对入场时机分类（early/late/at-market） | ✅ 生产 |
+| `/api/backtest-candles` | GET | 获取 Polygon 日线/4H K 线数据，供回测引擎使用 | ✅ 生产 |
 
 **评分逻辑统一**：所有 API 均引用 `api/_shared/scoring.cjs` / `api/_shared/ivHistory.cjs`，与前端 `src/lib/oss-core.ts` 逻辑镜像，保证扫描结果、策略推荐与持仓卡片 OSS 分数一致。
 

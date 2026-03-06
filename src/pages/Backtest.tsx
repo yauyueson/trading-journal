@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Rocket, Upload, Info } from 'lucide-react';
 import { useBacktest } from '../hooks/useBacktest';
-import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, OptimizeConfig, OptimizeParams, QualityGates } from '../lib/backtest/types';
-import { DEFAULT_QUALITY_GATES, DEFAULT_OPTIMIZE_PARAMS } from '../lib/backtest/types';
+import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, OptimizeConfig, OptimizeParams, QualityGates, IVSource } from '../lib/backtest/types';
+import { DEFAULT_QUALITY_GATES, DEFAULT_OPTIMIZE_PARAMS, DEFAULT_OPTIONS_PRICING } from '../lib/backtest/types';
 import type { TechScoreOptions } from '../lib/tech-analysis';
 import { DEFAULT_SWEEP } from '../lib/backtest/sweep';
 import { useAppSettings } from '../context/AppSettingsContext';
@@ -172,6 +172,61 @@ const SharedConfigFields: React.FC<{
           <input type="number" value={config.thetaDecayRate} onChange={e => upd({ thetaDecayRate: Number(e.target.value) })} step={0.01} min={0} max={0.1}
             className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
         </div>
+      </div>
+
+      {/* BSM Options Pricing */}
+      <div className="border border-white/5 rounded-lg p-2.5">
+        <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+          <input type="checkbox" checked={config.optionsPricing?.enabled ?? false}
+            onChange={e => upd({ optionsPricing: { ...(config.optionsPricing ?? DEFAULT_OPTIONS_PRICING), enabled: e.target.checked } })}
+            className="rounded border-white/20 bg-[#111]" />
+          BSM Options Repricing
+          <Tip text="Converts stock-price returns to synthetic option returns using Black-Scholes. An ATM option is priced at entry and repriced at exit, capturing delta leverage, gamma convexity, and real theta decay." />
+        </label>
+        {config.optionsPricing?.enabled && (
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            <div>
+              <label className="text-[10px] text-text-tertiary uppercase block mb-1">
+                Entry DTE<Tip text="Days to expiration when synthetic option is 'bought'. 30 = typical swing trade." />
+              </label>
+              <input type="number" value={config.optionsPricing?.entryDTE ?? 30}
+                onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, entryDTE: Number(e.target.value) } })}
+                step={1} min={7} max={90}
+                className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] text-text-tertiary uppercase block mb-1">
+                IV Source<Tip text="HV20 = 20-day historical vol. HV30 = 30-day. Fixed = user-specified constant." />
+              </label>
+              <select value={config.optionsPricing?.ivSource ?? 'hv20'}
+                onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, ivSource: e.target.value as IVSource } })}
+                className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-accent-green/50 focus:outline-none">
+                <option value="hv20">HV20</option>
+                <option value="hv30">HV30</option>
+                <option value="fixed">Fixed</option>
+              </select>
+            </div>
+            {config.optionsPricing?.ivSource === 'fixed' ? (
+              <div>
+                <label className="text-[10px] text-text-tertiary uppercase block mb-1">Fixed IV %</label>
+                <input type="number" value={Math.round((config.optionsPricing?.fixedIV ?? 0.25) * 100)}
+                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, fixedIV: Number(e.target.value) / 100 } })}
+                  step={1} min={5} max={200}
+                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+              </div>
+            ) : (
+              <div>
+                <label className="text-[10px] text-text-tertiary uppercase block mb-1">
+                  Rate<Tip text="Risk-free rate for BSM pricing (Treasury rate)." />
+                </label>
+                <input type="number" value={config.optionsPricing?.riskFreeRate ?? 0.04}
+                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, riskFreeRate: Number(e.target.value) } })}
+                  step={0.005} min={0} max={0.10}
+                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Setups */}
@@ -366,6 +421,7 @@ const OptimizePanel: React.FC<{
         startDate: config.startDate,
         endDate: config.endDate,
         timeframe: '1D',
+        optionsPricing: config.optionsPricing,
       });
     } else {
       onRunOptimize({
@@ -379,6 +435,7 @@ const OptimizePanel: React.FC<{
         thetaDecayRate: config.thetaDecayRate,
         tickers: parsedTickers.length > 1 ? parsedTickers : undefined,
         optimizeParams: optParams,
+        optionsPricing: config.optionsPricing,
       });
     }
   };
@@ -551,14 +608,20 @@ const OptimizePanel: React.FC<{
 const AnalyticsGrid: React.FC<{ a: BacktestAnalytics }> = ({ a }) => (
   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
     <Stat label="Trades" value={a.totalTrades} sub={`${a.totalSignals} signals`} />
-    <Stat label="Win Rate" value={`${a.winRate.toFixed(1)}%`} good={a.winRate > 50} sub={`θ: ${a.winRateTheta.toFixed(1)}%`} />
-    <Stat label="Avg Return" value={`${a.avgReturn >= 0 ? '+' : ''}${a.avgReturn.toFixed(2)}%`} good={a.avgReturn > 0} sub={`θ: ${a.avgReturnTheta.toFixed(2)}%`} />
-    <Stat label="Profit Factor" value={a.profitFactor === Infinity ? '∞' : a.profitFactor.toFixed(2)} good={a.profitFactor > 1.5} />
-    <Stat label="Sharpe" value={a.sharpe.toFixed(2)} good={a.sharpe > 1} />
-    <Stat label="Max DD" value={`${a.maxDrawdown.toFixed(1)}%`} good={a.maxDrawdown < 10} />
+    <Stat label="Win Rate" value={`${a.winRate.toFixed(1)}%`} good={a.winRate > 50}
+      sub={a.optionMode ? `opt: ${a.optionWinRate?.toFixed(1)}%` : `θ: ${a.winRateTheta.toFixed(1)}%`} />
+    <Stat label="Avg Return" value={`${a.avgReturn >= 0 ? '+' : ''}${a.avgReturn.toFixed(2)}%`} good={a.avgReturn > 0}
+      sub={a.optionMode ? `opt: ${(a.optionAvgReturn ?? 0) >= 0 ? '+' : ''}${a.optionAvgReturn?.toFixed(2)}%` : `θ: ${a.avgReturnTheta.toFixed(2)}%`} />
+    <Stat label="Profit Factor" value={a.profitFactor === Infinity ? '∞' : a.profitFactor.toFixed(2)} good={a.profitFactor > 1.5}
+      sub={a.optionMode ? `opt: ${a.optionProfitFactor === Infinity ? '∞' : a.optionProfitFactor?.toFixed(2)}` : undefined} />
+    <Stat label="Sharpe" value={a.sharpe.toFixed(2)} good={a.sharpe > 1}
+      sub={a.optionMode ? `opt: ${a.optionSharpe?.toFixed(2)}` : undefined} />
+    <Stat label="Max DD" value={`${a.maxDrawdown.toFixed(1)}%`} good={a.maxDrawdown < 10}
+      sub={a.optionMode ? `opt: ${a.optionMaxDrawdown?.toFixed(1)}%` : undefined} />
     <Stat label="Avg Win" value={`+${a.avgWin.toFixed(2)}%`} good />
     <Stat label="Avg Loss" value={`${a.avgLoss.toFixed(2)}%`} good={false} />
-    <Stat label="Avg Hold" value={`${a.avgHoldDays.toFixed(1)}d`} />
+    <Stat label="Avg Hold" value={`${a.avgHoldDays.toFixed(1)}d`}
+      sub={a.optionMode ? `exp: ${a.optionExpectancy?.toFixed(2)}%/t` : undefined} />
     <Stat label="TP Hits" value={a.tpHits} sub={`${a.totalTrades > 0 ? ((a.tpHits / a.totalTrades) * 100).toFixed(0) : 0}%`} />
     <Stat label="SL Hits" value={a.slHits} sub={`${a.totalTrades > 0 ? ((a.slHits / a.totalTrades) * 100).toFixed(0) : 0}%`} />
     <Stat label="Time Stops" value={a.timeStops} sub={`${a.totalTrades > 0 ? ((a.timeStops / a.totalTrades) * 100).toFixed(0) : 0}%`} />
@@ -685,6 +748,7 @@ const TradeLog: React.FC<{ trades: BacktestTrade[] }> = ({ trades }) => {
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? trades : trades.slice(0, 20);
   const hasTicker = trades.some(t => t.ticker);
+  const hasOption = trades.some(t => t.optionReturn != null);
 
   return (
     <div>
@@ -704,6 +768,7 @@ const TradeLog: React.FC<{ trades: BacktestTrade[] }> = ({ trades }) => {
               <th className="text-right py-1 px-1.5">Hold</th>
               <th className="text-right py-1 px-1.5">Return</th>
               <th className="text-right py-1 px-1.5">θ Ret</th>
+              {hasOption && <th className="text-right py-1 px-1.5">Opt Ret</th>}
             </tr>
           </thead>
           <tbody>
@@ -736,6 +801,11 @@ const TradeLog: React.FC<{ trades: BacktestTrade[] }> = ({ trades }) => {
                 <td className={`py-1 px-1.5 text-right font-mono ${t.thetaAdjReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {(t.thetaAdjReturn * 100).toFixed(2)}%
                 </td>
+                {hasOption && (
+                  <td className={`py-1 px-1.5 text-right font-mono ${(t.optionReturn ?? 0) >= 0 ? 'text-purple-400' : 'text-red-400'}`}>
+                    {t.optionReturn != null ? `${(t.optionReturn * 100).toFixed(1)}%` : '—'}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -1049,11 +1119,14 @@ const SingleResultView: React.FC<{ result: BacktestResult }> = ({ result }) => {
 
       <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-3">
         <h3 className="text-sm font-medium mb-2">Equity Curve</h3>
-        <EquityCurveSVG curves={[{
-          data: analytics.equityCurve,
-          color: '#10b981',
-          label: config.ticker,
-        }]} />
+        <EquityCurveSVG curves={[
+          { data: analytics.equityCurve, color: '#10b981', label: `${config.ticker} (stock)` },
+          ...(analytics.optionEquityCurve?.length ? [{
+            data: analytics.optionEquityCurve,
+            color: '#8b5cf6',
+            label: `${config.ticker} (BSM option)`,
+          }] : []),
+        ]} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1102,15 +1175,15 @@ export const BacktestPage: React.FC = () => {
       await updateSettings({
         techScore: {
           weights: {
-            w_mb: opts.w_mb ?? 30,
-            w_bxs: opts.w_bxs ?? 25,
-            w_bxl: opts.w_bxl ?? 20,
-            w_ema: opts.w_ema ?? 15,
-            w_mom: opts.w_mom ?? 10,
+            w_mb: opts.w_mb ?? 25,
+            w_bxs: opts.w_bxs ?? 20,
+            w_bxl: opts.w_bxl ?? 15,
+            w_ema: opts.w_ema ?? 12,
+            w_mom: opts.w_mom ?? 8,
           },
           periods: {
-            sc_mb_len: opts.sc_mb_len ?? 100,
-            sc_mb_smoothing: opts.sc_mb_smoothing ?? 100,
+            sc_mb_len: opts.sc_mb_len ?? 20,
+            sc_mb_smoothing: opts.sc_mb_smoothing ?? 20,
             sc_osc_len: opts.sc_osc_len ?? 7,
             sc_bx_s1: opts.sc_bx_s1 ?? 5,
             sc_bx_s2: opts.sc_bx_s2 ?? 20,

@@ -1,6 +1,6 @@
 # Trading Journal - 文档总览
 
-> 最后更新: 2026年3月5日
+> 最后更新: 2026年3月6日
 
 欢迎来到Trading Journal项目文档中心！这里包含了项目的完整技术文档和使用指南。
 
@@ -182,7 +182,7 @@ docs/
 ├── 00_PRD_总览.md               # 产品需求文档总览
 ├── 01_项目概览.md               # 项目简介和架构
 ├── 02_技术路径.md               # 技术栈和实现细节
-├── 03_核心算法.md               # 评分算法详解（OSS v2.7）
+├── 03_核心算法.md               # 评分算法详解（OSS v2.8）
 ├── 04_数据库设计.md             # 数据模型和SQL
 ├── 05_API文档.md                # API 接口与数据源配置
 ├── 06_用户工作流.md             # 使用指南和最佳实践
@@ -212,6 +212,7 @@ docs/
 - [LOQ评分算法](./03_核心算法.md#loq算法买方评分)
 - [IV期限结构](./03_核心算法.md#iv期限结构分析)
 - [P&L计算](./03_核心算法.md#pl计算算法)
+- [Tech Score V4 质量门控](./03_核心算法.md#5-v4-质量门控quality-gates)
 
 ### API和集成
 - [数据源配置](./05_API文档.md#数据源配置)
@@ -249,6 +250,14 @@ docs/
 ---
 
 ## 🔄 文档更新日志
+
+### 2026-03-06（文档审计 — 代码↔文档一致性）
+- ✅ **03_核心算法**: Gamma Efficiency→Dollar Gamma (`gamma×S²/100`)，DTE 桶 '0-14'→'0-7'+'8-14'，MIN_BUCKET_SIZE 3→8，IV Rank sqrt 置信度，新增 Tech Score V4 质量门控章节
+- ✅ **04_数据库设计**: positions 表新增 strategy/exit_type/tech_score/tech_score_source/market_state/trade_profile/iv_rank_entry/iv_regime_entry 列；ER 图新增 score_history 表；附录 SQL 同步
+- ✅ **05_API文档**: 新增 `/api/backtest-candles` 端点
+- ✅ **00_PRD**: 功能地图新增 Backtest/Signals，优先级表新增 Backtest/Signals/Settings，算法版本 v2.1→v2.8
+- ✅ **01_项目概览**: 架构图新增 Backtest/Signals/Settings/Academy 页面，技术栈新增 React Router v6/React Query v5，Position 接口新增 12 个字段，回测从「规划」移至「已完成」
+- ✅ **README**: 文档结构/主题索引更新，新增本次 changelog
 
 ### 2026-03-05（v3.0 架构重构）
 - ✅ **架构文档更新**: React Router v6、React Query v5、Context 架构、懒加载路由
@@ -343,4 +352,4 @@ docs/
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年3月5日*
+*最后更新: 2026年3月6日*
