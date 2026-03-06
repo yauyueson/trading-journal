@@ -394,20 +394,12 @@ export function runBacktestFull(
       if (sigDate < startMs || sigDate > endMs) continue;
       if (sig.type === 'NEUTRAL') continue;
       if (sig.score < config.minScore) continue;
-      if (sig.confidence < config.minConfidence) continue;
       if (config.directionFilter !== 'ALL' && sig.type !== config.directionFilter) continue;
       if (!config.allowedSetups.includes('All') && !config.allowedSetups.includes(sig.setup)) continue;
-      if (Math.abs(sig.d8) > 3.0) continue;
 
       totalSignals++;
 
       if (barIdx - lastEntryBar < config.cooldownBars) continue;
-
-      const signalKey = `${sig.type}:${sig.setup}`;
-      if (signalKey === prevSignalKey && barIdx - lastEntryBar < config.cooldownBars) continue;
-      prevSignalKey = signalKey;
-
-      if (openTrades.length > 0) continue;
 
       pendingSignal = sig;
     }
