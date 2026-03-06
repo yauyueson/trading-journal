@@ -67,13 +67,15 @@ export const STRATEGIES = [
 export const MARKET_STATES = ['TRENDING', 'EXPLOSIVE', 'RANGING', 'REVERTING'] as const;
 export type MarketState = typeof MARKET_STATES[number];
 
-/** Compute realized P&L for a position from its transactions. */
-export function computePositionPnL(transactions: { quantity: number; price: number }[]): number {
+/** Compute realized P&L for a position from its transactions.
+ *  For credit strategies (Credit spreads, Short positions), entry price is a credit received
+ *  and close price is a debit paid, so the formula is inverted. */
+export function computePositionPnL(transactions: { quantity: number; price: number }[], isCreditStrategy = false): number {
     let cost = 0, proceeds = 0;
     transactions.forEach(t => {
         const dollars = t.price * CONTRACT_MULTIPLIER;
         if (t.quantity > 0) cost += t.quantity * dollars;
         else proceeds += Math.abs(t.quantity) * dollars;
     });
-    return proceeds - cost;
+    return isCreditStrategy ? cost - proceeds : proceeds - cost;
 }

@@ -128,13 +128,16 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
 
         closedPositions.forEach(p => {
             const txns = transactions.filter(t => t.position_id === p.id);
+            const isCreditStrategy = p.type.includes('Credit') || p.type.includes('Short');
             let cost = 0, proceeds = 0, totalQty = 0;
             txns.forEach(t => {
                 const price = t.price * CONTRACT_MULTIPLIER;
                 if (t.quantity > 0) { cost += t.quantity * price; totalQty += t.quantity; }
                 else proceeds += Math.abs(t.quantity) * price;
             });
-            const pnl = proceeds - cost;
+            // For credit strategies, entry price is a credit received (not a cost),
+            // and close price is a debit paid (not proceeds). Invert the formula.
+            const pnl = isCreditStrategy ? cost - proceeds : proceeds - cost;
             totalPnL += pnl;
             if (pnl >= 0) { wins++; totalWinPnL += pnl; }
             else { losses++; totalLossPnL += pnl; }

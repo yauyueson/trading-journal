@@ -50,7 +50,8 @@ export const DisciplineCard: React.FC<DisciplineCardProps> = ({ closedPositions,
 
         closedPositions.forEach(p => {
             const txns = transactions.filter(t => t.position_id === p.id);
-            const pnl = computePositionPnL(txns);
+            const isCreditStrategy = p.type.includes('Credit') || p.type.includes('Short');
+            const pnl = computePositionPnL(txns, isCreditStrategy);
             const et: ExitType = (p.exit_type as ExitType) || 'Unknown';
             byType[et].count++;
             byType[et].totalPnl += pnl;

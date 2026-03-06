@@ -49,7 +49,32 @@
       "Bash(curl:*)",
       "Bash(python:*)",
       "Bash(npm install:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "WebFetch(domain:www.thetadata.net)",
+      "WebFetch(domain:www.marketdata.app)",
+      "WebFetch(domain:http-docs.thetadata.us)",
+      "WebFetch(domain:docs.thetadata.us)",
+      "WebFetch(domain:orats.com)",
+      "WebFetch(domain:docs.orats.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:www.oreateai.com)",
+      "WebFetch(domain:www.quantconnect.com)",
+      "WebFetch(domain:www.quantvps.com)",
+      "WebFetch(domain:www.insightbig.com)",
+      "WebFetch(domain:www.fxoptions.com)",
+      "mcp__claude_ai_Notion__notion-search",
+      "mcp__claude_ai_Notion__notion-create-pages",
+      "WebFetch(domain:eodhd.com)",
+      "WebFetch(domain:intrinio.com)",
+      "WebFetch(domain:unusualwhales.com)",
+      "WebFetch(domain:www.ivolatility.com)",
+      "WebFetch(domain:docs.alpaca.markets)",
+      "WebFetch(domain:www.optiondata.io)",
+      "WebFetch(domain:eulerpool.com)",
+      "WebFetch(domain:unusualwhales.substack.com)",
+      "WebFetch(domain:databento.com)",
+      "WebFetch(domain:datashop.cboe.com)"
     ]
   }
 }

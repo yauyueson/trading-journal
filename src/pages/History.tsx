@@ -38,13 +38,16 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
     const closedPositions = ownerFilter === 'All' ? allClosedPositions : allClosedPositions.filter(p => p.owner === ownerFilter);
     const getStats = (position: Position) => {
         const txns = transactions.filter(t => t.position_id === position.id);
+        const isCreditStrategy = position.type.includes('Credit') || position.type.includes('Short');
         let totalQtyBought = 0, totalCostBasis = 0, totalProceeds = 0;
         txns.forEach(t => {
             const price = t.price * CONTRACT_MULTIPLIER;
             if (t.quantity > 0) { totalQtyBought += t.quantity; totalCostBasis += t.quantity * price; }
             else { totalProceeds += Math.abs(t.quantity) * price; }
         });
-        const pnl = totalProceeds - totalCostBasis;
+        // For credit strategies, entry price is a credit received (not a cost),
+        // and close price is a debit paid (not proceeds). Invert the formula.
+        const pnl = isCreditStrategy ? totalCostBasis - totalProceeds : totalProceeds - totalCostBasis;
         const pnlPct = totalCostBasis > 0 ? (pnl / totalCostBasis) * 100 : 0;
         const holdDays = position.closed_at && position.created_at ? Math.ceil((new Date(position.closed_at).getTime() - new Date(position.created_at).getTime()) / 86400000) : 0;
         return { pnl, pnlPct, holdDays };

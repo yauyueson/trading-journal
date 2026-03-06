@@ -522,7 +522,7 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
             if (t.quantity > 0) cost += t.quantity * dollars;
             else proceeds += Math.abs(t.quantity) * dollars;
         });
-        const pnl = proceeds - cost;
+        const pnl = isCreditStrategy ? cost - proceeds : proceeds - cost;
         const hasPriorTP = transactions.some(t => t.type === 'Take Profit');
         const dte = daysUntil(position.expiration);
         if (dte <= 0) return { autoType: 'TIME', needsChoice: false, pnl };
