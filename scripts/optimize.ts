@@ -38,7 +38,7 @@ if (fs.existsSync(envPath)) {
 import { getCandles } from '../lib/polygon-client.js';
 
 import type { BacktestCandle, SweepConfig, SweepResult, BacktestResult, Timeframe, WalkForwardConfig, WalkForwardResult } from '../src/lib/backtest/types';
-import { runSweep, runGeneticOptimize, runWalkForward, DEFAULT_SWEEP } from '../src/lib/backtest/sweep';
+import { runSweep, runGeneticOptimize, runTwoStageOptimize, runWalkForward, DEFAULT_SWEEP } from '../src/lib/backtest/sweep';
 import { monteCarloPermutation } from '../src/lib/backtest/analytics';
 import type { OptimizeConfig } from '../src/lib/backtest/types';
 
