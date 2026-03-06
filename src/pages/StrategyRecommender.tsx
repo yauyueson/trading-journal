@@ -549,8 +549,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                     </div>
                                     <div className="w-full md:w-48">
                                         <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Spread Width</label>
-                                        <div className="grid grid-cols-4 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
+                                        <div className="grid grid-cols-5 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
                                             {[
+                                                { label: '$1', val: 1 },
                                                 { label: '$2.5', val: 2.5 },
                                                 { label: '$5', val: 5 },
                                                 { label: '$10', val: 10 },
