@@ -144,17 +144,34 @@ export function useBacktest(): UseBacktestReturn {
     setError(null);
     setLoading(true);
     setProgress(0);
-    setProgressPhase('GA weights');
+    setProgressPhase('Fetching candles');
     setOptimizeResult(null);
 
     try {
       const fetchFrom = addTradingDaysBack(optCfg.startDate, 450);
-      const c = await fetchCandles(optCfg.ticker, fetchFrom, optCfg.endDate);
-      if (c.length < 350) {
-        throw new Error(`${optCfg.ticker}: Need 350+ candles, got ${c.length}. Try a longer date range.`);
+      const allTickers = optCfg.tickers?.length ? optCfg.tickers : [optCfg.ticker];
+
+      // Fetch candles for all tickers
+      const candleMap = new Map<string, BacktestCandle[]>();
+      for (const ticker of allTickers) {
+        const c = await fetchCandles(ticker, fetchFrom, optCfg.endDate);
+        if (c.length < 350) {
+          console.warn(`${ticker}: Need 350+ candles, got ${c.length} — skipping`);
+          continue;
+        }
+        candleMap.set(ticker, c);
       }
 
-      const result = runTwoStageOptimize(c, optCfg, (phase, pct) => {
+      if (candleMap.size === 0) {
+        throw new Error('No tickers with sufficient data (need 350+ candles each).');
+      }
+
+      setProgressPhase('GA weights');
+      const input = candleMap.size === 1
+        ? Array.from(candleMap.values())[0]
+        : candleMap;
+
+      const result = runTwoStageOptimize(input, optCfg, (phase, pct) => {
         setProgressPhase(phase === 'ga' ? 'GA weights' : 'TP/SL grid');
         setProgress(pct);
       });

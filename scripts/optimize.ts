@@ -3,12 +3,12 @@
  *
  * Usage: npx tsx scripts/optimize.ts [--tickers SPY,QQQ,...] [--timeframe 1D] [--out results.json]
  *        npx tsx scripts/optimize.ts --walk-forward [--is-days 252] [--oos-days 63] [--mode anchored|rolling]
- *        npx tsx scripts/optimize.ts --ga-joint [--pop 60] [--gens 50]
+ *        npx tsx scripts/optimize.ts --optimize [--pop 30] [--gens 20]
  *
  * Modes:
  *   (default)       Grid sweep across multiple tickers, aggregate, rank
  *   --walk-forward  Walk-forward optimization with IS/OOS split (anti-overfit)
- *   --ga-joint      Joint GA optimization of indicator + trade params
+ *   --optimize      Two-stage optimization: GA weights + TP/SL grid
  *
  * Outputs a ranked JSON report to stdout (or --out file).
  */
@@ -38,7 +38,7 @@ if (fs.existsSync(envPath)) {
 import { getCandles } from '../lib/polygon-client.js';
 
 import type { BacktestCandle, SweepConfig, SweepResult, BacktestResult, Timeframe, WalkForwardConfig, WalkForwardResult } from '../src/lib/backtest/types';
-import { runSweep, runGeneticOptimize, runTwoStageOptimize, runWalkForward, DEFAULT_SWEEP } from '../src/lib/backtest/sweep';
+import { runSweep, runTwoStageOptimize, runWalkForward, DEFAULT_SWEEP } from '../src/lib/backtest/sweep';
 import { monteCarloPermutation } from '../src/lib/backtest/analytics';
 import type { OptimizeConfig } from '../src/lib/backtest/types';
 
@@ -64,12 +64,12 @@ const endDate = getArg('end', new Date().toISOString().split('T')[0]);
 
 // Mode flags
 const useWalkForward = hasFlag('walk-forward');
-const useGAJoint = hasFlag('ga-joint');
+const useOptimize = hasFlag('optimize');
 const isWindowDays = parseInt(getArg('is-days', '252'), 10);
 const oosWindowDays = parseInt(getArg('oos-days', '63'), 10);
 const wfMode = getArg('mode', 'anchored') as 'rolling' | 'anchored';
-const gaPop = parseInt(getArg('pop', '60'), 10);
-const gaGens = parseInt(getArg('gens', '50'), 10);
+const gaPop = parseInt(getArg('pop', '30'), 10);
+const gaGens = parseInt(getArg('gens', '20'), 10);
 
 // ── Candle Fetching ─────────────────────────────────────
 
@@ -257,10 +257,9 @@ async function runWalkForwardMode() {
         isWindowDays,
         oosWindowDays,
         mode: wfMode,
-        optimizer: useGAJoint ? 'ga' : 'sweep',
+        optimizer: useOptimize ? 'ga' : 'sweep',
         populationSize: gaPop,
         generations: gaGens,
-        jointOptimize: useGAJoint,
       };
 
       console.error(`  Running WFO on ${ticker}...`);
@@ -297,7 +296,7 @@ async function runWalkForwardMode() {
       wfMode,
       isWindowDays,
       oosWindowDays,
-      optimizer: useGAJoint ? 'ga-joint' : 'sweep',
+      optimizer: useOptimize ? 'two-stage' : 'sweep',
       tickers,
       timeframe,
       period: { start: startDate, end: endDate },
@@ -345,16 +344,16 @@ async function runWalkForwardMode() {
   return report;
 }
 
-// ── GA Joint Mode ───────────────────────────────────────
+// ── Two-Stage Optimize Mode ─────────────────────────────
 
-async function runGAJointMode() {
-  console.error(`\n=== Joint GA Optimization (Indicators + Trade Params) ===`);
+async function runOptimizeMode() {
+  console.error(`\n=== Two-Stage Optimization (GA Weights + TP/SL Grid) ===`);
   console.error(`Pop: ${gaPop} | Gens: ${gaGens}`);
-  console.error(`Tickers: ${tickers.join(', ')}`);
+  console.error(`Tickers: ${tickers.join(', ')} (multi-ticker fitness averaging)`);
   console.error(`Period: ${startDate} -> ${endDate}\n`);
 
-  const gaResults: { ticker: string; best: BacktestResult | null; elapsed: number }[] = [];
-
+  // Fetch candles for all tickers first
+  const allCandles = new Map<string, BacktestCandle[]>();
   for (let ti = 0; ti < tickers.length; ti++) {
     const ticker = tickers[ti];
     if (ti > 0) {
@@ -362,89 +361,93 @@ async function runGAJointMode() {
       console.error(`  Waiting ${waitSec}s for rate limit...`);
       await new Promise(r => setTimeout(r, waitSec * 1000));
     }
-
     try {
       const candles = await fetchCandles(ticker);
       if (candles.length < 350) {
         console.error(`  ${ticker}: Only ${candles.length} candles (need 350+), skipping`);
         continue;
       }
-
-      const gaConfig: OptimizeConfig = {
-        ticker,
-        startDate,
-        endDate,
-        tpAtr: 2.5,
-        slAtr: 1.5,
-        minScore: 70,
-        minConfidence: 0,
-        thetaDecayRate: 0.03,
-        populationSize: gaPop,
-        generations: gaGens,
-        jointOptimize: true,
-      };
-
-      console.error(`  Running joint GA on ${ticker}...`);
-      const t0 = performance.now();
-      const result = runGeneticOptimize(candles, gaConfig, (gen, total, bestFit) => {
-        if (gen % 10 === 0) console.error(`    Gen ${gen}/${total} best=${bestFit.toFixed(4)}`);
-      });
-      const elapsed = performance.now() - t0;
-
-      gaResults.push({ ticker, best: result.bestOverall, elapsed });
-
-      if (result.bestOverall) {
-        const a = result.bestOverall.analytics;
-        const c = result.bestOverall.config;
-        console.error(
-          `  ${ticker}: TP=${c.tpAtr} SL=${c.slAtr} SC=${c.minScore} | ` +
-          `${a.totalTrades} trades, WR ${a.winRateTheta.toFixed(1)}%, ` +
-          `Sortino ${a.sortino.toFixed(2)}, PF ${a.profitFactor.toFixed(2)}, ` +
-          `DD ${a.maxDrawdown.toFixed(1)}%, Expect ${a.expectancy.toFixed(2)}% | ` +
-          `${Math.round(elapsed)}ms`
-        );
-      }
+      allCandles.set(ticker, candles);
     } catch (err: any) {
       console.error(`  ${ticker}: ${err.message}`);
     }
   }
 
+  if (allCandles.size === 0) {
+    console.error('  No tickers with sufficient data');
+    return { meta: { mode: 'two-stage-optimize', tickers: [], error: 'No data' }, results: [] };
+  }
+
+  const primaryTicker = tickers.find(t => allCandles.has(t)) ?? Array.from(allCandles.keys())[0];
+  console.error(`\n  Running two-stage optimize across ${allCandles.size} tickers (primary: ${primaryTicker})...`);
+
+  const optConfig: OptimizeConfig = {
+    ticker: primaryTicker,
+    startDate,
+    endDate,
+    tpAtr: 2.5,
+    slAtr: 1.5,
+    minScore: 70,
+    minConfidence: 0,
+    thetaDecayRate: 0.03,
+    populationSize: gaPop,
+    generations: gaGens,
+    tickers: Array.from(allCandles.keys()),
+  };
+
+  const t0 = performance.now();
+  const result = runTwoStageOptimize(allCandles, optConfig, (phase, pct) => {
+    if (pct % 25 === 0) console.error(`    ${phase === 'ga' ? 'GA weights' : 'TP/SL grid'}: ${pct}%`);
+  });
+  const elapsed = performance.now() - t0;
+
+  if (result.bestOverall) {
+    const a = result.bestOverall.analytics;
+    const c = result.bestOverall.config;
+    console.error(
+      `\n  Best: TP=${c.tpAtr} SL=${c.slAtr} SC=${c.minScore} | ` +
+      `${a.totalTrades} trades, WR ${a.winRateTheta.toFixed(1)}%, ` +
+      `Sortino ${a.sortino.toFixed(2)}, PF ${a.profitFactor.toFixed(2)}, ` +
+      `DD ${a.maxDrawdown.toFixed(1)}%, Expect ${a.expectancy.toFixed(2)}% | ` +
+      `Weights: ${JSON.stringify(c.indicatorOptions)} | ` +
+      `${Math.round(elapsed)}ms`
+    );
+  }
+
   return {
     meta: {
-      mode: 'ga-joint',
+      mode: 'two-stage-optimize',
       populationSize: gaPop,
       generations: gaGens,
-      tickers,
+      tickers: Array.from(allCandles.keys()),
       timeframe,
       period: { start: startDate, end: endDate },
       timestamp: new Date().toISOString(),
     },
-    results: gaResults.map(r => ({
-      ticker: r.ticker,
-      elapsed: Math.round(r.elapsed),
-      best: r.best ? {
-        config: {
-          tpAtr: r.best.config.tpAtr,
-          slAtr: r.best.config.slAtr,
-          minScore: r.best.config.minScore,
-          thetaDecayRate: r.best.config.thetaDecayRate,
-          indicatorOptions: r.best.config.indicatorOptions,
-        },
-        analytics: {
-          trades: r.best.analytics.totalTrades,
-          winRate: r.best.analytics.winRate,
-          winRateTheta: r.best.analytics.winRateTheta,
-          sharpe: r.best.analytics.sharpe,
-          sortino: r.best.analytics.sortino,
-          calmar: r.best.analytics.calmar,
-          profitFactor: r.best.analytics.profitFactor,
-          maxDrawdown: r.best.analytics.maxDrawdown,
-          expectancy: r.best.analytics.expectancy,
-          maxConsecutiveLosses: r.best.analytics.maxConsecutiveLosses,
-          avgHoldDays: r.best.analytics.avgHoldDays,
-        },
-      } : null,
-    })),
+    elapsed: Math.round(elapsed),
+    best: result.bestOverall ? {
+      config: {
+        tpAtr: result.bestOverall.config.tpAtr,
+        slAtr: result.bestOverall.config.slAtr,
+        minScore: result.bestOverall.config.minScore,
+        thetaDecayRate: result.bestOverall.config.thetaDecayRate,
+        indicatorOptions: result.bestOverall.config.indicatorOptions,
+      },
+      analytics: {
+        trades: result.bestOverall.analytics.totalTrades,
+        winRate: result.bestOverall.analytics.winRate,
+        winRateTheta: result.bestOverall.analytics.winRateTheta,
+        sharpe: result.bestOverall.analytics.sharpe,
+        sortino: result.bestOverall.analytics.sortino,
+        calmar: result.bestOverall.analytics.calmar,
+        profitFactor: result.bestOverall.analytics.profitFactor,
+        maxDrawdown: result.bestOverall.analytics.maxDrawdown,
+        expectancy: result.bestOverall.analytics.expectancy,
+        maxConsecutiveLosses: result.bestOverall.analytics.maxConsecutiveLosses,
+        avgHoldDays: result.bestOverall.analytics.avgHoldDays,
+      },
+    } : null,
+    generationHistory: result.generationHistory,
   };
 }
 
@@ -578,8 +581,8 @@ async function main() {
 
   if (useWalkForward) {
     report = await runWalkForwardMode();
-  } else if (useGAJoint && !useWalkForward) {
-    report = await runGAJointMode();
+  } else if (useOptimize && !useWalkForward) {
+    report = await runOptimizeMode();
   } else {
     report = await runSweepMode();
   }

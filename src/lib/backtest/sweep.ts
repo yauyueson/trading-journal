@@ -228,9 +228,10 @@ export function computeFitness(r: BacktestResult): number {
   return sortinoContrib + pfContrib + wrContrib + ddContrib + expContrib + countContrib;
 }
 
-/** GA-based weight optimizer (5 genes, ~4 free params) */
+/** GA-based weight optimizer (5 genes, ~4 free params).
+ *  Accepts single-ticker candles or multi-ticker Map for cross-ticker fitness averaging. */
 export function runGeneticOptimize(
-  candles: BacktestCandle[],
+  candles: BacktestCandle[] | Map<string, BacktestCandle[]>,
   config: OptimizeConfig,
   onProgress?: (gen: number, totalGens: number, bestFitness: number) => void
 ): OptimizeResult {
@@ -241,24 +242,42 @@ export function runGeneticOptimize(
   const TOURNAMENT_K = 3;
   const defs = WEIGHT_GENE_DEFS;
 
+  // Build ticker list: Map = multi-ticker, array = single ticker
+  const isMultiTicker = candles instanceof Map;
+  const tickerCandles: Map<string, BacktestCandle[]> = isMultiTicker
+    ? candles
+    : new Map([[config.ticker, candles]]);
+  const primaryTicker = config.ticker; // used for result reporting
+
   const evaluate = (genes: Individual): { result: BacktestResult; fitness: number } => {
     const opts = genesToIndicatorOptions(genes, defs);
-    const { signals, simCandles } = precomputeSignals(candles, '1D', opts);
-    const backtestConfig: BacktestConfig = {
-      ...DEFAULT_CONFIG,
-      ticker: config.ticker,
-      startDate: config.startDate,
-      endDate: config.endDate,
-      timeframe: '1D',
-      tpAtr: config.tpAtr,
-      slAtr: config.slAtr,
-      minScore: config.minScore,
-      minConfidence: config.minConfidence,
-      thetaDecayRate: config.thetaDecayRate,
-      indicatorOptions: opts,
-    };
-    const r = runBacktestFull(signals, simCandles, backtestConfig);
-    return { result: r, fitness: computeFitness(r) };
+    let fitnessSum = 0;
+    let fitnessCount = 0;
+    let primaryResult: BacktestResult | null = null;
+
+    for (const [ticker, tCandles] of tickerCandles) {
+      const { signals, simCandles } = precomputeSignals(tCandles, '1D', opts);
+      const backtestConfig: BacktestConfig = {
+        ...DEFAULT_CONFIG,
+        ticker,
+        startDate: config.startDate,
+        endDate: config.endDate,
+        timeframe: '1D',
+        tpAtr: config.tpAtr,
+        slAtr: config.slAtr,
+        minScore: config.minScore,
+        minConfidence: config.minConfidence,
+        thetaDecayRate: config.thetaDecayRate,
+        indicatorOptions: opts,
+      };
+      const r = runBacktestFull(signals, simCandles, backtestConfig);
+      const fit = computeFitness(r);
+      fitnessSum += fit;
+      fitnessCount++;
+      if (ticker === primaryTicker || !primaryResult) primaryResult = r;
+    }
+
+    return { result: primaryResult!, fitness: fitnessCount > 0 ? fitnessSum / fitnessCount : 0 };
   };
 
   // Initialize population: default seed + random
@@ -351,26 +370,67 @@ export function runGeneticOptimize(
  * Stage 1: GA finds best weights (pop=30, gen=20)
  * Stage 2: Grid sweep TP/SL [1.5, 2.0, 2.5, 3.0] × [1.0, 1.5, 2.0] = 12 combos
  * Returns combined result with generation history from stage 1.
+ * Accepts single-ticker candles or multi-ticker Map.
  */
 export function runTwoStageOptimize(
-  candles: BacktestCandle[],
+  candles: BacktestCandle[] | Map<string, BacktestCandle[]>,
   config: OptimizeConfig,
   onProgress?: (phase: 'ga' | 'tpsl', pct: number) => void
 ): OptimizeResult {
   const t0 = performance.now();
+  const primaryCandles = candles instanceof Map
+    ? candles.get(config.ticker) ?? Array.from(candles.values())[0]
+    : candles;
 
-  // Stage 1: GA weight optimization
-  const gaResult = runGeneticOptimize(candles, config, (gen, totalGens) => {
-    if (onProgress) onProgress('ga', Math.round((gen / totalGens) * 100));
-  });
+  let bestOpts: TechScoreOptions = {};
+  let gaResult: OptimizeResult | null = null;
 
-  if (!gaResult.bestOverall) {
-    return gaResult; // No meaningful results
+  // Stage 1: GA weight optimization (unless skipped)
+  if (!config.skipWeights) {
+    gaResult = runGeneticOptimize(candles, config, (gen, totalGens) => {
+      if (onProgress) onProgress('ga', Math.round((gen / totalGens) * 100));
+    });
+
+    if (!gaResult.bestOverall) {
+      return gaResult; // No meaningful results
+    }
+    bestOpts = gaResult.bestOverall.config.indicatorOptions;
+  } else {
+    if (onProgress) onProgress('ga', 100);
   }
 
-  // Stage 2: TP/SL grid sweep with best weights
-  const bestOpts = gaResult.bestOverall.config.indicatorOptions;
-  const { signals, simCandles } = precomputeSignals(candles, '1D', bestOpts);
+  // Stage 2: TP/SL grid sweep with best weights (unless skipped)
+  if (config.skipTpSlGrid) {
+    if (onProgress) onProgress('tpsl', 100);
+    // Run single eval with current config weights
+    if (!gaResult) {
+      const { signals, simCandles } = precomputeSignals(primaryCandles, '1D', bestOpts);
+      const singleCfg: BacktestConfig = {
+        ...DEFAULT_CONFIG,
+        ticker: config.ticker,
+        startDate: config.startDate,
+        endDate: config.endDate,
+        tpAtr: config.tpAtr,
+        slAtr: config.slAtr,
+        minScore: config.minScore,
+        minConfidence: config.minConfidence,
+        thetaDecayRate: config.thetaDecayRate,
+        indicatorOptions: bestOpts,
+      };
+      const r = runBacktestFull(signals, simCandles, singleCfg);
+      return {
+        results: [r],
+        rankedBySharpe: [r],
+        rankedByWinRate: [r],
+        bestOverall: r,
+        totalCombos: 1,
+        elapsedMs: performance.now() - t0,
+      };
+    }
+    return { ...gaResult, elapsedMs: performance.now() - t0 };
+  }
+
+  const { signals, simCandles } = precomputeSignals(primaryCandles, '1D', bestOpts);
 
   const tpRange = [1.5, 2.0, 2.5, 3.0];
   const slRange = [1.0, 1.5, 2.0];
@@ -399,7 +459,7 @@ export function runTwoStageOptimize(
   }
 
   // Combine results
-  const allResults = [...gaResult.results, ...tpslResults];
+  const allResults = [...(gaResult?.results ?? []), ...tpslResults];
   const meaningful = allResults.filter(r => r.analytics.totalTrades >= 10);
   const rankedBySharpe = [...meaningful].sort((a, b) => b.analytics.sharpe - a.analytics.sharpe);
   const rankedByWinRate = [...meaningful].sort((a, b) => b.analytics.winRateTheta - a.analytics.winRateTheta);
@@ -410,9 +470,9 @@ export function runTwoStageOptimize(
     rankedBySharpe,
     rankedByWinRate,
     bestOverall,
-    totalCombos: gaResult.totalCombos + total,
+    totalCombos: (gaResult?.totalCombos ?? 0) + total,
     elapsedMs: performance.now() - t0,
-    generationHistory: gaResult.generationHistory,
+    generationHistory: gaResult?.generationHistory,
   };
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Rocket, Upload } from 'lucide-react';
+import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Rocket, Upload, Info } from 'lucide-react';
 import { useBacktest, type BacktestMode } from '../hooks/useBacktest';
 import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, OptimizeConfig, QualityGates } from '../lib/backtest/types';
 import { DEFAULT_QUALITY_GATES } from '../lib/backtest/types';
@@ -19,6 +19,17 @@ const Stat: React.FC<{ label: string; value: string | number; sub?: string; good
   </div>
 );
 
+// ── Tooltip ─────────────────────────────────────────────
+
+const Tip: React.FC<{ text: string }> = ({ text }) => (
+  <span className="relative group inline-flex ml-1 align-middle">
+    <Info size={12} className="text-text-tertiary/50 group-hover:text-text-secondary cursor-help" />
+    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded bg-[#222] border border-white/10 text-[10px] text-text-secondary leading-tight whitespace-normal w-52 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-50 shadow-lg">
+      {text}
+    </span>
+  </span>
+);
+
 // ── Config Panel ────────────────────────────────────────
 
 const SETUPS = ['All', 'Perfect Storm', 'Breakout', 'Pullback Buy', 'Strong Trend', 'Breakdown', 'Failed Rally', 'Strong Down', 'Bullish', 'Bearish'];
@@ -26,6 +37,32 @@ const SETUPS = ['All', 'Perfect Storm', 'Breakout', 'Pullback Buy', 'Strong Tren
 // Default indicator values for display
 const IND_DEFAULTS: Record<string, number> = {
   w_mb: 30, w_bxs: 25, w_bxl: 20, w_ema: 15, w_mom: 10,
+};
+
+// Sweep dimension toggle state
+interface SweepToggles {
+  tpSl: boolean;
+  minScore: boolean;
+  confidence: boolean;
+  decay: boolean;
+}
+
+const DEFAULT_SWEEP_TOGGLES: SweepToggles = {
+  tpSl: true,
+  minScore: true,
+  confidence: false,
+  decay: false,
+};
+
+// Optimize stage toggles
+interface OptimizeToggles {
+  weights: boolean;     // Stage 1: GA weight optimization
+  tpSlGrid: boolean;    // Stage 2: TP/SL grid search
+}
+
+const DEFAULT_OPT_TOGGLES: OptimizeToggles = {
+  weights: true,
+  tpSlGrid: true,
 };
 
 const ConfigPanel: React.FC<{
@@ -42,6 +79,11 @@ const ConfigPanel: React.FC<{
 }> = ({ config, onChange, mode, onModeChange, onRun, onRunSweep, onRunOptimize, loading, progress, progressPhase }) => {
   const [showIndicators, setShowIndicators] = useState(false);
   const [showGates, setShowGates] = useState(false);
+  const [showSweepDims, setShowSweepDims] = useState(false);
+  const [showOptStages, setShowOptStages] = useState(false);
+  const [optimizeTickers, setOptimizeTickers] = useState('');
+  const [sweepToggles, setSweepToggles] = useState<SweepToggles>(DEFAULT_SWEEP_TOGGLES);
+  const [optToggles, setOptToggles] = useState<OptimizeToggles>(DEFAULT_OPT_TOGGLES);
 
   const upd = (partial: Partial<BacktestConfig>) => onChange({ ...config, ...partial });
   const updInd = (key: keyof TechScoreOptions, val: number) => {
@@ -54,21 +96,37 @@ const ConfigPanel: React.FC<{
   const indVal = (key: keyof TechScoreOptions): number =>
     (config.indicatorOptions[key] as number) ?? IND_DEFAULTS[key] ?? 0;
 
-  const totalSweepCombos = DEFAULT_SWEEP.tpAtrRange.length * DEFAULT_SWEEP.slAtrRange.length *
-    DEFAULT_SWEEP.minScoreRange.length * DEFAULT_SWEEP.minConfidenceRange.length;
+  // Build sweep config from toggles
+  const sweepConfig = useMemo((): Omit<SweepConfig, 'ticker' | 'startDate' | 'endDate' | 'timeframe'> => ({
+    tpAtrRange: sweepToggles.tpSl ? DEFAULT_SWEEP.tpAtrRange : [config.tpAtr],
+    slAtrRange: sweepToggles.tpSl ? DEFAULT_SWEEP.slAtrRange : [config.slAtr],
+    minScoreRange: sweepToggles.minScore ? DEFAULT_SWEEP.minScoreRange : [config.minScore],
+    minConfidenceRange: sweepToggles.confidence ? DEFAULT_SWEEP.minConfidenceRange : [config.minConfidence],
+    setupGroups: DEFAULT_SWEEP.setupGroups,
+    thetaDecayRange: sweepToggles.decay ? [0.02, 0.03, 0.05] : [config.thetaDecayRate],
+  }), [sweepToggles, config.tpAtr, config.slAtr, config.minScore, config.minConfidence, config.thetaDecayRate]);
+
+  const totalSweepCombos = sweepConfig.tpAtrRange.length * sweepConfig.slAtrRange.length *
+    sweepConfig.minScoreRange.length * sweepConfig.minConfidenceRange.length *
+    sweepConfig.thetaDecayRange.length;
 
   const handleRun = () => {
     if (mode === 'validate') {
       onRun();
     } else if (mode === 'sweep') {
       onRunSweep({
-        ...DEFAULT_SWEEP,
+        ...sweepConfig,
         ticker: config.ticker,
         startDate: config.startDate,
         endDate: config.endDate,
         timeframe: '1D',
       });
     } else {
+      const extraTickers = optimizeTickers
+        .split(',')
+        .map(t => t.trim().toUpperCase())
+        .filter(t => t && t !== config.ticker);
+      const allTickers = [config.ticker, ...extraTickers];
       onRunOptimize({
         ticker: config.ticker,
         startDate: config.startDate,
@@ -78,6 +136,9 @@ const ConfigPanel: React.FC<{
         minScore: config.minScore,
         minConfidence: config.minConfidence,
         thetaDecayRate: config.thetaDecayRate,
+        tickers: allTickers.length > 1 ? allTickers : undefined,
+        skipWeights: !optToggles.weights,
+        skipTpSlGrid: !optToggles.tpSlGrid,
       });
     }
   };
@@ -86,39 +147,108 @@ const ConfigPanel: React.FC<{
     <div className="space-y-3">
       {/* Ticker + Dates */}
       <div className="grid grid-cols-3 gap-2">
-        <Field label="Ticker" value={config.ticker} onChange={v => upd({ ticker: v.toUpperCase() })} />
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            Ticker<Tip text="Stock symbol to backtest. Signals are generated from this ticker's daily candles using the tech score algorithm." />
+          </label>
+          <input type="text" value={config.ticker} onChange={e => upd({ ticker: e.target.value.toUpperCase() })}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+        </div>
         <Field label="Start" value={config.startDate} onChange={v => upd({ startDate: v })} type="date" />
         <Field label="End" value={config.endDate} onChange={v => upd({ endDate: v })} type="date" />
       </div>
 
+      {/* Multi-ticker for Optimize mode */}
+      {mode === 'optimize' && (
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            Extra Tickers<Tip text="GA averages fitness across all tickers to find universal weights that generalize well. Prevents overfitting to one ticker's quirks." />
+          </label>
+          <input value={optimizeTickers} onChange={e => setOptimizeTickers(e.target.value.toUpperCase())}
+            placeholder="QQQ, AAPL, MSFT"
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-purple-500/50 focus:outline-none placeholder:text-white/20" />
+        </div>
+      )}
+
       {/* TP/SL */}
       <div className="grid grid-cols-2 gap-2">
-        <NumField label="TP (ATR)" value={config.tpAtr} onChange={v => upd({ tpAtr: v })} step={0.5} min={0.5} max={5} />
-        <NumField label="SL (ATR)" value={config.slAtr} onChange={v => upd({ slAtr: v })} step={0.5} min={0.5} max={5} />
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            TP (ATR)<Tip text="Take profit distance as ATR(14) multiple. Higher = more room to run but fewer hits. E.g. 2.5 means exit when price moves 2.5× the average true range in your favor." />
+          </label>
+          <input type="number" value={config.tpAtr} onChange={e => upd({ tpAtr: Number(e.target.value) })} step={0.5} min={0.5} max={5}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+        </div>
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            SL (ATR)<Tip text="Stop loss distance as ATR(14) multiple. Lower = tighter risk but more stops. E.g. 1.5 means exit when price moves 1.5× ATR against you." />
+          </label>
+          <input type="number" value={config.slAtr} onChange={e => upd({ slAtr: Number(e.target.value) })} step={0.5} min={0.5} max={5}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+        </div>
       </div>
 
       {/* Score + Confidence */}
       <div className="grid grid-cols-2 gap-2">
-        <NumField label="Min Score" value={config.minScore} onChange={v => upd({ minScore: v })} step={5} min={50} max={95} />
-        <NumField label="Min Conf" value={config.minConfidence} onChange={v => upd({ minConfidence: v })} step={1} min={0} max={3} />
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            Min Score<Tip text="Minimum tech score (0-100) to trigger a signal. Higher = fewer but higher-conviction trades. The tech score combines MB, BXS, BXL, EMA, and momentum sub-scores." />
+          </label>
+          <input type="number" value={config.minScore} onChange={e => upd({ minScore: Number(e.target.value) })} step={5} min={50} max={95}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+        </div>
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            Min Conf<Tip text="Minimum setup confidence level (0-3). 0=any signal, 1=at least low confidence, 2=medium, 3=high only. Based on how many confirming factors the setup has." />
+          </label>
+          <input type="number" value={config.minConfidence} onChange={e => upd({ minConfidence: Number(e.target.value) })} step={1} min={0} max={3}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+        </div>
       </div>
 
       {/* Direction + Cooldown */}
       <div className="grid grid-cols-2 gap-2">
-        <SelectField label="Direction" value={config.directionFilter} options={['ALL', 'CALL', 'PUT']}
-          onChange={v => upd({ directionFilter: v as 'ALL' | 'CALL' | 'PUT' })} />
-        <NumField label="Cooldown" value={config.cooldownBars} onChange={v => upd({ cooldownBars: v })} step={1} min={1} max={50} />
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            Direction<Tip text="Filter signals by direction. ALL=both calls and puts. CALL=bullish only. PUT=bearish only." />
+          </label>
+          <select value={config.directionFilter} onChange={e => upd({ directionFilter: e.target.value as 'ALL' | 'CALL' | 'PUT' })}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none">
+            {['ALL', 'CALL', 'PUT'].map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            Cooldown<Tip text="Minimum bars between entries. Prevents stacking trades on consecutive signals. Higher = more spacing, fewer total trades." />
+          </label>
+          <input type="number" value={config.cooldownBars} onChange={e => upd({ cooldownBars: Number(e.target.value) })} step={1} min={1} max={50}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+        </div>
       </div>
 
       {/* Time Stop + Decay */}
       <div className="grid grid-cols-2 gap-2">
-        <NumField label="Time Stop" value={config.timeStopBars} onChange={v => upd({ timeStopBars: v })} step={1} min={5} max={60} />
-        <NumField label="Theta Decay" value={config.thetaDecayRate} onChange={v => upd({ thetaDecayRate: v })} step={0.01} min={0} max={0.1} />
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            Time Stop<Tip text="Force-close position after N bars if neither TP nor SL is hit. Prevents capital from being tied up in stale trades. Typical: 21 bars (1 month)." />
+          </label>
+          <input type="number" value={config.timeStopBars} onChange={e => upd({ timeStopBars: Number(e.target.value) })} step={1} min={5} max={60}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+        </div>
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            Theta Decay<Tip text="Daily decay rate applied to P&L to simulate options time decay. 0.03 = 3% per day penalty on unrealized gains. Models how options lose value over time even if stock price is favorable." />
+          </label>
+          <input type="number" value={config.thetaDecayRate} onChange={e => upd({ thetaDecayRate: Number(e.target.value) })} step={0.01} min={0} max={0.1}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+        </div>
       </div>
 
       {/* Setups */}
       <div>
-        <label className="text-[11px] text-text-tertiary uppercase block mb-1">Setups</label>
+        <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+          Setups<Tip text="Filter which setup patterns to trade. 'All' includes every detected setup. Select specific ones to test individual pattern performance." />
+        </label>
         <div className="flex flex-wrap gap-1">
           {SETUPS.map(s => {
             const active = config.allowedSetups.includes(s) || (s === 'All' && config.allowedSetups.includes('All'));
@@ -147,6 +277,7 @@ const ConfigPanel: React.FC<{
           onChange={e => upd({ useEntryQualityAdjust: e.target.checked })}
           className="accent-accent-green" />
         Entry quality adjustment
+        <Tip text="Adjusts TP/SL based on entry timing relative to EMA-8. Optimal entries get wider targets, chasing entries get tighter stops. Models real-world fill quality." />
       </label>
 
       {/* Quality Gates (V4) */}
@@ -155,32 +286,37 @@ const ConfigPanel: React.FC<{
           className="flex items-center gap-1 text-sm text-text-secondary hover:text-white w-full py-1">
           {showGates ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           Quality Gates
+          <Tip text="V4 market-structure filters applied BEFORE scoring. These are fixed thresholds (not optimizable) that filter out low-quality market environments. Reducing overfitting by removing noise signals." />
         </button>
         {showGates && (
-          <div className="space-y-1.5 mt-1 pl-1">
+          <div className="space-y-2 mt-1 pl-1">
             <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
               <input type="checkbox" checked={config.qualityGates.minADX > 0}
                 onChange={e => updGate({ minADX: e.target.checked ? DEFAULT_QUALITY_GATES.minADX : 0 })}
                 className="accent-cyan-400" />
               ADX filter (min {config.qualityGates.minADX})
+              <Tip text="Average Directional Index measures trend strength (0-100). ADX < 15 = no trend, choppy market. Filters out signals in trendless conditions where directional trades fail. Uses ADX(14)." />
             </label>
             <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
               <input type="checkbox" checked={config.qualityGates.minRVOL > 0}
                 onChange={e => updGate({ minRVOL: e.target.checked ? DEFAULT_QUALITY_GATES.minRVOL : 0 })}
                 className="accent-cyan-400" />
               RVOL filter (min {config.qualityGates.minRVOL})
+              <Tip text="Relative Volume = today's volume / 20-day average. RVOL < 0.5 = dead volume, low participation. Filters out signals on low-volume days where price moves are unreliable." />
             </label>
             <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
               <input type="checkbox" checked={config.qualityGates.useCoherence}
                 onChange={e => updGate({ useCoherence: e.target.checked })}
                 className="accent-cyan-400" />
               Coherence multiplier
+              <Tip text="Counts how many of MB/BXS/BXL sub-scores agree with signal direction (0-3). Adjusts score: 3/3 = 1.10x boost, 2/3 = 1.00x (neutral), 1/3 = 0.85x penalty, 0/3 = 0.70x strong penalty. Rewards signals where all indicators agree." />
             </label>
             <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
               <input type="checkbox" checked={config.qualityGates.useSqueeze}
                 onChange={e => updGate({ useSqueeze: e.target.checked })}
                 className="accent-cyan-400" />
               Squeeze multiplier
+              <Tip text="Bollinger Band squeeze detection: BB inside Keltner Channel = volatility compression. When squeeze is active, a breakout is likely. Applies 1.05x score boost to signals during squeeze conditions." />
             </label>
           </div>
         )}
@@ -193,20 +329,110 @@ const ConfigPanel: React.FC<{
             className="flex items-center gap-1 text-sm text-text-secondary hover:text-white w-full py-1">
             {showIndicators ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             Signal Weights
+            <Tip text="How much each sub-indicator contributes to the composite tech score (must sum to 100). In Optimize mode, GA evolves these automatically." />
           </button>
           {showIndicators && (
             <div className="space-y-2 mt-1">
-              <div className="text-[10px] text-text-tertiary">Component Weights (must sum to 100)</div>
               <div className="grid grid-cols-5 gap-1">
-                {(['w_mb', 'w_bxs', 'w_bxl', 'w_ema', 'w_mom'] as const).map(k => (
+                {([
+                  ['w_mb', 'MB', 'Mean/Bollinger Band reversion signal. Measures price position relative to statistical bands.'],
+                  ['w_bxs', 'BXS', 'Box Short-term breakout. Detects short-term (1-2 week) price range breakouts.'],
+                  ['w_bxl', 'BXL', 'Box Long-term breakout. Detects long-term (3-6 week) price range breakouts.'],
+                  ['w_ema', 'EMA', 'EMA trend alignment. Measures price position vs EMA-8/21/50/200 stack.'],
+                  ['w_mom', 'MOM', 'Momentum oscillator. RSI/Stochastic based momentum confirmation.'],
+                ] as const).map(([k, label, tip]) => (
                   <div key={k}>
-                    <label className="text-[9px] text-text-tertiary uppercase block">{k.replace('w_', '')}</label>
-                    <input type="number" value={indVal(k)} onChange={e => updInd(k, Number(e.target.value))}
+                    <label className="text-[9px] text-text-tertiary uppercase block">{label}<Tip text={tip} /></label>
+                    <input type="number" value={indVal(k as keyof TechScoreOptions)} onChange={e => updInd(k as keyof TechScoreOptions, Number(e.target.value))}
                       step={5} min={0} max={60}
                       className="w-full bg-[#111] border border-white/10 rounded px-1 py-1 text-[11px] text-white font-mono focus:border-accent-green/50 focus:outline-none" />
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sweep Dimensions (sweep mode) */}
+      {mode === 'sweep' && (
+        <div>
+          <button onClick={() => setShowSweepDims(!showSweepDims)}
+            className="flex items-center gap-1 text-sm text-text-secondary hover:text-white w-full py-1">
+            {showSweepDims ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            Sweep Dimensions
+            <Tip text="Choose which parameters to sweep. Enabled dimensions will be tested across a range of values. Disabled dimensions use the fixed values from above. More dimensions = more combos = slower but more thorough." />
+          </button>
+          {showSweepDims && (
+            <div className="space-y-1.5 mt-1 pl-1">
+              <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+                <input type="checkbox" checked={sweepToggles.tpSl}
+                  onChange={e => setSweepToggles(p => ({ ...p, tpSl: e.target.checked }))}
+                  className="accent-accent-green" />
+                TP/SL range
+                <Tip text="Sweep TP across [1.5, 2.0, 2.5, 3.0] and SL across [1.0, 1.5, 2.0]. Tests 12 TP/SL combinations to find optimal risk/reward ratio." />
+                <span className="text-text-tertiary/50 ml-auto text-[10px]">{sweepToggles.tpSl ? '4×3' : 'fixed'}</span>
+              </label>
+              <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+                <input type="checkbox" checked={sweepToggles.minScore}
+                  onChange={e => setSweepToggles(p => ({ ...p, minScore: e.target.checked }))}
+                  className="accent-accent-green" />
+                Min Score range
+                <Tip text="Sweep minimum score across [65, 70, 75, 80]. Tests the trade-off between signal quantity and quality — higher min score = fewer but better trades." />
+                <span className="text-text-tertiary/50 ml-auto text-[10px]">{sweepToggles.minScore ? '×4' : 'fixed'}</span>
+              </label>
+              <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+                <input type="checkbox" checked={sweepToggles.confidence}
+                  onChange={e => setSweepToggles(p => ({ ...p, confidence: e.target.checked }))}
+                  className="accent-accent-green" />
+                Confidence range
+                <Tip text="Sweep min confidence across [1, 2]. Tests whether requiring higher setup confirmation improves results." />
+                <span className="text-text-tertiary/50 ml-auto text-[10px]">{sweepToggles.confidence ? '×2' : 'fixed'}</span>
+              </label>
+              <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+                <input type="checkbox" checked={sweepToggles.decay}
+                  onChange={e => setSweepToggles(p => ({ ...p, decay: e.target.checked }))}
+                  className="accent-accent-green" />
+                Theta Decay range
+                <Tip text="Sweep theta decay across [0.02, 0.03, 0.05]. Tests sensitivity to options time decay assumptions." />
+                <span className="text-text-tertiary/50 ml-auto text-[10px]">{sweepToggles.decay ? '×3' : 'fixed'}</span>
+              </label>
+              <div className="text-[10px] text-text-tertiary mt-1 pt-1 border-t border-white/5">
+                Total: {totalSweepCombos} combinations
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Optimize Stages (optimize mode) */}
+      {mode === 'optimize' && (
+        <div>
+          <button onClick={() => setShowOptStages(!showOptStages)}
+            className="flex items-center gap-1 text-sm text-text-secondary hover:text-white w-full py-1">
+            {showOptStages ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            Optimize Stages
+            <Tip text="Two-stage optimizer to prevent overfitting. Stage 1 finds optimal signal weights via genetic algorithm. Stage 2 finds optimal TP/SL via grid search using Stage 1's best weights. Toggle stages on/off as needed." />
+          </button>
+          {showOptStages && (
+            <div className="space-y-1.5 mt-1 pl-1">
+              <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+                <input type="checkbox" checked={optToggles.weights}
+                  onChange={e => setOptToggles(p => ({ ...p, weights: e.target.checked }))}
+                  className="accent-purple-400" />
+                Stage 1: GA Weights
+                <Tip text="Genetic algorithm evolves the 5 signal weights (MB, BXS, BXL, EMA, MOM). Population=30, generations=20. Search space ~4,096 combos. If disabled, uses the default/manual weights above." />
+              </label>
+              <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+                <input type="checkbox" checked={optToggles.tpSlGrid}
+                  onChange={e => setOptToggles(p => ({ ...p, tpSlGrid: e.target.checked }))}
+                  className="accent-purple-400" />
+                Stage 2: TP/SL Grid
+                <Tip text="Grid sweep of TP [1.5, 2.0, 2.5, 3.0] × SL [1.0, 1.5, 2.0] = 12 combos using the best weights from Stage 1. Finds optimal risk/reward targets for the optimized weights." />
+              </label>
+              {!optToggles.weights && !optToggles.tpSlGrid && (
+                <div className="text-[10px] text-amber-400 mt-1">At least one stage must be enabled</div>
+              )}
             </div>
           )}
         </div>
@@ -219,19 +445,27 @@ const ConfigPanel: React.FC<{
             className={`flex-1 py-1.5 rounded text-[12px] font-medium transition-colors ${
               mode === m ? 'bg-[#2A2A2A] text-white' : 'text-text-tertiary hover:text-text-secondary'
             }`}
-          >{m === 'validate' ? 'Validate' : m === 'sweep' ? 'Sweep TP/SL' : 'Optimize Weights'}</button>
+          >{m === 'validate' ? 'Validate' : m === 'sweep' ? 'Sweep' : 'Optimize'}</button>
         ))}
       </div>
 
       {/* Mode description */}
       <div className="text-[10px] text-text-tertiary">
         {mode === 'validate' && 'Run one backtest with current settings + quality gates'}
-        {mode === 'sweep' && `Sweep ${totalSweepCombos} TP/SL combos with default weights`}
-        {mode === 'optimize' && 'Two-stage: GA evolves 5 signal weights, then grid sweeps 12 TP/SL combos'}
+        {mode === 'sweep' && `Grid search ${totalSweepCombos} parameter combos`}
+        {mode === 'optimize' && (
+          optToggles.weights && optToggles.tpSlGrid
+            ? 'Two-stage: GA evolves 5 signal weights, then grid sweeps 12 TP/SL combos'
+            : optToggles.weights
+            ? 'GA evolves 5 signal weights (TP/SL grid disabled)'
+            : optToggles.tpSlGrid
+            ? 'Grid sweeps 12 TP/SL combos with current weights'
+            : 'Enable at least one stage'
+        )}
       </div>
 
       {/* Run Button */}
-      <button onClick={handleRun} disabled={loading}
+      <button onClick={handleRun} disabled={loading || (mode === 'optimize' && !optToggles.weights && !optToggles.tpSlGrid)}
         className={`w-full py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${
           mode === 'optimize'
             ? 'bg-purple-500 text-white hover:bg-purple-400'
@@ -243,9 +477,9 @@ const ConfigPanel: React.FC<{
         ) : mode === 'validate' ? (
           <><Play size={16} /> Run Backtest</>
         ) : mode === 'sweep' ? (
-          <><Zap size={16} /> Sweep TP/SL ({totalSweepCombos} combos)</>
+          <><Zap size={16} /> Sweep ({totalSweepCombos} combos)</>
         ) : (
-          <><Rocket size={16} /> Optimize Weights (2-stage)</>
+          <><Rocket size={16} /> Optimize{optToggles.weights && optToggles.tpSlGrid ? ' (2-stage)' : ''}</>
         )}
       </button>
     </div>
@@ -262,23 +496,6 @@ const Field: React.FC<{ label: string; value: string; onChange: (v: string) => v
   </div>
 );
 
-const NumField: React.FC<{ label: string; value: number; onChange: (v: number) => void; step: number; min: number; max: number }> = ({ label, value, onChange, step, min, max }) => (
-  <div>
-    <label className="text-[11px] text-text-tertiary uppercase block mb-1">{label}</label>
-    <input type="number" value={value} onChange={e => onChange(Number(e.target.value))} step={step} min={min} max={max}
-      className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-  </div>
-);
-
-const SelectField: React.FC<{ label: string; value: string; options: string[]; onChange: (v: string) => void }> = ({ label, value, options, onChange }) => (
-  <div>
-    <label className="text-[11px] text-text-tertiary uppercase block mb-1">{label}</label>
-    <select value={value} onChange={e => onChange(e.target.value)}
-      className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none">
-      {options.map(o => <option key={o} value={o}>{o}</option>)}
-    </select>
-  </div>
-);
 
 // ── Analytics Display ───────────────────────────────────
 
@@ -926,7 +1143,7 @@ export const BacktestPage: React.FC = () => {
           {bt.mode === 'optimize' && bt.optimizeResult && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 text-sm text-text-tertiary">
-                <span>{bt.optimizeResult.totalCombos} evals over {bt.optimizeResult.generationHistory.length} gens</span>
+                <span>{bt.optimizeResult.totalCombos} evals{bt.optimizeResult.generationHistory ? ` over ${bt.optimizeResult.generationHistory.length} gens` : ''}</span>
                 <span>{(bt.optimizeResult.elapsedMs / 1000).toFixed(1)}s</span>
                 <span>{bt.optimizeResult.results.filter(r => r.analytics.totalTrades >= 3).length} with 3+ trades</span>
               </div>

@@ -312,6 +312,11 @@ export interface OptimizeConfig {
   // GA settings (optional — sensible defaults)
   populationSize?: number;   // default 30
   generations?: number;      // default 20
+  // Multi-ticker: if provided, GA averages fitness across all tickers (anti-overfitting)
+  tickers?: string[];
+  // Stage toggles (for two-stage optimizer)
+  skipWeights?: boolean;     // Skip GA weight optimization (use defaults)
+  skipTpSlGrid?: boolean;    // Skip TP/SL grid sweep
 }
 
 export interface OptimizeResult {
@@ -321,7 +326,7 @@ export interface OptimizeResult {
   bestOverall: BacktestResult | null;
   totalCombos: number;
   elapsedMs: number;
-  generationHistory: { gen: number; bestFitness: number; avgFitness: number }[];
+  generationHistory?: { gen: number; bestFitness: number; avgFitness: number }[];
 }
 
 export interface SweepResult {
