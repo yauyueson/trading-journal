@@ -15,11 +15,12 @@ import type {
   SweepResult,
   OptimizeConfig,
   OptimizeResult,
+  OptimizeParams,
   WalkForwardConfig,
   WalkForwardResult,
   WalkForwardWindow,
 } from './types';
-import { DEFAULT_CONFIG } from './types';
+import { DEFAULT_CONFIG, DEFAULT_OPTIMIZE_PARAMS } from './types';
 import { precomputeSignals, runBacktestFull } from './engine';
 import { computeAnalytics, monteCarloPermutation } from './analytics';
 import type { TechScoreOptions } from '../tech-analysis';
@@ -95,7 +96,7 @@ export function runSweep(
 }
 
 // ══════════════════════════════════════════════════════════
-// ── Genetic Algorithm Optimizer (weights only) ───────────
+// ── Genetic Algorithm Optimizer ──────────────────────────
 // ══════════════════════════════════════════════════════════
 
 /** Gene definition: name, min, max, default, step size */
@@ -106,19 +107,35 @@ interface GeneDef {
   def: number;
   step: number;
   isWeight: boolean;
+  group: keyof OptimizeParams;  // which toggle enables this gene
 }
 
-/**
- * Weight-only gene definitions (5 genes, 4 free params since sum=100).
- * Period genes removed to prevent overfitting — fixed at defaults.
- */
-const WEIGHT_GENE_DEFS: GeneDef[] = [
-  { key: 'w_mb',  min: 10, max: 50, def: 30, step: 5, isWeight: true },
-  { key: 'w_bxs', min: 10, max: 40, def: 25, step: 5, isWeight: true },
-  { key: 'w_bxl', min: 5,  max: 35, def: 20, step: 5, isWeight: true },
-  { key: 'w_ema', min: 5,  max: 30, def: 15, step: 5, isWeight: true },
-  { key: 'w_mom', min: 0,  max: 25, def: 10, step: 5, isWeight: true },
+// All possible gene definitions, grouped by OptimizeParams toggle
+const ALL_GENE_DEFS: GeneDef[] = [
+  // Weights (sum to 100)
+  { key: 'w_mb',  min: 10, max: 50, def: 30, step: 5, isWeight: true,  group: 'weights' },
+  { key: 'w_bxs', min: 10, max: 40, def: 25, step: 5, isWeight: true,  group: 'weights' },
+  { key: 'w_bxl', min: 5,  max: 35, def: 20, step: 5, isWeight: true,  group: 'weights' },
+  { key: 'w_ema', min: 5,  max: 30, def: 15, step: 5, isWeight: true,  group: 'weights' },
+  { key: 'w_mom', min: 0,  max: 25, def: 10, step: 5, isWeight: true,  group: 'weights' },
+  // Periods
+  { key: 'sc_mb_len',  min: 50,  max: 200, def: 100, step: 10, isWeight: false, group: 'periods' },
+  { key: 'sc_osc_len', min: 3,   max: 14,  def: 7,   step: 1,  isWeight: false, group: 'periods' },
+  { key: 'sc_bx_s1',   min: 3,   max: 10,  def: 5,   step: 1,  isWeight: false, group: 'periods' },
+  { key: 'sc_bx_s2',   min: 10,  max: 30,  def: 20,  step: 5,  isWeight: false, group: 'periods' },
+  { key: 'sc_bx_l1',   min: 10,  max: 40,  def: 20,  step: 5,  isWeight: false, group: 'periods' },
+  { key: 'sc_bx_l2',   min: 10,  max: 30,  def: 15,  step: 5,  isWeight: false, group: 'periods' },
+  // Trade params
+  { key: 'tpAtr',          min: 1.0, max: 4.0, def: 2.5,  step: 0.5, isWeight: false, group: 'tpSl' },
+  { key: 'slAtr',          min: 0.5, max: 3.0, def: 1.5,  step: 0.5, isWeight: false, group: 'tpSl' },
+  { key: 'minScore',       min: 55,  max: 90,  def: 70,   step: 5,   isWeight: false, group: 'minScore' },
+  { key: 'thetaDecayRate', min: 0.01,max: 0.08,def: 0.03, step: 0.01,isWeight: false, group: 'decay' },
 ];
+
+/** Build active gene definitions from OptimizeParams toggles */
+function buildGeneDefs(params: OptimizeParams): GeneDef[] {
+  return ALL_GENE_DEFS.filter(g => params[g.group]);
+}
 
 type Individual = number[];
 
@@ -157,13 +174,24 @@ function clampGenes(genes: Individual, defs: GeneDef[]): Individual {
   });
 }
 
-/** Convert genes array to TechScoreOptions */
-function genesToIndicatorOptions(genes: Individual, defs: GeneDef[]): TechScoreOptions {
-  const opts: TechScoreOptions = {};
+const TRADE_PARAM_KEYS = new Set(['tpAtr', 'slAtr', 'minScore', 'thetaDecayRate']);
+
+/** Convert genes array to indicator options + trade param overrides */
+function genesToParams(genes: Individual, defs: GeneDef[]): {
+  indicatorOpts: TechScoreOptions;
+  tradeOverrides: Partial<BacktestConfig>;
+} {
+  const indicatorOpts: TechScoreOptions = {};
+  const tradeOverrides: Partial<BacktestConfig> = {};
   for (let i = 0; i < defs.length; i++) {
-    (opts as Record<string, number>)[defs[i].key] = genes[i];
+    const key = defs[i].key;
+    if (TRADE_PARAM_KEYS.has(key)) {
+      (tradeOverrides as Record<string, number>)[key] = genes[i];
+    } else {
+      (indicatorOpts as Record<string, number>)[key] = genes[i];
+    }
   }
-  return opts;
+  return { indicatorOpts, tradeOverrides };
 }
 
 /** Create a random individual */
@@ -228,7 +256,7 @@ export function computeFitness(r: BacktestResult): number {
   return sortinoContrib + pfContrib + wrContrib + ddContrib + expContrib + countContrib;
 }
 
-/** GA-based weight optimizer (5 genes, ~4 free params).
+/** GA-based optimizer with dynamic gene selection.
  *  Accepts single-ticker candles or multi-ticker Map for cross-ticker fitness averaging. */
 export function runGeneticOptimize(
   candles: BacktestCandle[] | Map<string, BacktestCandle[]>,
@@ -240,23 +268,40 @@ export function runGeneticOptimize(
   const GENERATIONS = config.generations ?? 20;
   const ELITE_COUNT = 4;
   const TOURNAMENT_K = 3;
-  const defs = WEIGHT_GENE_DEFS;
+  const params = config.optimizeParams ?? DEFAULT_OPTIMIZE_PARAMS;
+  const defs = buildGeneDefs(params);
+
+  if (defs.length === 0) {
+    // Nothing to optimize — run single eval with current config
+    const singleCandles = candles instanceof Map
+      ? candles.get(config.ticker) ?? Array.from(candles.values())[0]
+      : candles;
+    const { signals, simCandles } = precomputeSignals(singleCandles, '1D', {});
+    const cfg: BacktestConfig = {
+      ...DEFAULT_CONFIG,
+      ticker: config.ticker, startDate: config.startDate, endDate: config.endDate,
+      tpAtr: config.tpAtr, slAtr: config.slAtr, minScore: config.minScore,
+      minConfidence: config.minConfidence, thetaDecayRate: config.thetaDecayRate,
+    };
+    const r = runBacktestFull(signals, simCandles, cfg);
+    return { results: [r], rankedBySharpe: [r], rankedByWinRate: [r], bestOverall: r, totalCombos: 1, elapsedMs: performance.now() - t0 };
+  }
 
   // Build ticker list: Map = multi-ticker, array = single ticker
   const isMultiTicker = candles instanceof Map;
   const tickerCandles: Map<string, BacktestCandle[]> = isMultiTicker
     ? candles
     : new Map([[config.ticker, candles]]);
-  const primaryTicker = config.ticker; // used for result reporting
+  const primaryTicker = config.ticker;
 
   const evaluate = (genes: Individual): { result: BacktestResult; fitness: number } => {
-    const opts = genesToIndicatorOptions(genes, defs);
+    const { indicatorOpts, tradeOverrides } = genesToParams(genes, defs);
     let fitnessSum = 0;
     let fitnessCount = 0;
     let primaryResult: BacktestResult | null = null;
 
     for (const [ticker, tCandles] of tickerCandles) {
-      const { signals, simCandles } = precomputeSignals(tCandles, '1D', opts);
+      const { signals, simCandles } = precomputeSignals(tCandles, '1D', indicatorOpts);
       const backtestConfig: BacktestConfig = {
         ...DEFAULT_CONFIG,
         ticker,
@@ -268,7 +313,8 @@ export function runGeneticOptimize(
         minScore: config.minScore,
         minConfidence: config.minConfidence,
         thetaDecayRate: config.thetaDecayRate,
-        indicatorOptions: opts,
+        ...tradeOverrides,
+        indicatorOptions: indicatorOpts,
       };
       const r = runBacktestFull(signals, simCandles, backtestConfig);
       const fit = computeFitness(r);
@@ -293,7 +339,10 @@ export function runGeneticOptimize(
 
   // Track all unique results
   const allResultsMap = new Map<string, BacktestResult>();
-  const keyOf = (r: BacktestResult) => JSON.stringify(r.config.indicatorOptions);
+  const keyOf = (r: BacktestResult) => JSON.stringify({
+    opts: r.config.indicatorOptions, tp: r.config.tpAtr, sl: r.config.slAtr,
+    sc: r.config.minScore, decay: r.config.thetaDecayRate,
+  });
   for (const r of results) allResultsMap.set(keyOf(r), r);
 
   const generationHistory: { gen: number; bestFitness: number; avgFitness: number }[] = [];
@@ -367,9 +416,9 @@ export function runGeneticOptimize(
 // ══════════════════════════════════════════════════════════
 
 /**
- * Stage 1: GA finds best weights (pop=30, gen=20)
- * Stage 2: Grid sweep TP/SL [1.5, 2.0, 2.5, 3.0] × [1.0, 1.5, 2.0] = 12 combos
- * Returns combined result with generation history from stage 1.
+ * Stage 1: GA optimizes whichever params are enabled in config.optimizeParams.
+ * Stage 2: If TP/SL is NOT in the GA genes, grid sweep 12 TP/SL combos using GA's best result.
+ *          If TP/SL IS in the GA genes, skip stage 2 (already optimized).
  * Accepts single-ticker candles or multi-ticker Map.
  */
 export function runTwoStageOptimize(
@@ -378,58 +427,28 @@ export function runTwoStageOptimize(
   onProgress?: (phase: 'ga' | 'tpsl', pct: number) => void
 ): OptimizeResult {
   const t0 = performance.now();
-  const primaryCandles = candles instanceof Map
-    ? candles.get(config.ticker) ?? Array.from(candles.values())[0]
-    : candles;
+  const params = config.optimizeParams ?? DEFAULT_OPTIMIZE_PARAMS;
 
-  let bestOpts: TechScoreOptions = {};
-  let gaResult: OptimizeResult | null = null;
+  // Stage 1: GA
+  const gaResult = runGeneticOptimize(candles, config, (gen, totalGens) => {
+    if (onProgress) onProgress('ga', Math.round((gen / totalGens) * 100));
+  });
 
-  // Stage 1: GA weight optimization (unless skipped)
-  if (!config.skipWeights) {
-    gaResult = runGeneticOptimize(candles, config, (gen, totalGens) => {
-      if (onProgress) onProgress('ga', Math.round((gen / totalGens) * 100));
-    });
-
-    if (!gaResult.bestOverall) {
-      return gaResult; // No meaningful results
-    }
-    bestOpts = gaResult.bestOverall.config.indicatorOptions;
-  } else {
-    if (onProgress) onProgress('ga', 100);
+  if (!gaResult.bestOverall) {
+    return gaResult;
   }
 
-  // Stage 2: TP/SL grid sweep with best weights (unless skipped)
-  if (config.skipTpSlGrid) {
+  // If TP/SL is already in the GA, no need for stage 2
+  if (params.tpSl) {
     if (onProgress) onProgress('tpsl', 100);
-    // Run single eval with current config weights
-    if (!gaResult) {
-      const { signals, simCandles } = precomputeSignals(primaryCandles, '1D', bestOpts);
-      const singleCfg: BacktestConfig = {
-        ...DEFAULT_CONFIG,
-        ticker: config.ticker,
-        startDate: config.startDate,
-        endDate: config.endDate,
-        tpAtr: config.tpAtr,
-        slAtr: config.slAtr,
-        minScore: config.minScore,
-        minConfidence: config.minConfidence,
-        thetaDecayRate: config.thetaDecayRate,
-        indicatorOptions: bestOpts,
-      };
-      const r = runBacktestFull(signals, simCandles, singleCfg);
-      return {
-        results: [r],
-        rankedBySharpe: [r],
-        rankedByWinRate: [r],
-        bestOverall: r,
-        totalCombos: 1,
-        elapsedMs: performance.now() - t0,
-      };
-    }
     return { ...gaResult, elapsedMs: performance.now() - t0 };
   }
 
+  // Stage 2: TP/SL grid using GA's best indicator options
+  const bestOpts = gaResult.bestOverall.config.indicatorOptions;
+  const primaryCandles = candles instanceof Map
+    ? candles.get(config.ticker) ?? Array.from(candles.values())[0]
+    : candles;
   const { signals, simCandles } = precomputeSignals(primaryCandles, '1D', bestOpts);
 
   const tpRange = [1.5, 2.0, 2.5, 3.0];
@@ -437,6 +456,9 @@ export function runTwoStageOptimize(
   const tpslResults: BacktestResult[] = [];
   const total = tpRange.length * slRange.length;
   let done = 0;
+
+  // Use GA's best values for minScore/decay (they may have been optimized in stage 1)
+  const bestCfg = gaResult.bestOverall.config;
 
   for (const tp of tpRange) {
     for (const sl of slRange) {
@@ -447,9 +469,9 @@ export function runTwoStageOptimize(
         endDate: config.endDate,
         tpAtr: tp,
         slAtr: sl,
-        minScore: config.minScore,
+        minScore: bestCfg.minScore,
         minConfidence: config.minConfidence,
-        thetaDecayRate: config.thetaDecayRate,
+        thetaDecayRate: bestCfg.thetaDecayRate,
         indicatorOptions: bestOpts,
       };
       tpslResults.push(runBacktestFull(signals, simCandles, cfg));
@@ -458,8 +480,7 @@ export function runTwoStageOptimize(
     }
   }
 
-  // Combine results
-  const allResults = [...(gaResult?.results ?? []), ...tpslResults];
+  const allResults = [...gaResult.results, ...tpslResults];
   const meaningful = allResults.filter(r => r.analytics.totalTrades >= 10);
   const rankedBySharpe = [...meaningful].sort((a, b) => b.analytics.sharpe - a.analytics.sharpe);
   const rankedByWinRate = [...meaningful].sort((a, b) => b.analytics.winRateTheta - a.analytics.winRateTheta);
@@ -470,9 +491,9 @@ export function runTwoStageOptimize(
     rankedBySharpe,
     rankedByWinRate,
     bestOverall,
-    totalCombos: (gaResult?.totalCombos ?? 0) + total,
+    totalCombos: gaResult.totalCombos + total,
     elapsedMs: performance.now() - t0,
-    generationHistory: gaResult?.generationHistory,
+    generationHistory: gaResult.generationHistory,
   };
 }
 

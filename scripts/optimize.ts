@@ -3,7 +3,7 @@
  *
  * Usage: npx tsx scripts/optimize.ts [--tickers SPY,QQQ,...] [--timeframe 1D] [--out results.json]
  *        npx tsx scripts/optimize.ts --walk-forward [--is-days 252] [--oos-days 63] [--mode anchored|rolling]
- *        npx tsx scripts/optimize.ts --optimize [--pop 30] [--gens 20]
+ *        npx tsx scripts/optimize.ts --optimize [--pop 30] [--gens 20] [--opt-weights] [--opt-periods] [--opt-tpsl] [--opt-score] [--opt-decay]
  *
  * Modes:
  *   (default)       Grid sweep across multiple tickers, aggregate, rank
@@ -37,10 +37,10 @@ if (fs.existsSync(envPath)) {
 // @ts-ignore — JS module, no types
 import { getCandles } from '../lib/polygon-client.js';
 
-import type { BacktestCandle, SweepConfig, SweepResult, BacktestResult, Timeframe, WalkForwardConfig, WalkForwardResult } from '../src/lib/backtest/types';
+import type { BacktestCandle, SweepConfig, SweepResult, BacktestResult, Timeframe, WalkForwardConfig, WalkForwardResult, OptimizeConfig, OptimizeParams } from '../src/lib/backtest/types';
+import { DEFAULT_OPTIMIZE_PARAMS } from '../src/lib/backtest/types';
 import { runSweep, runTwoStageOptimize, runWalkForward, DEFAULT_SWEEP } from '../src/lib/backtest/sweep';
 import { monteCarloPermutation } from '../src/lib/backtest/analytics';
-import type { OptimizeConfig } from '../src/lib/backtest/types';
 
 // ── CLI Args ────────────────────────────────────────────
 
@@ -70,6 +70,16 @@ const oosWindowDays = parseInt(getArg('oos-days', '63'), 10);
 const wfMode = getArg('mode', 'anchored') as 'rolling' | 'anchored';
 const gaPop = parseInt(getArg('pop', '30'), 10);
 const gaGens = parseInt(getArg('gens', '20'), 10);
+
+// Optimize param flags (default: weights only; if any --opt-* flag is set, use those)
+const hasAnyOptFlag = hasFlag('opt-weights') || hasFlag('opt-periods') || hasFlag('opt-tpsl') || hasFlag('opt-score') || hasFlag('opt-decay');
+const cliOptParams: OptimizeParams = hasAnyOptFlag ? {
+  weights: hasFlag('opt-weights'),
+  periods: hasFlag('opt-periods'),
+  tpSl: hasFlag('opt-tpsl'),
+  minScore: hasFlag('opt-score'),
+  decay: hasFlag('opt-decay'),
+} : DEFAULT_OPTIMIZE_PARAMS;
 
 // ── Candle Fetching ─────────────────────────────────────
 
@@ -393,6 +403,7 @@ async function runOptimizeMode() {
     populationSize: gaPop,
     generations: gaGens,
     tickers: Array.from(allCandles.keys()),
+    optimizeParams: cliOptParams,
   };
 
   const t0 = performance.now();

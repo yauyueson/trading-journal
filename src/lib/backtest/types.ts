@@ -314,10 +314,26 @@ export interface OptimizeConfig {
   generations?: number;      // default 20
   // Multi-ticker: if provided, GA averages fitness across all tickers (anti-overfitting)
   tickers?: string[];
-  // Stage toggles (for two-stage optimizer)
-  skipWeights?: boolean;     // Skip GA weight optimization (use defaults)
-  skipTpSlGrid?: boolean;    // Skip TP/SL grid sweep
+  // Which parameter groups the GA optimizes (default: weights only)
+  optimizeParams?: OptimizeParams;
 }
+
+/** Toggle which parameter groups are included in GA optimization */
+export interface OptimizeParams {
+  weights: boolean;    // w_mb, w_bxs, w_bxl, w_ema, w_mom (5 genes, 4 free)
+  periods: boolean;    // sc_mb_len, sc_osc_len, sc_bx_s1, sc_bx_s2, sc_bx_l1, sc_bx_l2 (6 genes)
+  tpSl: boolean;       // tpAtr, slAtr (2 genes)
+  minScore: boolean;   // minScore (1 gene)
+  decay: boolean;      // thetaDecayRate (1 gene)
+}
+
+export const DEFAULT_OPTIMIZE_PARAMS: OptimizeParams = {
+  weights: true,
+  periods: false,
+  tpSl: false,
+  minScore: false,
+  decay: false,
+};
 
 export interface OptimizeResult {
   results: BacktestResult[];
