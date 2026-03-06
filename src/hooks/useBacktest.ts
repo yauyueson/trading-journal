@@ -1,6 +1,6 @@
 /**
  * React hook for backtest state management.
- * Fetches candles, runs engine, manages sweep/optimize modes.
+ * Fetches candles, runs engine, manages validate/sweep/optimize modes.
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -15,9 +15,9 @@ import type {
 } from '../lib/backtest/types';
 import { DEFAULT_CONFIG } from '../lib/backtest/types';
 import { runBacktest } from '../lib/backtest/engine';
-import { runSweep, runGeneticOptimize } from '../lib/backtest/sweep';
+import { runSweep, runTwoStageOptimize } from '../lib/backtest/sweep';
 
-export type BacktestMode = 'single' | 'sweep' | 'optimize';
+export type BacktestMode = 'validate' | 'sweep' | 'optimize';
 
 /** Subtract N calendar days (approximates trading days × 1.45 for weekends/holidays) */
 function addTradingDaysBack(dateStr: string, tradingDays: number): string {
@@ -35,6 +35,7 @@ interface UseBacktestReturn {
   loading: boolean;
   fetchingCandles: boolean;
   progress: number;
+  progressPhase: string;
   error: string | null;
   // Results
   singleResult: BacktestResult | null;
@@ -53,10 +54,11 @@ interface UseBacktestReturn {
 
 export function useBacktest(): UseBacktestReturn {
   const [config, setConfig] = useState<BacktestConfig>(DEFAULT_CONFIG);
-  const [mode, setMode] = useState<BacktestMode>('single');
+  const [mode, setMode] = useState<BacktestMode>('validate');
   const [loading, setLoading] = useState(false);
   const [fetchingCandles, setFetchingCandles] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [progressPhase, setProgressPhase] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [singleResult, setSingleResult] = useState<BacktestResult | null>(null);
   const [sweepResult, setSweepResult] = useState<SweepResult | null>(null);
@@ -92,6 +94,7 @@ export function useBacktest(): UseBacktestReturn {
     setError(null);
     setLoading(true);
     setProgress(0);
+    setProgressPhase('');
     setSingleResult(null);
 
     try {
@@ -115,6 +118,7 @@ export function useBacktest(): UseBacktestReturn {
     setError(null);
     setLoading(true);
     setProgress(0);
+    setProgressPhase('');
     setSweepResult(null);
 
     try {
@@ -140,30 +144,19 @@ export function useBacktest(): UseBacktestReturn {
     setError(null);
     setLoading(true);
     setProgress(0);
+    setProgressPhase('GA weights');
     setOptimizeResult(null);
 
     try {
-      const tickers = optCfg.tickers?.length ? optCfg.tickers : [optCfg.ticker];
       const fetchFrom = addTradingDaysBack(optCfg.startDate, 450);
-
-      // Fetch candles for all tickers (sequentially for rate limits)
-      const candleMap = new Map<string, BacktestCandle[]>();
-      for (let i = 0; i < tickers.length; i++) {
-        const t = tickers[i];
-        const c = await fetchCandles(t, fetchFrom, optCfg.endDate);
-        if (c.length < 350) {
-          throw new Error(`${t}: Need 350+ candles, got ${c.length}. Try a longer date range.`);
-        }
-        candleMap.set(t, c);
+      const c = await fetchCandles(optCfg.ticker, fetchFrom, optCfg.endDate);
+      if (c.length < 350) {
+        throw new Error(`${optCfg.ticker}: Need 350+ candles, got ${c.length}. Try a longer date range.`);
       }
 
-      // Single ticker: pass array directly (backwards-compatible)
-      const candlesInput = candleMap.size === 1
-        ? candleMap.values().next().value!
-        : candleMap;
-
-      const result = runGeneticOptimize(candlesInput, optCfg, (gen, totalGens) => {
-        setProgress(Math.round((gen / totalGens) * 100));
+      const result = runTwoStageOptimize(c, optCfg, (phase, pct) => {
+        setProgressPhase(phase === 'ga' ? 'GA weights' : 'TP/SL grid');
+        setProgress(pct);
       });
       setOptimizeResult(result);
     } catch (err: any) {
@@ -171,6 +164,7 @@ export function useBacktest(): UseBacktestReturn {
     } finally {
       setLoading(false);
       setProgress(100);
+      setProgressPhase('');
     }
   }, [fetchCandles]);
 
@@ -189,7 +183,7 @@ export function useBacktest(): UseBacktestReturn {
   return {
     config, setConfig,
     mode, setMode,
-    loading, fetchingCandles, progress, error,
+    loading, fetchingCandles, progress, progressPhase, error,
     singleResult, sweepResult, optimizeResult, candles,
     pinned, togglePin, clearPins,
     run, runSweepAction, runOptimizeAction,

@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Rocket, Upload } from 'lucide-react';
 import { useBacktest, type BacktestMode } from '../hooks/useBacktest';
-import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, IndicatorSweepParams, OptimizeConfig } from '../lib/backtest/types';
+import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, OptimizeConfig, QualityGates } from '../lib/backtest/types';
+import { DEFAULT_QUALITY_GATES } from '../lib/backtest/types';
 import type { TechScoreOptions } from '../lib/tech-analysis';
 import { DEFAULT_SWEEP } from '../lib/backtest/sweep';
 import { useAppSettings } from '../context/AppSettingsContext';
@@ -25,8 +26,6 @@ const SETUPS = ['All', 'Perfect Storm', 'Breakout', 'Pullback Buy', 'Strong Tren
 // Default indicator values for display
 const IND_DEFAULTS: Record<string, number> = {
   w_mb: 30, w_bxs: 25, w_bxl: 20, w_ema: 15, w_mom: 10,
-  sc_mb_len: 100, sc_osc_len: 7,
-  sc_bx_s1: 5, sc_bx_s2: 20, sc_bx_l1: 20, sc_bx_l2: 15,
 };
 
 const ConfigPanel: React.FC<{
@@ -39,35 +38,27 @@ const ConfigPanel: React.FC<{
   onRunOptimize: (o: OptimizeConfig) => void;
   loading: boolean;
   progress: number;
-}> = ({ config, onChange, mode, onModeChange, onRun, onRunSweep, onRunOptimize, loading, progress }) => {
+  progressPhase: string;
+}> = ({ config, onChange, mode, onModeChange, onRun, onRunSweep, onRunOptimize, loading, progress, progressPhase }) => {
   const [showIndicators, setShowIndicators] = useState(false);
-  const [indicatorSweep, setIndicatorSweep] = useState<IndicatorSweepParams>({});
-  const [sweepIndicators, setSweepIndicators] = useState(false);
-  const [optimizeTickers, setOptimizeTickers] = useState('');
+  const [showGates, setShowGates] = useState(false);
 
   const upd = (partial: Partial<BacktestConfig>) => onChange({ ...config, ...partial });
   const updInd = (key: keyof TechScoreOptions, val: number) => {
     onChange({ ...config, indicatorOptions: { ...config.indicatorOptions, [key]: val } });
   };
+  const updGate = (partial: Partial<QualityGates>) => {
+    onChange({ ...config, qualityGates: { ...config.qualityGates, ...partial } });
+  };
 
   const indVal = (key: keyof TechScoreOptions): number =>
     (config.indicatorOptions[key] as number) ?? IND_DEFAULTS[key] ?? 0;
 
-  // Count total sweep combos including indicator sweep
-  const tradeCombos = DEFAULT_SWEEP.tpAtrRange.length * DEFAULT_SWEEP.slAtrRange.length *
+  const totalSweepCombos = DEFAULT_SWEEP.tpAtrRange.length * DEFAULT_SWEEP.slAtrRange.length *
     DEFAULT_SWEEP.minScoreRange.length * DEFAULT_SWEEP.minConfidenceRange.length;
 
-  const indicatorCombos = sweepIndicators
-    ? Object.values(indicatorSweep).reduce((acc, arr) => acc * (arr && arr.length > 0 ? arr.length : 1), 1)
-    : 1;
-
-  const totalSweepCombos = tradeCombos * indicatorCombos;
-
-  // GA optimizer: ~1,120 evaluations (40 pop × 30 gen)
-  const gaEvals = '~1,120';
-
   const handleRun = () => {
-    if (mode === 'single') {
+    if (mode === 'validate') {
       onRun();
     } else if (mode === 'sweep') {
       onRunSweep({
@@ -76,15 +67,10 @@ const ConfigPanel: React.FC<{
         startDate: config.startDate,
         endDate: config.endDate,
         timeframe: '1D',
-        indicatorSweep: sweepIndicators ? indicatorSweep : undefined,
       });
     } else {
-      const parsedTickers = optimizeTickers
-        .toUpperCase().split(/[,\s]+/).map(t => t.trim()).filter(Boolean);
-      const tickers = parsedTickers.length > 0 ? parsedTickers : [config.ticker];
       onRunOptimize({
-        ticker: tickers[0],
-        tickers: tickers.length > 1 ? tickers : undefined,
+        ticker: config.ticker,
         startDate: config.startDate,
         endDate: config.endDate,
         tpAtr: config.tpAtr,
@@ -104,26 +90,6 @@ const ConfigPanel: React.FC<{
         <Field label="Start" value={config.startDate} onChange={v => upd({ startDate: v })} type="date" />
         <Field label="End" value={config.endDate} onChange={v => upd({ endDate: v })} type="date" />
       </div>
-
-      {/* Multi-ticker for optimize mode */}
-      {mode === 'optimize' && (
-        <div>
-          <label className="block text-[11px] text-text-tertiary mb-1">
-            Optimize across tickers <span className="text-text-tertiary/60">(comma-separated, leave empty for single ticker above)</span>
-          </label>
-          <input
-            value={optimizeTickers}
-            onChange={e => setOptimizeTickers(e.target.value)}
-            placeholder="SPY, QQQ, AAPL, MSFT, NVDA..."
-            className="w-full px-2 py-1.5 text-xs bg-[#111] border border-white/10 rounded focus:border-purple-500/50 outline-none font-mono"
-          />
-          {optimizeTickers.trim() && (
-            <span className="text-[10px] text-purple-400 mt-0.5 block">
-              {optimizeTickers.toUpperCase().split(/[,\s]+/).filter(Boolean).length} tickers — cross-validated optimization
-            </span>
-          )}
-        </div>
-      )}
 
       {/* TP/SL */}
       <div className="grid grid-cols-2 gap-2">
@@ -183,13 +149,50 @@ const ConfigPanel: React.FC<{
         Entry quality adjustment
       </label>
 
-      {/* Indicator Tuning (single mode only) */}
-      {mode === 'single' && (
+      {/* Quality Gates (V4) */}
+      <div>
+        <button onClick={() => setShowGates(!showGates)}
+          className="flex items-center gap-1 text-sm text-text-secondary hover:text-white w-full py-1">
+          {showGates ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          Quality Gates
+        </button>
+        {showGates && (
+          <div className="space-y-1.5 mt-1 pl-1">
+            <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+              <input type="checkbox" checked={config.qualityGates.minADX > 0}
+                onChange={e => updGate({ minADX: e.target.checked ? DEFAULT_QUALITY_GATES.minADX : 0 })}
+                className="accent-cyan-400" />
+              ADX filter (min {config.qualityGates.minADX})
+            </label>
+            <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+              <input type="checkbox" checked={config.qualityGates.minRVOL > 0}
+                onChange={e => updGate({ minRVOL: e.target.checked ? DEFAULT_QUALITY_GATES.minRVOL : 0 })}
+                className="accent-cyan-400" />
+              RVOL filter (min {config.qualityGates.minRVOL})
+            </label>
+            <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+              <input type="checkbox" checked={config.qualityGates.useCoherence}
+                onChange={e => updGate({ useCoherence: e.target.checked })}
+                className="accent-cyan-400" />
+              Coherence multiplier
+            </label>
+            <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+              <input type="checkbox" checked={config.qualityGates.useSqueeze}
+                onChange={e => updGate({ useSqueeze: e.target.checked })}
+                className="accent-cyan-400" />
+              Squeeze multiplier
+            </label>
+          </div>
+        )}
+      </div>
+
+      {/* Indicator Weights (validate mode only) */}
+      {mode === 'validate' && (
         <div>
           <button onClick={() => setShowIndicators(!showIndicators)}
             className="flex items-center gap-1 text-sm text-text-secondary hover:text-white w-full py-1">
             {showIndicators ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            Indicator Params
+            Signal Weights
           </button>
           {showIndicators && (
             <div className="space-y-2 mt-1">
@@ -204,37 +207,6 @@ const ConfigPanel: React.FC<{
                   </div>
                 ))}
               </div>
-              <div className="text-[10px] text-text-tertiary">Criteria Periods</div>
-              <div className="grid grid-cols-3 gap-1">
-                <div>
-                  <label className="text-[9px] text-text-tertiary block">MB Len</label>
-                  <input type="number" value={indVal('sc_mb_len')} onChange={e => updInd('sc_mb_len', Number(e.target.value))}
-                    step={10} min={20} max={200}
-                    className="w-full bg-[#111] border border-white/10 rounded px-1 py-1 text-[11px] text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-                </div>
-                <div>
-                  <label className="text-[9px] text-text-tertiary block">Osc Len</label>
-                  <input type="number" value={indVal('sc_osc_len')} onChange={e => updInd('sc_osc_len', Number(e.target.value))}
-                    step={1} min={3} max={20}
-                    className="w-full bg-[#111] border border-white/10 rounded px-1 py-1 text-[11px] text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-                </div>
-                <div>
-                  <label className="text-[9px] text-text-tertiary block">BXS p1</label>
-                  <input type="number" value={indVal('sc_bx_s1')} onChange={e => updInd('sc_bx_s1', Number(e.target.value))}
-                    step={1} min={2} max={15}
-                    className="w-full bg-[#111] border border-white/10 rounded px-1 py-1 text-[11px] text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-1">
-                {(['sc_bx_s2', 'sc_bx_l1', 'sc_bx_l2'] as const).map(k => (
-                  <div key={k}>
-                    <label className="text-[9px] text-text-tertiary block">{k.replace('sc_bx_', 'BX ')}</label>
-                    <input type="number" value={indVal(k)} onChange={e => updInd(k, Number(e.target.value))}
-                      step={5} min={5} max={50}
-                      className="w-full bg-[#111] border border-white/10 rounded px-1 py-1 text-[11px] text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-                  </div>
-                ))}
-              </div>
             </div>
           )}
         </div>
@@ -242,58 +214,21 @@ const ConfigPanel: React.FC<{
 
       {/* Mode Toggle */}
       <div className="flex gap-1 bg-[#111] rounded-lg p-0.5">
-        {(['single', 'sweep', 'optimize'] as BacktestMode[]).map(m => (
+        {(['validate', 'sweep', 'optimize'] as BacktestMode[]).map(m => (
           <button key={m} onClick={() => onModeChange(m)}
             className={`flex-1 py-1.5 rounded text-[12px] font-medium transition-colors ${
               mode === m ? 'bg-[#2A2A2A] text-white' : 'text-text-tertiary hover:text-text-secondary'
             }`}
-          >{m === 'single' ? 'Single' : m === 'sweep' ? 'Sweep' : 'Optimize'}</button>
+          >{m === 'validate' ? 'Validate' : m === 'sweep' ? 'Sweep TP/SL' : 'Optimize Weights'}</button>
         ))}
       </div>
 
       {/* Mode description */}
       <div className="text-[10px] text-text-tertiary">
-        {mode === 'single' && 'Run one backtest with current settings'}
-        {mode === 'sweep' && `Sweep ${totalSweepCombos} TP/SL combos`}
-        {mode === 'optimize' && `GA optimizer: evolve ${gaEvals} configs across 30 generations to find the best signal weights & periods`}
+        {mode === 'validate' && 'Run one backtest with current settings + quality gates'}
+        {mode === 'sweep' && `Sweep ${totalSweepCombos} TP/SL combos with default weights`}
+        {mode === 'optimize' && 'Two-stage: GA evolves 5 signal weights, then grid sweeps 12 TP/SL combos'}
       </div>
-
-      {/* Sweep: indicator sweep toggle */}
-      {mode === 'sweep' && (
-        <div className="border-t border-white/5 pt-2">
-          <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-            <input type="checkbox" checked={sweepIndicators}
-              onChange={e => setSweepIndicators(e.target.checked)}
-              className="accent-accent-green" />
-            Also sweep indicator params
-          </label>
-          {sweepIndicators && (
-            <div className="mt-2 space-y-1">
-              <div className="text-[10px] text-text-tertiary">Comma-separated values to try</div>
-              {[
-                { key: 'w_mb' as const, label: 'MB weight', placeholder: '25,30,35' },
-                { key: 'w_bxs' as const, label: 'BXS weight', placeholder: '20,25,30' },
-                { key: 'sc_mb_len' as const, label: 'MB length', placeholder: '60,80,100' },
-                { key: 'sc_osc_len' as const, label: 'Osc length', placeholder: '5,7,10' },
-              ].map(({ key, label, placeholder }) => (
-                <div key={key} className="flex items-center gap-2">
-                  <label className="text-[10px] text-text-tertiary w-16 shrink-0">{label}</label>
-                  <input
-                    type="text"
-                    placeholder={placeholder}
-                    value={(indicatorSweep[key] ?? []).join(',')}
-                    onChange={e => {
-                      const vals = e.target.value.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n) && n > 0);
-                      setIndicatorSweep(prev => ({ ...prev, [key]: vals.length > 0 ? vals : undefined }));
-                    }}
-                    className="flex-1 bg-[#111] border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-white font-mono focus:border-accent-green/50 focus:outline-none"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Run Button */}
       <button onClick={handleRun} disabled={loading}
@@ -304,13 +239,13 @@ const ConfigPanel: React.FC<{
         }`}
       >
         {loading ? (
-          <><Zap size={16} className="animate-pulse" /> {mode === 'optimize' ? 'Optimizing' : 'Running'}... {progress}%</>
-        ) : mode === 'single' ? (
+          <><Zap size={16} className="animate-pulse" /> {mode === 'optimize' ? `Optimizing (${progressPhase})` : 'Running'}... {progress}%</>
+        ) : mode === 'validate' ? (
           <><Play size={16} /> Run Backtest</>
         ) : mode === 'sweep' ? (
-          <><Zap size={16} /> Run Sweep ({totalSweepCombos} combos)</>
+          <><Zap size={16} /> Sweep TP/SL ({totalSweepCombos} combos)</>
         ) : (
-          <><Rocket size={16} /> Optimize Signals (GA)</>
+          <><Rocket size={16} /> Optimize Weights (2-stage)</>
         )}
       </button>
     </div>
@@ -579,19 +514,14 @@ const OptimizeTable: React.FC<{
 
   const isBest = (r: BacktestResult) => best && JSON.stringify(r.config.indicatorOptions) === JSON.stringify(best.config.indicatorOptions);
 
-  const SortBtn: React.FC<{ k: typeof sortKey; label: string }> = ({ k, label }) => (
-    <button onClick={() => setSortKey(k)}
-      className={`text-[10px] px-1.5 py-0.5 rounded ${sortKey === k ? 'bg-purple-500/20 text-purple-400' : 'text-text-tertiary hover:text-white'}`}
-    >{label}</button>
-  );
-
   return (
     <div>
       <div className="flex gap-1 mb-2">
-        <SortBtn k="sharpe" label="Sharpe" />
-        <SortBtn k="winRate" label="Win%" />
-        <SortBtn k="pf" label="PF" />
-        <SortBtn k="trades" label="Trades" />
+        {(['sharpe', 'winRate', 'pf', 'trades'] as const).map(k => (
+          <button key={k} onClick={() => setSortKey(k)}
+            className={`text-[10px] px-1.5 py-0.5 rounded ${sortKey === k ? 'bg-purple-500/20 text-purple-400' : 'text-text-tertiary hover:text-white'}`}
+          >{{ sharpe: 'Sharpe', winRate: 'Win%', pf: 'PF', trades: 'Trades' }[k]}</button>
+        ))}
       </div>
       <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
         <table className="w-full text-xs">
@@ -661,19 +591,14 @@ const SweepTable: React.FC<{
   const isBest = (r: BacktestResult) => best &&
     r.config.tpAtr === best.config.tpAtr && r.config.slAtr === best.config.slAtr && r.config.minScore === best.config.minScore;
 
-  const SortBtn: React.FC<{ k: typeof sortKey; label: string }> = ({ k, label }) => (
-    <button onClick={() => setSortKey(k)}
-      className={`text-[10px] px-1.5 py-0.5 rounded ${sortKey === k ? 'bg-accent-green/20 text-accent-green' : 'text-text-tertiary hover:text-white'}`}
-    >{label}</button>
-  );
-
   return (
     <div>
       <div className="flex gap-1 mb-2">
-        <SortBtn k="sharpe" label="Sharpe" />
-        <SortBtn k="winRate" label="Win%" />
-        <SortBtn k="pf" label="PF" />
-        <SortBtn k="dd" label="Drawdown" />
+        {(['sharpe', 'winRate', 'pf', 'dd'] as const).map(k => (
+          <button key={k} onClick={() => setSortKey(k)}
+            className={`text-[10px] px-1.5 py-0.5 rounded ${sortKey === k ? 'bg-accent-green/20 text-accent-green' : 'text-text-tertiary hover:text-white'}`}
+          >{{ sharpe: 'Sharpe', winRate: 'Win%', pf: 'PF', dd: 'Drawdown' }[k]}</button>
+        ))}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
@@ -787,12 +712,29 @@ const ComparisonView: React.FC<{ pinned: BacktestResult[]; onClear: () => void }
 
 // ── Single Result View ──────────────────────────────────
 
+const GateStatsBar: React.FC<{ analytics: BacktestAnalytics }> = ({ analytics }) => {
+  const gs = analytics.gateStats;
+  if (!gs) return null;
+  const total = gs.adxFiltered + gs.rvolFiltered + gs.coherenceAdjusted + gs.squeezeAdjusted;
+  if (total === 0) return null;
+  return (
+    <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-2 flex flex-wrap gap-3 text-[11px]">
+      <span className="text-cyan-400 font-medium">Quality Gates:</span>
+      {gs.adxFiltered > 0 && <span className="text-text-secondary">ADX filtered: <b className="text-cyan-300">{gs.adxFiltered}</b></span>}
+      {gs.rvolFiltered > 0 && <span className="text-text-secondary">RVOL filtered: <b className="text-cyan-300">{gs.rvolFiltered}</b></span>}
+      {gs.coherenceAdjusted > 0 && <span className="text-text-secondary">Coherence adj: <b className="text-cyan-300">{gs.coherenceAdjusted}</b></span>}
+      {gs.squeezeAdjusted > 0 && <span className="text-text-secondary">Squeeze adj: <b className="text-cyan-300">{gs.squeezeAdjusted}</b></span>}
+    </div>
+  );
+};
+
 const SingleResultView: React.FC<{ result: BacktestResult }> = ({ result }) => {
   const { analytics, trades, config } = result;
 
   return (
     <div className="space-y-4">
       <AnalyticsGrid a={analytics} />
+      <GateStatsBar analytics={analytics} />
 
       <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-3">
         <h3 className="text-sm font-medium mb-2">Equity Curve</h3>
@@ -907,6 +849,7 @@ export const BacktestPage: React.FC = () => {
             mode={bt.mode}
             onModeChange={bt.setMode}
             onRun={bt.run}
+            progressPhase={bt.progressPhase}
             onRunSweep={bt.runSweepAction}
             onRunOptimize={bt.runOptimizeAction}
             loading={bt.loading}
@@ -928,7 +871,7 @@ export const BacktestPage: React.FC = () => {
           <ComparisonView pinned={bt.pinned} onClear={bt.clearPins} />
 
           {/* Single mode result */}
-          {bt.mode === 'single' && bt.singleResult && (
+          {bt.mode === 'validate' && bt.singleResult && (
             <SingleResultView result={bt.singleResult} />
           )}
 
@@ -1049,9 +992,9 @@ export const BacktestPage: React.FC = () => {
             <div className="text-center py-16 text-text-tertiary">
               <FlaskConical size={48} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">Configure parameters and run a backtest</p>
-              <p className="text-xs mt-1"><b>Single</b> — one config, one run</p>
-              <p className="text-xs"><b>Sweep</b> — find best TP/SL settings</p>
-              <p className="text-xs"><b>Optimize</b> — find best indicator weights & periods</p>
+              <p className="text-xs mt-1"><b>Validate</b> — one config with quality gates</p>
+              <p className="text-xs"><b>Sweep TP/SL</b> — find best TP/SL settings</p>
+              <p className="text-xs"><b>Optimize Weights</b> — 2-stage GA + TP/SL grid</p>
             </div>
           )}
         </div>

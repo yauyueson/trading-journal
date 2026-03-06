@@ -11,6 +11,21 @@ import type { TechScoreOptions } from '../tech-analysis';
 
 export type Timeframe = '1D';
 
+/** Quality gates — fixed thresholds, NOT optimizable */
+export interface QualityGates {
+  minADX: number;           // Hard gate: skip signal if ADX < this (default 15)
+  minRVOL: number;          // Hard gate: skip signal if RVOL < this (default 0.5)
+  useCoherence: boolean;    // Score multiplier: 3/3→1.10x, 2/3→1.00x, 1/3→0.85x, 0/3→0.70x
+  useSqueeze: boolean;      // Score multiplier: squeeze active → 1.05x
+}
+
+export const DEFAULT_QUALITY_GATES: QualityGates = {
+  minADX: 15,
+  minRVOL: 0.5,
+  useCoherence: true,
+  useSqueeze: true,
+};
+
 export interface BacktestConfig {
   ticker: string;
   startDate: string;              // YYYY-MM-DD
@@ -34,6 +49,8 @@ export interface BacktestConfig {
   mfeWindows: number[];           // [3, 5, 7, 10, 14, 21, 30]
   // Indicator tuning
   indicatorOptions: TechScoreOptions;
+  // V4 quality gates (fixed filters, not optimizable)
+  qualityGates: QualityGates;
 }
 
 export const DEFAULT_CONFIG: BacktestConfig = {
@@ -53,6 +70,7 @@ export const DEFAULT_CONFIG: BacktestConfig = {
   thetaDecayRate: 0.03,
   mfeWindows: [3, 5, 7, 10, 14, 21, 30],
   indicatorOptions: {},
+  qualityGates: DEFAULT_QUALITY_GATES,
 };
 
 // ── Candle (matches polygon-client.js output) ───────────
@@ -83,6 +101,11 @@ export interface PrecomputedSignal {
   entryContext?: EntryQuality;
   dynamicTP?: number;   // V4's dynamic TP ATR mult
   dynamicSL?: number;   // V4's dynamic SL ATR mult
+  // V4 quality gate data (populated in daily mode)
+  adx?: number;
+  rvol?: number;
+  isSqueeze?: boolean;
+  coherence?: number;   // 0-3 count of MB/BXS/BXL directional agreement
 }
 
 // ── Trade ───────────────────────────────────────────────
@@ -181,6 +204,15 @@ export interface BacktestAnalytics {
   expectancy: number;           // avgWin×WR + avgLoss×LR (per trade expected %)
   maxConsecutiveWins: number;
   maxConsecutiveLosses: number;
+  // Quality gate stats
+  gateStats?: GateStats;
+}
+
+export interface GateStats {
+  adxFiltered: number;
+  rvolFiltered: number;
+  coherenceAdjusted: number;
+  squeezeAdjusted: number;
 }
 
 // ── Monte Carlo ─────────────────────────────────────────
@@ -215,8 +247,6 @@ export interface WalkForwardConfig {
   generations?: number;
   /** Sweep ranges (when optimizer='sweep') */
   sweepRanges?: Omit<SweepConfig, 'ticker' | 'startDate' | 'endDate' | 'timeframe'>;
-  /** Whether to jointly optimize trade + indicator params (GA only) */
-  jointOptimize?: boolean;
 }
 
 export interface WalkForwardWindow {
@@ -255,21 +285,6 @@ export interface BacktestResult {
 
 // ── Sweep ───────────────────────────────────────────────
 
-/** Indicator parameter set for sweep — each field is an array of values to try */
-export interface IndicatorSweepParams {
-  w_mb?: number[];          // e.g. [25, 30, 35]
-  w_bxs?: number[];         // e.g. [20, 25, 30]
-  w_bxl?: number[];         // e.g. [15, 20, 25]
-  w_ema?: number[];         // e.g. [10, 15, 20]
-  w_mom?: number[];         // e.g. [5, 10, 15]
-  sc_mb_len?: number[];     // e.g. [60, 80, 100, 120]
-  sc_osc_len?: number[];    // e.g. [5, 7, 10]
-  sc_bx_s1?: number[];      // e.g. [3, 5, 8]
-  sc_bx_s2?: number[];      // e.g. [15, 20, 25]
-  sc_bx_l1?: number[];      // e.g. [15, 20, 25]
-  sc_bx_l2?: number[];      // e.g. [10, 15, 20]
-}
-
 export interface SweepConfig {
   ticker: string;
   startDate: string;
@@ -281,28 +296,22 @@ export interface SweepConfig {
   minConfidenceRange: number[];
   setupGroups: string[][];
   thetaDecayRange: number[];
-  // Indicator param sweep (optional — if omitted, uses defaults)
-  indicatorSweep?: IndicatorSweepParams;
 }
 
-/** Optimize mode: GA-based indicator param optimization with fixed TP/SL */
+/** Optimize mode: GA-based indicator weight optimization with fixed TP/SL */
 export interface OptimizeConfig {
   ticker: string;
-  /** Multi-ticker optimization: when provided, overrides `ticker` and evaluates across all */
-  tickers?: string[];
   startDate: string;
   endDate: string;
-  // Fixed trade params (not swept — ignored when jointOptimize=true)
+  // Fixed trade params (not swept)
   tpAtr: number;
   slAtr: number;
   minScore: number;
   minConfidence: number;
   thetaDecayRate: number;
   // GA settings (optional — sensible defaults)
-  populationSize?: number;   // default 40
-  generations?: number;      // default 30
-  /** When true, GA also evolves tpAtr, slAtr, minScore, thetaDecayRate */
-  jointOptimize?: boolean;
+  populationSize?: number;   // default 30
+  generations?: number;      // default 20
 }
 
 export interface OptimizeResult {

@@ -13,7 +13,7 @@
  */
 
 import { calculateTechScore, calculateTechScoreV4, aggregateToWeekly, type TechScoreResult, type TechScoreV4Result, type TechScoreOptions } from '../tech-analysis';
-import { calcATR, emaFullSeries } from '../indicators';
+import { calcATR, calcADX, calcRVOL, detectSqueeze, emaFullSeries } from '../indicators';
 import type {
   BacktestCandle,
   BacktestConfig,
@@ -23,6 +23,7 @@ import type {
   EntryQuality,
   Tier,
   ExitType,
+  GateStats,
 } from './types';
 import { computeAnalytics } from './analytics';
 
@@ -117,8 +118,14 @@ export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptio
   const highs = candles.map(c => c.high);
   const lows = candles.map(c => c.low);
   const closes = candles.map(c => c.close);
+  const volumes = candles.map(c => c.volume);
   const atrSeries = calcATR(highs, lows, closes, 14);
   const ema8Series = emaFullSeries(closes, 8);
+
+  // Pre-compute V4 quality gate series (O(n), negligible cost)
+  const adxResult = calcADX(highs, lows, closes, 14);
+  const rvolResult = calcRVOL(volumes, 20);
+  const squeezeSeries = detectSqueeze(closes, highs, lows);
 
   for (let i = lookback; i < len; i++) {
     const slice = candles.slice(0, i + 1);
@@ -128,6 +135,19 @@ export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptio
     const ema8 = ema8Series[i];
     const close = candles[i].close;
     const d8 = ema8 > 0 ? ((close - ema8) / ema8) * 100 : 0;
+
+    // Compute coherence: count of MB/BXS/BXL directional agreement
+    const direction = result.type; // 'CALL' or 'PUT' or 'NEUTRAL'
+    let coherence = 0;
+    if (direction !== 'NEUTRAL' && result.components) {
+      const isCall = direction === 'CALL';
+      // MB component: positive score = bullish
+      if ((isCall && result.components.sc_mb > 0) || (!isCall && result.components.sc_mb < 0)) coherence++;
+      // BXS component: positive = bullish
+      if ((isCall && result.components.sc_bxs > 0) || (!isCall && result.components.sc_bxs < 0)) coherence++;
+      // BXL component: positive = bullish
+      if ((isCall && result.components.sc_bxl > 0) || (!isCall && result.components.sc_bxl < 0)) coherence++;
+    }
 
     signals.push({
       barIndex: i,
@@ -139,6 +159,10 @@ export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptio
       d8,
       atr: isNaN(atr) ? 0 : atr,
       close,
+      adx: adxResult.adx[i],
+      rvol: rvolResult.rvol[i],
+      isSqueeze: squeezeSeries[i],
+      coherence,
     });
   }
 
@@ -263,6 +287,10 @@ export function runBacktestFull(
   let pendingSignal: PrecomputedSignal | null = null;
   let totalSignals = 0;
   let nextSignalIdx = 0;
+
+  // Quality gate stats
+  const gates = config.qualityGates;
+  const gateStats: GateStats = { adxFiltered: 0, rvolFiltered: 0, coherenceAdjusted: 0, squeezeAdjusted: 0 };
 
   const startMs = new Date(config.startDate).getTime();
   const endMs = new Date(config.endDate + 'T23:59:59').getTime();
@@ -408,6 +436,33 @@ export function runBacktestFull(
       if (config.directionFilter !== 'ALL' && sig.type !== config.directionFilter) continue;
       if (!config.allowedSetups.includes('All') && !config.allowedSetups.includes(sig.setup)) continue;
 
+      // ── Quality gates (hard filters) ──
+      if (gates && sig.adx !== undefined && !isNaN(sig.adx) && sig.adx < gates.minADX) {
+        gateStats.adxFiltered++;
+        continue;
+      }
+      if (gates && sig.rvol !== undefined && !isNaN(sig.rvol) && sig.rvol < gates.minRVOL) {
+        gateStats.rvolFiltered++;
+        continue;
+      }
+
+      // ── Quality gates (score adjustments) ──
+      let effectiveScore = sig.score;
+      if (gates && gates.useCoherence && sig.coherence !== undefined) {
+        const cohMult = sig.coherence === 3 ? 1.10 : sig.coherence === 2 ? 1.00 : sig.coherence === 1 ? 0.85 : 0.70;
+        if (cohMult !== 1.00) {
+          effectiveScore *= cohMult;
+          gateStats.coherenceAdjusted++;
+        }
+      }
+      if (gates && gates.useSqueeze && sig.isSqueeze) {
+        effectiveScore *= 1.05;
+        gateStats.squeezeAdjusted++;
+      }
+
+      // Re-check after adjustments
+      if (effectiveScore < config.minScore) continue;
+
       totalSignals++;
 
       if (barIdx - lastEntryBar < config.cooldownBars) continue;
@@ -455,7 +510,7 @@ export function runBacktestFull(
     }
   }
 
-  const analytics = computeAnalytics(trades, config, totalSignals);
+  const analytics = computeAnalytics(trades, config, totalSignals, gateStats);
   return { config, trades, analytics };
 }
 

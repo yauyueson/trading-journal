@@ -1,10 +1,9 @@
 /**
  * Signal Quality Backtester — Parameter Sweep, GA Optimizer & Walk-Forward
  *
- * Sweep: vary TP/SL and trade params with fixed indicators
- * Optimize: genetic algorithm to find best indicator weights/periods
- *   — supports joint optimization of trade + indicator params
- * Walk-Forward: rolling/anchored IS→OOS validation to prevent overfitting
+ * Anti-overfitting refactor: GA optimizes only 5 weight genes (4 free params),
+ * TP/SL swept separately in stage 2. Period genes removed (fixed at defaults).
+ * Walk-Forward: rolling/anchored IS→OOS validation.
  */
 
 import type {
@@ -17,7 +16,6 @@ import type {
   SweepResult,
   OptimizeConfig,
   OptimizeResult,
-  IndicatorSweepParams,
   WalkForwardConfig,
   WalkForwardResult,
   WalkForwardWindow,
@@ -26,39 +24,6 @@ import { DEFAULT_CONFIG } from './types';
 import { precomputeSignals, runBacktestFull } from './engine';
 import { computeAnalytics, monteCarloPermutation } from './analytics';
 import type { TechScoreOptions } from '../tech-analysis';
-
-// ── Indicator Param Combos (used by Sweep mode) ─────────
-
-export function generateIndicatorCombos(params?: IndicatorSweepParams): TechScoreOptions[] {
-  if (!params) return [{}]; // Single combo: all defaults
-
-  const fields: { key: keyof TechScoreOptions; values: number[] }[] = [];
-  const keys: (keyof IndicatorSweepParams)[] = [
-    'w_mb', 'w_bxs', 'w_bxl', 'w_ema', 'w_mom',
-    'sc_mb_len', 'sc_osc_len', 'sc_bx_s1', 'sc_bx_s2', 'sc_bx_l1', 'sc_bx_l2',
-  ];
-  for (const k of keys) {
-    const vals = params[k];
-    if (vals && vals.length > 0) {
-      fields.push({ key: k as keyof TechScoreOptions, values: vals });
-    }
-  }
-
-  if (fields.length === 0) return [{}];
-
-  let combos: TechScoreOptions[] = [{}];
-  for (const field of fields) {
-    const next: TechScoreOptions[] = [];
-    for (const combo of combos) {
-      for (const val of field.values) {
-        next.push({ ...combo, [field.key]: val });
-      }
-    }
-    combos = next;
-  }
-
-  return combos;
-}
 
 // ── Trade Param Grid ────────────────────────────────────
 
@@ -93,7 +58,7 @@ function generateTradeConfigs(sweep: SweepConfig, indicatorOpts: TechScoreOption
   return configs;
 }
 
-// ── Sweep Runner (trade params) ─────────────────────────
+// ── Sweep Runner (trade params only) ─────────────────────
 
 export function runSweep(
   candles: BacktestCandle[],
@@ -102,25 +67,20 @@ export function runSweep(
 ): SweepResult {
   const t0 = performance.now();
 
-  const indicatorCombos = generateIndicatorCombos(sweepConfig.indicatorSweep);
-
-  const tradeConfigsPerIndicator = sweepConfig.tpAtrRange.length *
+  const total = sweepConfig.tpAtrRange.length *
     sweepConfig.slAtrRange.length * sweepConfig.minScoreRange.length *
     sweepConfig.minConfidenceRange.length * sweepConfig.setupGroups.length *
     sweepConfig.thetaDecayRange.length;
-  const total = indicatorCombos.length * tradeConfigsPerIndicator;
 
+  const { signals, simCandles } = precomputeSignals(candles, '1D', {});
+  const tradeConfigs = generateTradeConfigs(sweepConfig, {});
   const results: BacktestResult[] = [];
   let completed = 0;
 
-  for (const indOpts of indicatorCombos) {
-    const { signals, simCandles } = precomputeSignals(candles, '1D', indOpts);
-    const tradeConfigs = generateTradeConfigs(sweepConfig, indOpts);
-    for (const cfg of tradeConfigs) {
-      results.push(runBacktestFull(signals, simCandles, cfg));
-      completed++;
-      if (onProgress) onProgress(completed, total);
-    }
+  for (const cfg of tradeConfigs) {
+    results.push(runBacktestFull(signals, simCandles, cfg));
+    completed++;
+    if (onProgress) onProgress(completed, total);
   }
 
   const meaningful = results.filter(r => r.analytics.totalTrades >= 5);
@@ -136,52 +96,32 @@ export function runSweep(
 }
 
 // ══════════════════════════════════════════════════════════
-// ── Genetic Algorithm Optimizer ──────────────────────────
+// ── Genetic Algorithm Optimizer (weights only) ───────────
 // ══════════════════════════════════════════════════════════
 
-/** Gene definition: name, min, max, default, step size, weight flag */
+/** Gene definition: name, min, max, default, step size */
 interface GeneDef {
   key: string;
   min: number;
   max: number;
   def: number;
-  step: number;         // Minimum granularity (snap to this)
+  step: number;
   isWeight: boolean;
-  isInteger: boolean;
-  isTrade: boolean;     // true = trade param (tpAtr, slAtr, etc.)
 }
 
-/** Indicator-only gene definitions */
-const INDICATOR_GENE_DEFS: GeneDef[] = [
-  // Weights (must sum to 100) — step=5 to avoid over-granular combos
-  { key: 'w_mb',       min: 10, max: 50,  def: 30,  step: 5,  isWeight: true,  isInteger: true,  isTrade: false },
-  { key: 'w_bxs',      min: 10, max: 40,  def: 25,  step: 5,  isWeight: true,  isInteger: true,  isTrade: false },
-  { key: 'w_bxl',      min: 5,  max: 35,  def: 20,  step: 5,  isWeight: true,  isInteger: true,  isTrade: false },
-  { key: 'w_ema',      min: 5,  max: 30,  def: 15,  step: 5,  isWeight: true,  isInteger: true,  isTrade: false },
-  { key: 'w_mom',      min: 0,  max: 25,  def: 10,  step: 5,  isWeight: true,  isInteger: true,  isTrade: false },
-  // Periods — step=5 for MB length (big range), step=5 for BX periods
-  { key: 'sc_mb_len',  min: 40, max: 160, def: 100, step: 10, isWeight: false, isInteger: true,  isTrade: false },
-  { key: 'sc_osc_len', min: 3,  max: 14,  def: 7,   step: 2,  isWeight: false, isInteger: true,  isTrade: false },
-  { key: 'sc_bx_s1',   min: 2,  max: 12,  def: 5,   step: 2,  isWeight: false, isInteger: true,  isTrade: false },
-  { key: 'sc_bx_s2',   min: 10, max: 35,  def: 20,  step: 5,  isWeight: false, isInteger: true,  isTrade: false },
-  { key: 'sc_bx_l1',   min: 10, max: 35,  def: 20,  step: 5,  isWeight: false, isInteger: true,  isTrade: false },
-  { key: 'sc_bx_l2',   min: 5,  max: 30,  def: 15,  step: 5,  isWeight: false, isInteger: true,  isTrade: false },
+/**
+ * Weight-only gene definitions (5 genes, 4 free params since sum=100).
+ * Period genes removed to prevent overfitting — fixed at defaults.
+ */
+const WEIGHT_GENE_DEFS: GeneDef[] = [
+  { key: 'w_mb',  min: 10, max: 50, def: 30, step: 5, isWeight: true },
+  { key: 'w_bxs', min: 10, max: 40, def: 25, step: 5, isWeight: true },
+  { key: 'w_bxl', min: 5,  max: 35, def: 20, step: 5, isWeight: true },
+  { key: 'w_ema', min: 5,  max: 30, def: 15, step: 5, isWeight: true },
+  { key: 'w_mom', min: 0,  max: 25, def: 10, step: 5, isWeight: true },
 ];
 
-/** Trade-param gene definitions (for joint optimization) */
-const TRADE_GENE_DEFS: GeneDef[] = [
-  { key: 'tpAtr',          min: 1.0, max: 4.0,  def: 2.5,  step: 0.25, isWeight: false, isInteger: false, isTrade: true },
-  { key: 'slAtr',          min: 0.5, max: 3.0,  def: 1.5,  step: 0.25, isWeight: false, isInteger: false, isTrade: true },
-  { key: 'minScore',       min: 55,  max: 85,   def: 70,   step: 5,    isWeight: false, isInteger: true,  isTrade: true },
-  { key: 'thetaDecayRate', min: 0.01,max: 0.08, def: 0.03, step: 0.01, isWeight: false, isInteger: false, isTrade: true },
-];
-
-type Individual = number[]; // genes indexed parallel to active GENE_DEFS
-
-/** Get active gene defs based on joint mode */
-function getGeneDefs(joint: boolean): GeneDef[] {
-  return joint ? [...INDICATOR_GENE_DEFS, ...TRADE_GENE_DEFS] : INDICATOR_GENE_DEFS;
-}
+type Individual = number[];
 
 /** Normalize weight genes to sum to 100 */
 function normalizeWeights(genes: Individual, defs: GeneDef[]): Individual {
@@ -193,7 +133,6 @@ function normalizeWeights(genes: Individual, defs: GeneDef[]): Individual {
   for (const i of weightIndices) {
     out[i] = Math.round((out[i] / sum) * 100);
   }
-  // Fix rounding error: adjust largest weight
   const wSum = weightIndices.reduce((s, i) => s + out[i], 0);
   if (wSum !== 100) {
     const maxIdx = weightIndices.reduce((a, b) => out[a] >= out[b] ? a : b);
@@ -206,13 +145,11 @@ function normalizeWeights(genes: Individual, defs: GeneDef[]): Individual {
 function clampGenes(genes: Individual, defs: GeneDef[]): Individual {
   return genes.map((v, i) => {
     const d = defs[i];
-    // Snap to step size
     if (d.step > 0) {
       v = Math.round(v / d.step) * d.step;
     }
     let val = Math.max(d.min, Math.min(d.max, v));
-    if (d.isInteger) val = Math.round(val);
-    // Re-snap after clamping (edge case: min/max not aligned to step)
+    val = Math.round(val);
     if (d.step > 0) {
       val = Math.round(val / d.step) * d.step;
       val = Math.max(d.min, Math.min(d.max, val));
@@ -221,40 +158,21 @@ function clampGenes(genes: Individual, defs: GeneDef[]): Individual {
   });
 }
 
-/** Convert genes array to TechScoreOptions (indicator genes only) */
+/** Convert genes array to TechScoreOptions */
 function genesToIndicatorOptions(genes: Individual, defs: GeneDef[]): TechScoreOptions {
   const opts: TechScoreOptions = {};
   for (let i = 0; i < defs.length; i++) {
-    if (!defs[i].isTrade) {
-      (opts as Record<string, number>)[defs[i].key] = genes[i];
-    }
+    (opts as Record<string, number>)[defs[i].key] = genes[i];
   }
   return opts;
-}
-
-/** Extract trade params from genes (joint mode) */
-function genesToTradeParams(genes: Individual, defs: GeneDef[]): Partial<BacktestConfig> {
-  const params: Record<string, number> = {};
-  for (let i = 0; i < defs.length; i++) {
-    if (defs[i].isTrade) {
-      params[defs[i].key] = genes[i];
-    }
-  }
-  return params as unknown as Partial<BacktestConfig>;
 }
 
 /** Create a random individual */
 function randomIndividual(defs: GeneDef[]): Individual {
   const genes = defs.map(d => {
-    if (d.step > 0) {
-      // Generate random value snapped to step
-      const steps = Math.round((d.max - d.min) / d.step);
-      const randomStep = Math.floor(Math.random() * (steps + 1));
-      return d.min + randomStep * d.step;
-    }
-    return d.isInteger
-      ? Math.floor(Math.random() * (d.max - d.min + 1)) + d.min
-      : Math.random() * (d.max - d.min) + d.min;
+    const steps = Math.round((d.max - d.min) / d.step);
+    const randomStep = Math.floor(Math.random() * (steps + 1));
+    return d.min + randomStep * d.step;
   });
   return normalizeWeights(clampGenes(genes, defs), defs);
 }
@@ -279,14 +197,12 @@ function crossover(a: Individual, b: Individual): Individual {
   return a.map((v, i) => Math.random() < 0.5 ? v : b[i]);
 }
 
-/** Gaussian mutation: 20% per gene, sigma = range/(6/step) */
+/** Gaussian mutation: 20% per gene */
 function mutate(genes: Individual, defs: GeneDef[]): Individual {
   return genes.map((v, i) => {
     if (Math.random() > 0.20) return v;
     const d = defs[i];
-    // Sigma scaled to produce meaningful jumps (at least 1 step)
     const sigma = Math.max(d.step, (d.max - d.min) / 6);
-    // Box-Muller for gaussian
     const u1 = Math.random() || 1e-10;
     const u2 = Math.random();
     const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
@@ -296,12 +212,8 @@ function mutate(genes: Individual, defs: GeneDef[]): Individual {
 
 /**
  * Fitness: composite score
- * - Sortino 30% (rewards upside, penalizes downside vol)
- * - Profit Factor 20% (capped at 5)
- * - Win Rate (theta) 15%
- * - Max Drawdown 15% (lower is better)
- * - Expectancy 10%
- * - Trade Count 10% (scales up to 50 trades)
+ * - Sortino 30%, Profit Factor 20%, Win Rate 15%,
+ * - Max Drawdown 15%, Expectancy 10%, Trade Count 10%
  */
 export function computeFitness(r: BacktestResult): number {
   const a = r.analytics;
@@ -317,118 +229,37 @@ export function computeFitness(r: BacktestResult): number {
   return sortinoContrib + pfContrib + wrContrib + ddContrib + expContrib + countContrib;
 }
 
-/** Merge multiple single-ticker BacktestResults into one aggregate result */
-function mergeBacktestResults(
-  results: BacktestResult[],
-  tickerLabel: string,
-  indicatorOptions: TechScoreOptions
-): BacktestResult {
-  if (results.length === 1) return results[0];
-
-  // Weight-average analytics by trade count
-  const totalTrades = results.reduce((s, r) => s + r.analytics.totalTrades, 0);
-  if (totalTrades === 0) return { ...results[0], config: { ...results[0].config, ticker: tickerLabel } };
-
-  const w = (r: BacktestResult) => r.analytics.totalTrades / totalTrades;
-
-  const mergedAnalytics: BacktestAnalytics = {
-    totalSignals: results.reduce((s, r) => s + r.analytics.totalSignals, 0),
-    totalTrades,
-    winRate: results.reduce((s, r) => s + r.analytics.winRate * w(r), 0),
-    winRateTheta: results.reduce((s, r) => s + r.analytics.winRateTheta * w(r), 0),
-    avgReturn: results.reduce((s, r) => s + r.analytics.avgReturn * w(r), 0),
-    avgReturnTheta: results.reduce((s, r) => s + r.analytics.avgReturnTheta * w(r), 0),
-    profitFactor: results.reduce((s, r) => s + r.analytics.profitFactor * w(r), 0),
-    avgWin: results.reduce((s, r) => s + r.analytics.avgWin * w(r), 0),
-    avgLoss: results.reduce((s, r) => s + r.analytics.avgLoss * w(r), 0),
-    avgHoldDays: results.reduce((s, r) => s + r.analytics.avgHoldDays * w(r), 0),
-    tpHits: results.reduce((s, r) => s + r.analytics.tpHits, 0),
-    slHits: results.reduce((s, r) => s + r.analytics.slHits, 0),
-    timeStops: results.reduce((s, r) => s + r.analytics.timeStops, 0),
-    sharpe: results.reduce((s, r) => s + r.analytics.sharpe * w(r), 0),
-    maxDrawdown: Math.max(...results.map(r => r.analytics.maxDrawdown)),
-    sortino: results.reduce((s, r) => s + r.analytics.sortino * w(r), 0),
-    calmar: results.reduce((s, r) => s + r.analytics.calmar * w(r), 0),
-    expectancy: results.reduce((s, r) => s + r.analytics.expectancy * w(r), 0),
-    maxConsecutiveWins: Math.max(...results.map(r => r.analytics.maxConsecutiveWins)),
-    maxConsecutiveLosses: Math.max(...results.map(r => r.analytics.maxConsecutiveLosses)),
-    // Use first ticker's sub-breakdowns (directional/tier/setup/equity)
-    callStats: results[0].analytics.callStats,
-    putStats: results[0].analytics.putStats,
-    tierS: results[0].analytics.tierS,
-    tierA: results[0].analytics.tierA,
-    tierB: results[0].analytics.tierB,
-    bySetup: results[0].analytics.bySetup,
-    avgMfe: results[0].analytics.avgMfe,
-    avgMae: results[0].analytics.avgMae,
-    equityCurve: results[0].analytics.equityCurve,
-  };
-
-  // Merge all trades across tickers
-  const allTrades = results.flatMap(r => r.trades);
-
-  return {
-    config: { ...results[0].config, ticker: tickerLabel, indicatorOptions },
-    trades: allTrades,
-    analytics: mergedAnalytics,
-  };
-}
-
-/** GA-based signal parameter optimizer — supports multi-ticker cross-validation */
+/** GA-based weight optimizer (5 genes, ~4 free params) */
 export function runGeneticOptimize(
-  candles: BacktestCandle[] | Map<string, BacktestCandle[]>,
+  candles: BacktestCandle[],
   config: OptimizeConfig,
   onProgress?: (gen: number, totalGens: number, bestFitness: number) => void
 ): OptimizeResult {
   const t0 = performance.now();
-  const POP_SIZE = config.populationSize ?? 40;
-  const GENERATIONS = config.generations ?? 30;
+  const POP_SIZE = config.populationSize ?? 30;
+  const GENERATIONS = config.generations ?? 20;
   const ELITE_COUNT = 4;
   const TOURNAMENT_K = 3;
-  const joint = config.jointOptimize ?? false;
-  const defs = getGeneDefs(joint);
+  const defs = WEIGHT_GENE_DEFS;
 
-  // Normalize candles input to Map
-  const candleMap: Map<string, BacktestCandle[]> = candles instanceof Map
-    ? candles
-    : new Map([[config.ticker, candles]]);
-  const tickerList = Array.from(candleMap.keys());
-  const multiTicker = tickerList.length > 1;
-  const tickerLabel = multiTicker ? tickerList.join(',') : tickerList[0];
-
-  // Helper: evaluate an individual across all tickers, average fitness
   const evaluate = (genes: Individual): { result: BacktestResult; fitness: number } => {
     const opts = genesToIndicatorOptions(genes, defs);
-    const tradeOverrides = joint ? genesToTradeParams(genes, defs) : {};
-
-    const perTicker: { result: BacktestResult; fitness: number }[] = [];
-    for (const [ticker, tCandles] of candleMap) {
-      const { signals, simCandles } = precomputeSignals(tCandles, '1D', opts);
-      const backtestConfig: BacktestConfig = {
-        ...DEFAULT_CONFIG,
-        ticker,
-        startDate: config.startDate,
-        endDate: config.endDate,
-        timeframe: '1D',
-        tpAtr: config.tpAtr,
-        slAtr: config.slAtr,
-        minScore: config.minScore,
-        minConfidence: config.minConfidence,
-        thetaDecayRate: config.thetaDecayRate,
-        ...tradeOverrides,
-        indicatorOptions: opts,
-      };
-      const r = runBacktestFull(signals, simCandles, backtestConfig);
-      perTicker.push({ result: r, fitness: computeFitness(r) });
-    }
-
-    // Single ticker: return directly
-    if (!multiTicker) return perTicker[0];
-
-    // Multi-ticker: merge results, average fitness
-    const avgFitness = perTicker.reduce((s, t) => s + t.fitness, 0) / perTicker.length;
-    const merged = mergeBacktestResults(perTicker.map(t => t.result), tickerLabel, opts);
-    return { result: merged, fitness: avgFitness };
+    const { signals, simCandles } = precomputeSignals(candles, '1D', opts);
+    const backtestConfig: BacktestConfig = {
+      ...DEFAULT_CONFIG,
+      ticker: config.ticker,
+      startDate: config.startDate,
+      endDate: config.endDate,
+      timeframe: '1D',
+      tpAtr: config.tpAtr,
+      slAtr: config.slAtr,
+      minScore: config.minScore,
+      minConfidence: config.minConfidence,
+      thetaDecayRate: config.thetaDecayRate,
+      indicatorOptions: opts,
+    };
+    const r = runBacktestFull(signals, simCandles, backtestConfig);
+    return { result: r, fitness: computeFitness(r) };
   };
 
   // Initialize population: default seed + random
@@ -442,21 +273,14 @@ export function runGeneticOptimize(
   let results: BacktestResult[] = evals0.map(e => e.result);
   let fitnesses = evals0.map(e => e.fitness);
 
-  // Track all unique results (dedup by indicator options key)
+  // Track all unique results
   const allResultsMap = new Map<string, BacktestResult>();
-  const keyOf = (r: BacktestResult) => JSON.stringify({
-    ind: r.config.indicatorOptions,
-    tp: r.config.tpAtr,
-    sl: r.config.slAtr,
-    sc: r.config.minScore,
-    td: r.config.thetaDecayRate,
-  });
+  const keyOf = (r: BacktestResult) => JSON.stringify(r.config.indicatorOptions);
   for (const r of results) allResultsMap.set(keyOf(r), r);
 
   const generationHistory: { gen: number; bestFitness: number; avgFitness: number }[] = [];
   let totalEvals = POP_SIZE;
 
-  // Record gen 0
   const bestFit0 = Math.max(...fitnesses);
   const avgFit0 = fitnesses.reduce((s, f) => s + f, 0) / fitnesses.length;
   generationHistory.push({ gen: 0, bestFitness: bestFit0, avgFitness: avgFit0 });
@@ -464,10 +288,8 @@ export function runGeneticOptimize(
 
   // Evolution loop
   for (let gen = 1; gen <= GENERATIONS; gen++) {
-    // Sort by fitness descending
     const indices = fitnesses.map((_, i) => i).sort((a, b) => fitnesses[b] - fitnesses[a]);
 
-    // Elitism: keep top ELITE_COUNT
     const nextPop: Individual[] = [];
     const nextResults: BacktestResult[] = [];
     const nextFitnesses: number[] = [];
@@ -477,7 +299,6 @@ export function runGeneticOptimize(
       nextFitnesses.push(fitnesses[indices[i]]);
     }
 
-    // Fill remaining with offspring
     while (nextPop.length < POP_SIZE) {
       const parentA = tournamentSelect(population, fitnesses, TOURNAMENT_K);
       const parentB = tournamentSelect(population, fitnesses, TOURNAMENT_K);
@@ -495,7 +316,6 @@ export function runGeneticOptimize(
       nextFitnesses.push(childFit);
     }
 
-    // Replace population
     population.length = 0;
     population.push(...nextPop);
     results = nextResults;
@@ -507,7 +327,6 @@ export function runGeneticOptimize(
     if (onProgress) onProgress(gen, GENERATIONS, bestFit);
   }
 
-  // Collect all evaluated results, rank them
   const allResults = Array.from(allResultsMap.values());
   const meaningful = allResults.filter(r => r.analytics.totalTrades >= 10);
   const rankedBySharpe = [...meaningful].sort((a, b) => b.analytics.sharpe - a.analytics.sharpe);
@@ -526,24 +345,91 @@ export function runGeneticOptimize(
 }
 
 // ══════════════════════════════════════════════════════════
-// ── Walk-Forward Optimization ────────────────────────────
+// ── Two-Stage Optimizer ──────────────────────────────────
 // ══════════════════════════════════════════════════════════
 
 /**
- * Split candles into date-based windows.
- * Returns array of { isCandles, oosCandles, isStart, isEnd, oosStart, oosEnd }
+ * Stage 1: GA finds best weights (pop=30, gen=20)
+ * Stage 2: Grid sweep TP/SL [1.5, 2.0, 2.5, 3.0] × [1.0, 1.5, 2.0] = 12 combos
+ * Returns combined result with generation history from stage 1.
  */
+export function runTwoStageOptimize(
+  candles: BacktestCandle[],
+  config: OptimizeConfig,
+  onProgress?: (phase: 'ga' | 'tpsl', pct: number) => void
+): OptimizeResult {
+  const t0 = performance.now();
+
+  // Stage 1: GA weight optimization
+  const gaResult = runGeneticOptimize(candles, config, (gen, totalGens) => {
+    if (onProgress) onProgress('ga', Math.round((gen / totalGens) * 100));
+  });
+
+  if (!gaResult.bestOverall) {
+    return gaResult; // No meaningful results
+  }
+
+  // Stage 2: TP/SL grid sweep with best weights
+  const bestOpts = gaResult.bestOverall.config.indicatorOptions;
+  const { signals, simCandles } = precomputeSignals(candles, '1D', bestOpts);
+
+  const tpRange = [1.5, 2.0, 2.5, 3.0];
+  const slRange = [1.0, 1.5, 2.0];
+  const tpslResults: BacktestResult[] = [];
+  const total = tpRange.length * slRange.length;
+  let done = 0;
+
+  for (const tp of tpRange) {
+    for (const sl of slRange) {
+      const cfg: BacktestConfig = {
+        ...DEFAULT_CONFIG,
+        ticker: config.ticker,
+        startDate: config.startDate,
+        endDate: config.endDate,
+        tpAtr: tp,
+        slAtr: sl,
+        minScore: config.minScore,
+        minConfidence: config.minConfidence,
+        thetaDecayRate: config.thetaDecayRate,
+        indicatorOptions: bestOpts,
+      };
+      tpslResults.push(runBacktestFull(signals, simCandles, cfg));
+      done++;
+      if (onProgress) onProgress('tpsl', Math.round((done / total) * 100));
+    }
+  }
+
+  // Combine results
+  const allResults = [...gaResult.results, ...tpslResults];
+  const meaningful = allResults.filter(r => r.analytics.totalTrades >= 10);
+  const rankedBySharpe = [...meaningful].sort((a, b) => b.analytics.sharpe - a.analytics.sharpe);
+  const rankedByWinRate = [...meaningful].sort((a, b) => b.analytics.winRateTheta - a.analytics.winRateTheta);
+  const bestOverall = pickBest(meaningful);
+
+  return {
+    results: allResults,
+    rankedBySharpe,
+    rankedByWinRate,
+    bestOverall,
+    totalCombos: gaResult.totalCombos + total,
+    elapsedMs: performance.now() - t0,
+    generationHistory: gaResult.generationHistory,
+  };
+}
+
+// ══════════════════════════════════════════════════════════
+// ── Walk-Forward Optimization ────────────────────────────
+// ══════════════════════════════════════════════════════════
+
 function buildWalkForwardWindows(
   candles: BacktestCandle[],
   config: WalkForwardConfig
 ): { isCandles: BacktestCandle[]; oosCandles: BacktestCandle[]; isStart: string; isEnd: string; oosStart: string; oosEnd: string }[] {
   const windows: { isCandles: BacktestCandle[]; oosCandles: BacktestCandle[]; isStart: string; isEnd: string; oosStart: string; oosEnd: string }[] = [];
 
-  // We need at least LOOKBACK_DAILY (320) bars before our first IS window starts
   const LOOKBACK = 320;
   if (candles.length < LOOKBACK + config.isWindowDays + config.oosWindowDays) return windows;
 
-  // Start IS after lookback period
   let isStartIdx = LOOKBACK;
 
   while (true) {
@@ -556,7 +442,6 @@ function buildWalkForwardWindows(
 
     if (oosEndIdx > candles.length) break;
 
-    // For IS: include lookback bars before the IS window for indicator warmup
     const isLookbackStart = config.mode === 'anchored' ? 0 : Math.max(0, isStartIdx - LOOKBACK);
     const isCandles = candles.slice(isLookbackStart, isEndIdx);
     const oosCandles = candles.slice(Math.max(0, oosStartIdx - LOOKBACK), oosEndIdx);
@@ -570,27 +455,14 @@ function buildWalkForwardWindows(
       oosEnd: candles[oosEndIdx - 1]?.date ?? '',
     });
 
-    if (config.mode === 'anchored') {
-      // IS always starts from beginning, just extend
-      // Next OOS window slides forward
-    } else {
-      isStartIdx += config.oosWindowDays; // Roll forward by OOS window size
+    if (config.mode !== 'anchored') {
+      isStartIdx += config.oosWindowDays;
     }
   }
 
   return windows;
 }
 
-/**
- * Run Walk-Forward Optimization.
- *
- * For each window:
- *   1. Optimize on IS data (GA or sweep)
- *   2. Evaluate best IS config on OOS data
- *   3. Collect OOS results
- *
- * Final result = aggregated OOS-only performance (no in-sample leakage).
- */
 export function runWalkForward(
   candles: BacktestCandle[],
   config: WalkForwardConfig,
@@ -624,7 +496,6 @@ export function runWalkForward(
     let bestISFitness: number;
 
     if (config.optimizer === 'ga') {
-      // Run GA on IS data
       const gaConfig: OptimizeConfig = {
         ticker: config.ticker,
         startDate: w.isStart,
@@ -634,9 +505,8 @@ export function runWalkForward(
         minScore: DEFAULT_CONFIG.minScore,
         minConfidence: DEFAULT_CONFIG.minConfidence,
         thetaDecayRate: DEFAULT_CONFIG.thetaDecayRate,
-        populationSize: config.populationSize ?? 40,
+        populationSize: config.populationSize ?? 30,
         generations: config.generations ?? 20,
-        jointOptimize: config.jointOptimize ?? false,
       };
       const gaResult = runGeneticOptimize(w.isCandles, gaConfig);
       totalEvals += gaResult.totalCombos;
@@ -649,7 +519,6 @@ export function runWalkForward(
         bestISFitness = 0;
       }
     } else {
-      // Run sweep on IS data
       const sweepRanges = config.sweepRanges ?? DEFAULT_SWEEP;
       const sweepConfig: SweepConfig = {
         ...sweepRanges,
@@ -672,7 +541,6 @@ export function runWalkForward(
 
     isFitnessSum += bestISFitness;
 
-    // Evaluate on OOS data using best IS config
     if (onProgress) onProgress(wi, wfWindows.length, 'OOS');
     const oosConfig: BacktestConfig = {
       ...bestISConfig,
@@ -695,22 +563,18 @@ export function runWalkForward(
     });
   }
 
-  // Concatenate all OOS trades for aggregate analytics
   const allOOSTrades: BacktestTrade[] = [];
   for (const wr of windowResults) {
     allOOSTrades.push(...wr.oosResult.trades);
   }
 
-  // Compute aggregate OOS analytics
   const aggConfig: BacktestConfig = { ...DEFAULT_CONFIG, ticker: config.ticker };
   const oosAnalytics = computeAnalytics(allOOSTrades, aggConfig, allOOSTrades.length);
 
-  // Walk-forward efficiency = OOS fitness / IS fitness
   const oosFitness = computeFitness({ config: aggConfig, trades: allOOSTrades, analytics: oosAnalytics });
   const avgISFitness = isFitnessSum / wfWindows.length;
   const wfEfficiency = avgISFitness > 0 ? oosFitness / avgISFitness : 0;
 
-  // Monte Carlo on OOS trades
   const mc = allOOSTrades.length >= 10 ? monteCarloPermutation(allOOSTrades, 500) : undefined;
 
   return {

@@ -15,6 +15,7 @@ import type {
   TierStats,
   SetupStats,
   MonteCarloResult,
+  GateStats,
 } from './types';
 
 // ── Helpers ─────────────────────────────────────────────
@@ -95,7 +96,8 @@ function setupStats(trades: BacktestTrade[]): SetupStats {
 export function computeAnalytics(
   trades: BacktestTrade[],
   config: BacktestConfig,
-  totalSignals: number
+  totalSignals: number,
+  gateStats?: GateStats,
 ): BacktestAnalytics {
   const n = trades.length;
 
@@ -220,6 +222,7 @@ export function computeAnalytics(
     expectancy: isFinite(expectancy) ? expectancy : 0,
     maxConsecutiveWins,
     maxConsecutiveLosses,
+    gateStats,
   };
 }
 
