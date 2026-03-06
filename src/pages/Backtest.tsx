@@ -177,9 +177,8 @@ const SharedConfigFields: React.FC<{
       {/* BSM Options Pricing */}
       <div className="border border-white/5 rounded-lg p-2.5">
         <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-          <input type="checkbox" checked={config.optionsPricing?.enabled ?? false}
-            onChange={e => upd({ optionsPricing: { ...(config.optionsPricing ?? DEFAULT_OPTIONS_PRICING), enabled: e.target.checked } })}
-            className="rounded border-white/20 bg-[#111]" />
+          <Toggle checked={config.optionsPricing?.enabled ?? false}
+            onChange={v => upd({ optionsPricing: { ...(config.optionsPricing ?? DEFAULT_OPTIONS_PRICING), enabled: v } })} />
           BSM Options Repricing
           <Tip text="Converts stock-price returns to synthetic option returns using Black-Scholes. An ATM option is priced at entry and repriced at exit, capturing delta leverage, gamma convexity, and real theta decay." />
         </label>
@@ -254,9 +253,8 @@ const SharedConfigFields: React.FC<{
             </div>
             {/* O-U IV Dynamics */}
             <label className="flex items-center gap-2 text-[10px] text-text-secondary cursor-pointer">
-              <input type="checkbox" checked={config.optionsPricing?.ivDynamics?.enabled ?? false}
-                onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, ivDynamics: { ...(config.optionsPricing?.ivDynamics ?? DEFAULT_IV_DYNAMICS), enabled: e.target.checked } } })}
-                className="rounded border-white/20 bg-[#111]" />
+              <Toggle checked={config.optionsPricing?.ivDynamics?.enabled ?? false}
+                onChange={v => upd({ optionsPricing: { ...config.optionsPricing!, ivDynamics: { ...(config.optionsPricing?.ivDynamics ?? DEFAULT_IV_DYNAMICS), enabled: v } } })} />
               O-U IV Dynamics
               <Tip text="Ornstein-Uhlenbeck mean reversion for IV. Exit IV evolves toward long-run mean (HV60) at speed kappa. More realistic than constant IV." />
             </label>
@@ -272,9 +270,8 @@ const SharedConfigFields: React.FC<{
                     className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
                 </div>
                 <label className="flex items-center gap-2 text-[10px] text-text-secondary cursor-pointer self-end pb-1">
-                  <input type="checkbox" checked={config.optionsPricing?.ivDynamics?.useHV60ForTheta ?? true}
-                    onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, ivDynamics: { ...config.optionsPricing!.ivDynamics!, useHV60ForTheta: e.target.checked } } })}
-                    className="rounded border-white/20 bg-[#111]" />
+                  <Toggle checked={config.optionsPricing?.ivDynamics?.useHV60ForTheta ?? true}
+                    onChange={v => upd({ optionsPricing: { ...config.optionsPricing!, ivDynamics: { ...config.optionsPricing!.ivDynamics!, useHV60ForTheta: v } } })} />
                   HV60 as theta
                   <Tip text="Use 60-day historical vol as the long-run mean IV target. If off, uses entry IV (no mean reversion target)." />
                 </label>
@@ -287,9 +284,8 @@ const SharedConfigFields: React.FC<{
       {/* Slippage */}
       <div className="border border-white/5 rounded-lg p-2.5">
         <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-          <input type="checkbox" checked={config.slippage?.enabled ?? false}
-            onChange={e => upd({ slippage: { ...(config.slippage ?? DEFAULT_SLIPPAGE), enabled: e.target.checked } })}
-            className="rounded border-white/20 bg-[#111]" />
+          <Toggle checked={config.slippage?.enabled ?? false}
+            onChange={v => upd({ slippage: { ...(config.slippage ?? DEFAULT_SLIPPAGE), enabled: v } })} />
           Slippage Model
           <Tip text="Applies adverse fill basis points at entry and exit. 5 bps = 0.05% worse price on each trade. Models real-world execution costs." />
         </label>
