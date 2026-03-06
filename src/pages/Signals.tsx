@@ -71,6 +71,7 @@ export const SignalsPage: React.FC = () => {
       .filter(t => t && !scanner.tickers.includes(t));
     if (newTickers.length) {
       scanner.setTickers([...scanner.tickers, ...newTickers]);
+      scanner.scanAdditional(newTickers, techOptions);
     }
     setTickerInput('');
   };

@@ -77,6 +77,43 @@ export function useSignalScanner() {
     setLoading(false);
   }, [tickers, fetchCandles]);
 
+  /** Scan only specific tickers and merge into existing results */
+  const scanAdditional = useCallback(async (newTickers: string[], options?: TechScoreOptions) => {
+    if (!newTickers.length) return;
+    setLoading(true);
+    setError(null);
+    abortRef.current = false;
+
+    const additions: SignalRow[] = [];
+    for (let i = 0; i < newTickers.length; i++) {
+      if (abortRef.current) break;
+      setProgress(Math.round((i / newTickers.length) * 100));
+      try {
+        const candles = await fetchCandles(newTickers[i]);
+        if (candles.length < 50) continue;
+        const result = calculateTechScore(candles, options);
+        additions.push({
+          ticker: newTickers[i],
+          result,
+          lastClose: candles[candles.length - 1].close,
+          updatedAt: Date.now(),
+        });
+        setSignals(prev =>
+          [...prev, ...additions].sort((a, b) => b.result.techScore - a.result.techScore)
+        );
+      } catch (err) {
+        console.warn(`Signal scan failed for ${newTickers[i]}:`, err);
+      }
+    }
+
+    setSignals(prev => {
+      const merged = [...prev.filter(s => !newTickers.includes(s.ticker)), ...additions];
+      return merged.sort((a, b) => b.result.techScore - a.result.techScore);
+    });
+    setProgress(100);
+    setLoading(false);
+  }, [fetchCandles]);
+
   const stop = useCallback(() => {
     abortRef.current = true;
   }, []);
@@ -85,5 +122,5 @@ export function useSignalScanner() {
     candlesCacheRef.current.clear();
   }, []);
 
-  return { signals, loading, progress, error, tickers, setTickers, scan, stop, clearCache };
+  return { signals, loading, progress, error, tickers, setTickers, scan, scanAdditional, stop, clearCache };
 }
