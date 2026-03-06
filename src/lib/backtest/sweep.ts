@@ -10,7 +10,6 @@ import type {
   BacktestCandle,
   BacktestConfig,
   BacktestTrade,
-  BacktestAnalytics,
   BacktestResult,
   SweepConfig,
   SweepResult,
