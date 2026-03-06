@@ -30,6 +30,17 @@ const Tip: React.FC<{ text: string }> = ({ text }) => (
   </span>
 );
 
+// ── Toggle Switch ───────────────────────────────────────
+
+const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; color?: string }> = ({ checked, onChange, color = 'bg-accent-green' }) => (
+  <button type="button" role="switch" aria-checked={checked}
+    onClick={() => onChange(!checked)}
+    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors cursor-pointer ${checked ? color : 'bg-white/10'}`}
+  >
+    <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
+  </button>
+);
+
 // ── Field Components ────────────────────────────────────
 
 const Field: React.FC<{ label: string; value: string; onChange: (v: string) => void; type?: string }> = ({ label, value, onChange, type }) => (
@@ -192,9 +203,7 @@ const SharedConfigFields: React.FC<{
 
       {/* Entry Quality */}
       <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
-        <input type="checkbox" checked={config.useEntryQualityAdjust}
-          onChange={e => upd({ useEntryQualityAdjust: e.target.checked })}
-          className="accent-accent-green" />
+        <Toggle checked={config.useEntryQualityAdjust} onChange={v => upd({ useEntryQualityAdjust: v })} />
         Entry quality adjustment
         <Tip text="Adjusts TP/SL based on entry timing relative to EMA-8. Optimal entries get wider targets, chasing entries get tighter stops. Models real-world fill quality." />
       </label>
@@ -210,30 +219,22 @@ const SharedConfigFields: React.FC<{
         {showGates && (
           <div className="space-y-2 mt-1 pl-1">
             <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-              <input type="checkbox" checked={config.qualityGates.minADX > 0}
-                onChange={e => updGate({ minADX: e.target.checked ? DEFAULT_QUALITY_GATES.minADX : 0 })}
-                className="accent-cyan-400" />
+              <Toggle checked={config.qualityGates.minADX > 0} onChange={v => updGate({ minADX: v ? DEFAULT_QUALITY_GATES.minADX : 0 })} color="bg-cyan-500" />
               ADX filter (min {config.qualityGates.minADX})
               <Tip text="Average Directional Index measures trend strength (0-100). ADX < 15 = no trend, choppy market. Filters out signals in trendless conditions where directional trades fail. Uses ADX(14)." />
             </label>
             <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-              <input type="checkbox" checked={config.qualityGates.minRVOL > 0}
-                onChange={e => updGate({ minRVOL: e.target.checked ? DEFAULT_QUALITY_GATES.minRVOL : 0 })}
-                className="accent-cyan-400" />
+              <Toggle checked={config.qualityGates.minRVOL > 0} onChange={v => updGate({ minRVOL: v ? DEFAULT_QUALITY_GATES.minRVOL : 0 })} color="bg-cyan-500" />
               RVOL filter (min {config.qualityGates.minRVOL})
               <Tip text="Relative Volume = today's volume / 20-day average. RVOL < 0.5 = dead volume, low participation. Filters out signals on low-volume days where price moves are unreliable." />
             </label>
             <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-              <input type="checkbox" checked={config.qualityGates.useCoherence}
-                onChange={e => updGate({ useCoherence: e.target.checked })}
-                className="accent-cyan-400" />
+              <Toggle checked={config.qualityGates.useCoherence} onChange={v => updGate({ useCoherence: v })} color="bg-cyan-500" />
               Coherence multiplier
               <Tip text="Counts how many of MB/BXS/BXL sub-scores agree with signal direction (0-3). Adjusts score: 3/3 = 1.10x boost, 2/3 = 1.00x (neutral), 1/3 = 0.85x penalty, 0/3 = 0.70x strong penalty. Rewards signals where all indicators agree." />
             </label>
             <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-              <input type="checkbox" checked={config.qualityGates.useSqueeze}
-                onChange={e => updGate({ useSqueeze: e.target.checked })}
-                className="accent-cyan-400" />
+              <Toggle checked={config.qualityGates.useSqueeze} onChange={v => updGate({ useSqueeze: v })} color="bg-cyan-500" />
               Squeeze multiplier
               <Tip text="Bollinger Band squeeze detection: BB inside Keltner Channel = volatility compression. When squeeze is active, a breakout is likely. Applies 1.05x score boost to signals during squeeze conditions." />
             </label>
@@ -425,33 +426,25 @@ const OptimizePanel: React.FC<{
           {showSweepDims && (
             <div className="space-y-1.5 mt-1 pl-1">
               <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-                <input type="checkbox" checked={sweepToggles.tpSl}
-                  onChange={e => setSweepToggles(p => ({ ...p, tpSl: e.target.checked }))}
-                  className="accent-accent-green" />
+                <Toggle checked={sweepToggles.tpSl} onChange={v => setSweepToggles(p => ({ ...p, tpSl: v }))} />
                 TP/SL range
                 <Tip text="Sweep TP across [1.5, 2.0, 2.5, 3.0] and SL across [1.0, 1.5, 2.0]. Tests 12 TP/SL combinations to find optimal risk/reward ratio." />
                 <span className="text-text-tertiary/50 ml-auto text-[10px]">{sweepToggles.tpSl ? '4×3' : 'fixed'}</span>
               </label>
               <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-                <input type="checkbox" checked={sweepToggles.minScore}
-                  onChange={e => setSweepToggles(p => ({ ...p, minScore: e.target.checked }))}
-                  className="accent-accent-green" />
+                <Toggle checked={sweepToggles.minScore} onChange={v => setSweepToggles(p => ({ ...p, minScore: v }))} />
                 Min Score range
                 <Tip text="Sweep minimum score across [65, 70, 75, 80]. Tests the trade-off between signal quantity and quality — higher min score = fewer but better trades." />
                 <span className="text-text-tertiary/50 ml-auto text-[10px]">{sweepToggles.minScore ? '×4' : 'fixed'}</span>
               </label>
               <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-                <input type="checkbox" checked={sweepToggles.confidence}
-                  onChange={e => setSweepToggles(p => ({ ...p, confidence: e.target.checked }))}
-                  className="accent-accent-green" />
+                <Toggle checked={sweepToggles.confidence} onChange={v => setSweepToggles(p => ({ ...p, confidence: v }))} />
                 Confidence range
                 <Tip text="Sweep min confidence across [1, 2]. Tests whether requiring higher setup confirmation improves results." />
                 <span className="text-text-tertiary/50 ml-auto text-[10px]">{sweepToggles.confidence ? '×2' : 'fixed'}</span>
               </label>
               <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-                <input type="checkbox" checked={sweepToggles.decay}
-                  onChange={e => setSweepToggles(p => ({ ...p, decay: e.target.checked }))}
-                  className="accent-accent-green" />
+                <Toggle checked={sweepToggles.decay} onChange={v => setSweepToggles(p => ({ ...p, decay: v }))} />
                 Theta Decay range
                 <Tip text="Sweep theta decay across [0.02, 0.03, 0.05]. Tests sensitivity to options time decay assumptions." />
                 <span className="text-text-tertiary/50 ml-auto text-[10px]">{sweepToggles.decay ? '×3' : 'fixed'}</span>
@@ -478,41 +471,31 @@ const OptimizePanel: React.FC<{
             {showOptParams && (
               <div className="space-y-1.5 mt-1 pl-1">
                 <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-                  <input type="checkbox" checked={optParams.weights}
-                    onChange={e => setOptParams(p => ({ ...p, weights: e.target.checked }))}
-                    className="accent-purple-400" />
+                  <Toggle checked={optParams.weights} onChange={v => setOptParams(p => ({ ...p, weights: v }))} color="bg-purple-500" />
                   Signal Weights
                   <Tip text="Evolves the 5 scoring weights (MB, BXS, BXL, EMA, MOM) that sum to 100. Controls how much each sub-indicator contributes to the composite tech score. 5 genes, ~4,096 combos at step=5." />
                   <span className="text-text-tertiary/50 ml-auto text-[10px]">5 genes</span>
                 </label>
                 <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-                  <input type="checkbox" checked={optParams.periods}
-                    onChange={e => setOptParams(p => ({ ...p, periods: e.target.checked }))}
-                    className="accent-purple-400" />
+                  <Toggle checked={optParams.periods} onChange={v => setOptParams(p => ({ ...p, periods: v }))} color="bg-purple-500" />
                   Indicator Periods
                   <Tip text="Evolves lookback periods for each sub-indicator: MB length (50-200), Oscillator smooth (3-14), Box Short p1/p2 (3-10/10-30), Box Long p1/p2 (10-40/10-30). WARNING: 6 extra genes significantly increase search space and overfitting risk." />
                   <span className="text-text-tertiary/50 ml-auto text-[10px]">6 genes</span>
                 </label>
                 <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-                  <input type="checkbox" checked={optParams.tpSl}
-                    onChange={e => setOptParams(p => ({ ...p, tpSl: e.target.checked }))}
-                    className="accent-purple-400" />
+                  <Toggle checked={optParams.tpSl} onChange={v => setOptParams(p => ({ ...p, tpSl: v }))} color="bg-purple-500" />
                   TP / SL
                   <Tip text="Evolves take-profit (1.0-4.0) and stop-loss (0.5-3.0) ATR multiples. When enabled, replaces the separate TP/SL grid stage with GA-driven optimization. 2 genes." />
                   <span className="text-text-tertiary/50 ml-auto text-[10px]">2 genes</span>
                 </label>
                 <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-                  <input type="checkbox" checked={optParams.minScore}
-                    onChange={e => setOptParams(p => ({ ...p, minScore: e.target.checked }))}
-                    className="accent-purple-400" />
+                  <Toggle checked={optParams.minScore} onChange={v => setOptParams(p => ({ ...p, minScore: v }))} color="bg-purple-500" />
                   Min Score
                   <Tip text="Evolves the minimum tech score threshold (55-90). Finds optimal trade-off between signal quantity and quality. 1 gene." />
                   <span className="text-text-tertiary/50 ml-auto text-[10px]">1 gene</span>
                 </label>
                 <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-                  <input type="checkbox" checked={optParams.decay}
-                    onChange={e => setOptParams(p => ({ ...p, decay: e.target.checked }))}
-                    className="accent-purple-400" />
+                  <Toggle checked={optParams.decay} onChange={v => setOptParams(p => ({ ...p, decay: v }))} color="bg-purple-500" />
                   Theta Decay
                   <Tip text="Evolves the daily theta decay rate (0.01-0.08). Models options time decay intensity. 1 gene." />
                   <span className="text-text-tertiary/50 ml-auto text-[10px]">1 gene</span>
