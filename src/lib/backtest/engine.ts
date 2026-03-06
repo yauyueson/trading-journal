@@ -249,7 +249,6 @@ export function runBacktestFull(
   const openTrades: OpenTrade[] = [];
   let lastEntryBar = -Infinity;
   let pendingSignal: PrecomputedSignal | null = null;
-  let prevSignalKey = '';
   let totalSignals = 0;
   let nextSignalIdx = 0;
 
