@@ -115,6 +115,7 @@ export type ExitType = 'TP' | 'SL' | 'TIME_STOP';
 export type Tier = 'S' | 'A' | 'B';
 
 export interface BacktestTrade {
+  ticker?: string;              // Set in multi-ticker optimize
   entryDate: string;
   entryPrice: number;           // Next bar's OPEN
   entryBar: number;

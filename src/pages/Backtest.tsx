@@ -35,9 +35,9 @@ const Tip: React.FC<{ text: string }> = ({ text }) => (
 const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; color?: string }> = ({ checked, onChange, color = 'bg-accent-green' }) => (
   <button type="button" role="switch" aria-checked={checked}
     onClick={() => onChange(!checked)}
-    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors cursor-pointer ${checked ? color : 'bg-white/10'}`}
+    className={`relative inline-flex h-3.5 w-7 shrink-0 items-center rounded-full transition-colors cursor-pointer ${checked ? color : 'bg-white/10'}`}
   >
-    <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
+    <span className={`inline-block h-2.5 w-2.5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[14px]' : 'translate-x-[2px]'}`} />
   </button>
 );
 
@@ -684,6 +684,7 @@ const MfeTable: React.FC<{ avgMfe: Record<number, number>; avgMae: Record<number
 const TradeLog: React.FC<{ trades: BacktestTrade[] }> = ({ trades }) => {
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? trades : trades.slice(0, 20);
+  const hasTicker = trades.some(t => t.ticker);
 
   return (
     <div>
@@ -691,6 +692,7 @@ const TradeLog: React.FC<{ trades: BacktestTrade[] }> = ({ trades }) => {
         <table className="w-full text-xs">
           <thead>
             <tr className="text-text-tertiary text-[10px] uppercase">
+              {hasTicker && <th className="text-left py-1 px-1.5">Ticker</th>}
               <th className="text-left py-1 px-1.5">Entry</th>
               <th className="text-left py-1 px-1.5">Dir</th>
               <th className="text-left py-1 px-1.5">Setup</th>
@@ -707,6 +709,7 @@ const TradeLog: React.FC<{ trades: BacktestTrade[] }> = ({ trades }) => {
           <tbody>
             {shown.map((t, i) => (
               <tr key={i} className="border-t border-white/5 hover:bg-white/5">
+                {hasTicker && <td className="py-1 px-1.5 font-medium">{t.ticker}</td>}
                 <td className="py-1 px-1.5 font-mono">{t.entryDate}</td>
                 <td className={`py-1 px-1.5 ${t.direction === 'CALL' ? 'text-emerald-400' : 'text-red-400'}`}>
                   {t.direction === 'CALL' ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
@@ -994,12 +997,54 @@ const GateStatsBar: React.FC<{ analytics: BacktestAnalytics }> = ({ analytics })
   );
 };
 
+/** Per-ticker breakdown for multi-ticker optimize results */
+const TickerBreakdown: React.FC<{ trades: BacktestTrade[] }> = ({ trades }) => {
+  const byTicker = new Map<string, BacktestTrade[]>();
+  for (const t of trades) {
+    const tk = t.ticker ?? '—';
+    const arr = byTicker.get(tk);
+    if (arr) arr.push(t); else byTicker.set(tk, [t]);
+  }
+  if (byTicker.size <= 1 && byTicker.has('—')) return null;
+
+  const rows = Array.from(byTicker.entries()).map(([ticker, tt]) => {
+    const wins = tt.filter(t => t.thetaAdjReturn > 0).length;
+    const wr = tt.length > 0 ? (wins / tt.length) * 100 : 0;
+    const avgRet = tt.length > 0 ? tt.reduce((s, t) => s + t.thetaAdjReturn * 100, 0) / tt.length : 0;
+    return { ticker, count: tt.length, winRate: wr, avgReturn: avgRet };
+  }).sort((a, b) => b.count - a.count);
+
+  return (
+    <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-3">
+      <h3 className="text-sm font-medium mb-2">By Ticker</h3>
+      <table className="w-full text-xs">
+        <thead><tr className="text-text-tertiary border-b border-white/5">
+          <th className="text-left py-1 px-1.5">Ticker</th>
+          <th className="text-right py-1 px-1.5">Trades</th>
+          <th className="text-right py-1 px-1.5">Win Rate</th>
+          <th className="text-right py-1 px-1.5">Avg Return</th>
+        </tr></thead>
+        <tbody>{rows.map(r => (
+          <tr key={r.ticker} className="border-b border-white/5">
+            <td className="py-1 px-1.5 font-medium">{r.ticker}</td>
+            <td className="text-right py-1 px-1.5 font-mono">{r.count}</td>
+            <td className={`text-right py-1 px-1.5 font-mono ${r.winRate > 50 ? 'text-green-400' : 'text-red-400'}`}>{r.winRate.toFixed(1)}%</td>
+            <td className={`text-right py-1 px-1.5 font-mono ${r.avgReturn >= 0 ? 'text-green-400' : 'text-red-400'}`}>{r.avgReturn >= 0 ? '+' : ''}{r.avgReturn.toFixed(2)}%</td>
+          </tr>
+        ))}</tbody>
+      </table>
+    </div>
+  );
+};
+
 const SingleResultView: React.FC<{ result: BacktestResult }> = ({ result }) => {
   const { analytics, trades, config } = result;
+  const hasMultiTicker = trades.some(t => t.ticker);
 
   return (
     <div className="space-y-4">
       <AnalyticsGrid a={analytics} />
+      {hasMultiTicker && <TickerBreakdown trades={trades} />}
       <GateStatsBar analytics={analytics} />
 
       <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-3">
@@ -1250,7 +1295,14 @@ export const BacktestPage: React.FC = () => {
                     <Stat label="Win Rate" value={`${bt.optimizeResult.bestOverall.analytics.winRateTheta.toFixed(1)}%`} good={bt.optimizeResult.bestOverall.analytics.winRateTheta > 50} />
                     <Stat label="Sharpe" value={bt.optimizeResult.bestOverall.analytics.sharpe.toFixed(2)} good={bt.optimizeResult.bestOverall.analytics.sharpe > 1} />
                     <Stat label="PF" value={bt.optimizeResult.bestOverall.analytics.profitFactor === Infinity ? '∞' : bt.optimizeResult.bestOverall.analytics.profitFactor.toFixed(2)} good={bt.optimizeResult.bestOverall.analytics.profitFactor > 1.5} />
-                    <Stat label="Trades" value={bt.optimizeResult.bestOverall.analytics.totalTrades} />
+                    <Stat label="Trades" value={bt.optimizeResult.bestOverall.analytics.totalTrades}
+                      sub={(() => {
+                        const trades = bt.optimizeResult!.bestOverall!.trades;
+                        if (!trades.some(t => t.ticker)) return undefined;
+                        const counts = new Map<string, number>();
+                        for (const t of trades) { counts.set(t.ticker ?? '?', (counts.get(t.ticker ?? '?') ?? 0) + 1); }
+                        return Array.from(counts.entries()).map(([k, v]) => `${k}: ${v}`).join(' · ');
+                      })()} />
                   </div>
                   <button
                     onClick={() => deployStrategy(bt.optimizeResult!.bestOverall!, 'ga-optimize')}

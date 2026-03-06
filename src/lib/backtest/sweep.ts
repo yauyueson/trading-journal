@@ -298,7 +298,9 @@ export function runGeneticOptimize(
     const { indicatorOpts, tradeOverrides } = genesToParams(genes, defs);
     let fitnessSum = 0;
     let fitnessCount = 0;
-    let primaryResult: BacktestResult | null = null;
+    const allTrades: BacktestTrade[] = [];
+    let totalSignals = 0;
+    let lastConfig: BacktestConfig | null = null;
 
     for (const [ticker, tCandles] of tickerCandles) {
       const { signals, simCandles } = precomputeSignals(tCandles, '1D', indicatorOpts);
@@ -320,10 +322,23 @@ export function runGeneticOptimize(
       const fit = computeFitness(r);
       fitnessSum += fit;
       fitnessCount++;
-      if (ticker === primaryTicker || !primaryResult) primaryResult = r;
+      lastConfig = backtestConfig;
+
+      // Tag trades with ticker and collect
+      if (isMultiTicker) {
+        for (const t of r.trades) allTrades.push({ ...t, ticker });
+      } else {
+        allTrades.push(...r.trades);
+      }
+      totalSignals += r.analytics.totalSignals;
     }
 
-    return { result: primaryResult!, fitness: fitnessCount > 0 ? fitnessSum / fitnessCount : 0 };
+    // Build combined result with merged trades
+    const combinedConfig: BacktestConfig = { ...lastConfig!, ticker: isMultiTicker ? primaryTicker : lastConfig!.ticker };
+    const combinedAnalytics = computeAnalytics(allTrades, combinedConfig, totalSignals);
+    const combinedResult: BacktestResult = { config: combinedConfig, trades: allTrades, analytics: combinedAnalytics };
+
+    return { result: combinedResult, fitness: fitnessCount > 0 ? fitnessSum / fitnessCount : 0 };
   };
 
   // Initialize population: default seed + random
@@ -446,10 +461,16 @@ export function runTwoStageOptimize(
 
   // Stage 2: TP/SL grid using GA's best indicator options
   const bestOpts = gaResult.bestOverall.config.indicatorOptions;
-  const primaryCandles = candles instanceof Map
-    ? candles.get(config.ticker) ?? Array.from(candles.values())[0]
-    : candles;
-  const { signals, simCandles } = precomputeSignals(primaryCandles, '1D', bestOpts);
+  const isMulti = candles instanceof Map;
+  const tickerCandlesMap: Map<string, BacktestCandle[]> = isMulti
+    ? candles
+    : new Map([[config.ticker, candles]]);
+
+  // Pre-compute signals for all tickers
+  const precomputed = new Map<string, { signals: ReturnType<typeof precomputeSignals>['signals']; simCandles: BacktestCandle[] }>();
+  for (const [ticker, tCandles] of tickerCandlesMap) {
+    precomputed.set(ticker, precomputeSignals(tCandles, '1D', bestOpts));
+  }
 
   const tpRange = [1.5, 2.0, 2.5, 3.0];
   const slRange = [1.0, 1.5, 2.0];
@@ -462,7 +483,32 @@ export function runTwoStageOptimize(
 
   for (const tp of tpRange) {
     for (const sl of slRange) {
-      const cfg: BacktestConfig = {
+      const allTrades: BacktestTrade[] = [];
+      let totalSignals = 0;
+
+      for (const [ticker, { signals, simCandles }] of precomputed) {
+        const cfg: BacktestConfig = {
+          ...DEFAULT_CONFIG,
+          ticker,
+          startDate: config.startDate,
+          endDate: config.endDate,
+          tpAtr: tp,
+          slAtr: sl,
+          minScore: bestCfg.minScore,
+          minConfidence: config.minConfidence,
+          thetaDecayRate: bestCfg.thetaDecayRate,
+          indicatorOptions: bestOpts,
+        };
+        const r = runBacktestFull(signals, simCandles, cfg);
+        if (isMulti) {
+          for (const t of r.trades) allTrades.push({ ...t, ticker });
+        } else {
+          allTrades.push(...r.trades);
+        }
+        totalSignals += r.analytics.totalSignals;
+      }
+
+      const combinedConfig: BacktestConfig = {
         ...DEFAULT_CONFIG,
         ticker: config.ticker,
         startDate: config.startDate,
@@ -474,7 +520,8 @@ export function runTwoStageOptimize(
         thetaDecayRate: bestCfg.thetaDecayRate,
         indicatorOptions: bestOpts,
       };
-      tpslResults.push(runBacktestFull(signals, simCandles, cfg));
+      const combinedAnalytics = computeAnalytics(allTrades, combinedConfig, totalSignals);
+      tpslResults.push({ config: combinedConfig, trades: allTrades, analytics: combinedAnalytics });
       done++;
       if (onProgress) onProgress('tpsl', Math.round((done / total) * 100));
     }
