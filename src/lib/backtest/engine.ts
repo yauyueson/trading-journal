@@ -418,7 +418,9 @@ export function runBacktestFull(
 
             // Vertical spread: buy ATM + sell OTM
             if (opc.spreadType === 'vertical') {
-              const width = (opc.spreadWidthATR ?? 1.0) * ps.atr;
+              const width = opc.spreadWidthMode === 'atr'
+                ? (opc.spreadWidthATR ?? 1.0) * ps.atr
+                : (opc.spreadWidthFixed ?? 1);
               const shortK = isCall ? K + width : K - width;
               const shortPrice = bsmPrice(entryPrice, shortK, T, iv, r, isCall);
               ot.bsmShortStrike = shortK;

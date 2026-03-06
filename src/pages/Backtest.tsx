@@ -227,7 +227,7 @@ const SharedConfigFields: React.FC<{
               )}
             </div>
             {/* Spread Type */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className={`grid gap-2 ${config.optionsPricing?.spreadType === 'vertical' ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <div>
                 <label className="text-[10px] text-text-tertiary uppercase block mb-1">
                   Spread<Tip text="Single = naked long option. Vertical = buy ATM + sell OTM (defined risk). Vertical spreads cap max loss at spread width minus debit paid." />
@@ -240,15 +240,40 @@ const SharedConfigFields: React.FC<{
                 </select>
               </div>
               {config.optionsPricing?.spreadType === 'vertical' && (
-                <div>
-                  <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                    Width (ATR)<Tip text="Distance between long and short strikes in ATR multiples. 1.0 ATR is typical. Wider = more profit potential but higher debit." />
-                  </label>
-                  <input type="number" value={config.optionsPricing?.spreadWidthATR ?? 1.0}
-                    onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, spreadWidthATR: Number(e.target.value) } })}
-                    step={0.25} min={0.25} max={3.0}
-                    className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-                </div>
+                <>
+                  <div>
+                    <label className="text-[10px] text-text-tertiary uppercase block mb-1">
+                      Width Mode<Tip text="Fixed $ = constant dollar width (e.g. $1, $5). ATR = width scales with stock volatility." />
+                    </label>
+                    <select value={config.optionsPricing?.spreadWidthMode ?? 'fixed'}
+                      onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, spreadWidthMode: e.target.value as 'atr' | 'fixed' } })}
+                      className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-accent-green/50 focus:outline-none">
+                      <option value="fixed">Fixed $</option>
+                      <option value="atr">ATR ×</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-text-tertiary uppercase block mb-1">
+                      {(config.optionsPricing?.spreadWidthMode ?? 'fixed') === 'fixed' ? 'Width ($)' : 'Width (ATR)'}
+                    </label>
+                    {(config.optionsPricing?.spreadWidthMode ?? 'fixed') === 'fixed' ? (
+                      <select value={config.optionsPricing?.spreadWidthFixed ?? 1}
+                        onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, spreadWidthFixed: Number(e.target.value) } })}
+                        className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none">
+                        <option value={1}>$1</option>
+                        <option value={2}>$2</option>
+                        <option value={2.5}>$2.50</option>
+                        <option value={5}>$5</option>
+                        <option value={10}>$10</option>
+                      </select>
+                    ) : (
+                      <input type="number" value={config.optionsPricing?.spreadWidthATR ?? 1.0}
+                        onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, spreadWidthATR: Number(e.target.value) } })}
+                        step={0.25} min={0.25} max={3.0}
+                        className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+                    )}
+                  </div>
+                </>
               )}
             </div>
             {/* O-U IV Dynamics */}

@@ -42,7 +42,9 @@ export interface OptionsPricingConfig {
   ivDynamics?: IVDynamicsConfig;
   // Phase 3: Spread pricing
   spreadType?: SpreadType;    // default 'single'
+  spreadWidthMode?: 'atr' | 'fixed';  // default 'fixed'
   spreadWidthATR?: number;    // vertical spread width as ATR multiple (default 1.0)
+  spreadWidthFixed?: number;  // vertical spread width in dollars (default 1)
 }
 
 export const DEFAULT_OPTIONS_PRICING: OptionsPricingConfig = {
