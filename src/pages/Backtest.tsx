@@ -43,6 +43,7 @@ const ConfigPanel: React.FC<{
   const [showIndicators, setShowIndicators] = useState(false);
   const [indicatorSweep, setIndicatorSweep] = useState<IndicatorSweepParams>({});
   const [sweepIndicators, setSweepIndicators] = useState(false);
+  const [optimizeTickers, setOptimizeTickers] = useState('');
 
   const upd = (partial: Partial<BacktestConfig>) => onChange({ ...config, ...partial });
   const updInd = (key: keyof TechScoreOptions, val: number) => {
@@ -78,8 +79,12 @@ const ConfigPanel: React.FC<{
         indicatorSweep: sweepIndicators ? indicatorSweep : undefined,
       });
     } else {
+      const parsedTickers = optimizeTickers
+        .toUpperCase().split(/[,\s]+/).map(t => t.trim()).filter(Boolean);
+      const tickers = parsedTickers.length > 0 ? parsedTickers : [config.ticker];
       onRunOptimize({
-        ticker: config.ticker,
+        ticker: tickers[0],
+        tickers: tickers.length > 1 ? tickers : undefined,
         startDate: config.startDate,
         endDate: config.endDate,
         tpAtr: config.tpAtr,
@@ -99,6 +104,26 @@ const ConfigPanel: React.FC<{
         <Field label="Start" value={config.startDate} onChange={v => upd({ startDate: v })} type="date" />
         <Field label="End" value={config.endDate} onChange={v => upd({ endDate: v })} type="date" />
       </div>
+
+      {/* Multi-ticker for optimize mode */}
+      {mode === 'optimize' && (
+        <div>
+          <label className="block text-[11px] text-text-tertiary mb-1">
+            Optimize across tickers <span className="text-text-tertiary/60">(comma-separated, leave empty for single ticker above)</span>
+          </label>
+          <input
+            value={optimizeTickers}
+            onChange={e => setOptimizeTickers(e.target.value)}
+            placeholder="SPY, QQQ, AAPL, MSFT, NVDA..."
+            className="w-full px-2 py-1.5 text-xs bg-[#111] border border-white/10 rounded focus:border-purple-500/50 outline-none font-mono"
+          />
+          {optimizeTickers.trim() && (
+            <span className="text-[10px] text-purple-400 mt-0.5 block">
+              {optimizeTickers.toUpperCase().split(/[,\s]+/).filter(Boolean).length} tickers — cross-validated optimization
+            </span>
+          )}
+        </div>
+      )}
 
       {/* TP/SL */}
       <div className="grid grid-cols-2 gap-2">
@@ -966,7 +991,14 @@ export const BacktestPage: React.FC = () => {
               {/* Best config highlight */}
               {bt.optimizeResult.bestOverall && (
                 <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
-                  <div className="text-[11px] text-purple-400 uppercase tracking-wider mb-2">Best Signal Config</div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[11px] text-purple-400 uppercase tracking-wider">Best Signal Config</span>
+                    {bt.optimizeResult.bestOverall.config.ticker.includes(',') && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono">
+                        {bt.optimizeResult.bestOverall.config.ticker.split(',').length} tickers
+                      </span>
+                    )}
+                  </div>
                   <div className="mb-2">
                     <IndicatorParamsLabel opts={bt.optimizeResult.bestOverall.config.indicatorOptions} />
                   </div>

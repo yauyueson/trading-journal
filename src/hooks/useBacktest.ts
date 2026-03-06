@@ -143,13 +143,26 @@ export function useBacktest(): UseBacktestReturn {
     setOptimizeResult(null);
 
     try {
+      const tickers = optCfg.tickers?.length ? optCfg.tickers : [optCfg.ticker];
       const fetchFrom = addTradingDaysBack(optCfg.startDate, 450);
-      const c = await fetchCandles(optCfg.ticker, fetchFrom, optCfg.endDate);
-      if (c.length < 350) {
-        throw new Error(`Need 350+ candles for stable backtest, got ${c.length}. Try a longer date range.`);
+
+      // Fetch candles for all tickers (sequentially for rate limits)
+      const candleMap = new Map<string, BacktestCandle[]>();
+      for (let i = 0; i < tickers.length; i++) {
+        const t = tickers[i];
+        const c = await fetchCandles(t, fetchFrom, optCfg.endDate);
+        if (c.length < 350) {
+          throw new Error(`${t}: Need 350+ candles, got ${c.length}. Try a longer date range.`);
+        }
+        candleMap.set(t, c);
       }
 
-      const result = runGeneticOptimize(c, optCfg, (gen, totalGens) => {
+      // Single ticker: pass array directly (backwards-compatible)
+      const candlesInput = candleMap.size === 1
+        ? candleMap.values().next().value!
+        : candleMap;
+
+      const result = runGeneticOptimize(candlesInput, optCfg, (gen, totalGens) => {
         setProgress(Math.round((gen / totalGens) * 100));
       });
       setOptimizeResult(result);

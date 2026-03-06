@@ -288,6 +288,8 @@ export interface SweepConfig {
 /** Optimize mode: GA-based indicator param optimization with fixed TP/SL */
 export interface OptimizeConfig {
   ticker: string;
+  /** Multi-ticker optimization: when provided, overrides `ticker` and evaluates across all */
+  tickers?: string[];
   startDate: string;
   endDate: string;
   // Fixed trade params (not swept — ignored when jointOptimize=true)

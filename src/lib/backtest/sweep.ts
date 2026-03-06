@@ -11,6 +11,7 @@ import type {
   BacktestCandle,
   BacktestConfig,
   BacktestTrade,
+  BacktestAnalytics,
   BacktestResult,
   SweepConfig,
   SweepResult,
@@ -316,9 +317,66 @@ export function computeFitness(r: BacktestResult): number {
   return sortinoContrib + pfContrib + wrContrib + ddContrib + expContrib + countContrib;
 }
 
-/** GA-based signal parameter optimizer */
+/** Merge multiple single-ticker BacktestResults into one aggregate result */
+function mergeBacktestResults(
+  results: BacktestResult[],
+  tickerLabel: string,
+  indicatorOptions: TechScoreOptions
+): BacktestResult {
+  if (results.length === 1) return results[0];
+
+  // Weight-average analytics by trade count
+  const totalTrades = results.reduce((s, r) => s + r.analytics.totalTrades, 0);
+  if (totalTrades === 0) return { ...results[0], config: { ...results[0].config, ticker: tickerLabel } };
+
+  const w = (r: BacktestResult) => r.analytics.totalTrades / totalTrades;
+
+  const mergedAnalytics: BacktestAnalytics = {
+    totalSignals: results.reduce((s, r) => s + r.analytics.totalSignals, 0),
+    totalTrades,
+    winRate: results.reduce((s, r) => s + r.analytics.winRate * w(r), 0),
+    winRateTheta: results.reduce((s, r) => s + r.analytics.winRateTheta * w(r), 0),
+    avgReturn: results.reduce((s, r) => s + r.analytics.avgReturn * w(r), 0),
+    avgReturnTheta: results.reduce((s, r) => s + r.analytics.avgReturnTheta * w(r), 0),
+    profitFactor: results.reduce((s, r) => s + r.analytics.profitFactor * w(r), 0),
+    avgWin: results.reduce((s, r) => s + r.analytics.avgWin * w(r), 0),
+    avgLoss: results.reduce((s, r) => s + r.analytics.avgLoss * w(r), 0),
+    avgHoldDays: results.reduce((s, r) => s + r.analytics.avgHoldDays * w(r), 0),
+    tpHits: results.reduce((s, r) => s + r.analytics.tpHits, 0),
+    slHits: results.reduce((s, r) => s + r.analytics.slHits, 0),
+    timeStops: results.reduce((s, r) => s + r.analytics.timeStops, 0),
+    sharpe: results.reduce((s, r) => s + r.analytics.sharpe * w(r), 0),
+    maxDrawdown: Math.max(...results.map(r => r.analytics.maxDrawdown)),
+    sortino: results.reduce((s, r) => s + r.analytics.sortino * w(r), 0),
+    calmar: results.reduce((s, r) => s + r.analytics.calmar * w(r), 0),
+    expectancy: results.reduce((s, r) => s + r.analytics.expectancy * w(r), 0),
+    maxConsecutiveWins: Math.max(...results.map(r => r.analytics.maxConsecutiveWins)),
+    maxConsecutiveLosses: Math.max(...results.map(r => r.analytics.maxConsecutiveLosses)),
+    // Use first ticker's sub-breakdowns (directional/tier/setup/equity)
+    callStats: results[0].analytics.callStats,
+    putStats: results[0].analytics.putStats,
+    tierS: results[0].analytics.tierS,
+    tierA: results[0].analytics.tierA,
+    tierB: results[0].analytics.tierB,
+    bySetup: results[0].analytics.bySetup,
+    avgMfe: results[0].analytics.avgMfe,
+    avgMae: results[0].analytics.avgMae,
+    equityCurve: results[0].analytics.equityCurve,
+  };
+
+  // Merge all trades across tickers
+  const allTrades = results.flatMap(r => r.trades);
+
+  return {
+    config: { ...results[0].config, ticker: tickerLabel, indicatorOptions },
+    trades: allTrades,
+    analytics: mergedAnalytics,
+  };
+}
+
+/** GA-based signal parameter optimizer — supports multi-ticker cross-validation */
 export function runGeneticOptimize(
-  candles: BacktestCandle[],
+  candles: BacktestCandle[] | Map<string, BacktestCandle[]>,
   config: OptimizeConfig,
   onProgress?: (gen: number, totalGens: number, bestFitness: number) => void
 ): OptimizeResult {
@@ -330,27 +388,47 @@ export function runGeneticOptimize(
   const joint = config.jointOptimize ?? false;
   const defs = getGeneDefs(joint);
 
-  // Helper: evaluate an individual
-  const evaluate = (genes: Individual): BacktestResult => {
-    const opts = genesToIndicatorOptions(genes, defs);
-    const { signals, simCandles } = precomputeSignals(candles, '1D', opts);
+  // Normalize candles input to Map
+  const candleMap: Map<string, BacktestCandle[]> = candles instanceof Map
+    ? candles
+    : new Map([[config.ticker, candles]]);
+  const tickerList = Array.from(candleMap.keys());
+  const multiTicker = tickerList.length > 1;
+  const tickerLabel = multiTicker ? tickerList.join(',') : tickerList[0];
 
+  // Helper: evaluate an individual across all tickers, average fitness
+  const evaluate = (genes: Individual): { result: BacktestResult; fitness: number } => {
+    const opts = genesToIndicatorOptions(genes, defs);
     const tradeOverrides = joint ? genesToTradeParams(genes, defs) : {};
-    const backtestConfig: BacktestConfig = {
-      ...DEFAULT_CONFIG,
-      ticker: config.ticker,
-      startDate: config.startDate,
-      endDate: config.endDate,
-      timeframe: '1D',
-      tpAtr: config.tpAtr,
-      slAtr: config.slAtr,
-      minScore: config.minScore,
-      minConfidence: config.minConfidence,
-      thetaDecayRate: config.thetaDecayRate,
-      ...tradeOverrides,
-      indicatorOptions: opts,
-    };
-    return runBacktestFull(signals, simCandles, backtestConfig);
+
+    const perTicker: { result: BacktestResult; fitness: number }[] = [];
+    for (const [ticker, tCandles] of candleMap) {
+      const { signals, simCandles } = precomputeSignals(tCandles, '1D', opts);
+      const backtestConfig: BacktestConfig = {
+        ...DEFAULT_CONFIG,
+        ticker,
+        startDate: config.startDate,
+        endDate: config.endDate,
+        timeframe: '1D',
+        tpAtr: config.tpAtr,
+        slAtr: config.slAtr,
+        minScore: config.minScore,
+        minConfidence: config.minConfidence,
+        thetaDecayRate: config.thetaDecayRate,
+        ...tradeOverrides,
+        indicatorOptions: opts,
+      };
+      const r = runBacktestFull(signals, simCandles, backtestConfig);
+      perTicker.push({ result: r, fitness: computeFitness(r) });
+    }
+
+    // Single ticker: return directly
+    if (!multiTicker) return perTicker[0];
+
+    // Multi-ticker: merge results, average fitness
+    const avgFitness = perTicker.reduce((s, t) => s + t.fitness, 0) / perTicker.length;
+    const merged = mergeBacktestResults(perTicker.map(t => t.result), tickerLabel, opts);
+    return { result: merged, fitness: avgFitness };
   };
 
   // Initialize population: default seed + random
@@ -360,8 +438,9 @@ export function runGeneticOptimize(
   }
 
   // Evaluate initial population
-  let results: BacktestResult[] = population.map(ind => evaluate(ind));
-  let fitnesses = results.map(computeFitness);
+  const evals0 = population.map(ind => evaluate(ind));
+  let results: BacktestResult[] = evals0.map(e => e.result);
+  let fitnesses = evals0.map(e => e.fitness);
 
   // Track all unique results (dedup by indicator options key)
   const allResultsMap = new Map<string, BacktestResult>();
@@ -407,14 +486,13 @@ export function runGeneticOptimize(
       child = clampGenes(child, defs);
       child = normalizeWeights(child, defs);
 
-      const result = evaluate(child);
-      const fit = computeFitness(result);
-      allResultsMap.set(keyOf(result), result);
+      const { result: childResult, fitness: childFit } = evaluate(child);
+      allResultsMap.set(keyOf(childResult), childResult);
       totalEvals++;
 
       nextPop.push(child);
-      nextResults.push(result);
-      nextFitnesses.push(fit);
+      nextResults.push(childResult);
+      nextFitnesses.push(childFit);
     }
 
     // Replace population
