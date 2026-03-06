@@ -28,8 +28,19 @@ import { computeAnalytics } from './analytics';
 
 // ── Constants ───────────────────────────────────────────
 
-/** Daily tech analysis needs ~300 bars of history for stable indicators */
-const LOOKBACK_DAILY = 320;
+/**
+ * Compute lookback based on the longest indicator period.
+ * EMA(N) with emaFullSeries needs ~2×N bars to stabilize within 1%.
+ * RSI adds 15 bars on top. Floor at 150 for safety.
+ */
+function computeLookback(indicatorOptions?: TechScoreOptions): number {
+  const mbLen = indicatorOptions?.sc_mb_len ?? 100;
+  // 2× longest EMA period + RSI(15) buffer + safety margin
+  return Math.max(150, mbLen * 2 + 30);
+}
+
+/** Legacy constant for 4H mode which doesn't take indicatorOptions */
+const LOOKBACK_DAILY = 230;
 
 // ── Entry Quality (ported from Pine v3.2 lines 1510-1517) ──
 
@@ -99,8 +110,9 @@ function buildDailyTo4HMap(candles4h: BacktestCandle[]): Map<string, number> {
 export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptions?: TechScoreOptions): PrecomputedSignal[] {
   const signals: PrecomputedSignal[] = [];
   const len = candles.length;
+  const lookback = computeLookback(indicatorOptions);
 
-  if (len < LOOKBACK_DAILY) return signals;
+  if (len < lookback) return signals;
 
   const highs = candles.map(c => c.high);
   const lows = candles.map(c => c.low);
@@ -108,7 +120,7 @@ export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptio
   const atrSeries = calcATR(highs, lows, closes, 14);
   const ema8Series = emaFullSeries(closes, 8);
 
-  for (let i = LOOKBACK_DAILY; i < len; i++) {
+  for (let i = lookback; i < len; i++) {
     const slice = candles.slice(0, i + 1);
     const result: TechScoreResult = calculateTechScore(slice, indicatorOptions);
 
