@@ -31,9 +31,19 @@ export interface TechScoreSettings {
   periods: TechScorePeriods;
 }
 
+export interface StrategySettings {
+  tpAtr: number;
+  slAtr: number;
+  minScore: number;
+  thetaDecayRate: number;
+  deployedAt: string;    // ISO timestamp
+  source: string;        // 'manual' | 'ga-optimize' | 'sweep' | 'walk-forward'
+}
+
 export interface AppSettings {
   portfolio: PortfolioSettings;
   techScore: TechScoreSettings;
+  strategy: StrategySettings;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -54,6 +64,14 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
       sc_bx_l1: 20,
       sc_bx_l2: 15,
     },
+  },
+  strategy: {
+    tpAtr: 2.5,
+    slAtr: 1.5,
+    minScore: 70,
+    thetaDecayRate: 0.03,
+    deployedAt: '',
+    source: 'manual',
   },
 };
 

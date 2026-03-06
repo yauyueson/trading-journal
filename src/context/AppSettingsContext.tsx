@@ -70,6 +70,7 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
               weights: { ...DEFAULT_APP_SETTINGS.techScore.weights, ...data.settings.techScore?.weights },
               periods: { ...DEFAULT_APP_SETTINGS.techScore.periods, ...data.settings.techScore?.periods },
             },
+            strategy: { ...DEFAULT_APP_SETTINGS.strategy, ...data.settings.strategy },
           };
           setSettings(merged);
           saveToStorage(merged);
@@ -87,6 +88,7 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         weights: { ...settings.techScore.weights, ...(patch.techScore?.weights ?? {}) },
         periods: { ...settings.techScore.periods, ...(patch.techScore?.periods ?? {}) },
       },
+      strategy: { ...settings.strategy, ...(patch.strategy ?? {}) },
     };
     setSettings(next);
     saveToStorage(next);

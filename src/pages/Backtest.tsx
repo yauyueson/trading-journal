@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Rocket } from 'lucide-react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Rocket, Upload } from 'lucide-react';
 import { useBacktest, type BacktestMode } from '../hooks/useBacktest';
 import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, IndicatorSweepParams, OptimizeConfig } from '../lib/backtest/types';
 import type { TechScoreOptions } from '../lib/tech-analysis';
 import { DEFAULT_SWEEP } from '../lib/backtest/sweep';
+import { useAppSettings } from '../context/AppSettingsContext';
 
 // ── Stat Card ───────────────────────────────────────────
 
@@ -808,8 +809,50 @@ const SingleResultView: React.FC<{ result: BacktestResult }> = ({ result }) => {
 
 export const BacktestPage: React.FC = () => {
   const bt = useBacktest();
+  const { updateSettings } = useAppSettings();
   const [selectedSweepResult, setSelectedSweepResult] = useState<BacktestResult | null>(null);
   const [selectedOptResult, setSelectedOptResult] = useState<BacktestResult | null>(null);
+  const [deployState, setDeployState] = useState<'idle' | 'deploying' | 'deployed'>('idle');
+
+  const deployStrategy = useCallback(async (result: BacktestResult, source: string) => {
+    setDeployState('deploying');
+    try {
+      const opts = result.config.indicatorOptions ?? {};
+      await updateSettings({
+        techScore: {
+          weights: {
+            w_mb: opts.w_mb ?? 30,
+            w_bxs: opts.w_bxs ?? 25,
+            w_bxl: opts.w_bxl ?? 20,
+            w_ema: opts.w_ema ?? 15,
+            w_mom: opts.w_mom ?? 10,
+          },
+          periods: {
+            sc_mb_len: opts.sc_mb_len ?? 100,
+            sc_mb_smoothing: opts.sc_mb_smoothing ?? 100,
+            sc_osc_len: opts.sc_osc_len ?? 7,
+            sc_bx_s1: opts.sc_bx_s1 ?? 5,
+            sc_bx_s2: opts.sc_bx_s2 ?? 20,
+            sc_bx_s3: opts.sc_bx_s3 ?? 15,
+            sc_bx_l1: opts.sc_bx_l1 ?? 20,
+            sc_bx_l2: opts.sc_bx_l2 ?? 15,
+          },
+        },
+        strategy: {
+          tpAtr: result.config.tpAtr,
+          slAtr: result.config.slAtr,
+          minScore: result.config.minScore,
+          thetaDecayRate: result.config.thetaDecayRate,
+          deployedAt: new Date().toISOString(),
+          source,
+        },
+      });
+      setDeployState('deployed');
+      setTimeout(() => setDeployState('idle'), 3000);
+    } catch {
+      setDeployState('idle');
+    }
+  }, [updateSettings]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 pb-24 sm:pb-6">
@@ -884,6 +927,17 @@ export const BacktestPage: React.FC = () => {
                 />
               </div>
 
+              {bt.sweepResult.bestOverall && (
+                <button
+                  onClick={() => deployStrategy(bt.sweepResult!.bestOverall!, 'sweep')}
+                  disabled={deployState === 'deploying'}
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded bg-accent-green/20 text-accent-green hover:bg-accent-green/30 disabled:opacity-50 transition-colors"
+                >
+                  <Upload size={13} />
+                  {deployState === 'deploying' ? 'Deploying...' : deployState === 'deployed' ? 'Deployed \u2713' : 'Deploy Best'}
+                </button>
+              )}
+
               {selectedSweepResult && (
                 <div className="bg-[#111] rounded-lg border border-accent-green/30 p-3">
                   <div className="flex justify-between items-center mb-3">
@@ -922,6 +976,14 @@ export const BacktestPage: React.FC = () => {
                     <Stat label="PF" value={bt.optimizeResult.bestOverall.analytics.profitFactor === Infinity ? '∞' : bt.optimizeResult.bestOverall.analytics.profitFactor.toFixed(2)} good={bt.optimizeResult.bestOverall.analytics.profitFactor > 1.5} />
                     <Stat label="Trades" value={bt.optimizeResult.bestOverall.analytics.totalTrades} />
                   </div>
+                  <button
+                    onClick={() => deployStrategy(bt.optimizeResult!.bestOverall!, 'ga-optimize')}
+                    disabled={deployState === 'deploying'}
+                    className="mt-2 flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 disabled:opacity-50 transition-colors"
+                  >
+                    <Upload size={13} />
+                    {deployState === 'deploying' ? 'Deploying...' : deployState === 'deployed' ? 'Deployed \u2713' : 'Deploy Strategy'}
+                  </button>
                 </div>
               )}
 
