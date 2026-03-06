@@ -153,17 +153,23 @@ export function useBacktest(): UseBacktestReturn {
 
       // Fetch candles for all tickers
       const candleMap = new Map<string, BacktestCandle[]>();
+      console.log('[optimize] tickers:', allTickers, 'fetchFrom:', fetchFrom, 'to:', optCfg.endDate);
       for (const ticker of allTickers) {
-        const c = await fetchCandles(ticker, fetchFrom, optCfg.endDate);
-        if (c.length < 350) {
-          console.warn(`${ticker}: Need 350+ candles, got ${c.length} — skipping`);
-          continue;
+        try {
+          const c = await fetchCandles(ticker, fetchFrom, optCfg.endDate);
+          console.log(`[optimize] ${ticker}: got ${c.length} candles`);
+          if (c.length < 350) {
+            console.warn(`${ticker}: Need 350+ candles, got ${c.length} — skipping`);
+            continue;
+          }
+          candleMap.set(ticker, c);
+        } catch (fetchErr: any) {
+          console.error(`[optimize] ${ticker} fetch failed:`, fetchErr.message);
         }
-        candleMap.set(ticker, c);
       }
 
       if (candleMap.size === 0) {
-        throw new Error('No tickers with sufficient data (need 350+ candles each).');
+        throw new Error(`No tickers with sufficient data (need 350+ candles each). Tickers tried: ${allTickers.join(', ')}. Check browser console for details.`);
       }
 
       setProgressPhase('GA weights');
