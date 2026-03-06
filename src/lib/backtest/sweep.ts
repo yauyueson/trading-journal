@@ -49,6 +49,8 @@ function generateTradeConfigs(sweep: SweepConfig, indicatorOpts: TechScoreOption
                 thetaDecayRate: decay,
                 indicatorOptions: indicatorOpts,
                 optionsPricing: sweep.optionsPricing,
+                slippage: sweep.slippage,
+                regimeGates: sweep.regimeGates,
               });
             }
           }
@@ -114,7 +116,7 @@ interface GeneDef {
 // All possible gene definitions, grouped by OptimizeParams toggle
 const ALL_GENE_DEFS: GeneDef[] = [
   // Weights (sum to 100)
-  { key: 'w_mb',  min: 10, max: 50, def: 30, step: 5, isWeight: true,  group: 'weights' },
+  { key: 'w_mb',  min: 10, max: 40, def: 30, step: 5, isWeight: true,  group: 'weights' },
   { key: 'w_bxs', min: 10, max: 40, def: 25, step: 5, isWeight: true,  group: 'weights' },
   { key: 'w_bxl', min: 5,  max: 35, def: 20, step: 5, isWeight: true,  group: 'weights' },
   { key: 'w_ema', min: 5,  max: 30, def: 15, step: 5, isWeight: true,  group: 'weights' },
@@ -140,16 +142,30 @@ function buildGeneDefs(params: OptimizeParams): GeneDef[] {
 
 type Individual = number[];
 
-/** Normalize weight genes to sum to 100 */
+/** Normalize weight genes to sum to 100, cap each at 40 */
 function normalizeWeights(genes: Individual, defs: GeneDef[]): Individual {
   const out = [...genes];
   const weightIndices = defs.map((g, i) => g.isWeight ? i : -1).filter(i => i >= 0);
+  if (weightIndices.length === 0) return out;
+
+  // Cap each weight at 40 to prevent concentration
+  const MAX_WEIGHT = 40;
+  for (const i of weightIndices) {
+    if (out[i] > MAX_WEIGHT) out[i] = MAX_WEIGHT;
+  }
+
+  // Normalize to sum to 100
   let sum = 0;
   for (const i of weightIndices) sum += out[i];
   if (sum <= 0) sum = 1;
   for (const i of weightIndices) {
     out[i] = Math.round((out[i] / sum) * 100);
   }
+  // Re-cap after rounding (edge case)
+  for (const i of weightIndices) {
+    if (out[i] > MAX_WEIGHT) out[i] = MAX_WEIGHT;
+  }
+  // Fix rounding remainder
   const wSum = weightIndices.reduce((s, i) => s + out[i], 0);
   if (wSum !== 100) {
     const maxIdx = weightIndices.reduce((a, b) => out[a] >= out[b] ? a : b);
@@ -261,7 +277,14 @@ export function computeFitness(r: BacktestResult): number {
   const expContrib     = 0.10 * Math.max(0, Math.min(exp, 5)) / 5;
   const countContrib   = 0.10 * Math.min(1, a.totalTrades / 50);
 
-  return sortinoContrib + pfContrib + wrContrib + ddContrib + expContrib + countContrib;
+  let fitness = sortinoContrib + pfContrib + wrContrib + ddContrib + expContrib + countContrib;
+
+  // Correlation penalty: penalize highly correlated sub-scores (discourages weight concentration)
+  if (a.avgSubScoreCorrelation != null && a.avgSubScoreCorrelation > 0.3) {
+    fitness *= (1 - (a.avgSubScoreCorrelation - 0.3) * 0.15);
+  }
+
+  return fitness;
 }
 
 /** GA-based optimizer with dynamic gene selection.
@@ -326,6 +349,8 @@ export function runGeneticOptimize(
         ...tradeOverrides,
         indicatorOptions: indicatorOpts,
         optionsPricing: config.optionsPricing,
+        slippage: config.slippage,
+        regimeGates: config.regimeGates,
       };
       const r = runBacktestFull(signals, simCandles, backtestConfig);
       const fit = computeFitness(r);
@@ -508,6 +533,8 @@ export function runTwoStageOptimize(
           thetaDecayRate: bestCfg.thetaDecayRate,
           indicatorOptions: bestOpts,
           optionsPricing: config.optionsPricing,
+          slippage: config.slippage,
+          regimeGates: config.regimeGates,
         };
         const r = runBacktestFull(signals, simCandles, cfg);
         if (isMulti) {
@@ -530,6 +557,8 @@ export function runTwoStageOptimize(
         thetaDecayRate: bestCfg.thetaDecayRate,
         indicatorOptions: bestOpts,
         optionsPricing: config.optionsPricing,
+        slippage: config.slippage,
+        regimeGates: config.regimeGates,
       };
       const combinedAnalytics = computeAnalytics(allTrades, combinedConfig, totalSignals);
       tpslResults.push({ config: combinedConfig, trades: allTrades, analytics: combinedAnalytics });
@@ -566,7 +595,8 @@ function buildWalkForwardWindows(
   const windows: { isCandles: BacktestCandle[]; oosCandles: BacktestCandle[]; isStart: string; isEnd: string; oosStart: string; oosEnd: string }[] = [];
 
   const LOOKBACK = 320;
-  if (candles.length < LOOKBACK + config.isWindowDays + config.oosWindowDays) return windows;
+  const purgeGap = config.purgeGapDays ?? 5;
+  if (candles.length < LOOKBACK + config.isWindowDays + purgeGap + config.oosWindowDays) return windows;
 
   let isStartIdx = LOOKBACK;
 
@@ -575,7 +605,7 @@ function buildWalkForwardWindows(
       ? LOOKBACK + config.isWindowDays + (windows.length * config.oosWindowDays)
       : isStartIdx + config.isWindowDays;
 
-    const oosStartIdx = isEndIdx;
+    const oosStartIdx = isEndIdx + purgeGap;
     const oosEndIdx = oosStartIdx + config.oosWindowDays;
 
     if (oosEndIdx > candles.length) break;

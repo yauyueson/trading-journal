@@ -58,6 +58,24 @@ export function bsmDelta(
 }
 
 /**
+ * Ornstein-Uhlenbeck IV evolution (deterministic expected path).
+ * sigma_exit = ivEntry × e^(-kappa×T) + theta × (1 - e^(-kappa×T))
+ *
+ * @param ivEntry  IV at entry (annualized decimal)
+ * @param theta    Long-run mean IV (e.g. HV60)
+ * @param kappa    Mean reversion speed (annualized, 4.0 = fast)
+ * @param holdDays Hold period in calendar days
+ * @returns Evolved IV (annualized decimal)
+ */
+export function ouIVEvolution(
+  ivEntry: number, theta: number, kappa: number, holdDays: number
+): number {
+  const T = holdDays / 365;
+  const decay = Math.exp(-kappa * T);
+  return ivEntry * decay + theta * (1 - decay);
+}
+
+/**
  * Compute rolling historical volatility series from close prices.
  *
  * Uses log returns and population variance (÷N, matching market convention

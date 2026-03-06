@@ -31,6 +31,36 @@ function std(arr: number[]): number {
   return Math.sqrt(arr.reduce((s, v) => s + (v - m) ** 2, 0) / (arr.length - 1));
 }
 
+function pearsonCorr(x: number[], y: number[]): number {
+  const n = x.length;
+  if (n < 3) return 0;
+  const mx = avg(x), my = avg(y);
+  let num = 0, dx2 = 0, dy2 = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = x[i] - mx, dy = y[i] - my;
+    num += dx * dy;
+    dx2 += dx * dx;
+    dy2 += dy * dy;
+  }
+  const denom = Math.sqrt(dx2 * dy2);
+  return denom > 0 ? num / denom : 0;
+}
+
+function computeAvgSubScoreCorrelation(trades: BacktestTrade[]): number | undefined {
+  const tw = trades.filter(t => t.subScores);
+  if (tw.length < 10) return undefined;
+  const keys = ['sc_mb', 'sc_bxs', 'sc_bxl', 'sc_ema', 'sc_mom'] as const;
+  const data = keys.map(k => tw.map(t => t.subScores![k]));
+  let corrSum = 0, pairs = 0;
+  for (let i = 0; i < 5; i++) {
+    for (let j = i + 1; j < 5; j++) {
+      corrSum += Math.abs(pearsonCorr(data[i], data[j]));
+      pairs++;
+    }
+  }
+  return corrSum / pairs;
+}
+
 /** Downside deviation: std of returns below target (0) */
 function downsideDev(returns: number[]): number {
   const downside = returns.filter(r => r < 0);
@@ -272,6 +302,8 @@ export function computeAnalytics(
     maxConsecutiveLosses,
     gateStats,
     ...optionAnalytics,
+    avgSubScoreCorrelation: computeAvgSubScoreCorrelation(trades),
+    monteCarlo: trades.length >= 10 ? monteCarloPermutation(trades, 500) : undefined,
   };
 }
 
@@ -338,8 +370,82 @@ export function monteCarloPermutation(
 
   const p = (arr: number[], pct: number) => arr[Math.floor(arr.length * pct)] ?? 0;
 
+  const blockBoot = blockBootstrapMC(trades, iterations);
+
   return {
     iterations,
+    sharpe: { p5: p(sharpes, 0.05), p50: p(sharpes, 0.50), p95: p(sharpes, 0.95) },
+    maxDrawdown: { p5: p(maxDDs, 0.05), p50: p(maxDDs, 0.50), p95: p(maxDDs, 0.95) },
+    finalReturn: { p5: p(finalReturns, 0.05), p50: p(finalReturns, 0.50), p95: p(finalReturns, 0.95) },
+    isSignificant: p(sharpes, 0.05) > 0,
+    blockBootstrap: blockBoot,
+  };
+}
+
+/**
+ * Block bootstrap Monte Carlo: resample blocks of consecutive trades.
+ * Preserves autocorrelation structure (regime clustering, streaks).
+ */
+function blockBootstrapMC(
+  trades: BacktestTrade[],
+  iterations: number = 500
+): MonteCarloResult['blockBootstrap'] {
+  const n = trades.length;
+  if (n < 10) return undefined;
+
+  const blockSize = Math.max(3, Math.min(10, Math.floor(n / 10)));
+  const useOption = trades.every(t => t.optionReturn != null);
+
+  const sorted = [...trades].sort((a, b) => a.entryDate.localeCompare(b.entryDate));
+  const returns = sorted.map(t => useOption ? t.optionReturn! : t.rawReturn);
+
+  // Build blocks
+  const blocks: number[][] = [];
+  for (let i = 0; i <= returns.length - blockSize; i += blockSize) {
+    blocks.push(returns.slice(i, i + blockSize));
+  }
+  if (returns.length % blockSize !== 0) {
+    blocks.push(returns.slice(-(returns.length % blockSize)));
+  }
+  if (blocks.length === 0) return undefined;
+
+  const sharpes: number[] = [];
+  const maxDDs: number[] = [];
+  const finalReturns: number[] = [];
+  const avgHold = avg(sorted.map(t => t.holdDays));
+
+  for (let iter = 0; iter < iterations; iter++) {
+    const resampled: number[] = [];
+    while (resampled.length < n) {
+      const blockIdx = Math.floor(Math.random() * blocks.length);
+      resampled.push(...blocks[blockIdx]);
+    }
+    const sample = resampled.slice(0, n);
+
+    let cum = 0, peak = 0, maxDD = 0;
+    for (const r of sample) {
+      cum += r;
+      peak = Math.max(peak, cum);
+      maxDD = Math.max(maxDD, peak - cum);
+    }
+
+    const mean = avg(sample);
+    const s = std(sample);
+    const sh = s > 0 ? (mean / s) * Math.sqrt(252 / avgHold) : 0;
+
+    sharpes.push(isFinite(sh) ? sh : 0);
+    maxDDs.push(maxDD * 100);
+    finalReturns.push(cum * 100);
+  }
+
+  sharpes.sort((a, b) => a - b);
+  maxDDs.sort((a, b) => a - b);
+  finalReturns.sort((a, b) => a - b);
+
+  const p = (arr: number[], pct: number) => arr[Math.floor(arr.length * pct)] ?? 0;
+
+  return {
+    blockSize,
     sharpe: { p5: p(sharpes, 0.05), p50: p(sharpes, 0.50), p95: p(sharpes, 0.95) },
     maxDrawdown: { p5: p(maxDDs, 0.05), p50: p(maxDDs, 0.50), p95: p(maxDDs, 0.95) },
     finalReturn: { p5: p(finalReturns, 0.05), p50: p(finalReturns, 0.50), p95: p(finalReturns, 0.95) },

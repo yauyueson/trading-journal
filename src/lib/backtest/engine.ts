@@ -14,7 +14,7 @@
 
 import { calculateTechScore, calculateTechScoreV4, aggregateToWeekly, type TechScoreResult, type TechScoreV4Result, type TechScoreOptions } from '../tech-analysis';
 import { calcATR, calcADX, calcRVOL, detectSqueeze, emaFullSeries } from '../indicators';
-import { bsmPrice, bsmDelta, computeRollingHV } from './bsm-pricing';
+import { bsmPrice, bsmDelta, computeRollingHV, ouIVEvolution } from './bsm-pricing';
 import type {
   BacktestCandle,
   BacktestConfig,
@@ -126,6 +126,7 @@ export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptio
   // Rolling HV for BSM repricing (cheap O(n), always computed)
   const hv20Series = computeRollingHV(closes, 20);
   const hv30Series = computeRollingHV(closes, 30);
+  const hv60Series = computeRollingHV(closes, 60);
 
   // Pre-compute V4 quality gate series (O(n), negligible cost)
   const adxResult = calcADX(highs, lows, closes, 14);
@@ -154,6 +155,10 @@ export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptio
       if ((isCall && result.components.sc_bxl > 0) || (!isCall && result.components.sc_bxl < 0)) coherence++;
     }
 
+    const adxVal = adxResult.adx[i];
+    const regime: 'trending' | 'ranging' | 'neutral' =
+      adxVal > 25 ? 'trending' : adxVal < 20 ? 'ranging' : 'neutral';
+
     signals.push({
       barIndex: i,
       date: candles[i].date,
@@ -164,12 +169,21 @@ export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptio
       d8,
       atr: isNaN(atr) ? 0 : atr,
       close,
-      adx: adxResult.adx[i],
+      adx: adxVal,
       rvol: rvolResult.rvol[i],
       isSqueeze: squeezeSeries[i],
       coherence,
       ivEstimate: hv20Series[i],
       ivEstimate30: hv30Series[i],
+      ivEstimate60: hv60Series[i],
+      regime,
+      subScores: result.components ? {
+        sc_mb: result.components.sc_mb,
+        sc_bxs: result.components.sc_bxs,
+        sc_bxl: result.components.sc_bxl,
+        sc_ema: result.components.sc_ema,
+        sc_mom: result.components.sc_mom,
+      } : undefined,
     });
   }
 
@@ -276,6 +290,13 @@ interface OpenTrade {
   bsmEntryDTE?: number;
   bsmIsCall?: boolean;
   bsmEntryDelta?: number;
+  bsmIVTheta?: number;           // HV60 for O-U theta estimation
+  // Vertical spread
+  bsmShortStrike?: number;
+  bsmShortEntryPrice?: number;
+  bsmShortEntryDelta?: number;
+  // Sub-scores (for GA correlation penalty)
+  subScores?: { sc_mb: number; sc_bxs: number; sc_bxl: number; sc_ema: number; sc_mom: number };
 }
 
 /** Convert bar delta to calendar days */
@@ -317,7 +338,11 @@ export function runBacktestFull(
       const ps = pendingSignal;
       pendingSignal = null;
 
-      const entryPrice = candle.open;
+      let entryPrice = candle.open;
+      if (config.slippage?.enabled) {
+        const slip = config.slippage.entryBps / 10000;
+        entryPrice *= ps.type === 'CALL' ? (1 + slip) : (1 - slip);
+      }
       let quality: EntryQuality;
       let eqNorm: number;
       if (ps.entryContext) {
@@ -361,6 +386,7 @@ export function runBacktestFull(
         maeByWindow: {},
         highSinceEntry: candle.high,
         lowSinceEntry: candle.low,
+        subScores: ps.subScores,
       });
 
       // BSM entry pricing (when options repricing enabled)
@@ -384,11 +410,24 @@ export function runBacktestFull(
           if (optPrice > 0) {
             const ot = openTrades[openTrades.length - 1];
             ot.bsmStrike = K;
-            ot.bsmEntryPrice = optPrice;
             ot.bsmIV = iv;
             ot.bsmEntryDTE = opc.entryDTE;
             ot.bsmIsCall = isCall;
             ot.bsmEntryDelta = delta;
+            ot.bsmIVTheta = ps.ivEstimate60;
+
+            // Vertical spread: buy ATM + sell OTM
+            if (opc.spreadType === 'vertical') {
+              const width = (opc.spreadWidthATR ?? 1.0) * ps.atr;
+              const shortK = isCall ? K + width : K - width;
+              const shortPrice = bsmPrice(entryPrice, shortK, T, iv, r, isCall);
+              ot.bsmShortStrike = shortK;
+              ot.bsmShortEntryPrice = shortPrice;
+              ot.bsmShortEntryDelta = bsmDelta(entryPrice, shortK, T, iv, r, isCall);
+              ot.bsmEntryPrice = Math.max(0.01, optPrice - shortPrice); // net debit
+            } else {
+              ot.bsmEntryPrice = optPrice;
+            }
           }
         }
       }
@@ -437,6 +476,12 @@ export function runBacktestFull(
       }
 
       if (exitPrice !== null && exitType !== null) {
+        // Apply exit slippage (adverse fill)
+        if (config.slippage?.enabled) {
+          const slip = config.slippage.exitBps / 10000;
+          exitPrice *= ot.direction === 'CALL' ? (1 - slip) : (1 + slip);
+        }
+
         const rawReturn = ot.direction === 'CALL'
           ? (exitPrice - ot.entryPrice) / ot.entryPrice
           : (ot.entryPrice - exitPrice) / ot.entryPrice;
@@ -458,16 +503,44 @@ export function runBacktestFull(
         let optionReturn: number | undefined;
         let optionPriceExit: number | undefined;
         let exitDelta: number | undefined;
+        let shortOptExitPrice: number | undefined;
 
+        let ivUsedAtExit: number | undefined;
         if (ot.bsmEntryPrice != null && ot.bsmEntryPrice > 0) {
           const opc = config.optionsPricing!;
           const T_exit = Math.max(1 / 365, (ot.bsmEntryDTE! - holdDays) / 365);
-          const sigma_exit = ot.bsmIV!; // Phase 1: constant IV
 
-          optionPriceExit = bsmPrice(exitPrice, ot.bsmStrike!, T_exit, sigma_exit, opc.riskFreeRate, ot.bsmIsCall!);
+          // IV evolution: O-U mean reversion or constant
+          let sigma_exit = ot.bsmIV!;
+          const ivDyn = opc.ivDynamics;
+          if (ivDyn?.enabled) {
+            const theta = ivDyn.useHV60ForTheta && ot.bsmIVTheta != null && ot.bsmIVTheta > 0.01
+              ? ot.bsmIVTheta : ot.bsmIV!;
+            sigma_exit = ouIVEvolution(ot.bsmIV!, theta, ivDyn.kappa, holdDays);
+            sigma_exit = Math.max(0.05, Math.min(3.0, sigma_exit));
+          }
+          ivUsedAtExit = sigma_exit;
+
+          const longExitPrice = bsmPrice(exitPrice, ot.bsmStrike!, T_exit, sigma_exit, opc.riskFreeRate, ot.bsmIsCall!);
           exitDelta = bsmDelta(exitPrice, ot.bsmStrike!, T_exit, sigma_exit, opc.riskFreeRate, ot.bsmIsCall!);
-          optionReturn = Math.max(-1.0, (optionPriceExit - ot.bsmEntryPrice) / ot.bsmEntryPrice);
+
+          if (ot.bsmShortStrike != null) {
+            // Vertical spread: reprice both legs
+            shortOptExitPrice = bsmPrice(exitPrice, ot.bsmShortStrike, T_exit, sigma_exit, opc.riskFreeRate, ot.bsmIsCall!);
+            optionPriceExit = Math.max(0, longExitPrice - shortOptExitPrice);
+            const sw = Math.abs(ot.bsmShortStrike - ot.bsmStrike!);
+            const maxLossRatio = Math.min(sw / ot.bsmEntryPrice, (sw - ot.bsmEntryPrice) / ot.bsmEntryPrice);
+            optionReturn = Math.max(-maxLossRatio, (optionPriceExit - ot.bsmEntryPrice) / ot.bsmEntryPrice);
+          } else {
+            optionPriceExit = longExitPrice;
+            optionReturn = Math.max(-1.0, (optionPriceExit - ot.bsmEntryPrice) / ot.bsmEntryPrice);
+          }
         }
+
+        // Spread fields for trade record
+        const spreadWidth = ot.bsmShortStrike != null ? Math.abs(ot.bsmShortStrike - ot.bsmStrike!) : undefined;
+        const maxSpreadLoss = spreadWidth != null && ot.bsmEntryPrice != null
+          ? spreadWidth - ot.bsmEntryPrice : undefined;
 
         trades.push({
           entryDate: ot.entryDate, entryPrice: ot.entryPrice, entryBar: ot.entryBar,
@@ -482,8 +555,15 @@ export function runBacktestFull(
           optionPriceExit,
           strikeUsed: ot.bsmStrike,
           ivAtEntry: ot.bsmIV,
+          ivAtExit: ivUsedAtExit,
           entryDelta: ot.bsmEntryDelta,
           exitDelta,
+          subScores: ot.subScores,
+          shortStrikeUsed: ot.bsmShortStrike,
+          shortOptionPriceEntry: ot.bsmShortEntryPrice,
+          shortOptionPriceExit: shortOptExitPrice,
+          spreadWidth,
+          maxSpreadLoss,
         });
         openTrades.splice(ti, 1);
       }
@@ -503,12 +583,29 @@ export function runBacktestFull(
       if (config.directionFilter !== 'ALL' && sig.type !== config.directionFilter) continue;
       if (!config.allowedSetups.includes('All') && !config.allowedSetups.includes(sig.setup)) continue;
 
-      // ── Quality gates (hard filters) ──
-      if (gates && sig.adx !== undefined && !isNaN(sig.adx) && sig.adx < gates.minADX) {
+      // ── Quality gates (hard filters, optionally regime-adaptive) ──
+      const rg = config.regimeGates;
+      let effectiveMinADX = gates?.minADX ?? 15;
+      let effectiveMinRVOL = gates?.minRVOL ?? 0.5;
+      let cohMultipliers = [1.10, 1.00, 0.85, 0.70]; // default [3/3, 2/3, 1/3, 0/3]
+
+      if (rg?.enabled && sig.regime) {
+        if (sig.regime === 'trending') {
+          effectiveMinADX = rg.trendingADX;
+          effectiveMinRVOL = rg.trendingRVOL;
+          cohMultipliers = [...rg.trendingCoherence];
+        } else if (sig.regime === 'ranging') {
+          effectiveMinADX = rg.rangingADX;
+          effectiveMinRVOL = rg.rangingRVOL;
+          cohMultipliers = [...rg.rangingCoherence];
+        }
+      }
+
+      if (gates && sig.adx !== undefined && !isNaN(sig.adx) && sig.adx < effectiveMinADX) {
         gateStats.adxFiltered++;
         continue;
       }
-      if (gates && sig.rvol !== undefined && !isNaN(sig.rvol) && sig.rvol < gates.minRVOL) {
+      if (gates && sig.rvol !== undefined && !isNaN(sig.rvol) && sig.rvol < effectiveMinRVOL) {
         gateStats.rvolFiltered++;
         continue;
       }
@@ -516,7 +613,7 @@ export function runBacktestFull(
       // ── Quality gates (score adjustments) ──
       let effectiveScore = sig.score;
       if (gates && gates.useCoherence && sig.coherence !== undefined) {
-        const cohMult = sig.coherence === 3 ? 1.10 : sig.coherence === 2 ? 1.00 : sig.coherence === 1 ? 0.85 : 0.70;
+        const cohMult = cohMultipliers[3 - sig.coherence] ?? 1.00;
         if (cohMult !== 1.00) {
           effectiveScore *= cohMult;
           gateStats.coherenceAdjusted++;
@@ -548,9 +645,14 @@ export function runBacktestFull(
     for (const ot of openTrades) {
       const holdBars = (simCandles.length - 1) - ot.entryBar;
       const holdDays = barsToDays(holdBars, config.timeframe);
+      let forceExitPrice = lastCandle.close;
+      if (config.slippage?.enabled) {
+        const slip = config.slippage.exitBps / 10000;
+        forceExitPrice *= ot.direction === 'CALL' ? (1 - slip) : (1 + slip);
+      }
       const rawReturn = ot.direction === 'CALL'
-        ? (lastCandle.close - ot.entryPrice) / ot.entryPrice
-        : (ot.entryPrice - lastCandle.close) / ot.entryPrice;
+        ? (forceExitPrice - ot.entryPrice) / ot.entryPrice
+        : (ot.entryPrice - forceExitPrice) / ot.entryPrice;
       const thetaAdjReturn = rawReturn * Math.exp(-config.thetaDecayRate * holdDays);
 
       for (const w of config.mfeWindows) {
@@ -569,23 +671,49 @@ export function runBacktestFull(
       let optionReturn: number | undefined;
       let optionPriceExit: number | undefined;
       let exitDelta: number | undefined;
+      let shortOptExitPrice: number | undefined;
 
+      let ivUsedAtExit: number | undefined;
       if (ot.bsmEntryPrice != null && ot.bsmEntryPrice > 0) {
         const opc = config.optionsPricing!;
         const T_exit = Math.max(1 / 365, (ot.bsmEntryDTE! - holdDays) / 365);
-        const sigma_exit = ot.bsmIV!;
 
-        optionPriceExit = bsmPrice(lastCandle.close, ot.bsmStrike!, T_exit, sigma_exit, opc.riskFreeRate, ot.bsmIsCall!);
-        exitDelta = bsmDelta(lastCandle.close, ot.bsmStrike!, T_exit, sigma_exit, opc.riskFreeRate, ot.bsmIsCall!);
-        optionReturn = Math.max(-1.0, (optionPriceExit - ot.bsmEntryPrice) / ot.bsmEntryPrice);
+        let sigma_exit = ot.bsmIV!;
+        const ivDyn = opc.ivDynamics;
+        if (ivDyn?.enabled) {
+          const theta = ivDyn.useHV60ForTheta && ot.bsmIVTheta != null && ot.bsmIVTheta > 0.01
+            ? ot.bsmIVTheta : ot.bsmIV!;
+          sigma_exit = ouIVEvolution(ot.bsmIV!, theta, ivDyn.kappa, holdDays);
+          sigma_exit = Math.max(0.05, Math.min(3.0, sigma_exit));
+        }
+        ivUsedAtExit = sigma_exit;
+
+        const longExitPrice = bsmPrice(forceExitPrice, ot.bsmStrike!, T_exit, sigma_exit, opc.riskFreeRate, ot.bsmIsCall!);
+        exitDelta = bsmDelta(forceExitPrice, ot.bsmStrike!, T_exit, sigma_exit, opc.riskFreeRate, ot.bsmIsCall!);
+
+        if (ot.bsmShortStrike != null) {
+          shortOptExitPrice = bsmPrice(forceExitPrice, ot.bsmShortStrike, T_exit, sigma_exit, opc.riskFreeRate, ot.bsmIsCall!);
+          optionPriceExit = Math.max(0, longExitPrice - shortOptExitPrice);
+          const sw = Math.abs(ot.bsmShortStrike - ot.bsmStrike!);
+          const maxLossRatio = Math.min(sw / ot.bsmEntryPrice, (sw - ot.bsmEntryPrice) / ot.bsmEntryPrice);
+          optionReturn = Math.max(-maxLossRatio, (optionPriceExit - ot.bsmEntryPrice) / ot.bsmEntryPrice);
+        } else {
+          optionPriceExit = longExitPrice;
+          optionReturn = Math.max(-1.0, (optionPriceExit - ot.bsmEntryPrice) / ot.bsmEntryPrice);
+        }
       }
+
+      // Spread fields for trade record
+      const spreadWidth = ot.bsmShortStrike != null ? Math.abs(ot.bsmShortStrike - ot.bsmStrike!) : undefined;
+      const maxSpreadLoss = spreadWidth != null && ot.bsmEntryPrice != null
+        ? spreadWidth - ot.bsmEntryPrice : undefined;
 
       trades.push({
         entryDate: ot.entryDate, entryPrice: ot.entryPrice, entryBar: ot.entryBar,
         direction: ot.direction, setup: ot.setup, score: ot.score,
         confidence: ot.confidence, tier: ot.tier, entryQuality: ot.entryQuality,
         atrAtEntry: ot.atrAtEntry, tpPrice: ot.tpPrice, slPrice: ot.slPrice,
-        exitDate: lastCandle.date, exitPrice: lastCandle.close, exitType: 'TIME_STOP',
+        exitDate: lastCandle.date, exitPrice: forceExitPrice, exitType: 'TIME_STOP',
         holdDays, rawReturn, thetaAdjReturn,
         mfe: { ...ot.mfeByWindow }, mae: { ...ot.maeByWindow },
         optionReturn,
@@ -593,8 +721,15 @@ export function runBacktestFull(
         optionPriceExit,
         strikeUsed: ot.bsmStrike,
         ivAtEntry: ot.bsmIV,
+        ivAtExit: ivUsedAtExit,
         entryDelta: ot.bsmEntryDelta,
         exitDelta,
+        subScores: ot.subScores,
+        shortStrikeUsed: ot.bsmShortStrike,
+        shortOptionPriceEntry: ot.bsmShortEntryPrice,
+        shortOptionPriceExit: shortOptExitPrice,
+        spreadWidth,
+        maxSpreadLoss,
       });
     }
   }

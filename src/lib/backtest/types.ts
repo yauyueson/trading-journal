@@ -30,12 +30,19 @@ export const DEFAULT_QUALITY_GATES: QualityGates = {
 
 export type IVSource = 'hv20' | 'hv30' | 'fixed';
 
+export type SpreadType = 'single' | 'vertical';
+
 export interface OptionsPricingConfig {
   enabled: boolean;
   entryDTE: number;           // DTE at entry (default 30)
   riskFreeRate: number;       // decimal (0.04 = 4%)
   ivSource: IVSource;         // 'hv20' | 'hv30' | 'fixed'
   fixedIV?: number;           // decimal, used when ivSource='fixed' (e.g. 0.25)
+  // Phase 2: IV dynamics (O-U mean reversion)
+  ivDynamics?: IVDynamicsConfig;
+  // Phase 3: Spread pricing
+  spreadType?: SpreadType;    // default 'single'
+  spreadWidthATR?: number;    // vertical spread width as ATR multiple (default 1.0)
 }
 
 export const DEFAULT_OPTIONS_PRICING: OptionsPricingConfig = {
@@ -43,6 +50,69 @@ export const DEFAULT_OPTIONS_PRICING: OptionsPricingConfig = {
   entryDTE: 30,
   riskFreeRate: 0.04,
   ivSource: 'hv20',
+};
+
+// ── Slippage Model ───────────────────────────────────────
+
+/** Adverse-fill slippage applied at entry/exit (NOT optimizable) */
+export interface SlippageConfig {
+  enabled: boolean;
+  entryBps: number;          // basis points applied adversely at entry (default 5)
+  exitBps: number;           // basis points applied adversely at exit (default 5)
+}
+
+export const DEFAULT_SLIPPAGE: SlippageConfig = {
+  enabled: false,
+  entryBps: 5,
+  exitBps: 5,
+};
+
+// ── IV Dynamics (O-U Mean Reversion) ─────────────────────
+
+/** Ornstein-Uhlenbeck IV evolution for BSM repricing (Phase 2) */
+export interface IVDynamicsConfig {
+  enabled: boolean;
+  /** Mean reversion speed (annualized). kappa=4.0 ≈ 0.016/day */
+  kappa: number;
+  /** Use HV60 as long-run mean theta. If false, uses entry IV. */
+  useHV60ForTheta: boolean;
+  /** Vol of vol (reserved for future stochastic mode). */
+  sigmaVol: number;
+  /** Stochastic mode: add noise term. Default false (deterministic O-U). */
+  stochastic: boolean;
+}
+
+export const DEFAULT_IV_DYNAMICS: IVDynamicsConfig = {
+  enabled: false,
+  kappa: 4.0,
+  useHV60ForTheta: true,
+  sigmaVol: 0.6,
+  stochastic: false,
+};
+
+// ── Regime-Adaptive Quality Gates ────────────────────────
+
+/** Regime-conditional quality gate overrides (NOT optimizable) */
+export interface RegimeGateConfig {
+  enabled: boolean;
+  // Trending regime (ADX > 25)
+  trendingADX: number;      // min ADX when trending (default 20, stricter)
+  trendingRVOL: number;     // min RVOL when trending (default 0.3, relaxed)
+  trendingCoherence: [number, number, number, number]; // [3/3, 2/3, 1/3, 0/3]
+  // Ranging regime (ADX < 20)
+  rangingADX: number;       // min ADX when ranging (default 10, relaxed)
+  rangingRVOL: number;      // min RVOL when ranging (default 0.8, stricter)
+  rangingCoherence: [number, number, number, number];
+}
+
+export const DEFAULT_REGIME_GATES: RegimeGateConfig = {
+  enabled: false,
+  trendingADX: 20,
+  trendingRVOL: 0.3,
+  trendingCoherence: [1.15, 1.00, 0.85, 0.60],
+  rangingADX: 10,
+  rangingRVOL: 0.8,
+  rangingCoherence: [1.05, 1.00, 0.85, 0.80],
 };
 
 export interface BacktestConfig {
@@ -72,6 +142,10 @@ export interface BacktestConfig {
   qualityGates: QualityGates;
   // BSM synthetic options repricing (Phase 1)
   optionsPricing?: OptionsPricingConfig;
+  // Adverse-fill slippage model
+  slippage?: SlippageConfig;
+  // Regime-adaptive quality gate overrides
+  regimeGates?: RegimeGateConfig;
 }
 
 export const DEFAULT_CONFIG: BacktestConfig = {
@@ -130,6 +204,11 @@ export interface PrecomputedSignal {
   // BSM repricing: rolling HV at signal bar (annualized decimal)
   ivEstimate?: number;    // HV20
   ivEstimate30?: number;  // HV30
+  ivEstimate60?: number;  // HV60 (for O-U theta estimation)
+  // Regime at signal bar
+  regime?: 'trending' | 'ranging' | 'neutral';
+  // Sub-scores for GA correlation penalty
+  subScores?: { sc_mb: number; sc_bxs: number; sc_bxl: number; sc_ema: number; sc_mom: number };
 }
 
 // ── Trade ───────────────────────────────────────────────
@@ -168,8 +247,17 @@ export interface BacktestTrade {
   optionPriceExit?: number;      // BSM price at exit
   strikeUsed?: number;           // K used for BSM
   ivAtEntry?: number;            // sigma used (annualized decimal)
+  ivAtExit?: number;             // sigma at exit (may differ with O-U dynamics)
   entryDelta?: number;           // BSM delta at entry
   exitDelta?: number;            // BSM delta at exit
+  // Vertical spread fields
+  shortStrikeUsed?: number;
+  shortOptionPriceEntry?: number;
+  shortOptionPriceExit?: number;
+  spreadWidth?: number;          // distance between strikes
+  maxSpreadLoss?: number;        // defined-risk cap
+  // Sub-scores for correlation analysis
+  subScores?: { sc_mb: number; sc_bxs: number; sc_bxl: number; sc_ema: number; sc_mom: number };
 }
 
 // ── Analytics ───────────────────────────────────────────
@@ -249,6 +337,10 @@ export interface BacktestAnalytics {
   optionExpectancy?: number;
   optionMaxDrawdown?: number;
   optionEquityCurve?: { date: string; cumReturn: number }[];
+  // GA correlation penalty: avg pairwise |corr| of sub-scores
+  avgSubScoreCorrelation?: number;
+  // Monte Carlo permutation test
+  monteCarlo?: MonteCarloResult;
 }
 
 export interface GateStats {
@@ -266,6 +358,14 @@ export interface MonteCarloResult {
   maxDrawdown: { p5: number; p50: number; p95: number };
   finalReturn: { p5: number; p50: number; p95: number };
   isSignificant: boolean;       // true if p5 Sharpe > 0
+  /** Block bootstrap (preserves time-series autocorrelation) */
+  blockBootstrap?: {
+    blockSize: number;
+    sharpe: { p5: number; p50: number; p95: number };
+    maxDrawdown: { p5: number; p50: number; p95: number };
+    finalReturn: { p5: number; p50: number; p95: number };
+    isSignificant: boolean;
+  };
 }
 
 // ── Walk-Forward ────────────────────────────────────────
@@ -283,6 +383,8 @@ export interface WalkForwardConfig {
   oosWindowDays: number;        // default 63 (1 quarter)
   /** 'rolling' = fixed IS window, 'anchored' = expanding IS from start */
   mode: WalkForwardMode;        // default 'anchored'
+  /** Gap between IS end and OOS start to prevent look-ahead leakage (default 5) */
+  purgeGapDays?: number;
   /** Use GA ('ga') or grid sweep ('sweep') for IS optimization */
   optimizer: 'ga' | 'sweep';
   /** GA settings (when optimizer='ga') */
@@ -340,6 +442,8 @@ export interface SweepConfig {
   setupGroups: string[][];
   thetaDecayRange: number[];
   optionsPricing?: OptionsPricingConfig;
+  slippage?: SlippageConfig;
+  regimeGates?: RegimeGateConfig;
 }
 
 /** Optimize mode: GA-based indicator weight optimization with fixed TP/SL */
@@ -361,6 +465,8 @@ export interface OptimizeConfig {
   // Which parameter groups the GA optimizes (default: weights only)
   optimizeParams?: OptimizeParams;
   optionsPricing?: OptionsPricingConfig;
+  slippage?: SlippageConfig;
+  regimeGates?: RegimeGateConfig;
 }
 
 /** Toggle which parameter groups are included in GA optimization */

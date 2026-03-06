@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Rocket, Upload, Info } from 'lucide-react';
 import { useBacktest } from '../hooks/useBacktest';
-import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, OptimizeConfig, OptimizeParams, QualityGates, IVSource } from '../lib/backtest/types';
-import { DEFAULT_QUALITY_GATES, DEFAULT_OPTIMIZE_PARAMS, DEFAULT_OPTIONS_PRICING } from '../lib/backtest/types';
+import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, OptimizeConfig, OptimizeParams, QualityGates, IVSource, SpreadType } from '../lib/backtest/types';
+import { DEFAULT_QUALITY_GATES, DEFAULT_OPTIMIZE_PARAMS, DEFAULT_OPTIONS_PRICING, DEFAULT_SLIPPAGE, DEFAULT_REGIME_GATES, DEFAULT_IV_DYNAMICS } from '../lib/backtest/types';
 import type { TechScoreOptions } from '../lib/tech-analysis';
 import { DEFAULT_SWEEP } from '../lib/backtest/sweep';
 import { useAppSettings } from '../context/AppSettingsContext';
@@ -184,47 +184,131 @@ const SharedConfigFields: React.FC<{
           <Tip text="Converts stock-price returns to synthetic option returns using Black-Scholes. An ATM option is priced at entry and repriced at exit, capturing delta leverage, gamma convexity, and real theta decay." />
         </label>
         {config.optionsPricing?.enabled && (
-          <div className="grid grid-cols-3 gap-2 mt-2">
+          <div className="space-y-2 mt-2">
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-[10px] text-text-tertiary uppercase block mb-1">
+                  Entry DTE<Tip text="Days to expiration when synthetic option is 'bought'. 30 = typical swing trade." />
+                </label>
+                <input type="number" value={config.optionsPricing?.entryDTE ?? 30}
+                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, entryDTE: Number(e.target.value) } })}
+                  step={1} min={7} max={90}
+                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-[10px] text-text-tertiary uppercase block mb-1">
+                  IV Source<Tip text="HV20 = 20-day historical vol. HV30 = 30-day. Fixed = user-specified constant." />
+                </label>
+                <select value={config.optionsPricing?.ivSource ?? 'hv20'}
+                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, ivSource: e.target.value as IVSource } })}
+                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-accent-green/50 focus:outline-none">
+                  <option value="hv20">HV20</option>
+                  <option value="hv30">HV30</option>
+                  <option value="fixed">Fixed</option>
+                </select>
+              </div>
+              {config.optionsPricing?.ivSource === 'fixed' ? (
+                <div>
+                  <label className="text-[10px] text-text-tertiary uppercase block mb-1">Fixed IV %</label>
+                  <input type="number" value={Math.round((config.optionsPricing?.fixedIV ?? 0.25) * 100)}
+                    onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, fixedIV: Number(e.target.value) / 100 } })}
+                    step={1} min={5} max={200}
+                    className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+                </div>
+              ) : (
+                <div>
+                  <label className="text-[10px] text-text-tertiary uppercase block mb-1">
+                    Rate<Tip text="Risk-free rate for BSM pricing (Treasury rate)." />
+                  </label>
+                  <input type="number" value={config.optionsPricing?.riskFreeRate ?? 0.04}
+                    onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, riskFreeRate: Number(e.target.value) } })}
+                    step={0.005} min={0} max={0.10}
+                    className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+                </div>
+              )}
+            </div>
+            {/* Spread Type */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-text-tertiary uppercase block mb-1">
+                  Spread<Tip text="Single = naked long option. Vertical = buy ATM + sell OTM (defined risk). Vertical spreads cap max loss at spread width minus debit paid." />
+                </label>
+                <select value={config.optionsPricing?.spreadType ?? 'single'}
+                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, spreadType: e.target.value as SpreadType } })}
+                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-accent-green/50 focus:outline-none">
+                  <option value="single">Single Leg</option>
+                  <option value="vertical">Vertical</option>
+                </select>
+              </div>
+              {config.optionsPricing?.spreadType === 'vertical' && (
+                <div>
+                  <label className="text-[10px] text-text-tertiary uppercase block mb-1">
+                    Width (ATR)<Tip text="Distance between long and short strikes in ATR multiples. 1.0 ATR is typical. Wider = more profit potential but higher debit." />
+                  </label>
+                  <input type="number" value={config.optionsPricing?.spreadWidthATR ?? 1.0}
+                    onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, spreadWidthATR: Number(e.target.value) } })}
+                    step={0.25} min={0.25} max={3.0}
+                    className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+                </div>
+              )}
+            </div>
+            {/* O-U IV Dynamics */}
+            <label className="flex items-center gap-2 text-[10px] text-text-secondary cursor-pointer">
+              <input type="checkbox" checked={config.optionsPricing?.ivDynamics?.enabled ?? false}
+                onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, ivDynamics: { ...(config.optionsPricing?.ivDynamics ?? DEFAULT_IV_DYNAMICS), enabled: e.target.checked } } })}
+                className="rounded border-white/20 bg-[#111]" />
+              O-U IV Dynamics
+              <Tip text="Ornstein-Uhlenbeck mean reversion for IV. Exit IV evolves toward long-run mean (HV60) at speed kappa. More realistic than constant IV." />
+            </label>
+            {config.optionsPricing?.ivDynamics?.enabled && (
+              <div className="grid grid-cols-2 gap-2 pl-4">
+                <div>
+                  <label className="text-[10px] text-text-tertiary uppercase block mb-1">
+                    Kappa<Tip text="Mean reversion speed (annualized). 4.0 = fast reversion, 1.0 = slow. Higher kappa pulls IV toward theta faster." />
+                  </label>
+                  <input type="number" value={config.optionsPricing?.ivDynamics?.kappa ?? 4.0}
+                    onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, ivDynamics: { ...config.optionsPricing!.ivDynamics!, kappa: Number(e.target.value) } } })}
+                    step={0.5} min={0.5} max={10}
+                    className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+                </div>
+                <label className="flex items-center gap-2 text-[10px] text-text-secondary cursor-pointer self-end pb-1">
+                  <input type="checkbox" checked={config.optionsPricing?.ivDynamics?.useHV60ForTheta ?? true}
+                    onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, ivDynamics: { ...config.optionsPricing!.ivDynamics!, useHV60ForTheta: e.target.checked } } })}
+                    className="rounded border-white/20 bg-[#111]" />
+                  HV60 as theta
+                  <Tip text="Use 60-day historical vol as the long-run mean IV target. If off, uses entry IV (no mean reversion target)." />
+                </label>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Slippage */}
+      <div className="border border-white/5 rounded-lg p-2.5">
+        <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+          <input type="checkbox" checked={config.slippage?.enabled ?? false}
+            onChange={e => upd({ slippage: { ...(config.slippage ?? DEFAULT_SLIPPAGE), enabled: e.target.checked } })}
+            className="rounded border-white/20 bg-[#111]" />
+          Slippage Model
+          <Tip text="Applies adverse fill basis points at entry and exit. 5 bps = 0.05% worse price on each trade. Models real-world execution costs." />
+        </label>
+        {config.slippage?.enabled && (
+          <div className="grid grid-cols-2 gap-2 mt-2">
             <div>
-              <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                Entry DTE<Tip text="Days to expiration when synthetic option is 'bought'. 30 = typical swing trade." />
-              </label>
-              <input type="number" value={config.optionsPricing?.entryDTE ?? 30}
-                onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, entryDTE: Number(e.target.value) } })}
-                step={1} min={7} max={90}
+              <label className="text-[10px] text-text-tertiary uppercase block mb-1">Entry (bps)</label>
+              <input type="number" value={config.slippage?.entryBps ?? 5}
+                onChange={e => upd({ slippage: { ...config.slippage!, entryBps: Number(e.target.value) } })}
+                step={1} min={0} max={50}
                 className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
             </div>
             <div>
-              <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                IV Source<Tip text="HV20 = 20-day historical vol. HV30 = 30-day. Fixed = user-specified constant." />
-              </label>
-              <select value={config.optionsPricing?.ivSource ?? 'hv20'}
-                onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, ivSource: e.target.value as IVSource } })}
-                className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-accent-green/50 focus:outline-none">
-                <option value="hv20">HV20</option>
-                <option value="hv30">HV30</option>
-                <option value="fixed">Fixed</option>
-              </select>
+              <label className="text-[10px] text-text-tertiary uppercase block mb-1">Exit (bps)</label>
+              <input type="number" value={config.slippage?.exitBps ?? 5}
+                onChange={e => upd({ slippage: { ...config.slippage!, exitBps: Number(e.target.value) } })}
+                step={1} min={0} max={50}
+                className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
             </div>
-            {config.optionsPricing?.ivSource === 'fixed' ? (
-              <div>
-                <label className="text-[10px] text-text-tertiary uppercase block mb-1">Fixed IV %</label>
-                <input type="number" value={Math.round((config.optionsPricing?.fixedIV ?? 0.25) * 100)}
-                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, fixedIV: Number(e.target.value) / 100 } })}
-                  step={1} min={5} max={200}
-                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-              </div>
-            ) : (
-              <div>
-                <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                  Rate<Tip text="Risk-free rate for BSM pricing (Treasury rate)." />
-                </label>
-                <input type="number" value={config.optionsPricing?.riskFreeRate ?? 0.04}
-                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, riskFreeRate: Number(e.target.value) } })}
-                  step={0.005} min={0} max={0.10}
-                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -292,6 +376,13 @@ const SharedConfigFields: React.FC<{
               <Toggle checked={config.qualityGates.useSqueeze} onChange={v => updGate({ useSqueeze: v })} color="bg-cyan-500" />
               Squeeze multiplier
               <Tip text="Bollinger Band squeeze detection: BB inside Keltner Channel = volatility compression. When squeeze is active, a breakout is likely. Applies 1.05x score boost to signals during squeeze conditions." />
+            </label>
+            <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+              <Toggle checked={config.regimeGates?.enabled ?? false}
+                onChange={v => upd({ regimeGates: { ...(config.regimeGates ?? DEFAULT_REGIME_GATES), enabled: v } })}
+                color="bg-cyan-500" />
+              Regime-adaptive gates
+              <Tip text="ADX/RVOL thresholds and coherence multipliers adapt based on market regime (trending/ranging). Trending: stricter ADX, relaxed volume. Ranging: relaxed ADX, stricter volume." />
             </label>
           </div>
         )}
@@ -422,6 +513,8 @@ const OptimizePanel: React.FC<{
         endDate: config.endDate,
         timeframe: '1D',
         optionsPricing: config.optionsPricing,
+        slippage: config.slippage,
+        regimeGates: config.regimeGates,
       });
     } else {
       onRunOptimize({
@@ -436,6 +529,8 @@ const OptimizePanel: React.FC<{
         tickers: parsedTickers.length > 1 ? parsedTickers : undefined,
         optimizeParams: optParams,
         optionsPricing: config.optionsPricing,
+        slippage: config.slippage,
+        regimeGates: config.regimeGates,
       });
     }
   };
@@ -1107,6 +1202,38 @@ const TickerBreakdown: React.FC<{ trades: BacktestTrade[] }> = ({ trades }) => {
   );
 };
 
+const MonteCarloBar: React.FC<{ analytics: BacktestAnalytics }> = ({ analytics }) => {
+  const mc = analytics.monteCarlo;
+  if (!mc) return null;
+  const bb = mc.blockBootstrap;
+  return (
+    <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-3 space-y-2">
+      <h3 className="text-sm font-medium">Monte Carlo</h3>
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <Stat label="MC Sharpe p50" value={mc.sharpe.p50.toFixed(2)} sub={`[${mc.sharpe.p5.toFixed(2)}, ${mc.sharpe.p95.toFixed(2)}]`} good={mc.sharpe.p50 > 0.5} />
+        <Stat label="MC DD p50" value={`${mc.maxDrawdown.p50.toFixed(1)}%`} sub={`[${mc.maxDrawdown.p5.toFixed(1)}%, ${mc.maxDrawdown.p95.toFixed(1)}%]`} />
+        <Stat label="Significant" value={mc.isSignificant ? 'Yes' : 'No'} good={mc.isSignificant} sub={`p5 Sharpe: ${mc.sharpe.p5.toFixed(2)}`} />
+      </div>
+      {bb && (
+        <>
+          <div className="text-[10px] text-text-tertiary border-t border-white/5 pt-1.5">Block Bootstrap (block={bb.blockSize})</div>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <Stat label="BB Sharpe p50" value={bb.sharpe.p50.toFixed(2)} sub={`[${bb.sharpe.p5.toFixed(2)}, ${bb.sharpe.p95.toFixed(2)}]`} good={bb.sharpe.p50 > 0.5} />
+            <Stat label="BB DD p50" value={`${bb.maxDrawdown.p50.toFixed(1)}%`} sub={`[${bb.maxDrawdown.p5.toFixed(1)}%, ${bb.maxDrawdown.p95.toFixed(1)}%]`} />
+            <Stat label="BB Significant" value={bb.isSignificant ? 'Yes' : 'No'} good={bb.isSignificant} sub="p5 Sharpe > 0" />
+          </div>
+        </>
+      )}
+      {analytics.avgSubScoreCorrelation != null && (
+        <div className="text-[10px] text-text-tertiary border-t border-white/5 pt-1.5">
+          Avg sub-score correlation: <span className={analytics.avgSubScoreCorrelation > 0.3 ? 'text-amber-400' : 'text-emerald-400'}>{analytics.avgSubScoreCorrelation.toFixed(3)}</span>
+          {analytics.avgSubScoreCorrelation > 0.3 && ' (high — GA fitness penalized)'}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const SingleResultView: React.FC<{ result: BacktestResult }> = ({ result }) => {
   const { analytics, trades, config } = result;
   const hasMultiTicker = trades.some(t => t.ticker);
@@ -1116,6 +1243,7 @@ const SingleResultView: React.FC<{ result: BacktestResult }> = ({ result }) => {
       <AnalyticsGrid a={analytics} />
       {hasMultiTicker && <TickerBreakdown trades={trades} />}
       <GateStatsBar analytics={analytics} />
+      <MonteCarloBar analytics={analytics} />
 
       <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-3">
         <h3 className="text-sm font-medium mb-2">Equity Curve</h3>
