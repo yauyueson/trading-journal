@@ -52,7 +52,8 @@ const SharedConfigFields: React.FC<{
   config: BacktestConfig;
   onChange: (c: BacktestConfig) => void;
   showWeights?: boolean;
-}> = ({ config, onChange, showWeights }) => {
+  hideTicker?: boolean;
+}> = ({ config, onChange, showWeights, hideTicker }) => {
   const [showIndicators, setShowIndicators] = useState(false);
   const [showGates, setShowGates] = useState(false);
 
@@ -69,17 +70,24 @@ const SharedConfigFields: React.FC<{
   return (
     <>
       {/* Ticker + Dates */}
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
-            Ticker<Tip text="Stock symbol to backtest. Signals are generated from this ticker's daily candles using the tech score algorithm." />
-          </label>
-          <input type="text" value={config.ticker} onChange={e => upd({ ticker: e.target.value.toUpperCase() })}
-            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+      {!hideTicker ? (
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+              Ticker<Tip text="Stock symbol to backtest. Signals are generated from this ticker's daily candles using the tech score algorithm." />
+            </label>
+            <input type="text" value={config.ticker} onChange={e => upd({ ticker: e.target.value.toUpperCase() })}
+              className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+          </div>
+          <Field label="Start" value={config.startDate} onChange={v => upd({ startDate: v })} type="date" />
+          <Field label="End" value={config.endDate} onChange={v => upd({ endDate: v })} type="date" />
         </div>
-        <Field label="Start" value={config.startDate} onChange={v => upd({ startDate: v })} type="date" />
-        <Field label="End" value={config.endDate} onChange={v => upd({ endDate: v })} type="date" />
-      </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Start" value={config.startDate} onChange={v => upd({ startDate: v })} type="date" />
+          <Field label="End" value={config.endDate} onChange={v => upd({ endDate: v })} type="date" />
+        </div>
+      )}
 
       {/* TP/SL */}
       <div className="grid grid-cols-2 gap-2">
@@ -321,9 +329,16 @@ const OptimizePanel: React.FC<{
   const [subMode, setSubMode] = useState<OptSubMode>('sweep');
   const [showSweepDims, setShowSweepDims] = useState(false);
   const [showOptParams, setShowOptParams] = useState(false);
-  const [optimizeTickers, setOptimizeTickers] = useState('');
+  const [tickersInput, setTickersInput] = useState(config.ticker || 'SPY');
   const [sweepToggles, setSweepToggles] = useState<SweepToggles>(DEFAULT_SWEEP_TOGGLES);
   const [optParams, setOptParams] = useState<OptimizeParams>(DEFAULT_OPTIMIZE_PARAMS);
+
+  // Parse tickers from the unified input
+  const parsedTickers = useMemo(() =>
+    tickersInput.split(',').map(t => t.trim().toUpperCase()).filter(Boolean),
+    [tickersInput]
+  );
+  const primaryTicker = parsedTickers[0] || 'SPY';
 
   const sweepConfig = useMemo((): Omit<SweepConfig, 'ticker' | 'startDate' | 'endDate' | 'timeframe'> => ({
     tpAtrRange: sweepToggles.tpSl ? DEFAULT_SWEEP.tpAtrRange : [config.tpAtr],
@@ -342,22 +357,18 @@ const OptimizePanel: React.FC<{
     (optParams.tpSl ? 2 : 0) + (optParams.minScore ? 1 : 0) + (optParams.decay ? 1 : 0);
 
   const handleRun = () => {
+    if (parsedTickers.length === 0) return;
     if (subMode === 'sweep') {
       onRunSweep({
         ...sweepConfig,
-        ticker: config.ticker,
+        ticker: primaryTicker,
         startDate: config.startDate,
         endDate: config.endDate,
         timeframe: '1D',
       });
     } else {
-      const extraTickers = optimizeTickers
-        .split(',')
-        .map(t => t.trim().toUpperCase())
-        .filter(t => t && t !== config.ticker);
-      const allTickers = [config.ticker, ...extraTickers];
       onRunOptimize({
-        ticker: config.ticker,
+        ticker: primaryTicker,
         startDate: config.startDate,
         endDate: config.endDate,
         tpAtr: config.tpAtr,
@@ -365,7 +376,7 @@ const OptimizePanel: React.FC<{
         minScore: config.minScore,
         minConfidence: config.minConfidence,
         thetaDecayRate: config.thetaDecayRate,
-        tickers: allTickers.length > 1 ? allTickers : undefined,
+        tickers: parsedTickers.length > 1 ? parsedTickers : undefined,
         optimizeParams: optParams,
       });
     }
@@ -373,7 +384,20 @@ const OptimizePanel: React.FC<{
 
   return (
     <div className="space-y-3">
-      <SharedConfigFields config={config} onChange={onChange} />
+      {/* Tickers input */}
+      <div>
+        <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+          Tickers<Tip text="One or more stock symbols, comma-separated. First ticker is primary. For GA mode, fitness is averaged across all tickers to find universal params (anti-overfitting)." />
+        </label>
+        <input value={tickersInput} onChange={e => setTickersInput(e.target.value.toUpperCase())}
+          placeholder="SPY, QQQ, AAPL"
+          className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none placeholder:text-white/20" />
+        {parsedTickers.length > 1 && (
+          <div className="text-[10px] text-text-tertiary mt-0.5">{parsedTickers.length} tickers — GA averages fitness across all</div>
+        )}
+      </div>
+
+      <SharedConfigFields config={config} onChange={onChange} hideTicker />
 
       {/* Sub-mode toggle: Sweep vs GA */}
       <div className="flex gap-1 bg-[#0A0A0A] rounded-lg p-0.5">
@@ -443,16 +467,6 @@ const OptimizePanel: React.FC<{
       {/* GA-specific controls */}
       {subMode === 'ga' && (
         <>
-          {/* Multi-ticker */}
-          <div>
-            <label className="text-[11px] text-text-tertiary uppercase block mb-1">
-              Extra Tickers<Tip text="GA averages fitness across all tickers to find universal weights that generalize well. Prevents overfitting to one ticker's quirks." />
-            </label>
-            <input value={optimizeTickers} onChange={e => setOptimizeTickers(e.target.value.toUpperCase())}
-              placeholder="QQQ, AAPL, MSFT"
-              className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-purple-500/50 focus:outline-none placeholder:text-white/20" />
-          </div>
-
           {/* GA Parameters */}
           <div>
             <button onClick={() => setShowOptParams(!showOptParams)}
@@ -530,7 +544,7 @@ const OptimizePanel: React.FC<{
       </div>
 
       {/* Run Button */}
-      <button onClick={handleRun} disabled={loading || (subMode === 'ga' && geneCount === 0)}
+      <button onClick={handleRun} disabled={loading || parsedTickers.length === 0 || (subMode === 'ga' && geneCount === 0)}
         className={`w-full py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${
           subMode === 'ga'
             ? 'bg-purple-500 text-white hover:bg-purple-400'

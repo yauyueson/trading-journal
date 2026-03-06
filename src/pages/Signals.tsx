@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Radio, RefreshCw, X, Settings } from 'lucide-react';
 import { useSignalScanner, type SignalRow } from '../hooks/useSignalScanner';
+import { usePositions } from '../hooks/usePositions';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { useNavigate } from 'react-router-dom';
 import type { TechScoreOptions } from '../lib/tech-analysis';
@@ -33,10 +34,12 @@ export const SignalsPage: React.FC = () => {
   const { settings } = useAppSettings();
   const navigate = useNavigate();
   const scanner = useSignalScanner();
+  const { data: positions } = usePositions();
   const [minScore, setMinScore] = useState(0);
   const [dirFilter, setDirFilter] = useState<'ALL' | 'CALL' | 'PUT'>('ALL');
   const [tickerInput, setTickerInput] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const hasSeededWatchlist = useRef(false);
 
   const hasDeployed = !!settings.strategy.deployedAt;
 
@@ -46,11 +49,26 @@ export const SignalsPage: React.FC = () => {
     ...settings.techScore.periods,
   };
 
-  // Auto-scan on mount
+  // Seed scanner with watchlist tickers once positions load, then scan
   useEffect(() => {
-    scanner.scan(techOptions);
+    if (hasSeededWatchlist.current) return;
+    // Wait for positions to load (undefined = loading, array = loaded)
+    if (!positions) return;
+    hasSeededWatchlist.current = true;
+
+    const watchlistTickers = [...new Set(
+      positions
+        .filter(p => p.status === 'watchlist')
+        .map(p => p.ticker.toUpperCase())
+    )];
+
+    // Merge watchlist tickers with defaults (dedup)
+    const merged = [...new Set([...scanner.tickers, ...watchlistTickers])];
+    scanner.setTickers(merged);
+    // Pass merged list directly to avoid stale closure
+    scanner.scan(techOptions, merged);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [positions]);
 
   // Auto-refresh interval
   useEffect(() => {
@@ -232,6 +250,29 @@ export const SignalsPage: React.FC = () => {
             />
           </div>
           <p className="text-xs text-text-tertiary mt-1">Scanning {scanner.tickers.length} tickers... {scanner.progress}%</p>
+        </div>
+      )}
+
+      {/* Failed tickers */}
+      {!scanner.loading && scanner.failed.length > 0 && (
+        <div className="mt-3 p-3 bg-red-500/5 border border-red-500/20 rounded-lg">
+          <p className="text-xs font-medium text-red-400 mb-1">
+            {scanner.failed.length} ticker{scanner.failed.length > 1 ? 's' : ''} failed to load:
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {scanner.failed.map(f => (
+              <span key={f.ticker} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] bg-red-500/10 text-red-400 rounded" title={f.reason}>
+                {f.ticker}
+                <span className="text-red-400/50 max-w-[120px] truncate">{f.reason.includes('Rate limit') ? '(rate limit)' : '(error)'}</span>
+              </span>
+            ))}
+          </div>
+          <button
+            onClick={() => scanner.scanAdditional(scanner.failed.map(f => f.ticker), techOptions)}
+            className="mt-2 text-[10px] text-accent-green hover:underline"
+          >
+            Retry failed tickers
+          </button>
         </div>
       )}
     </div>
