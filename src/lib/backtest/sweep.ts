@@ -242,10 +242,10 @@ function crossover(a: Individual, b: Individual): Individual {
   return a.map((v, i) => Math.random() < 0.5 ? v : b[i]);
 }
 
-/** Gaussian mutation: 20% per gene */
-function mutate(genes: Individual, defs: GeneDef[]): Individual {
+/** Gaussian mutation: `rate` per gene (default 0.20, boosted to 0.40 when stagnating) */
+function mutate(genes: Individual, defs: GeneDef[], rate = 0.20): Individual {
   return genes.map((v, i) => {
-    if (Math.random() > 0.20) return v;
+    if (Math.random() > rate) return v;
     const d = defs[i];
     const sigma = Math.max(d.step, (d.max - d.min) / 6);
     const u1 = Math.random() || 1e-10;
@@ -423,7 +423,17 @@ export async function runGeneticOptimize(
 
   const generationHistory: { gen: number; bestFitness: number; avgFitness: number }[] = [];
   let totalEvals = POP_SIZE;
-  const PATIENCE = 5; // stop if no improvement for this many generations
+  // Early stop: halt after PATIENCE gens with no improvement AND low diversity.
+  // MIN_GENS guarantees we don't stop before diversity injections have had a chance.
+  const PATIENCE = 5;
+  const MIN_GENS = Math.min(10, GENERATIONS);
+  // Diversity restart: when population homogenizes (avg/best > threshold),
+  // replace bottom RESTART_FRACTION with fresh randoms and boost mutation.
+  const DIVERSITY_TRIGGER = 0.95; // avg/best ratio above which we inject
+  const RESTART_FRACTION = 0.40;
+  const MAX_RESTARTS = 2;
+  let restartCount = 0;
+  let mutationRate = 0.20;
   let noImproveSince = 0;
 
   const bestFit0 = Math.max(...fitnesses);
@@ -435,6 +445,32 @@ export async function runGeneticOptimize(
   // Evolution loop
   for (let gen = 1; gen <= GENERATIONS; gen++) {
     const indices = fitnesses.map((_, i) => i).sort((a, b) => fitnesses[b] - fitnesses[a]);
+
+    // ── Diversity injection ─────────────────────────────────
+    // When population has homogenized around one solution, kick in fresh blood
+    // instead of giving up. Limit to MAX_RESTARTS to avoid thrashing.
+    const bestFitPre = fitnesses[indices[0]];
+    const avgFitPre = fitnesses.reduce((s, f) => s + f, 0) / fitnesses.length;
+    const homogenized = bestFitPre > 0 && (avgFitPre / bestFitPre) > DIVERSITY_TRIGGER;
+    if (homogenized && restartCount < MAX_RESTARTS && noImproveSince >= 2) {
+      const toReplace = Math.floor(POP_SIZE * RESTART_FRACTION);
+      for (let ri = 0; ri < toReplace; ri++) {
+        const replaceIdx = indices[POP_SIZE - 1 - ri]; // replace the worst individuals
+        const fresh = randomIndividual(defs);
+        const { result: freshResult, fitness: freshFit } = evaluate(fresh);
+        allResultsMap.set(keyOf(freshResult), freshResult);
+        totalEvals++;
+        population[replaceIdx] = fresh;
+        results[replaceIdx] = freshResult;
+        fitnesses[replaceIdx] = freshFit;
+      }
+      restartCount++;
+      noImproveSince = 0;   // give the fresh population a chance
+      mutationRate = 0.40;  // boost mutation to help escape local optimum
+    }
+
+    // Decay mutation rate back toward baseline after a restart
+    if (mutationRate > 0.20) mutationRate = Math.max(0.20, mutationRate - 0.05);
 
     const nextPop: Individual[] = [];
     const nextResults: BacktestResult[] = [];
@@ -449,7 +485,7 @@ export async function runGeneticOptimize(
       const parentA = tournamentSelect(population, fitnesses, TOURNAMENT_K);
       const parentB = tournamentSelect(population, fitnesses, TOURNAMENT_K);
       let child = crossover(parentA, parentB);
-      child = mutate(child, defs);
+      child = mutate(child, defs, mutationRate);
       child = clampGenes(child, defs);
       child = normalizeWeights(child, defs);
 
@@ -472,13 +508,14 @@ export async function runGeneticOptimize(
     generationHistory.push({ gen, bestFitness: bestFit, avgFitness: avgFit });
     if (onProgress) onProgress(gen, GENERATIONS, bestFit, fitnessCache.size, avgFit);
 
-    // Early stopping: halt if no improvement for PATIENCE generations
+    // Early stopping: halt if no improvement for PATIENCE gens,
+    // but only after MIN_GENS so diversity injections have had time to work.
     if (bestFit > prevBestFit + 1e-6) {
       prevBestFit = bestFit;
       noImproveSince = 0;
     } else {
       noImproveSince++;
-      if (noImproveSince >= PATIENCE) break;
+      if (gen >= MIN_GENS && noImproveSince >= PATIENCE) break;
     }
 
     // Yield to browser between generations to keep UI responsive
