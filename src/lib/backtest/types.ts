@@ -40,6 +40,9 @@ export interface OptionsPricingConfig {
   fixedIV?: number;           // decimal, used when ivSource='fixed' (e.g. 0.25)
   // Phase 2: IV dynamics (O-U mean reversion)
   ivDynamics?: IVDynamicsConfig;
+  // Premium-based TP/SL (default when options pricing enabled)
+  premiumTP?: number;           // TP at X% premium gain (default 0.50 = 50%)
+  premiumSL?: number;           // SL at X% premium loss (default 0.50 = 50%)
   // Phase 3: Spread pricing
   spreadType?: SpreadType;    // default 'single'
   spreadWidthMode?: 'atr' | 'fixed';  // default 'fixed'
@@ -134,6 +137,8 @@ export interface BacktestConfig {
   slAtr: number;                  // SL = entry ∓ slAtr × ATR (default 1.5)
   useEntryQualityAdjust: boolean; // Adjust TP/SL by entry quality (default true)
   timeStopBars: number;           // Force close after N bars (default 21)
+  // Score-based stop loss: exit if composite score drops below this (0 = disabled)
+  scoreStopThreshold: number;     // default 55; 0 to disable
   // Options-aware
   thetaDecayRate: number;         // Decay rate for time penalty (default 0.03)
   // Look-forward windows for MFE/MAE
@@ -163,6 +168,7 @@ export const DEFAULT_CONFIG: BacktestConfig = {
   tpAtr: 2.5,
   slAtr: 1.5,
   useEntryQualityAdjust: true,
+  scoreStopThreshold: 55,
   timeStopBars: 21,
   thetaDecayRate: 0.03,
   mfeWindows: [3, 5, 7, 10, 14, 21, 30],
@@ -219,7 +225,7 @@ export interface PrecomputedSignal {
 // ── Trade ───────────────────────────────────────────────
 
 export type EntryQuality = 'OPTIMAL' | 'ACCEPTABLE' | 'MARGINAL' | 'CHASING';
-export type ExitType = 'TP' | 'SL' | 'TIME_STOP';
+export type ExitType = 'TP' | 'SL' | 'TIME_STOP' | 'SCORE_STOP';
 export type Tier = 'S' | 'A' | 'B';
 
 export interface BacktestTrade {
@@ -308,6 +314,7 @@ export interface BacktestAnalytics {
   tpHits: number;
   slHits: number;
   timeStops: number;
+  scoreStops: number;
   // By direction
   callStats: DirectionStats;
   putStats: DirectionStats;
@@ -468,6 +475,7 @@ export interface OptimizeConfig {
   minScore: number;
   minConfidence: number;
   thetaDecayRate: number;
+  scoreStopThreshold?: number;  // default 55; 0 to disable
   // GA settings (optional — sensible defaults)
   populationSize?: number;   // default 30
   generations?: number;      // default 20

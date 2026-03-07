@@ -327,6 +327,7 @@ export async function runGeneticOptimize(
       ticker: config.ticker, startDate: config.startDate, endDate: config.endDate,
       tpAtr: config.tpAtr, slAtr: config.slAtr, minScore: config.minScore,
       minConfidence: config.minConfidence, thetaDecayRate: config.thetaDecayRate,
+      scoreStopThreshold: config.scoreStopThreshold ?? 55,
     };
     const r = runBacktestFull(signals, simCandles, cfg);
     return { results: [r], rankedBySharpe: [r], rankedByWinRate: [r], bestOverall: r, totalCombos: 1, elapsedMs: performance.now() - t0 };
@@ -370,6 +371,7 @@ export async function runGeneticOptimize(
         minScore: config.minScore,
         minConfidence: config.minConfidence,
         thetaDecayRate: config.thetaDecayRate,
+        scoreStopThreshold: config.scoreStopThreshold ?? 55,
         ...tradeOverrides,
         indicatorOptions: indicatorOpts,
         optionsPricing: config.optionsPricing,
@@ -584,6 +586,7 @@ export async function runTwoStageOptimize(
           minScore: bestCfg.minScore,
           minConfidence: config.minConfidence,
           thetaDecayRate: bestCfg.thetaDecayRate,
+          scoreStopThreshold: config.scoreStopThreshold ?? 55,
           indicatorOptions: bestOpts,
           optionsPricing: config.optionsPricing,
           slippage: config.slippage,
@@ -608,6 +611,7 @@ export async function runTwoStageOptimize(
         minScore: bestCfg.minScore,
         minConfidence: config.minConfidence,
         thetaDecayRate: bestCfg.thetaDecayRate,
+        scoreStopThreshold: config.scoreStopThreshold ?? 55,
         indicatorOptions: bestOpts,
         optionsPricing: config.optionsPricing,
         slippage: config.slippage,
@@ -727,6 +731,7 @@ export async function runWalkForward(
         minScore: DEFAULT_CONFIG.minScore,
         minConfidence: DEFAULT_CONFIG.minConfidence,
         thetaDecayRate: DEFAULT_CONFIG.thetaDecayRate,
+        scoreStopThreshold: DEFAULT_CONFIG.scoreStopThreshold,
         populationSize: config.populationSize ?? 30,
         generations: config.generations ?? 20,
       };

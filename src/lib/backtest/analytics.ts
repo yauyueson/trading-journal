@@ -154,6 +154,7 @@ export function computeAnalytics(
   const tpHits = trades.filter(t => t.exitType === 'TP').length;
   const slHits = trades.filter(t => t.exitType === 'SL').length;
   const timeStops = trades.filter(t => t.exitType === 'TIME_STOP').length;
+  const scoreStops = trades.filter(t => t.exitType === 'SCORE_STOP').length;
 
   // By direction
   const callTrades = trades.filter(t => t.direction === 'CALL');
@@ -289,6 +290,7 @@ export function computeAnalytics(
     tpHits,
     slHits,
     timeStops,
+    scoreStops,
     callStats: directionStats(callTrades),
     putStats: directionStats(putTrades),
     tierS: tierStats(sTrades),

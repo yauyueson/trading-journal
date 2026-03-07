@@ -1,9 +1,8 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Rocket, Upload, Info } from 'lucide-react';
 import { useBacktest, type OOSDateRange } from '../hooks/useBacktest';
-import { usePositions } from '../hooks/usePositions';
-import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, OptimizeConfig, OptimizeParams, QualityGates, IVSource, SpreadType, WalkForwardConfig, WalkForwardResult } from '../lib/backtest/types';
-import { DEFAULT_QUALITY_GATES, DEFAULT_OPTIMIZE_PARAMS, DEFAULT_OPTIONS_PRICING, DEFAULT_SLIPPAGE, DEFAULT_REGIME_GATES, DEFAULT_IV_DYNAMICS } from '../lib/backtest/types';
+import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, OptimizeConfig, OptimizeParams, QualityGates, SpreadType, WalkForwardConfig, WalkForwardResult } from '../lib/backtest/types';
+import { DEFAULT_QUALITY_GATES, DEFAULT_OPTIMIZE_PARAMS, DEFAULT_OPTIONS_PRICING, DEFAULT_SLIPPAGE, DEFAULT_REGIME_GATES } from '../lib/backtest/types';
 import type { TechScoreOptions } from '../lib/tech-analysis';
 import { DEFAULT_SWEEP } from '../lib/backtest/sweep';
 import { useAppSettings } from '../context/AppSettingsContext';
@@ -198,13 +197,20 @@ const SharedConfigFields: React.FC<{
         </div>
       </div>
 
-      {/* Time Stop + Decay */}
-      <div className="grid grid-cols-2 gap-2">
+      {/* Time Stop + Score Stop + Decay */}
+      <div className="grid grid-cols-3 gap-2">
         <div>
           <label className="text-[11px] text-text-tertiary uppercase block mb-1">
             Time Stop<Tip text="Force-close position after N bars if neither TP nor SL is hit. Prevents capital from being tied up in stale trades. Typical: 21 bars (1 month)." />
           </label>
           <input type="number" value={config.timeStopBars} onChange={e => upd({ timeStopBars: Number(e.target.value) })} step={1} min={5} max={60}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+        </div>
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            Score Stop<Tip text="Exit if the composite signal score drops below this threshold. Indicates the original trade thesis has broken down. 0 = disabled. Default: 55." />
+          </label>
+          <input type="number" value={config.scoreStopThreshold} onChange={e => upd({ scoreStopThreshold: Number(e.target.value) })} step={5} min={0} max={70}
             className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
         </div>
         <div>
@@ -216,17 +222,40 @@ const SharedConfigFields: React.FC<{
         </div>
       </div>
 
-      {/* BSM Options Pricing */}
+      {/* Option Mode / Stock Mode */}
       <div className="border border-white/5 rounded-lg p-2.5">
         <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
           <Toggle checked={config.optionsPricing?.enabled ?? false}
-            onChange={v => upd({ optionsPricing: { ...(config.optionsPricing ?? DEFAULT_OPTIONS_PRICING), enabled: v } })} />
-          BSM Options Repricing
-          <Tip text="Converts stock-price returns to synthetic option returns using Black-Scholes. An ATM option is priced at entry and repriced at exit, capturing delta leverage, gamma convexity, and real theta decay." />
+            onChange={v => {
+              const base = config.optionsPricing ?? DEFAULT_OPTIONS_PRICING;
+              upd({ optionsPricing: { ...base, enabled: v, premiumTP: base.premiumTP ?? 0.50, premiumSL: base.premiumSL ?? 0.50 } });
+            }} />
+          {config.optionsPricing?.enabled ? 'Option Mode' : 'Stock Mode'}
+          <Tip text="Stock Mode: TP/SL based on stock price ATR levels. Option Mode: simulates buying an ATM option at each signal — TP/SL based on option premium % change (default 50%), with real IV from ORATS and theta decay." />
         </label>
         {config.optionsPricing?.enabled && (
           <div className="space-y-2 mt-2">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-text-tertiary uppercase block mb-1">
+                  Premium TP %<Tip text="Take profit when option premium gains this %. 50% = sell when option doubles by 50%." />
+                </label>
+                <input type="number" value={Math.round((config.optionsPricing?.premiumTP ?? 0.50) * 100)}
+                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, premiumTP: Number(e.target.value) / 100 } })}
+                  step={5} min={10} max={300}
+                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-[10px] text-text-tertiary uppercase block mb-1">
+                  Premium SL %<Tip text="Stop loss when option premium drops by this %. 50% = exit when option loses half its value." />
+                </label>
+                <input type="number" value={Math.round((config.optionsPricing?.premiumSL ?? 0.50) * 100)}
+                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, premiumSL: Number(e.target.value) / 100 } })}
+                  step={5} min={10} max={100}
+                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-[10px] text-text-tertiary uppercase block mb-1">
                   Entry DTE<Tip text="Days to expiration when synthetic option is 'bought'. 30 = typical swing trade." />
@@ -238,42 +267,7 @@ const SharedConfigFields: React.FC<{
               </div>
               <div>
                 <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                  IV Source<Tip text="ORATS = real market IV from ORATS API. HV20/HV30 = rolling historical vol estimates. Fixed = user-specified constant." />
-                </label>
-                <select value={config.optionsPricing?.ivSource ?? 'orats'}
-                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, ivSource: e.target.value as IVSource } })}
-                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-accent-green/50 focus:outline-none">
-                  <option value="orats">ORATS IV</option>
-                  <option value="hv20">HV20</option>
-                  <option value="hv30">HV30</option>
-                  <option value="fixed">Fixed</option>
-                </select>
-              </div>
-              {config.optionsPricing?.ivSource === 'fixed' ? (
-                <div>
-                  <label className="text-[10px] text-text-tertiary uppercase block mb-1">Fixed IV %</label>
-                  <input type="number" value={Math.round((config.optionsPricing?.fixedIV ?? 0.25) * 100)}
-                    onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, fixedIV: Number(e.target.value) / 100 } })}
-                    step={1} min={5} max={200}
-                    className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-                </div>
-              ) : (
-                <div>
-                  <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                    Rate<Tip text="Risk-free rate for BSM pricing (Treasury rate)." />
-                  </label>
-                  <input type="number" value={config.optionsPricing?.riskFreeRate ?? 0.04}
-                    onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, riskFreeRate: Number(e.target.value) } })}
-                    step={0.005} min={0} max={0.10}
-                    className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-                </div>
-              )}
-            </div>
-            {/* Spread Type */}
-            <div className={`grid gap-2 ${config.optionsPricing?.spreadType === 'vertical' ? 'grid-cols-3' : 'grid-cols-2'}`}>
-              <div>
-                <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                  Spread<Tip text="Single = naked long option. Vertical = buy ATM + sell OTM (defined risk). Vertical spreads cap max loss at spread width minus debit paid." />
+                  Spread<Tip text="Single = naked long option. Vertical = debit spread (capped risk)." />
                 </label>
                 <select value={config.optionsPricing?.spreadType ?? 'single'}
                   onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, spreadType: e.target.value as SpreadType } })}
@@ -282,69 +276,7 @@ const SharedConfigFields: React.FC<{
                   <option value="vertical">Vertical</option>
                 </select>
               </div>
-              {config.optionsPricing?.spreadType === 'vertical' && (
-                <>
-                  <div>
-                    <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                      Width Mode<Tip text="Fixed $ = constant dollar width (e.g. $1, $5). ATR = width scales with stock volatility." />
-                    </label>
-                    <select value={config.optionsPricing?.spreadWidthMode ?? 'fixed'}
-                      onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, spreadWidthMode: e.target.value as 'atr' | 'fixed' } })}
-                      className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-accent-green/50 focus:outline-none">
-                      <option value="fixed">Fixed $</option>
-                      <option value="atr">ATR ×</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                      {(config.optionsPricing?.spreadWidthMode ?? 'fixed') === 'fixed' ? 'Width ($)' : 'Width (ATR)'}
-                    </label>
-                    {(config.optionsPricing?.spreadWidthMode ?? 'fixed') === 'fixed' ? (
-                      <select value={config.optionsPricing?.spreadWidthFixed ?? 1}
-                        onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, spreadWidthFixed: Number(e.target.value) } })}
-                        className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none">
-                        <option value={1}>$1</option>
-                        <option value={2}>$2</option>
-                        <option value={2.5}>$2.50</option>
-                        <option value={5}>$5</option>
-                        <option value={10}>$10</option>
-                      </select>
-                    ) : (
-                      <input type="number" value={config.optionsPricing?.spreadWidthATR ?? 1.0}
-                        onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, spreadWidthATR: Number(e.target.value) } })}
-                        step={0.25} min={0.25} max={3.0}
-                        className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-                    )}
-                  </div>
-                </>
-              )}
             </div>
-            {/* O-U IV Dynamics */}
-            <label className="flex items-center gap-2 text-[10px] text-text-secondary cursor-pointer">
-              <Toggle checked={config.optionsPricing?.ivDynamics?.enabled ?? false}
-                onChange={v => upd({ optionsPricing: { ...config.optionsPricing!, ivDynamics: { ...(config.optionsPricing?.ivDynamics ?? DEFAULT_IV_DYNAMICS), enabled: v } } })} />
-              O-U IV Dynamics
-              <Tip text="Ornstein-Uhlenbeck mean reversion for IV. Exit IV evolves toward long-run mean (HV60) at speed kappa. More realistic than constant IV." />
-            </label>
-            {config.optionsPricing?.ivDynamics?.enabled && (
-              <div className="grid grid-cols-2 gap-2 pl-4">
-                <div>
-                  <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                    Kappa<Tip text="Mean reversion speed (annualized). 4.0 = fast reversion, 1.0 = slow. Higher kappa pulls IV toward theta faster." />
-                  </label>
-                  <input type="number" value={config.optionsPricing?.ivDynamics?.kappa ?? 4.0}
-                    onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, ivDynamics: { ...config.optionsPricing!.ivDynamics!, kappa: Number(e.target.value) } } })}
-                    step={0.5} min={0.5} max={10}
-                    className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-                </div>
-                <label className="flex items-center gap-2 text-[10px] text-text-secondary cursor-pointer self-end pb-1">
-                  <Toggle checked={config.optionsPricing?.ivDynamics?.useHV60ForTheta ?? true}
-                    onChange={v => upd({ optionsPricing: { ...config.optionsPricing!, ivDynamics: { ...config.optionsPricing!.ivDynamics!, useHV60ForTheta: v } } })} />
-                  HV60 as theta
-                  <Tip text="Use 60-day historical vol as the long-run mean IV target. If off, uses entry IV (no mean reversion target)." />
-                </label>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -563,15 +495,13 @@ const OptimizePanel: React.FC<{
   const [isSplit, setIsSplit] = useState(0.66); // IS fraction (default 66%)
   const [oosEnabled, setOosEnabled] = useState(true); // auto OOS validation after optimize
 
-  // Load watchlist + open position tickers, default all selected
-  const { data: positions } = usePositions();
-  const universeTickers = useMemo(() => {
-    if (!positions) return [];
-    const tickers = positions
-      .filter(p => p.status === 'watchlist' || p.status === 'active')
-      .map(p => p.ticker.toUpperCase());
-    return [...new Set(tickers)].sort();
-  }, [positions]);
+  // Default ticker universe: same 27 tickers as cron-signal-scan
+  const SCAN_TICKERS = useMemo(() => [
+    'SPY','QQQ','GOOG','JPM','META','TSLA','MSFT','NFLX','AAPL','NVDA',
+    'AMD','COST','IREN','BA','AMZN','HOOD','CRWV','COIN','MSTR','PLTR',
+    'AVGO','LULU','UBER','GS','UNH','IWM','GLD',
+  ], []);
+  const universeTickers = SCAN_TICKERS;
 
   // Once watchlist loads, default-select all (only on first load)
   useEffect(() => {
@@ -639,6 +569,7 @@ const OptimizePanel: React.FC<{
         minScore: config.minScore,
         minConfidence: config.minConfidence,
         thetaDecayRate: config.thetaDecayRate,
+        scoreStopThreshold: config.scoreStopThreshold,
         tickers: parsedTickers.length > 1 ? parsedTickers : undefined,
         optimizeParams: optParams,
         optionsPricing: config.optionsPricing,
@@ -1194,6 +1125,7 @@ const AnalyticsGrid: React.FC<{ a: BacktestAnalytics }> = ({ a }) => (
     <Stat label="TP Hits" value={a.tpHits} sub={`${a.totalTrades > 0 ? ((a.tpHits / a.totalTrades) * 100).toFixed(0) : 0}%`} />
     <Stat label="SL Hits" value={a.slHits} sub={`${a.totalTrades > 0 ? ((a.slHits / a.totalTrades) * 100).toFixed(0) : 0}%`} />
     <Stat label="Time Stops" value={a.timeStops} sub={`${a.totalTrades > 0 ? ((a.timeStops / a.totalTrades) * 100).toFixed(0) : 0}%`} />
+    {a.scoreStops > 0 && <Stat label="Score Stops" value={a.scoreStops} sub={`${a.totalTrades > 0 ? ((a.scoreStops / a.totalTrades) * 100).toFixed(0) : 0}%`} />}
   </div>
 );
 
@@ -1360,7 +1292,7 @@ const TradeLog: React.FC<{ trades: BacktestTrade[] }> = ({ trades }) => {
                 </td>
                 <td className="py-1 px-1.5 text-right font-mono">${t.entryPrice.toFixed(2)}</td>
                 <td className="py-1 px-1.5 text-right font-mono">${t.exitPrice.toFixed(2)}</td>
-                <td className={`py-1 px-1.5 ${t.exitType === 'TP' ? 'text-emerald-400' : t.exitType === 'SL' ? 'text-red-400' : 'text-yellow-400'}`}>
+                <td className={`py-1 px-1.5 ${t.exitType === 'TP' ? 'text-emerald-400' : t.exitType === 'SL' ? 'text-red-400' : t.exitType === 'SCORE_STOP' ? 'text-orange-400' : 'text-yellow-400'}`}>
                   {t.exitType}
                 </td>
                 <td className="py-1 px-1.5 text-right font-mono text-text-tertiary">{t.holdDays}d</td>
@@ -1726,7 +1658,7 @@ const SingleResultView: React.FC<{ result: BacktestResult }> = ({ result }) => {
           ...(analytics.optionEquityCurve?.length ? [{
             data: analytics.optionEquityCurve,
             color: '#8b5cf6',
-            label: `${config.ticker} (BSM option)`,
+            label: `${config.ticker} (option)`,
           }] : []),
         ]} />
       </div>
@@ -1978,7 +1910,31 @@ export const BacktestPage: React.FC = () => {
           )}
 
           {/* Optimize tab — GA result */}
-          {topTab === 'optimize' && bt.optimizeResult && (
+          {topTab === 'optimize' && bt.optimizeResult && (() => {
+            const best = bt.optimizeResult.bestOverall;
+            const oos = bt.oosResult;
+            // Compute strategy grade from OOS metrics
+            const oosWR = oos?.analytics.winRateTheta ?? 0;
+            const oosSharpe = oos?.analytics.sharpe ?? 0;
+            const oosPF = oos?.analytics.profitFactor ?? 0;
+            const oosTrades = oos?.analytics.totalTrades ?? 0;
+            const isSharpe = best?.analytics.sharpe ?? 0;
+            const wfEff = isSharpe > 0 ? oosSharpe / isSharpe : 0;
+            const grade = !oos ? null
+              : (oosSharpe >= 1.0 && oosWR >= 50 && oosPF >= 1.5 && wfEff >= 0.6 && oosTrades >= 10) ? 'A'
+              : (oosSharpe >= 0.5 && oosWR >= 45 && oosPF >= 1.2 && wfEff >= 0.4 && oosTrades >= 5) ? 'B'
+              : (oosSharpe > 0 && oosWR >= 40 && oosPF >= 1.0 && wfEff >= 0.25) ? 'C'
+              : 'F';
+            const gradeColor = grade === 'A' ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10'
+              : grade === 'B' ? 'text-blue-400 border-blue-500/30 bg-blue-500/10'
+              : grade === 'C' ? 'text-amber-400 border-amber-500/30 bg-amber-500/10'
+              : 'text-red-400 border-red-500/30 bg-red-500/10';
+            const gradeVerdict = grade === 'A' ? 'Strategy validated — strong OOS performance with good generalization'
+              : grade === 'B' ? 'Strategy shows promise — decent OOS metrics, consider paper trading'
+              : grade === 'C' ? 'Marginal — OOS positive but weak, needs more tickers or longer data'
+              : grade === 'F' ? 'Not viable — strategy does not generalize to unseen data'
+              : null;
+            return (
             <div className="space-y-4">
               <div className="flex items-center gap-3 text-sm text-text-tertiary">
                 <span>{bt.optimizeResult.totalCombos} evals{bt.optimizeResult.generationHistory ? ` over ${bt.optimizeResult.generationHistory.length} gens` : ''}</span>
@@ -1986,58 +1942,89 @@ export const BacktestPage: React.FC = () => {
                 <span>{bt.optimizeResult.results.filter(r => r.analytics.totalTrades >= 3).length} with 3+ trades</span>
               </div>
 
+              {/* Strategy Grade Banner */}
+              {grade && (
+                <div className={`rounded-lg border p-4 ${gradeColor}`}>
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl font-bold font-mono">{grade}</span>
+                    <div>
+                      <div className="text-sm font-medium">{gradeVerdict}</div>
+                      <div className="text-[10px] opacity-70 mt-0.5">
+                        OOS: Sharpe {oosSharpe.toFixed(2)} · WR {oosWR.toFixed(0)}% · PF {oosPF === Infinity ? '∞' : oosPF.toFixed(2)} · {oosTrades} trades · WF Eff {(wfEff * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* IS vs OOS comparison — shown when OOS validation ran */}
-              {bt.oosResult && bt.optimizeResult.bestOverall && (
+              {oos && best && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] text-text-secondary uppercase tracking-wider font-medium">IS vs OOS Validation</span>
                     <span className="text-[10px] text-text-tertiary">Best IS params applied to unseen OOS period</span>
                   </div>
-                  <ISvsOOSView isResult={bt.optimizeResult.bestOverall} oosResult={bt.oosResult} />
+                  <ISvsOOSView isResult={best} oosResult={oos} />
                 </div>
               )}
 
-              {/* Best config highlight */}
-              {bt.optimizeResult.bestOverall && (
-                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
+              {/* Best config — only show deploy when grade is A/B/C */}
+              {best && (
+                <div className={`rounded-lg p-3 ${grade === 'F' ? 'bg-red-500/5 border border-red-500/20' : 'bg-purple-500/10 border border-purple-500/30'}`}>
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[11px] text-purple-400 uppercase tracking-wider">Best Signal Config (IS)</span>
-                    {!bt.oosResult && <span className="text-[10px] text-text-tertiary ml-auto">Enable OOS split for forward-test</span>}
+                    <span className={`text-[11px] uppercase tracking-wider ${grade === 'F' ? 'text-red-400' : 'text-purple-400'}`}>
+                      {grade === 'F' ? 'Best Config (overfit — not deployable)' : oos ? 'OOS-Validated Config' : 'Best Signal Config (IS)'}
+                    </span>
+                    {!oos && <span className="text-[10px] text-text-tertiary ml-auto">Enable OOS split for forward-test</span>}
                   </div>
                   <div className="mb-2">
-                    <IndicatorParamsLabel opts={bt.optimizeResult.bestOverall.config.indicatorOptions} />
+                    <IndicatorParamsLabel opts={best.config.indicatorOptions} />
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <Stat label="IS Win Rate" value={`${bt.optimizeResult.bestOverall.analytics.winRateTheta.toFixed(1)}%`} good={bt.optimizeResult.bestOverall.analytics.winRateTheta > 50} />
-                    <Stat label="IS Sharpe" value={bt.optimizeResult.bestOverall.analytics.sharpe.toFixed(2)} good={bt.optimizeResult.bestOverall.analytics.sharpe > 1} />
-                    <Stat label="IS PF" value={bt.optimizeResult.bestOverall.analytics.profitFactor === Infinity ? '∞' : bt.optimizeResult.bestOverall.analytics.profitFactor.toFixed(2)} good={bt.optimizeResult.bestOverall.analytics.profitFactor > 1.5} />
-                    <Stat label="IS Trades" value={bt.optimizeResult.bestOverall.analytics.totalTrades}
-                      sub={(() => {
-                        const trades = bt.optimizeResult!.bestOverall!.trades;
-                        if (!trades.some(t => t.ticker)) return undefined;
-                        const counts = new Map<string, number>();
-                        for (const t of trades) { counts.set(t.ticker ?? '?', (counts.get(t.ticker ?? '?') ?? 0) + 1); }
-                        return Array.from(counts.entries()).map(([k, v]) => `${k}: ${v}`).join(' · ');
-                      })()} />
+                    {oos ? (
+                      <>
+                        <Stat label="OOS Win Rate" value={`${oosWR.toFixed(1)}%`} good={oosWR > 50} />
+                        <Stat label="OOS Sharpe" value={oosSharpe.toFixed(2)} good={oosSharpe > 0.5} />
+                        <Stat label="OOS PF" value={oosPF === Infinity ? '∞' : oosPF.toFixed(2)} good={oosPF > 1.2} />
+                        <Stat label="OOS Trades" value={oosTrades} />
+                      </>
+                    ) : (
+                      <>
+                        <Stat label="IS Win Rate" value={`${best.analytics.winRateTheta.toFixed(1)}%`} good={best.analytics.winRateTheta > 50} />
+                        <Stat label="IS Sharpe" value={best.analytics.sharpe.toFixed(2)} good={best.analytics.sharpe > 1} />
+                        <Stat label="IS PF" value={best.analytics.profitFactor === Infinity ? '∞' : best.analytics.profitFactor.toFixed(2)} good={best.analytics.profitFactor > 1.5} />
+                        <Stat label="IS Trades" value={best.analytics.totalTrades} />
+                      </>
+                    )}
                   </div>
-                  <button
-                    onClick={() => deployStrategy(bt.optimizeResult!.bestOverall!, 'ga-optimize')}
-                    disabled={deployState === 'deploying'}
-                    className="mt-2 flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 disabled:opacity-50 transition-colors"
-                  >
-                    <Upload size={13} />
-                    {deployState === 'deploying' ? 'Deploying...' : deployState === 'deployed' ? 'Deployed ✓' : 'Deploy Strategy'}
-                  </button>
+                  {grade !== 'F' && (
+                    <button
+                      onClick={() => deployStrategy(best, 'ga-optimize')}
+                      disabled={deployState === 'deploying'}
+                      className="mt-2 flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 disabled:opacity-50 transition-colors"
+                    >
+                      <Upload size={13} />
+                      {deployState === 'deploying' ? 'Deploying...' : deployState === 'deployed' ? 'Deployed ✓' : 'Deploy Strategy'}
+                    </button>
+                  )}
                 </div>
               )}
 
+              {/* Ranked configs — collapsed behind toggle when overfit */}
               <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-3">
-                <h3 className="text-sm font-medium mb-2">Ranked Signal Configs (IS)</h3>
-                <OptimizeTable
-                  results={bt.optimizeResult.results}
-                  onSelect={setSelectedOptResult}
-                  best={bt.optimizeResult.bestOverall}
-                />
+                {grade === 'F' ? (
+                  <details>
+                    <summary className="text-sm font-medium mb-2 cursor-pointer text-text-tertiary hover:text-white">
+                      Ranked Signal Configs (IS only — overfit) <span className="text-[10px] text-red-400/60 ml-2">click to expand</span>
+                    </summary>
+                    <OptimizeTable results={bt.optimizeResult.results} onSelect={setSelectedOptResult} best={best} />
+                  </details>
+                ) : (
+                  <>
+                    <h3 className="text-sm font-medium mb-2">{oos ? 'Signal Configs (ranked by IS fitness)' : 'Ranked Signal Configs'}</h3>
+                    <OptimizeTable results={bt.optimizeResult.results} onSelect={setSelectedOptResult} best={best} />
+                  </>
+                )}
               </div>
 
               {selectedOptResult && (
@@ -2054,7 +2041,8 @@ export const BacktestPage: React.FC = () => {
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Walk-Forward tab result */}
           {topTab === 'walkforward' && bt.walkforwardResult && (

@@ -341,6 +341,14 @@ export function runBacktestFull(
   let totalSignals = 0;
   let nextSignalIdx = 0;
 
+  // Build bar→score map for score-based stop loss
+  const scoreByBar = new Map<number, number>();
+  if (config.scoreStopThreshold > 0) {
+    for (const sig of signals) {
+      scoreByBar.set(sig.barIndex, sig.score);
+    }
+  }
+
   // Quality gate stats
   const gates = config.qualityGates;
   const gateStats: GateStats = { adxFiltered: 0, rvolFiltered: 0, coherenceAdjusted: 0, squeezeAdjusted: 0 };
@@ -493,6 +501,38 @@ export function runBacktestFull(
         else if (candle.high >= ot.slPrice && candle.low <= ot.tpPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
         else if (candle.low <= ot.tpPrice) { exitPrice = ot.tpPrice; exitType = 'TP'; }
         else if (candle.high >= ot.slPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
+      }
+
+      // Premium-based TP/SL (Option Mode): override ATR exits when BSM repricing is active
+      if (exitPrice === null && ot.bsmEntryPrice != null && ot.bsmEntryPrice > 0 && config.optionsPricing?.premiumTP != null) {
+        const opc = config.optionsPricing!;
+        const T_now = Math.max(1 / 365, (ot.bsmEntryDTE! - holdDays) / 365);
+
+        let sigma_now = ot.bsmIV!;
+        const ivDyn = opc.ivDynamics;
+        if (ivDyn?.enabled) {
+          const theta = ivDyn.useHV60ForTheta && ot.bsmIVTheta != null && ot.bsmIVTheta > 0.01
+            ? ot.bsmIVTheta : ot.bsmIV!;
+          sigma_now = ouIVEvolution(ot.bsmIV!, theta, ivDyn.kappa, holdDays);
+          sigma_now = Math.max(0.05, Math.min(3.0, sigma_now));
+        }
+
+        const currOptPrice = bsmPrice(candle.close, ot.bsmStrike!, T_now, sigma_now, opc.riskFreeRate, ot.bsmIsCall!);
+        const premiumReturn = (currOptPrice - ot.bsmEntryPrice) / ot.bsmEntryPrice;
+
+        if (premiumReturn >= (opc.premiumTP ?? 0.50)) {
+          exitPrice = candle.close; exitType = 'TP';
+        } else if (premiumReturn <= -(opc.premiumSL ?? 0.50)) {
+          exitPrice = candle.close; exitType = 'SL';
+        }
+      }
+
+      // Score-based stop loss: exit if current bar's composite score drops below threshold
+      if (exitPrice === null && config.scoreStopThreshold > 0) {
+        const currentScore = scoreByBar.get(barIdx);
+        if (currentScore !== undefined && currentScore < config.scoreStopThreshold) {
+          exitPrice = candle.close; exitType = 'SCORE_STOP';
+        }
       }
 
       if (exitPrice === null && holdBars >= config.timeStopBars) {

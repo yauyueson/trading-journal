@@ -210,26 +210,34 @@ export function calculateTechScore(
     let type: 'CALL' | 'PUT' | 'NEUTRAL' = "NEUTRAL";
     let conf = 0;
 
+    // ── CALL setups (strongest → weakest, order matches Pine v3.2) ──
     if ((bs_bull || (bull && oscVal > 2)) && (cr_up || (currBxs > 0 && rev_up)) && currBxl > 0 && cup8 && b_stack) {
         name = "Perfect Storm"; type = "CALL"; conf = 3;
-    } else if (bull && oscVal > 1 && currBxs > 0 && !cr_dn && currBxl > 0 && (t21 || t34) && d8 > -2 && b_stack) {
-        name = "Pullback Buy"; type = "CALL"; conf = 2;
     } else if (bull && oscVal > 2 && currBxs > 10 && currBxl > 5 && cup8 && d8 > 1 && d21 > 0) {
         name = "Breakout"; type = "CALL"; conf = 3;
-    } else if ((bs_bull || oscVal > 0) && rev_up && currBxs > -10 && cup8) {
-        name = "Divergence"; type = "CALL"; conf = 1;
     } else if (bull && oscVal > 2 && currBxs > 5 && currBxl > 8 && d8 > 0 && b_stack) {
         name = "Strong Trend"; type = "CALL"; conf = 2;
+    } else if (bull && oscVal > 1 && currBxs > 0 && !cr_dn && currBxl > 0 && (t21 || t34) && d8 > -2 && rvol_now <= 0.8 && (Math.abs(d8) <= 1.5 || t34) && b_stack) {
+        name = "Pullback Buy"; type = "CALL"; conf = 2;
+    } else if ((bs_bull || oscVal > 0) && rev_up && currBxs > -10 && cup8) {
+        name = "Divergence"; type = "CALL"; conf = 1;
+    // ── PUT setups (strongest → weakest) ──
     } else if ((bs_bear || (!bull && oscVal < -2)) && (cr_dn || (currBxs < 0 && rev_dn)) && currBxl < 0 && cdn8 && br_stack) {
         name = "Perfect Storm"; type = "PUT"; conf = 3;
-    } else if (!bull && oscVal < -1 && currBxs < 0 && !cr_up && currBxl < 0 && (t21 || t34) && d8 < 2 && br_stack) {
-        name = "Failed Rally"; type = "PUT"; conf = 2;
     } else if (!bull && oscVal < -2 && currBxs < -10 && currBxl < -5 && cdn8 && d8 < -1 && d21 < 0) {
         name = "Breakdown"; type = "PUT"; conf = 3;
-    } else if ((bs_bear || oscVal < 0) && rev_dn && currBxs < 10 && cdn8) {
-        name = "Distribution"; type = "PUT"; conf = 1;
     } else if (!bull && oscVal < -2 && currBxs < -5 && currBxl < -8 && d8 < 0 && br_stack) {
         name = "Strong Down"; type = "PUT"; conf = 2;
+    } else if (!bull && oscVal < -1 && currBxs < 0 && !cr_up && currBxl < 0 && (t21 || t34) && d8 < 2 && rvol_now <= 0.8 && (Math.abs(d8) <= 1.5 || t34) && br_stack) {
+        name = "Failed Rally"; type = "PUT"; conf = 2;
+    } else if ((bs_bear || oscVal < 0) && rev_dn && currBxs < 10 && cdn8) {
+        name = "Distribution"; type = "PUT"; conf = 1;
+    // ── Directional catch-all (Pine v3.2: all 3 core oscillators agree + price progress) ──
+    } else if (bull && currBxs > 0 && currBxl > 0 && d8 > -1 && prevClose3 > 0 && currClose > prevClose3) {
+        name = "Directional"; type = "CALL"; conf = 1;
+    } else if (!bull && currBxs < 0 && currBxl < 0 && d8 < 1 && prevClose3 > 0 && currClose < prevClose3) {
+        name = "Directional"; type = "PUT"; conf = 1;
+    // ── Generic fallback ──
     } else {
         if (bull && currBxs > 0) { name = "Bullish"; type = "CALL"; }
         else if (!bull && currBxs < 0) { name = "Bearish"; type = "PUT"; }
