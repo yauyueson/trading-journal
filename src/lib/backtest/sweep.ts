@@ -290,12 +290,21 @@ export function computeFitness(r: BacktestResult): number {
 
 /** GA-based optimizer with dynamic gene selection.
  *  Accepts single-ticker candles or multi-ticker Map for cross-ticker fitness averaging. */
-export function runGeneticOptimize(
+/** Yield control back to the browser event loop (keeps UI responsive during heavy computation). */
+function yieldToUI(): Promise<void> {
+  // Use scheduler.yield() if available (Chrome 115+), otherwise setTimeout
+  if (typeof (globalThis as any).scheduler?.yield === 'function') {
+    return (globalThis as any).scheduler.yield();
+  }
+  return new Promise<void>(resolve => setTimeout(resolve, 0));
+}
+
+export async function runGeneticOptimize(
   candles: BacktestCandle[] | Map<string, BacktestCandle[]>,
   config: OptimizeConfig,
   onProgress?: (gen: number, totalGens: number, bestFitness: number) => void,
   ivData?: IVDataRow[] | Map<string, IVDataRow[]>,
-): OptimizeResult {
+): Promise<OptimizeResult> {
   const t0 = performance.now();
   const POP_SIZE = config.populationSize ?? 30;
   const GENERATIONS = config.generations ?? 20;
@@ -449,6 +458,9 @@ export function runGeneticOptimize(
     const avgFit = fitnesses.reduce((s, f) => s + f, 0) / fitnesses.length;
     generationHistory.push({ gen, bestFitness: bestFit, avgFitness: avgFit });
     if (onProgress) onProgress(gen, GENERATIONS, bestFit);
+
+    // Yield to browser between generations to keep UI responsive
+    await yieldToUI();
   }
 
   const allResults = Array.from(allResultsMap.values());
@@ -478,17 +490,17 @@ export function runGeneticOptimize(
  *          If TP/SL IS in the GA genes, skip stage 2 (already optimized).
  * Accepts single-ticker candles or multi-ticker Map.
  */
-export function runTwoStageOptimize(
+export async function runTwoStageOptimize(
   candles: BacktestCandle[] | Map<string, BacktestCandle[]>,
   config: OptimizeConfig,
   onProgress?: (phase: 'ga' | 'tpsl', pct: number) => void,
   ivData?: IVDataRow[] | Map<string, IVDataRow[]>,
-): OptimizeResult {
+): Promise<OptimizeResult> {
   const t0 = performance.now();
   const params = config.optimizeParams ?? DEFAULT_OPTIMIZE_PARAMS;
 
   // Stage 1: GA
-  const gaResult = runGeneticOptimize(candles, config, (gen, totalGens) => {
+  const gaResult = await runGeneticOptimize(candles, config, (gen, totalGens) => {
     if (onProgress) onProgress('ga', Math.round((gen / totalGens) * 100));
   }, ivData);
 
@@ -641,12 +653,12 @@ function buildWalkForwardWindows(
   return windows;
 }
 
-export function runWalkForward(
+export async function runWalkForward(
   candles: BacktestCandle[],
   config: WalkForwardConfig,
   onProgress?: (windowIdx: number, totalWindows: number, phase: 'IS' | 'OOS') => void,
   ivData?: IVDataRow[],
-): WalkForwardResult {
+): Promise<WalkForwardResult> {
   const t0 = performance.now();
   const wfWindows = buildWalkForwardWindows(candles, config);
 
@@ -687,7 +699,7 @@ export function runWalkForward(
         populationSize: config.populationSize ?? 30,
         generations: config.generations ?? 20,
       };
-      const gaResult = runGeneticOptimize(w.isCandles, gaConfig, undefined, ivData);
+      const gaResult = await runGeneticOptimize(w.isCandles, gaConfig, undefined, ivData);
       totalEvals += gaResult.totalCombos;
 
       if (gaResult.bestOverall) {
@@ -706,7 +718,7 @@ export function runWalkForward(
         endDate: w.isEnd,
         timeframe: config.timeframe,
       };
-      const sweepResult = runSweep(w.isCandles, sweepConfig, undefined, ivData);
+      const sweepResult = await runSweep(w.isCandles, sweepConfig, undefined, ivData);
       totalEvals += sweepResult.totalCombos;
 
       if (sweepResult.bestOverall) {

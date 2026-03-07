@@ -197,7 +197,7 @@ export function useBacktest(): UseBacktestReturn {
       const allTickers = optCfg.tickers?.length ? optCfg.tickers : [optCfg.ticker];
 
       const isMultiTicker = allTickers.length > 1;
-      const MIN_CANDLES = isMultiTicker ? 1500 : 350;
+      const MIN_CANDLES = isMultiTicker ? 1000 : 350;
 
       // fullCandleMap: all candles (IS + OOS) for each ticker
       const fullCandleMap = new Map<string, BacktestCandle[]>();
@@ -250,7 +250,7 @@ export function useBacktest(): UseBacktestReturn {
       setProgressPhase('GA weights');
       const input = candleMap.size === 1 ? Array.from(candleMap.values())[0] : candleMap;
 
-      const result = runTwoStageOptimize(input, optCfg, (phase, pct) => {
+      const result = await runTwoStageOptimize(input, optCfg, (phase, pct) => {
         setProgressPhase(phase === 'ga' ? 'GA weights' : 'TP/SL grid');
         setProgress(Math.round(pct * (oosDateRange ? 0.9 : 1))); // reserve 10% for OOS
       }, ivInput);
@@ -327,7 +327,7 @@ export function useBacktest(): UseBacktestReturn {
       if (c.length < 350) throw new Error(`Need 350+ candles, got ${c.length}. Try a longer date range.`);
 
       setProgressPhase('Walk-forward');
-      const result = runWalkForward(c, wfCfg, (wi, total, phase) => {
+      const result = await runWalkForward(c, wfCfg, (wi, total, phase) => {
         setProgress(Math.round((wi / Math.max(total, 1)) * 100));
         setProgressPhase(`Window ${wi + 1}/${total} (${phase})`);
       });
