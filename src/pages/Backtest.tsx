@@ -1467,7 +1467,15 @@ const OptimizeTable: React.FC<{
   const [sortKey, setSortKey] = useState<'sharpe' | 'winRate' | 'pf' | 'trades'>('sharpe');
 
   const sorted = useMemo(() => {
-    const arr = [...results].filter(r => r.analytics.totalTrades >= 3);
+    // Deduplicate by indicator options — keep best Sharpe per unique weight config
+    const seen = new Map<string, BacktestResult>();
+    for (const r of results) {
+      if (r.analytics.totalTrades < 3) continue;
+      const key = JSON.stringify(r.config.indicatorOptions);
+      const existing = seen.get(key);
+      if (!existing || r.analytics.sharpe > existing.analytics.sharpe) seen.set(key, r);
+    }
+    const arr = Array.from(seen.values());
     switch (sortKey) {
       case 'sharpe': return arr.sort((a, b) => b.analytics.sharpe - a.analytics.sharpe);
       case 'winRate': return arr.sort((a, b) => b.analytics.winRateTheta - a.analytics.winRateTheta);
