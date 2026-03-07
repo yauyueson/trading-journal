@@ -75,12 +75,23 @@ export default async function handler(req, res) {
         let candles = null;
         let source = 'tiingo';
 
+        // Estimate minimum candles needed for the requested date range
+        const msPerDay = 86400000;
+        const rangeDays = (new Date(endDate) - new Date(startDate)) / msPerDay;
+        const minExpected = Math.floor(rangeDays * 0.65); // ~65% trading days in calendar range
+
         // Try Supabase cache first (daily only)
         if (tf === '1D') {
             candles = await getCachedCandles(ticker, startDate, endDate, tf);
             if (candles && candles.length > 0) {
-                source = 'cache';
-                console.log(`[backtest-candles] ${ticker}: ${candles.length} candles from Supabase cache`);
+                if (candles.length >= minExpected) {
+                    source = 'cache';
+                    console.log(`[backtest-candles] ${ticker}: ${candles.length} candles from Supabase cache`);
+                } else {
+                    // Cache is truncated (Supabase row limit) — fall through to Tiingo
+                    console.log(`[backtest-candles] ${ticker}: cache has ${candles.length} candles but expected ~${minExpected} for range — falling back to Tiingo`);
+                    candles = null;
+                }
             }
         }
 
