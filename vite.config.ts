@@ -857,6 +857,52 @@ function localApiPlugin(): Plugin {
         }
       });
 
+      // Handle /api/cron-iv-backfill — thin shim for local testing.
+      server.middlewares.use('/api/cron-iv-backfill', async (req, res) => {
+        const url = new URL(req.url || '', `http://${req.headers.host}`);
+
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        try {
+          const dynamicImport = new Function('path', 'return import(path)') as (p: string) => Promise<any>;
+          const handlerPath = new URL('./api/cron-iv-backfill.js', import.meta.url).href;
+          const mod = await dynamicImport(`${handlerPath}?_t=${Date.now()}`).catch(
+            () => dynamicImport(handlerPath)
+          );
+          const handler = (mod as any).default ?? mod;
+
+          const mockReq: any = {
+            method: req.method || 'GET',
+            query: Object.fromEntries(url.searchParams.entries()),
+            headers: req.headers,
+          };
+
+          let statusCode = 200;
+          const mockRes: any = {
+            setHeader: () => { },
+            status(code: number) { statusCode = code; return mockRes; },
+            json(body: unknown) {
+              res.statusCode = statusCode;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(body));
+              return mockRes;
+            },
+            end(body?: string) {
+              res.statusCode = statusCode;
+              if (body) res.end(body); else res.end();
+              return mockRes;
+            },
+          };
+
+          await handler(mockReq, mockRes);
+        } catch (error: any) {
+          console.error('[vite-shim] /api/cron-iv-backfill error:', error.message);
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: 'Internal Server Error', message: error.message }));
+        }
+      });
+
       // Handle /api/strategy-recommend — thin shim → calls the REAL api/strategy-recommend.js handler.
       // ⚠️  Do NOT add inline CBOE logic here. Edit api/strategy-recommend.js instead.
       // This shim ensures local dev uses DATA_SOURCE=POLYGON from .env.local, identical to production.

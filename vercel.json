@@ -43,8 +43,17 @@
     },
     "api/cron-trade-outcomes.js": {
       "maxDuration": 30
+    },
+    "api/cron-iv-backfill.js": {
+      "maxDuration": 120
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron-iv-backfill",
+      "schedule": "0 22 * * 1-5"
+    }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",

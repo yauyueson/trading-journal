@@ -20,6 +20,7 @@ async function getCachedIV(ticker, from, to) {
             ticker: `eq.${ticker.toUpperCase()}`,
             date: `gte.${from}`,
             order: 'date.asc',
+            limit: '10000',
         });
         if (to) params.append('date', `lte.${to}`);
 
