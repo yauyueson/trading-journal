@@ -185,15 +185,23 @@ export function computeAnalytics(
   // Equity curve + Sharpe + max drawdown
   const equityCurve: { date: string; cumReturn: number }[] = [];
   let cumReturn = 0;
-  let peak = 0;
+  // Use a separate equity tracker starting at 1.0 so drawdown is computed as
+  // % of peak equity rather than an absolute drop on a zero-based cumulative sum.
+  // Without this, a strategy with total cumReturn=4.0 that drops 0.2 would report
+  // maxDrawdown = 0.2 * 100 = 20%, which is correct — but starting from 0 means
+  // early losses produce peak=0 causing division issues; starting at 1.0 is standard.
+  let equity = 1.0;
+  let peak = 1.0;
   let maxDrawdown = 0;
 
   // Sort trades by exit date for equity curve
   const sortedTrades = [...trades].sort((a, b) => a.exitDate.localeCompare(b.exitDate));
   for (const t of sortedTrades) {
     cumReturn += t.rawReturn;
-    peak = Math.max(peak, cumReturn);
-    const dd = peak - cumReturn;
+    equity += t.rawReturn;
+    peak = Math.max(peak, equity);
+    // Relative drawdown: % drop from peak equity (prevents inflated % from zero-based peak)
+    const dd = peak > 0 ? (peak - equity) / peak : 0;
     maxDrawdown = Math.max(maxDrawdown, dd);
     equityCurve.push({ date: t.exitDate, cumReturn: cumReturn * 100 });
   }
@@ -210,8 +218,7 @@ export function computeAnalytics(
     ? (avg(rawReturns) / dd) * Math.sqrt(252 / avgHoldDaysVal)
     : 0;
 
-  // Calmar: annualized return / max drawdown
-  // Approximate annualized return from total return and period
+  // Calmar: annualized return / max drawdown (maxDrawdown is now fraction of peak)
   const totalReturnPct = cumReturn * 100;
   const calmar = maxDrawdown > 0 ? totalReturnPct / (maxDrawdown * 100) : 0;
 
@@ -245,14 +252,20 @@ export function computeAnalytics(
     const optExpectancy = avg(optWinsArr) * 100 * optWRFrac + avg(optLossesArr) * 100 * (1 - optWRFrac);
 
     // Option equity curve & drawdown
+    // optionReturn is per-trade premium % (e.g. +0.35 for TP, -0.30 for SL).
+    // Cumulating these raw values inflates drawdown to 200%+ because the scale
+    // grows with trade count. Instead, track equity starting at 1.0 and compute
+    // drawdown as % of peak equity — the standard max drawdown definition.
     let optCum = 0;
-    let optPeak = 0;
+    let optEquity = 1.0;
+    let optPeak = 1.0;
     let optMaxDD = 0;
     const optEquityCurve: { date: string; cumReturn: number }[] = [];
     for (const t of sortedTrades) {
       optCum += t.optionReturn!;
-      optPeak = Math.max(optPeak, optCum);
-      optMaxDD = Math.max(optMaxDD, optPeak - optCum);
+      optEquity += t.optionReturn!;
+      optPeak = Math.max(optPeak, optEquity);
+      optMaxDD = Math.max(optMaxDD, optPeak > 0 ? (optPeak - optEquity) / optPeak : 0);
       optEquityCurve.push({ date: t.exitDate, cumReturn: optCum * 100 });
     }
 
