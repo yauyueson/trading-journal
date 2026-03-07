@@ -1,7 +1,7 @@
 # 📊 Trading Journal - Options Trading Platform
 
 > 专业期权交易日志与策略推荐系统  
-> **数据源**: Polygon.io（主）/ CBOE（备）
+> **数据源**: ORATS（期权）+ Tiingo（股价）/ CBOE（备）
 
 ---
 
@@ -45,11 +45,12 @@
 ### 后端
 - **Vercel Serverless Functions** - 无服务器 API
 - **Supabase** - PostgreSQL 数据库 + 实时订阅
-- **Polygon.io** - 实时期权数据 + Greeks + IV（主数据源）
+- **ORATS** - 实时期权数据 + Greeks + IV + 核心分析（主数据源）
+- **Tiingo** - 股价历史 + 分红调整（30+ 年免费数据）
 - **CBOE API** - 备用数据源（15 分钟延迟，免费）
 
 ### 测试与 CI
-- **Vitest** - 241 项自动化测试（评分对等 + 单元 + 风控）
+- **Vitest** - 316 项自动化测试（评分对等 + 单元 + 风控 + BSM）
 - **GitHub Actions** - CI 流水线（lint → build → test）
 - **ESLint 9** - 代码质量检查
 
@@ -81,9 +82,10 @@ npm install
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-# 期权数据源（不设置时默认 CBOE；推荐 Polygon 获取实时 Greeks）
-DATA_SOURCE=POLYGON
-POLYGON_API_KEY=your_polygon_api_key
+# 期权数据源（不设置时默认 CBOE；推荐 ORATS 获取实时 Greeks）
+DATA_SOURCE=ORATS
+ORATS_API_TOKEN=your_orats_api_token
+TIINGO_API_TOKEN=your_tiingo_api_token
 
 # Discord 提醒 (可选)
 DISCORD_WEBHOOK_URL=your_discord_webhook_url
@@ -118,27 +120,28 @@ vercel --prod
 - [API 文档](docs/05_API文档.md) - API 端点说明
 
 ### 数据源与文档
-- [Polygon 集成](docs/09_Polygon集成.md) - 数据源配置与用量优化
 - [文档中心](docs/README.md) - 全部技术文档（架构、API、部署见 [02_技术路径](docs/02_技术路径.md)、[05_API文档](docs/05_API文档.md)）
 
 ---
 
-## 🎯 数据源（Polygon.io）
+## 🎯 数据源（ORATS + Tiingo）
 
-| 指标 | CBOE（备） | Polygon（主） |
-|------|------------|----------------|
-| **Greeks 精度** | 全为 0 | 完整 |
-| **价格延迟** | 15 分钟 | 实时 |
-| **IV 数据** | 不完整 | 完整曲线 |
-| **请求优化** | 全链 | 仅所需 DTE/行权 + 1 分钟缓存 |
+| 指标 | CBOE（备） | ORATS（主） | Tiingo |
+|------|------------|-------------|--------|
+| **Greeks 精度** | 全为 0 | 完整 (Delta/Gamma/Theta/Vega) | N/A |
+| **价格延迟** | 15 分钟 | 近实时 | 日终 |
+| **IV 数据** | 不完整 | 完整曲线 + IV Rank + 历史 | N/A |
+| **核心分析** | 无 | RV30, 隐含波动, 财报, 看跌/看涨比 | N/A |
+| **股价历史** | 无 | 无 | 30+ 年 (分红调整) |
+| **请求优化** | 全链 | DTE/行权过滤 + 1 分钟缓存 | 增量缓存 |
 
-配置 `DATA_SOURCE=POLYGON` 与 `POLYGON_API_KEY` 即可启用；详见 [docs/09_Polygon集成.md](docs/09_Polygon集成.md)。
+配置 `DATA_SOURCE=ORATS`、`ORATS_API_TOKEN`、`TIINGO_API_TOKEN` 即可启用。
 
 ---
 
 ## 🧪 测试
 
-### 自动化测试（241 项）
+### 自动化测试（316 项）
 ```bash
 npm run test        # 运行全部测试
 npm run test:watch  # 开发时实时监听
@@ -209,13 +212,13 @@ trading-journal/
 ## 🚧 开发路线图
 
 ### 已完成 ✅
-- [x] Polygon.io 数据源集成
+- [x] ORATS + Tiingo 数据源集成（替换 Polygon.io）
 - [x] IV Term Structure + IV Rank
 - [x] Skew 精准化
 - [x] Regime Detection 增强
-- [x] 实时 Greeks 和报价（Polygon）
+- [x] 实时 Greeks 和报价（ORATS）
 - [x] React Router v6 + React Query v5 架构重构
-- [x] 241 项自动化测试 + GitHub Actions CI
+- [x] 316 项自动化测试 + GitHub Actions CI
 - [x] 懒加载路由（包大小 983KB → 430KB）
 
 ### 进行中 🔄
@@ -248,4 +251,4 @@ MIT License
 
 ---
 
-*最后更新: 2026年3月5日*
+*最后更新: 2026年3月7日*

@@ -182,6 +182,15 @@ export interface StrategyContext {
     direction: 'BULL' | 'BEAR';
     targetDte: number;
     daysUntilEarnings: number | null;
+    earningsSource?: 'orats' | 'nasdaq' | null;
+    /** Expected ±% move (annualized implied vol → 1-day move). */
+    impliedMovePct?: number | null;
+    /** Implied earnings move % (ORATS impErnMv). */
+    impErnMvPct?: number | null;
+    /** Put/Call volume ratio. >1 = more puts (bearish sentiment). */
+    putCallRatio?: number | null;
+    /** Term structure contango (positive = contango, negative = backwardation). */
+    contango?: number | null;
 }
 
 export interface SpreadLeg {
@@ -266,12 +275,12 @@ export interface StrategyResult {
     /** True when the ticker had no IV history and a background backfill was triggered. Re-analyze after ~30s. */
     autoBackfillTriggered?: boolean;
     /** Which options data source was used. */
-    dataSource?: 'ORATS' | 'POLYGON' | 'CBOE';
+    dataSource?: 'ORATS' | 'POLYGON' | 'CBOE';  // POLYGON accepted as legacy alias → routes to ORATS
     /** 'degraded' when >50% of parsed options have zero Greeks (CBOE data quality issue). */
     dataQuality?: 'ok' | 'degraded';
     /** false when CBOE + degraded data → scores are meaningless (~50 for everything). */
     scoresReliable?: boolean;
-    /** Quote freshness info from ORATS/Polygon (null for CBOE). */
+    /** Quote freshness info from ORATS (null for CBOE). */
     quoteFreshness?: { isStale: boolean; staleQuotes: number; oldestQuoteAgeMs: number } | null;
     context: StrategyContext;
     regime: StrategyRegime;

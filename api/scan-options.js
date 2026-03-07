@@ -82,8 +82,9 @@ export default async function handler(req, res) {
         let quoteFreshness = null;
 
         if (dataSource === 'POLYGON' || dataSource === 'ORATS') {
+            // 'POLYGON' accepted as legacy alias → routes to ORATS
             const { getOptionChain, getUnderlyingPrice, checkQuoteFreshness } = await import('../lib/orats-client.js');
-            console.log(`Scanning ${upperTicker} via Polygon.io`);
+            console.log(`Scanning ${upperTicker} via ORATS`);
 
             // Get underlying price first so we request only the strike range we use (reduces payload/API)
             const underlyingPrice = await getUnderlyingPrice(upperTicker);
@@ -115,7 +116,7 @@ export default async function handler(req, res) {
                 }
                 quoteFreshness = checkQuoteFreshness(chainData);
             } else {
-                return res.status(200).json({ success: true, results: [], context: { note: 'No data from Polygon.io' } });
+                return res.status(200).json({ success: true, results: [], context: { note: 'No data from ORATS' } });
             }
 
         } else {
@@ -149,7 +150,7 @@ export default async function handler(req, res) {
         const dataQuality = fullChain.length > 0 && zeroGreeksCount / fullChain.length > 0.5 ? 'degraded' : 'ok';
 
         // F6.4 — CBOE fallback produces meaningless scores (all Greeks=0 → LOQ/CSQ ≈ 50 for everything)
-        const scoresReliable = !(dataSource !== 'POLYGON' && dataSource !== 'ORATS' && dataQuality === 'degraded');
+        const scoresReliable = !(dataSource === 'CBOE' && dataQuality === 'degraded');
 
         // Hard filters — single pass combining filter + metric calculation
         const minStrike = currentPrice * (1 - strikeRangeNum);
@@ -234,15 +235,20 @@ export default async function handler(req, res) {
             await saveTickerIVSnapshot(upperTicker, iv30, iv90);
         }
 
-        // Fetch IV rank from ORATS (pre-computed, fast) for vega penalty calibration
+        // Fetch IV rank + put-call ratio from ORATS cores (single call replaces separate getIVRank)
         let scanIVRank = 0.5; // neutral default
+        let scanPutCallRatio = null;
         try {
-            const { getIVRank: oratsGetIVRank } = await import('../lib/orats-client.js');
-            const oratsIVR = await oratsGetIVRank(upperTicker);
-            if (oratsIVR && oratsIVR.ivRank1y != null) {
-                // ORATS returns ivRank1y as 0–100; normalize to 0–1
-                scanIVRank = oratsIVR.ivRank1y / 100;
-                console.log(`[scan-options] ${upperTicker}: ORATS ivRank=${scanIVRank.toFixed(3)}`);
+            const { getCores: oratsGetCores } = await import('../lib/orats-client.js');
+            const scanCores = await oratsGetCores(upperTicker);
+            if (scanCores) {
+                if (scanCores.ivPctile1y != null) {
+                    scanIVRank = scanCores.ivPctile1y / 100; // 0–100 → 0–1
+                    console.log(`[scan-options] ${upperTicker}: ORATS ivRank=${scanIVRank.toFixed(3)} (from cores)`);
+                }
+                if (scanCores.pVolu > 0 && scanCores.cVolu > 0) {
+                    scanPutCallRatio = Number((scanCores.pVolu / scanCores.cVolu).toFixed(3));
+                }
             }
         } catch (_) { /* keep neutral default */ }
 
@@ -382,6 +388,8 @@ export default async function handler(req, res) {
                 ivRatio: Math.round(ivRatio * 1000) / 1000,
                 iv30: iv30 ? Math.round(iv30 * 1000) / 1000 : null,
                 iv90: iv90 ? Math.round(iv90 * 1000) / 1000 : null,
+                ivRank: scanIVRank !== 0.5 ? Number(scanIVRank.toFixed(3)) : null,
+                putCallRatio: scanPutCallRatio,
                 ivStatus,
                 strategy,
                 totalOptions: options.length,

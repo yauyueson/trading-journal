@@ -47,7 +47,7 @@ let compressLambda, calculateDollarGamma, calculateGammaThetaRatio, calculateBre
     calculateLOQRaw, normalizeScoreTo100, normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct,
     getCleanATM_IV, calculateTargetIV, buildIVTermStructure, parseChain, calculateSkew, estimateSlippage, getGammaRiskPenalty,
     getSkewBonusForCreditSpread, calculateUnifiedScore;
-let saveTickerIVSnapshot, getIVRank;
+let saveTickerIVSnapshot;
 let _scoringLoaded = false;
 
 async function ensureScoring() {
@@ -93,10 +93,8 @@ async function ensureScoring() {
         const ivMod = await import(ivUrl);
         const iv = ivMod.default ?? ivMod;
         saveTickerIVSnapshot = iv.saveTickerIVSnapshot;
-        getIVRank = iv.getIVRank;
     } catch (_) {
         saveTickerIVSnapshot = async () => { };
-        getIVRank = async () => ({ ivRank: null, ivPercentile: null, sampleDays: 0 });
     }
     _scoringLoaded = true;
 }
@@ -104,9 +102,8 @@ async function ensureScoring() {
 // =============================================================================
 // DATA FETCHING UTILITIES
 // =============================================================================
-// RV (Realized Volatility): Polygon does NOT provide RV. We always compute it
-// ourselves from historical prices: fetch candles (or Nasdaq history), then
-// log returns → population variance (÷N) → annualize (sqrt(252)*100).
+// RV (Realized Volatility): prefer ORATS cores (orHv30d), fallback to manual
+// computation from Tiingo candles: log returns → population variance (÷N) → annualize (sqrt(252)*100).
 //
 // NOTE (F13 — Forensic Audit v1.1): We use ÷N (population variance), not ÷N-1
 // (Bessel correction). This is consistent with market convention — most vol desks,
@@ -148,7 +145,7 @@ function _derivePriceFromPutCallParity(chainData, lastClose) {
     if (!chainData || chainData.length === 0 || !lastClose) return null;
 
     // Group by strike+expiry, find pairs with both Call and Put
-    // Note: Polygon uses 'expiration', CBOE uses 'expiry' — handle both
+    // Note: ORATS uses 'expiration', CBOE uses 'expiry' — handle both
     const pairs = {};
     for (const o of chainData) {
         const exp = o.expiration || o.expiry;
@@ -192,14 +189,12 @@ function _getMid(opt) {
     if (opt.mid > 0) return opt.mid;
     if (opt.bid > 0 && opt.ask > 0) return (opt.bid + opt.ask) / 2;
     if (opt.last > 0) return opt.last;
-    if (opt.day?.close > 0) return opt.day.close;
-    if (opt.day?.vwap > 0) return opt.day.vwap;
     if (opt.close > 0) return opt.close;
     return 0;
 }
 
 /**
- * Calculate 30-day Realized Volatility from our own computation using Polygon candles.
+ * Calculate 30-day Realized Volatility from Tiingo daily candles.
  * @param {string} ticker Stock symbol
  * @returns {Promise<number|null>} RV30 as annualized % (e.g., 25.5 = 25.5%) or null on failure
  */
@@ -218,17 +213,17 @@ async function calculateRV30FromCandles(ticker) {
 
         const closes = candles.map(c => c.close);
         const rv30 = _computeRV30(closes);
-        if (rv30 != null) console.log(`[RV30 Calc] ${ticker}: ${rv30.toFixed(2)}% (from Polygon)`);
+        if (rv30 != null) console.log(`[RV30 Calc] ${ticker}: ${rv30.toFixed(2)}% (from Tiingo)`);
         return rv30;
     } catch (e) {
-        console.error("RV30 Calculation Error (Polygon):", e);
+        console.error("RV30 Calculation Error (Tiingo):", e);
         return null;
     }
 }
 
 /**
  * Fallback: compute RV30 ourselves from Nasdaq historical prices (same formula as above).
- * Used when Polygon is unavailable or returns no data. Still our own calculation, not an API RV field.
+ * Used when ORATS cores and Tiingo are unavailable. Still our own calculation, not an API RV field.
  * Handles multiple response shapes (tradesTable.rows, close/Close).
  * @param {string} ticker Stock symbol
  * @returns {Promise<number|null>} RV30 as annualized % or null
@@ -1290,10 +1285,13 @@ export default async function handler(req, res) {
 
         let oratsSuccess = false;
 
-        // Import ORATS enrichment functions at handler scope (used for IV rank + RV30 regardless of data source)
-        const { getIVRank: oratsGetIVRank, getCores: oratsGetCores } = await import('../lib/orats-client.js');
+        // Import ORATS enrichment functions at handler scope
+        const { getCores: oratsGetCores } = await import('../lib/orats-client.js');
+        // Single getCores() call provides: RV30, IV rank/percentile, earnings, implied move, contango
+        let oratsCores = null;
 
         if (dataSource === 'POLYGON' || dataSource === 'ORATS') {
+            // 'POLYGON' accepted as legacy alias → routes to ORATS
             console.log(`Using ORATS for ${upperTicker}`);
             const { getOptionChain, getUnderlyingPrice, checkQuoteFreshness } = await import('../lib/orats-client.js');
             const { getCandles } = await import('../lib/tiingo-client.js');
@@ -1308,34 +1306,47 @@ export default async function handler(req, res) {
             fromIntraday.setDate(toDate.getDate() - 365); // Extended from 200 → 365 days for more 1h/4h bars
             const fromIntradayStr = fromIntraday.toISOString().split('T')[0];
 
-            // Batch 1: parallel fetch — daily candles + earnings (no getUnderlyingPrice)
-            const [dailyCandlesResult, daysUntilEarningsResult] = await Promise.all([
+            // Batch 1: parallel fetch — daily candles + ORATS cores (RV30, IV rank, earnings, implied move)
+            const [dailyCandlesResult, coresResult] = await Promise.all([
                 getCandles(upperTicker, fromDailyStr, toStr, 'day'),
-                fetchEarnings(upperTicker)
+                oratsGetCores(upperTicker).catch(e => {
+                    console.warn(`[ORATS cores] ${upperTicker}: failed (${e?.message})`);
+                    return null;
+                }),
             ]);
             dailyCandles = dailyCandlesResult;
-            daysUntilEarnings = daysUntilEarningsResult;
+            oratsCores = coresResult;
+
+            // Extract enrichment from ORATS cores (single API call replaces getCores + getIVRank + fetchEarnings)
+            if (oratsCores) {
+                // RV30
+                if (oratsCores.orHv30d || oratsCores.clsHv30d) {
+                    rv30 = ((oratsCores.orHv30d ?? oratsCores.clsHv30d) * 100); // decimal → %
+                    console.log(`[RV30 ORATS] ${upperTicker}: ${rv30.toFixed(2)}% (from cores)`);
+                }
+                // Earnings: daysToNextErn is a pre-computed integer
+                if (oratsCores.daysToNextErn != null && oratsCores.daysToNextErn >= 0) {
+                    daysUntilEarnings = oratsCores.daysToNextErn;
+                    console.log(`[Earnings ORATS] ${upperTicker}: ${daysUntilEarnings} days until earnings`);
+                }
+            }
+
+            // RV30 fallback: compute from Tiingo candles
+            if (rv30 == null && dailyCandles && dailyCandles.length >= 11) {
+                const closes = dailyCandles.map(c => c.close);
+                rv30 = _computeRV30(closes);
+                if (rv30 != null) console.log(`[RV30 Calc] ${upperTicker}: ${rv30.toFixed(2)}% (from Tiingo candles)`);
+            }
+
+            // Earnings fallback: scrape Nasdaq if ORATS cores didn't provide earnings
+            if (daysUntilEarnings == null) {
+                daysUntilEarnings = await fetchEarnings(upperTicker);
+            }
 
             // Derive underlying price from last daily close (avoids a separate snapshot call)
             // ±20% strike filter is wide enough that yesterday's close is accurate enough
             const lastClose = dailyCandles?.length > 0 ? dailyCandles[dailyCandles.length - 1].close : null;
-
-            // RV30: prefer ORATS cores (pre-computed), fallback to manual calc from candles
-            try {
-                const coresData = await oratsGetCores(upperTicker);
-                if (coresData && (coresData.orHv30d || coresData.clsHv30d)) {
-                    rv30 = ((coresData.orHv30d ?? coresData.clsHv30d) * 100); // ORATS returns decimal → %
-                    console.log(`[RV30 ORATS] ${upperTicker}: ${rv30.toFixed(2)}% (from ORATS cores)`);
-                }
-            } catch (e) {
-                console.warn(`[RV30 ORATS] ${upperTicker}: ORATS cores failed, falling back to manual calc`);
-            }
-            if (rv30 == null && dailyCandles && dailyCandles.length >= 11) {
-                const closes = dailyCandles.map(c => c.close);
-                rv30 = _computeRV30(closes);
-                if (rv30 != null) console.log(`[RV30 Calc] ${upperTicker}: ${rv30.toFixed(2)}% (from daily candles)`);
-            }
-            console.log(`[Batch 1] ${upperTicker}: ${dailyCandles?.length ?? 0} daily candles fetched`);
+            console.log(`[Batch 1] ${upperTicker}: ${dailyCandles?.length ?? 0} daily candles, cores=${!!oratsCores}`);
 
             try {
                 // Single reference call covering DTE 23–97 (spans both ~30 and ~90 DTE windows)
@@ -1347,7 +1358,7 @@ export default async function handler(req, res) {
 
                 let chainData = await getOptionChain(upperTicker, { minDte: 0, maxDte: 160, ...strikeFilter });
                 if (!chainData?.length) {
-                    console.warn('Polygon chain empty with DTE 0–160, trying without DTE...');
+                    console.warn('ORATS chain empty with DTE 0–160, trying without DTE...');
                     chainData = await getOptionChain(upperTicker, {}) || [];
                 }
                 if (chainData.length > 0) {
@@ -1358,7 +1369,7 @@ export default async function handler(req, res) {
                         const chainUnderlying = valid ? valid.underlyingPrice : 0;
 
                         // Validate chain underlying against last daily close.
-                        // Polygon option snapshots can return stale/wrong underlying prices.
+                        // Option chain underlying prices can be stale.
                         // If divergence > 15%, treat as unreliable and fall back.
                         const divergence = lastClose && chainUnderlying ? Math.abs(chainUnderlying - lastClose) / lastClose : 1;
                         if (chainUnderlying > 0 && divergence <= 0.15) {
@@ -1385,7 +1396,7 @@ export default async function handler(req, res) {
                             }
                         }
 
-                        // Fallback: Use Polygon stock snapshot (more reliable than option snapshot)
+                        // Fallback: Use ORATS stock snapshot
                         if (!currentPrice || currentPrice === 0 || currentPrice === lastClose) {
                             try {
                                 const freshPrice = await getUnderlyingPrice(upperTicker);
@@ -1401,7 +1412,7 @@ export default async function handler(req, res) {
                         // Last resort: CBOE underlying price
                         if (!currentPrice || currentPrice === 0) {
                             try {
-                                console.log(`[Polygon Fallback] Fetching CBOE for ${upperTicker} underlying price...`);
+                                console.log(`[ORATS Fallback] Fetching CBOE for ${upperTicker} underlying price...`);
                                 const cRes = await fetch(cboeUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then(r => r.ok ? r.json() : null);
                                 if (cRes?.data?.current_price) {
                                     currentPrice = cRes.data.current_price;
@@ -1436,11 +1447,16 @@ export default async function handler(req, res) {
             _fromDay.setDate(_toDate.getDate() - 150);
             const _fromDayStr = _fromDay.toISOString().split('T')[0];
 
-            [cboeRes, dailyCandles, daysUntilEarnings] = await Promise.all([
+            const cboePromises = [
                 fetch(cboeUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then(r => r.ok ? r.json() : null),
                 _getCandles(upperTicker, _fromDayStr, _toStr, 'day'),
-                fetchEarnings(upperTicker)
-            ]);
+            ];
+            // Only fetch earnings from Nasdaq if ORATS cores didn't provide it
+            if (daysUntilEarnings == null) cboePromises.push(fetchEarnings(upperTicker));
+            const cboeResults = await Promise.all(cboePromises);
+            cboeRes = cboeResults[0];
+            dailyCandles = cboeResults[1];
+            if (cboeResults[2] !== undefined) daysUntilEarnings = cboeResults[2];
 
             if (!cboeRes?.data?.options) {
                 return res.status(404).json({ error: 'No options data found or API error' });
@@ -1449,7 +1465,7 @@ export default async function handler(req, res) {
             currentPrice = cboeRes.data.current_price;
             allOptions = cboeRes.data.options;
 
-            // Compute RV30 inline (no extra Polygon call)
+            // Compute RV30 inline from candles
             if (dailyCandles && dailyCandles.length >= 11) {
                 const closes = dailyCandles.map(c => c.close);
                 rv30 = _computeRV30(closes);
@@ -1457,13 +1473,13 @@ export default async function handler(req, res) {
             }
         }
 
-        // RV is always computed by us (Polygon gives candles only). Fallback to Nasdaq when Polygon fails.
+        // RV30: prefer ORATS cores → Tiingo candles → Nasdaq fallback
         if (rv30 == null) {
             rv30 = await fetchRV30FromNasdaq(upperTicker);
             if (rv30 != null) console.log(`[Strategy Recommend] ${upperTicker}: RV30 from Nasdaq fallback`);
         }
         if (rv30 == null) {
-            console.warn(`[Strategy Recommend] ${upperTicker}: RV30 N/A (Polygon and Nasdaq RV failed); IV/RV will show N/A`);
+            console.warn(`[Strategy Recommend] ${upperTicker}: RV30 N/A (all sources failed); IV/RV will show N/A`);
         }
 
         const fullChain = parseChain(allOptions, currentPrice, null);
@@ -1473,7 +1489,7 @@ export default async function handler(req, res) {
         const dataQuality = fullChain.length > 0 && zeroGreeksCount / fullChain.length > 0.5 ? 'degraded' : 'ok';
 
         // F6.4 — CBOE fallback produces meaningless scores (all Greeks=0 → LOQ/CSQ ≈ 50)
-        const scoresReliable = !(actualDataSource !== 'POLYGON' && actualDataSource !== 'ORATS' && dataQuality === 'degraded');
+        const scoresReliable = !(actualDataSource === 'CBOE' && dataQuality === 'degraded');
 
         // Derive strategyChain by filtering fullChain in-memory (avoids double iteration of allOptions)
         const strategyChain = dteTarget != null
@@ -1545,31 +1561,39 @@ export default async function handler(req, res) {
             console.warn('[Hysteresis] Non-critical query failed:', hysteresisErr.message);
         }
 
-        // IV Rank: prefer ORATS (pre-computed, 1-year), fallback to ivHistory.cjs (manual 252-day)
+        // IV Rank: extract from ORATS cores (already fetched in batch 1), fallback to ivHistory.cjs
         let ivRank = null, ivPercentile = null, ivRankSampleDays = 0, ivRankSource = null;
         let iv5dChange = null, ivTrend = null, autoBackfillTriggered = false;
-        try {
-            const oratsIVR = await oratsGetIVRank(upperTicker);
-            if (oratsIVR && oratsIVR.ivRank1y != null) {
-                // ORATS returns ivRank1y/ivPct1y as 0–100; normalize to 0–1 for downstream scoring
-                ivRank = oratsIVR.ivRank1y / 100;
-                ivPercentile = (oratsIVR.ivPct1y ?? oratsIVR.ivRank1y) / 100;
-                ivRankSampleDays = 252; // ORATS uses 1-year window
-                ivRankSource = 'orats';
-                console.log(`[IV Rank ORATS] ${upperTicker}: rank=${ivRank?.toFixed(3)}, pct=${ivPercentile?.toFixed(3)}`);
-            }
-        } catch (e) {
-            console.warn(`[IV Rank ORATS] ${upperTicker}: failed, falling back to ivHistory.cjs`);
+        if (oratsCores && oratsCores.ivPctile1y != null) {
+            // ORATS cores ivPctile1y is 0–100; normalize to 0–1 for downstream scoring
+            ivPercentile = oratsCores.ivPctile1y / 100;
+            ivRank = ivPercentile; // ivPctile1y is the percentile rank
+            ivRankSampleDays = 252; // ORATS uses 1-year window
+            ivRankSource = 'orats';
+            console.log(`[IV Rank ORATS] ${upperTicker}: pct=${ivPercentile?.toFixed(3)} (from cores)`);
         }
-        if (ivRank == null) {
-            const ivRankResult = await getIVRank(upperTicker);
-            ivRank = ivRankResult?.ivRank ?? null;
-            ivPercentile = ivRankResult?.ivPercentile ?? null;
-            ivRankSampleDays = ivRankResult?.sampleDays ?? 0;
-            ivRankSource = ivRankResult?.ivRankSource ?? null;
-            iv5dChange = ivRankResult?.iv5dChange ?? null;
-            ivTrend = ivRankResult?.ivTrend ?? null;
-            autoBackfillTriggered = ivRankResult?.autoBackfilled ?? false;
+
+        // Compute IV momentum from ticker_iv_snapshots (5-day change)
+        if (iv5dChange == null && sbUrl && sbKey) {
+            try {
+                const snapRes = await fetch(
+                    `${sbUrl}/rest/v1/ticker_iv_snapshots?ticker=eq.${upperTicker}&source=eq.live_iv&order=recorded_date.desc&limit=6`,
+                    { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` } }
+                );
+                if (snapRes.ok) {
+                    const snaps = await snapRes.json();
+                    if (snaps.length >= 2) {
+                        const latest = snaps[0].iv30;
+                        const oldest = snaps[snaps.length - 1].iv30;
+                        if (latest != null && oldest != null && oldest > 0) {
+                            iv5dChange = Number(((latest - oldest) * 100).toFixed(1)); // pp
+                            const changePct = ((latest - oldest) / oldest) * 100;
+                            ivTrend = changePct > 10 ? 'rising' : changePct < -10 ? 'falling' : 'flat';
+                            console.log(`[IV Momentum] ${upperTicker}: ${iv5dChange}pp (${ivTrend}), ${snaps.length} snapshots`);
+                        }
+                    }
+                }
+            } catch (_) { /* non-critical */ }
         }
 
         // 2. Build Targeted Strategy based on Pine Script recommendation
@@ -1933,6 +1957,11 @@ export default async function handler(req, res) {
                 direction: isBull ? 'BULL' : 'BEAR',
                 targetDte: dteTarget,
                 daysUntilEarnings,
+                earningsSource: oratsCores?.daysToNextErn != null ? 'orats' : 'nasdaq',
+                impliedMovePct: oratsCores?.impliedMove != null ? Number((oratsCores.impliedMove * 100).toFixed(2)) : null,
+                impErnMvPct: oratsCores?.impErnMv != null ? Number((oratsCores.impErnMv * 100).toFixed(2)) : null,
+                putCallRatio: oratsCores ? Number(((oratsCores.pVolu || 0) / Math.max(oratsCores.cVolu || 1, 1)).toFixed(3)) : null,
+                contango: oratsCores?.contango ?? null,
                 ...(earningsPremiumContext ? { earningsPremium: earningsPremiumContext } : {})
             },
             regime: {

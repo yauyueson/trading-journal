@@ -176,7 +176,7 @@ export const DEFAULT_CONFIG: BacktestConfig = {
   qualityGates: DEFAULT_QUALITY_GATES,
 };
 
-// ── Candle (matches polygon-client.js output) ───────────
+// ── Candle (matches tiingo-client.js output) ─────────────
 
 export interface BacktestCandle {
   date: string;       // YYYY-MM-DD (or YYYY-MM-DDTHH:mm for 4H)

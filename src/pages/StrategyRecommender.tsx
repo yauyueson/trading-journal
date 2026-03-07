@@ -720,10 +720,39 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                         )}
                                     </div>
 
+                                    {/* Earnings + Implied Move context row */}
+                                    {(result.context.daysUntilEarnings != null || result.context.impliedMovePct != null) && (
+                                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                                            {result.context.daysUntilEarnings != null && (
+                                                <span className={`font-bold px-2 py-0.5 rounded border ${result.context.daysUntilEarnings <= 7
+                                                    ? 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400'
+                                                    : 'bg-gray-500/10 border-gray-500/30 text-gray-400'
+                                                    }`}>
+                                                    Earnings in {result.context.daysUntilEarnings}d
+                                                </span>
+                                            )}
+                                            {result.context.impliedMovePct != null && (
+                                                <span className="font-mono text-gray-300 bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                                                    &plusmn;{result.context.impliedMovePct.toFixed(1)}% implied
+                                                </span>
+                                            )}
+                                            {result.context.impErnMvPct != null && result.context.daysUntilEarnings != null && result.context.daysUntilEarnings <= 14 && (
+                                                <span className="font-mono text-yellow-300 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/20">
+                                                    Earnings &plusmn;{result.context.impErnMvPct.toFixed(1)}%
+                                                </span>
+                                            )}
+                                            {result.context.impliedMovePct != null && result.context.currentPrice > 0 && (
+                                                <span className="font-mono text-gray-500">
+                                                    ${(result.context.currentPrice * (1 - result.context.impliedMovePct / 100)).toFixed(0)} – ${(result.context.currentPrice * (1 + result.context.impliedMovePct / 100)).toFixed(0)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* Lower half: Technical indicators (IV + Tech Score) */}
                                     <div className="border-t border-[#333] pt-4 sm:pt-5 mt-2">
                                         <div className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-wider mb-3">Technical indicators</div>
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 sm:gap-6">
                                             {result.regime.ivTrend && (
                                                 <div className="col-span-2 sm:col-span-4 mb-2">
                                                     <div className={`inline-flex items-center gap-1.5 text-[10px] sm:text-xs font-bold px-2 py-1 rounded border ${result.regime.ivTrend === 'rising'
@@ -801,6 +830,34 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     {result.regime.rv30 != null ? `RV30: ${result.regime.rv30}%` : ''}
                                                 </div>
                                             </div>
+                                            {result.context.putCallRatio != null && (
+                                                <div>
+                                                    <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                        P/C Ratio
+                                                        <Tooltip label="" explanation="Put/Call volume ratio. >1.2 = bearish sentiment (more puts), <0.8 = bullish (more calls)." />
+                                                    </div>
+                                                    <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${result.context.putCallRatio > 1.2 ? 'text-amber-400' : result.context.putCallRatio < 0.8 ? 'text-emerald-400' : 'text-white'}`}>
+                                                        {result.context.putCallRatio.toFixed(2)}
+                                                    </div>
+                                                    <div className="text-[10px] text-gray-500 font-mono">
+                                                        {result.context.putCallRatio > 1.2 ? 'bearish' : result.context.putCallRatio < 0.8 ? 'bullish' : 'neutral'}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {result.context.contango != null && (
+                                                <div>
+                                                    <div className="text-xs sm:text-sm text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                        Contango
+                                                        <Tooltip label="" explanation="Term structure contango from ORATS. Positive = contango (front IV < back IV, sell premium friendly). Negative = backwardation." />
+                                                    </div>
+                                                    <div className={`text-xl sm:text-2xl font-mono font-bold mb-0.5 ${result.context.contango > 0 ? 'text-emerald-400' : result.context.contango < 0 ? 'text-amber-400' : 'text-white'}`}>
+                                                        {result.context.contango > 0 ? '+' : ''}{result.context.contango.toFixed(3)}
+                                                    </div>
+                                                    <div className="text-[10px] text-gray-500 font-mono">
+                                                        {result.context.contango > 0 ? 'contango' : result.context.contango < 0 ? 'backwardation' : 'flat'}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

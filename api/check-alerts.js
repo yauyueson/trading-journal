@@ -23,15 +23,15 @@ function generateOCCSymbol(symbol, expiration, type, strike) {
   }
 }
 
-/** Find an option's mid price from an options array (CBOE or Polygon format). Returns number | null. */
+/** Find an option's mid price from an options array (CBOE or ORATS format). Returns number | null. */
 function findOptionMid(options, ticker, expiration, strike, type) {
   if (!options || !Array.isArray(options) || options.length === 0) return null;
 
-  // Detect format
-  const isPolygon = options.length > 0 && options[0].symbol !== undefined && options[0].strike !== undefined;
+  // Detect format: ORATS normalized options have symbol+strike fields
+  const isORATS = options.length > 0 && options[0].symbol !== undefined && options[0].strike !== undefined;
 
-  if (isPolygon) {
-    // Polygon format: direct field matching
+  if (isORATS) {
+    // ORATS format: direct field matching
     const targetStrike = parseFloat(strike);
     const targetType = (type || 'Call').toLowerCase().includes('call') ? 'Call' : 'Put';
     const expStr = expiration.slice(0, 10); // YYYY-MM-DD

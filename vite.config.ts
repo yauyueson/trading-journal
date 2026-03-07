@@ -905,7 +905,7 @@ function localApiPlugin(): Plugin {
 
       // Handle /api/strategy-recommend — thin shim → calls the REAL api/strategy-recommend.js handler.
       // ⚠️  Do NOT add inline CBOE logic here. Edit api/strategy-recommend.js instead.
-      // This shim ensures local dev uses DATA_SOURCE=POLYGON from .env.local, identical to production.
+      // This shim ensures local dev uses DATA_SOURCE=ORATS from .env.local, identical to production.
       server.middlewares.use('/api/strategy-recommend', async (req, res) => {
         const url = new URL(req.url || '', `http://${req.headers.host}`);
 

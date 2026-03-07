@@ -17,7 +17,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Load .env.local for Polygon API key
+// Load .env.local for API keys
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.resolve(__dirname, '../.env.local');
 if (fs.existsSync(envPath)) {
@@ -35,7 +35,7 @@ if (fs.existsSync(envPath)) {
 }
 
 // @ts-ignore — JS module, no types
-import { getCandles } from '../lib/polygon-client.js';
+import { getCandles } from '../lib/tiingo-client.js';
 
 import type { BacktestCandle, SweepConfig, SweepResult, BacktestResult, Timeframe, WalkForwardConfig, WalkForwardResult, OptimizeConfig, OptimizeParams } from '../src/lib/backtest/types';
 import { DEFAULT_OPTIMIZE_PARAMS } from '../src/lib/backtest/types';

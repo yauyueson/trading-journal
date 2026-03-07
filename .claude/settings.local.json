@@ -123,7 +123,8 @@
       "WebFetch(domain:tiingo-python.readthedocs.io)",
       "WebFetch(domain:business-science.github.io)",
       "Bash(cp:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(do echo:*)"
     ]
   }
 }

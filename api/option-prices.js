@@ -187,7 +187,7 @@ async function handleORATS(legs, res) {
 
             if (option) {
                 // Prefer mid (live bid/ask) over stale last trade price.
-                // option.mid is computed in normalizePolygonOption from live bid/ask.
+                // option.mid is computed in normalizeORATSStrike from live bid/ask.
                 const mid = option.mid || ((option.bid > 0 && option.ask > 0) ? (option.bid + option.ask) / 2 : 0);
                 const price = mid > 0 ? mid : (option.last > 0 ? option.last : 0);
                 const priceSource = mid > 0 ? 'mid' : (option.last > 0 ? 'last' : 'none');
