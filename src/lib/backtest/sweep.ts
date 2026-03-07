@@ -272,13 +272,12 @@ export function computeFitness(r: BacktestResult): number {
   const exp = a.optionMode ? (a.optionExpectancy ?? a.expectancy) : a.expectancy;
 
   const sortinoContrib = 0.30 * Math.max(0, Math.min(sortino, 3)) / 3;
-  const pfContrib      = 0.20 * Math.max(0, Math.min(pf, 5)) / 5;
-  const wrContrib      = 0.15 * (wr / 100);
+  const pfContrib      = 0.25 * Math.max(0, Math.min(pf, 5)) / 5;
+  const wrContrib      = 0.20 * (wr / 100);
   const ddContrib      = 0.15 * Math.max(0, 1 - dd / 100);
   const expContrib     = 0.10 * Math.max(0, Math.min(exp, 5)) / 5;
-  const countContrib   = 0.10 * Math.min(1, a.totalTrades / 50);
 
-  let fitness = sortinoContrib + pfContrib + wrContrib + ddContrib + expContrib + countContrib;
+  let fitness = sortinoContrib + pfContrib + wrContrib + ddContrib + expContrib;
 
   // Correlation penalty: penalize highly correlated sub-scores (discourages weight concentration)
   if (a.avgSubScoreCorrelation != null && a.avgSubScoreCorrelation > 0.3) {
