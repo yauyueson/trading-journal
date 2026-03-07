@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Rocket, Upload, Info } from 'lucide-react';
-import { useBacktest } from '../hooks/useBacktest';
-import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, OptimizeConfig, OptimizeParams, QualityGates, IVSource, SpreadType } from '../lib/backtest/types';
+import { useBacktest, type OOSDateRange } from '../hooks/useBacktest';
+import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, OptimizeConfig, OptimizeParams, QualityGates, IVSource, SpreadType, WalkForwardConfig, WalkForwardResult } from '../lib/backtest/types';
 import { DEFAULT_QUALITY_GATES, DEFAULT_OPTIMIZE_PARAMS, DEFAULT_OPTIONS_PRICING, DEFAULT_SLIPPAGE, DEFAULT_REGIME_GATES, DEFAULT_IV_DYNAMICS } from '../lib/backtest/types';
 import type { TechScoreOptions } from '../lib/tech-analysis';
 import { DEFAULT_SWEEP } from '../lib/backtest/sweep';
@@ -486,21 +486,39 @@ const DEFAULT_SWEEP_TOGGLES: SweepToggles = {
   decay: false,
 };
 
+const IS_SPLIT_PRESETS = [0.5, 0.6, 0.66, 0.70, 0.75, 0.80] as const;
+
+/** Compute IS endDate and OOS startDate from full date range + split fraction */
+function computeISOOSDates(startDate: string, endDate: string, splitFraction: number, purgeGapDays = 5) {
+  const start = new Date(startDate + 'T12:00:00Z');
+  const end = new Date(endDate + 'T12:00:00Z');
+  const totalMs = end.getTime() - start.getTime();
+  const isEndMs = start.getTime() + totalMs * splitFraction;
+  const isEnd = new Date(isEndMs);
+  const oosStart = new Date(isEndMs + purgeGapDays * 86400000);
+  return {
+    isEnd: isEnd.toISOString().split('T')[0],
+    oosStart: oosStart.toISOString().split('T')[0],
+  };
+}
+
 const OptimizePanel: React.FC<{
   config: BacktestConfig;
   onChange: (c: BacktestConfig) => void;
   onRunSweep: (s: SweepConfig) => void;
-  onRunOptimize: (o: OptimizeConfig) => void;
+  onRunOptimize: (o: OptimizeConfig, oosDateRange?: OOSDateRange) => void;
   loading: boolean;
   progress: number;
   progressPhase: string;
 }> = ({ config, onChange, onRunSweep, onRunOptimize, loading, progress, progressPhase }) => {
-  const [subMode, setSubMode] = useState<OptSubMode>('sweep');
+  const [subMode, setSubMode] = useState<OptSubMode>('ga');
   const [showSweepDims, setShowSweepDims] = useState(false);
   const [showOptParams, setShowOptParams] = useState(false);
-  const [tickersInput, setTickersInput] = useState(config.ticker || 'SPY');
+  const [tickersInput, setTickersInput] = useState(config.ticker || 'SPY,QQQ,AAPL');
   const [sweepToggles, setSweepToggles] = useState<SweepToggles>(DEFAULT_SWEEP_TOGGLES);
   const [optParams, setOptParams] = useState<OptimizeParams>(DEFAULT_OPTIMIZE_PARAMS);
+  const [isSplit, setIsSplit] = useState(0.66); // IS fraction (default 66%)
+  const [oosEnabled, setOosEnabled] = useState(true); // auto OOS validation after optimize
 
   // Parse tickers from the unified input
   const parsedTickers = useMemo(() =>
@@ -525,6 +543,8 @@ const OptimizePanel: React.FC<{
   const geneCount = (optParams.weights ? 5 : 0) + (optParams.periods ? 6 : 0) +
     (optParams.tpSl ? 2 : 0) + (optParams.minScore ? 1 : 0) + (optParams.decay ? 1 : 0);
 
+  const { isEnd, oosStart } = computeISOOSDates(config.startDate, config.endDate, isSplit);
+
   const handleRun = () => {
     if (parsedTickers.length === 0) return;
     if (subMode === 'sweep') {
@@ -539,10 +559,15 @@ const OptimizePanel: React.FC<{
         regimeGates: config.regimeGates,
       });
     } else {
+      // IS dates: full start → split point. OOS dates: split+purge → full end.
+      const oosDateRange: OOSDateRange | undefined = oosEnabled
+        ? { startDate: oosStart, endDate: config.endDate }
+        : undefined;
+
       onRunOptimize({
         ticker: primaryTicker,
         startDate: config.startDate,
-        endDate: config.endDate,
+        endDate: isEnd,           // IS end date
         tpAtr: config.tpAtr,
         slAtr: config.slAtr,
         minScore: config.minScore,
@@ -553,7 +578,7 @@ const OptimizePanel: React.FC<{
         optionsPricing: config.optionsPricing,
         slippage: config.slippage,
         regimeGates: config.regimeGates,
-      });
+      }, oosDateRange);
     }
   };
 
@@ -567,12 +592,59 @@ const OptimizePanel: React.FC<{
         <input value={tickersInput} onChange={e => setTickersInput(e.target.value.toUpperCase())}
           placeholder="SPY, QQQ, AAPL"
           className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none placeholder:text-white/20" />
-        {parsedTickers.length > 1 && (
-          <div className="text-[10px] text-text-tertiary mt-0.5">{parsedTickers.length} tickers — GA averages fitness across all</div>
+          {parsedTickers.length > 1 ? (
+          <div className="text-[10px] text-emerald-400/70 mt-0.5">{parsedTickers.length} tickers — GA fitness averaged across basket (anti-overfitting)</div>
+        ) : (
+          <div className="text-[10px] text-amber-400/70 mt-0.5">Add 3+ tickers for robust optimization (single ticker risks curve-fitting)</div>
         )}
       </div>
 
       <SharedConfigFields config={config} onChange={onChange} hideTicker />
+
+      {/* IS/OOS split — only for GA mode */}
+      {subMode === 'ga' && (
+        <div className="border border-white/5 rounded-lg p-2.5 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-text-secondary font-medium">
+              IS / OOS Split
+              <Tip text="In-sample (IS) data is used for optimization. Out-of-sample (OOS) is held back and never seen during training — it's the true forward-test of the optimized params. Industry standard: 66–75% IS, 25–34% OOS." />
+            </span>
+            <label className="flex items-center gap-1.5 text-[10px] text-text-tertiary cursor-pointer">
+              <Toggle checked={oosEnabled} onChange={setOosEnabled} color="bg-blue-500" />
+              Auto OOS validate
+            </label>
+          </div>
+
+          {/* Split presets */}
+          <div className="flex gap-1">
+            {IS_SPLIT_PRESETS.map(p => (
+              <button key={p} onClick={() => setIsSplit(p)}
+                className={`flex-1 py-1 rounded text-[10px] font-mono transition-colors ${isSplit === p ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-[#111] text-text-tertiary hover:text-white border border-white/5'}`}
+              >{Math.round(p * 100)}%</button>
+            ))}
+          </div>
+
+          {/* Date preview */}
+          <div className="space-y-1 text-[10px] font-mono">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-400 w-3">IS</span>
+              <span className="text-text-tertiary">{config.startDate}</span>
+              <span className="text-text-tertiary/40">→</span>
+              <span className="text-amber-400">{isEnd}</span>
+              <span className="text-text-tertiary/50 ml-auto">train ({Math.round(isSplit * 100)}%)</span>
+            </div>
+            {oosEnabled && (
+              <div className="flex items-center gap-2">
+                <span className="text-blue-400 w-3">OOS</span>
+                <span className="text-text-tertiary">{oosStart}</span>
+                <span className="text-text-tertiary/40">→</span>
+                <span className="text-blue-400">{config.endDate}</span>
+                <span className="text-text-tertiary/50 ml-auto">test ({Math.round((1 - isSplit) * 100)}%)</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Sub-mode toggle: Sweep vs GA */}
       <div className="flex gap-1 bg-[#0A0A0A] rounded-lg p-0.5">
@@ -716,6 +788,283 @@ const OptimizePanel: React.FC<{
           <><Rocket size={16} /> Optimize ({geneCount} genes{!optParams.tpSl && geneCount > 0 ? ' + grid' : ''})</>
         )}
       </button>
+    </div>
+  );
+};
+
+// ── Walk-Forward Panel ───────────────────────────────────
+
+const WalkForwardPanel: React.FC<{
+  config: BacktestConfig;
+  onRun: (wf: WalkForwardConfig) => void;
+  loading: boolean;
+  progress: number;
+  progressPhase: string;
+}> = ({ config, onRun, loading, progress, progressPhase }) => {
+  const [ticker, setTicker] = useState(config.ticker || 'SPY');
+  const [startDate, setStartDate] = useState(config.startDate);
+  const [endDate, setEndDate] = useState(config.endDate);
+  const [isWindowDays, setIsWindowDays] = useState(252);
+  const [oosWindowDays, setOosWindowDays] = useState(63);
+  const [mode, setMode] = useState<'rolling' | 'anchored'>('rolling');
+  const [optimizer, setOptimizer] = useState<'ga' | 'sweep'>('ga');
+
+  // Estimate window count
+  const start = new Date(startDate + 'T12:00:00Z');
+  const end = new Date(endDate + 'T12:00:00Z');
+  const totalTradingDays = Math.round((end.getTime() - start.getTime()) / 86400000 * 5 / 7);
+  const estimatedWindows = Math.max(0, Math.floor((totalTradingDays - isWindowDays) / oosWindowDays));
+
+  const handleRun = () => {
+    onRun({
+      ticker: ticker.toUpperCase().trim(),
+      startDate,
+      endDate,
+      timeframe: '1D',
+      isWindowDays,
+      oosWindowDays,
+      mode,
+      purgeGapDays: 5,
+      optimizer,
+      populationSize: 30,
+      generations: 20,
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5 text-[11px] text-blue-300/80 space-y-1">
+        <div className="font-medium text-blue-300">Walk-Forward Validation</div>
+        <div>Optimizes on rolling IS windows, validates on held-out OOS windows. Concatenated OOS trades = true forward-test. More robust than single IS/OOS split.</div>
+      </div>
+
+      {/* Ticker + dates */}
+      <div>
+        <label className="text-[11px] text-text-tertiary uppercase block mb-1">Ticker</label>
+        <input value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())}
+          className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">Start</label>
+          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+        </div>
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">End</label>
+          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+        </div>
+      </div>
+
+      {/* Window sizes */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            IS Window (days)<Tip text="In-sample optimization window size in trading days. 252 = 1 year. Larger IS = more stable params but fewer OOS windows." />
+          </label>
+          <select value={isWindowDays} onChange={e => setIsWindowDays(Number(e.target.value))}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none">
+            {[126, 189, 252, 378, 504].map(v => (
+              <option key={v} value={v}>{v} days ({Math.round(v / 21)}mo)</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            OOS Window (days)<Tip text="Out-of-sample validation window size. 63 = 1 quarter. Smaller OOS = more windows = better statistical coverage." />
+          </label>
+          <select value={oosWindowDays} onChange={e => setOosWindowDays(Number(e.target.value))}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none">
+            {[21, 42, 63, 126].map(v => (
+              <option key={v} value={v}>{v} days ({Math.round(v / 21)}mo)</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Mode + Optimizer */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            Mode<Tip text="Rolling: fixed IS size slides forward. Anchored: IS expands from a fixed start. Rolling is preferred when you expect regime changes over time." />
+          </label>
+          <select value={mode} onChange={e => setMode(e.target.value as 'rolling' | 'anchored')}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none">
+            <option value="rolling">Rolling</option>
+            <option value="anchored">Anchored</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+            Optimizer<Tip text="GA: genetic algorithm finds signal weight combinations. Sweep: exhaustive grid over TP/SL/score. GA is preferred for WF as it's faster per window." />
+          </label>
+          <select value={optimizer} onChange={e => setOptimizer(e.target.value as 'ga' | 'sweep')}
+            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none">
+            <option value="ga">GA Optimize</option>
+            <option value="sweep">Grid Sweep</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Window count preview */}
+      <div className="text-[10px] text-text-tertiary">
+        {estimatedWindows > 0
+          ? `~${estimatedWindows} OOS windows (${isWindowDays}d IS / ${oosWindowDays}d OOS, ${mode})`
+          : 'Date range too short for selected window sizes'}
+        {estimatedWindows < 5 && estimatedWindows > 0 && <span className="text-amber-400 ml-1">— 5+ windows recommended</span>}
+      </div>
+
+      <button onClick={handleRun} disabled={loading || estimatedWindows < 1}
+        className="w-full py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-500"
+      >
+        {loading
+          ? <><Zap size={16} className="animate-pulse" /> {progressPhase}... {progress}%</>
+          : <><TrendingUp size={16} /> Walk-Forward ({estimatedWindows} windows)</>}
+      </button>
+    </div>
+  );
+};
+
+// ── Walk-Forward Results ─────────────────────────────────
+
+const WalkForwardResultView: React.FC<{ result: WalkForwardResult }> = ({ result }) => {
+  const { oosAnalytics, oosTrades, windows, wfEfficiency } = result;
+  const effLabel = wfEfficiency >= 0.7 ? 'Low overfitting' : wfEfficiency >= 0.4 ? 'Moderate overfitting' : 'High overfitting';
+
+  return (
+    <div className="space-y-4">
+      {/* Header stats */}
+      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-blue-300 uppercase tracking-wider font-medium">Walk-Forward OOS Results</span>
+          <span className="text-[10px] text-text-tertiary">{windows.length} windows · {result.totalEvals} evals · {(result.elapsedMs / 1000).toFixed(1)}s</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <Stat label="WF Efficiency" value={`${(wfEfficiency * 100).toFixed(0)}%`}
+            sub={effLabel}
+            good={wfEfficiency >= 0.7} />
+          <Stat label="OOS Win Rate" value={`${oosAnalytics.winRateTheta.toFixed(1)}%`} good={oosAnalytics.winRateTheta > 50} />
+          <Stat label="OOS Sharpe" value={oosAnalytics.sharpe.toFixed(2)} good={oosAnalytics.sharpe > 0.5} />
+          <Stat label="OOS Trades" value={oosTrades.length} sub={`${windows.length} windows`} />
+        </div>
+        <div className="text-[10px] text-text-tertiary">
+          WF Efficiency = OOS fitness / IS fitness. {'>'} 70% = strategy generalizes well. {'<'} 40% = likely overfitted.
+        </div>
+      </div>
+
+      {/* OOS equity curve */}
+      <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-3">
+        <h3 className="text-sm font-medium mb-2">OOS Equity Curve (concatenated)</h3>
+        <EquityCurveSVG curves={[{ data: oosAnalytics.equityCurve, color: '#3b82f6', label: 'OOS (forward-test)' }]} />
+      </div>
+
+      {/* IS vs OOS per-window table */}
+      <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-3">
+        <h3 className="text-sm font-medium mb-2">Per-Window IS vs OOS</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-text-tertiary text-[10px] uppercase border-b border-white/5">
+                <th className="text-left py-1 px-1.5">Window</th>
+                <th className="text-right py-1 px-1.5">IS Period</th>
+                <th className="text-right py-1 px-1.5">OOS Period</th>
+                <th className="text-right py-1 px-1.5">IS Sharpe</th>
+                <th className="text-right py-1 px-1.5">OOS Win%</th>
+                <th className="text-right py-1 px-1.5">OOS Trades</th>
+                <th className="text-right py-1 px-1.5">Efficiency</th>
+              </tr>
+            </thead>
+            <tbody>
+              {windows.map((w, i) => {
+                const eff = w.isBestFitness > 0 ? w.oosResult.analytics.sharpe / w.isBestFitness : 0;
+                return (
+                  <tr key={i} className="border-b border-white/5 hover:bg-white/5">
+                    <td className="py-1 px-1.5 font-mono text-text-tertiary">{i + 1}</td>
+                    <td className="py-1 px-1.5 font-mono text-[9px] text-text-tertiary">{w.isStart} → {w.isEnd}</td>
+                    <td className="py-1 px-1.5 font-mono text-[9px] text-text-tertiary">{w.oosStart} → {w.oosEnd}</td>
+                    <td className="py-1 px-1.5 font-mono text-right">{w.isBestFitness.toFixed(2)}</td>
+                    <td className={`py-1 px-1.5 font-mono text-right ${w.oosResult.analytics.winRateTheta > 50 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {w.oosResult.analytics.winRateTheta.toFixed(0)}%
+                    </td>
+                    <td className="py-1 px-1.5 font-mono text-right text-text-tertiary">{w.oosResult.analytics.totalTrades}</td>
+                    <td className={`py-1 px-1.5 font-mono text-right ${eff >= 0.7 ? 'text-emerald-400' : eff >= 0.4 ? 'text-amber-400' : 'text-red-400'}`}>
+                      {(eff * 100).toFixed(0)}%
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <AnalyticsGrid a={oosAnalytics} />
+    </div>
+  );
+};
+
+// ── IS vs OOS Comparison ─────────────────────────────────
+
+const ISvsOOSView: React.FC<{ isResult: BacktestResult; oosResult: BacktestResult }> = ({ isResult, oosResult }) => {
+  const isSharpe = isResult.analytics.sharpe;
+  const oosSharpe = oosResult.analytics.sharpe;
+  const wfEfficiency = isSharpe > 0 ? oosSharpe / isSharpe : 0;
+
+  const rows: { label: string; is: string; oos: string; good?: boolean }[] = [
+    { label: 'Win Rate', is: `${isResult.analytics.winRateTheta.toFixed(1)}%`, oos: `${oosResult.analytics.winRateTheta.toFixed(1)}%`, good: oosResult.analytics.winRateTheta > 50 },
+    { label: 'Sharpe', is: isSharpe.toFixed(2), oos: oosSharpe.toFixed(2), good: oosSharpe > 0.5 },
+    { label: 'Profit Factor', is: isResult.analytics.profitFactor === Infinity ? '∞' : isResult.analytics.profitFactor.toFixed(2), oos: oosResult.analytics.profitFactor === Infinity ? '∞' : oosResult.analytics.profitFactor.toFixed(2), good: oosResult.analytics.profitFactor > 1.2 },
+    { label: 'Max DD', is: `${isResult.analytics.maxDrawdown.toFixed(1)}%`, oos: `${oosResult.analytics.maxDrawdown.toFixed(1)}%`, good: oosResult.analytics.maxDrawdown < 15 },
+    { label: 'Trades', is: String(isResult.analytics.totalTrades), oos: String(oosResult.analytics.totalTrades) },
+    { label: 'Avg Return', is: `${isResult.analytics.avgReturnTheta >= 0 ? '+' : ''}${isResult.analytics.avgReturnTheta.toFixed(2)}%`, oos: `${oosResult.analytics.avgReturnTheta >= 0 ? '+' : ''}${oosResult.analytics.avgReturnTheta.toFixed(2)}%`, good: oosResult.analytics.avgReturnTheta > 0 },
+  ];
+
+  return (
+    <div className="space-y-3">
+      {/* WF Efficiency banner */}
+      <div className={`rounded-lg border p-3 ${wfEfficiency >= 0.7 ? 'bg-emerald-500/10 border-emerald-500/30' : wfEfficiency >= 0.4 ? 'bg-amber-500/10 border-amber-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-medium">WF Efficiency (OOS Sharpe / IS Sharpe)</span>
+          <span className={`text-lg font-mono font-bold ${wfEfficiency >= 0.7 ? 'text-emerald-400' : wfEfficiency >= 0.4 ? 'text-amber-400' : 'text-red-400'}`}>{(wfEfficiency * 100).toFixed(0)}%</span>
+        </div>
+        <div className="text-[10px] text-text-tertiary mt-1">
+          {wfEfficiency >= 0.7 ? '✓ Strategy generalizes well — low overfitting risk' :
+           wfEfficiency >= 0.4 ? '⚠ Moderate decay — acceptable for signal-based strategies' :
+           '✗ OOS significantly worse than IS — params likely overfit to training data'}
+        </div>
+      </div>
+
+      {/* Side-by-side comparison table */}
+      <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-3">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-text-tertiary border-b border-white/5">
+              <th className="text-left py-1.5 px-2">Metric</th>
+              <th className="text-right py-1.5 px-2 text-amber-400">IS (train)</th>
+              <th className="text-right py-1.5 px-2 text-blue-400">OOS (test)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.label} className="border-b border-white/5">
+                <td className="py-1.5 px-2 text-text-tertiary">{r.label}</td>
+                <td className="text-right py-1.5 px-2 font-mono text-amber-300/80">{r.is}</td>
+                <td className={`text-right py-1.5 px-2 font-mono ${r.good === true ? 'text-emerald-400' : r.good === false ? 'text-red-400' : 'text-blue-300/80'}`}>{r.oos}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Overlaid equity curves */}
+      <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-3">
+        <h3 className="text-sm font-medium mb-2">Equity Curves</h3>
+        <EquityCurveSVG curves={[
+          { data: isResult.analytics.equityCurve, color: '#f59e0b', label: 'IS (train)' },
+          { data: oosResult.analytics.equityCurve, color: '#3b82f6', label: 'OOS (test)' },
+        ]} />
+      </div>
     </div>
   );
 };
@@ -1309,7 +1658,7 @@ const SingleResultView: React.FC<{ result: BacktestResult }> = ({ result }) => {
 
 // ── Main Page ───────────────────────────────────────────
 
-type TopTab = 'validate' | 'optimize';
+type TopTab = 'validate' | 'optimize' | 'walkforward';
 
 export const BacktestPage: React.FC = () => {
   const bt = useBacktest();
@@ -1370,9 +1719,14 @@ export const BacktestPage: React.FC = () => {
     bt.runSweepAction(s);
   }, [bt]);
 
-  const handleRunOptimize = useCallback((o: OptimizeConfig) => {
+  const handleRunOptimize = useCallback((o: OptimizeConfig, oosDateRange?: OOSDateRange) => {
     bt.setMode('optimize');
-    bt.runOptimizeAction(o);
+    bt.runOptimizeAction(o, oosDateRange);
+  }, [bt]);
+
+  const handleRunWalkForward = useCallback((wf: WalkForwardConfig) => {
+    bt.setMode('walkforward');
+    bt.runWalkForwardAction(wf);
   }, [bt]);
 
   return (
@@ -1398,6 +1752,11 @@ export const BacktestPage: React.FC = () => {
             topTab === 'optimize' ? 'bg-[#2A2A2A] text-white' : 'text-text-tertiary hover:text-text-secondary'
           }`}
         ><Rocket size={14} className="inline mr-1.5 -mt-0.5" />Optimize</button>
+        <button onClick={() => setTopTab('walkforward')}
+          className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
+            topTab === 'walkforward' ? 'bg-[#2A2A2A] text-white' : 'text-text-tertiary hover:text-text-secondary'
+          }`}
+        ><TrendingUp size={14} className="inline mr-1.5 -mt-0.5" />Walk-Forward</button>
       </div>
 
       {/* Error */}
@@ -1411,7 +1770,7 @@ export const BacktestPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
         {/* Left: Config */}
         <div className="bg-[#111] rounded-lg border border-white/10 p-3 h-fit lg:sticky lg:top-4">
-          {topTab === 'validate' ? (
+          {topTab === 'validate' && (
             <ValidatePanel
               config={bt.config}
               onChange={bt.setConfig}
@@ -1419,13 +1778,23 @@ export const BacktestPage: React.FC = () => {
               loading={bt.loading && bt.mode === 'validate'}
               progress={bt.progress}
             />
-          ) : (
+          )}
+          {topTab === 'optimize' && (
             <OptimizePanel
               config={bt.config}
               onChange={bt.setConfig}
               onRunSweep={handleRunSweep}
               onRunOptimize={handleRunOptimize}
               loading={bt.loading && (bt.mode === 'sweep' || bt.mode === 'optimize')}
+              progress={bt.progress}
+              progressPhase={bt.progressPhase}
+            />
+          )}
+          {topTab === 'walkforward' && (
+            <WalkForwardPanel
+              config={bt.config}
+              onRun={handleRunWalkForward}
+              loading={bt.loading && bt.mode === 'walkforward'}
               progress={bt.progress}
               progressPhase={bt.progressPhase}
             />
@@ -1506,20 +1875,32 @@ export const BacktestPage: React.FC = () => {
                 <span>{bt.optimizeResult.results.filter(r => r.analytics.totalTrades >= 3).length} with 3+ trades</span>
               </div>
 
+              {/* IS vs OOS comparison — shown when OOS validation ran */}
+              {bt.oosResult && bt.optimizeResult.bestOverall && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-text-secondary uppercase tracking-wider font-medium">IS vs OOS Validation</span>
+                    <span className="text-[10px] text-text-tertiary">Best IS params applied to unseen OOS period</span>
+                  </div>
+                  <ISvsOOSView isResult={bt.optimizeResult.bestOverall} oosResult={bt.oosResult} />
+                </div>
+              )}
+
               {/* Best config highlight */}
               {bt.optimizeResult.bestOverall && (
                 <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[11px] text-purple-400 uppercase tracking-wider">Best Signal Config</span>
+                    <span className="text-[11px] text-purple-400 uppercase tracking-wider">Best Signal Config (IS)</span>
+                    {!bt.oosResult && <span className="text-[10px] text-text-tertiary ml-auto">Enable OOS split for forward-test</span>}
                   </div>
                   <div className="mb-2">
                     <IndicatorParamsLabel opts={bt.optimizeResult.bestOverall.config.indicatorOptions} />
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <Stat label="Win Rate" value={`${bt.optimizeResult.bestOverall.analytics.winRateTheta.toFixed(1)}%`} good={bt.optimizeResult.bestOverall.analytics.winRateTheta > 50} />
-                    <Stat label="Sharpe" value={bt.optimizeResult.bestOverall.analytics.sharpe.toFixed(2)} good={bt.optimizeResult.bestOverall.analytics.sharpe > 1} />
-                    <Stat label="PF" value={bt.optimizeResult.bestOverall.analytics.profitFactor === Infinity ? '∞' : bt.optimizeResult.bestOverall.analytics.profitFactor.toFixed(2)} good={bt.optimizeResult.bestOverall.analytics.profitFactor > 1.5} />
-                    <Stat label="Trades" value={bt.optimizeResult.bestOverall.analytics.totalTrades}
+                    <Stat label="IS Win Rate" value={`${bt.optimizeResult.bestOverall.analytics.winRateTheta.toFixed(1)}%`} good={bt.optimizeResult.bestOverall.analytics.winRateTheta > 50} />
+                    <Stat label="IS Sharpe" value={bt.optimizeResult.bestOverall.analytics.sharpe.toFixed(2)} good={bt.optimizeResult.bestOverall.analytics.sharpe > 1} />
+                    <Stat label="IS PF" value={bt.optimizeResult.bestOverall.analytics.profitFactor === Infinity ? '∞' : bt.optimizeResult.bestOverall.analytics.profitFactor.toFixed(2)} good={bt.optimizeResult.bestOverall.analytics.profitFactor > 1.5} />
+                    <Stat label="IS Trades" value={bt.optimizeResult.bestOverall.analytics.totalTrades}
                       sub={(() => {
                         const trades = bt.optimizeResult!.bestOverall!.trades;
                         if (!trades.some(t => t.ticker)) return undefined;
@@ -1534,13 +1915,13 @@ export const BacktestPage: React.FC = () => {
                     className="mt-2 flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 disabled:opacity-50 transition-colors"
                   >
                     <Upload size={13} />
-                    {deployState === 'deploying' ? 'Deploying...' : deployState === 'deployed' ? 'Deployed \u2713' : 'Deploy Strategy'}
+                    {deployState === 'deploying' ? 'Deploying...' : deployState === 'deployed' ? 'Deployed ✓' : 'Deploy Strategy'}
                   </button>
                 </div>
               )}
 
               <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-3">
-                <h3 className="text-sm font-medium mb-2">Ranked Signal Configs</h3>
+                <h3 className="text-sm font-medium mb-2">Ranked Signal Configs (IS)</h3>
                 <OptimizeTable
                   results={bt.optimizeResult.results}
                   onSelect={setSelectedOptResult}
@@ -1564,13 +1945,19 @@ export const BacktestPage: React.FC = () => {
             </div>
           )}
 
+          {/* Walk-Forward tab result */}
+          {topTab === 'walkforward' && bt.walkforwardResult && (
+            <WalkForwardResultView result={bt.walkforwardResult} />
+          )}
+
           {/* Empty state */}
-          {!bt.loading && !bt.singleResult && !bt.sweepResult && !bt.optimizeResult && (
+          {!bt.loading && !bt.singleResult && !bt.sweepResult && !bt.optimizeResult && !bt.walkforwardResult && (
             <div className="text-center py-16 text-text-tertiary">
               <FlaskConical size={48} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">Configure parameters and run a backtest</p>
-              <p className="text-xs mt-1"><b>Validate</b> — single run with quality gates</p>
-              <p className="text-xs"><b>Optimize</b> — grid sweep or GA parameter search</p>
+              <p className="text-xs mt-1"><b>Validate</b> — single run on full date range</p>
+              <p className="text-xs"><b>Optimize</b> — multi-ticker GA with IS/OOS split (recommended)</p>
+              <p className="text-xs"><b>Walk-Forward</b> — rolling IS/OOS windows, most robust validation</p>
             </div>
           )}
         </div>

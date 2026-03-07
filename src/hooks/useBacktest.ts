@@ -12,12 +12,19 @@ import type {
   SweepResult,
   OptimizeConfig,
   OptimizeResult,
+  WalkForwardConfig,
+  WalkForwardResult,
 } from '../lib/backtest/types';
 import { DEFAULT_CONFIG } from '../lib/backtest/types';
 import { runBacktest, type IVDataRow } from '../lib/backtest/engine';
-import { runSweep, runTwoStageOptimize } from '../lib/backtest/sweep';
+import { runSweep, runTwoStageOptimize, runWalkForward } from '../lib/backtest/sweep';
 
-export type BacktestMode = 'validate' | 'sweep' | 'optimize';
+export type BacktestMode = 'validate' | 'sweep' | 'optimize' | 'walkforward';
+
+export interface OOSDateRange {
+  startDate: string;
+  endDate: string;
+}
 
 /** Subtract N calendar days (approximates trading days × 1.45 for weekends/holidays) */
 function addTradingDaysBack(dateStr: string, tradingDays: number): string {
@@ -41,6 +48,8 @@ interface UseBacktestReturn {
   singleResult: BacktestResult | null;
   sweepResult: SweepResult | null;
   optimizeResult: OptimizeResult | null;
+  oosResult: BacktestResult | null;     // OOS validation after optimize
+  walkforwardResult: WalkForwardResult | null;
   candles: BacktestCandle[] | null;
   // Pinned for comparison
   pinned: BacktestResult[];
@@ -49,7 +58,8 @@ interface UseBacktestReturn {
   // Actions
   run: () => Promise<void>;
   runSweepAction: (sweepConfig: SweepConfig) => Promise<void>;
-  runOptimizeAction: (optConfig: OptimizeConfig) => Promise<void>;
+  runOptimizeAction: (optConfig: OptimizeConfig, oosDateRange?: OOSDateRange) => Promise<void>;
+  runWalkForwardAction: (wfConfig: WalkForwardConfig) => Promise<void>;
 }
 
 export function useBacktest(): UseBacktestReturn {
@@ -63,6 +73,8 @@ export function useBacktest(): UseBacktestReturn {
   const [singleResult, setSingleResult] = useState<BacktestResult | null>(null);
   const [sweepResult, setSweepResult] = useState<SweepResult | null>(null);
   const [optimizeResult, setOptimizeResult] = useState<OptimizeResult | null>(null);
+  const [oosResult, setOosResult] = useState<BacktestResult | null>(null);
+  const [walkforwardResult, setWalkforwardResult] = useState<WalkForwardResult | null>(null);
   const [candles, setCandles] = useState<BacktestCandle[] | null>(null);
   const [pinned, setPinned] = useState<BacktestResult[]>([]);
 
@@ -170,69 +182,129 @@ export function useBacktest(): UseBacktestReturn {
     }
   }, [fetchCandles, fetchIVData]);
 
-  const runOptimizeAction = useCallback(async (optCfg: OptimizeConfig) => {
+  const runOptimizeAction = useCallback(async (optCfg: OptimizeConfig, oosDateRange?: OOSDateRange) => {
     setError(null);
     setLoading(true);
     setProgress(0);
     setProgressPhase('Fetching candles');
     setOptimizeResult(null);
+    setOosResult(null);
 
     try {
       const fetchFrom = addTradingDaysBack(optCfg.startDate, 450);
+      // Extend fetch to cover OOS period if provided (candles shared between IS optimization + OOS validation)
+      const fetchTo = oosDateRange?.endDate ?? optCfg.endDate;
       const allTickers = optCfg.tickers?.length ? optCfg.tickers : [optCfg.ticker];
 
-      // Fetch candles for all tickers
-      // Multi-ticker GA requires 1500+ bars per ticker for statistical robustness.
-      // Short-history tickers (IPOs etc.) are excluded from training — use validate mode for those.
       const isMultiTicker = allTickers.length > 1;
       const MIN_CANDLES = isMultiTicker ? 1500 : 350;
+
+      // fullCandleMap: all candles (IS + OOS) for each ticker
+      const fullCandleMap = new Map<string, BacktestCandle[]>();
+      // candleMap: IS-only candles passed to GA optimizer
       const candleMap = new Map<string, BacktestCandle[]>();
       const skipped: string[] = [];
-      console.log('[optimize] tickers:', allTickers, 'fetchFrom:', fetchFrom, 'to:', optCfg.endDate, 'minCandles:', MIN_CANDLES);
+
+      console.log('[optimize] tickers:', allTickers, 'IS:', optCfg.startDate, '→', optCfg.endDate, 'OOS:', oosDateRange?.startDate, '→', oosDateRange?.endDate);
+
       for (const ticker of allTickers) {
         try {
-          const c = await fetchCandles(ticker, fetchFrom, optCfg.endDate);
-          console.log(`[optimize] ${ticker}: got ${c.length} candles`);
-          if (c.length < MIN_CANDLES) {
-            console.warn(`${ticker}: Need ${MIN_CANDLES}+ candles for ${isMultiTicker ? 'multi-ticker GA' : 'backtest'}, got ${c.length} — skipping`);
-            skipped.push(`${ticker}(${c.length})`);
+          const c = await fetchCandles(ticker, fetchFrom, fetchTo);
+          fullCandleMap.set(ticker, c);
+
+          // IS candles: everything up to IS end date
+          const isCandles = c.filter(candle => candle.date <= optCfg.endDate);
+          console.log(`[optimize] ${ticker}: ${c.length} total candles, ${isCandles.length} IS candles`);
+
+          if (isCandles.length < MIN_CANDLES) {
+            console.warn(`${ticker}: Need ${MIN_CANDLES}+ IS candles, got ${isCandles.length} — skipping`);
+            skipped.push(`${ticker}(${isCandles.length})`);
             continue;
           }
-          candleMap.set(ticker, c);
+          candleMap.set(ticker, isCandles);
         } catch (fetchErr: any) {
           console.error(`[optimize] ${ticker} fetch failed:`, fetchErr.message);
         }
       }
 
       if (skipped.length > 0) {
-        console.warn(`[optimize] Excluded from GA training (< ${MIN_CANDLES} candles): ${skipped.join(', ')}. Use validate mode for these tickers.`);
+        console.warn(`[optimize] Excluded (< ${MIN_CANDLES} IS candles): ${skipped.join(', ')}`);
       }
 
       if (candleMap.size === 0) {
-        throw new Error(`No tickers with sufficient data (need ${MIN_CANDLES}+ candles each). Tickers tried: ${allTickers.join(', ')}. Excluded: ${skipped.join(', ')}. Check browser console for details.`);
+        throw new Error(`No tickers with sufficient IS data (need ${MIN_CANDLES}+ candles). Tried: ${allTickers.join(', ')}. Excluded: ${skipped.join(', ')}`);
       }
 
-      // Fetch IV data for all tickers (if ORATS IV source)
-      let ivInput: IVDataRow[] | Map<string, IVDataRow[]> | undefined;
+      // Fetch IV data for IS period
+      const ivMap = new Map<string, IVDataRow[]>();
       if (optCfg.optionsPricing?.ivSource === 'orats') {
-        const ivMap = new Map<string, IVDataRow[]>();
         for (const ticker of candleMap.keys()) {
           const iv = await fetchIVData(ticker, fetchFrom, optCfg.endDate);
           if (iv && iv.length > 0) ivMap.set(ticker, iv);
         }
-        ivInput = ivMap.size === 1 ? Array.from(ivMap.values())[0] : ivMap.size > 0 ? ivMap : undefined;
       }
+      const ivInput: IVDataRow[] | Map<string, IVDataRow[]> | undefined =
+        ivMap.size === 1 ? Array.from(ivMap.values())[0] : ivMap.size > 0 ? ivMap : undefined;
 
+      // ── Stage 1+2: Optimize on IS candles ──
       setProgressPhase('GA weights');
-      const input = candleMap.size === 1
-        ? Array.from(candleMap.values())[0]
-        : candleMap;
+      const input = candleMap.size === 1 ? Array.from(candleMap.values())[0] : candleMap;
 
       const result = runTwoStageOptimize(input, optCfg, (phase, pct) => {
         setProgressPhase(phase === 'ga' ? 'GA weights' : 'TP/SL grid');
-        setProgress(pct);
+        setProgress(Math.round(pct * (oosDateRange ? 0.9 : 1))); // reserve 10% for OOS
       }, ivInput);
       setOptimizeResult(result);
+
+      // ── OOS validation: apply best IS config to unseen OOS candles ──
+      if (oosDateRange && result.bestOverall) {
+        setProgressPhase('OOS validation');
+        setProgress(90);
+
+        const primaryTicker = (optCfg.tickers?.[0] ?? optCfg.ticker).toUpperCase();
+        const allOosTickers = optCfg.tickers?.length ? optCfg.tickers : [primaryTicker];
+
+        // Run OOS on each ticker, collect all trades
+        for (const ticker of allOosTickers) {
+          const fullCandles = fullCandleMap.get(ticker) ?? [];
+          if (fullCandles.length < 50 || ticker === primaryTicker) continue;
+
+          let oosIV: IVDataRow[] | undefined;
+          if (optCfg.optionsPricing?.ivSource === 'orats') {
+            oosIV = await fetchIVData(ticker, oosDateRange.startDate, oosDateRange.endDate);
+          }
+
+          const oosConfig: BacktestConfig = {
+            ...result.bestOverall.config,
+            ticker,
+            startDate: oosDateRange.startDate,
+            endDate: oosDateRange.endDate,
+          };
+
+          try {
+            runBacktest(fullCandles, oosConfig, undefined, oosIV);
+          } catch (e: any) {
+            console.warn(`[optimize] OOS backtest failed for ${ticker}:`, e.message);
+          }
+        }
+
+        // Run final OOS backtest on primary ticker for analytics (equity curve, analytics object)
+        const primaryFullCandles = fullCandleMap.get(primaryTicker) ?? [];
+        if (primaryFullCandles.length >= 50) {
+          let oosIV: IVDataRow[] | undefined;
+          if (optCfg.optionsPricing?.ivSource === 'orats') {
+            oosIV = await fetchIVData(primaryTicker, oosDateRange.startDate, oosDateRange.endDate);
+          }
+          const oosConfig: BacktestConfig = {
+            ...result.bestOverall.config,
+            ticker: primaryTicker,
+            startDate: oosDateRange.startDate,
+            endDate: oosDateRange.endDate,
+          };
+          const primaryOOS = runBacktest(primaryFullCandles, oosConfig, undefined, oosIV);
+          setOosResult(primaryOOS);
+        }
+      }
     } catch (err: any) {
       setError(err.message || 'Optimize failed');
     } finally {
@@ -241,6 +313,33 @@ export function useBacktest(): UseBacktestReturn {
       setProgressPhase('');
     }
   }, [fetchCandles, fetchIVData]);
+
+  const runWalkForwardAction = useCallback(async (wfCfg: WalkForwardConfig) => {
+    setError(null);
+    setLoading(true);
+    setProgress(0);
+    setProgressPhase('Fetching candles');
+    setWalkforwardResult(null);
+
+    try {
+      const fetchFrom = addTradingDaysBack(wfCfg.startDate, 450);
+      const c = await fetchCandles(wfCfg.ticker, fetchFrom, wfCfg.endDate);
+      if (c.length < 350) throw new Error(`Need 350+ candles, got ${c.length}. Try a longer date range.`);
+
+      setProgressPhase('Walk-forward');
+      const result = runWalkForward(c, wfCfg, (wi, total, phase) => {
+        setProgress(Math.round((wi / Math.max(total, 1)) * 100));
+        setProgressPhase(`Window ${wi + 1}/${total} (${phase})`);
+      });
+      setWalkforwardResult(result);
+    } catch (err: any) {
+      setError(err.message || 'Walk-forward failed');
+    } finally {
+      setLoading(false);
+      setProgress(100);
+      setProgressPhase('');
+    }
+  }, [fetchCandles]);
 
   const togglePin = useCallback((r: BacktestResult) => {
     setPinned(prev => {
@@ -258,8 +357,8 @@ export function useBacktest(): UseBacktestReturn {
     config, setConfig,
     mode, setMode,
     loading, fetchingCandles, progress, progressPhase, error,
-    singleResult, sweepResult, optimizeResult, candles,
+    singleResult, sweepResult, optimizeResult, oosResult, walkforwardResult, candles,
     pinned, togglePin, clearPins,
-    run, runSweepAction, runOptimizeAction,
+    run, runSweepAction, runOptimizeAction, runWalkForwardAction,
   };
 }
