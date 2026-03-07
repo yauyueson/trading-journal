@@ -346,12 +346,20 @@ export async function runGeneticOptimize(
   // Very common in later generations when population converges. Saves 20-40% of backtests.
   const fitnessCache = new Map<string, { result: BacktestResult; fitness: number }>();
 
+  // Temporal robustness lambda: penalty per unit of fitness variance across IS time halves.
+  // At 0.5: a config that scores 0.30 early and 0.10 late → robust = 0.20 - 0.5*0.20 = 0.10
+  // (same as the worst half). A config that scores 0.28 both halves → robust = 0.28.
+  // Raise toward 1.0 for stricter consistency requirement; lower toward 0 to disable.
+  const TEMPORAL_LAMBDA = 0.5;
+  const MIN_TRADES_FOR_SPLIT = 20;
+
   const evaluate = (genes: Individual): { result: BacktestResult; fitness: number } => {
     const cacheKey = genes.join('|');
     const cached = fitnessCache.get(cacheKey);
     if (cached) return cached;
     const { indicatorOpts, tradeOverrides } = genesToParams(genes, defs);
-    let fitnessSum = 0;
+    let baseFitnessSum = 0;
+    let temporalPenaltySum = 0;
     let fitnessCount = 0;
     const allTrades: BacktestTrade[] = [];
     let totalSignals = 0;
@@ -378,8 +386,29 @@ export async function runGeneticOptimize(
         regimeGates: config.regimeGates,
       };
       const r = runBacktestFull(signals, simCandles, backtestConfig);
-      const fit = computeFitness(r);
-      fitnessSum += fit;
+      baseFitnessSum += computeFitness(r);
+
+      // Temporal robustness: split this ticker's IS trades into early/late halves.
+      // Penalize configs whose fitness differs significantly between the two halves —
+      // they are fitting to a sub-regime rather than a durable edge.
+      if (r.trades.length >= MIN_TRADES_FOR_SPLIT) {
+        const sorted = [...r.trades].sort((a, b) => (a.entryDate < b.entryDate ? -1 : 1));
+        const mid = Math.floor(sorted.length / 2);
+        const earlyTrades = sorted.slice(0, mid);
+        const lateTrades = sorted.slice(mid);
+        const earlyFit = computeFitness({
+          config: backtestConfig,
+          trades: earlyTrades,
+          analytics: computeAnalytics(earlyTrades, backtestConfig, earlyTrades.length),
+        });
+        const lateFit = computeFitness({
+          config: backtestConfig,
+          trades: lateTrades,
+          analytics: computeAnalytics(lateTrades, backtestConfig, lateTrades.length),
+        });
+        temporalPenaltySum += Math.abs(earlyFit - lateFit);
+      }
+
       fitnessCount++;
       lastConfig = backtestConfig;
 
@@ -397,7 +426,11 @@ export async function runGeneticOptimize(
     const combinedAnalytics = computeAnalytics(allTrades, combinedConfig, totalSignals);
     const combinedResult: BacktestResult = { config: combinedConfig, trades: allTrades, analytics: combinedAnalytics };
 
-    const entry = { result: combinedResult, fitness: fitnessCount > 0 ? fitnessSum / fitnessCount : 0 };
+    const baseFitness = fitnessCount > 0 ? baseFitnessSum / fitnessCount : 0;
+    const avgTemporalPenalty = fitnessCount > 0 ? temporalPenaltySum / fitnessCount : 0;
+    const robustFitness = Math.max(0, baseFitness - TEMPORAL_LAMBDA * avgTemporalPenalty);
+
+    const entry = { result: combinedResult, fitness: robustFitness };
     fitnessCache.set(cacheKey, entry);
     return entry;
   };
