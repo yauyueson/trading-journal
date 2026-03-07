@@ -491,20 +491,11 @@ export function runBacktestFull(
       let exitPrice: number | null = null;
       let exitType: ExitType | null = null;
 
-      if (ot.direction === 'CALL') {
-        if (candle.open <= ot.slPrice) { exitPrice = candle.open; exitType = 'SL'; }
-        else if (candle.low <= ot.slPrice && candle.high >= ot.tpPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
-        else if (candle.high >= ot.tpPrice) { exitPrice = ot.tpPrice; exitType = 'TP'; }
-        else if (candle.low <= ot.slPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
-      } else {
-        if (candle.open >= ot.slPrice) { exitPrice = candle.open; exitType = 'SL'; }
-        else if (candle.high >= ot.slPrice && candle.low <= ot.tpPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
-        else if (candle.low <= ot.tpPrice) { exitPrice = ot.tpPrice; exitType = 'TP'; }
-        else if (candle.high >= ot.slPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
-      }
+      // Option Mode: premium-based TP/SL (skip ATR exits)
+      // Stock Mode: ATR-based TP/SL
+      const usesPremiumExits = ot.bsmEntryPrice != null && ot.bsmEntryPrice > 0 && config.optionsPricing?.premiumTP != null;
 
-      // Premium-based TP/SL (Option Mode): override ATR exits when BSM repricing is active
-      if (exitPrice === null && ot.bsmEntryPrice != null && ot.bsmEntryPrice > 0 && config.optionsPricing?.premiumTP != null) {
+      if (usesPremiumExits) {
         const opc = config.optionsPricing!;
         const T_now = Math.max(1 / 365, (ot.bsmEntryDTE! - holdDays) / 365);
 
@@ -518,12 +509,25 @@ export function runBacktestFull(
         }
 
         const currOptPrice = bsmPrice(candle.close, ot.bsmStrike!, T_now, sigma_now, opc.riskFreeRate, ot.bsmIsCall!);
-        const premiumReturn = (currOptPrice - ot.bsmEntryPrice) / ot.bsmEntryPrice;
+        const premiumReturn = (currOptPrice - ot.bsmEntryPrice!) / ot.bsmEntryPrice!;
 
         if (premiumReturn >= (opc.premiumTP ?? 0.50)) {
           exitPrice = candle.close; exitType = 'TP';
         } else if (premiumReturn <= -(opc.premiumSL ?? 0.50)) {
           exitPrice = candle.close; exitType = 'SL';
+        }
+      } else {
+        // Stock Mode: ATR price-level exits
+        if (ot.direction === 'CALL') {
+          if (candle.open <= ot.slPrice) { exitPrice = candle.open; exitType = 'SL'; }
+          else if (candle.low <= ot.slPrice && candle.high >= ot.tpPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
+          else if (candle.high >= ot.tpPrice) { exitPrice = ot.tpPrice; exitType = 'TP'; }
+          else if (candle.low <= ot.slPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
+        } else {
+          if (candle.open >= ot.slPrice) { exitPrice = candle.open; exitType = 'SL'; }
+          else if (candle.high >= ot.slPrice && candle.low <= ot.tpPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
+          else if (candle.low <= ot.tpPrice) { exitPrice = ot.tpPrice; exitType = 'TP'; }
+          else if (candle.high >= ot.slPrice) { exitPrice = ot.slPrice; exitType = 'SL'; }
         }
       }
 
