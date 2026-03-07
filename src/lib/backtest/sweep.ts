@@ -301,7 +301,7 @@ function yieldToUI(): Promise<void> {
 export async function runGeneticOptimize(
   candles: BacktestCandle[] | Map<string, BacktestCandle[]>,
   config: OptimizeConfig,
-  onProgress?: (gen: number, totalGens: number, bestFitness: number, cacheHits?: number) => void,
+  onProgress?: (gen: number, totalGens: number, bestFitness: number, cacheHits?: number, avgFitness?: number) => void,
   ivData?: IVDataRow[] | Map<string, IVDataRow[]>,
 ): Promise<OptimizeResult> {
   const t0 = performance.now();
@@ -470,7 +470,7 @@ export async function runGeneticOptimize(
     const bestFit = Math.max(...fitnesses);
     const avgFit = fitnesses.reduce((s, f) => s + f, 0) / fitnesses.length;
     generationHistory.push({ gen, bestFitness: bestFit, avgFitness: avgFit });
-    if (onProgress) onProgress(gen, GENERATIONS, bestFit, fitnessCache.size);
+    if (onProgress) onProgress(gen, GENERATIONS, bestFit, fitnessCache.size, avgFit);
 
     // Early stopping: halt if no improvement for PATIENCE generations
     if (bestFit > prevBestFit + 1e-6) {
@@ -516,6 +516,7 @@ export interface OptimizeProgressDetail {
   gen?: number;
   totalGens?: number;
   bestFitness?: number;
+  avgFitness?: number;
   cacheHits?: number;
   totalEvals?: number;
   tpslDone?: number;
@@ -532,8 +533,8 @@ export async function runTwoStageOptimize(
   const params = config.optimizeParams ?? DEFAULT_OPTIMIZE_PARAMS;
 
   // Stage 1: GA
-  const gaResult = await runGeneticOptimize(candles, config, (gen, totalGens, bestFitness, cacheHits) => {
-    if (onProgress) onProgress('ga', Math.round((gen / totalGens) * 100), { gen, totalGens, bestFitness, cacheHits });
+  const gaResult = await runGeneticOptimize(candles, config, (gen, totalGens, bestFitness, cacheHits, avgFitness) => {
+    if (onProgress) onProgress('ga', Math.round((gen / totalGens) * 100), { gen, totalGens, bestFitness, avgFitness, cacheHits });
   }, ivData);
 
   if (!gaResult.bestOverall) {

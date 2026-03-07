@@ -68,6 +68,8 @@ function addTradingDaysBack(dateStr: string, tradingDays: number): string {
   return d.toISOString().split('T')[0];
 }
 
+export interface LiveGenPoint { gen: number; bestFitness: number; avgFitness: number; }
+
 interface UseBacktestReturn {
   // State
   config: BacktestConfig;
@@ -79,6 +81,9 @@ interface UseBacktestReturn {
   progress: number;
   progressPhase: string;
   progressDetail: string;
+  elapsedMs: number;
+  liveGenHistory: LiveGenPoint[];
+  genProgress: { gen: number; totalGens: number; bestFitness: number; cacheHits: number } | null;
   error: string | null;
   // Results
   singleResult: BacktestResult | null;
@@ -106,6 +111,11 @@ export function useBacktest(): UseBacktestReturn {
   const [progress, setProgress] = useState(0);
   const [progressPhase, setProgressPhase] = useState('');
   const [progressDetail, setProgressDetail] = useState('');
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [liveGenHistory, setLiveGenHistory] = useState<LiveGenPoint[]>([]);
+  const [genProgress, setGenProgress] = useState<{ gen: number; totalGens: number; bestFitness: number; cacheHits: number } | null>(null);
+  const startedAtRef = useRef<number>(0);
+  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [singleResult, setSingleResult] = useState<BacktestResult | null>(null);
   const [sweepResult, setSweepResult] = useState<SweepResult | null>(null);
@@ -117,6 +127,22 @@ export function useBacktest(): UseBacktestReturn {
 
   const candlesCacheRef = useRef<Map<string, BacktestCandle[]>>(new Map());
   const ivCacheRef = useRef<Map<string, IVDataRow[]>>(new Map());
+
+  const startTimer = useCallback(() => {
+    startedAtRef.current = Date.now();
+    setElapsedMs(0);
+    if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
+    elapsedTimerRef.current = setInterval(() => {
+      setElapsedMs(Date.now() - startedAtRef.current);
+    }, 500);
+  }, []);
+
+  const stopTimer = useCallback(() => {
+    if (elapsedTimerRef.current) { clearInterval(elapsedTimerRef.current); elapsedTimerRef.current = null; }
+    setElapsedMs(Date.now() - startedAtRef.current);
+  }, []);
+
+  useEffect(() => () => { if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current); }, []);
 
   // Shared optimizer worker — created once, lives for the lifetime of the hook
   const workerRef = useRef<Worker | null>(null);
@@ -232,8 +258,11 @@ export function useBacktest(): UseBacktestReturn {
     setProgress(0);
     setProgressPhase('Fetching candles');
     setProgressDetail('');
+    setLiveGenHistory([]);
+    setGenProgress(null);
     setOptimizeResult(null);
     setOosResult(null);
+    startTimer();
 
     try {
       const fetchFrom = addTradingDaysBack(optCfg.startDate, 450);
@@ -319,6 +348,11 @@ export function useBacktest(): UseBacktestReturn {
               if (phase === 'ga' && det.gen !== undefined) {
                 const cacheStr = det.cacheHits ? ` · ${det.cacheHits} cached` : '';
                 setProgressDetail(`Generation ${det.gen}/${det.totalGens} · Best score ${(det.bestFitness ?? 0).toFixed(3)}${cacheStr}`);
+                setGenProgress({ gen: det.gen, totalGens: det.totalGens, bestFitness: det.bestFitness ?? 0, cacheHits: det.cacheHits ?? 0 });
+                setLiveGenHistory(prev => {
+                  const next = [...prev, { gen: det.gen, bestFitness: det.bestFitness ?? 0, avgFitness: det.avgFitness ?? 0 }];
+                  return next.length > 200 ? next.slice(-200) : next;
+                });
               } else if (phase === 'tpsl' && det.tpslDone !== undefined) {
                 setProgressDetail(`Combo ${det.tpslDone}/${det.tpslTotal}`);
               }
@@ -384,8 +418,9 @@ export function useBacktest(): UseBacktestReturn {
       setProgress(100);
       setProgressPhase('');
       setProgressDetail('');
+      stopTimer();
     }
-  }, [fetchCandles, fetchIVData]);
+  }, [fetchCandles, fetchIVData, startTimer, stopTimer]);
 
   const runWalkForwardAction = useCallback(async (wfCfg: WalkForwardConfig) => {
     setError(null);
@@ -441,7 +476,7 @@ export function useBacktest(): UseBacktestReturn {
   return {
     config, setConfig,
     mode, setMode,
-    loading, fetchingCandles, progress, progressPhase, progressDetail, error,
+    loading, fetchingCandles, progress, progressPhase, progressDetail, elapsedMs, liveGenHistory, genProgress, error,
     singleResult, sweepResult, optimizeResult, oosResult, walkforwardResult, candles,
     pinned, togglePin, clearPins,
     run, runSweepAction, runOptimizeAction, runWalkForwardAction,

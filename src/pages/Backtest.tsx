@@ -33,41 +33,166 @@ const Tip: React.FC<{ text: string }> = ({ text }) => (
 // ── Toggle Switch ───────────────────────────────────────
 
 // ── Progress Panel ───────────────────────────────────────
-const PHASE_LABELS: Record<string, { label: string; icon: string }> = {
-  'Fetching candles':   { label: 'Fetching candles',       icon: '📡' },
-  'Genetic algorithm':  { label: 'Genetic algorithm (GA)', icon: '🧬' },
-  'TP/SL grid':         { label: 'TP/SL grid search',      icon: '🔍' },
-  'OOS validation':     { label: 'OOS validation',         icon: '🧪' },
-  'Walk-forward':       { label: 'Walk-forward',           icon: '📈' },
+
+import type { LiveGenPoint } from '../hooks/useBacktest';
+
+const OPT_PIPELINE = [
+  { key: 'Fetching candles', label: 'Fetch', icon: '📡' },
+  { key: 'GA weights',       label: 'GA weights', icon: '⚙️' },
+  { key: 'Genetic algorithm', label: 'Evolve', icon: '🧬' },
+  { key: 'TP/SL grid',      label: 'TP/SL grid', icon: '🔍' },
+  { key: 'OOS validation',  label: 'OOS test', icon: '🧪' },
+];
+
+const WF_PIPELINE = [
+  { key: 'Fetching candles', label: 'Fetch', icon: '📡' },
+  { key: 'Walk-forward',     label: 'Walk-forward', icon: '📈' },
+];
+
+function fmtElapsed(ms: number) {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+}
+
+// Mini SVG sparkline for fitness convergence
+const FitnessSparkline: React.FC<{ data: LiveGenPoint[] }> = ({ data }) => {
+  if (data.length < 2) return null;
+  const W = 220, H = 48;
+  const maxF = Math.max(...data.map(d => d.bestFitness));
+  const minF = Math.min(...data.map(d => d.avgFitness ?? d.bestFitness));
+  const range = maxF - minF || 0.001;
+  const sx = (i: number) => (i / (data.length - 1)) * W;
+  const sy = (v: number) => H - ((v - minF) / range) * (H - 4) - 2;
+
+  const bestPath = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${sx(i).toFixed(1)} ${sy(d.bestFitness).toFixed(1)}`).join(' ');
+  const avgPath = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${sx(i).toFixed(1)} ${sy(d.avgFitness ?? d.bestFitness).toFixed(1)}`).join(' ');
+
+  return (
+    <svg width={W} height={H} className="overflow-visible">
+      <path d={avgPath} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d={bestPath} fill="none" stroke="#10b981" strokeWidth="2" strokeLinejoin="round" />
+      {/* Last point dot */}
+      <circle cx={sx(data.length - 1)} cy={sy(data[data.length - 1].bestFitness)} r="3" fill="#10b981" />
+    </svg>
+  );
 };
 
 const ProgressPanel: React.FC<{
   phase: string;
   detail: string;
   progress: number;
-}> = ({ phase, detail, progress }) => {
-  const meta = PHASE_LABELS[phase] ?? { label: phase, icon: '⚙️' };
+  elapsedMs: number;
+  liveGenHistory: LiveGenPoint[];
+  genProgress: { gen: number; totalGens: number; bestFitness: number; cacheHits: number } | null;
+  mode: string;
+}> = ({ phase, detail, progress, elapsedMs, liveGenHistory, genProgress, mode }) => {
+  const isWF = mode === 'walkforward';
+  const pipeline = isWF ? WF_PIPELINE : OPT_PIPELINE;
+
+  // Determine which step is active
+  const activeIdx = pipeline.findIndex(s => s.key === phase);
+  const isGA = phase === 'Genetic algorithm';
+  const isTpsl = phase === 'TP/SL grid';
+
+  // Convergence: last 5 gens of improvement
+  const lastGen = liveGenHistory[liveGenHistory.length - 1];
+  const prevGen = liveGenHistory[liveGenHistory.length - 6];
+  const improvement = lastGen && prevGen ? lastGen.bestFitness - prevGen.bestFitness : null;
+  const converged = improvement !== null && improvement < 0.001 && liveGenHistory.length > 5;
+
   return (
-    <div className="bg-[#111] border border-white/10 rounded-xl p-5 space-y-4">
+    <div className="bg-[#111] border border-white/10 rounded-xl p-4 space-y-3">
+      {/* Header row */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">{meta.icon}</span>
-          <span className="text-sm font-medium text-white">{meta.label}</span>
+        <span className="text-sm font-medium text-white">
+          {pipeline.find(s => s.key === phase)?.icon ?? '⚙️'}{' '}
+          {phase}
+        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-text-tertiary font-mono">{fmtElapsed(elapsedMs)}</span>
+          <span className="text-lg font-mono font-bold text-accent-green tabular-nums">{progress}%</span>
         </div>
-        <span className="text-2xl font-mono font-bold text-accent-green tabular-nums">{progress}%</span>
       </div>
 
-      {/* Progress bar */}
-      <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+      {/* Pipeline steps */}
+      <div className="flex items-center gap-1">
+        {pipeline.map((step, i) => {
+          const done = activeIdx > i;
+          const active = activeIdx === i;
+          return (
+            <React.Fragment key={step.key}>
+              <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-all
+                ${done ? 'bg-emerald-500/20 text-emerald-400' : active ? 'bg-accent-green/20 text-accent-green ring-1 ring-accent-green/40' : 'bg-white/5 text-text-tertiary'}`}>
+                <span>{step.icon}</span>
+                <span>{step.label}</span>
+                {done && <span>✓</span>}
+              </div>
+              {i < pipeline.length - 1 && <span className="text-white/20 text-[10px]">›</span>}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* Main progress bar */}
+      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
         <div
           className="h-full bg-gradient-to-r from-accent-green/70 to-accent-green rounded-full transition-all duration-300"
           style={{ width: `${progress}%` }}
         />
       </div>
 
-      {/* Detail line */}
-      {detail && (
-        <p className="text-xs text-text-secondary font-mono">{detail}</p>
+      {/* GA-specific: sparkline + stats */}
+      {isGA && (
+        <div className="space-y-2">
+          {liveGenHistory.length > 1 && (
+            <div className="bg-white/3 rounded-lg p-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-text-tertiary">Fitness convergence</span>
+                <div className="flex items-center gap-3 text-[10px] font-mono">
+                  <span className="text-emerald-400">best</span>
+                  <span className="text-white/30">avg</span>
+                </div>
+              </div>
+              <FitnessSparkline data={liveGenHistory} />
+            </div>
+          )}
+          {genProgress && (
+            <div className="grid grid-cols-4 gap-1.5 text-[10px]">
+              <div className="bg-white/5 rounded p-1.5 text-center">
+                <div className="text-text-tertiary">Gen</div>
+                <div className="font-mono font-bold text-white">{genProgress.gen}/{genProgress.totalGens}</div>
+              </div>
+              <div className="bg-white/5 rounded p-1.5 text-center">
+                <div className="text-text-tertiary">Best</div>
+                <div className="font-mono font-bold text-accent-green">{genProgress.bestFitness.toFixed(3)}</div>
+              </div>
+              <div className="bg-white/5 rounded p-1.5 text-center">
+                <div className="text-text-tertiary">Δ5 gens</div>
+                <div className={`font-mono font-bold ${converged ? 'text-amber-400' : 'text-white'}`}>
+                  {improvement !== null ? (improvement >= 0 ? '+' : '') + improvement.toFixed(4) : '—'}
+                </div>
+              </div>
+              <div className="bg-white/5 rounded p-1.5 text-center">
+                <div className="text-text-tertiary">Cached</div>
+                <div className="font-mono font-bold text-white">{genProgress.cacheHits}</div>
+              </div>
+            </div>
+          )}
+          {converged && (
+            <p className="text-[10px] text-amber-400/80 font-mono">⚡ Population converged — consider stopping early</p>
+          )}
+        </div>
+      )}
+
+      {/* TP/SL grid detail */}
+      {isTpsl && detail && (
+        <p className="text-[10px] text-text-secondary font-mono">{detail}</p>
+      )}
+
+      {/* WF / other detail */}
+      {!isGA && !isTpsl && detail && (
+        <p className="text-[10px] text-text-secondary font-mono">{detail}</p>
       )}
     </div>
   );
@@ -2011,6 +2136,10 @@ export const BacktestPage: React.FC = () => {
               phase={bt.progressPhase}
               detail={bt.progressDetail}
               progress={bt.progress}
+              elapsedMs={bt.elapsedMs}
+              liveGenHistory={bt.liveGenHistory}
+              genProgress={bt.genProgress}
+              mode={bt.mode}
             />
           )}
 
