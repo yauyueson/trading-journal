@@ -234,7 +234,7 @@ describe('Weight Cap', () => {
 
 describe('O-U IV Evolution', () => {
   it('DEFAULT_IV_DYNAMICS has expected values', () => {
-    expect(DEFAULT_IV_DYNAMICS.enabled).toBe(false);
+    expect(DEFAULT_IV_DYNAMICS.enabled).toBe(true);
     expect(DEFAULT_IV_DYNAMICS.kappa).toBe(4.0);
     expect(DEFAULT_IV_DYNAMICS.useHV60ForTheta).toBe(true);
     expect(DEFAULT_IV_DYNAMICS.stochastic).toBe(false);

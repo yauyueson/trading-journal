@@ -14,7 +14,7 @@ import type {
   OptimizeResult,
 } from '../lib/backtest/types';
 import { DEFAULT_CONFIG } from '../lib/backtest/types';
-import { runBacktest } from '../lib/backtest/engine';
+import { runBacktest, type IVDataRow } from '../lib/backtest/engine';
 import { runSweep, runTwoStageOptimize } from '../lib/backtest/sweep';
 
 export type BacktestMode = 'validate' | 'sweep' | 'optimize';
@@ -67,6 +67,7 @@ export function useBacktest(): UseBacktestReturn {
   const [pinned, setPinned] = useState<BacktestResult[]>([]);
 
   const candlesCacheRef = useRef<Map<string, BacktestCandle[]>>(new Map());
+  const ivCacheRef = useRef<Map<string, IVDataRow[]>>(new Map());
 
   const fetchCandles = useCallback(async (ticker: string, from: string, to: string): Promise<BacktestCandle[]> => {
     const key = `${ticker}|${from}|${to}`;
@@ -90,6 +91,25 @@ export function useBacktest(): UseBacktestReturn {
     }
   }, []);
 
+  const fetchIVData = useCallback(async (ticker: string, from: string, to: string): Promise<IVDataRow[] | undefined> => {
+    const key = `${ticker}|${from}|${to}`;
+    const cached = ivCacheRef.current.get(key);
+    if (cached) return cached;
+
+    try {
+      const res = await fetch(`/api/backtest-iv?ticker=${encodeURIComponent(ticker)}&from=${from}&to=${to}`);
+      if (!res.ok) return undefined;
+      const data = await res.json();
+      const iv = data.iv as IVDataRow[];
+      if (iv && iv.length > 0) {
+        ivCacheRef.current.set(key, iv);
+      }
+      return iv;
+    } catch {
+      return undefined;
+    }
+  }, []);
+
   const run = useCallback(async () => {
     setError(null);
     setLoading(true);
@@ -99,12 +119,17 @@ export function useBacktest(): UseBacktestReturn {
 
     try {
       const fetchFrom = addTradingDaysBack(config.startDate, 450);
-      const c = await fetchCandles(config.ticker, fetchFrom, config.endDate);
+      const [c, iv] = await Promise.all([
+        fetchCandles(config.ticker, fetchFrom, config.endDate),
+        config.optionsPricing?.ivSource === 'orats'
+          ? fetchIVData(config.ticker, fetchFrom, config.endDate)
+          : Promise.resolve(undefined),
+      ]);
       if (c.length < 350) {
         throw new Error(`Need 350+ candles for stable backtest, got ${c.length}. Try a longer date range.`);
       }
 
-      const result = runBacktest(c, config, pct => setProgress(pct));
+      const result = runBacktest(c, config, pct => setProgress(pct), iv);
       setSingleResult(result);
     } catch (err: any) {
       setError(err.message || 'Backtest failed');
@@ -112,7 +137,7 @@ export function useBacktest(): UseBacktestReturn {
       setLoading(false);
       setProgress(100);
     }
-  }, [config, fetchCandles]);
+  }, [config, fetchCandles, fetchIVData]);
 
   const runSweepAction = useCallback(async (sweepCfg: SweepConfig) => {
     setError(null);
@@ -123,14 +148,19 @@ export function useBacktest(): UseBacktestReturn {
 
     try {
       const fetchFrom = addTradingDaysBack(sweepCfg.startDate, 450);
-      const c = await fetchCandles(sweepCfg.ticker, fetchFrom, sweepCfg.endDate);
+      const [c, iv] = await Promise.all([
+        fetchCandles(sweepCfg.ticker, fetchFrom, sweepCfg.endDate),
+        sweepCfg.optionsPricing?.ivSource === 'orats'
+          ? fetchIVData(sweepCfg.ticker, fetchFrom, sweepCfg.endDate)
+          : Promise.resolve(undefined),
+      ]);
       if (c.length < 350) {
         throw new Error(`Need 350+ candles for stable backtest, got ${c.length}. Try a longer date range.`);
       }
 
       const result = runSweep(c, sweepCfg, (done, total) => {
         setProgress(Math.round((done / total) * 100));
-      });
+      }, iv);
       setSweepResult(result);
     } catch (err: any) {
       setError(err.message || 'Sweep failed');
@@ -138,7 +168,7 @@ export function useBacktest(): UseBacktestReturn {
       setLoading(false);
       setProgress(100);
     }
-  }, [fetchCandles]);
+  }, [fetchCandles, fetchIVData]);
 
   const runOptimizeAction = useCallback(async (optCfg: OptimizeConfig) => {
     setError(null);
@@ -152,14 +182,20 @@ export function useBacktest(): UseBacktestReturn {
       const allTickers = optCfg.tickers?.length ? optCfg.tickers : [optCfg.ticker];
 
       // Fetch candles for all tickers
+      // Multi-ticker GA requires 1500+ bars per ticker for statistical robustness.
+      // Short-history tickers (IPOs etc.) are excluded from training — use validate mode for those.
+      const isMultiTicker = allTickers.length > 1;
+      const MIN_CANDLES = isMultiTicker ? 1500 : 350;
       const candleMap = new Map<string, BacktestCandle[]>();
-      console.log('[optimize] tickers:', allTickers, 'fetchFrom:', fetchFrom, 'to:', optCfg.endDate);
+      const skipped: string[] = [];
+      console.log('[optimize] tickers:', allTickers, 'fetchFrom:', fetchFrom, 'to:', optCfg.endDate, 'minCandles:', MIN_CANDLES);
       for (const ticker of allTickers) {
         try {
           const c = await fetchCandles(ticker, fetchFrom, optCfg.endDate);
           console.log(`[optimize] ${ticker}: got ${c.length} candles`);
-          if (c.length < 350) {
-            console.warn(`${ticker}: Need 350+ candles, got ${c.length} — skipping`);
+          if (c.length < MIN_CANDLES) {
+            console.warn(`${ticker}: Need ${MIN_CANDLES}+ candles for ${isMultiTicker ? 'multi-ticker GA' : 'backtest'}, got ${c.length} — skipping`);
+            skipped.push(`${ticker}(${c.length})`);
             continue;
           }
           candleMap.set(ticker, c);
@@ -168,8 +204,23 @@ export function useBacktest(): UseBacktestReturn {
         }
       }
 
+      if (skipped.length > 0) {
+        console.warn(`[optimize] Excluded from GA training (< ${MIN_CANDLES} candles): ${skipped.join(', ')}. Use validate mode for these tickers.`);
+      }
+
       if (candleMap.size === 0) {
-        throw new Error(`No tickers with sufficient data (need 350+ candles each). Tickers tried: ${allTickers.join(', ')}. Check browser console for details.`);
+        throw new Error(`No tickers with sufficient data (need ${MIN_CANDLES}+ candles each). Tickers tried: ${allTickers.join(', ')}. Excluded: ${skipped.join(', ')}. Check browser console for details.`);
+      }
+
+      // Fetch IV data for all tickers (if ORATS IV source)
+      let ivInput: IVDataRow[] | Map<string, IVDataRow[]> | undefined;
+      if (optCfg.optionsPricing?.ivSource === 'orats') {
+        const ivMap = new Map<string, IVDataRow[]>();
+        for (const ticker of candleMap.keys()) {
+          const iv = await fetchIVData(ticker, fetchFrom, optCfg.endDate);
+          if (iv && iv.length > 0) ivMap.set(ticker, iv);
+        }
+        ivInput = ivMap.size === 1 ? Array.from(ivMap.values())[0] : ivMap.size > 0 ? ivMap : undefined;
       }
 
       setProgressPhase('GA weights');
@@ -180,7 +231,7 @@ export function useBacktest(): UseBacktestReturn {
       const result = runTwoStageOptimize(input, optCfg, (phase, pct) => {
         setProgressPhase(phase === 'ga' ? 'GA weights' : 'TP/SL grid');
         setProgress(pct);
-      });
+      }, ivInput);
       setOptimizeResult(result);
     } catch (err: any) {
       setError(err.message || 'Optimize failed');
@@ -189,7 +240,7 @@ export function useBacktest(): UseBacktestReturn {
       setProgress(100);
       setProgressPhase('');
     }
-  }, [fetchCandles]);
+  }, [fetchCandles, fetchIVData]);
 
   const togglePin = useCallback((r: BacktestResult) => {
     setPinned(prev => {

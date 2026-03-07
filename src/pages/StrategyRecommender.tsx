@@ -609,13 +609,13 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                             <>
                                 <span className="font-bold text-red-200">Scores Unreliable — CBOE (No Greeks)</span>
                                 {' '}— CBOE data has no real Greeks. All LOQ/CSQ scores are ~50 (random).
-                                Do NOT act on these scores. Set <code className="bg-black/40 px-1 rounded text-red-300">DATA_SOURCE=POLYGON</code> for real scoring.
+                                Do NOT act on these scores. Set <code className="bg-black/40 px-1 rounded text-red-300">DATA_SOURCE=ORATS</code> for real scoring.
                             </>
                         ) : (
                             <>
                                 <span className="font-bold text-amber-200">Data Source: CBOE</span>
                                 {' '}— Options quotes are <span className="font-bold">15 minutes delayed</span>.
-                                For real-time Greeks &amp; IV, set <code className="bg-black/40 px-1 rounded text-amber-300">DATA_SOURCE=POLYGON</code> in your environment.
+                                For real-time Greeks &amp; IV, set <code className="bg-black/40 px-1 rounded text-amber-300">DATA_SOURCE=ORATS</code> in your environment.
                             </>
                         )}
                     </span>
@@ -634,7 +634,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                 </div>
             )}
 
-            {/* Stale quote warning: Polygon quotes older than 5 minutes */}
+            {/* Stale quote warning: quotes older than 5 minutes */}
             {result?.quoteFreshness?.isStale && (
                 <div className="bg-orange-500/10 border border-orange-500/40 text-orange-300 p-3 rounded-xl mb-4 flex items-center gap-3">
                     <AlertCircle size={16} className="shrink-0 text-orange-400" />

@@ -130,16 +130,16 @@ export default async function handler(req, res) {
     }
 
     // 2. Process based on Data Source
-    if (dataSource === 'POLYGON') {
-        return await handlePolygon(legs, res);
+    if (dataSource === 'POLYGON' || dataSource === 'ORATS') {
+        return await handleORATS(legs, res);
     } else {
         return await handleCBOE(legs, res);
     }
 }
 
-async function handlePolygon(legs, res) {
+async function handleORATS(legs, res) {
     try {
-        const { getOptionChain, getUnderlyingPrice } = await import('../lib/polygon-client.js');
+        const { getOptionChain, getUnderlyingPrice } = await import('../lib/orats-client.js');
 
         // Group legs by ticker so we fetch one chain per ticker (2 API calls per ticker instead of N per leg)
         const tickerToLegs = new Map();
@@ -213,7 +213,7 @@ async function handlePolygon(legs, res) {
                         option.dte || 30,
                         leg.type
                     ),
-                    dataSource: 'Polygon.io'
+                    dataSource: 'ORATS'
                 });
             } else {
                 results.push({ ...leg, success: false, error: 'Option not found in chain' });

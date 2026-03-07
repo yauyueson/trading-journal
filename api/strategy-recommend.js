@@ -203,9 +203,9 @@ function _getMid(opt) {
  * @param {string} ticker Stock symbol
  * @returns {Promise<number|null>} RV30 as annualized % (e.g., 25.5 = 25.5%) or null on failure
  */
-async function calculateRV30FromPolygon(ticker) {
+async function calculateRV30FromCandles(ticker) {
     try {
-        const { getCandles } = await import('../lib/polygon-client.js');
+        const { getCandles } = await import('../lib/tiingo-client.js');
 
         const toDate = new Date();
         const fromDate = new Date();
@@ -1288,11 +1288,15 @@ export default async function handler(req, res) {
         // Pre-declare candle arrays at handler scope so batch 1 can share them
         let dailyCandles = null;
 
-        let polygonSuccess = false;
+        let oratsSuccess = false;
 
-        if (dataSource === 'POLYGON') {
-            console.log(`Using Polygon.io for ${upperTicker}`);
-            const { getOptionChain, getUnderlyingPrice, getCandles, checkQuoteFreshness } = await import('../lib/polygon-client.js');
+        // Import ORATS enrichment functions at handler scope (used for IV rank + RV30 regardless of data source)
+        const { getIVRank: oratsGetIVRank, getCores: oratsGetCores } = await import('../lib/orats-client.js');
+
+        if (dataSource === 'POLYGON' || dataSource === 'ORATS') {
+            console.log(`Using ORATS for ${upperTicker}`);
+            const { getOptionChain, getUnderlyingPrice, checkQuoteFreshness } = await import('../lib/orats-client.js');
+            const { getCandles } = await import('../lib/tiingo-client.js');
 
             // Date ranges for candle fetches
             const toDate = new Date();
@@ -1316,8 +1320,17 @@ export default async function handler(req, res) {
             // ±20% strike filter is wide enough that yesterday's close is accurate enough
             const lastClose = dailyCandles?.length > 0 ? dailyCandles[dailyCandles.length - 1].close : null;
 
-            // Compute RV30 inline from daily candles (no extra API call)
-            if (dailyCandles && dailyCandles.length >= 11) {
+            // RV30: prefer ORATS cores (pre-computed), fallback to manual calc from candles
+            try {
+                const coresData = await oratsGetCores(upperTicker);
+                if (coresData && (coresData.orHv30d || coresData.clsHv30d)) {
+                    rv30 = ((coresData.orHv30d ?? coresData.clsHv30d) * 100); // ORATS returns decimal → %
+                    console.log(`[RV30 ORATS] ${upperTicker}: ${rv30.toFixed(2)}% (from ORATS cores)`);
+                }
+            } catch (e) {
+                console.warn(`[RV30 ORATS] ${upperTicker}: ORATS cores failed, falling back to manual calc`);
+            }
+            if (rv30 == null && dailyCandles && dailyCandles.length >= 11) {
                 const closes = dailyCandles.map(c => c.close);
                 rv30 = _computeRV30(closes);
                 if (rv30 != null) console.log(`[RV30 Calc] ${upperTicker}: ${rv30.toFixed(2)}% (from daily candles)`);
@@ -1396,27 +1409,27 @@ export default async function handler(req, res) {
                             } catch (e) { }
                         }
 
-                        polygonSuccess = true;
+                        oratsSuccess = true;
                         quoteFreshness = checkQuoteFreshness(chainData);
                         if (quoteFreshness.isStale) {
-                            console.warn(`[Polygon] Stale quotes detected: ${quoteFreshness.staleQuotes}/${chainData.length} older than 5min (oldest: ${Math.round(quoteFreshness.oldestQuoteAgeMs / 60000)}min)`);
+                            console.warn(`[ORATS] Stale quotes detected: ${quoteFreshness.staleQuotes}/${chainData.length} older than 5min (oldest: ${Math.round(quoteFreshness.oldestQuoteAgeMs / 60000)}min)`);
                         }
                     } else {
-                        console.warn('Polygon returned 0 bids/asks (Free Tier?). Falling back to CBOE...');
+                        console.warn('ORATS returned 0 bids/asks. Falling back to CBOE...');
                     }
                 } else {
-                    console.warn('Polygon returned empty chain. Falling back to CBOE...');
+                    console.warn('ORATS returned empty chain. Falling back to CBOE...');
                 }
 
             } catch (err) {
-                console.error('Polygon fetch failed. Falling back to CBOE. Error:', err.message);
+                console.error('ORATS fetch failed. Falling back to CBOE. Error:', err.message);
             }
         }
 
-        if (!polygonSuccess) {
+        if (!oratsSuccess) {
             // CBOE Legacy — fetch daily candles in batch 1 so RV30 and tech score share them
             actualDataSource = 'CBOE';
-            const { getCandles: _getCandles } = await import('../lib/polygon-client.js');
+            const { getCandles: _getCandles } = await import('../lib/tiingo-client.js');
             const _toDate = new Date();
             const _toStr = _toDate.toISOString().split('T')[0];
             const _fromDay = new Date(_toDate);
@@ -1460,7 +1473,7 @@ export default async function handler(req, res) {
         const dataQuality = fullChain.length > 0 && zeroGreeksCount / fullChain.length > 0.5 ? 'degraded' : 'ok';
 
         // F6.4 — CBOE fallback produces meaningless scores (all Greeks=0 → LOQ/CSQ ≈ 50)
-        const scoresReliable = !(actualDataSource !== 'POLYGON' && dataQuality === 'degraded');
+        const scoresReliable = !(actualDataSource !== 'POLYGON' && actualDataSource !== 'ORATS' && dataQuality === 'degraded');
 
         // Derive strategyChain by filtering fullChain in-memory (avoids double iteration of allOptions)
         const strategyChain = dteTarget != null
@@ -1532,16 +1545,31 @@ export default async function handler(req, res) {
             console.warn('[Hysteresis] Non-critical query failed:', hysteresisErr.message);
         }
 
-        // getIVRank now auto-backfills inline when < 200 samples (see ivHistory.cjs)
-        const ivRankResult = await getIVRank(upperTicker);
-        const ivRank = ivRankResult?.ivRank ?? null;
-        const ivPercentile = ivRankResult?.ivPercentile ?? null;
-        const ivRankSampleDays = ivRankResult?.sampleDays ?? 0;
-        const ivRankSource = ivRankResult?.ivRankSource ?? null;
-        // IV Momentum: 5-trading-day change (prevents selling into rising IV)
-        const iv5dChange = ivRankResult?.iv5dChange ?? null;
-        const ivTrend = ivRankResult?.ivTrend ?? null;
-        const autoBackfillTriggered = ivRankResult?.autoBackfilled ?? false;
+        // IV Rank: prefer ORATS (pre-computed, 1-year), fallback to ivHistory.cjs (manual 252-day)
+        let ivRank = null, ivPercentile = null, ivRankSampleDays = 0, ivRankSource = null;
+        let iv5dChange = null, ivTrend = null, autoBackfillTriggered = false;
+        try {
+            const oratsIVR = await oratsGetIVRank(upperTicker);
+            if (oratsIVR && oratsIVR.ivRank1y != null) {
+                ivRank = oratsIVR.ivRank1y;
+                ivPercentile = oratsIVR.ivPct1y ?? oratsIVR.ivRank1y;
+                ivRankSampleDays = 252; // ORATS uses 1-year window
+                ivRankSource = 'orats';
+                console.log(`[IV Rank ORATS] ${upperTicker}: rank=${ivRank?.toFixed(3)}, pct=${ivPercentile?.toFixed(3)}`);
+            }
+        } catch (e) {
+            console.warn(`[IV Rank ORATS] ${upperTicker}: failed, falling back to ivHistory.cjs`);
+        }
+        if (ivRank == null) {
+            const ivRankResult = await getIVRank(upperTicker);
+            ivRank = ivRankResult?.ivRank ?? null;
+            ivPercentile = ivRankResult?.ivPercentile ?? null;
+            ivRankSampleDays = ivRankResult?.sampleDays ?? 0;
+            ivRankSource = ivRankResult?.ivRankSource ?? null;
+            iv5dChange = ivRankResult?.iv5dChange ?? null;
+            ivTrend = ivRankResult?.ivTrend ?? null;
+            autoBackfillTriggered = ivRankResult?.autoBackfilled ?? false;
+        }
 
         // 2. Build Targeted Strategy based on Pine Script recommendation
         const ivScoreInput = ivPercentile ?? ivRank;
@@ -1894,7 +1922,7 @@ export default async function handler(req, res) {
         return res.status(200).json({
             success: true,
             autoBackfillTriggered,
-            dataSource: actualDataSource,   // 'POLYGON' (real-time) or 'CBOE' (15-min delayed)
+            dataSource: actualDataSource,   // 'ORATS' or 'CBOE' (fallback)
             dataQuality,                    // 'degraded' when >50% of options have zero Greeks
             scoresReliable,                 // false when CBOE + degraded → scores are meaningless
             quoteFreshness: quoteFreshness ?? null, // { isStale, staleQuotes, oldestQuoteAgeMs }

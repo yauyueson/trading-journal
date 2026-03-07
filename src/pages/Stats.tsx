@@ -7,6 +7,7 @@ import { ScoreValidation } from '../components/ScoreValidation';
 import { EquityCurve } from '../components/stats/EquityCurve';
 import { MonthlyHeatmap } from '../components/stats/MonthlyHeatmap';
 import { DisciplineCard } from '../components/stats/DisciplineCard';
+import { MFEMAEChart } from '../components/stats/MFEMAEChart';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 
@@ -90,13 +91,14 @@ const BucketList: React.FC<{ entries: [string, BucketStats][]; renderLabel?: (ke
     </div>
 );
 
-type StatsTab = 'overview' | 'breakdowns' | 'discipline' | 'validation';
+type StatsTab = 'overview' | 'breakdowns' | 'discipline' | 'validation' | 'mfe-mae';
 
 const TABS: { key: StatsTab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'breakdowns', label: 'Breakdowns' },
     { key: 'discipline', label: 'Discipline' },
     { key: 'validation', label: 'Validation' },
+    { key: 'mfe-mae', label: 'MFE/MAE' },
 ];
 
 export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, transactions: transactionsProp, loading: loadingProp }) => {
@@ -403,6 +405,13 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                     {statsTab === 'validation' && (
                         <div className="mt-2">
                             <ScoreValidation />
+                        </div>
+                    )}
+
+                    {/* ═══ MFE/MAE TAB ═══ */}
+                    {statsTab === 'mfe-mae' && (
+                        <div className="mt-2">
+                            <MFEMAEChart />
                         </div>
                     )}
                 </>

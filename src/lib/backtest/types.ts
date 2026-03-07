@@ -28,7 +28,7 @@ export const DEFAULT_QUALITY_GATES: QualityGates = {
 
 // ── Options Pricing Config (BSM Repricing) ───────────────
 
-export type IVSource = 'hv20' | 'hv30' | 'fixed';
+export type IVSource = 'hv20' | 'hv30' | 'fixed' | 'orats';
 
 export type SpreadType = 'single' | 'vertical';
 
@@ -36,7 +36,7 @@ export interface OptionsPricingConfig {
   enabled: boolean;
   entryDTE: number;           // DTE at entry (default 30)
   riskFreeRate: number;       // decimal (0.04 = 4%)
-  ivSource: IVSource;         // 'hv20' | 'hv30' | 'fixed'
+  ivSource: IVSource;         // 'hv20' | 'hv30' | 'fixed' | 'orats'
   fixedIV?: number;           // decimal, used when ivSource='fixed' (e.g. 0.25)
   // Phase 2: IV dynamics (O-U mean reversion)
   ivDynamics?: IVDynamicsConfig;
@@ -48,10 +48,10 @@ export interface OptionsPricingConfig {
 }
 
 export const DEFAULT_OPTIONS_PRICING: OptionsPricingConfig = {
-  enabled: false,
+  enabled: true,
   entryDTE: 30,
   riskFreeRate: 0.04,
-  ivSource: 'hv20',
+  ivSource: 'orats',
 };
 
 // ── Slippage Model ───────────────────────────────────────
@@ -85,7 +85,7 @@ export interface IVDynamicsConfig {
 }
 
 export const DEFAULT_IV_DYNAMICS: IVDynamicsConfig = {
-  enabled: false,
+  enabled: true,
   kappa: 4.0,
   useHV60ForTheta: true,
   sigmaVol: 0.6,
@@ -207,6 +207,9 @@ export interface PrecomputedSignal {
   ivEstimate?: number;    // HV20
   ivEstimate30?: number;  // HV30
   ivEstimate60?: number;  // HV60 (for O-U theta estimation)
+  // ORATS real IV at signal bar (annualized decimal)
+  oratsIV30?: number;     // Real ORATS IV30
+  oratsIV60?: number;     // Real ORATS IV60
   // Regime at signal bar
   regime?: 'trending' | 'ranging' | 'neutral';
   // Sub-scores for GA correlation penalty
@@ -329,7 +332,7 @@ export interface BacktestAnalytics {
   maxConsecutiveLosses: number;
   // Quality gate stats
   gateStats?: GateStats;
-  // BSM option return analytics (present when optionsPricing was enabled)
+  // BSM option return analytics (primary when optionsPricing enabled)
   optionMode?: boolean;
   optionAvgReturn?: number;
   optionWinRate?: number;
@@ -339,6 +342,12 @@ export interface BacktestAnalytics {
   optionExpectancy?: number;
   optionMaxDrawdown?: number;
   optionEquityCurve?: { date: string; cumReturn: number }[];
+  // Stock return reference stats (secondary when optionMode=true)
+  stockWinRate?: number;
+  stockAvgReturn?: number;
+  stockSharpe?: number;
+  stockSortino?: number;
+  stockProfitFactor?: number;
   // GA correlation penalty: avg pairwise |corr| of sub-scores
   avgSubScoreCorrelation?: number;
   // Monte Carlo permutation test

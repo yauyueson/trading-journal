@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Radio, RefreshCw, X, Settings } from 'lucide-react';
+import { Radio, RefreshCw, X, Settings, Clock, ChevronDown, ChevronRight } from 'lucide-react';
 import { useSignalScanner, type SignalRow } from '../hooks/useSignalScanner';
+import { useSignalHistory, type SignalHistoryRow } from '../hooks/useSignalHistory';
 import { usePositions } from '../hooks/usePositions';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { useNavigate } from 'react-router-dom';
@@ -40,6 +41,7 @@ export const SignalsPage: React.FC = () => {
   const [tickerInput, setTickerInput] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(false);
   const hasSeededWatchlist = useRef(false);
+  const [tab, setTab] = useState<'live' | 'history'>('live');
 
   const hasDeployed = !!settings.strategy.deployedAt;
 
@@ -154,6 +156,29 @@ export const SignalsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Tab bar */}
+      <div className="flex gap-1 mb-4">
+        <button
+          onClick={() => setTab('live')}
+          className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${
+            tab === 'live' ? 'bg-accent-green/20 text-accent-green' : 'bg-white/5 text-text-tertiary hover:text-white'
+          }`}
+        >
+          <Radio size={12} /> Live Scanner
+        </button>
+        <button
+          onClick={() => setTab('history')}
+          className={`px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 ${
+            tab === 'history' ? 'bg-accent-green/20 text-accent-green' : 'bg-white/5 text-text-tertiary hover:text-white'
+          }`}
+        >
+          <Clock size={12} /> Signal History
+        </button>
+      </div>
+
+      {tab === 'history' && <SignalHistoryTab />}
+
+      {tab === 'live' && <>
       {/* Ticker management */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap gap-1">
@@ -273,6 +298,182 @@ export const SignalsPage: React.FC = () => {
           >
             Retry failed tickers
           </button>
+        </div>
+      )}
+      </>}
+    </div>
+  );
+};
+
+// ── Signal History Tab ──────────────────────────────────
+
+const SignalHistoryTab: React.FC = () => {
+  const today = new Date().toISOString().split('T')[0];
+  const thirtyDaysAgo = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  })();
+
+  const [from, setFrom] = useState(thirtyDaysAgo);
+  const [to, setTo] = useState(today);
+  const [ticker, setTicker] = useState('');
+  const [histMinScore, setHistMinScore] = useState(70);
+  const [histDir, setHistDir] = useState<'CALL' | 'PUT' | ''>('');
+  const [expanded, setExpanded] = useState<number | null>(null);
+
+  const { data, isLoading, error } = useSignalHistory({
+    from,
+    to,
+    ticker: ticker || undefined,
+    minScore: histMinScore || undefined,
+    direction: histDir || undefined,
+  });
+
+  return (
+    <>
+      {/* Filters */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-1.5 text-xs text-text-tertiary">
+          From
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+            className="px-2 py-1 text-xs bg-[#111] border border-white/10 rounded focus:border-accent-green/50 outline-none" />
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-text-tertiary">
+          To
+          <input type="date" value={to} onChange={e => setTo(e.target.value)}
+            className="px-2 py-1 text-xs bg-[#111] border border-white/10 rounded focus:border-accent-green/50 outline-none" />
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-text-tertiary">
+          Ticker
+          <input value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} placeholder="All"
+            className="w-20 px-2 py-1 text-xs bg-[#111] border border-white/10 rounded focus:border-accent-green/50 outline-none" />
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-text-tertiary">
+          Min Score
+          <input type="number" value={histMinScore} onChange={e => setHistMinScore(Number(e.target.value))} min={0} max={100}
+            className="w-14 px-2 py-1 text-xs bg-[#111] border border-white/10 rounded focus:border-accent-green/50 outline-none" />
+        </label>
+        <div className="flex items-center gap-1">
+          {(['', 'CALL', 'PUT'] as const).map(d => (
+            <button key={d || 'ALL'} onClick={() => setHistDir(d)}
+              className={`px-2 py-1 text-xs rounded transition-colors ${
+                histDir === d ? 'bg-accent-green/20 text-accent-green' : 'bg-white/5 text-text-tertiary hover:text-white'
+              }`}>
+              {d || 'ALL'}
+            </button>
+          ))}
+        </div>
+        {data && (
+          <span className="text-xs text-text-tertiary ml-auto">
+            {data.length} signal{data.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="bg-[#1A1A1A] rounded-lg border border-white/10 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-white/10 text-text-tertiary text-xs text-left">
+              <th className="px-3 py-2 font-medium w-6"></th>
+              <th className="px-3 py-2 font-medium">Date</th>
+              <th className="px-3 py-2 font-medium">Ticker</th>
+              <th className="px-3 py-2 font-medium">Direction</th>
+              <th className="px-3 py-2 font-medium text-right">Score</th>
+              <th className="px-3 py-2 font-medium">Setup</th>
+              <th className="px-3 py-2 font-medium text-center">Conf</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading && (
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-text-tertiary text-xs">Loading...</td></tr>
+            )}
+            {error && (
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-red-400 text-xs">Error: {(error as Error).message}</td></tr>
+            )}
+            {!isLoading && !error && data?.length === 0 && (
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-text-tertiary text-xs">No signals in this range.</td></tr>
+            )}
+            {data?.map(row => {
+              const dir = dirBadge(row.direction as 'CALL' | 'PUT' | 'NEUTRAL');
+              const isExpanded = expanded === row.id;
+              return (
+                <React.Fragment key={row.id}>
+                  <tr
+                    className="border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                    onClick={() => setExpanded(isExpanded ? null : row.id)}
+                  >
+                    <td className="px-2 py-2 text-text-tertiary">
+                      {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-text-secondary font-mono">{row.date}</td>
+                    <td className="px-3 py-2 font-medium">{row.ticker}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-block px-2 py-0.5 text-[10px] font-semibold rounded ${dir.cls}`}>{dir.label}</span>
+                    </td>
+                    <td className={`px-3 py-2 text-right font-mono font-semibold ${scoreColor(row.score)}`}>
+                      <span className={`inline-block px-1.5 py-0.5 rounded ${scoreBg(row.score)}`}>
+                        {row.score.toFixed(0)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-text-secondary">{row.setup}</td>
+                    <td className="px-3 py-2 text-center">
+                      {Array.from({ length: 3 }, (_, i) => (
+                        <span key={i} className={i < row.confidence ? 'text-accent-green' : 'text-white/10'}>{'\u25CF'}</span>
+                      ))}
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr className="border-b border-white/5">
+                      <td colSpan={7} className="px-4 py-3 bg-white/[0.02]">
+                        <SignalDetailPanel row={row} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+};
+
+const SignalDetailPanel: React.FC<{ row: SignalHistoryRow }> = ({ row }) => {
+  const components = row.components;
+  const debug = row.debug;
+
+  return (
+    <div className="grid grid-cols-2 gap-4 text-xs">
+      {components && (
+        <div>
+          <h4 className="font-medium text-text-secondary mb-1">Components</h4>
+          <div className="space-y-0.5">
+            {Object.entries(components).map(([k, v]) => (
+              <div key={k} className="flex justify-between">
+                <span className="text-text-tertiary">{k}</span>
+                <span className="font-mono">{typeof v === 'number' ? v.toFixed(2) : String(v)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {debug && (
+        <div>
+          <h4 className="font-medium text-text-secondary mb-1">Debug</h4>
+          <div className="space-y-0.5">
+            {Object.entries(debug)
+              .filter(([, v]) => typeof v === 'number' || typeof v === 'string')
+              .slice(0, 15)
+              .map(([k, v]) => (
+                <div key={k} className="flex justify-between">
+                  <span className="text-text-tertiary">{k}</span>
+                  <span className="font-mono">{typeof v === 'number' ? v.toFixed(2) : String(v)}</span>
+                </div>
+              ))}
+          </div>
         </div>
       )}
     </div>

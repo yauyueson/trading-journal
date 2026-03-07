@@ -161,9 +161,9 @@ export default async function handler(req, res) {
     const dataSource = (process.env.DATA_SOURCE || 'CBOE').trim().toUpperCase();
     const optionChains = {};
 
-    if (dataSource === 'POLYGON') {
+    if (dataSource === 'POLYGON' || dataSource === 'ORATS') {
       try {
-        const { getOptionChain } = await import('../lib/polygon-client.js');
+        const { getOptionChain } = await import('../lib/orats-client.js');
         const sequentialThreshold = Number(process.env.ALERT_CHAIN_SEQUENTIAL_THRESHOLD || 50);
         const delayMs = Number(process.env.ALERT_CHAIN_DELAY_MS || 100);
 
@@ -191,7 +191,7 @@ export default async function handler(req, res) {
           }));
         }
       } catch (importErr) {
-        console.error('Failed to import polygon-client (lib):', importErr);
+        console.error('Failed to import orats-client (lib):', importErr);
       }
     }
 

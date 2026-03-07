@@ -265,13 +265,13 @@ export interface StrategyResult {
     success: boolean;
     /** True when the ticker had no IV history and a background backfill was triggered. Re-analyze after ~30s. */
     autoBackfillTriggered?: boolean;
-    /** Which options data source was used: 'POLYGON' (real-time) or 'CBOE' (15-min delayed). */
-    dataSource?: 'POLYGON' | 'CBOE';
+    /** Which options data source was used. */
+    dataSource?: 'ORATS' | 'POLYGON' | 'CBOE';
     /** 'degraded' when >50% of parsed options have zero Greeks (CBOE data quality issue). */
     dataQuality?: 'ok' | 'degraded';
     /** false when CBOE + degraded data → scores are meaningless (~50 for everything). */
     scoresReliable?: boolean;
-    /** Quote freshness info from Polygon (null for CBOE). */
+    /** Quote freshness info from ORATS/Polygon (null for CBOE). */
     quoteFreshness?: { isStale: boolean; staleQuotes: number; oldestQuoteAgeMs: number } | null;
     context: StrategyContext;
     regime: StrategyRegime;

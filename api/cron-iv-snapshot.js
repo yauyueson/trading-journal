@@ -26,7 +26,7 @@ function getSupabase() {
 }
 
 async function fetchTickerIV(ticker) {
-    const { getOptionChain } = await import('../lib/polygon-client.js');
+    const { getOptionChain } = await import('../lib/orats-client.js');
 
     try {
         // Single chain per ticker (2 API calls: contracts + snapshot) covering DTE 23–97; derive IV30/IV90 in memory

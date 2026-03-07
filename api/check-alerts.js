@@ -160,9 +160,9 @@ export default async function handler(req, res) {
     const dataSource = (process.env.DATA_SOURCE || 'CBOE').trim().toUpperCase();
     const optionChains = {};
 
-    if (dataSource === 'POLYGON') {
+    if (dataSource === 'POLYGON' || dataSource === 'ORATS') {
       try {
-        const { getOptionChain } = await import('../lib/polygon-client.js');
+        const { getOptionChain } = await import('../lib/orats-client.js');
         const sequentialThreshold = Number(process.env.ALERT_CHAIN_SEQUENTIAL_THRESHOLD || 50);
         const delayMs = Number(process.env.ALERT_CHAIN_DELAY_MS || 100);
 
@@ -174,7 +174,7 @@ export default async function handler(req, res) {
               const chain = await getOptionChain(ticker, {});
               optionChains[ticker] = chain || [];
             } catch (e) {
-              console.warn('Polygon fetch failed for', ticker, e.message);
+              console.warn('ORATS fetch failed for', ticker, e.message);
               optionChains[ticker] = [];
             }
           }
@@ -184,17 +184,17 @@ export default async function handler(req, res) {
               const chain = await getOptionChain(ticker, {});
               optionChains[ticker] = chain || [];
             } catch (e) {
-              console.warn('Polygon fetch failed for', ticker, e.message);
+              console.warn('ORATS fetch failed for', ticker, e.message);
               optionChains[ticker] = [];
             }
           }));
         }
       } catch (importErr) {
-        console.error('Failed to import polygon-client (lib):', importErr);
+        console.error('Failed to import orats-client (lib):', importErr);
       }
     }
 
-    // CBOE fallback if Polygon not configured or failed
+    // CBOE fallback if ORATS not configured or failed
     if (dataSource === 'CBOE' || Object.keys(optionChains).length === 0) {
       await Promise.all(uniqueTickers.map(async (ticker) => {
         try {

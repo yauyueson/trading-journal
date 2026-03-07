@@ -81,8 +81,8 @@ export default async function handler(req, res) {
         let cboeTimestamp = null;
         let quoteFreshness = null;
 
-        if (dataSource === 'POLYGON') {
-            const { getOptionChain, getUnderlyingPrice, checkQuoteFreshness } = await import('../lib/polygon-client.js');
+        if (dataSource === 'POLYGON' || dataSource === 'ORATS') {
+            const { getOptionChain, getUnderlyingPrice, checkQuoteFreshness } = await import('../lib/orats-client.js');
             console.log(`Scanning ${upperTicker} via Polygon.io`);
 
             // Get underlying price first so we request only the strike range we use (reduces payload/API)
@@ -149,7 +149,7 @@ export default async function handler(req, res) {
         const dataQuality = fullChain.length > 0 && zeroGreeksCount / fullChain.length > 0.5 ? 'degraded' : 'ok';
 
         // F6.4 — CBOE fallback produces meaningless scores (all Greeks=0 → LOQ/CSQ ≈ 50 for everything)
-        const scoresReliable = !(dataSource !== 'POLYGON' && dataQuality === 'degraded');
+        const scoresReliable = !(dataSource !== 'POLYGON' && dataSource !== 'ORATS' && dataQuality === 'degraded');
 
         // Hard filters — single pass combining filter + metric calculation
         const minStrike = currentPrice * (1 - strikeRangeNum);
@@ -234,6 +234,17 @@ export default async function handler(req, res) {
             await saveTickerIVSnapshot(upperTicker, iv30, iv90);
         }
 
+        // Fetch IV rank from ORATS (pre-computed, fast) for vega penalty calibration
+        let scanIVRank = 0.5; // neutral default
+        try {
+            const { getIVRank: oratsGetIVRank } = await import('../lib/orats-client.js');
+            const oratsIVR = await oratsGetIVRank(upperTicker);
+            if (oratsIVR && oratsIVR.ivRank1y != null) {
+                scanIVRank = oratsIVR.ivRank1y;
+                console.log(`[scan-options] ${upperTicker}: ORATS ivRank=${scanIVRank.toFixed(3)}`);
+            }
+        } catch (_) { /* keep neutral default */ }
+
         // Score
         let results;
 
@@ -317,8 +328,8 @@ export default async function handler(req, res) {
                 const atmIV = calculateTargetIV(fullChain, p.opt.dte, currentPrice);
                 const relIvAdj = getRelativeIVAdjustmentCSQ(p.opt.iv, atmIV);
                 // Vega penalty conditioned on IV Rank: at high IV Rank, selling high-vega is desirable.
-                // ivRank not fetched in scan-options → default to 0.5 (neutral).
-                const vegaPenalty = -0.05 * Math.max(0, 1 - 0.5) * zVegaEff[i];
+                // Vega penalty scaled by IV rank: at high IV rank, selling high-vega is desirable
+                const vegaPenalty = -0.05 * Math.max(0, 1 - scanIVRank) * zVegaEff[i];
                 const rawScore = calculateCSQRaw(zE[i], zP[i], zS[i], ivAdjustment + relIvAdj, vegaPenalty);
                 const score = normalizeScoreTo100(rawScore);
                 const factors = buildCSQFactors(

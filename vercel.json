@@ -37,12 +37,29 @@
     },
     "api/batch-refresh-tech.js": {
       "maxDuration": 25
+    },
+    "api/cron-signal-scan.js": {
+      "maxDuration": 60
+    },
+    "api/backtest-iv.js": {
+      "maxDuration": 15
+    },
+    "api/cron-trade-outcomes.js": {
+      "maxDuration": 30
     }
   },
   "crons": [
     {
       "path": "/api/daily-recap",
       "schedule": "30 21 * * *"
+    },
+    {
+      "path": "/api/cron-signal-scan",
+      "schedule": "0 21 * * 1-5"
+    },
+    {
+      "path": "/api/cron-trade-outcomes",
+      "schedule": "35 21 * * 1-5"
     }
   ],
   "headers": [

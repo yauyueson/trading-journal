@@ -109,7 +109,14 @@ function buildDailyTo4HMap(candles4h: BacktestCandle[]): Map<string, number> {
 
 // ── Signal Pre-computation (Daily / v3) ─────────────────
 
-export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptions?: TechScoreOptions): PrecomputedSignal[] {
+/** ORATS IV data row (from api/backtest-iv.js) */
+export interface IVDataRow {
+  date: string;
+  iv30d: number | null;
+  iv60d: number | null;
+}
+
+export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptions?: TechScoreOptions, ivData?: IVDataRow[]): PrecomputedSignal[] {
   const signals: PrecomputedSignal[] = [];
   const len = candles.length;
   const lookback = computeLookback(indicatorOptions);
@@ -127,6 +134,14 @@ export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptio
   const hv20Series = computeRollingHV(closes, 20);
   const hv30Series = computeRollingHV(closes, 30);
   const hv60Series = computeRollingHV(closes, 60);
+
+  // Build ORATS IV lookup by date (if provided)
+  const ivLookup = new Map<string, { iv30d: number | null; iv60d: number | null }>();
+  if (ivData) {
+    for (const row of ivData) {
+      ivLookup.set(row.date, { iv30d: row.iv30d, iv60d: row.iv60d });
+    }
+  }
 
   // Pre-compute V4 quality gate series (O(n), negligible cost)
   const adxResult = calcADX(highs, lows, closes, 14);
@@ -176,6 +191,8 @@ export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptio
       ivEstimate: hv20Series[i],
       ivEstimate30: hv30Series[i],
       ivEstimate60: hv60Series[i],
+      oratsIV30: ivLookup.get(candles[i].date)?.iv30d ?? undefined,
+      oratsIV60: ivLookup.get(candles[i].date)?.iv60d ?? undefined,
       regime,
       subScores: result.components ? {
         sc_mb: result.components.sc_mb,
@@ -251,9 +268,10 @@ export function precomputeSignals(
   candles: BacktestCandle[],
   timeframe: '1D' | '4H',
   indicatorOptions?: TechScoreOptions,
+  ivData?: IVDataRow[],
 ): { signals: PrecomputedSignal[]; simCandles: BacktestCandle[] } {
   if (timeframe === '1D') {
-    return { signals: precomputeSignalsDaily(candles, indicatorOptions), simCandles: candles };
+    return { signals: precomputeSignalsDaily(candles, indicatorOptions, ivData), simCandles: candles };
   }
   // 4H: aggregate to daily for signals, simulate on 4H bars
   // Note: V4 scoring doesn't use TechScoreOptions (it has its own internal params)
@@ -394,9 +412,11 @@ export function runBacktestFull(
         const opc = config.optionsPricing;
         const iv = opc.ivSource === 'fixed'
           ? (opc.fixedIV ?? 0.25)
-          : opc.ivSource === 'hv30'
-            ? (ps.ivEstimate30 ?? ps.ivEstimate ?? NaN)
-            : (ps.ivEstimate ?? NaN);
+          : opc.ivSource === 'orats'
+            ? (ps.oratsIV30 ?? ps.ivEstimate ?? NaN)
+            : opc.ivSource === 'hv30'
+              ? (ps.ivEstimate30 ?? ps.ivEstimate ?? NaN)
+              : (ps.ivEstimate ?? NaN);
 
         if (!isNaN(iv) && iv > 0.01 && iv < 5.0) {
           const isCall = ps.type === 'CALL';
@@ -414,7 +434,9 @@ export function runBacktestFull(
             ot.bsmEntryDTE = opc.entryDTE;
             ot.bsmIsCall = isCall;
             ot.bsmEntryDelta = delta;
-            ot.bsmIVTheta = ps.ivEstimate60;
+            ot.bsmIVTheta = opc.ivSource === 'orats'
+              ? (ps.oratsIV60 ?? ps.ivEstimate60)
+              : ps.ivEstimate60;
 
             // Vertical spread: buy ATM + sell OTM
             if (opc.spreadType === 'vertical') {
@@ -746,8 +768,9 @@ export function runBacktestFull(
 export function runBacktest(
   candles: BacktestCandle[],
   config: BacktestConfig,
-  onProgress?: (pct: number) => void
+  onProgress?: (pct: number) => void,
+  ivData?: IVDataRow[],
 ): BacktestResult {
-  const { signals, simCandles } = precomputeSignals(candles, config.timeframe, config.indicatorOptions);
+  const { signals, simCandles } = precomputeSignals(candles, config.timeframe, config.indicatorOptions, ivData);
   return runBacktestFull(signals, simCandles, config, onProgress);
 }

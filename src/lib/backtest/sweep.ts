@@ -21,7 +21,7 @@ import type {
   WalkForwardWindow,
 } from './types';
 import { DEFAULT_CONFIG, DEFAULT_OPTIMIZE_PARAMS } from './types';
-import { precomputeSignals, runBacktestFull } from './engine';
+import { precomputeSignals, runBacktestFull, type IVDataRow } from './engine';
 import { computeAnalytics, monteCarloPermutation } from './analytics';
 import type { TechScoreOptions } from '../tech-analysis';
 
@@ -66,7 +66,8 @@ function generateTradeConfigs(sweep: SweepConfig, indicatorOpts: TechScoreOption
 export function runSweep(
   candles: BacktestCandle[],
   sweepConfig: SweepConfig,
-  onProgress?: (completed: number, total: number) => void
+  onProgress?: (completed: number, total: number) => void,
+  ivData?: IVDataRow[],
 ): SweepResult {
   const t0 = performance.now();
 
@@ -75,7 +76,7 @@ export function runSweep(
     sweepConfig.minConfidenceRange.length * sweepConfig.setupGroups.length *
     sweepConfig.thetaDecayRange.length;
 
-  const { signals, simCandles } = precomputeSignals(candles, '1D', {});
+  const { signals, simCandles } = precomputeSignals(candles, '1D', {}, ivData);
   const tradeConfigs = generateTradeConfigs(sweepConfig, {});
   const results: BacktestResult[] = [];
   let completed = 0;
@@ -292,7 +293,8 @@ export function computeFitness(r: BacktestResult): number {
 export function runGeneticOptimize(
   candles: BacktestCandle[] | Map<string, BacktestCandle[]>,
   config: OptimizeConfig,
-  onProgress?: (gen: number, totalGens: number, bestFitness: number) => void
+  onProgress?: (gen: number, totalGens: number, bestFitness: number) => void,
+  ivData?: IVDataRow[] | Map<string, IVDataRow[]>,
 ): OptimizeResult {
   const t0 = performance.now();
   const POP_SIZE = config.populationSize ?? 30;
@@ -307,7 +309,10 @@ export function runGeneticOptimize(
     const singleCandles = candles instanceof Map
       ? candles.get(config.ticker) ?? Array.from(candles.values())[0]
       : candles;
-    const { signals, simCandles } = precomputeSignals(singleCandles, '1D', {});
+    const singleIV = ivData instanceof Map
+      ? ivData.get(config.ticker) ?? Array.from(ivData.values())[0]
+      : ivData;
+    const { signals, simCandles } = precomputeSignals(singleCandles, '1D', {}, singleIV);
     const cfg: BacktestConfig = {
       ...DEFAULT_CONFIG,
       ticker: config.ticker, startDate: config.startDate, endDate: config.endDate,
@@ -323,6 +328,9 @@ export function runGeneticOptimize(
   const tickerCandles: Map<string, BacktestCandle[]> = isMultiTicker
     ? candles
     : new Map([[config.ticker, candles]]);
+  const tickerIVData: Map<string, IVDataRow[]> | undefined = ivData
+    ? (ivData instanceof Map ? ivData : new Map([[config.ticker, ivData]]))
+    : undefined;
   const primaryTicker = config.ticker;
 
   const evaluate = (genes: Individual): { result: BacktestResult; fitness: number } => {
@@ -334,7 +342,7 @@ export function runGeneticOptimize(
     let lastConfig: BacktestConfig | null = null;
 
     for (const [ticker, tCandles] of tickerCandles) {
-      const { signals, simCandles } = precomputeSignals(tCandles, '1D', indicatorOpts);
+      const { signals, simCandles } = precomputeSignals(tCandles, '1D', indicatorOpts, tickerIVData?.get(ticker));
       const backtestConfig: BacktestConfig = {
         ...DEFAULT_CONFIG,
         ticker,
@@ -473,7 +481,8 @@ export function runGeneticOptimize(
 export function runTwoStageOptimize(
   candles: BacktestCandle[] | Map<string, BacktestCandle[]>,
   config: OptimizeConfig,
-  onProgress?: (phase: 'ga' | 'tpsl', pct: number) => void
+  onProgress?: (phase: 'ga' | 'tpsl', pct: number) => void,
+  ivData?: IVDataRow[] | Map<string, IVDataRow[]>,
 ): OptimizeResult {
   const t0 = performance.now();
   const params = config.optimizeParams ?? DEFAULT_OPTIMIZE_PARAMS;
@@ -481,7 +490,7 @@ export function runTwoStageOptimize(
   // Stage 1: GA
   const gaResult = runGeneticOptimize(candles, config, (gen, totalGens) => {
     if (onProgress) onProgress('ga', Math.round((gen / totalGens) * 100));
-  });
+  }, ivData);
 
   if (!gaResult.bestOverall) {
     return gaResult;
@@ -501,9 +510,10 @@ export function runTwoStageOptimize(
     : new Map([[config.ticker, candles]]);
 
   // Pre-compute signals for all tickers
+  const tickerIVMap = ivData instanceof Map ? ivData : ivData ? new Map([[config.ticker, ivData]]) : undefined;
   const precomputed = new Map<string, { signals: ReturnType<typeof precomputeSignals>['signals']; simCandles: BacktestCandle[] }>();
   for (const [ticker, tCandles] of tickerCandlesMap) {
-    precomputed.set(ticker, precomputeSignals(tCandles, '1D', bestOpts));
+    precomputed.set(ticker, precomputeSignals(tCandles, '1D', bestOpts, tickerIVMap?.get(ticker)));
   }
 
   const tpRange = [1.5, 2.0, 2.5, 3.0];
@@ -634,7 +644,8 @@ function buildWalkForwardWindows(
 export function runWalkForward(
   candles: BacktestCandle[],
   config: WalkForwardConfig,
-  onProgress?: (windowIdx: number, totalWindows: number, phase: 'IS' | 'OOS') => void
+  onProgress?: (windowIdx: number, totalWindows: number, phase: 'IS' | 'OOS') => void,
+  ivData?: IVDataRow[],
 ): WalkForwardResult {
   const t0 = performance.now();
   const wfWindows = buildWalkForwardWindows(candles, config);
@@ -676,7 +687,7 @@ export function runWalkForward(
         populationSize: config.populationSize ?? 30,
         generations: config.generations ?? 20,
       };
-      const gaResult = runGeneticOptimize(w.isCandles, gaConfig);
+      const gaResult = runGeneticOptimize(w.isCandles, gaConfig, undefined, ivData);
       totalEvals += gaResult.totalCombos;
 
       if (gaResult.bestOverall) {
@@ -695,7 +706,7 @@ export function runWalkForward(
         endDate: w.isEnd,
         timeframe: config.timeframe,
       };
-      const sweepResult = runSweep(w.isCandles, sweepConfig);
+      const sweepResult = runSweep(w.isCandles, sweepConfig, undefined, ivData);
       totalEvals += sweepResult.totalCombos;
 
       if (sweepResult.bestOverall) {
@@ -715,7 +726,7 @@ export function runWalkForward(
       startDate: w.oosStart,
       endDate: w.oosEnd,
     };
-    const { signals: oosSig, simCandles: oosSim } = precomputeSignals(w.oosCandles, config.timeframe, oosConfig.indicatorOptions);
+    const { signals: oosSig, simCandles: oosSim } = precomputeSignals(w.oosCandles, config.timeframe, oosConfig.indicatorOptions, ivData);
     const oosResult = runBacktestFull(oosSig, oosSim, oosConfig);
     totalEvals++;
 

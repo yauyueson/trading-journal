@@ -196,11 +196,12 @@ const SharedConfigFields: React.FC<{
               </div>
               <div>
                 <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                  IV Source<Tip text="HV20 = 20-day historical vol. HV30 = 30-day. Fixed = user-specified constant." />
+                  IV Source<Tip text="ORATS = real market IV from ORATS API. HV20/HV30 = rolling historical vol estimates. Fixed = user-specified constant." />
                 </label>
-                <select value={config.optionsPricing?.ivSource ?? 'hv20'}
+                <select value={config.optionsPricing?.ivSource ?? 'orats'}
                   onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, ivSource: e.target.value as IVSource } })}
                   className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-accent-green/50 focus:outline-none">
+                  <option value="orats">ORATS IV</option>
                   <option value="hv20">HV20</option>
                   <option value="hv30">HV30</option>
                   <option value="fixed">Fixed</option>
@@ -724,16 +725,17 @@ const OptimizePanel: React.FC<{
 const AnalyticsGrid: React.FC<{ a: BacktestAnalytics }> = ({ a }) => (
   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
     <Stat label="Trades" value={a.totalTrades} sub={`${a.totalSignals} signals`} />
-    <Stat label="Win Rate" value={`${a.winRate.toFixed(1)}%`} good={a.winRate > 50}
-      sub={a.optionMode ? `opt: ${a.optionWinRate?.toFixed(1)}%` : `θ: ${a.winRateTheta.toFixed(1)}%`} />
-    <Stat label="Avg Return" value={`${a.avgReturn >= 0 ? '+' : ''}${a.avgReturn.toFixed(2)}%`} good={a.avgReturn > 0}
-      sub={a.optionMode ? `opt: ${(a.optionAvgReturn ?? 0) >= 0 ? '+' : ''}${a.optionAvgReturn?.toFixed(2)}%` : `θ: ${a.avgReturnTheta.toFixed(2)}%`} />
-    <Stat label="Profit Factor" value={a.profitFactor === Infinity ? '∞' : a.profitFactor.toFixed(2)} good={a.profitFactor > 1.5}
-      sub={a.optionMode ? `opt: ${a.optionProfitFactor === Infinity ? '∞' : a.optionProfitFactor?.toFixed(2)}` : undefined} />
-    <Stat label="Sharpe" value={a.sharpe.toFixed(2)} good={a.sharpe > 1}
-      sub={a.optionMode ? `opt: ${a.optionSharpe?.toFixed(2)}` : undefined} />
-    <Stat label="Max DD" value={`${a.maxDrawdown.toFixed(1)}%`} good={a.maxDrawdown < 10}
-      sub={a.optionMode ? `opt: ${a.optionMaxDrawdown?.toFixed(1)}%` : undefined} />
+    <Stat label="Win Rate" value={`${(a.optionMode ? a.optionWinRate! : a.winRate).toFixed(1)}%`} good={(a.optionMode ? a.optionWinRate! : a.winRate) > 50}
+      sub={a.optionMode ? `stock: ${a.stockWinRate?.toFixed(1)}%` : `θ: ${a.winRateTheta.toFixed(1)}%`} />
+    <Stat label="Avg Return" value={`${(a.optionMode ? a.optionAvgReturn! : a.avgReturn) >= 0 ? '+' : ''}${(a.optionMode ? a.optionAvgReturn! : a.avgReturn).toFixed(2)}%`} good={(a.optionMode ? a.optionAvgReturn! : a.avgReturn) > 0}
+      sub={a.optionMode ? `stock: ${(a.stockAvgReturn ?? 0) >= 0 ? '+' : ''}${a.stockAvgReturn?.toFixed(2)}%` : `θ: ${a.avgReturnTheta.toFixed(2)}%`} />
+    <Stat label="Profit Factor" value={(() => { const pf = a.optionMode ? a.optionProfitFactor! : a.profitFactor; return pf === Infinity ? '∞' : pf.toFixed(2); })()}
+      good={(a.optionMode ? a.optionProfitFactor! : a.profitFactor) > 1.5}
+      sub={a.optionMode ? `stock: ${a.stockProfitFactor === Infinity ? '∞' : a.stockProfitFactor?.toFixed(2)}` : undefined} />
+    <Stat label="Sharpe" value={(a.optionMode ? a.optionSharpe! : a.sharpe).toFixed(2)} good={(a.optionMode ? a.optionSharpe! : a.sharpe) > 1}
+      sub={a.optionMode ? `stock: ${a.stockSharpe?.toFixed(2)}` : undefined} />
+    <Stat label="Max DD" value={`${(a.optionMode ? a.optionMaxDrawdown! : a.maxDrawdown).toFixed(1)}%`} good={(a.optionMode ? a.optionMaxDrawdown! : a.maxDrawdown) < 10}
+      sub={a.optionMode ? `stock: ${a.maxDrawdown.toFixed(1)}%` : undefined} />
     <Stat label="Avg Win" value={`+${a.avgWin.toFixed(2)}%`} good />
     <Stat label="Avg Loss" value={`${a.avgLoss.toFixed(2)}%`} good={false} />
     <Stat label="Avg Hold" value={`${a.avgHoldDays.toFixed(1)}d`}
