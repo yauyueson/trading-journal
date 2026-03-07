@@ -1,5 +1,5 @@
 // api/cron-signal-scan.js
-// Daily signal scanner — runs after market close (21:00 UTC / 4:00 PM ET weekdays).
+// Daily signal scanner — triggered externally via cronjobs.org (21:00 UTC / 4:00 PM ET weekdays).
 // 1. Tops up stock_candles cache with latest day's data from Tiingo
 // 2. Runs calculateTechScore on each ticker
 // 3. Upserts actionable signals to signal_history table

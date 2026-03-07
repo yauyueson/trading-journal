@@ -1,6 +1,6 @@
 // api/cron-trade-outcomes.js
 // Computes MFE/MAE for closed trades using underlying stock candles.
-// Runs daily after market close (21:35 UTC / 4:35 PM ET).
+// Triggered externally via cronjobs.org (21:35 UTC / 4:35 PM ET weekdays).
 // MFE = max favorable excursion of the underlying from entry to exit.
 // MAE = max adverse excursion of the underlying from entry to exit.
 

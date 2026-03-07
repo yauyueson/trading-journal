@@ -1,6 +1,6 @@
 /**
  * Daily Recap：每日汇总所有 Active 持仓，发一条 Discord 消息。
- * 由 Vercel Cron 每天调用一次（vercel.json 中 schedule: "30 21 * * *" = 21:30 UTC = 美东 16:30）。
+ * Triggered externally via cronjobs.org (21:30 UTC / 4:30 PM ET daily).
  *
  * 直接调用 CBOE 延迟行情 API 获取当前价，不再自引用 /api/option-price。
  *

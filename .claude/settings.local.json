@@ -104,7 +104,26 @@
       "WebFetch(domain:www.eu-startups.com)",
       "WebFetch(domain:datarade.ai)",
       "WebFetch(domain:www.tradesviz.com)",
-      "WebFetch(domain:www.startbase.com)"
+      "WebFetch(domain:www.startbase.com)",
+      "WebFetch(domain:ivolatility.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:s3.amazonaws.com)",
+      "WebFetch(domain:onlinelibrary.wiley.com)",
+      "WebFetch(domain:www.hoadley.net)",
+      "WebFetch(domain:docs.eulerpool.com)",
+      "WebFetch(domain:brokers-exchange.com)",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "mcp__claude_ai_Notion__notion-update-page",
+      "WebFetch(domain:www.tiingo.com)",
+      "WebFetch(domain:api.tiingo.com)",
+      "WebFetch(domain:www.quantstart.com)",
+      "WebFetch(domain:www.findmymoat.com)",
+      "WebFetch(domain:www.nb-data.com)",
+      "WebFetch(domain:www.ksred.com)",
+      "WebFetch(domain:tiingo-python.readthedocs.io)",
+      "WebFetch(domain:business-science.github.io)",
+      "Bash(cp:*)",
+      "Bash(mv:*)"
     ]
   }
 }
