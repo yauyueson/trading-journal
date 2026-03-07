@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Rocket, Upload, Info } from 'lucide-react';
+import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Rocket, Upload, Info, Download } from 'lucide-react';
 import { useBacktest, type OOSDateRange } from '../hooks/useBacktest';
 import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, OptimizeConfig, OptimizeParams, QualityGates, SpreadType, WalkForwardConfig, WalkForwardResult } from '../lib/backtest/types';
 import { DEFAULT_QUALITY_GATES, DEFAULT_OPTIMIZE_PARAMS, DEFAULT_OPTIONS_PRICING, DEFAULT_SLIPPAGE, DEFAULT_REGIME_GATES } from '../lib/backtest/types';
@@ -1689,6 +1689,175 @@ const SingleResultView: React.FC<{ result: BacktestResult }> = ({ result }) => {
   );
 };
 
+// ── Export Results ──────────────────────────────────────
+
+function buildExportPayload(
+  bt: ReturnType<typeof useBacktest>,
+  topTab: string,
+  config: BacktestConfig,
+  oosResult?: BacktestResult | null,
+) {
+  const fmtAnalytics = (a: BacktestAnalytics) => ({
+    trades: a.totalTrades,
+    signals: a.totalSignals,
+    winRate: +a.winRate.toFixed(1),
+    winRateTheta: +a.winRateTheta.toFixed(1),
+    avgReturn: +a.avgReturn.toFixed(3),
+    avgReturnTheta: +a.avgReturnTheta.toFixed(3),
+    profitFactor: a.profitFactor === Infinity ? 999 : +a.profitFactor.toFixed(2),
+    sharpe: +a.sharpe.toFixed(2),
+    sortino: +((a as any).sortino ?? 0).toFixed(2),
+    maxDrawdown: +((a as any).maxDrawdownPct ?? 0).toFixed(1),
+    avgWin: +a.avgWin.toFixed(3),
+    avgLoss: +a.avgLoss.toFixed(3),
+    avgHoldDays: +a.avgHoldDays.toFixed(1),
+    tpHits: a.tpHits,
+    slHits: a.slHits,
+    timeStops: a.timeStops,
+    scoreStops: a.scoreStops,
+    callStats: { count: a.callStats.count, winRate: +a.callStats.winRate.toFixed(1) },
+    putStats: { count: a.putStats.count, winRate: +a.putStats.winRate.toFixed(1) },
+    bySetup: Object.fromEntries(
+      Object.entries(a.bySetup).map(([k, v]) => [k, { count: v.count, winRate: +v.winRate.toFixed(1), avgReturn: +v.avgReturn.toFixed(3) }])
+    ),
+  });
+
+  const fmtConfig = (c: BacktestConfig) => ({
+    ticker: c.ticker,
+    startDate: c.startDate,
+    endDate: c.endDate,
+    timeframe: c.timeframe,
+    tpAtr: c.tpAtr,
+    slAtr: c.slAtr,
+    minScore: c.minScore,
+    minConfidence: c.minConfidence,
+    thetaDecayRate: c.thetaDecayRate,
+    scoreStopThreshold: c.scoreStopThreshold,
+    weights: c.indicatorOptions ? {
+      w_mb: c.indicatorOptions.w_mb,
+      w_bxs: c.indicatorOptions.w_bxs,
+      w_bxl: c.indicatorOptions.w_bxl,
+      w_ema: c.indicatorOptions.w_ema,
+      w_mom: c.indicatorOptions.w_mom,
+    } : undefined,
+    periods: c.indicatorOptions ? {
+      sc_mb_len: c.indicatorOptions.sc_mb_len,
+      sc_osc_len: c.indicatorOptions.sc_osc_len,
+      sc_bx_s1: c.indicatorOptions.sc_bx_s1,
+      sc_bx_s2: c.indicatorOptions.sc_bx_s2,
+      sc_bx_l1: c.indicatorOptions.sc_bx_l1,
+      sc_bx_l2: c.indicatorOptions.sc_bx_l2,
+    } : undefined,
+    optionMode: !!c.optionsPricing?.enabled,
+    premiumTP: c.optionsPricing?.premiumTP,
+    premiumSL: c.optionsPricing?.premiumSL,
+    entryDTE: c.optionsPricing?.entryDTE,
+    spreadType: c.optionsPricing?.spreadType,
+    qualityGates: c.qualityGates ? {
+      minADX: c.qualityGates.minADX,
+      minRVOL: c.qualityGates.minRVOL,
+      coherence: c.qualityGates.useCoherence,
+      squeeze: c.qualityGates.useSqueeze,
+    } : undefined,
+  });
+
+  const fmtTrade = (t: BacktestTrade) => ({
+    ticker: t.ticker,
+    entry: t.entryDate,
+    exit: t.exitDate,
+    dir: t.direction,
+    setup: t.setup,
+    score: t.score,
+    conf: t.confidence,
+    tier: t.tier,
+    exitType: t.exitType,
+    holdDays: t.holdDays,
+    rawReturn: +(t.rawReturn * 100).toFixed(2),
+    thetaReturn: +(t.thetaAdjReturn * 100).toFixed(2),
+    optionReturn: t.optionReturn != null ? +(t.optionReturn * 100).toFixed(2) : undefined,
+  });
+
+  const payload: Record<string, unknown> = {
+    exportedAt: new Date().toISOString(),
+    mode: topTab,
+  };
+
+  if (topTab === 'validate' && bt.singleResult) {
+    payload.config = fmtConfig(config);
+    payload.analytics = fmtAnalytics(bt.singleResult.analytics);
+    payload.trades = bt.singleResult.trades.map(fmtTrade);
+  }
+
+  if (topTab === 'optimize' && bt.optimizeResult) {
+    const best = bt.optimizeResult.bestOverall;
+    const oos = oosResult;
+    payload.gaStats = {
+      totalEvals: bt.optimizeResult.totalCombos,
+      generations: bt.optimizeResult.generationHistory?.length,
+      elapsedMs: bt.optimizeResult.elapsedMs,
+      configsWithTrades: bt.optimizeResult.results.filter(r => r.analytics.totalTrades >= 3).length,
+    };
+    if (best) {
+      payload.bestConfig = fmtConfig(best.config);
+      payload.isAnalytics = fmtAnalytics(best.analytics);
+      payload.isTrades = best.trades.map(fmtTrade);
+    }
+    if (oos) {
+      payload.oosAnalytics = fmtAnalytics(oos.analytics);
+      payload.oosTrades = oos.trades.map(fmtTrade);
+      const isSharpe = best?.analytics.sharpe ?? 0;
+      const oosSharpe = oos.analytics.sharpe;
+      payload.wfEfficiency = isSharpe > 0 ? +((oosSharpe / isSharpe) * 100).toFixed(1) : 0;
+    }
+    // Top 5 ranked configs (compact)
+    payload.top5 = bt.optimizeResult.results.slice(0, 5).map(r => ({
+      config: fmtConfig(r.config),
+      sharpe: +r.analytics.sharpe.toFixed(2),
+      winRate: +r.analytics.winRate.toFixed(1),
+      pf: r.analytics.profitFactor === Infinity ? 999 : +r.analytics.profitFactor.toFixed(2),
+      trades: r.analytics.totalTrades,
+    }));
+    // Generation history for convergence analysis
+    if (bt.optimizeResult.generationHistory) {
+      payload.generationHistory = bt.optimizeResult.generationHistory;
+    }
+  }
+
+  if (topTab === 'walkforward' && bt.walkforwardResult) {
+    const wf = bt.walkforwardResult;
+    payload.wfConfig = {
+      mode: wf.config.mode,
+      isWindowDays: wf.config.isWindowDays,
+      oosWindowDays: wf.config.oosWindowDays,
+      optimizer: wf.config.optimizer,
+    };
+    payload.oosAnalytics = fmtAnalytics(wf.oosAnalytics);
+    payload.wfEfficiency = +(wf.wfEfficiency * 100).toFixed(1);
+    payload.windows = wf.windows.map(w => ({
+      is: `${w.isStart} → ${w.isEnd}`,
+      oos: `${w.oosStart} → ${w.oosEnd}`,
+      isFitness: +w.isBestFitness.toFixed(3),
+      oosConfig: fmtConfig(w.isBestConfig),
+      oosSharpe: +w.oosResult.analytics.sharpe.toFixed(2),
+      oosWR: +w.oosResult.analytics.winRate.toFixed(1),
+      oosTrades: w.oosResult.analytics.totalTrades,
+    }));
+    payload.oosTrades = wf.oosTrades.map(fmtTrade);
+  }
+
+  return payload;
+}
+
+function downloadJSON(data: unknown, filename: string) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ── Main Page ───────────────────────────────────────────
 
 type TopTab = 'validate' | 'optimize' | 'walkforward';
@@ -1858,7 +2027,21 @@ export const BacktestPage: React.FC = () => {
 
           {/* Validate tab result */}
           {topTab === 'validate' && bt.singleResult && (
-            <SingleResultView result={bt.singleResult} />
+            <>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    const payload = buildExportPayload(bt, 'validate', bt.config);
+                    downloadJSON(payload, `validate-${bt.config.ticker}-${new Date().toISOString().slice(0, 10)}.json`);
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-white/5 hover:bg-white/10 text-text-secondary hover:text-white transition-colors"
+                >
+                  <Download size={12} />
+                  Export
+                </button>
+              </div>
+              <SingleResultView result={bt.singleResult} />
+            </>
           )}
 
           {/* Optimize tab — sweep result */}
@@ -1939,6 +2122,16 @@ export const BacktestPage: React.FC = () => {
                 <span>{bt.optimizeResult.totalCombos} evals{bt.optimizeResult.generationHistory ? ` over ${bt.optimizeResult.generationHistory.length} gens` : ''}</span>
                 <span>{(bt.optimizeResult.elapsedMs / 1000).toFixed(1)}s</span>
                 <span>{bt.optimizeResult.results.filter(r => r.analytics.totalTrades >= 3).length} with 3+ trades</span>
+                <button
+                  onClick={() => {
+                    const payload = buildExportPayload(bt, 'optimize', bt.config, bt.oosResult);
+                    downloadJSON(payload, `optimize-${new Date().toISOString().slice(0, 10)}.json`);
+                  }}
+                  className="ml-auto flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-white/5 hover:bg-white/10 text-text-secondary hover:text-white transition-colors"
+                >
+                  <Download size={12} />
+                  Export
+                </button>
               </div>
 
               {/* Strategy Grade Banner */}
@@ -2045,7 +2238,21 @@ export const BacktestPage: React.FC = () => {
 
           {/* Walk-Forward tab result */}
           {topTab === 'walkforward' && bt.walkforwardResult && (
-            <WalkForwardResultView result={bt.walkforwardResult} />
+            <>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    const payload = buildExportPayload(bt, 'walkforward', bt.config);
+                    downloadJSON(payload, `walkforward-${new Date().toISOString().slice(0, 10)}.json`);
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-white/5 hover:bg-white/10 text-text-secondary hover:text-white transition-colors"
+                >
+                  <Download size={12} />
+                  Export
+                </button>
+              </div>
+              <WalkForwardResultView result={bt.walkforwardResult} />
+            </>
           )}
 
           {/* Empty state */}
