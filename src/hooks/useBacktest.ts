@@ -3,7 +3,7 @@
  * Fetches candles, runs engine, manages validate/sweep/optimize modes.
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type {
   BacktestCandle,
   BacktestConfig,
@@ -17,7 +17,42 @@ import type {
 } from '../lib/backtest/types';
 import { DEFAULT_CONFIG } from '../lib/backtest/types';
 import { runBacktest, type IVDataRow } from '../lib/backtest/engine';
-import { runSweep, runTwoStageOptimize, runWalkForward } from '../lib/backtest/sweep';
+import { runSweep } from '../lib/backtest/sweep';
+
+// ── Web Worker for heavy GA/walk-forward computation ──────────────────────────
+// Keeps the main thread (and React UI) fully responsive during optimization.
+function createOptimizerWorker(): Worker {
+  return new Worker(
+    new URL('../lib/backtest/optimizer.worker.ts', import.meta.url),
+    { type: 'module' },
+  );
+}
+
+/** Run a function inside the shared optimizer worker, resolving on 'done'. */
+function workerRun<T>(
+  worker: Worker,
+  msg: { type: string; payload: unknown },
+  onProgress: (data: Record<string, unknown>) => void,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = Math.random().toString(36).slice(2);
+    const handler = (e: MessageEvent) => {
+      const d = e.data;
+      if (d.id !== id) return;
+      if (d.type === 'progress' || d.type === 'wf-progress') {
+        onProgress(d);
+      } else if (d.type === 'optimize-done' || d.type === 'wf-done') {
+        worker.removeEventListener('message', handler);
+        resolve(d.result as T);
+      } else if (d.type === 'error') {
+        worker.removeEventListener('message', handler);
+        reject(new Error(d.message));
+      }
+    };
+    worker.addEventListener('message', handler);
+    worker.postMessage({ id, ...msg });
+  });
+}
 
 export type BacktestMode = 'validate' | 'sweep' | 'optimize' | 'walkforward';
 
@@ -80,6 +115,13 @@ export function useBacktest(): UseBacktestReturn {
 
   const candlesCacheRef = useRef<Map<string, BacktestCandle[]>>(new Map());
   const ivCacheRef = useRef<Map<string, IVDataRow[]>>(new Map());
+
+  // Shared optimizer worker — created once, lives for the lifetime of the hook
+  const workerRef = useRef<Worker | null>(null);
+  useEffect(() => {
+    workerRef.current = createOptimizerWorker();
+    return () => { workerRef.current?.terminate(); workerRef.current = null; };
+  }, []);
 
   const fetchCandles = useCallback(async (ticker: string, from: string, to: string): Promise<BacktestCandle[]> => {
     const key = `${ticker}|${from}|${to}`;
@@ -246,14 +288,30 @@ export function useBacktest(): UseBacktestReturn {
       const ivInput: IVDataRow[] | Map<string, IVDataRow[]> | undefined =
         ivMap.size === 1 ? Array.from(ivMap.values())[0] : ivMap.size > 0 ? ivMap : undefined;
 
-      // ── Stage 1+2: Optimize on IS candles ──
+      // ── Stage 1+2: Optimize on IS candles (in Web Worker) ──
       setProgressPhase('GA weights');
-      const input = candleMap.size === 1 ? Array.from(candleMap.values())[0] : candleMap;
 
-      const result = await runTwoStageOptimize(input, optCfg, (phase, pct) => {
-        setProgressPhase(phase === 'ga' ? 'GA weights' : 'TP/SL grid');
-        setProgress(Math.round(pct * (oosDateRange ? 0.9 : 1))); // reserve 10% for OOS
-      }, ivInput);
+      // Serialise Map → array of entries for structured clone (workers can't receive Maps directly)
+      const candlePayload = candleMap.size === 1
+        ? Array.from(candleMap.values())[0]
+        : Array.from(candleMap.entries());
+      const ivPayload = ivInput instanceof Map
+        ? Array.from(ivInput.entries())
+        : ivInput;
+
+      const worker = workerRef.current ?? createOptimizerWorker();
+      const result = await workerRun<OptimizeResult>(
+        worker,
+        { type: 'optimize', payload: { candles: candlePayload, config: optCfg, ivData: ivPayload } },
+        (d) => {
+          if (d.type === 'progress') {
+            const phase = d.phase as 'ga' | 'tpsl';
+            const pct = d.pct as number;
+            setProgressPhase(phase === 'ga' ? 'GA weights' : 'TP/SL grid');
+            setProgress(Math.round(pct * (oosDateRange ? 0.9 : 1)));
+          }
+        },
+      );
       setOptimizeResult(result);
 
       // ── OOS validation: apply best IS config to unseen OOS candles ──
@@ -327,10 +385,20 @@ export function useBacktest(): UseBacktestReturn {
       if (c.length < 350) throw new Error(`Need 350+ candles, got ${c.length}. Try a longer date range.`);
 
       setProgressPhase('Walk-forward');
-      const result = await runWalkForward(c, wfCfg, (wi, total, phase) => {
-        setProgress(Math.round((wi / Math.max(total, 1)) * 100));
-        setProgressPhase(`Window ${wi + 1}/${total} (${phase})`);
-      });
+      const worker = workerRef.current ?? createOptimizerWorker();
+      const result = await workerRun<WalkForwardResult>(
+        worker,
+        { type: 'walkforward', payload: { candles: c, config: wfCfg } },
+        (d) => {
+          if (d.type === 'wf-progress') {
+            const wi = d.wi as number;
+            const total = d.total as number;
+            const phase = d.phase as string;
+            setProgress(Math.round((wi / Math.max(total, 1)) * 100));
+            setProgressPhase(`Window ${wi + 1}/${total} (${phase})`);
+          }
+        },
+      );
       setWalkforwardResult(result);
     } catch (err: any) {
       setError(err.message || 'Walk-forward failed');

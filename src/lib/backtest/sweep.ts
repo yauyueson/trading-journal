@@ -342,7 +342,14 @@ export async function runGeneticOptimize(
     : undefined;
   const primaryTicker = config.ticker;
 
+  // ── Fitness cache: skip re-evaluating gene combos that normalise to the same values ──
+  // Very common in later generations when population converges. Saves 20-40% of backtests.
+  const fitnessCache = new Map<string, { result: BacktestResult; fitness: number }>();
+
   const evaluate = (genes: Individual): { result: BacktestResult; fitness: number } => {
+    const cacheKey = genes.join('|');
+    const cached = fitnessCache.get(cacheKey);
+    if (cached) return cached;
     const { indicatorOpts, tradeOverrides } = genesToParams(genes, defs);
     let fitnessSum = 0;
     let fitnessCount = 0;
@@ -389,7 +396,9 @@ export async function runGeneticOptimize(
     const combinedAnalytics = computeAnalytics(allTrades, combinedConfig, totalSignals);
     const combinedResult: BacktestResult = { config: combinedConfig, trades: allTrades, analytics: combinedAnalytics };
 
-    return { result: combinedResult, fitness: fitnessCount > 0 ? fitnessSum / fitnessCount : 0 };
+    const entry = { result: combinedResult, fitness: fitnessCount > 0 ? fitnessSum / fitnessCount : 0 };
+    fitnessCache.set(cacheKey, entry);
+    return entry;
   };
 
   // Initialize population: default seed + random
@@ -413,11 +422,14 @@ export async function runGeneticOptimize(
 
   const generationHistory: { gen: number; bestFitness: number; avgFitness: number }[] = [];
   let totalEvals = POP_SIZE;
+  const PATIENCE = 5; // stop if no improvement for this many generations
+  let noImproveSince = 0;
 
   const bestFit0 = Math.max(...fitnesses);
   const avgFit0 = fitnesses.reduce((s, f) => s + f, 0) / fitnesses.length;
   generationHistory.push({ gen: 0, bestFitness: bestFit0, avgFitness: avgFit0 });
   if (onProgress) onProgress(0, GENERATIONS, bestFit0);
+  let prevBestFit = bestFit0;
 
   // Evolution loop
   for (let gen = 1; gen <= GENERATIONS; gen++) {
@@ -458,6 +470,15 @@ export async function runGeneticOptimize(
     const avgFit = fitnesses.reduce((s, f) => s + f, 0) / fitnesses.length;
     generationHistory.push({ gen, bestFitness: bestFit, avgFitness: avgFit });
     if (onProgress) onProgress(gen, GENERATIONS, bestFit);
+
+    // Early stopping: halt if no improvement for PATIENCE generations
+    if (bestFit > prevBestFit + 1e-6) {
+      prevBestFit = bestFit;
+      noImproveSince = 0;
+    } else {
+      noImproveSince++;
+      if (noImproveSince >= PATIENCE) break;
+    }
 
     // Yield to browser between generations to keep UI responsive
     await yieldToUI();
