@@ -78,6 +78,7 @@ interface UseBacktestReturn {
   fetchingCandles: boolean;
   progress: number;
   progressPhase: string;
+  progressDetail: string;
   error: string | null;
   // Results
   singleResult: BacktestResult | null;
@@ -104,6 +105,7 @@ export function useBacktest(): UseBacktestReturn {
   const [fetchingCandles, setFetchingCandles] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressPhase, setProgressPhase] = useState('');
+  const [progressDetail, setProgressDetail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [singleResult, setSingleResult] = useState<BacktestResult | null>(null);
   const [sweepResult, setSweepResult] = useState<SweepResult | null>(null);
@@ -229,6 +231,7 @@ export function useBacktest(): UseBacktestReturn {
     setLoading(true);
     setProgress(0);
     setProgressPhase('Fetching candles');
+    setProgressDetail('');
     setOptimizeResult(null);
     setOosResult(null);
 
@@ -249,7 +252,9 @@ export function useBacktest(): UseBacktestReturn {
 
       console.log('[optimize] tickers:', allTickers, 'IS:', optCfg.startDate, '→', optCfg.endDate, 'OOS:', oosDateRange?.startDate, '→', oosDateRange?.endDate);
 
-      for (const ticker of allTickers) {
+      for (let ti = 0; ti < allTickers.length; ti++) {
+        const ticker = allTickers[ti];
+        setProgressDetail(`${ticker} (${ti + 1}/${allTickers.length})`);
         try {
           const c = await fetchCandles(ticker, fetchFrom, fetchTo);
           fullCandleMap.set(ticker, c);
@@ -307,8 +312,17 @@ export function useBacktest(): UseBacktestReturn {
           if (d.type === 'progress') {
             const phase = d.phase as 'ga' | 'tpsl';
             const pct = d.pct as number;
-            setProgressPhase(phase === 'ga' ? 'GA weights' : 'TP/SL grid');
+            const det = d.detail as Record<string, number> | undefined;
+            setProgressPhase(phase === 'ga' ? 'Genetic algorithm' : 'TP/SL grid');
             setProgress(Math.round(pct * (oosDateRange ? 0.9 : 1)));
+            if (det) {
+              if (phase === 'ga' && det.gen !== undefined) {
+                const cacheStr = det.cacheHits ? ` · ${det.cacheHits} cached` : '';
+                setProgressDetail(`Generation ${det.gen}/${det.totalGens} · Best score ${(det.bestFitness ?? 0).toFixed(3)}${cacheStr}`);
+              } else if (phase === 'tpsl' && det.tpslDone !== undefined) {
+                setProgressDetail(`Combo ${det.tpslDone}/${det.tpslTotal}`);
+              }
+            }
           }
         },
       );
@@ -369,6 +383,7 @@ export function useBacktest(): UseBacktestReturn {
       setLoading(false);
       setProgress(100);
       setProgressPhase('');
+      setProgressDetail('');
     }
   }, [fetchCandles, fetchIVData]);
 
@@ -395,7 +410,8 @@ export function useBacktest(): UseBacktestReturn {
             const total = d.total as number;
             const phase = d.phase as string;
             setProgress(Math.round((wi / Math.max(total, 1)) * 100));
-            setProgressPhase(`Window ${wi + 1}/${total} (${phase})`);
+            setProgressPhase(`Window ${wi + 1} of ${total}`);
+            setProgressDetail(phase === 'IS' ? 'Optimizing in-sample' : 'Validating out-of-sample');
           }
         },
       );
@@ -406,6 +422,7 @@ export function useBacktest(): UseBacktestReturn {
       setLoading(false);
       setProgress(100);
       setProgressPhase('');
+      setProgressDetail('');
     }
   }, [fetchCandles]);
 
@@ -424,7 +441,7 @@ export function useBacktest(): UseBacktestReturn {
   return {
     config, setConfig,
     mode, setMode,
-    loading, fetchingCandles, progress, progressPhase, error,
+    loading, fetchingCandles, progress, progressPhase, progressDetail, error,
     singleResult, sweepResult, optimizeResult, oosResult, walkforwardResult, candles,
     pinned, togglePin, clearPins,
     run, runSweepAction, runOptimizeAction, runWalkForwardAction,

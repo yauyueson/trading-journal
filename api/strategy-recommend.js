@@ -1551,8 +1551,9 @@ export default async function handler(req, res) {
         try {
             const oratsIVR = await oratsGetIVRank(upperTicker);
             if (oratsIVR && oratsIVR.ivRank1y != null) {
-                ivRank = oratsIVR.ivRank1y;
-                ivPercentile = oratsIVR.ivPct1y ?? oratsIVR.ivRank1y;
+                // ORATS returns ivRank1y/ivPct1y as 0–100; normalize to 0–1 for downstream scoring
+                ivRank = oratsIVR.ivRank1y / 100;
+                ivPercentile = (oratsIVR.ivPct1y ?? oratsIVR.ivRank1y) / 100;
                 ivRankSampleDays = 252; // ORATS uses 1-year window
                 ivRankSource = 'orats';
                 console.log(`[IV Rank ORATS] ${upperTicker}: rank=${ivRank?.toFixed(3)}, pct=${ivPercentile?.toFixed(3)}`);

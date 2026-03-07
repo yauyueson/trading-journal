@@ -15,7 +15,7 @@
  * OUT { id, type: 'error',        message }
  */
 
-import { runTwoStageOptimize, runWalkForward } from './sweep';
+import { runTwoStageOptimize, runWalkForward, type OptimizeProgressDetail } from './sweep';
 import type { OptimizeConfig, WalkForwardConfig, OptimizeResult, WalkForwardResult } from './types';
 import type { BacktestCandle } from './types';
 import type { IVDataRow } from './engine';
@@ -58,8 +58,8 @@ self.onmessage = async (e: MessageEvent) => {
       const result: OptimizeResult = await runTwoStageOptimize(
         candleInput,
         config,
-        (phase, pct) => {
-          if (!cancelled) self.postMessage({ id, type: 'progress', phase, pct });
+        (phase, pct, detail?: OptimizeProgressDetail) => {
+          if (!cancelled) self.postMessage({ id, type: 'progress', phase, pct, detail });
         },
         ivInput,
       );

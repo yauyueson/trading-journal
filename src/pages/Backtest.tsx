@@ -33,6 +33,47 @@ const Tip: React.FC<{ text: string }> = ({ text }) => (
 
 // ── Toggle Switch ───────────────────────────────────────
 
+// ── Progress Panel ───────────────────────────────────────
+const PHASE_LABELS: Record<string, { label: string; icon: string }> = {
+  'Fetching candles':   { label: 'Fetching candles',       icon: '📡' },
+  'Genetic algorithm':  { label: 'Genetic algorithm (GA)', icon: '🧬' },
+  'TP/SL grid':         { label: 'TP/SL grid search',      icon: '🔍' },
+  'OOS validation':     { label: 'OOS validation',         icon: '🧪' },
+  'Walk-forward':       { label: 'Walk-forward',           icon: '📈' },
+};
+
+const ProgressPanel: React.FC<{
+  phase: string;
+  detail: string;
+  progress: number;
+}> = ({ phase, detail, progress }) => {
+  const meta = PHASE_LABELS[phase] ?? { label: phase, icon: '⚙️' };
+  return (
+    <div className="bg-[#111] border border-white/10 rounded-xl p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">{meta.icon}</span>
+          <span className="text-sm font-medium text-white">{meta.label}</span>
+        </div>
+        <span className="text-2xl font-mono font-bold text-accent-green tabular-nums">{progress}%</span>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-gradient-to-r from-accent-green/70 to-accent-green rounded-full transition-all duration-300"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      {/* Detail line */}
+      {detail && (
+        <p className="text-xs text-text-secondary font-mono">{detail}</p>
+      )}
+    </div>
+  );
+};
+
 const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; color?: string }> = ({ checked, onChange, color = 'bg-accent-green' }) => (
   <button type="button" role="switch" aria-checked={checked}
     onClick={() => onChange(!checked)}
@@ -1864,6 +1905,15 @@ export const BacktestPage: React.FC = () => {
 
         {/* Right: Results */}
         <div className="space-y-4">
+          {/* Progress panel — visible whenever loading */}
+          {bt.loading && bt.progressPhase && (
+            <ProgressPanel
+              phase={bt.progressPhase}
+              detail={bt.progressDetail}
+              progress={bt.progress}
+            />
+          )}
+
           {/* Candle info */}
           {bt.candles && (
             <div className="text-xs text-text-tertiary flex gap-3">

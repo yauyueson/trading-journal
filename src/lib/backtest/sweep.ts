@@ -302,7 +302,7 @@ function yieldToUI(): Promise<void> {
 export async function runGeneticOptimize(
   candles: BacktestCandle[] | Map<string, BacktestCandle[]>,
   config: OptimizeConfig,
-  onProgress?: (gen: number, totalGens: number, bestFitness: number) => void,
+  onProgress?: (gen: number, totalGens: number, bestFitness: number, cacheHits?: number) => void,
   ivData?: IVDataRow[] | Map<string, IVDataRow[]>,
 ): Promise<OptimizeResult> {
   const t0 = performance.now();
@@ -469,7 +469,7 @@ export async function runGeneticOptimize(
     const bestFit = Math.max(...fitnesses);
     const avgFit = fitnesses.reduce((s, f) => s + f, 0) / fitnesses.length;
     generationHistory.push({ gen, bestFitness: bestFit, avgFitness: avgFit });
-    if (onProgress) onProgress(gen, GENERATIONS, bestFit);
+    if (onProgress) onProgress(gen, GENERATIONS, bestFit, fitnessCache.size);
 
     // Early stopping: halt if no improvement for PATIENCE generations
     if (bestFit > prevBestFit + 1e-6) {
@@ -511,18 +511,28 @@ export async function runGeneticOptimize(
  *          If TP/SL IS in the GA genes, skip stage 2 (already optimized).
  * Accepts single-ticker candles or multi-ticker Map.
  */
+export interface OptimizeProgressDetail {
+  gen?: number;
+  totalGens?: number;
+  bestFitness?: number;
+  cacheHits?: number;
+  totalEvals?: number;
+  tpslDone?: number;
+  tpslTotal?: number;
+}
+
 export async function runTwoStageOptimize(
   candles: BacktestCandle[] | Map<string, BacktestCandle[]>,
   config: OptimizeConfig,
-  onProgress?: (phase: 'ga' | 'tpsl', pct: number) => void,
+  onProgress?: (phase: 'ga' | 'tpsl', pct: number, detail?: OptimizeProgressDetail) => void,
   ivData?: IVDataRow[] | Map<string, IVDataRow[]>,
 ): Promise<OptimizeResult> {
   const t0 = performance.now();
   const params = config.optimizeParams ?? DEFAULT_OPTIMIZE_PARAMS;
 
   // Stage 1: GA
-  const gaResult = await runGeneticOptimize(candles, config, (gen, totalGens) => {
-    if (onProgress) onProgress('ga', Math.round((gen / totalGens) * 100));
+  const gaResult = await runGeneticOptimize(candles, config, (gen, totalGens, bestFitness, cacheHits) => {
+    if (onProgress) onProgress('ga', Math.round((gen / totalGens) * 100), { gen, totalGens, bestFitness, cacheHits });
   }, ivData);
 
   if (!gaResult.bestOverall) {
@@ -606,7 +616,7 @@ export async function runTwoStageOptimize(
       const combinedAnalytics = computeAnalytics(allTrades, combinedConfig, totalSignals);
       tpslResults.push({ config: combinedConfig, trades: allTrades, analytics: combinedAnalytics });
       done++;
-      if (onProgress) onProgress('tpsl', Math.round((done / total) * 100));
+      if (onProgress) onProgress('tpsl', Math.round((done / total) * 100), { tpslDone: done, tpslTotal: total });
     }
   }
 

@@ -240,7 +240,8 @@ export default async function handler(req, res) {
             const { getIVRank: oratsGetIVRank } = await import('../lib/orats-client.js');
             const oratsIVR = await oratsGetIVRank(upperTicker);
             if (oratsIVR && oratsIVR.ivRank1y != null) {
-                scanIVRank = oratsIVR.ivRank1y;
+                // ORATS returns ivRank1y as 0–100; normalize to 0–1
+                scanIVRank = oratsIVR.ivRank1y / 100;
                 console.log(`[scan-options] ${upperTicker}: ORATS ivRank=${scanIVRank.toFixed(3)}`);
             }
         } catch (_) { /* keep neutral default */ }
