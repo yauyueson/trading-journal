@@ -119,8 +119,23 @@ const SharedConfigFields: React.FC<{
   const indVal = (key: keyof TechScoreOptions): number =>
     (config.indicatorOptions[key] as number) ?? IND_DEFAULTS[key] ?? 0;
 
+  const isOptionMode = config.optionsPricing?.enabled ?? false;
+
   return (
     <>
+      {/* Option Mode / Stock Mode — top-level toggle */}
+      <div className={`rounded-lg p-2.5 border ${isOptionMode ? 'border-purple-500/30 bg-purple-500/5' : 'border-white/5'}`}>
+        <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
+          <Toggle checked={isOptionMode}
+            onChange={v => {
+              const base = config.optionsPricing ?? DEFAULT_OPTIONS_PRICING;
+              upd({ optionsPricing: { ...base, enabled: v, premiumTP: base.premiumTP ?? 0.50, premiumSL: base.premiumSL ?? 0.50 } });
+            }} />
+          <span className="font-medium">{isOptionMode ? 'Option Mode' : 'Stock Mode'}</span>
+          <Tip text="Stock Mode: TP/SL based on stock price ATR levels, returns = stock price change. Option Mode: simulates buying an ATM option at each signal — TP/SL based on option premium % change, with real IV from ORATS and theta decay." />
+        </label>
+      </div>
+
       {/* Ticker + Dates */}
       {!hideTicker ? (
         <div className="grid grid-cols-3 gap-2">
@@ -141,23 +156,66 @@ const SharedConfigFields: React.FC<{
         </div>
       )}
 
-      {/* TP/SL */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
-            TP (ATR)<Tip text="Take profit distance as ATR(14) multiple. Higher = more room to run but fewer hits. E.g. 2.5 means exit when price moves 2.5× the average true range in your favor." />
-          </label>
-          <input type="number" value={config.tpAtr} onChange={e => upd({ tpAtr: Number(e.target.value) })} step={0.5} min={0.5} max={5}
-            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+      {/* TP/SL — mode-dependent */}
+      {isOptionMode ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div>
+            <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+              Premium TP %<Tip text="Take profit when option premium gains this %. 50% = sell when option is up 50% from entry." />
+            </label>
+            <input type="number" value={Math.round((config.optionsPricing?.premiumTP ?? 0.50) * 100)}
+              onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, premiumTP: Number(e.target.value) / 100 } })}
+              step={5} min={10} max={300}
+              className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+          </div>
+          <div>
+            <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+              Premium SL %<Tip text="Stop loss when option premium drops by this %. 50% = exit when option loses half its value." />
+            </label>
+            <input type="number" value={Math.round((config.optionsPricing?.premiumSL ?? 0.50) * 100)}
+              onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, premiumSL: Number(e.target.value) / 100 } })}
+              step={5} min={10} max={100}
+              className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+          </div>
+          <div>
+            <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+              Entry DTE<Tip text="Days to expiration when synthetic option is 'bought'. 30 = typical swing trade." />
+            </label>
+            <input type="number" value={config.optionsPricing?.entryDTE ?? 30}
+              onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, entryDTE: Number(e.target.value) } })}
+              step={1} min={7} max={90}
+              className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+          </div>
+          <div>
+            <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+              Spread<Tip text="Single = naked long option. Vertical = debit spread (capped risk)." />
+            </label>
+            <select value={config.optionsPricing?.spreadType ?? 'single'}
+              onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, spreadType: e.target.value as SpreadType } })}
+              className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white focus:border-accent-green/50 focus:outline-none">
+              <option value="single">Single Leg</option>
+              <option value="vertical">Vertical</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label className="text-[11px] text-text-tertiary uppercase block mb-1">
-            SL (ATR)<Tip text="Stop loss distance as ATR(14) multiple. Lower = tighter risk but more stops. E.g. 1.5 means exit when price moves 1.5× ATR against you." />
-          </label>
-          <input type="number" value={config.slAtr} onChange={e => upd({ slAtr: Number(e.target.value) })} step={0.5} min={0.5} max={5}
-            className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+              TP (ATR)<Tip text="Take profit distance as ATR(14) multiple. Higher = more room to run but fewer hits. E.g. 2.5 means exit when price moves 2.5× the average true range in your favor." />
+            </label>
+            <input type="number" value={config.tpAtr} onChange={e => upd({ tpAtr: Number(e.target.value) })} step={0.5} min={0.5} max={5}
+              className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+          </div>
+          <div>
+            <label className="text-[11px] text-text-tertiary uppercase block mb-1">
+              SL (ATR)<Tip text="Stop loss distance as ATR(14) multiple. Lower = tighter risk but more stops. E.g. 1.5 means exit when price moves 1.5× ATR against you." />
+            </label>
+            <input type="number" value={config.slAtr} onChange={e => upd({ slAtr: Number(e.target.value) })} step={0.5} min={0.5} max={5}
+              className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Score + Confidence */}
       <div className="grid grid-cols-2 gap-2">
@@ -220,65 +278,6 @@ const SharedConfigFields: React.FC<{
           <input type="number" value={config.thetaDecayRate} onChange={e => upd({ thetaDecayRate: Number(e.target.value) })} step={0.01} min={0} max={0.1}
             className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none" />
         </div>
-      </div>
-
-      {/* Option Mode / Stock Mode */}
-      <div className="border border-white/5 rounded-lg p-2.5">
-        <label className="flex items-center gap-2 text-[11px] text-text-secondary cursor-pointer">
-          <Toggle checked={config.optionsPricing?.enabled ?? false}
-            onChange={v => {
-              const base = config.optionsPricing ?? DEFAULT_OPTIONS_PRICING;
-              upd({ optionsPricing: { ...base, enabled: v, premiumTP: base.premiumTP ?? 0.50, premiumSL: base.premiumSL ?? 0.50 } });
-            }} />
-          {config.optionsPricing?.enabled ? 'Option Mode' : 'Stock Mode'}
-          <Tip text="Stock Mode: TP/SL based on stock price ATR levels. Option Mode: simulates buying an ATM option at each signal — TP/SL based on option premium % change (default 50%), with real IV from ORATS and theta decay." />
-        </label>
-        {config.optionsPricing?.enabled && (
-          <div className="space-y-2 mt-2">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                  Premium TP %<Tip text="Take profit when option premium gains this %. 50% = sell when option doubles by 50%." />
-                </label>
-                <input type="number" value={Math.round((config.optionsPricing?.premiumTP ?? 0.50) * 100)}
-                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, premiumTP: Number(e.target.value) / 100 } })}
-                  step={5} min={10} max={300}
-                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                  Premium SL %<Tip text="Stop loss when option premium drops by this %. 50% = exit when option loses half its value." />
-                </label>
-                <input type="number" value={Math.round((config.optionsPricing?.premiumSL ?? 0.50) * 100)}
-                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, premiumSL: Number(e.target.value) / 100 } })}
-                  step={5} min={10} max={100}
-                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                  Entry DTE<Tip text="Days to expiration when synthetic option is 'bought'. 30 = typical swing trade." />
-                </label>
-                <input type="number" value={config.optionsPricing?.entryDTE ?? 30}
-                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, entryDTE: Number(e.target.value) } })}
-                  step={1} min={7} max={90}
-                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white font-mono focus:border-accent-green/50 focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-[10px] text-text-tertiary uppercase block mb-1">
-                  Spread<Tip text="Single = naked long option. Vertical = debit spread (capped risk)." />
-                </label>
-                <select value={config.optionsPricing?.spreadType ?? 'single'}
-                  onChange={e => upd({ optionsPricing: { ...config.optionsPricing!, spreadType: e.target.value as SpreadType } })}
-                  className="w-full bg-[#111] border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-accent-green/50 focus:outline-none">
-                  <option value="single">Single Leg</option>
-                  <option value="vertical">Vertical</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Slippage */}

@@ -157,7 +157,7 @@ export interface BacktestConfig {
 
 export const DEFAULT_CONFIG: BacktestConfig = {
   ticker: 'SPY',
-  startDate: '2024-01-01',
+  startDate: '2021-01-01',
   endDate: '2026-03-05',
   timeframe: '1D',
   minScore: 70,
