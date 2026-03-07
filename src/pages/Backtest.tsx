@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { FlaskConical, Play, Zap, Pin, X, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Rocket, Upload, Info } from 'lucide-react';
 import { useBacktest, type OOSDateRange } from '../hooks/useBacktest';
+import { usePositions } from '../hooks/usePositions';
 import type { BacktestConfig, BacktestResult, BacktestAnalytics, SweepConfig, BacktestTrade, OptimizeConfig, OptimizeParams, QualityGates, IVSource, SpreadType, WalkForwardConfig, WalkForwardResult } from '../lib/backtest/types';
 import { DEFAULT_QUALITY_GATES, DEFAULT_OPTIMIZE_PARAMS, DEFAULT_OPTIONS_PRICING, DEFAULT_SLIPPAGE, DEFAULT_REGIME_GATES, DEFAULT_IV_DYNAMICS } from '../lib/backtest/types';
 import type { TechScoreOptions } from '../lib/tech-analysis';
@@ -514,18 +515,42 @@ const OptimizePanel: React.FC<{
   const [subMode, setSubMode] = useState<OptSubMode>('ga');
   const [showSweepDims, setShowSweepDims] = useState(false);
   const [showOptParams, setShowOptParams] = useState(false);
-  const [tickersInput, setTickersInput] = useState(config.ticker || 'SPY,QQQ,AAPL');
+  const [selectedTickers, setSelectedTickers] = useState<string[]>([]);
+  const [customInput, setCustomInput] = useState('');
   const [sweepToggles, setSweepToggles] = useState<SweepToggles>(DEFAULT_SWEEP_TOGGLES);
   const [optParams, setOptParams] = useState<OptimizeParams>(DEFAULT_OPTIMIZE_PARAMS);
   const [isSplit, setIsSplit] = useState(0.66); // IS fraction (default 66%)
   const [oosEnabled, setOosEnabled] = useState(true); // auto OOS validation after optimize
 
-  // Parse tickers from the unified input
-  const parsedTickers = useMemo(() =>
-    tickersInput.split(',').map(t => t.trim().toUpperCase()).filter(Boolean),
-    [tickersInput]
-  );
-  const primaryTicker = parsedTickers[0] || 'SPY';
+  // Load watchlist + open position tickers, default all selected
+  const { data: positions } = usePositions();
+  const universeTickers = useMemo(() => {
+    if (!positions) return [];
+    const tickers = positions
+      .filter(p => p.status === 'watchlist' || p.status === 'active')
+      .map(p => p.ticker.toUpperCase());
+    return [...new Set(tickers)].sort();
+  }, [positions]);
+
+  // Once watchlist loads, default-select all (only on first load)
+  useEffect(() => {
+    if (universeTickers.length > 0 && selectedTickers.length === 0) {
+      setSelectedTickers(universeTickers);
+    }
+  }, [universeTickers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleTicker = (t: string) =>
+    setSelectedTickers(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+
+  const addCustomTicker = () => {
+    const t = customInput.trim().toUpperCase();
+    if (!t) return;
+    setSelectedTickers(prev => prev.includes(t) ? prev : [...prev, t]);
+    setCustomInput('');
+  };
+
+  const parsedTickers = selectedTickers;
+  const primaryTicker = parsedTickers[0] || config.ticker || 'SPY';
 
   const sweepConfig = useMemo((): Omit<SweepConfig, 'ticker' | 'startDate' | 'endDate' | 'timeframe'> => ({
     tpAtrRange: sweepToggles.tpSl ? DEFAULT_SWEEP.tpAtrRange : [config.tpAtr],
@@ -584,18 +609,54 @@ const OptimizePanel: React.FC<{
 
   return (
     <div className="space-y-3">
-      {/* Tickers input */}
+      {/* Ticker universe */}
       <div>
-        <label className="text-[11px] text-text-tertiary uppercase block mb-1">
-          Tickers<Tip text="One or more stock symbols, comma-separated. First ticker is primary. For GA mode, fitness is averaged across all tickers to find universal params (anti-overfitting)." />
-        </label>
-        <input value={tickersInput} onChange={e => setTickersInput(e.target.value.toUpperCase())}
-          placeholder="SPY, QQQ, AAPL"
-          className="w-full bg-[#111] border border-white/10 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-green/50 focus:outline-none placeholder:text-white/20" />
-          {parsedTickers.length > 1 ? (
-          <div className="text-[10px] text-emerald-400/70 mt-0.5">{parsedTickers.length} tickers — GA fitness averaged across basket (anti-overfitting)</div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="text-[11px] text-text-tertiary uppercase">
+            Ticker Universe
+            <Tip text="GA fitness is averaged across all selected tickers. More diverse instruments = more robust params, less curve-fitting. Industry standard: 5–15 tickers spanning sectors." />
+          </label>
+          <div className="flex gap-2 text-[10px]">
+            <button onClick={() => setSelectedTickers(universeTickers)} className="text-blue-400/70 hover:text-blue-300 transition-colors">All</button>
+            <button onClick={() => setSelectedTickers([])} className="text-text-tertiary hover:text-white transition-colors">None</button>
+          </div>
+        </div>
+
+        {/* Chips */}
+        <div className="flex flex-wrap gap-1 mb-1.5 min-h-[28px]">
+          {universeTickers.map(t => {
+            const active = selectedTickers.includes(t);
+            return (
+              <button key={t} onClick={() => toggleTicker(t)}
+                className={`px-2 py-0.5 rounded text-[11px] font-mono border transition-colors ${active
+                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                  : 'bg-[#111] border-white/10 text-text-tertiary hover:border-white/25 hover:text-white'}`}
+              >{t}</button>
+            );
+          })}
+          {/* Custom tickers not in watchlist */}
+          {selectedTickers.filter(t => !universeTickers.includes(t)).map(t => (
+            <button key={t} onClick={() => toggleTicker(t)}
+              className="px-2 py-0.5 rounded text-[11px] font-mono border bg-blue-500/15 border-blue-500/40 text-blue-300 transition-colors"
+            >{t} ×</button>
+          ))}
+        </div>
+
+        {/* Add custom ticker */}
+        <div className="flex gap-1">
+          <input value={customInput} onChange={e => setCustomInput(e.target.value.toUpperCase())}
+            onKeyDown={e => e.key === 'Enter' && addCustomTicker()}
+            placeholder="Add ticker…"
+            className="flex-1 bg-[#111] border border-white/10 rounded px-2 py-1 text-[11px] text-white font-mono focus:border-accent-green/50 focus:outline-none placeholder:text-white/20" />
+          <button onClick={addCustomTicker} className="px-2 py-1 bg-[#111] border border-white/10 rounded text-[11px] text-text-tertiary hover:text-white transition-colors">+</button>
+        </div>
+
+        {parsedTickers.length > 1 ? (
+          <div className="text-[10px] text-emerald-400/70 mt-1">{parsedTickers.length} tickers — GA fitness averaged across basket (anti-overfitting)</div>
+        ) : parsedTickers.length === 1 ? (
+          <div className="text-[10px] text-amber-400/70 mt-1">Select 3+ tickers for robust optimization — single ticker risks curve-fitting</div>
         ) : (
-          <div className="text-[10px] text-amber-400/70 mt-0.5">Add 3+ tickers for robust optimization (single ticker risks curve-fitting)</div>
+          <div className="text-[10px] text-red-400/70 mt-1">Select at least one ticker</div>
         )}
       </div>
 
