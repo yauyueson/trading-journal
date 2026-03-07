@@ -21,6 +21,7 @@ async function getCachedCandles(ticker, from, to, timeframe = '1D') {
             timeframe: `eq.${timeframe}`,
             date: `gte.${from}`,
             order: 'date.asc',
+            limit: '5000',  // Supabase REST default cap is 1000; backtest needs 2000+ bars
         });
         if (to) params.append('date', `lte.${to}`);
 
