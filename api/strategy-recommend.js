@@ -1574,11 +1574,13 @@ export default async function handler(req, res) {
         }
 
         // Compute IV momentum from ticker_iv_snapshots (5-day change)
-        if (iv5dChange == null && sbUrl && sbKey) {
+        const sbUrlMom = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+        const sbKeyMom = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+        if (iv5dChange == null && sbUrlMom && sbKeyMom) {
             try {
                 const snapRes = await fetch(
-                    `${sbUrl}/rest/v1/ticker_iv_snapshots?ticker=eq.${upperTicker}&source=eq.live_iv&order=recorded_date.desc&limit=6`,
-                    { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` } }
+                    `${sbUrlMom}/rest/v1/ticker_iv_snapshots?ticker=eq.${upperTicker}&source=eq.live_iv&order=recorded_date.desc&limit=6`,
+                    { headers: { apikey: sbKeyMom, Authorization: `Bearer ${sbKeyMom}` } }
                 );
                 if (snapRes.ok) {
                     const snaps = await snapRes.json();
