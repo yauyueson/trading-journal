@@ -350,7 +350,7 @@ export async function runGeneticOptimize(
   // At 0.5: a config that scores 0.30 early and 0.10 late → robust = 0.20 - 0.5*0.20 = 0.10
   // (same as the worst half). A config that scores 0.28 both halves → robust = 0.28.
   // Raise toward 1.0 for stricter consistency requirement; lower toward 0 to disable.
-  const TEMPORAL_LAMBDA = 0.5;
+  const TEMPORAL_LAMBDA = 0.25;
   const MIN_TRADES_FOR_SPLIT = 20;
 
   const evaluate = (genes: Individual): { result: BacktestResult; fitness: number } => {
@@ -632,7 +632,7 @@ export async function runTwoStageOptimize(
   }
 
   const tpRange = [1.5, 2.0, 2.5, 3.0];
-  const slRange = [1.0, 1.5, 2.0];
+  const slRange = [1.5, 2.0, 2.5];
   const tpslResults: BacktestResult[] = [];
   const total = tpRange.length * slRange.length;
   let done = 0;
