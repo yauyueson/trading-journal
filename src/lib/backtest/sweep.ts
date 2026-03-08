@@ -116,12 +116,12 @@ interface GeneDef {
 
 // All possible gene definitions, grouped by OptimizeParams toggle
 const ALL_GENE_DEFS: GeneDef[] = [
-  // Weights (sum to 100)
-  { key: 'w_mb',  min: 10, max: 40, def: 30, step: 5, isWeight: true,  group: 'weights' },
-  { key: 'w_bxs', min: 10, max: 40, def: 25, step: 5, isWeight: true,  group: 'weights' },
-  { key: 'w_bxl', min: 5,  max: 35, def: 20, step: 5, isWeight: true,  group: 'weights' },
-  { key: 'w_ema', min: 5,  max: 30, def: 15, step: 5, isWeight: true,  group: 'weights' },
-  { key: 'w_mom', min: 0,  max: 25, def: 10, step: 5, isWeight: true,  group: 'weights' },
+  // Weights (sum to 100) — step=2, min≥2 so no factor ever reaches 0
+  { key: 'w_mb',  min: 10, max: 40, def: 30, step: 2, isWeight: true,  group: 'weights' },
+  { key: 'w_bxs', min: 10, max: 40, def: 26, step: 2, isWeight: true,  group: 'weights' },
+  { key: 'w_bxl', min: 4,  max: 34, def: 20, step: 2, isWeight: true,  group: 'weights' },
+  { key: 'w_ema', min: 4,  max: 30, def: 14, step: 2, isWeight: true,  group: 'weights' },
+  { key: 'w_mom', min: 2,  max: 24, def: 10, step: 2, isWeight: true,  group: 'weights' },
   // Periods
   { key: 'sc_mb_len',  min: 50,  max: 200, def: 100, step: 10, isWeight: false, group: 'periods' },
   { key: 'sc_osc_len', min: 3,   max: 14,  def: 7,   step: 1,  isWeight: false, group: 'periods' },
