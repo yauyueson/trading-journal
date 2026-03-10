@@ -8,8 +8,8 @@ import { useAppSettings } from '../context/AppSettingsContext';
 import { supabase } from '../lib/supabase';
 import type { TechScoreOptions } from '../lib/tech-analysis';
 
-// ── Strategy criteria (from backtest findings) ────────────
-const MIN_SCORE = 70;
+// ── Strategy criteria (from backtest: ema iv30plus std30 mpt5, S-tier) ──
+const MIN_SCORE = 90;  // S-tier (score >= 90) — best IS→OOS transfer
 const MIN_IV = 0.30;     // IV >= 30% structural filter
 const MIN_ADX = 15;      // Trend strength gate
 const MIN_RVOL = 0.5;    // Volume participation gate
@@ -47,16 +47,16 @@ interface DashboardRow {
 // ── Helpers ───────────────────────────────────────────────
 
 function scoreColor(score: number): string {
-  if (score >= 80) return 'text-green-400';
-  if (score >= 70) return 'text-yellow-400';
-  if (score >= 60) return 'text-orange-400';
+  if (score >= 90) return 'text-green-400';
+  if (score >= 80) return 'text-yellow-400';
+  if (score >= 70) return 'text-orange-400';
   return 'text-red-400';
 }
 
 function scoreBg(score: number): string {
-  if (score >= 80) return 'bg-green-500/10';
-  if (score >= 70) return 'bg-yellow-500/10';
-  if (score >= 60) return 'bg-orange-500/10';
+  if (score >= 90) return 'bg-green-500/10';
+  if (score >= 80) return 'bg-yellow-500/10';
+  if (score >= 70) return 'bg-orange-500/10';
   return 'bg-red-500/10';
 }
 
@@ -110,7 +110,8 @@ function useWatchlistIV(tickers: string[]) {
       const map = new Map<string, number>();
       for (const row of data ?? []) {
         if (!map.has(row.ticker) && row.iv30d != null) {
-          map.set(row.ticker, Number(row.iv30d));
+          // ORATS hist/cores iv30d is percentage (e.g. 24.3 = 24.3%); normalize to decimal
+          map.set(row.ticker, Number(row.iv30d) / 100);
         }
       }
       return map;
@@ -186,9 +187,10 @@ export const SignalsPage: React.FC = () => {
   const [tab, setTab] = useState<'dashboard' | 'history'>('dashboard');
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  // EMA-only signal (backtest best: ema iv30plus std30 mpt5)
   const techOptions: TechScoreOptions = {
-    ...settings.techScore.weights,
     ...settings.techScore.periods,
+    w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 25, w_mom: 0, w_adx: 0, w_vol: 0,
   };
 
   // Seed scanner with full watchlist on mount
@@ -256,11 +258,12 @@ export const SignalsPage: React.FC = () => {
 
       const adx = (sig.result.debug?.adx as number) ?? 0;
       const rvol = (sig.result.debug?.rvol as number) ?? 0;
-      const status = computeStatus(sig.result.techScore, sig.result.type, iv, adx, rvol);
+      const emaScore = sig.result.components?.sc_ema ?? 50;
+      const status = computeStatus(emaScore, sig.result.type, iv, adx, rvol);
 
       return {
         ticker,
-        score: sig.result.techScore,
+        score: sig.result.components?.sc_ema ?? 50,
         direction: sig.result.type,
         setup: sig.result.setup,
         confidence: sig.result.confidence,
@@ -437,7 +440,7 @@ export const SignalsPage: React.FC = () => {
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Ticker</th>
                 <th className="px-3 py-2 font-medium">Dir</th>
-                <th className="px-3 py-2 font-medium text-right">Score</th>
+                <th className="px-3 py-2 font-medium text-right">EMA</th>
                 <th className="px-3 py-2 font-medium text-right">IV</th>
                 <th className="px-3 py-2 font-medium text-right">ADX</th>
                 <th className="px-3 py-2 font-medium text-right">RVOL</th>
@@ -612,7 +615,7 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
       <div>
         <h4 className="text-xs font-medium text-text-secondary mb-2">Entry Criteria</h4>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <CriteriaCheck label="Score \u2265 70" value={row.score} pass={row.score >= MIN_SCORE} fmt={v => v.toFixed(0)} />
+          <CriteriaCheck label="EMA \u2265 90" value={row.score} pass={row.score >= MIN_SCORE} fmt={v => v.toFixed(0)} />
           <CriteriaCheck label="IV \u2265 30%" value={row.iv30} pass={row.iv30 != null && row.iv30 >= MIN_IV} fmt={v => v != null ? `${(v * 100).toFixed(0)}%` : 'n/a'} />
           <CriteriaCheck label="ADX \u2265 15" value={row.adx} pass={row.adx >= MIN_ADX} fmt={v => v.toFixed(1)} />
           <CriteriaCheck label="RVOL \u2265 0.5" value={row.rvol} pass={row.rvol >= MIN_RVOL} fmt={v => v.toFixed(2)} />
@@ -703,7 +706,7 @@ const SignalHistoryTab: React.FC = () => {
   const [from, setFrom] = useState(thirtyDaysAgo);
   const [to, setTo] = useState(today);
   const [ticker, setTicker] = useState('');
-  const [histMinScore, setHistMinScore] = useState(70);
+  const [histMinScore, setHistMinScore] = useState(90);
   const [histDir, setHistDir] = useState<'CALL' | 'PUT' | ''>('');
   const [expanded, setExpanded] = useState<number | null>(null);
 
