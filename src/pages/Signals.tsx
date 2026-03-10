@@ -327,7 +327,7 @@ export const SignalsPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-semibold">Signal Dashboard</h1>
             <p className="text-xs text-text-tertiary">
-              MOM strategy {'\u2022'} IV {'\u2265'} 30% {'\u2022'} Delta 0.35 {'\u2022'} DTE 45-65 {'\u2022'} TP 30%
+              MOM strategy {'\u2022'} IV {'≥'} 30% {'\u2022'} Delta 0.35 {'\u2022'} DTE 45-65 {'\u2022'} TP 30%
             </p>
           </div>
         </div>
@@ -615,10 +615,10 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
       <div>
         <h4 className="text-xs font-medium text-text-secondary mb-2">Entry Criteria</h4>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <CriteriaCheck label="EMA \u2265 90" value={row.score} pass={row.score >= MIN_SCORE} fmt={v => v.toFixed(0)} />
-          <CriteriaCheck label="IV \u2265 30%" value={row.iv30} pass={row.iv30 != null && row.iv30 >= MIN_IV} fmt={v => v != null ? `${(v * 100).toFixed(0)}%` : 'n/a'} />
-          <CriteriaCheck label="ADX \u2265 15" value={row.adx} pass={row.adx >= MIN_ADX} fmt={v => v.toFixed(1)} />
-          <CriteriaCheck label="RVOL \u2265 0.5" value={row.rvol} pass={row.rvol >= MIN_RVOL} fmt={v => v.toFixed(2)} />
+          <CriteriaCheck label="EMA ≥ 90" value={row.score} pass={row.score >= MIN_SCORE} fmt={v => v.toFixed(0)} />
+          <CriteriaCheck label="IV ≥ 30%" value={row.iv30} pass={row.iv30 != null && row.iv30 >= MIN_IV} fmt={v => v != null ? `${(v * 100).toFixed(0)}%` : 'n/a'} />
+          <CriteriaCheck label="ADX ≥ 15" value={row.adx} pass={row.adx >= MIN_ADX} fmt={v => v.toFixed(1)} />
+          <CriteriaCheck label="RVOL ≥ 0.5" value={row.rvol} pass={row.rvol >= MIN_RVOL} fmt={v => v.toFixed(2)} />
         </div>
       </div>
 
@@ -639,36 +639,21 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
         </div>
       )}
 
-      {/* Score components */}
-      {row.components && Object.keys(row.components).length > 0 && (
-        <div className="grid grid-cols-2 gap-4 text-xs">
-          <div>
-            <h4 className="font-medium text-text-secondary mb-1">Score Components</h4>
-            <div className="space-y-0.5">
-              {Object.entries(row.components).map(([k, v]) => (
+      {/* Indicators */}
+      {row.debug && Object.keys(row.debug).length > 0 && (
+        <div className="text-xs">
+          <h4 className="font-medium text-text-secondary mb-1">Indicators</h4>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-0.5">
+            {Object.entries(row.debug)
+              .filter(([, v]) => typeof v === 'number' || typeof v === 'string')
+              .slice(0, 12)
+              .map(([k, v]) => (
                 <div key={k} className="flex justify-between">
                   <span className="text-text-tertiary">{k}</span>
                   <span className="font-mono">{typeof v === 'number' ? v.toFixed(2) : String(v)}</span>
                 </div>
               ))}
-            </div>
           </div>
-          {row.debug && Object.keys(row.debug).length > 0 && (
-            <div>
-              <h4 className="font-medium text-text-secondary mb-1">Indicators</h4>
-              <div className="space-y-0.5">
-                {Object.entries(row.debug)
-                  .filter(([, v]) => typeof v === 'number' || typeof v === 'string')
-                  .slice(0, 12)
-                  .map(([k, v]) => (
-                    <div key={k} className="flex justify-between">
-                      <span className="text-text-tertiary">{k}</span>
-                      <span className="font-mono">{typeof v === 'number' ? v.toFixed(2) : String(v)}</span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
