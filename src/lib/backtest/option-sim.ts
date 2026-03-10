@@ -54,6 +54,8 @@ export interface OptionTrade {
   holdDays: number;
   // IV at entry (optional enrichment)
   ivRank?: number;
+  // Daily mark-to-market P&L (unrealized, captured during monitoring loop)
+  dailyMtM?: { date: string; spreadMid: number; unrealizedPnl: number }[];
 }
 
 export interface EntrySignal {
