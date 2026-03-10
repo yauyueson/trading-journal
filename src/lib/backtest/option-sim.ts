@@ -188,6 +188,8 @@ export async function simulateLeap(
     allTradingDates, signal.date, config.monitoringIntervalDays, monitorEnd,
   );
 
+  const dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
+
   // Monitor the position
   for (const checkDate of monitorDates) {
     const chain = await fetchHistoricalChain(token, signal.ticker, checkDate, [0.01, 0.99]);
@@ -199,6 +201,13 @@ export async function simulateLeap(
 
     const currentDTE = current.row.dte;
     const currentPrice = current.mid;
+
+    // Record daily mark-to-market
+    dailyMtM.push({
+      date: checkDate,
+      spreadMid: currentPrice,
+      unrealizedPnl: (currentPrice - entryPrice) * 100,
+    });
 
     // Check exit conditions
     let exitType: OptionExitType | null = null;
@@ -213,7 +222,7 @@ export async function simulateLeap(
 
     if (exitType) {
       return buildLeapResult(signal, entry, checkDate, currentPrice, currentDTE,
-        current.row.stock_price, exitType);
+        current.row.stock_price, exitType, dailyMtM);
     }
   }
 
@@ -235,7 +244,7 @@ export async function simulateLeap(
     }
 
     return buildLeapResult(signal, entry, lastDate, exitPrice,
-      current?.row.dte ?? 0, current?.row.stock_price ?? entry.row.stock_price, 'EXPIRATION');
+      current?.row.dte ?? 0, current?.row.stock_price ?? entry.row.stock_price, 'EXPIRATION', dailyMtM);
   }
 
   return null;
@@ -244,6 +253,7 @@ export async function simulateLeap(
 function buildLeapResult(
   signal: EntrySignal, entry: StrikeMatch, exitDate: string,
   exitPrice: number, exitDTE: number, exitStockPrice: number, exitType: OptionExitType,
+  dailyMtM?: { date: string; spreadMid: number; unrealizedPnl: number }[],
 ): OptionTrade {
   const entryPrice = entry.mid;
   const pnl = (exitPrice - entryPrice) * 100;
@@ -274,6 +284,7 @@ function buildLeapResult(
     pnlPct,
     holdDays,
     ivRank: signal.ivRank,
+    dailyMtM,
   };
 }
 
@@ -323,6 +334,8 @@ export async function simulateCreditSpread(
     allTradingDates, signal.date, config.monitoringIntervalDays, monitorEnd,
   );
 
+  const dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
+
   for (const checkDate of monitorDates) {
     const chain = await fetchHistoricalChain(token, signal.ticker, checkDate, [0.01, 0.99]);
     if (chain.length === 0) continue;
@@ -333,6 +346,13 @@ export async function simulateCreditSpread(
 
     const currentSpreadCost = shortLeg.mid - longLeg.mid;
     const currentDTE = shortLeg.row.dte;
+
+    // Record daily mark-to-market
+    dailyMtM.push({
+      date: checkDate,
+      spreadMid: currentSpreadCost,
+      unrealizedPnl: (entryCredit - currentSpreadCost) * 100,
+    });
 
     let exitType: OptionExitType | null = null;
 
@@ -346,7 +366,7 @@ export async function simulateCreditSpread(
 
     if (exitType) {
       return buildCreditResult(signal, spread, entryCredit, checkDate, currentSpreadCost,
-        currentDTE, shortLeg.row.stock_price, exitType);
+        currentDTE, shortLeg.row.stock_price, exitType, undefined, undefined, dailyMtM);
     }
   }
 
@@ -373,7 +393,8 @@ export async function simulateCreditSpread(
     }
 
     return buildCreditResult(signal, spread, entryCredit, lastDate, currentSpreadCost,
-      shortLeg?.row.dte ?? 0, shortLeg?.row.stock_price ?? spread.short.row.stock_price, 'EXPIRATION');
+      shortLeg?.row.dte ?? 0, shortLeg?.row.stock_price ?? spread.short.row.stock_price, 'EXPIRATION',
+      undefined, undefined, dailyMtM);
   }
 
   return null;
@@ -384,6 +405,7 @@ function buildCreditResult(
   exitDate: string, exitSpreadCost: number, exitDTE: number,
   exitStockPrice: number, exitType: OptionExitType,
   overridePnl?: number, overridePnlPct?: number,
+  dailyMtM?: { date: string; spreadMid: number; unrealizedPnl: number }[],
 ): OptionTrade {
   const pnl = overridePnl ?? (entryCredit - exitSpreadCost) * 100;
   const pnlPct = overridePnlPct ?? (spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0);
@@ -418,6 +440,7 @@ function buildCreditResult(
     pnlPct,
     holdDays,
     ivRank: signal.ivRank,
+    dailyMtM,
   };
 }
 
@@ -475,6 +498,7 @@ export async function simulateCreditSpreadPhased(
   let phase: 'FULL' | 'HALF' = 'FULL';
   let halfPnl = 0;             // P&L from the first half (set when TP1 hit)
 
+  const dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
 
   for (const checkDate of monitorDates) {
     const chain = await fetchHistoricalChain(token, signal.ticker, checkDate, [0.01, 0.99]);
@@ -486,6 +510,15 @@ export async function simulateCreditSpreadPhased(
 
     const currentSpreadCost = shortLeg.mid - longLeg.mid;
     const currentDTE = shortLeg.row.dte;
+
+    // Record daily mark-to-market (phase-aware)
+    dailyMtM.push({
+      date: checkDate,
+      spreadMid: currentSpreadCost,
+      unrealizedPnl: phase === 'FULL'
+        ? (entryCredit - currentSpreadCost) * 100
+        : halfPnl + (entryCredit - currentSpreadCost) * 0.5 * 100,
+    });
 
     if (phase === 'FULL') {
       // Check TP1 (close half)
@@ -502,7 +535,7 @@ export async function simulateCreditSpreadPhased(
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, currentSpreadCost,
           currentDTE, shortLeg.row.stock_price, 'STOP_LOSS',
-          pnl, spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0,
+          pnl, spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0, dailyMtM,
         );
       }
 
@@ -512,7 +545,7 @@ export async function simulateCreditSpreadPhased(
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, currentSpreadCost,
           currentDTE, shortLeg.row.stock_price, 'TIME_STOP',
-          pnl, spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0,
+          pnl, spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0, dailyMtM,
         );
       }
     } else {
@@ -525,7 +558,7 @@ export async function simulateCreditSpreadPhased(
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, currentSpreadCost,
           currentDTE, shortLeg.row.stock_price, 'PROFIT_TARGET_2',
-          totalPnl, spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0,
+          totalPnl, spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0, dailyMtM,
         );
       }
 
@@ -538,7 +571,7 @@ export async function simulateCreditSpreadPhased(
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, currentSpreadCost,
           currentDTE, shortLeg.row.stock_price, 'SL_BREAKEVEN',
-          totalPnl, spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0,
+          totalPnl, spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0, dailyMtM,
         );
       }
 
@@ -549,7 +582,7 @@ export async function simulateCreditSpreadPhased(
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, currentSpreadCost,
           currentDTE, shortLeg.row.stock_price, 'TIME_STOP',
-          totalPnl, spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0,
+          totalPnl, spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0, dailyMtM,
         );
       }
     }
@@ -583,7 +616,7 @@ export async function simulateCreditSpreadPhased(
       return buildCreditResult(
         signal, spread, entryCredit, lastDate, currentSpreadCost,
         shortLeg?.row.dte ?? 0, shortLeg?.row.stock_price ?? spread.short.row.stock_price,
-        'EXPIRATION', totalPnl, spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0,
+        'EXPIRATION', totalPnl, spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0, dailyMtM,
       );
     } else {
       // Never hit TP1 — full position at expiry
@@ -591,7 +624,7 @@ export async function simulateCreditSpreadPhased(
       return buildCreditResult(
         signal, spread, entryCredit, lastDate, currentSpreadCost,
         shortLeg?.row.dte ?? 0, shortLeg?.row.stock_price ?? spread.short.row.stock_price,
-        'EXPIRATION', pnl, spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0,
+        'EXPIRATION', pnl, spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0, dailyMtM,
       );
     }
   }
