@@ -9,10 +9,9 @@
  *   CREDIT_SPREAD (sell-side): OTM 30-45 DTE, theta/IV harvest
  */
 
-import type { ChainRow, StrikeMatch, SpreadMatch } from './chain-cache';
+import type { StrikeMatch, SpreadMatch } from './chain-cache';
 import {
   fetchHistoricalChain,
-  getCachedChain,
   findStrikeByDelta,
   findSpreadStrikes,
   findContract,
@@ -463,7 +462,6 @@ export async function simulateCreditSpreadPhased(
   const entryCredit = spread.netCredit;
   const tp1Cost = entryCredit * (1 - phasedConfig.tp1);   // spread cost at TP1
   const tp2Cost = entryCredit * (1 - phasedConfig.tp2);   // spread cost at TP2
-  const beCost = entryCredit;                              // breakeven = entry credit (P&L = 0)
   const slCost = entryCredit * config.creditStopLossMultiple;  // original SL (before TP1)
 
   const monitorEnd = spread.short.row.expir_date < maxDate ? spread.short.row.expir_date : maxDate;
@@ -474,8 +472,7 @@ export async function simulateCreditSpreadPhased(
   // Phase tracking
   let phase: 'FULL' | 'HALF' = 'FULL';
   let halfPnl = 0;             // P&L from the first half (set when TP1 hit)
-  let halfExitDate = '';
-  let halfExitType: OptionExitType = 'PROFIT_TARGET';
+
 
   for (const checkDate of monitorDates) {
     const chain = await fetchHistoricalChain(token, signal.ticker, checkDate, [0.01, 0.99]);
@@ -493,8 +490,7 @@ export async function simulateCreditSpreadPhased(
       if (currentSpreadCost <= tp1Cost) {
         phase = 'HALF';
         halfPnl = (entryCredit - currentSpreadCost) * 0.5 * 100;  // half position P&L
-        halfExitDate = checkDate;
-        halfExitType = 'PROFIT_TARGET';
+        // (date/type tracked by phase state)
         continue;  // keep monitoring the remaining half
       }
 
