@@ -63,13 +63,13 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     const [setup, setSetup] = useState(persisted.current.setup || 'Pullback Buy');
     const [techScoreTier, setTechScoreTier] = useState<{ label: string; value: number; range: string; color: string } | null>(null);
     const [techD8, setTechD8] = useState<number | null>(null);
-    const [targetDte, setTargetDte] = useState(persisted.current.targetDte || 30);
+    const [targetDte, setTargetDte] = useState(persisted.current.targetDte || 55);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [result, setResult] = useState<StrategyResult | null>(null);
     const [expandedCard, setExpandedCard] = useState<number | null>(null);
     const [showSettings, setShowSettings] = useState(false);
-    const [spreadWidth, setSpreadWidth] = useState(persisted.current.spreadWidth || 5);
+    const [spreadWidth, setSpreadWidth] = useState(persisted.current.spreadWidth || 10);
     const [showPineContext, setShowPineContext] = useState(true);
     // Open Position inline form state
     const [openPosIdx, setOpenPosIdx] = useState<number | null>(null);
@@ -525,9 +525,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                         <div className="grid grid-cols-5 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
                                             {[
                                                 { label: 'Ultra', val: 7, text: '7-14d' },
-                                                { label: 'Short', val: 14, text: '14-30d' },
-                                                { label: 'Med', val: 30, text: '30-45d' },
-                                                { label: 'Long', val: 45, text: '45-90d' },
+                                                { label: 'Short', val: 21, text: '14-30d' },
+                                                { label: 'Med', val: 37, text: '30-45d' },
+                                                { label: 'Optimal', val: 55, text: '45-65d' },
                                                 { label: 'Leaps', val: 90, text: '90d+' }
                                             ].map((opt) => (
                                                 <button
@@ -755,6 +755,16 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                         );
                                     })()}
 
+                                    {/* Takeover warning — options are mispriced during M&A */}
+                                    {result.context.tkOver && (
+                                        <div className="flex items-center gap-2 text-xs bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 text-red-300">
+                                            <AlertCircle size={14} className="shrink-0" />
+                                            <span>
+                                                <strong>Takeover target</strong> — options pricing may be unreliable during active M&A activity. Exercise caution with all strategies.
+                                            </span>
+                                        </div>
+                                    )}
+
                                     {/* Rising IV warning — prominent, above indicators */}
                                     {result.regime.ivTrend === 'rising' && result.regime.mode === 'CREDIT' && (
                                         <div className="flex items-center gap-2 text-xs bg-orange-500/10 border border-orange-500/30 rounded-lg px-3 py-2 text-orange-300">
@@ -872,6 +882,40 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     </div>
                                                     <div className={`text-lg sm:text-xl font-mono font-bold ${result.regime.ivPercentile < 0.3 ? 'text-emerald-400' : result.regime.ivPercentile > 0.7 ? 'text-amber-400' : 'text-white'}`}>
                                                         {(result.regime.ivPercentile * 100).toFixed(0)}%
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {result.context.volForecast != null && (
+                                                <div>
+                                                    <div className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                        Vol Fcst
+                                                        <Tooltip label="" explanation="ORATS 20-day vol forecast. Compared to IV30 — if forecast &gt; IV, vol may expand (favor debit). R² = forecast quality." />
+                                                    </div>
+                                                    <div className={`text-lg sm:text-xl font-mono font-bold ${
+                                                        result.regime.iv30 != null
+                                                            ? (result.context.volForecast.fcst20d > result.regime.iv30 * 100 * 1.05 ? 'text-amber-400' : result.context.volForecast.fcst20d < result.regime.iv30 * 100 * 0.95 ? 'text-emerald-400' : 'text-white')
+                                                            : 'text-white'
+                                                    }`}>
+                                                        {result.context.volForecast.fcst20d.toFixed(1)}%
+                                                    </div>
+                                                    <div className="text-[9px] text-gray-600 font-mono">
+                                                        {result.context.volForecast.r2 != null ? `R²=${result.context.volForecast.r2.toFixed(2)}` : ''}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {result.context.avgOptVolu20d != null && result.context.avgOptVolu20d > 0 && (
+                                                <div>
+                                                    <div className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                        Opt Vol
+                                                        <Tooltip label="" explanation="20-day average option volume (contracts/day). Higher = better fills and tighter spreads." />
+                                                    </div>
+                                                    <div className={`text-lg sm:text-xl font-mono font-bold ${result.context.avgOptVolu20d < 1000 ? 'text-amber-400' : 'text-white'}`}>
+                                                        {result.context.avgOptVolu20d >= 1000
+                                                            ? `${(result.context.avgOptVolu20d / 1000).toFixed(1)}K`
+                                                            : result.context.avgOptVolu20d.toFixed(0)}
+                                                    </div>
+                                                    <div className="text-[9px] text-gray-600 font-mono">
+                                                        {result.context.avgOptVolu20d < 1000 ? 'low liq' : result.context.avgOptVolu20d < 10000 ? 'moderate' : 'liquid'}
                                                     </div>
                                                 </div>
                                             )}

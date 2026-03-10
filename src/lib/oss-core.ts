@@ -409,32 +409,51 @@ export function getIVAdjustment(ivRatio: number, strategy: Strategy): number {
 }
 
 /**
- * IV Rank Adjustment - Historical IV context (v2.2).
+ * IV Rank Adjustment - Historical IV context (v3.0 — continuous sigmoid).
  *
- * ivRank in [0, 1]: where current IV sits vs 52-week min/max.
- * - Low rank (< 0.3): IV cheap → favor buyers, penalize sellers
- * - High rank (> 0.7): IV expensive → favor sellers, penalize buyers
+ * ivRank in [0, 1]: where current IV sits vs 52-week range.
+ * Continuous sigmoid replaces binary thresholds (old: dead zone at 0.3–0.7).
+ * Low rank → favor buyers, high rank → favor sellers. Proportional across full range.
  *
  * Returns 0 if ivRank is null (no history). Add this on top of getIVAdjustment.
  */
 export function getIVRankAdjustment(ivRank: number | null, strategy: Strategy, sampleDays: number = 180): number {
     if (ivRank == null || ivRank < 0 || ivRank > 1) return 0;
-    // Confidence discount: scale by sqrt(sampleDays / 180)
-    // Information grows as sqrt(n), not linearly. At 45 days: sqrt(0.25)=50% vs linear 25%.
-    // 180 days = ~3/4 of the 252-day lookback. Old linear scaling underweighted IV Rank
-    // for moderate sample sizes and overweighted it near 180 days.
     const confidence = Math.min(1, Math.sqrt(sampleDays / 180));
-    let raw: number;
-    if (strategy === 'long') {
-        if (ivRank < 0.3) raw = 0.5;
-        else if (ivRank > 0.7) raw = -0.5;
-        else raw = 0;
-    } else {
-        if (ivRank < 0.3) raw = -0.3;
-        else if (ivRank > 0.7) raw = 0.5;
-        else raw = 0;
-    }
+    // Continuous sigmoid: center at 0.5, smooth ramp ±0.5
+    // f(x) = (x - 0.5) / (|x - 0.5| + 0.15), normalized to ±0.5
+    const centered = ivRank - 0.5;
+    const sigmoid = centered / (Math.abs(centered) + 0.15);
+    const magnitude = sigmoid * 0.5 / (0.5 / (0.5 + 0.15)); // normalize so f(1.0)=+0.5, f(0.0)=-0.5
+    // Long: low IV = bonus (+), high IV = penalty (-)
+    // Short: high IV = bonus (+), low IV = penalty (-)
+    const raw = strategy === 'long' ? -magnitude : magnitude;
     return raw * confidence;
+}
+
+/**
+ * Vol Forecast Adjustment — forward-looking edge from ORATS (v3.0).
+ *
+ * Compares ORATS 20d vol forecast to current IV30.
+ * If forecast < IV30: vol expected to drop → favor sellers, penalize buyers.
+ * If forecast > IV30: vol expected to rise → favor buyers, penalize sellers.
+ * Scaled by forecast R² (quality) so unreliable forecasts have minimal impact.
+ *
+ * Returns 0 when data unavailable or forecast quality < 0.1.
+ */
+export function getVolForecastAdjustment(
+    orFcst20d: number | null | undefined,
+    iv30: number | null | undefined,
+    fcstR2: number | null | undefined,
+    strategy: Strategy
+): number {
+    if (orFcst20d == null || iv30 == null || iv30 <= 0) return 0;
+    const quality = Math.max(0, Math.min(1, fcstR2 ?? 0));
+    if (quality < 0.1) return 0; // forecast too unreliable
+    const diff = Math.max(-0.3, Math.min(0.3, (orFcst20d / iv30) - 1));
+    // Long benefits from rising vol forecast, short from falling
+    const raw = strategy === 'long' ? diff : -diff;
+    return raw * quality;
 }
 
 /**

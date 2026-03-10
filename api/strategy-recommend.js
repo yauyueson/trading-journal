@@ -43,7 +43,7 @@ function _dbg(payload) {
 
 let compressLambda, calculateDollarGamma, calculateGammaThetaRatio, calculateBreakevenMove, getBreakevenPenalty,
     calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores, zScoresByBucket, HARD_FILTER_DEFAULTS, HARD_FILTER_CREDIT,
-    getIVRiskFactor, getIVAdjustment, getIVRankAdjustment, getRelativeIVAdjustmentLOQ, getRelativeIVAdjustmentCSQ,
+    getIVRiskFactor, getIVAdjustment, getIVRankAdjustment, getVolForecastAdjustment, getRelativeIVAdjustmentLOQ, getRelativeIVAdjustmentCSQ,
     calculateLOQRaw, normalizeScoreTo100, normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct,
     getCleanATM_IV, calculateTargetIV, buildIVTermStructure, parseChain, calculateSkew, estimateSlippage, getGammaRiskPenalty,
     getSkewBonusForCreditSpread, calculateUnifiedScore;
@@ -73,6 +73,7 @@ async function ensureScoring() {
     getIVRiskFactor = scoring.getIVRiskFactor;
     getIVAdjustment = scoring.getIVAdjustment;
     getIVRankAdjustment = scoring.getIVRankAdjustment;
+    getVolForecastAdjustment = scoring.getVolForecastAdjustment;
     getRelativeIVAdjustmentLOQ = scoring.getRelativeIVAdjustmentLOQ;
     getRelativeIVAdjustmentCSQ = scoring.getRelativeIVAdjustmentCSQ;
     calculateLOQRaw = scoring.calculateLOQRaw;
@@ -324,17 +325,17 @@ async function fetchEarnings(ticker) {
 const ENTRY_PROFILES = {
     'Perfect Storm': { dtePeak: 14, deltaRange: [0.50, 0.70], allowChase: true },
     'Breakout': { dtePeak: 14, deltaRange: [0.45, 0.60], allowChase: false },
-    'Strong Trend': { dtePeak: 37, deltaRange: [0.45, 0.65], allowChase: true },
-    'Pullback Buy': { dtePeak: 28, deltaRange: [0.55, 0.70], allowChase: true },
-    'Divergence': { dtePeak: 21, deltaRange: [0.40, 0.60], allowChase: false },
-    'Failed Rally': { dtePeak: 28, deltaRange: [0.55, 0.70], allowChase: true },
+    'Strong Trend': { dtePeak: 55, deltaRange: [0.45, 0.65], allowChase: true },
+    'Pullback Buy': { dtePeak: 45, deltaRange: [0.55, 0.70], allowChase: true },
+    'Divergence': { dtePeak: 30, deltaRange: [0.40, 0.60], allowChase: false },
+    'Failed Rally': { dtePeak: 45, deltaRange: [0.55, 0.70], allowChase: true },
     'Breakdown': { dtePeak: 14, deltaRange: [0.45, 0.60], allowChase: false },
-    'Strong Down': { dtePeak: 37, deltaRange: [0.45, 0.65], allowChase: true },
-    'Distribution': { dtePeak: 21, deltaRange: [0.40, 0.60], allowChase: false },
-    'Bullish': { dtePeak: 37, deltaRange: [0.45, 0.65], allowChase: false },
-    'Bearish': { dtePeak: 37, deltaRange: [0.45, 0.65], allowChase: false },
+    'Strong Down': { dtePeak: 55, deltaRange: [0.45, 0.65], allowChase: true },
+    'Distribution': { dtePeak: 30, deltaRange: [0.40, 0.60], allowChase: false },
+    'Bullish': { dtePeak: 55, deltaRange: [0.45, 0.65], allowChase: false },
+    'Bearish': { dtePeak: 55, deltaRange: [0.45, 0.65], allowChase: false },
 };
-const DEFAULT_ENTRY_PROFILE = { dtePeak: 37, deltaRange: [0.45, 0.70], allowChase: false };
+const DEFAULT_ENTRY_PROFILE = { dtePeak: 55, deltaRange: [0.45, 0.70], allowChase: false };
 
 function getEntryProfile(setup) {
     return ENTRY_PROFILES[setup] || DEFAULT_ENTRY_PROFILE;
@@ -346,7 +347,7 @@ const SLOPE_BACK = 0.05;         // termRatio > 1.05
 const SLOPE_FLAT_LO = -0.05;     // termRatio >= 0.95
 const SLOPE_CONTANGO = -0.15;    // termRatio < 0.95
 
-function detectRegime(iv30, iv90, rv30) {
+function detectRegime(iv30, iv90, rv30, ivHvXernRatio) {
     if (!iv30 || !iv90 || iv90 === 0) {
         return {
             ivRatio: 1.0,
@@ -362,7 +363,11 @@ function detectRegime(iv30, iv90, rv30) {
     const termRatio = iv30 / iv90;
     const slope = (iv30 - iv90) / iv90;
     const iv30Pct = iv30 * 100; // Convert to % for readability (iv30 stored as decimal, e.g. 0.30 = 30%)
-    const ivRvRatio = rv30 ? iv30Pct / rv30 : null;
+    // Prefer ORATS ex-earnings IV/HV ratio (strips earnings-driven vol spikes from both IV and HV)
+    // Prevents false "cheap IV" signal post-earnings when RV30 is inflated by the earnings move
+    const ivRvRatio = (ivHvXernRatio != null && ivHvXernRatio > 0)
+        ? ivHvXernRatio
+        : (rv30 ? iv30Pct / rv30 : null);
     // VRP = IV30(%) - RV30(%) — positive means market paying premium above realized vol (seller-friendly)
     const vrp = rv30 != null ? iv30Pct - rv30 : null;
 
@@ -571,16 +576,17 @@ function getProbITMAtStrike(chain, optionType, expiration, targetStrike) {
     return a.probabilityITM + t * (b.probabilityITM - a.probabilityITM);
 }
 
-function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, dtePeak = 37, sampleDays = 60) {
+function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, dtePeak = 55, sampleDays = 60, volFcstAdj = 0) {
     const results = [];
-    const widths = customWidth ? [customWidth] : [5, 10];
+    const widths = customWidth ? [customWidth] : [10, 5];
     const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short', sampleDays);
     const atmIV = getCleanATM_IV(chain, currentPrice);
 
     const shorts = chain.filter(o =>
         o.type === type &&
-        Math.abs(o.delta) >= 0.20 &&
-        Math.abs(o.delta) <= 0.40
+        Math.abs(o.delta) >= 0.25 &&
+        Math.abs(o.delta) <= 0.45 &&
+        (o.iv == null || o.iv >= 0.30)  // Phase 5: IV >= 30% structural filter
     );
 
     for (const shortLeg of shorts) {
@@ -690,7 +696,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             const earningsScale = includesEarnings ? Math.min(2.0, Math.max(1.0, earningsMovePct / 5)) : 1.0;
 
             let finalScore = (0.20 * scoreEV) + (0.20 * scoreROI) + (0.20 * scorePOP) + (0.15 * scoreDistance) + (0.25 * scoreDTE) + skewBonus + gammaPenalty + relativeIVBonus;
-            finalScore += ivRankAdj * 2;
+            finalScore += ivRankAdj * 2 + volFcstAdj * 2;
             if (includesEarnings) finalScore -= 25 * earningsScale;
             if (anomaly && dte <= 35) finalScore -= 30; // Anomaly IV (e.g. Earnings) → Penalize short-dated short sellers
 
@@ -751,7 +757,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
-function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null, daysUntilEarnings = null, anomaly = false, dtePeak = 37, deltaRange = [0.45, 0.70], sampleDays = 60) {
+function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null, daysUntilEarnings = null, anomaly = false, dtePeak = 37, deltaRange = [0.45, 0.70], sampleDays = 60, volFcstAdj = 0) {
     const results = [];
     const widths = customWidth ? [customWidth] : [2.5, 5];
     const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'long', sampleDays);
@@ -872,7 +878,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
 
             let finalScore = (0.25 * lambdaScore) + (0.25 * rrScore) + (0.15 * deltaScore) +
                 (0.20 * evScore) + (0.10 * (50 + bePenalty * 12.5)) - (0.05 * thetaPenalty) + (0.05 * scoreDTEDebit);
-            finalScore += ivRankAdj * 2;
+            finalScore += ivRankAdj * 2 + volFcstAdj * 2;
             if (includesEarningsDS) finalScore -= 15 * earningsScaleDS; // Earnings → IV crush risk for debit buyers
             if (anomaly && (longLeg.dte || 30) <= 35) finalScore -= 20; // Anomaly IV → Penalize buyers due to IV crush risk
 
@@ -921,7 +927,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
 }
 
-function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, ivRank = null, sampleDays = 60) {
+function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, ivRank = null, sampleDays = 60, volFcstAdj = 0) {
     const filtered = chain.filter(o =>
         o.type === type &&
         Math.abs(o.delta) >= 0.25 &&
@@ -968,7 +974,7 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, iv
         const relIvAdj = getRelativeIVAdjustmentLOQ(p.opt.iv, atmIV);
         const deltaBonus = getDeltaBonus(p.opt.delta);
         const bePenalty = getBreakevenPenalty(p.breakevenMove, p.opt.dte);
-        return calculateLOQRaw(zL[i], zDG[i], zT[i], ivAdjustment + ivRankAdj + relIvAdj, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty, p.opt.dte, zVegaEff[i]);
+        return calculateLOQRaw(zL[i], zDG[i], zT[i], ivAdjustment + ivRankAdj + volFcstAdj + relIvAdj, deltaBonus, p.thetaBurn, false, zGT[i], bePenalty, p.opt.dte, zVegaEff[i]);
     });
     const scores = normalizeLOQScoresWithDynamicBaseline(rawScores);
     return processed.map((p, i) => {
@@ -1027,7 +1033,7 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, iv
 // IRON CONDOR BUILDER
 // =============================================================================
 
-function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, sampleDays = 60) {
+function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, sampleDays = 60, volFcstAdj = 0) {
     const results = [];
     const widths = customWidth ? [customWidth] : [5, 10];
     const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short', sampleDays);
@@ -1165,7 +1171,7 @@ function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, ske
                     const scoreDTE = Math.round(100 * Math.exp(-0.5 * Math.pow((dte - 37) / 15, 2)));
 
                     let finalScore = (0.40 * scorePOP) + (0.25 * scoreROI) + (0.15 * alignmentScore) + (0.20 * scoreDTE);
-                    finalScore += ivRankAdj * 2;
+                    finalScore += ivRankAdj * 2 + volFcstAdj * 2;
 
                     // IV/RV bonus: IC benefits from high IV (selling premium on both sides)
                     if (ivRvRatio != null && ivRvRatio > 1.20) finalScore += 8;
@@ -1260,8 +1266,8 @@ export default async function handler(req, res) {
 
     const upperTicker = ticker.toUpperCase();
     const isBull = direction.toUpperCase() === 'BULL';
-    const targetDteStr = targetDte ? String(targetDte).replace(/[^0-9]/g, '') : '30';
-    const dteTarget = parseInt(targetDteStr) || 30;
+    const targetDteStr = targetDte ? String(targetDte).replace(/[^0-9]/g, '') : '55';
+    const dteTarget = parseInt(targetDteStr) || 55;
 
     const widthStr = spreadWidth ? String(spreadWidth).replace(/[^0-9.]/g, '') : null;
     const widthParam = widthStr ? parseFloat(widthStr) : null;
@@ -1289,6 +1295,7 @@ export default async function handler(req, res) {
         const { getCores: oratsGetCores } = await import('../lib/orats-client.js');
         // Single getCores() call provides: RV30, IV rank/percentile, earnings, implied move, contango
         let oratsCores = null;
+        let oratsEnrich = {};
 
         if (dataSource === 'POLYGON' || dataSource === 'ORATS') {
             // 'POLYGON' accepted as legacy alias → routes to ORATS
@@ -1318,6 +1325,16 @@ export default async function handler(req, res) {
             oratsCores = coresResult;
 
             // Extract enrichment from ORATS cores (single API call replaces getCores + getIVRank + fetchEarnings)
+            // Additional fields: slope (skew), vol forecast, ex-earnings VRP, liquidity, takeover
+            oratsEnrich = oratsCores ? {
+                slope: oratsCores.slope ?? null,              // skew: fitted IV change per 10-delta
+                deriv: oratsCores.deriv ?? null,              // curvature (smile shape)
+                orFcst20d: oratsCores.orFcst20d ?? null,      // 20d vol forecast (decimal)
+                fcstR2: oratsCores.fcstR2 ?? null,            // forecast quality (0-1)
+                ivHvXernRatio: oratsCores.ivHvXernRatio ?? null, // IV/HV ex-earnings
+                avgOptVolu20d: oratsCores.avgOptVolu20d ?? null, // 20d avg option volume
+                tkOver: oratsCores.tkOver ?? 0,               // takeover flag (0 or 1)
+            } : {};
             if (oratsCores) {
                 // RV30
                 if (oratsCores.orHv30d || oratsCores.clsHv30d) {
@@ -1329,6 +1346,9 @@ export default async function handler(req, res) {
                     daysUntilEarnings = oratsCores.daysToNextErn;
                     console.log(`[Earnings ORATS] ${upperTicker}: ${daysUntilEarnings} days until earnings`);
                 }
+                if (oratsEnrich.slope != null) console.log(`[Skew ORATS] ${upperTicker}: slope=${oratsEnrich.slope.toFixed(4)}, deriv=${oratsEnrich.deriv?.toFixed(4) ?? 'N/A'}`);
+                if (oratsEnrich.orFcst20d != null) console.log(`[VolFcst ORATS] ${upperTicker}: fcst20d=${(oratsEnrich.orFcst20d * 100).toFixed(1)}%, R²=${oratsEnrich.fcstR2?.toFixed(3) ?? 'N/A'}`);
+                if (oratsEnrich.tkOver === 1) console.log(`[TAKEOVER] ${upperTicker}: flagged as takeover target`);
             }
 
             // RV30 fallback: compute from Tiingo candles
@@ -1501,13 +1521,15 @@ export default async function handler(req, res) {
         const iv30 = ivSurface.iv30;
         const iv90 = ivSurface.iv90;
 
-        // Calculate Skew (v2.3) — use dteTarget so skew matches the strategy's expiration window
-        const skew = calculateSkew(fullChain, currentPrice, dteTarget);
+        // Calculate Skew — prefer ORATS fitted slope (robust), fallback to chain-based 25-delta search
+        const skew = oratsEnrich.slope != null
+            ? oratsEnrich.slope
+            : calculateSkew(fullChain, currentPrice, dteTarget);
 
         console.log(`[Strategy Recommend] ${upperTicker}: fullChain=${fullChain.length}, strategyChain=${strategyChain.length}, allOptions=${allOptions.length}`);
         console.log(`[Strategy Recommend] ${upperTicker}: IV30=${iv30}, IV90=${iv90}, RV30=${rv30}`);
         console.log(`[Strategy Recommend] ${upperTicker}: DTE buckets in fullChain: ${[...new Set(fullChain.map(o => o.dte))].sort((a, b) => a - b).join(', ')}`);
-        const regime = detectRegime(iv30, iv90, rv30);
+        const regime = detectRegime(iv30, iv90, rv30, oratsEnrich.ivHvXernRatio);
         console.log(`[Strategy Recommend] ${upperTicker}: regime=${regime.mode}, ivRvRatio=${regime.ivRvRatio}`);
 
         // Enhance regime advice with anomaly detection
@@ -1639,36 +1661,45 @@ export default async function handler(req, res) {
             console.log(`[EntryProfile] ${upperTicker}: auto-flagging overextended (d8=${d8Param?.toFixed(2)}, direction=${isBull ? 'BULL' : 'BEAR'})`);
         }
 
+        // Vol forecast adjustment (ORATS forward-looking)
+        const volFcstAdj = getVolForecastAdjustment(
+            oratsEnrich.orFcst20d, iv30, oratsEnrich.fcstR2,
+            isBull ? 'long' : 'short'
+        );
+        if (volFcstAdj !== 0) {
+            console.log(`[VolForecast] ${upperTicker}: adj=${volFcstAdj.toFixed(3)}, fcst20d=${oratsEnrich.orFcst20d}, iv30=${iv30?.toFixed(4)}, R²=${oratsEnrich.fcstR2}`);
+        }
+
         if (decodedStrategy === 'Auto-Select Strategy') {
             if (isBull) {
                 targetRecs = [
-                    ...buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays),
-                    ...buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays),
-                    ...scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays),
-                    ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays)
+                    ...buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj),
+                    ...buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj),
+                    ...scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj),
+                    ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays, volFcstAdj)
                 ];
             } else {
                 targetRecs = [
-                    ...buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays),
-                    ...buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays),
-                    ...scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays),
-                    ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays)
+                    ...buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj),
+                    ...buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj),
+                    ...scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj),
+                    ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays, volFcstAdj)
                 ];
             }
         } else if (decodedStrategy === 'Credit Put Spread') {
-            targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays);
+            targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Debit Call Spread') {
-            targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays);
+            targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Long Call') {
-            targetRecs = scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays);
+            targetRecs = scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Credit Call Spread') {
-            targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays);
+            targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Debit Put Spread') {
-            targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays);
+            targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Long Put') {
-            targetRecs = scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays);
+            targetRecs = scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Iron Condor') {
-            targetRecs = buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays);
+            targetRecs = buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays, volFcstAdj);
         }
 
         // 3. Score the targeted strategy using the unified algorithm
@@ -1964,6 +1995,12 @@ export default async function handler(req, res) {
                 impErnMvPct: oratsCores?.impErnMv != null ? Number((oratsCores.impErnMv * 100).toFixed(2)) : null,
                 putCallRatio: oratsCores ? Number(((oratsCores.pVolu || 0) / Math.max(oratsCores.cVolu || 1, 1)).toFixed(3)) : null,
                 contango: oratsCores?.contango ?? null,
+                tkOver: oratsEnrich?.tkOver === 1 || undefined,
+                avgOptVolu20d: oratsEnrich?.avgOptVolu20d ?? null,
+                volForecast: oratsEnrich?.orFcst20d != null ? {
+                    fcst20d: Number((oratsEnrich.orFcst20d * 100).toFixed(1)),
+                    r2: oratsEnrich.fcstR2 != null ? Number(oratsEnrich.fcstR2.toFixed(3)) : null,
+                } : null,
                 ...(earningsPremiumContext ? { earningsPremium: earningsPremiumContext } : {})
             },
             regime: {

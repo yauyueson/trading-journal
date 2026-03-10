@@ -119,9 +119,11 @@ async function sendDiscord(signals, totalScanned, date) {
         for (const s of signals.slice(0, 25)) {
             const emoji = s.direction === 'CALL' ? '🟢' : '🔴';
             const dirLabel = s.direction === 'CALL' ? 'BUY' : 'SELL';
+            const ivLabel = s.iv30 != null ? `IV: ${(s.iv30 * 100).toFixed(0)}%` : 'IV: n/a';
+            const ivWarn = s.iv30 != null && s.iv30 < 0.30 ? ' ⚠️ low premium' : '';
             fields.push({
                 name: `${s.ticker} ${emoji} ${dirLabel}`,
-                value: `Score: **${s.score}** | ${s.setup} | Conf: ${s.confidence}\nADX: ${s.adx} | RVOL: ${s.rvol} | $${s.close.toFixed(2)}`,
+                value: `Score: **${s.score}** | ${s.setup} | Conf: ${s.confidence}\nADX: ${s.adx} | RVOL: ${s.rvol} | ${ivLabel}${ivWarn} | $${s.close.toFixed(2)}`,
                 inline: false,
             });
         }
@@ -205,6 +207,14 @@ export default async function handler(req, res) {
             if (result.type === 'NEUTRAL') continue;
             if (result.techScore < MIN_SCORE) continue;
 
+            // Fetch latest IV for premium adequacy context
+            let iv30 = null;
+            try {
+                const ivRows = await supabaseGet('orats_iv_cache',
+                    `select=iv30d&ticker=eq.${ticker}&order=date.desc&limit=1`);
+                if (ivRows && ivRows.length > 0) iv30 = ivRows[0].iv30d;
+            } catch (_) {}
+
             const signal = {
                 ticker,
                 date: today,
@@ -217,6 +227,8 @@ export default async function handler(req, res) {
                 adx,
                 rvol,
                 close: result.debug?.close ?? 0,
+                iv30,
+                ivAdequate: iv30 == null || iv30 >= 0.30,  // Phase 5: IV >= 30% structural filter
             };
             signals.push(signal);
 

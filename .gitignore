@@ -6,3 +6,5 @@ dist
 .env*.local
 nul
 .mcp.json
+data/*.sqlite
+data/*.json

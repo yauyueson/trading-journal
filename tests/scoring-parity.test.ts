@@ -125,22 +125,32 @@ describe('calculateDollarGamma parity', () => {
 });
 
 describe('getIVRankAdjustment parity', () => {
-  // Known discrepancy: oss-core.ts and scoring.cjs have different IV Rank formulas
-  // (oss-core uses linear interpolation, scoring.cjs uses a different curve).
-  // TODO: Sync these implementations — tracked as a known parity issue.
-  const ivRanks = [null]; // null should return 0 in both
-  const sampleDays = [0, 90, 180];
+  const ivRanks = [null, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+  const sampleDays = [0, 45, 90, 180, 252];
 
   ivRanks.forEach(ivRank => {
     sampleDays.forEach(days => {
       ['long', 'short'].forEach(strategy => {
         it(`ivRank=${ivRank}, days=${days}, strategy=${strategy}`, () => {
-          const ts = ossCore.getIVRankAdjustment(ivRank, days, strategy);
-          const cjs = scoringCjs.getIVRankAdjustment(ivRank, days, strategy);
+          const ts = ossCore.getIVRankAdjustment(ivRank, strategy, days);
+          const cjs = scoringCjs.getIVRankAdjustment(ivRank, strategy, days);
           expect(ts).toBeCloseTo(cjs, 10);
         });
       });
     });
+  });
+
+  // Verify continuous sigmoid properties
+  it('should be 0 at ivRank=0.5', () => {
+    expect(ossCore.getIVRankAdjustment(0.5, 'long', 252)).toBeCloseTo(0, 10);
+  });
+  it('should be nonzero at ivRank=0.4 (no dead zone)', () => {
+    expect(Math.abs(ossCore.getIVRankAdjustment(0.4, 'long', 252))).toBeGreaterThan(0.01);
+  });
+  it('should approach ±0.5 at extremes', () => {
+    const extreme = ossCore.getIVRankAdjustment(0.95, 'short', 252);
+    expect(Math.abs(extreme)).toBeGreaterThan(0.4);
+    expect(Math.abs(extreme)).toBeLessThanOrEqual(0.5);
   });
 });
 
@@ -247,5 +257,48 @@ describe('calculateSpreadPct parity', () => {
         scoringCjs.calculateSpreadPct(bid, ask, mid), 10
       );
     });
+  });
+});
+
+describe('getVolForecastAdjustment parity', () => {
+  const cases = [
+    // null/edge cases
+    { orFcst20d: null, iv30: 0.3, fcstR2: 0.5, strategy: 'long' as const },
+    { orFcst20d: 0.25, iv30: null, fcstR2: 0.5, strategy: 'long' as const },
+    { orFcst20d: 0.25, iv30: 0, fcstR2: 0.5, strategy: 'long' as const },
+    { orFcst20d: 0.25, iv30: 0.3, fcstR2: null, strategy: 'long' as const },
+    // low quality — should return 0
+    { orFcst20d: 0.25, iv30: 0.3, fcstR2: 0.05, strategy: 'long' as const },
+    // normal cases
+    { orFcst20d: 0.30, iv30: 0.30, fcstR2: 0.5, strategy: 'long' as const },  // diff=0
+    { orFcst20d: 0.36, iv30: 0.30, fcstR2: 0.5, strategy: 'long' as const },  // diff=+0.2
+    { orFcst20d: 0.24, iv30: 0.30, fcstR2: 0.5, strategy: 'long' as const },  // diff=-0.2
+    { orFcst20d: 0.36, iv30: 0.30, fcstR2: 0.5, strategy: 'short' as const }, // short reverses sign
+    { orFcst20d: 0.36, iv30: 0.30, fcstR2: 1.0, strategy: 'long' as const },  // high quality
+    { orFcst20d: 0.36, iv30: 0.30, fcstR2: 0.1, strategy: 'long' as const },  // min quality
+    // extreme diff (should clamp at ±0.3)
+    { orFcst20d: 0.60, iv30: 0.30, fcstR2: 0.8, strategy: 'long' as const },
+    { orFcst20d: 0.10, iv30: 0.30, fcstR2: 0.8, strategy: 'long' as const },
+  ];
+
+  cases.forEach(({ orFcst20d, iv30, fcstR2, strategy }, i) => {
+    it(`case ${i}: fcst=${orFcst20d}, iv30=${iv30}, R²=${fcstR2}, ${strategy}`, () => {
+      expect(ossCore.getVolForecastAdjustment(orFcst20d, iv30, fcstR2, strategy)).toBeCloseTo(
+        scoringCjs.getVolForecastAdjustment(orFcst20d, iv30, fcstR2, strategy), 10
+      );
+    });
+  });
+
+  // Property tests
+  it('should return 0 when forecast equals current IV', () => {
+    expect(ossCore.getVolForecastAdjustment(0.3, 0.3, 0.5, 'long')).toBe(0);
+  });
+  it('should return 0 when quality below threshold', () => {
+    expect(ossCore.getVolForecastAdjustment(0.5, 0.3, 0.09, 'long')).toBe(0);
+  });
+  it('long and short should have opposite signs', () => {
+    const longAdj = ossCore.getVolForecastAdjustment(0.36, 0.3, 0.5, 'long');
+    const shortAdj = ossCore.getVolForecastAdjustment(0.36, 0.3, 0.5, 'short');
+    expect(longAdj).toBeCloseTo(-shortAdj, 10);
   });
 });

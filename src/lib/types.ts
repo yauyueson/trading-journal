@@ -191,6 +191,12 @@ export interface StrategyContext {
     putCallRatio?: number | null;
     /** Term structure contango (positive = contango, negative = backwardation). */
     contango?: number | null;
+    /** Takeover flag (ORATS tkOver=1 means active M&A — options mispriced). */
+    tkOver?: boolean;
+    /** 20-day average option volume (ticker-level liquidity). */
+    avgOptVolu20d?: number | null;
+    /** ORATS proprietary vol forecast with quality metric. */
+    volForecast?: { fcst20d: number; r2: number | null } | null;
 }
 
 export interface SpreadLeg {
