@@ -259,6 +259,25 @@ export function getCachedChain(ticker: string, date: string): ChainRow[] {
 }
 
 /**
+ * Cache-only chain read with optional delta/DTE filtering.
+ * Returns [] if not cached. No API call — for WFA batch computation.
+ */
+export function getCachedChainFiltered(
+  ticker: string,
+  date: string,
+  deltaRange?: [number, number],
+  dteRange?: [number, number],
+): ChainRow[] {
+  if (!isCached(ticker, date)) return [];
+  const rows = getCachedChain(ticker, date);
+  return rows.filter(r => {
+    if (deltaRange && (r.delta < deltaRange[0] || r.delta > deltaRange[1])) return false;
+    if (dteRange && (r.dte < dteRange[0] || r.dte > dteRange[1])) return false;
+    return true;
+  });
+}
+
+/**
  * Find the best strike matching a target delta within a DTE range.
  * Returns the strike closest to targetDelta for the nearest monthly expiry in the DTE range.
  */
@@ -329,8 +348,9 @@ export function findSpreadStrikes(
   width: number,
   type: 'Call' | 'Put',
   dteRange: [number, number],
+  minVolume: number = 0,
 ): SpreadMatch | null {
-  const shortLeg = findStrikeByDelta(chain, shortDelta, type, dteRange);
+  const shortLeg = findStrikeByDelta(chain, shortDelta, type, dteRange, minVolume);
   if (!shortLeg) return null;
 
   // Find long leg (wing) — further OTM by `width` dollars
