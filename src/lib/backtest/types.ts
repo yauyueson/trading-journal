@@ -72,6 +72,34 @@ export const DEFAULT_SLIPPAGE: SlippageConfig = {
   exitBps: 5,
 };
 
+// ── Dynamic Slippage Model (Option-Sim) ─────────────────
+
+/** Dynamic slippage model — scales with spread width, OI, and DTE */
+export type FillMode = 'mid' | 'bidask';
+
+export interface DynamicSlippageConfig {
+  enabled: boolean;
+  fillMode: FillMode;
+  /**
+   * Additional adverse fill beyond natural bid/ask.
+   * Scales with: spread width (wider = more slippage),
+   * OI (lower = more slippage), DTE proximity (near expiry = more).
+   */
+  baseImpactBps: number;       // minimum adverse impact in bps (default 2)
+  oiHalfLife: number;          // OI at which impact doubles (default 500)
+  dteAccelDays: number;        // DTE below which impact accelerates (default 7)
+  dteAccelMultiplier: number;  // multiplier at DTE=0 (default 3.0)
+}
+
+export const DEFAULT_DYNAMIC_SLIPPAGE: DynamicSlippageConfig = {
+  enabled: true,
+  fillMode: 'bidask',
+  baseImpactBps: 2,
+  oiHalfLife: 500,
+  dteAccelDays: 7,
+  dteAccelMultiplier: 3.0,
+};
+
 // ── IV Dynamics (O-U Mean Reversion) ─────────────────────
 
 /** Ornstein-Uhlenbeck IV evolution for BSM repricing (Phase 2) */
