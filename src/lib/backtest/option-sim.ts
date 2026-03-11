@@ -362,6 +362,30 @@ export async function simulateCreditSpread(
   );
   if (!spread || spread.netCredit <= 0) return null;
 
+  // --- ORATS liquidity & Greeks filters (sweepable via WFASweepDimension) ---
+  if (config.maxBidAskSpreadPct != null && config.maxBidAskSpreadPct !== Infinity) {
+    const shortSpreadPct = spread.short.mid > 0.10
+      ? (spread.short.ask - spread.short.bid) / spread.short.mid : 0;
+    if (shortSpreadPct > config.maxBidAskSpreadPct) return null;
+  }
+
+  if (config.minShortOI != null && config.minShortOI > 0) {
+    if (spread.short.oi < config.minShortOI) return null;
+  }
+
+  if (config.maxGammaThetaRatio != null && config.maxGammaThetaRatio !== Infinity) {
+    const theta = Math.abs(spread.short.row.theta);
+    if (theta > 0.001) {
+      const ratio = spread.short.row.gamma / theta;
+      if (ratio > config.maxGammaThetaRatio) return null;
+    }
+  }
+
+  if (config.maxIVSkew != null && config.maxIVSkew !== Infinity) {
+    const skew = Math.abs(spread.short.iv - spread.long.iv);
+    if (skew > config.maxIVSkew) return null;
+  }
+
   // Apply fill model to entry
   let entryCredit: number;
   let entrySlippage = 0;
