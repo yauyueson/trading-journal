@@ -18,6 +18,7 @@ import {
 } from './chain-cache';
 import type { DynamicSlippageConfig, FillMode } from './types';
 import { DEFAULT_DYNAMIC_SLIPPAGE } from './types';
+import { applyFill } from './slippage';
 
 // ── Types ────────────────────────────────────────────────
 
@@ -343,7 +344,22 @@ export async function simulateCreditSpread(
   );
   if (!spread || spread.netCredit <= 0) return null;
 
-  const entryCredit = spread.netCredit;
+  // Apply fill model to entry
+  let entryCredit: number;
+  let entrySlippage = 0;
+
+  if (config.fillMode === 'bidask' && config.slippage.enabled) {
+    const shortFill = applyFill('bidask', spread.short.mid, spread.short.bid,
+      spread.short.ask, 'sell', config.slippage, spread.short.oi, spread.short.row.dte);
+    const longFill = applyFill('bidask', spread.long.mid, spread.long.bid,
+      spread.long.ask, 'buy', config.slippage, spread.long.oi, spread.long.row.dte);
+    entryCredit = shortFill.fillPrice - longFill.fillPrice;
+    entrySlippage = shortFill.slippage + longFill.slippage;
+    if (entryCredit <= 0) return null; // no credit after slippage → skip
+  } else {
+    entryCredit = spread.netCredit;
+  }
+
   const tpCost = entryCredit * (1 - config.creditProfitTarget); // close when spread costs this much
   const slCost = entryCredit * config.creditStopLossMultiple;    // close when spread costs this much
 
@@ -364,7 +380,20 @@ export async function simulateCreditSpread(
     const longLeg = findContract(chain, spread.long.row.strike, spread.long.row.expir_date, optionType);
     if (!shortLeg || !longLeg) continue;
 
-    const currentSpreadCost = shortLeg.mid - longLeg.mid;
+    // Apply fill model to exit monitoring
+    let currentSpreadCost: number;
+    let exitSlippageAmount = 0;
+    if (config.fillMode === 'bidask' && config.slippage.enabled) {
+      // To close: buy back short (pay ask), sell long (receive bid)
+      const shortClose = applyFill('bidask', shortLeg.mid, shortLeg.bid,
+        shortLeg.ask, 'buy', config.slippage, shortLeg.oi, shortLeg.row.dte);
+      const longClose = applyFill('bidask', longLeg.mid, longLeg.bid,
+        longLeg.ask, 'sell', config.slippage, longLeg.oi, longLeg.row.dte);
+      currentSpreadCost = shortClose.fillPrice - longClose.fillPrice;
+      exitSlippageAmount = shortClose.slippage + longClose.slippage;
+    } else {
+      currentSpreadCost = shortLeg.mid - longLeg.mid;
+    }
     const currentDTE = shortLeg.row.dte;
 
     // Record daily mark-to-market
@@ -386,7 +415,8 @@ export async function simulateCreditSpread(
 
     if (exitType) {
       return buildCreditResult(signal, spread, entryCredit, checkDate, currentSpreadCost,
-        currentDTE, shortLeg.row.stock_price, exitType, undefined, undefined, dailyMtM);
+        currentDTE, shortLeg.row.stock_price, exitType,
+        { dailyMtM, entrySlippage, exitSlippage: exitSlippageAmount, fillMode: config.fillMode });
     }
   }
 
@@ -414,21 +444,29 @@ export async function simulateCreditSpread(
 
     return buildCreditResult(signal, spread, entryCredit, lastDate, currentSpreadCost,
       shortLeg?.row.dte ?? 0, shortLeg?.row.stock_price ?? spread.short.row.stock_price, 'EXPIRATION',
-      undefined, undefined, dailyMtM);
+      { dailyMtM, entrySlippage, fillMode: config.fillMode });
   }
 
   return null;
+}
+
+interface BuildCreditOpts {
+  overridePnl?: number;
+  overridePnlPct?: number;
+  dailyMtM?: { date: string; spreadMid: number; unrealizedPnl: number }[];
+  entrySlippage?: number;
+  exitSlippage?: number;
+  fillMode?: FillMode;
 }
 
 function buildCreditResult(
   signal: EntrySignal, spread: SpreadMatch, entryCredit: number,
   exitDate: string, exitSpreadCost: number, exitDTE: number,
   exitStockPrice: number, exitType: OptionExitType,
-  overridePnl?: number, overridePnlPct?: number,
-  dailyMtM?: { date: string; spreadMid: number; unrealizedPnl: number }[],
+  opts: BuildCreditOpts = {},
 ): OptionTrade {
-  const pnl = overridePnl ?? (entryCredit - exitSpreadCost) * 100;
-  const pnlPct = overridePnlPct ?? (spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0);
+  const pnl = opts.overridePnl ?? (entryCredit - exitSpreadCost) * 100;
+  const pnlPct = opts.overridePnlPct ?? (spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0);
   const holdDays = Math.round(
     (new Date(exitDate).getTime() - new Date(signal.date).getTime()) / 86400000
   );
@@ -460,7 +498,10 @@ function buildCreditResult(
     pnlPct,
     holdDays,
     ivRank: signal.ivRank,
-    dailyMtM,
+    entrySlippage: opts.entrySlippage,
+    exitSlippage: opts.exitSlippage,
+    fillMode: opts.fillMode,
+    dailyMtM: opts.dailyMtM,
   };
 }
 
@@ -555,7 +596,7 @@ export async function simulateCreditSpreadPhased(
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, currentSpreadCost,
           currentDTE, shortLeg.row.stock_price, 'STOP_LOSS',
-          pnl, spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0, dailyMtM,
+          { overridePnl: pnl, overridePnlPct: spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0, dailyMtM },
         );
       }
 
@@ -565,7 +606,7 @@ export async function simulateCreditSpreadPhased(
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, currentSpreadCost,
           currentDTE, shortLeg.row.stock_price, 'TIME_STOP',
-          pnl, spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0, dailyMtM,
+          { overridePnl: pnl, overridePnlPct: spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0, dailyMtM },
         );
       }
     } else {
@@ -578,20 +619,19 @@ export async function simulateCreditSpreadPhased(
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, currentSpreadCost,
           currentDTE, shortLeg.row.stock_price, 'PROFIT_TARGET_2',
-          totalPnl, spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0, dailyMtM,
+          { overridePnl: totalPnl, overridePnlPct: spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0, dailyMtM },
         );
       }
 
       // Check after-TP1 SL on remaining half
       const afterTP1SLCost = entryCredit * (1 - phasedConfig.afterTP1SL);
       if (phasedConfig.afterTP1SL >= 0 && currentSpreadCost >= afterTP1SLCost) {
-        // Close remaining half at SL level (0 = breakeven, 0.25 = 25% profit lock)
         const secondHalfPnl = (entryCredit - currentSpreadCost) * 0.5 * 100;
         const totalPnl = halfPnl + secondHalfPnl;
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, currentSpreadCost,
           currentDTE, shortLeg.row.stock_price, 'SL_BREAKEVEN',
-          totalPnl, spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0, dailyMtM,
+          { overridePnl: totalPnl, overridePnlPct: spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0, dailyMtM },
         );
       }
 
@@ -602,7 +642,7 @@ export async function simulateCreditSpreadPhased(
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, currentSpreadCost,
           currentDTE, shortLeg.row.stock_price, 'TIME_STOP',
-          totalPnl, spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0, dailyMtM,
+          { overridePnl: totalPnl, overridePnlPct: spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0, dailyMtM },
         );
       }
     }
@@ -630,21 +670,19 @@ export async function simulateCreditSpreadPhased(
     }
 
     if (phase === 'HALF') {
-      // Already took TP1 on first half, close remaining half at expiry
       const secondHalfPnl = (entryCredit - currentSpreadCost) * 0.5 * 100;
       const totalPnl = halfPnl + secondHalfPnl;
       return buildCreditResult(
         signal, spread, entryCredit, lastDate, currentSpreadCost,
         shortLeg?.row.dte ?? 0, shortLeg?.row.stock_price ?? spread.short.row.stock_price,
-        'EXPIRATION', totalPnl, spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0, dailyMtM,
+        'EXPIRATION', { overridePnl: totalPnl, overridePnlPct: spread.maxLoss > 0 ? totalPnl / (spread.maxLoss * 100) : 0, dailyMtM },
       );
     } else {
-      // Never hit TP1 — full position at expiry
       const pnl = (entryCredit - currentSpreadCost) * 100;
       return buildCreditResult(
         signal, spread, entryCredit, lastDate, currentSpreadCost,
         shortLeg?.row.dte ?? 0, shortLeg?.row.stock_price ?? spread.short.row.stock_price,
-        'EXPIRATION', pnl, spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0, dailyMtM,
+        'EXPIRATION', { overridePnl: pnl, overridePnlPct: spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0, dailyMtM },
       );
     }
   }
