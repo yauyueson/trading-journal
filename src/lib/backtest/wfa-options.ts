@@ -8,7 +8,7 @@
  */
 
 import type { WalkForwardMode, CorrelationStressResult } from './types';
-import type { OptionTrade, SimConfig, EntrySignal, OptionSimAnalytics, SignalPresetKey } from './option-sim';
+import type { OptionTrade, SimConfig, EntrySignal, SignalPresetKey } from './option-sim';
 import { computeOptionAnalytics } from './option-sim';
 import { computeCorrelationStress } from './portfolio-stress';
 
