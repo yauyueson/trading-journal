@@ -197,7 +197,16 @@ export async function simulateLeap(
   const entry = findStrikeByDelta(entryChain, targetDelta, optionType, config.leapDTERange);
   if (!entry || entry.mid <= 0) return null;
 
-  const entryPrice = entry.mid;
+  // Apply fill model to LEAP entry (buyer pays ask + impact)
+  let entryPrice: number;
+  if (config.fillMode === 'bidask' && config.slippage.enabled) {
+    const fill = applyFill('bidask', entry.mid, entry.bid, entry.ask, 'buy',
+      config.slippage, entry.oi, entry.row.dte);
+    entryPrice = fill.fillPrice;
+  } else {
+    entryPrice = entry.mid;
+  }
+
   const tpPrice = entryPrice * (1 + config.leapProfitTarget);
   const slPrice = entryPrice * (1 - config.leapStopLoss);
 
@@ -221,7 +230,16 @@ export async function simulateLeap(
     if (!current) continue;
 
     const currentDTE = current.row.dte;
-    const currentPrice = current.mid;
+
+    // Apply fill model to exit (seller receives bid - impact)
+    let currentPrice: number;
+    if (config.fillMode === 'bidask' && config.slippage.enabled) {
+      const fill = applyFill('bidask', current.mid, current.bid, current.ask, 'sell',
+        config.slippage, current.oi, current.row.dte);
+      currentPrice = fill.fillPrice;
+    } else {
+      currentPrice = current.mid;
+    }
 
     // Record daily mark-to-market
     dailyMtM.push({
