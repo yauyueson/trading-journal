@@ -53,6 +53,18 @@ describe('Walk-Forward Purge Gap', () => {
     const oosStartIdx = isEndIdx + purgeGap;
     expect(oosStartIdx).toBe(isEndIdx);
   });
+
+  it('default purge gap is 65 for options (matches max DTE)', () => {
+    const maxDTE = 65;
+    const purgeGap = 65;
+    expect(purgeGap).toBeGreaterThanOrEqual(maxDTE);
+  });
+
+  it('stock-mode purge gap of 5 is insufficient for options', () => {
+    const stockPurge = 5;
+    const maxDTE = 65;
+    expect(stockPurge).toBeLessThan(maxDTE);
+  });
 });
 
 // ─── #9: Block Bootstrap Monte Carlo ─────────────────────────

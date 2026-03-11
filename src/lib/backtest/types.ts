@@ -401,7 +401,8 @@ export interface WalkForwardConfig {
   oosWindowDays: number;        // default 63 (1 quarter)
   /** 'rolling' = fixed IS window, 'anchored' = expanding IS from start */
   mode: WalkForwardMode;        // default 'anchored'
-  /** Gap between IS end and OOS start to prevent look-ahead leakage (default 5) */
+  /** Gap between IS end and OOS start to prevent look-ahead leakage.
+   *  For options: must be >= max DTE (default 65). For stocks: 5 is sufficient. */
   purgeGapDays?: number;
   /** Use GA ('ga') or grid sweep ('sweep') for IS optimization */
   optimizer: 'ga' | 'sweep';
