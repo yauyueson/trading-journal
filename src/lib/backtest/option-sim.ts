@@ -16,6 +16,8 @@ import {
   findSpreadStrikes,
   findContract,
 } from './chain-cache';
+import type { DynamicSlippageConfig, FillMode } from './types';
+import { DEFAULT_DYNAMIC_SLIPPAGE } from './types';
 
 // ── Types ────────────────────────────────────────────────
 
@@ -54,6 +56,10 @@ export interface OptionTrade {
   holdDays: number;
   // IV at entry (optional enrichment)
   ivRank?: number;
+  // Execution tracking
+  entrySlippage?: number;   // $ adverse fill impact at entry (per spread)
+  exitSlippage?: number;    // $ adverse fill impact at exit
+  fillMode?: FillMode;      // which fill model was used
   // Daily mark-to-market P&L (unrealized, captured during monitoring loop)
   dailyMtM?: { date: string; spreadMid: number; unrealizedPnl: number }[];
 }
@@ -85,7 +91,19 @@ export interface SimConfig {
   monitoringIntervalDays: number;       // check every N trading days (7 LEAP, 3 credit)
   // IV filter for credit spreads
   minIVRank: number;                    // 30 = require IV Rank > 30 for credit entries
+  // Execution model
+  fillMode: FillMode;                       // 'mid' (legacy) or 'bidask' (realistic)
+  slippage: DynamicSlippageConfig;          // dynamic slippage config
+  // ORATS liquidity & Greeks filters (all optional, defaults = no filter)
+  maxBidAskSpreadPct?: number;   // max (ask-bid)/mid for short leg (e.g. 0.10 = 10%)
+  minShortOI?: number;           // min open interest on short leg strike
+  maxGammaThetaRatio?: number;   // max gamma/|theta| ratio on short leg
+  maxIVSkew?: number;            // max |shortIV - longIV| allowed (absolute, e.g. 0.06)
+  // Signal selection (determines which tech indicator generates entries)
+  signalWeightPreset?: SignalPresetKey;  // 'ema'|'mom'|'em'|'mf' (default: 'ema')
 }
+
+export type SignalPresetKey = 'ema' | 'mom' | 'em' | 'mf';
 
 export const DEFAULT_LEAP_CONFIG: SimConfig = {
   mode: 'LEAP',
@@ -102,6 +120,8 @@ export const DEFAULT_LEAP_CONFIG: SimConfig = {
   creditTimeStopDTE: 7,
   monitoringIntervalDays: 1,
   minIVRank: 0,
+  fillMode: 'mid' as FillMode,
+  slippage: { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: false },
 };
 
 export const DEFAULT_CREDIT_CONFIG: SimConfig = {
