@@ -7,6 +7,9 @@
 
 import type { TechScoreOptions } from '../tech-analysis';
 
+// Re-export TechScoreOptions for WFA signal presets
+export type { TechScoreOptions };
+
 // ── Config ──────────────────────────────────────────────
 
 export type Timeframe = '1D';
@@ -552,4 +555,56 @@ export interface SweepResult {
   bestOverall: BacktestResult | null;
   totalCombos: number;
   elapsedMs: number;
+}
+
+// ── Walk-Forward for Options ────────────────────────────
+
+export type WFASweepDimension =
+  // Existing structural params
+  | 'creditShortDelta'
+  | 'creditSpreadWidth'
+  | 'creditProfitTarget'
+  | 'creditStopLossMultiple'
+  | 'creditDTERange'
+  | 'minIVRank'
+  // ORATS-derived liquidity & Greeks filters
+  | 'maxBidAskSpreadPct'
+  | 'minShortOI'
+  | 'maxGammaThetaRatio'
+  | 'maxIVSkew'
+  // Signal/indicator selection
+  | 'signalWeightPreset';
+
+/** Signal weight presets — zero out unused components to isolate indicators. */
+export type SignalPresetKey = 'ema' | 'mom' | 'em' | 'mf';
+
+export const SIGNAL_PRESETS: Record<SignalPresetKey, TechScoreOptions> = {
+  /** EMA stack alignment only */
+  ema: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_mom: 0, w_adx: 0, w_vol: 0 },
+  /** Momentum/ROC only */
+  mom: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 0, w_adx: 0, w_vol: 0 },
+  /** EMA + Momentum */
+  em:  { w_mb: 0, w_bxs: 0, w_bxl: 0, w_adx: 0, w_vol: 0 },
+  /** Market Bias + Momentum + EMA (3-factor) */
+  mf:  { w_bxs: 0, w_bxl: 0, w_adx: 0, w_vol: 0 },
+};
+
+// ── Correlation Stress Testing ──────────────────────────
+
+export interface CorrelationStressResult {
+  /** Max simultaneous drawdown across all tickers on any single day */
+  peakCorrelatedDD: number;
+  /** Date of peak correlated drawdown */
+  peakCorrelatedDDDate: string;
+  /** Number of tickers in drawdown on worst day */
+  tickersInDDOnWorstDay: number;
+  /** Avg pairwise correlation of daily P&L across tickers */
+  avgPairwiseCorrelation: number;
+  /** Worst single-day portfolio loss (across all open positions) */
+  worstDayLoss: number;
+  worstDayLossDate: string;
+  /** Stress penalty: how much worse is correlated DD vs uncorrelated expectation */
+  correlationPenalty: number;
+  /** Per-ticker drawdown on worst day */
+  perTickerDD: Record<string, number>;
 }
