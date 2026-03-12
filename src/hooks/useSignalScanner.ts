@@ -38,7 +38,7 @@ export function useSignalScanner() {
 
     const to = new Date().toISOString().slice(0, 10);
     const from = new Date(Date.now() - 600 * 86400000).toISOString().slice(0, 10); // ~600 days back
-    const res = await fetch(`/api/backtest-candles?ticker=${encodeURIComponent(ticker)}&from=${from}&to=${to}&timeframe=1D`);
+    const res = await fetch(`/api/backtest-data?type=candles&ticker=${encodeURIComponent(ticker)}&from=${from}&to=${to}&timeframe=1D`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `HTTP ${res.status} for ${ticker}`);

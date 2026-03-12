@@ -158,7 +158,7 @@ export function useBacktest(): UseBacktestReturn {
 
     setFetchingCandles(true);
     try {
-      const res = await fetch(`/api/backtest-candles?ticker=${encodeURIComponent(ticker)}&from=${from}&to=${to}&timeframe=1D`);
+      const res = await fetch(`/api/backtest-data?type=candles&ticker=${encodeURIComponent(ticker)}&from=${from}&to=${to}&timeframe=1D`);
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || `HTTP ${res.status}`);
@@ -179,7 +179,7 @@ export function useBacktest(): UseBacktestReturn {
     if (cached) return cached;
 
     try {
-      const res = await fetch(`/api/backtest-iv?ticker=${encodeURIComponent(ticker)}&from=${from}&to=${to}`);
+      const res = await fetch(`/api/backtest-data?type=iv&ticker=${encodeURIComponent(ticker)}&from=${from}&to=${to}`);
       if (!res.ok) return undefined;
       const data = await res.json();
       const iv = data.iv as IVDataRow[];
