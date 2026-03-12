@@ -655,10 +655,8 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             const distance = Math.abs(currentPrice - shortLeg.strike) / currentPrice;
             const dte = shortLeg.dte;
 
-            // Earnings Guard
+            // Earnings awareness (no hard block — score penalty applied below instead)
             const includesEarnings = daysUntilEarnings !== null && daysUntilEarnings <= dte && daysUntilEarnings >= 0;
-            const earningsRisk = includesEarnings && daysUntilEarnings <= 10;
-            if (earningsRisk) { _diag.earningsGuard++; continue; }
 
             // 4. Slippage Modeling — OI-adjusted (illiquid options penalized even with tight quoted spreads)
             // 2.5: brokers fill 2-leg spread orders as packages, so multiply per-leg sum by 0.7
@@ -1066,9 +1064,8 @@ function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, ske
         const dte = expChain[0]?.dte;
         if (!dte || dte < 21 || dte > 60) continue; // IC sweet spot: 21-60 DTE
 
-        // Earnings guard: skip if earnings fall within DTE
+        // Earnings awareness (score penalty applied below, no hard block)
         const includesEarnings = daysUntilEarnings !== null && daysUntilEarnings <= dte && daysUntilEarnings >= 0;
-        if (includesEarnings && daysUntilEarnings <= 10) continue;
 
         // Find short put candidates (below price, 15-25Δ)
         const shortPuts = expChain.filter(o =>
