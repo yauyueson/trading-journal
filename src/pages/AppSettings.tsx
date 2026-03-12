@@ -32,6 +32,9 @@ export const AppSettingsPage: React.FC = () => {
   const setPeriods = (patch: Partial<typeof draft.techScore.periods>) =>
     setDraft(d => ({ ...d, techScore: { ...d.techScore, periods: { ...d.techScore.periods, ...patch } } }));
 
+  const setCreditSpread = (patch: Partial<typeof draft.creditSpread>) =>
+    setDraft(d => ({ ...d, creditSpread: { ...d.creditSpread, ...patch } }));
+
   const weightSum = Object.values(draft.techScore.weights).reduce((a, b) => a + b, 0);
   const maxRiskPreview = (draft.portfolio.accountSize * draft.portfolio.riskPct) / 100;
 
@@ -172,6 +175,69 @@ export const AppSettingsPage: React.FC = () => {
             ))}
           </div>
         </div>
+      </section>
+      {/* Credit Spread Defaults */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Credit Spread Defaults</h2>
+          <button
+            onClick={() => setDraft(d => ({ ...d, creditSpread: DEFAULT_APP_SETTINGS.creditSpread }))}
+            className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            Reset defaults
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">DTE Min</label>
+            <input type="number" min={1} max={180} step={1}
+              value={draft.creditSpread.dteLow}
+              onChange={e => setCreditSpread({ dteLow: parseInt(e.target.value) || 1 })}
+              className="w-full px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">DTE Max</label>
+            <input type="number" min={1} max={180} step={1}
+              value={draft.creditSpread.dteHigh}
+              onChange={e => setCreditSpread({ dteHigh: parseInt(e.target.value) || 1 })}
+              className="w-full px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Target Delta</label>
+            <input type="number" min={0.10} max={0.60} step={0.01}
+              value={draft.creditSpread.targetDelta}
+              onChange={e => setCreditSpread({ targetDelta: parseFloat(e.target.value) || 0.10 })}
+              className="w-full px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Spread Width $</label>
+            <input type="number" min={1} max={50} step={1}
+              value={draft.creditSpread.spreadWidth}
+              onChange={e => setCreditSpread({ spreadWidth: parseInt(e.target.value) || 1 })}
+              className="w-full px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Min IV Rank %</label>
+            <input type="number" min={0} max={100} step={5}
+              value={draft.creditSpread.minIVRank}
+              onChange={e => setCreditSpread({ minIVRank: parseInt(e.target.value) || 0 })}
+              className="w-full px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Profit Target %</label>
+            <input type="number" min={10} max={90} step={5}
+              value={draft.creditSpread.profitTarget}
+              onChange={e => setCreditSpread({ profitTarget: parseInt(e.target.value) || 10 })}
+              className="w-full px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-gray-500">Used by Spread Builder and displayed in Signals dashboard.</p>
       </section>
       {/* Save Button */}
       <div className="sticky bottom-20 sm:bottom-0 sm:static pt-4 bg-bg-primary sm:bg-transparent">

@@ -11,7 +11,12 @@ function loadFromStorage(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_APP_SETTINGS;
-    return { ...DEFAULT_APP_SETTINGS, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_APP_SETTINGS,
+      ...parsed,
+      creditSpread: { ...DEFAULT_APP_SETTINGS.creditSpread, ...(parsed?.creditSpread ?? {}) },
+    };
   } catch {
     return DEFAULT_APP_SETTINGS;
   }
@@ -71,6 +76,7 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
               periods: { ...DEFAULT_APP_SETTINGS.techScore.periods, ...data.settings.techScore?.periods },
             },
             strategy: { ...DEFAULT_APP_SETTINGS.strategy, ...data.settings.strategy },
+            creditSpread: { ...DEFAULT_APP_SETTINGS.creditSpread, ...(data.settings.creditSpread ?? {}) },
           };
           setSettings(merged);
           saveToStorage(merged);
@@ -89,6 +95,7 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         periods: { ...settings.techScore.periods, ...(patch.techScore?.periods ?? {}) },
       },
       strategy: { ...settings.strategy, ...(patch.strategy ?? {}) },
+      creditSpread: { ...settings.creditSpread, ...(patch.creditSpread ?? {}) },
     };
     setSettings(next);
     saveToStorage(next);

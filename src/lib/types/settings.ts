@@ -40,10 +40,20 @@ export interface StrategySettings {
   source: string;        // 'manual' | 'ga-optimize' | 'sweep' | 'walk-forward'
 }
 
+export interface CreditSpreadSettings {
+  dteLow: number;        // minimum DTE at entry (default 45)
+  dteHigh: number;       // maximum DTE at entry (default 65)
+  targetDelta: number;   // short leg delta target (default 0.35)
+  spreadWidth: number;   // spread width in $ (default 15)
+  minIVRank: number;     // minimum IV rank % (default 30)
+  profitTarget: number;  // profit target % of max credit (default 30)
+}
+
 export interface AppSettings {
   portfolio: PortfolioSettings;
   techScore: TechScoreSettings;
   strategy: StrategySettings;
+  creditSpread: CreditSpreadSettings;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -72,6 +82,14 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     thetaDecayRate: 0.03,
     deployedAt: '',
     source: 'manual',
+  },
+  creditSpread: {
+    dteLow: 45,
+    dteHigh: 65,
+    targetDelta: 0.35,
+    spreadWidth: 15,
+    minIVRank: 30,
+    profitTarget: 30,
   },
 };
 
