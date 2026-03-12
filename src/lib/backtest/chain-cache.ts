@@ -105,6 +105,7 @@ async function fetchORATSHistStrikes(
 // ── SQLite Database ──────────────────────────────────────
 
 let _db: Database.Database | null = null;
+let _findContractStmt: Database.Statement | null = null;
 
 export function initDB(dbPath?: string): Database.Database {
   if (_db) return _db;
@@ -149,6 +150,7 @@ export function initDB(dbPath?: string): Database.Database {
 }
 
 export function closeDB(): void {
+  _findContractStmt = null;
   if (_db) { _db.close(); _db = null; }
 }
 
@@ -545,6 +547,41 @@ export function findContract(
   type: 'Call' | 'Put',
 ): StrikeMatch | null {
   const row = chain.find(r => r.expir_date === expiry && Math.abs(r.strike - strike) < 0.01);
+  if (!row) return null;
+
+  const isCall = type === 'Call';
+  return {
+    row,
+    type,
+    bid: isCall ? row.call_bid : row.put_bid,
+    ask: isCall ? row.call_ask : row.put_ask,
+    mid: isCall ? row.call_mid : row.put_mid,
+    iv: isCall ? row.call_iv : row.put_iv,
+    delta: isCall ? row.delta : (row.delta - 1),
+    volume: isCall ? row.call_volume : row.put_volume,
+    oi: isCall ? row.call_oi : row.put_oi,
+  };
+}
+
+/**
+ * Direct SQL lookup for a specific contract (strike + expiry) on a given date.
+ * Uses the PRIMARY KEY index — O(1) vs getCachedChain+findContract which loads
+ * the entire chain (~3K rows) then filters. ~3000x less data for monitoring loops.
+ */
+export function findContractDirect(
+  ticker: string,
+  date: string,
+  strike: number,
+  expiry: string,
+  type: 'Call' | 'Put',
+): StrikeMatch | null {
+  const db = initDB();
+  if (!_findContractStmt) {
+    _findContractStmt = db.prepare(
+      'SELECT * FROM option_chains WHERE ticker = ? AND trade_date = ? AND expir_date = ? AND strike BETWEEN ? AND ? LIMIT 1',
+    );
+  }
+  const row = _findContractStmt.get(ticker, date, expiry, strike - 0.01, strike + 0.01) as ChainRow | undefined;
   if (!row) return null;
 
   const isCall = type === 'Call';

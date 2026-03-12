@@ -23,7 +23,7 @@ import { applyFill } from './slippage';
 // ── Types ────────────────────────────────────────────────
 
 export type OptionMode = 'LEAP' | 'CREDIT_SPREAD';
-export type OptionExitType = 'PROFIT_TARGET' | 'STOP_LOSS' | 'TIME_STOP' | 'SIGNAL_REVERSAL' | 'EXPIRATION' | 'NO_CHAIN' | 'PROFIT_TARGET_2' | 'SL_BREAKEVEN';
+export type OptionExitType = 'PROFIT_TARGET' | 'STOP_LOSS' | 'TIME_STOP' | 'SIGNAL_REVERSAL' | 'EXPIRATION' | 'NO_CHAIN' | 'PROFIT_TARGET_2' | 'SL_BREAKEVEN' | 'DELTA_STOP';
 
 export interface OptionTrade {
   ticker: string;
@@ -92,6 +92,8 @@ export interface SimConfig {
   monitoringIntervalDays: number;       // check every N trading days (7 LEAP, 3 credit)
   // IV filter for credit spreads
   minIVRank: number;                    // 30 = require IV Rank > 30 for credit entries
+  // Delta-based early exit (optional)
+  creditDeltaStop?: number;             // exit if |short delta| exceeds this (e.g. 0.65 = 65%)
   // Execution model
   fillMode: FillMode;                       // 'mid' (legacy) or 'bidask' (realistic)
   slippage: DynamicSlippageConfig;          // dynamic slippage config
@@ -782,10 +784,11 @@ export function computeOptionAnalytics(trades: OptionTrade[]): OptionSimAnalytic
   const tradesPerYear = 252 / Math.max(1, avgHoldDays);
   const sharpe = std > 0 ? (avgReturn / std) * Math.sqrt(tradesPerYear) : 0;
 
-  // Max drawdown (on $100K notional equity curve)
+  // Max drawdown — sort by exit date so the equity curve reflects chronological PnL realization
   const STARTING_CAPITAL = 100_000;
+  const tradesByExit = [...trades].sort((a, b) => a.exitDate.localeCompare(b.exitDate));
   let equity = STARTING_CAPITAL, peak = STARTING_CAPITAL, maxDD = 0;
-  for (const t of trades) {
+  for (const t of tradesByExit) {
     equity += t.pnl;
     peak = Math.max(peak, equity);
     if (peak > 0) maxDD = Math.max(maxDD, (peak - equity) / peak);
