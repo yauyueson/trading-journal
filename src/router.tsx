@@ -6,7 +6,6 @@ export const TAB_PATHS: Record<string, string> = {
   signals: '/signals',
   scanner: '/scanner',
   selector: '/selector',
-  watchlist: '/watchlist',
   portfolio: '/portfolio',
   history: '/history',
   stats: '/stats',
@@ -35,10 +34,6 @@ export const router = createBrowserRouter([
       {
         path: '/portfolio',
         lazy: () => import('./pages/Portfolio').then(m => ({ Component: m.PortfolioPage })),
-      },
-      {
-        path: '/watchlist',
-        lazy: () => import('./pages/Watchlist').then(m => ({ Component: m.WatchlistPage })),
       },
       {
         path: '/scanner',
