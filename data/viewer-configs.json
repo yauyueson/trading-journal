@@ -1,0 +1,902 @@
+{
+  "optionFilters": [
+    {
+      "filter": "iv30plus",
+      "is": {
+        "sharpe": 2.364,
+        "wr": 88.3,
+        "trades": 3914,
+        "util": 8.66
+      },
+      "oos": {
+        "sharpe": 2.14,
+        "wr": 88.43,
+        "trades": 1003,
+        "util": 7.17
+      }
+    },
+    {
+      "filter": "iv20_80",
+      "is": {
+        "sharpe": 1.698,
+        "wr": 87.41,
+        "trades": 6283,
+        "util": 14.33
+      },
+      "oos": {
+        "sharpe": 1.979,
+        "wr": 87.52,
+        "trades": 2003,
+        "util": 14.6
+      }
+    },
+    {
+      "filter": "iv20plus",
+      "is": {
+        "sharpe": 1.735,
+        "wr": 87.47,
+        "trades": 6328,
+        "util": 14.39
+      },
+      "oos": {
+        "sharpe": 1.977,
+        "wr": 87.52,
+        "trades": 2003,
+        "util": 14.62
+      }
+    },
+    {
+      "filter": "cr25pct",
+      "is": {
+        "sharpe": 1.627,
+        "wr": 86.68,
+        "trades": 2170,
+        "util": 5.13
+      },
+      "oos": {
+        "sharpe": 1.766,
+        "wr": 86.04,
+        "trades": 874,
+        "util": 6.47
+      }
+    },
+    {
+      "filter": "cr20pct",
+      "is": {
+        "sharpe": 1.613,
+        "wr": 86.65,
+        "trades": 5213,
+        "util": 11.91
+      },
+      "oos": {
+        "sharpe": 1.763,
+        "wr": 86.73,
+        "trades": 1846,
+        "util": 13.33
+      }
+    },
+    {
+      "filter": "vol100",
+      "is": {
+        "sharpe": 1.577,
+        "wr": 88.15,
+        "trades": 5469,
+        "util": 12.64
+      },
+      "oos": {
+        "sharpe": 1.696,
+        "wr": 87.7,
+        "trades": 1829,
+        "util": 13.53
+      }
+    },
+    {
+      "filter": "ba10pct",
+      "is": {
+        "sharpe": 1.377,
+        "wr": 87.36,
+        "trades": 7067,
+        "util": 16.3
+      },
+      "oos": {
+        "sharpe": 1.676,
+        "wr": 87.33,
+        "trades": 2225,
+        "util": 16.44
+      }
+    },
+    {
+      "filter": "vol50",
+      "is": {
+        "sharpe": 1.494,
+        "wr": 87.85,
+        "trades": 6042,
+        "util": 13.97
+      },
+      "oos": {
+        "sharpe": 1.673,
+        "wr": 87.46,
+        "trades": 1993,
+        "util": 14.73
+      }
+    },
+    {
+      "filter": "oi500",
+      "is": {
+        "sharpe": 1.16,
+        "wr": 87.51,
+        "trades": 5348,
+        "util": 12.61
+      },
+      "oos": {
+        "sharpe": 1.667,
+        "wr": 87.25,
+        "trades": 1820,
+        "util": 13.58
+      }
+    },
+    {
+      "filter": "liq_gate",
+      "is": {
+        "sharpe": 1.358,
+        "wr": 87.54,
+        "trades": 6404,
+        "util": 14.9
+      },
+      "oos": {
+        "sharpe": 1.61,
+        "wr": 87.13,
+        "trades": 2137,
+        "util": 15.77
+      }
+    },
+    {
+      "filter": "ba20pct",
+      "is": {
+        "sharpe": 1.359,
+        "wr": 87.33,
+        "trades": 7198,
+        "util": 16.51
+      },
+      "oos": {
+        "sharpe": 1.605,
+        "wr": 87.13,
+        "trades": 2238,
+        "util": 16.63
+      }
+    },
+    {
+      "filter": "noFilter",
+      "is": {
+        "sharpe": 1.312,
+        "wr": 87.21,
+        "trades": 7255,
+        "util": 16.63
+      },
+      "oos": {
+        "sharpe": 1.584,
+        "wr": 87.07,
+        "trades": 2242,
+        "util": 16.71
+      }
+    },
+    {
+      "filter": "ivCap80",
+      "is": {
+        "sharpe": 1.284,
+        "wr": 87.16,
+        "trades": 7222,
+        "util": 16.59
+      },
+      "oos": {
+        "sharpe": 1.584,
+        "wr": 87.07,
+        "trades": 2242,
+        "util": 16.69
+      }
+    },
+    {
+      "filter": "oi100",
+      "is": {
+        "sharpe": 1.239,
+        "wr": 87.31,
+        "trades": 6550,
+        "util": 15.22
+      },
+      "oos": {
+        "sharpe": 1.582,
+        "wr": 87.07,
+        "trades": 2165,
+        "util": 15.99
+      }
+    },
+    {
+      "filter": "ba30pct",
+      "is": {
+        "sharpe": 1.345,
+        "wr": 87.28,
+        "trades": 7223,
+        "util": 16.56
+      },
+      "oos": {
+        "sharpe": 1.573,
+        "wr": 87.05,
+        "trades": 2240,
+        "util": 16.69
+      }
+    },
+    {
+      "filter": "oi1000",
+      "is": {
+        "sharpe": 1.158,
+        "wr": 87.78,
+        "trades": 4657,
+        "util": 11.02
+      },
+      "oos": {
+        "sharpe": 1.567,
+        "wr": 88.14,
+        "trades": 1594,
+        "util": 11.73
+      }
+    },
+    {
+      "filter": "cr15pct",
+      "is": {
+        "sharpe": 1.567,
+        "wr": 87.26,
+        "trades": 6831,
+        "util": 15.48
+      },
+      "oos": {
+        "sharpe": 1.487,
+        "wr": 86.86,
+        "trades": 2223,
+        "util": 16.65
+      }
+    },
+    {
+      "filter": "vol10",
+      "is": {
+        "sharpe": 1.34,
+        "wr": 87.34,
+        "trades": 6843,
+        "util": 15.79
+      },
+      "oos": {
+        "sharpe": 1.481,
+        "wr": 86.87,
+        "trades": 2194,
+        "util": 16.32
+      }
+    }
+  ],
+  "exitRows": [
+    {
+      "exit": "std30",
+      "label": "TP 30%",
+      "signal": "MF",
+      "is": {
+        "sharpe": 1.525,
+        "wr": 87.43,
+        "roc": 13.25,
+        "dd": 6.59
+      },
+      "oos": {
+        "sharpe": 0.96,
+        "wr": 85.54,
+        "roc": 8.98,
+        "dd": 9.06
+      }
+    },
+    {
+      "exit": "std30",
+      "label": "TP 30%",
+      "signal": "ema",
+      "is": {
+        "sharpe": 1.433,
+        "wr": 87.25,
+        "roc": 12.23,
+        "dd": 6.38
+      },
+      "oos": {
+        "sharpe": 0.924,
+        "wr": 85.47,
+        "roc": 8.48,
+        "dd": 8.55
+      }
+    },
+    {
+      "exit": "std30",
+      "label": "TP 30%",
+      "signal": "mom",
+      "is": {
+        "sharpe": 1.377,
+        "wr": 87.15,
+        "roc": 11.79,
+        "dd": 6.86
+      },
+      "oos": {
+        "sharpe": 0.947,
+        "wr": 85.72,
+        "roc": 8.62,
+        "dd": 8.57
+      }
+    },
+    {
+      "exit": "std30",
+      "label": "TP 30%",
+      "signal": "EM",
+      "is": {
+        "sharpe": 1.372,
+        "wr": 87.14,
+        "roc": 11.79,
+        "dd": 6.8
+      },
+      "oos": {
+        "sharpe": 0.953,
+        "wr": 85.63,
+        "roc": 8.72,
+        "dd": 8.53
+      }
+    },
+    {
+      "exit": "std50",
+      "label": "TP 50%",
+      "signal": "MF",
+      "is": {
+        "sharpe": 1.351,
+        "wr": 82.24,
+        "roc": 11.86,
+        "dd": 8.42
+      },
+      "oos": {
+        "sharpe": 0.49,
+        "wr": 79,
+        "roc": 4.66,
+        "dd": 11.48
+      }
+    },
+    {
+      "exit": "std50",
+      "label": "TP 50%",
+      "signal": "ema",
+      "is": {
+        "sharpe": 1.273,
+        "wr": 82.18,
+        "roc": 10.93,
+        "dd": 8.12
+      },
+      "oos": {
+        "sharpe": 0.566,
+        "wr": 79.3,
+        "roc": 5.24,
+        "dd": 10.93
+      }
+    },
+    {
+      "exit": "std50",
+      "label": "TP 50%",
+      "signal": "mom",
+      "is": {
+        "sharpe": 1.236,
+        "wr": 82.08,
+        "roc": 10.65,
+        "dd": 8.23
+      },
+      "oos": {
+        "sharpe": 0.581,
+        "wr": 79.46,
+        "roc": 5.35,
+        "dd": 10.57
+      }
+    },
+    {
+      "exit": "std50",
+      "label": "TP 50%",
+      "signal": "EM",
+      "is": {
+        "sharpe": 1.207,
+        "wr": 82.05,
+        "roc": 10.43,
+        "dd": 8.69
+      },
+      "oos": {
+        "sharpe": 0.539,
+        "wr": 79.33,
+        "roc": 4.96,
+        "dd": 11.07
+      }
+    },
+    {
+      "exit": "ph30_50_be",
+      "label": "Partial 30% → B/E",
+      "signal": "MF",
+      "is": {
+        "sharpe": 1.339,
+        "wr": 83.84,
+        "roc": 9.77,
+        "dd": 7.84
+      },
+      "oos": {
+        "sharpe": 0.842,
+        "wr": 80.61,
+        "roc": 6.48,
+        "dd": 8.18
+      }
+    },
+    {
+      "exit": "ph30_50_be",
+      "label": "Partial 30% → B/E",
+      "signal": "ema",
+      "is": {
+        "sharpe": 1.235,
+        "wr": 83.65,
+        "roc": 8.81,
+        "dd": 6.91
+      },
+      "oos": {
+        "sharpe": 0.791,
+        "wr": 80.49,
+        "roc": 5.85,
+        "dd": 7.44
+      }
+    },
+    {
+      "exit": "ph30_50_be",
+      "label": "Partial 30% → B/E",
+      "signal": "mom",
+      "is": {
+        "sharpe": 1.16,
+        "wr": 83.36,
+        "roc": 8.37,
+        "dd": 8.82
+      },
+      "oos": {
+        "sharpe": 0.599,
+        "wr": 80.43,
+        "roc": 4.43,
+        "dd": 7.93
+      }
+    },
+    {
+      "exit": "ph30_50_be",
+      "label": "Partial 30% → B/E",
+      "signal": "EM",
+      "is": {
+        "sharpe": 1.21,
+        "wr": 83.59,
+        "roc": 8.66,
+        "dd": 8.13
+      },
+      "oos": {
+        "sharpe": 0.684,
+        "wr": 80.48,
+        "roc": 5.04,
+        "dd": 8.12
+      }
+    },
+    {
+      "exit": "ph30_50_25",
+      "label": "Partial 30%/25%",
+      "signal": "MF",
+      "is": {
+        "sharpe": 1.351,
+        "wr": 85.69,
+        "roc": 10.62,
+        "dd": 7.74
+      },
+      "oos": {
+        "sharpe": 0.685,
+        "wr": 82.87,
+        "roc": 5.76,
+        "dd": 9.48
+      }
+    },
+    {
+      "exit": "ph30_50_25",
+      "label": "Partial 30%/25%",
+      "signal": "ema",
+      "is": {
+        "sharpe": 1.259,
+        "wr": 85.69,
+        "roc": 9.55,
+        "dd": 6.65
+      },
+      "oos": {
+        "sharpe": 0.691,
+        "wr": 82.84,
+        "roc": 5.45,
+        "dd": 8.52
+      }
+    },
+    {
+      "exit": "ph30_50_25",
+      "label": "Partial 30%/25%",
+      "signal": "mom",
+      "is": {
+        "sharpe": 1.111,
+        "wr": 85.34,
+        "roc": 8.52,
+        "dd": 8.22
+      },
+      "oos": {
+        "sharpe": 0.611,
+        "wr": 82.69,
+        "roc": 4.7,
+        "dd": 8.39
+      }
+    },
+    {
+      "exit": "ph30_50_25",
+      "label": "Partial 30%/25%",
+      "signal": "EM",
+      "is": {
+        "sharpe": 1.163,
+        "wr": 85.47,
+        "roc": 8.9,
+        "dd": 7.28
+      },
+      "oos": {
+        "sharpe": 0.629,
+        "wr": 82.73,
+        "roc": 4.93,
+        "dd": 8.75
+      }
+    },
+    {
+      "exit": "ph30_75_25",
+      "label": "Partial 30%→75%/25%",
+      "signal": "MF",
+      "is": {
+        "sharpe": 1.136,
+        "wr": 84.74,
+        "roc": 7.91,
+        "dd": 10.23
+      },
+      "oos": {
+        "sharpe": 0.961,
+        "wr": 82.13,
+        "roc": 6.62,
+        "dd": 6.34
+      }
+    },
+    {
+      "exit": "ph30_75_25",
+      "label": "Partial 30%→75%/25%",
+      "signal": "ema",
+      "is": {
+        "sharpe": 1.092,
+        "wr": 84.75,
+        "roc": 7.23,
+        "dd": 9.36
+      },
+      "oos": {
+        "sharpe": 0.785,
+        "wr": 81.92,
+        "roc": 5.21,
+        "dd": 6.14
+      }
+    },
+    {
+      "exit": "ph30_75_25",
+      "label": "Partial 30%→75%/25%",
+      "signal": "mom",
+      "is": {
+        "sharpe": 0.885,
+        "wr": 84.44,
+        "roc": 6.02,
+        "dd": 9.71
+      },
+      "oos": {
+        "sharpe": 0.876,
+        "wr": 82.23,
+        "roc": 5.7,
+        "dd": 5.59
+      }
+    },
+    {
+      "exit": "ph30_75_25",
+      "label": "Partial 30%→75%/25%",
+      "signal": "EM",
+      "is": {
+        "sharpe": 1.02,
+        "wr": 84.7,
+        "roc": 6.8,
+        "dd": 9.38
+      },
+      "oos": {
+        "sharpe": 0.747,
+        "wr": 82.03,
+        "roc": 4.93,
+        "dd": 5.71
+      }
+    },
+    {
+      "exit": "ph50_75_25",
+      "label": "Partial 50%→75%/25%",
+      "signal": "MF",
+      "is": {
+        "sharpe": 1.209,
+        "wr": 81.11,
+        "roc": 9.03,
+        "dd": 10.3
+      },
+      "oos": {
+        "sharpe": 0.723,
+        "wr": 78.73,
+        "roc": 5.72,
+        "dd": 8.79
+      }
+    },
+    {
+      "exit": "ph50_75_25",
+      "label": "Partial 50%→75%/25%",
+      "signal": "ema",
+      "is": {
+        "sharpe": 1.221,
+        "wr": 81.34,
+        "roc": 8.77,
+        "dd": 9
+      },
+      "oos": {
+        "sharpe": 0.754,
+        "wr": 78.87,
+        "roc": 5.83,
+        "dd": 9.22
+      }
+    },
+    {
+      "exit": "ph50_75_25",
+      "label": "Partial 50%→75%/25%",
+      "signal": "mom",
+      "is": {
+        "sharpe": 0.991,
+        "wr": 80.89,
+        "roc": 7.27,
+        "dd": 10.08
+      },
+      "oos": {
+        "sharpe": 0.698,
+        "wr": 78.79,
+        "roc": 5.5,
+        "dd": 9.28
+      }
+    },
+    {
+      "exit": "ph50_75_25",
+      "label": "Partial 50%→75%/25%",
+      "signal": "EM",
+      "is": {
+        "sharpe": 1.141,
+        "wr": 81.23,
+        "roc": 8.33,
+        "dd": 9.75
+      },
+      "oos": {
+        "sharpe": 0.723,
+        "wr": 79.06,
+        "roc": 5.65,
+        "dd": 9.52
+      }
+    }
+  ],
+  "ivRows": [
+    {
+      "signal": "MF",
+      "filter": "noFilter",
+      "is": {
+        "sharpe": 1.505,
+        "wr": 87.5,
+        "roc": 16.13,
+        "trades": 7127,
+        "util": 16.38
+      },
+      "oos": {
+        "sharpe": 1.087,
+        "wr": 85.75,
+        "roc": 11.6,
+        "trades": 2225,
+        "util": 16.97
+      }
+    },
+    {
+      "signal": "MF",
+      "filter": "iv20plus",
+      "is": {
+        "sharpe": 1.868,
+        "wr": 87.58,
+        "roc": 16.78,
+        "trades": 6190,
+        "util": 14.11
+      },
+      "oos": {
+        "sharpe": 1.511,
+        "wr": 86.49,
+        "roc": 14.47,
+        "trades": 2021,
+        "util": 15
+      }
+    },
+    {
+      "signal": "MF",
+      "filter": "iv30plus",
+      "is": {
+        "sharpe": 2.397,
+        "wr": 88.34,
+        "roc": 13.79,
+        "trades": 3809,
+        "util": 8.43
+      },
+      "oos": {
+        "sharpe": 1.942,
+        "wr": 87.93,
+        "roc": 12.01,
+        "trades": 1044,
+        "util": 7.59
+      }
+    },
+    {
+      "signal": "ema",
+      "filter": "noFilter",
+      "is": {
+        "sharpe": 1.312,
+        "wr": 87.21,
+        "roc": 14.6,
+        "trades": 7255,
+        "util": 16.63
+      },
+      "oos": {
+        "sharpe": 1.584,
+        "wr": 87.07,
+        "roc": 16.72,
+        "trades": 2242,
+        "util": 16.71
+      }
+    },
+    {
+      "signal": "ema",
+      "filter": "iv20plus",
+      "is": {
+        "sharpe": 1.735,
+        "wr": 87.47,
+        "roc": 16.25,
+        "trades": 6328,
+        "util": 14.39
+      },
+      "oos": {
+        "sharpe": 1.977,
+        "wr": 87.52,
+        "roc": 18.6,
+        "trades": 2003,
+        "util": 14.62
+      }
+    },
+    {
+      "signal": "ema",
+      "filter": "iv30plus",
+      "is": {
+        "sharpe": 2.364,
+        "wr": 88.3,
+        "roc": 13.88,
+        "trades": 3914,
+        "util": 8.66
+      },
+      "oos": {
+        "sharpe": 2.14,
+        "wr": 88.43,
+        "roc": 12.82,
+        "trades": 1003,
+        "util": 7.17
+      }
+    },
+    {
+      "signal": "mom",
+      "filter": "noFilter",
+      "is": {
+        "sharpe": 1.592,
+        "wr": 87.74,
+        "roc": 13.94,
+        "trades": 5903,
+        "util": 13.41
+      },
+      "oos": {
+        "sharpe": 1.419,
+        "wr": 86.64,
+        "roc": 12.77,
+        "trades": 1789,
+        "util": 13.7
+      }
+    },
+    {
+      "signal": "mom",
+      "filter": "iv20plus",
+      "is": {
+        "sharpe": 1.706,
+        "wr": 87.56,
+        "roc": 12.62,
+        "trades": 4862,
+        "util": 11.1
+      },
+      "oos": {
+        "sharpe": 1.738,
+        "wr": 86.98,
+        "roc": 12.87,
+        "trades": 1498,
+        "util": 11.47
+      }
+    },
+    {
+      "signal": "mom",
+      "filter": "iv30plus",
+      "is": {
+        "sharpe": 2.144,
+        "wr": 88.02,
+        "roc": 9.86,
+        "trades": 2880,
+        "util": 6.52
+      },
+      "oos": {
+        "sharpe": 1.749,
+        "wr": 87.27,
+        "roc": 8.39,
+        "trades": 707,
+        "util": 5.48
+      }
+    },
+    {
+      "signal": "EM",
+      "filter": "noFilter",
+      "is": {
+        "sharpe": 1.427,
+        "wr": 87.45,
+        "roc": 14.94,
+        "trades": 6994,
+        "util": 16.02
+      },
+      "oos": {
+        "sharpe": 1.454,
+        "wr": 86.77,
+        "roc": 15.02,
+        "trades": 2161,
+        "util": 16.05
+      }
+    },
+    {
+      "signal": "EM",
+      "filter": "iv20plus",
+      "is": {
+        "sharpe": 1.72,
+        "wr": 87.55,
+        "roc": 15.28,
+        "trades": 6017,
+        "util": 13.7
+      },
+      "oos": {
+        "sharpe": 1.767,
+        "wr": 87.24,
+        "roc": 16.12,
+        "trades": 1888,
+        "util": 13.9
+      }
+    },
+    {
+      "signal": "EM",
+      "filter": "iv30plus",
+      "is": {
+        "sharpe": 2.282,
+        "wr": 88.14,
+        "roc": 12.55,
+        "trades": 3667,
+        "util": 8.14
+      },
+      "oos": {
+        "sharpe": 1.937,
+        "wr": 87.85,
+        "roc": 10.93,
+        "trades": 922,
+        "util": 6.69
+      }
+    }
+  ]
+}
