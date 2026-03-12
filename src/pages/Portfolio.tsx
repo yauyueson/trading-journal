@@ -29,7 +29,7 @@ const TV_GRADE_TO_SCORE: Record<string, number> = { S: 95, A: 80, B: 60, C: 40, 
 interface PortfolioPageProps {
     positions?: Position[];
     transactions?: Transaction[];
-    onAction?: (id: string, action: PositionAction) => Promise<void>;
+    onAction?: (id: string, action: PositionAction, exitType?: Position['exit_type']) => Promise<void>;
     onUpdateScore?: (id: string, score: number) => Promise<void>;
     onUpdatePrice?: (id: string, price: number) => Promise<void>;
     onUpdateTarget?: (id: string, target: number) => Promise<void>;
@@ -58,7 +58,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const positions = props.positions ?? positionsQuery;
     const transactions = props.transactions ?? transactionsQuery;
     const loading = props.loading ?? (positionsLoading || transactionsLoading);
-    const onAction = props.onAction ?? (async (id: string, action: PositionAction) => { positionActionMut.mutate({ id, action }); });
+    const onAction = props.onAction ?? (async (id: string, action: PositionAction, exitType?: Position['exit_type']) => { positionActionMut.mutate({ id, action, exitType }); });
     const onUpdateScore = props.onUpdateScore ?? (async (id: string, score: number) => { updateScoreMut.mutate({ id, score }); });
     const onUpdatePrice = props.onUpdatePrice ?? (async (id: string, price: number) => { updatePriceMut.mutate({ id, price }); });
     const onUpdateTarget = props.onUpdateTarget ?? (async (id: string, target: number) => { updateTargetMut.mutate({ id, target }); });
