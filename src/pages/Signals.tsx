@@ -121,6 +121,23 @@ function useWatchlistIV(tickers: string[]) {
   });
 }
 
+// ── Live prices hook (ORATS real-time) ───────────────────
+
+function useLivePrices(tickers: string[]) {
+  return useQuery({
+    queryKey: ['live-prices', tickers],
+    queryFn: async () => {
+      const res = await fetch(`/api/live-prices?tickers=${tickers.join(',')}`);
+      if (!res.ok) throw new Error('Failed to fetch live prices');
+      const data = await res.json();
+      return data.prices as Record<string, number>;
+    },
+    staleTime: 60 * 1000,
+    refetchInterval: 2 * 60 * 1000, // refresh every 2 min during market hours
+    enabled: tickers.length > 0,
+  });
+}
+
 // ── Signal streak hook ────────────────────────────────────
 
 interface StreakInfo { days: number; direction: string; firstDate: string }
@@ -225,6 +242,7 @@ export const SignalsPage: React.FC = () => {
   // Fetch enrichment data
   const { data: ivMap } = useWatchlistIV(scanner.tickers);
   const { data: streakMap } = useSignalStreaks(scanner.tickers);
+  const { data: livePrices } = useLivePrices(scanner.tickers);
 
   // Build dashboard rows
   const dashboardRows = useMemo<DashboardRow[]>(() => {
@@ -463,6 +481,7 @@ export const SignalsPage: React.FC = () => {
                       row={row}
                       isExpanded={isExpanded}
                       onToggle={() => setExpanded(isExpanded ? null : row.ticker)}
+                      livePrice={livePrices?.[row.ticker]}
                     />
                     {isExpanded && (
                       <tr className="border-b border-white/5">
@@ -548,7 +567,8 @@ const DashboardRowView: React.FC<{
   row: DashboardRow;
   isExpanded: boolean;
   onToggle: () => void;
-}> = ({ row, isExpanded, onToggle }) => {
+  livePrice?: number;
+}> = ({ row, isExpanded, onToggle, livePrice }) => {
   const dir = dirBadge(row.direction);
   const status = statusBadge(row.status);
   const isInactive = row.status === 'INACTIVE';
@@ -601,7 +621,16 @@ const DashboardRowView: React.FC<{
         )}
       </td>
       <td className="px-3 py-2 text-right font-mono text-text-secondary">
-        {row.close > 0 ? `$${row.close.toFixed(2)}` : '\u2014'}
+        {(() => {
+          const price = livePrice ?? (row.close > 0 ? row.close : null);
+          if (price == null) return '\u2014';
+          return (
+            <span title={livePrice ? 'Live ORATS price' : 'Previous close'}>
+              ${price.toFixed(2)}
+              {livePrice && <span className="text-[9px] text-accent-green ml-1">●</span>}
+            </span>
+          );
+        })()}
       </td>
     </tr>
   );

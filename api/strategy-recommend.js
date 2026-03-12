@@ -1312,7 +1312,7 @@ export default async function handler(req, res) {
             oratsEnrich = oratsCores ? {
                 slope: oratsCores.slope ?? null,              // skew: fitted IV change per 10-delta
                 deriv: oratsCores.deriv ?? null,              // curvature (smile shape)
-                orFcst20d: oratsCores.orFcst20d ?? null,      // 20d vol forecast (decimal)
+                orFcst20d: oratsCores.orFcst20d != null ? oratsCores.orFcst20d / 100 : null, // normalize % → decimal (ORATS cores returns %, e.g. 49.35 = 49.35%)
                 fcstR2: oratsCores.fcstR2 ?? null,            // forecast quality (0-1)
                 ivHvXernRatio: oratsCores.ivHvXernRatio ?? null, // IV/HV ex-earnings
                 avgOptVolu20d: oratsCores.avgOptVolu20d ?? null, // 20d avg option volume
@@ -1972,8 +1972,8 @@ export default async function handler(req, res) {
                 targetDte: dteTarget,
                 daysUntilEarnings,
                 earningsSource: oratsCores?.daysToNextErn != null ? 'orats' : 'nasdaq',
-                impliedMovePct: oratsCores?.impliedMove != null ? Number((oratsCores.impliedMove * 100).toFixed(2)) : null,
-                impErnMvPct: oratsCores?.impErnMv != null ? Number((oratsCores.impErnMv * 100).toFixed(2)) : null,
+                impliedMovePct: oratsCores?.impliedMove != null ? Number(oratsCores.impliedMove.toFixed(2)) : null,   // ORATS already in % (e.g. 8.5 = 8.5%)
+                impErnMvPct: oratsCores?.impErnMv != null ? Number(oratsCores.impErnMv.toFixed(2)) : null,           // ORATS already in % (e.g. 13.8 = 13.8%)
                 putCallRatio: oratsCores ? Number(((oratsCores.pVolu || 0) / Math.max(oratsCores.cVolu || 1, 1)).toFixed(3)) : null,
                 contango: oratsCores?.contango ?? null,
                 tkOver: oratsEnrich?.tkOver === 1 || undefined,
