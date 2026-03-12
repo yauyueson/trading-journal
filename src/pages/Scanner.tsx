@@ -18,13 +18,13 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
     });
     // Search State
     const [ticker, setTicker] = useState('SPY');
-    const [strategy, setStrategy] = useState<Strategy>('long');
-    const [dteMin, setDteMin] = useState(20);
-    const [dteMax, setDteMax] = useState(60);
+    const [strategy, setStrategy] = useState<Strategy>('short');
+    const [dteMin, setDteMin] = useState(45);
+    const [dteMax, setDteMax] = useState(65);
     const [minVolume, setMinVolume] = useState(50);
-    const [deltaMin, setDeltaMin] = useState(0.20);
-    const [deltaMax, setDeltaMax] = useState(0.80);
-    const [direction, setDirection] = useState<'all' | 'call' | 'put'>('all');
+    const [deltaMin, setDeltaMin] = useState(0.28);
+    const [deltaMax, setDeltaMax] = useState(0.42);
+    const [direction, setDirection] = useState<'all' | 'call' | 'put'>('put');
     const [isDayTrade, setIsDayTrade] = useState(false);
 
     // Results State
@@ -159,6 +159,25 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
                             <span className="text-sm font-medium">Day Trade</span>
                         </button>
                     </div>
+                </div>
+
+                {/* Credit Spread Preset */}
+                <div className="flex items-center gap-2 mb-3">
+                    <button
+                        onClick={() => {
+                            setStrategy('short');
+                            setDteMin(45);
+                            setDteMax(65);
+                            setDeltaMin(0.28);
+                            setDeltaMax(0.42);
+                            setDirection('put');
+                            setIsDayTrade(false);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-accent-green/10 text-accent-green border border-accent-green/20 hover:bg-accent-green/20 transition-colors"
+                    >
+                        Credit Spread Preset
+                    </button>
+                    <span className="text-[11px] text-text-tertiary">Short · DTE 45-65 · Delta 0.28-0.42 · Puts</span>
                 </div>
 
                 {/* Filters */}
