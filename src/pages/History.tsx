@@ -53,6 +53,20 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
         return { pnl, pnlPct, holdDays };
     };
 
+    function exitTypeBadge(type: Position['exit_type']) {
+        if (!type) return null;
+        const map: Record<string, { label: string; cls: string }> = {
+            TP:     { label: 'TP Hit',   cls: 'bg-green-500/15 text-green-400 border border-green-500/25' },
+            SL:     { label: 'SL Hit',   cls: 'bg-red-500/15 text-red-400 border border-red-500/25' },
+            TIME:   { label: 'Time',     cls: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25' },
+            MANUAL: { label: 'Manual',   cls: 'bg-gray-500/15 text-gray-400 border border-gray-500/25' },
+            ROLL:   { label: 'Rolled',   cls: 'bg-blue-500/15 text-blue-400 border border-blue-500/25' },
+        };
+        const m = map[type];
+        if (!m) return null;
+        return <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${m.cls}`}>{m.label}</span>;
+    }
+
     const overallStats = useMemo(() => {
         let totalPnL = 0, wins = 0, losses = 0;
         closedPositions.forEach(p => {
@@ -162,10 +176,12 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
                                                 {isWin ? <><Check size={12} /> Win</> : 'Loss'}
                                             </span>
                                         </div>
-                                        <div className="text-text-secondary text-xs sm:text-sm">
+                                        <div className="text-text-secondary text-xs sm:text-sm flex items-center flex-wrap gap-1.5">
                                             <span className="font-mono">${p.strike}</span>
-                                            <span className="mx-1.5 sm:mx-2">·</span>
-                                            <span>{holdDays}d</span>
+                                            {p.spread_width && <span className="text-text-tertiary">${p.spread_width}w</span>}
+                                            <span>·</span>
+                                            <span>{holdDays}d hold</span>
+                                            {exitTypeBadge(p.exit_type)}
                                         </div>
                                     </div>
                                     <div className="flex flex-col items-end gap-2 sm:gap-3 shrink-0">
