@@ -509,6 +509,7 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
         setActionMode(null);
         setActionPrice('');
         setActionQty(1);
+        setCloseExitType('MANUAL');
     };
 
     const handleScoreSave = async (grade: string) => {
@@ -968,7 +969,7 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
                         </div>
                     )}
                     <div className="flex gap-2">
-                        <button onClick={() => setActionMode(null)} className="flex-1 py-3 btn-secondary rounded-xl">Cancel</button>
+                        <button onClick={() => { setActionMode(null); setCloseExitType('MANUAL'); }} className="flex-1 py-3 btn-secondary rounded-xl">Cancel</button>
                         {actionMode === 'Close' && (
                             <button onClick={() => handleAction('Close', closeExitType)}
                                 disabled={!actionPrice || loading} className="flex-1 py-3 btn-primary rounded-xl">
