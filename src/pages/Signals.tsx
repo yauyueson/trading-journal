@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Radio, RefreshCw, X, Clock, ChevronDown, ChevronRight, Flame, TrendingUp } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useSignalScanner } from '../hooks/useSignalScanner';
@@ -175,6 +176,7 @@ function useSignalStreaks(tickers: string[]) {
 // ── Page ──────────────────────────────────────────────────
 
 export const SignalsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { settings } = useAppSettings();
   const scanner = useSignalScanner();
   const { data: positions } = usePositions();
@@ -465,7 +467,13 @@ export const SignalsPage: React.FC = () => {
                     {isExpanded && (
                       <tr className="border-b border-white/5">
                         <td colSpan={10} className="px-4 py-3 bg-white/[0.02]">
-                          <DashboardDetailPanel row={row} />
+                          <DashboardDetailPanel
+                            row={row}
+                            onBuildSpread={() => {
+                              const dir = row.direction === 'CALL' ? 'BULL' : 'BEAR';
+                              navigate(`/selector?ticker=${row.ticker}&direction=${dir}`);
+                            }}
+                          />
                         </td>
                       </tr>
                     )}
@@ -601,7 +609,7 @@ const DashboardRowView: React.FC<{
 
 // ── Dashboard Detail Panel ────────────────────────────────
 
-const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
+const DashboardDetailPanel: React.FC<{ row: DashboardRow; onBuildSpread: () => void }> = ({ row, onBuildSpread }) => {
   const isGo = row.status === 'GO';
 
   return (
@@ -649,6 +657,21 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
                 </div>
               ))}
           </div>
+        </div>
+      )}
+
+      {/* Build Spread CTA */}
+      {row.status === 'GO' && (
+        <div className="mt-3 pt-3 border-t border-white/10">
+          <button
+            onClick={e => { e.stopPropagation(); onBuildSpread(); }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-accent-green text-black hover:bg-accent-green/90 transition-colors"
+          >
+            Build Spread →
+          </button>
+          <p className="text-[10px] text-text-tertiary mt-1">
+            Opens Spread Builder pre-filled with {row.ticker} {row.direction === 'CALL' ? 'Bull Put' : 'Bear Call'}
+          </p>
         </div>
       )}
     </div>
