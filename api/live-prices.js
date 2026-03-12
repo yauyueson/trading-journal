@@ -1,16 +1,17 @@
 // api/live-prices.js
-// Lightweight endpoint: fetch current stock prices from ORATS for multiple tickers.
+// Lightweight endpoint: fetch current stock prices from Tiingo IEX for multiple tickers.
 // Used by the Signals tab to display live market prices alongside EOD candle-based signals.
+// Tiingo IEX supports batch queries (1 API call for all tickers) and returns real-time prices.
 
-const ORATS_BASE = 'https://api.orats.io/datav2';
+const TIINGO_BASE = 'https://api.tiingo.com';
 
 export default async function handler(req, res) {
     try {
         const { tickers } = req.query;
         if (!tickers) return res.status(400).json({ error: 'Missing tickers parameter' });
 
-        const token = process.env.ORATS_API_TOKEN;
-        if (!token) return res.status(500).json({ error: 'ORATS_API_TOKEN not configured' });
+        const token = process.env.TIINGO_API_TOKEN;
+        if (!token) return res.status(500).json({ error: 'TIINGO_API_TOKEN not configured' });
 
         const tickerList = tickers
             .split(',')
@@ -20,28 +21,25 @@ export default async function handler(req, res) {
 
         if (tickerList.length === 0) return res.status(400).json({ error: 'No valid tickers' });
 
-        // Batch fetch from ORATS /strikes — request minimal fields + wide DTE range
-        // to ensure at least one row per ticker regardless of expiration cycle.
-        const params = new URLSearchParams({
-            token,
-            ticker: tickerList.join(','),
-            fields: 'ticker,stockPrice,spotPrice',
-            dte: '10,65',
-        });
+        // Tiingo IEX endpoint: real-time prices during market hours, last close after hours.
+        // Single call for all tickers, returns 1 row per ticker.
+        const url = `${TIINGO_BASE}/iex/?tickers=${tickerList.join(',')}&token=${token}`;
 
-        const oratsRes = await fetch(`${ORATS_BASE}/strikes?${params}`);
-        if (!oratsRes.ok) {
-            throw new Error(`ORATS API error: ${oratsRes.status}`);
+        const tiingoRes = await fetch(url, {
+            headers: { 'Content-Type': 'application/json' },
+        });
+        if (!tiingoRes.ok) {
+            throw new Error(`Tiingo API error: ${tiingoRes.status}`);
         }
 
-        const data = await oratsRes.json();
+        const data = await tiingoRes.json();
 
-        // Deduplicate: first row per ticker wins (they all carry the same stockPrice)
         const prices = {};
-        for (const row of data.data || []) {
-            const t = row.ticker;
+        for (const row of data) {
+            const t = (row.ticker || '').toUpperCase();
             if (t && !prices[t]) {
-                const price = row.stockPrice ?? row.spotPrice;
+                // tngoLast = last traded price; last = IEX last; close = EOD close fallback
+                const price = row.tngoLast ?? row.last ?? row.close;
                 if (typeof price === 'number' && price > 0) {
                     prices[t] = price;
                 }
