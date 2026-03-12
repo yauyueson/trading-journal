@@ -122,6 +122,8 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
         const dteStats: Record<string, BucketStats> = {};
         const regimeStats: Record<string, BucketStats> = {};
         const holdDurationStats: Record<string, BucketStats> = {};
+        const exitTypeStats: Record<string, BucketStats> = {};
+        const spreadWidthStats: Record<string, BucketStats> = {};
 
         // Equity curve data
         const equityTrades: { closedAt: string; pnl: number; ticker: string }[] = [];
@@ -174,7 +176,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                 const openDate = new Date(p.created_at);
                 const expDate = new Date(p.expiration);
                 const dte = Math.round((expDate.getTime() - openDate.getTime()) / 86400000);
-                const dteBucket = dte <= 7 ? '0-7' : dte <= 14 ? '8-14' : dte <= 30 ? '15-30' : '30+';
+                const dteBucket = dte < 30 ? '<30d' : dte < 45 ? '30-45d' : dte < 65 ? '45-65d' : '65+d';
                 if (!dteStats[dteBucket]) dteStats[dteBucket] = emptyBucket();
                 accumulateBucket(dteStats[dteBucket], pnl, holdDays, rMult);
             }
@@ -189,6 +191,18 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                 const holdBucket = holdDays < 3 ? '<3d' : holdDays <= 7 ? '3-7d' : holdDays <= 14 ? '7-14d' : '14+d';
                 if (!holdDurationStats[holdBucket]) holdDurationStats[holdBucket] = emptyBucket();
                 accumulateBucket(holdDurationStats[holdBucket], pnl, holdDays, rMult);
+            }
+
+            // Exit type bucket
+            const exitType = p.exit_type || 'MANUAL';
+            if (!exitTypeStats[exitType]) exitTypeStats[exitType] = emptyBucket();
+            accumulateBucket(exitTypeStats[exitType], pnl, holdDays, rMult);
+
+            // Spread width bucket (only for positions with spread_width set)
+            if (p.spread_width != null) {
+                const wBucket = p.spread_width <= 5 ? '$5' : p.spread_width <= 10 ? '$10' : p.spread_width <= 15 ? '$15' : '$20+';
+                if (!spreadWidthStats[wBucket]) spreadWidthStats[wBucket] = emptyBucket();
+                accumulateBucket(spreadWidthStats[wBucket], pnl, holdDays, rMult);
             }
 
             // Equity curve + heatmap data
@@ -212,6 +226,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
             totalPnL, wins, losses, winRate, avgWin, avgLoss, profitFactor,
             setupStats, strategyStats, crossTabStats,
             dteStats, regimeStats, holdDurationStats,
+            exitTypeStats, spreadWidthStats,
             equityTrades, heatmapTrades,
         };
     }, [closedPositions, transactions]);
@@ -362,7 +377,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                                     <h3 className="text-lg font-semibold mb-4 text-white/90">By DTE at Entry</h3>
                                     <div className="mb-8">
                                         <BucketList entries={Object.entries(stats.dteStats).sort((a, b) => {
-                                            const order = ['0-7', '8-14', '15-30', '30+'];
+                                            const order = ['<30d', '30-45d', '45-65d', '65+d'];
                                             return order.indexOf(a[0]) - order.indexOf(b[0]);
                                         })} renderLabel={key => (
                                             <div className="font-medium text-[#E0E0E0]">{key} DTE</div>
@@ -390,6 +405,34 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                                             const order = ['<3d', '3-7d', '7-14d', '14+d'];
                                             return order.indexOf(a[0]) - order.indexOf(b[0]);
                                         })} />
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Exit Type Breakdown */}
+                            {Object.keys(stats.exitTypeStats).length > 0 && (
+                                <>
+                                    <h3 className="text-lg font-semibold mb-4 text-white/90">By Exit Reason</h3>
+                                    <div className="mb-8">
+                                        <BucketList entries={Object.entries(stats.exitTypeStats)} renderLabel={key => {
+                                            const labels: Record<string, string> = { TP: 'Profit Target', SL: 'Stop Loss', TIME: 'Time Stop', MANUAL: 'Manual Close', ROLL: 'Rolled' };
+                                            return <div className="font-medium text-[#E0E0E0]">{labels[key] || key}</div>;
+                                        }} />
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Spread Width Breakdown */}
+                            {Object.keys(stats.spreadWidthStats).length > 0 && (
+                                <>
+                                    <h3 className="text-lg font-semibold mb-4 text-white/90">By Spread Width</h3>
+                                    <div className="mb-8">
+                                        <BucketList entries={Object.entries(stats.spreadWidthStats).sort((a, b) => {
+                                            const order = ['$5', '$10', '$15', '$20+'];
+                                            return order.indexOf(a[0]) - order.indexOf(b[0]);
+                                        })} renderLabel={key => (
+                                            <div className="font-medium text-[#E0E0E0]">{key} wide</div>
+                                        )} />
                                     </div>
                                 </>
                             )}
