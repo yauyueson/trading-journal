@@ -172,10 +172,11 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
                             setDeltaMax(0.42);
                             setDirection('put');
                             setIsDayTrade(false);
+                            setMinVolume(50);
                         }}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-accent-green/10 text-accent-green border border-accent-green/20 hover:bg-accent-green/20 transition-colors"
                     >
-                        Credit Spread Preset
+                        Credit Spread Defaults
                     </button>
                     <span className="text-[11px] text-text-tertiary">Short · DTE 45-65 · Delta 0.28-0.42 · Puts</span>
                 </div>
