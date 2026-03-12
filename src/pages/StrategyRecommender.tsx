@@ -50,16 +50,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
     const [ticker, setTicker] = useState('SPY');
     const [direction, setDirection] = useState<'BULL' | 'BEAR'>(persisted.current.direction || 'BULL');
-    const [riskFlags, setRiskFlags] = useState({
-        overextended: false,
-        mtfConflict: false,
-        lowVolume: false,
-        nearEarnings: false,
-        highVolatility: false,
-        priceReversing: false
-    });
     const [techScoreTier, setTechScoreTier] = useState<{ label: string; value: number; range: string; color: string } | null>(null);
-    const [techD8, setTechD8] = useState<number | null>(null);
     const [targetDte, setTargetDte] = useState(persisted.current.targetDte || 55);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -67,7 +58,6 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     const [expandedCard, setExpandedCard] = useState<number | null>(null);
     const [showSettings, setShowSettings] = useState(false);
     const [spreadWidth, setSpreadWidth] = useState(persisted.current.spreadWidth || 15);
-    const [showPineContext, setShowPineContext] = useState(true);
     // Open Position inline form state
     const [openPosIdx, setOpenPosIdx] = useState<number | null>(null);
     const [openPosQty, setOpenPosQty] = useState('');
@@ -92,9 +82,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         setExpandedCard(null);
 
         try {
-            const flagsParams = `&overextended=${riskFlags.overextended}&mtfConflict=${riskFlags.mtfConflict}&lowVolume=${riskFlags.lowVolume}&nearEarnings=${riskFlags.nearEarnings}&highVolatility=${riskFlags.highVolatility}&priceReversing=${riskFlags.priceReversing}`;
-            const d8Param = techD8 != null ? `&d8=${techD8.toFixed(2)}` : '';
-            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}${flagsParams}${d8Param}`;
+            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}`;
             const res = await fetch(url);
             const text = await res.text();
             let data: unknown;
@@ -385,128 +373,56 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         </div>
                     </div>
 
-                    {/* Row 3: Pine context (collapsible — default open) */}
-                    <div className="border border-accent-green/20 bg-accent-green/5 rounded-lg overflow-hidden">
-                        <button
-                            type="button"
-                            onClick={() => setShowPineContext(!showPineContext)}
-                            className="w-full flex items-center justify-between px-4 py-2.5 text-left"
-                        >
-                            <span className="text-[10px] text-accent-green/70 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                                <TrendingUp size={12} />
-                                Trade Parameters — Risk Flags, DTE, Width
-                            </span>
-                            <ChevronDown size={16} className={`text-accent-green/50 transition-transform ${showPineContext ? 'rotate-180' : ''}`} />
-                        </button>
-                        {showPineContext && (
-                            <div className="px-4 pb-4 space-y-4">
-                                {/* d8 */}
-                                <div className="flex flex-col md:flex-row gap-4 items-end">
-                                    <div className="w-full md:w-36">
-                                        <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 block">EMA-8 d8%</label>
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="number"
-                                                step="0.1"
-                                                placeholder="e.g. 1.8"
-                                                value={techD8 ?? ''}
-                                                onChange={(e) => setTechD8(e.target.value === '' ? null : parseFloat(e.target.value))}
-                                                className="w-full bg-[#000] border border-[#333] text-white rounded px-2 py-2 text-xs font-mono focus:outline-none focus:border-accent-green placeholder-gray-600"
-                                            />
-                                            {techD8 != null && Math.abs(techD8) > 1.5 && (
-                                                <span className="text-[10px] text-orange-400 font-bold whitespace-nowrap">Ext</span>
-                                            )}
+                    {/* Row 3: DTE + Spread Width */}
+                    <div className="flex flex-col md:flex-row gap-4 items-end">
+                        <div className="flex-1">
+                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Target DTE</label>
+                            <div className="grid grid-cols-3 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
+                                {[
+                                    { label: 'Short', val: 37, text: '30-45d' },
+                                    { label: 'Optimal', val: 55, text: '45-65d' },
+                                    { label: 'Extended', val: 75, text: '65-90d' },
+                                ].map((opt) => (
+                                    <button
+                                        key={opt.val}
+                                        type="button"
+                                        onClick={() => setTargetDte(opt.val)}
+                                        className={`py-1.5 rounded px-1 text-xs font-bold transition-all ${targetDte === opt.val
+                                            ? 'bg-[#3A3A3C] text-white shadow-sm'
+                                            : 'text-gray-500 hover:text-gray-300'
+                                            }`}
+                                    >
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-[10px]">{opt.label}</span>
+                                            <span className="text-[9px] font-normal opacity-70">{opt.text}</span>
                                         </div>
-                                    </div>
-                                </div>
-
-                                {/* Risk Flags */}
-                                <div>
-                                    <label className="text-xs text-accent-green/70 font-bold mb-2 flex items-center gap-1.5 uppercase tracking-wider">
-                                        <AlertCircle size={12} className="text-yellow-500" />
-                                        Risk Flags
-                                    </label>
-                                    <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5">
-                                        {[
-                                            { key: 'overextended', label: 'Overext', icon: '⚠️' },
-                                            { key: 'mtfConflict', label: 'MTF', icon: '⬆️' },
-                                            { key: 'lowVolume', label: 'LowVol', icon: '⏳' },
-                                            { key: 'nearEarnings', label: 'Earn', icon: '⚠️' },
-                                            { key: 'highVolatility', label: 'HiVol', icon: '🔥' },
-                                            { key: 'priceReversing', label: 'Rev', icon: '🔄' }
-                                        ].map((flag) => {
-                                            const isActive = riskFlags[flag.key as keyof typeof riskFlags];
-                                            return (
-                                                <button
-                                                    key={flag.key}
-                                                    type="button"
-                                                    onClick={() => setRiskFlags(prev => ({ ...prev, [flag.key]: !prev[flag.key as keyof typeof riskFlags] }))}
-                                                    className={`py-1.5 px-2 rounded text-[10px] font-bold transition-all border flex items-center justify-center gap-1 ${isActive
-                                                        ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/40 shadow-sm'
-                                                        : 'bg-[#0a0a0a] text-gray-500 border-[#333] hover:text-gray-300 hover:border-[#444]'
-                                                        }`}
-                                                >
-                                                    <span className="opacity-80">{flag.icon}</span>
-                                                    {flag.label}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                {/* DTE + Spread Width */}
-                                <div className="flex flex-col md:flex-row gap-4 items-end">
-                                    <div className="flex-1">
-                                        <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Target DTE</label>
-                                        <div className="grid grid-cols-3 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
-                                            {[
-                                                { label: 'Short', val: 37, text: '30-45d' },
-                                                { label: 'Optimal', val: 55, text: '45-65d' },
-                                                { label: 'Extended', val: 75, text: '65-90d' },
-                                            ].map((opt) => (
-                                                <button
-                                                    key={opt.val}
-                                                    type="button"
-                                                    onClick={() => setTargetDte(opt.val)}
-                                                    className={`py-1.5 rounded px-1 text-xs font-bold transition-all ${targetDte === opt.val
-                                                        ? 'bg-[#3A3A3C] text-white shadow-sm'
-                                                        : 'text-gray-500 hover:text-gray-300'
-                                                        }`}
-                                                >
-                                                    <div className="flex flex-col items-center">
-                                                        <span className="text-[10px]">{opt.label}</span>
-                                                        <span className="text-[9px] font-normal opacity-70">{opt.text}</span>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="w-full md:w-44">
-                                        <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Spread Width</label>
-                                        <div className="grid grid-cols-4 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
-                                            {[
-                                                { label: '$5', val: 5 },
-                                                { label: '$10', val: 10 },
-                                                { label: '$15', val: 15 },
-                                                { label: '$20', val: 20 },
-                                            ].map((opt) => (
-                                                <button
-                                                    key={opt.val}
-                                                    type="button"
-                                                    onClick={() => setSpreadWidth(opt.val)}
-                                                    className={`py-2 rounded px-1 text-xs font-bold transition-all ${spreadWidth === opt.val
-                                                        ? 'bg-[#3A3A3C] text-white shadow-sm'
-                                                        : 'text-gray-500 hover:text-gray-300'
-                                                        }`}
-                                                >
-                                                    {opt.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
+                                    </button>
+                                ))}
                             </div>
-                        )}
+                        </div>
+                        <div className="w-full md:w-44">
+                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Spread Width</label>
+                            <div className="grid grid-cols-4 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
+                                {[
+                                    { label: '$5', val: 5 },
+                                    { label: '$10', val: 10 },
+                                    { label: '$15', val: 15 },
+                                    { label: '$20', val: 20 },
+                                ].map((opt) => (
+                                    <button
+                                        key={opt.val}
+                                        type="button"
+                                        onClick={() => setSpreadWidth(opt.val)}
+                                        className={`py-2 rounded px-1 text-xs font-bold transition-all ${spreadWidth === opt.val
+                                            ? 'bg-[#3A3A3C] text-white shadow-sm'
+                                            : 'text-gray-500 hover:text-gray-300'
+                                            }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
