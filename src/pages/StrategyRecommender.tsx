@@ -1249,7 +1249,45 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                 {allRecs.length === 0 && (
                                     <div className="text-center py-10 text-gray-500">
                                         <Search size={32} className="mx-auto mb-2 opacity-20" />
-                                        No results found for this strategy with current filters.
+                                        <p>No results found for this strategy with current filters.</p>
+                                        {result.rejectionDiagnostics && (() => {
+                                            const d = result.rejectionDiagnostics;
+                                            const f = d.filters;
+                                            const reasons: string[] = [];
+                                            if (d.strategyChainSize === 0) {
+                                                reasons.push(`No options within DTE ${d.dteWindow?.target ?? '?'} \u00b1${d.dteWindow?.range ?? 10} (${d.fullChainSize} options in full chain)`);
+                                            }
+                                            if (f) {
+                                                if (f.ivBelow30 > 0) reasons.push(`${f.ivBelow30} option${f.ivBelow30 > 1 ? 's' : ''} rejected: IV < 30%`);
+                                                if (f.noDeltaMatch > 0) reasons.push(`${f.noDeltaMatch} option${f.noDeltaMatch > 1 ? 's' : ''} outside delta range (0.25\u20130.45)`);
+                                                if (f.noLongLeg > 0) reasons.push(`${f.noLongLeg} pair${f.noLongLeg > 1 ? 's' : ''} missing long leg at requested width`);
+                                                if (f.lowOI > 0) reasons.push(`${f.lowOI} pair${f.lowOI > 1 ? 's' : ''} rejected: open interest < 100`);
+                                                if (f.noLiquidity > 0) reasons.push(`${f.noLiquidity} pair${f.noLiquidity > 1 ? 's' : ''} rejected: no bid/ask or mid < $0.10`);
+                                                if (f.lowBid > 0) reasons.push(`${f.lowBid} pair${f.lowBid > 1 ? 's' : ''} rejected: spread bid \u2264 $0.10`);
+                                                if (f.wideSpread > 0) reasons.push(`${f.wideSpread} pair${f.wideSpread > 1 ? 's' : ''} rejected: bid-ask too wide (>15%)`);
+                                                if (f.spreadCeiling > 0) reasons.push(`${f.spreadCeiling} pair${f.spreadCeiling > 1 ? 's' : ''} rejected: spread > 30% ceiling`);
+                                                if (f.earningsGuard > 0) reasons.push(`${f.earningsGuard} pair${f.earningsGuard > 1 ? 's' : ''} rejected: earnings within 10 days`);
+                                                if (f.slippageKill > 0) reasons.push(`${f.slippageKill} pair${f.slippageKill > 1 ? 's' : ''} rejected: slippage exceeds credit`);
+                                                if (f.lowROI > 0) reasons.push(`${f.lowROI} pair${f.lowROI > 1 ? 's' : ''} rejected: effective ROI < 10%`);
+                                            }
+                                            if (reasons.length === 0) return null;
+                                            return (
+                                                <div className="mt-4 mx-auto max-w-md text-left bg-[#111] border border-[#2A2A2A] rounded-lg p-4">
+                                                    <p className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-1.5">
+                                                        <AlertCircle size={14} className="text-yellow-500" />
+                                                        Why no spreads matched
+                                                    </p>
+                                                    <ul className="text-xs text-gray-500 space-y-1">
+                                                        {reasons.map((r, i) => (
+                                                            <li key={i} className="flex items-start gap-1.5">
+                                                                <span className="text-gray-600 mt-0.5">&bull;</span>
+                                                                <span>{r}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 )}
 

@@ -299,6 +299,25 @@ export interface StrategyResult {
         TARGET_STRATEGY: Recommendation[];
         _regimeMeta?: { skew: number | null };
     };
+    /** Present only when TARGET_STRATEGY is empty — explains why no spreads were returned. */
+    rejectionDiagnostics?: {
+        fullChainSize: number;
+        strategyChainSize: number;
+        dteWindow: { target: number; range: number; actual: { min: number; max: number } | null } | null;
+        filters?: {
+            ivBelow30: number;
+            noDeltaMatch: number;
+            noLongLeg: number;
+            noLiquidity: number;
+            lowOI: number;
+            lowBid: number;
+            wideSpread: number;
+            earningsGuard: number;
+            slippageKill: number;
+            lowROI: number;
+            spreadCeiling: number;
+        };
+    };
 }
 
 // ────────────────────────────────────────────────────────────────

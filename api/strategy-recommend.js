@@ -565,12 +565,13 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
     const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short', sampleDays);
     const atmIV = getCleanATM_IV(chain, currentPrice);
 
-    const shorts = chain.filter(o =>
-        o.type === type &&
-        Math.abs(o.delta) >= 0.25 &&
-        Math.abs(o.delta) <= 0.45 &&
-        (o.iv == null || o.iv >= 0.30)  // Phase 5: IV >= 30% structural filter
-    );
+    // Rejection diagnostics
+    const _diag = { ivBelow30: 0, noDeltaMatch: 0, noLongLeg: 0, noLiquidity: 0, lowOI: 0, lowBid: 0, wideSpread: 0, earningsGuard: 0, slippageKill: 0, lowROI: 0, spreadCeiling: 0 };
+
+    const candidateShorts = chain.filter(o => o.type === type && Math.abs(o.delta) >= 0.25 && Math.abs(o.delta) <= 0.45);
+    const shorts = candidateShorts.filter(o => o.iv == null || o.iv >= 0.30);
+    _diag.ivBelow30 = candidateShorts.length - shorts.length;
+    _diag.noDeltaMatch = chain.filter(o => o.type === type).length - candidateShorts.length;
 
     for (const shortLeg of shorts) {
         for (const width of widths) {
@@ -581,25 +582,25 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
                 Math.abs(o.strike - longStrike) < 0.1
             );
 
-            if (!longLeg) continue;
+            if (!longLeg) { _diag.noLongLeg++; continue; }
 
             // Liquidity Guard (Composite)
-            if (shortLeg.bid <= 0 || longLeg.ask <= 0) continue;
+            if (shortLeg.bid <= 0 || longLeg.ask <= 0) { _diag.noLiquidity++; continue; }
 
             // Hard filters on both legs — credit spreads use stricter tier
             const HF = HARD_FILTER_CREDIT;
             const shortMid = (shortLeg.bid + shortLeg.ask) / 2;
             const longMid = (longLeg.bid + longLeg.ask) / 2;
-            if (shortMid < HF.minMid || longMid < HF.minMid) continue;
-            if (shortLeg.openInterest < HF.minOpenInterest || longLeg.openInterest < HF.minOpenInterest) continue;
+            if (shortMid < HF.minMid || longMid < HF.minMid) { _diag.noLiquidity++; continue; }
+            if (shortLeg.openInterest < HF.minOpenInterest || longLeg.openInterest < HF.minOpenInterest) { _diag.lowOI++; continue; }
             const spreadBid = shortLeg.bid - longLeg.ask;
             const spreadAsk = shortLeg.ask - longLeg.bid;
             const spreadMid = (spreadBid + spreadAsk) / 2;
 
-            if (spreadBid <= 0.10) continue;
+            if (spreadBid <= 0.10) { _diag.lowBid++; continue; }
 
             const spreadPct = spreadMid > 0 ? (spreadAsk - spreadBid) / spreadMid : 1.0;
-            if (spreadPct > 0.15) continue;
+            if (spreadPct > 0.15) { _diag.wideSpread++; continue; }
 
             // Key Metrics — use mid-market fill for scoring (spreadBid is floor viability check above)
             const credit = spreadMid;
@@ -632,7 +633,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             // Earnings Guard
             const includesEarnings = daysUntilEarnings !== null && daysUntilEarnings <= dte && daysUntilEarnings >= 0;
             const earningsRisk = includesEarnings && daysUntilEarnings <= 10;
-            if (earningsRisk) continue;
+            if (earningsRisk) { _diag.earningsGuard++; continue; }
 
             // 4. Slippage Modeling — OI-adjusted (illiquid options penalized even with tight quoted spreads)
             // 2.5: brokers fill 2-leg spread orders as packages, so multiply per-leg sum by 0.7
@@ -641,13 +642,13 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             const totalSlippage = (slippage1 + slippage2) * 0.7;
             const effectiveCredit = credit - totalSlippage; // Real-world fill
 
-            if (effectiveCredit <= 0) continue; // If slippage eats all profit, skip
+            if (effectiveCredit <= 0) { _diag.slippageKill++; continue; } // If slippage eats all profit, skip
 
             const effectiveMaxRisk = width - effectiveCredit;
             const effectiveROI = (effectiveCredit / effectiveMaxRisk) * 100;
 
             // Use consistent spread ceiling across all strategies
-            if (spreadPct > HF.maxSpreadPctCeiling) continue;
+            if (spreadPct > HF.maxSpreadPctCeiling) { _diag.spreadCeiling++; continue; }
 
             // Scoring (v2.2 — EV-enhanced + Slippage)
             const ev = calculateExpectedValue(pop, effectiveCredit, effectiveMaxRisk);
@@ -683,7 +684,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             if (includesEarnings) finalScore -= 25 * earningsScale;
             if (anomaly && dte <= 35) finalScore -= 30; // Anomaly IV (e.g. Earnings) → Penalize short-dated short sellers
 
-            if (effectiveROI < 10) continue; // Lowered ROI floor because we are using net effective ROI now
+            if (effectiveROI < 10) { _diag.lowROI++; continue; } // Lowered ROI floor because we are using net effective ROI now
 
             const whyThisParts = [];
             if (ev > 0) whyThisParts.push(`+EV $${ev.toFixed(2)}`);
@@ -737,7 +738,9 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             });
         }
     }
-    return results.sort((a, b) => b.score - a.score).slice(0, 5);
+    const sorted = results.sort((a, b) => b.score - a.score).slice(0, 5);
+    sorted._diagnostics = _diag;
+    return sorted;
 }
 
 function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null, daysUntilEarnings = null, anomaly = false, dtePeak = 37, deltaRange = [0.45, 0.70], sampleDays = 60, volFcstAdj = 0) {
@@ -1495,7 +1498,7 @@ export default async function handler(req, res) {
         const scoresReliable = !(actualDataSource === 'CBOE' && dataQuality === 'degraded');
 
         // Derive strategyChain by filtering fullChain in-memory (avoids double iteration of allOptions)
-        // Find the nearest available expiration to the target DTE, then include options within ±5 of that.
+        // Find the nearest available expiration to the target DTE, then include options within ±10 of that.
         // This handles tickers with sparse expiration calendars (e.g., monthly-only with 20+ day gaps).
         let strategyChain = fullChain;
         if (dteTarget != null) {
@@ -1504,7 +1507,7 @@ export default async function handler(req, res) {
                 const nearestDte = availableDtes.reduce((best, d) =>
                     Math.abs(d - dteTarget) < Math.abs(best - dteTarget) ? d : best
                 );
-                strategyChain = fullChain.filter(o => Math.abs(o.dte - nearestDte) <= 5);
+                strategyChain = fullChain.filter(o => Math.abs(o.dte - nearestDte) <= 10);
                 if (nearestDte !== dteTarget) {
                     console.log(`[DTE Snap] ${upperTicker}: target DTE ${dteTarget} → snapped to ${nearestDte} (nearest available)`);
                 }
@@ -1664,17 +1667,24 @@ export default async function handler(req, res) {
             console.log(`[VolForecast] ${upperTicker}: adj=${volFcstAdj.toFixed(3)}, fcst20d=${oratsEnrich.orFcst20d}, iv30=${iv30?.toFixed(4)}, R²=${oratsEnrich.fcstR2}`);
         }
 
+        // Collect rejection diagnostics from spread builders
+        let rejectionDiagnostics = null;
+
         if (decodedStrategy === 'Auto-Select Strategy') {
             if (isBull) {
+                const creditRes = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj);
+                rejectionDiagnostics = creditRes._diagnostics || null;
                 targetRecs = [
-                    ...buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj),
+                    ...creditRes,
                     ...buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj),
                     ...scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj),
                     ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays, volFcstAdj)
                 ];
             } else {
+                const creditRes = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj);
+                rejectionDiagnostics = creditRes._diagnostics || null;
                 targetRecs = [
-                    ...buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj),
+                    ...creditRes,
                     ...buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj),
                     ...scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj),
                     ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays, volFcstAdj)
@@ -1682,12 +1692,14 @@ export default async function handler(req, res) {
             }
         } else if (decodedStrategy === 'Credit Put Spread') {
             targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj);
+            rejectionDiagnostics = targetRecs._diagnostics || null;
         } else if (decodedStrategy === 'Debit Call Spread') {
             targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Long Call') {
             targetRecs = scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Credit Call Spread') {
             targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj);
+            rejectionDiagnostics = targetRecs._diagnostics || null;
         } else if (decodedStrategy === 'Debit Put Spread') {
             targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Long Put') {
@@ -1695,6 +1707,17 @@ export default async function handler(req, res) {
         } else if (decodedStrategy === 'Iron Condor') {
             targetRecs = buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays, volFcstAdj);
         }
+
+        // Build rejection summary: chain-level + spread-builder-level diagnostics
+        const chainDteRange = strategyChain.length > 0
+            ? { min: Math.min(...strategyChain.map(o => o.dte)), max: Math.max(...strategyChain.map(o => o.dte)) }
+            : null;
+        const _rejectionSummary = {
+            fullChainSize: fullChain.length,
+            strategyChainSize: strategyChain.length,
+            dteWindow: dteTarget != null ? { target: dteTarget, range: 10, actual: chainDteRange } : null,
+            ...(rejectionDiagnostics ? { filters: rejectionDiagnostics } : {}),
+        };
 
         // 3. Score the targeted strategy using the unified algorithm
         const unifiedOpts = {
@@ -2040,7 +2063,8 @@ export default async function handler(req, res) {
             strategies: {
                 TARGET_STRATEGY: targetRecs,
                 _regimeMeta: { skew }
-            }
+            },
+            rejectionDiagnostics: targetRecs.length === 0 ? _rejectionSummary : undefined,
         });
 
     } catch (error) {
