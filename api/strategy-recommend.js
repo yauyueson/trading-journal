@@ -1495,9 +1495,21 @@ export default async function handler(req, res) {
         const scoresReliable = !(actualDataSource === 'CBOE' && dataQuality === 'degraded');
 
         // Derive strategyChain by filtering fullChain in-memory (avoids double iteration of allOptions)
-        const strategyChain = dteTarget != null
-            ? fullChain.filter(o => Math.abs(o.dte - dteTarget) <= 5)
-            : fullChain;
+        // Find the nearest available expiration to the target DTE, then include options within ±5 of that.
+        // This handles tickers with sparse expiration calendars (e.g., monthly-only with 20+ day gaps).
+        let strategyChain = fullChain;
+        if (dteTarget != null) {
+            const availableDtes = [...new Set(fullChain.map(o => o.dte))];
+            if (availableDtes.length > 0) {
+                const nearestDte = availableDtes.reduce((best, d) =>
+                    Math.abs(d - dteTarget) < Math.abs(best - dteTarget) ? d : best
+                );
+                strategyChain = fullChain.filter(o => Math.abs(o.dte - nearestDte) <= 5);
+                if (nearestDte !== dteTarget) {
+                    console.log(`[DTE Snap] ${upperTicker}: target DTE ${dteTarget} → snapped to ${nearestDte} (nearest available)`);
+                }
+            }
+        }
 
         // Build complete IV Term Structure (v2.4 - MarketData upgrade)
         const ivSurface = buildIVTermStructure(fullChain, currentPrice);
