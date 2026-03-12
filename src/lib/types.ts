@@ -41,6 +41,8 @@ export interface Position {
     // Analytics columns (added via migration)
     max_risk_entry?: number;   // net debit or (spread width − credit) per contract
     exit_type?: 'TP' | 'SL' | 'TIME' | 'MANUAL' | 'ROLL';
+    /** Spread width in dollars (e.g. 15 for a $15-wide spread). Null for single-leg positions. */
+    spread_width?: number;
 }
 
 export interface PositionLeg {
@@ -111,6 +113,7 @@ export interface WatchlistItem {
     // Retrospective categorization (captured at entry)
     trade_profile?: string;
     iv_rank_entry?: number;
+    spread_width?: number;
     iv_regime_entry?: string;
 }
 
@@ -140,6 +143,7 @@ export interface DirectAddItem {
     max_risk_entry?: number;    // net debit, or (spread width − credit) × 100
     trade_profile?: string;
     iv_rank_entry?: number;
+    spread_width?: number;
 }
 
 // ────────────────────────────────────────────────────────────────
