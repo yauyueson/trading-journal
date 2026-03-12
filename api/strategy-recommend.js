@@ -569,20 +569,45 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
     const _diag = { ivBelow30: 0, noDeltaMatch: 0, noLongLeg: 0, noLiquidity: 0, lowOI: 0, lowBid: 0, wideSpread: 0, earningsGuard: 0, slippageKill: 0, lowROI: 0, spreadCeiling: 0 };
 
     const candidateShorts = chain.filter(o => o.type === type && Math.abs(o.delta) >= 0.25 && Math.abs(o.delta) <= 0.45);
-    const shorts = candidateShorts.filter(o => o.iv == null || o.iv >= 0.30);
-    _diag.ivBelow30 = candidateShorts.length - shorts.length;
+    // Filter on ticker-level IV Rank (0-1), not individual option IV
+    const ivRankPass = ivRank == null || ivRank >= 0.30;
+    const shorts = ivRankPass ? candidateShorts : [];
+    _diag.ivBelow30 = ivRankPass ? 0 : candidateShorts.length;
     _diag.noDeltaMatch = chain.filter(o => o.type === type).length - candidateShorts.length;
 
     for (const shortLeg of shorts) {
         for (const width of widths) {
             const longStrike = type === 'Put' ? shortLeg.strike - width : shortLeg.strike + width;
-            const longLeg = chain.find(o =>
-                o.type === type &&
-                o.expiration === shortLeg.expiration &&
-                Math.abs(o.strike - longStrike) < 0.1
+            // Find nearest strike to target; allow up to 20% tolerance on width
+            const sameSideExp = chain.filter(o =>
+                o.type === type && o.expiration === shortLeg.expiration
             );
+            let longLeg = sameSideExp.find(o => Math.abs(o.strike - longStrike) < 0.1);
+            if (!longLeg) {
+                // Snap to nearest available strike within tolerance
+                const maxDrift = width * 0.2; // allow 20% drift (e.g. $3 on a $15 width)
+                let bestMatch = null;
+                let bestDist = Infinity;
+                for (const o of sameSideExp) {
+                    const dist = Math.abs(o.strike - longStrike);
+                    if (dist < bestDist && dist <= maxDrift) {
+                        bestDist = dist;
+                        bestMatch = o;
+                    }
+                }
+                longLeg = bestMatch;
+            }
 
-            if (!longLeg) { _diag.noLongLeg++; continue; }
+            if (!longLeg) {
+                _diag.noLongLeg++;
+                if (_diag.noLongLeg <= 3) {
+                    const availStrikes = sameSideExp.map(o => o.strike).sort((a, b) => a - b);
+                    console.log(`[noLongLeg] short=$${shortLeg.strike} ${type}, need long=$${longStrike} (±${(width * 0.2).toFixed(1)}), chain strikes=[${availStrikes.slice(0, 5).join(',')}...${availStrikes.slice(-5).join(',')}] (${availStrikes.length} total)`);
+                }
+                continue;
+            }
+            // Recalculate actual width based on matched strike
+            const actualWidth = Math.abs(shortLeg.strike - longLeg.strike);
 
             // Liquidity Guard (Composite)
             if (shortLeg.bid <= 0 || longLeg.ask <= 0) { _diag.noLiquidity++; continue; }
@@ -604,7 +629,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
 
             // Key Metrics — use mid-market fill for scoring (spreadBid is floor viability check above)
             const credit = spreadMid;
-            const maxRisk = width - credit;
+            const maxRisk = actualWidth - credit;
             const breakeven = type === 'Put' ? shortLeg.strike - credit : shortLeg.strike + credit;
             const deltaAtBE = getDeltaAtStrike(chain, type, shortLeg.expiration, breakeven);
             const probITMAtBE = getProbITMAtStrike(chain, type, shortLeg.expiration, breakeven);
@@ -644,7 +669,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
 
             if (effectiveCredit <= 0) { _diag.slippageKill++; continue; } // If slippage eats all profit, skip
 
-            const effectiveMaxRisk = width - effectiveCredit;
+            const effectiveMaxRisk = actualWidth - effectiveCredit;
             const effectiveROI = (effectiveCredit / effectiveMaxRisk) * 100;
 
             // Use consistent spread ceiling across all strategies
@@ -709,7 +734,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
                 type: type === 'Put' ? 'Credit Put Spread' : 'Credit Call Spread',
                 shortLeg: { ...shortLeg, price: shortLeg.bid },
                 longLeg: { ...longLeg, price: longLeg.ask },
-                width,
+                width: actualWidth,
                 netCredit: Number(effectiveCredit.toFixed(2)),   // Slippage-adjusted (matches scorer)
                 maxRisk: Number(effectiveMaxRisk.toFixed(2)),    // Slippage-adjusted
                 maxProfit: Number(effectiveCredit.toFixed(2)),   // = netCredit for credit spreads
@@ -758,13 +783,21 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
     for (const longLeg of longs) {
         for (const width of widths) {
             const shortStrike = type === 'Call' ? longLeg.strike + width : longLeg.strike - width;
-            const shortLeg = chain.find(o =>
-                o.type === type &&
-                o.expiration === longLeg.expiration &&
-                Math.abs(o.strike - shortStrike) < 0.1
+            const sameSideExp = chain.filter(o =>
+                o.type === type && o.expiration === longLeg.expiration
             );
+            let shortLeg = sameSideExp.find(o => Math.abs(o.strike - shortStrike) < 0.1);
+            if (!shortLeg) {
+                const maxDrift = width * 0.2;
+                let bestDist = Infinity;
+                for (const o of sameSideExp) {
+                    const dist = Math.abs(o.strike - shortStrike);
+                    if (dist < bestDist && dist <= maxDrift) { bestDist = dist; shortLeg = o; }
+                }
+            }
 
             if (!shortLeg) continue;
+            const actualWidth = Math.abs(longLeg.strike - shortLeg.strike);
 
             // Hard filters on both legs
             const longMidDS = (longLeg.bid + longLeg.ask) / 2;
@@ -776,7 +809,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
             const debitBid = longLeg.bid - shortLeg.ask;
             const debitAsk = longLeg.ask - shortLeg.bid;
             const debit = (debitBid + debitAsk) / 2;
-            const maxProfit = width - debit;
+            const maxProfit = actualWidth - debit;
             const maxRisk = debit;
 
             if (debit <= 0 || maxRisk <= 0) continue;
@@ -788,7 +821,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
 
             const spreadPctVal = (longLeg.ask - longLeg.bid) / mid;
 
-            if (debit >= width * 0.55) continue;
+            if (debit >= actualWidth * 0.55) continue;
             // if (riskReward < 1.5) continue; // Relaxed in favor of EV check
             if (spreadPctVal > HARD_FILTER_DEFAULTS.maxSpreadPctCeiling) continue; // Consistent with credit spreads
 
@@ -798,9 +831,9 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
             const slippage2 = estimateSlippage(shortLeg.bid, shortLeg.ask, shortLeg.openInterest);
             const totalSlippage = (slippage1 + slippage2) * 0.7;
             const effectiveDebit = debit + totalSlippage; // Higher cost
-            const effectiveMaxProfit = width - effectiveDebit;
+            const effectiveMaxProfit = actualWidth - effectiveDebit;
 
-            if (effectiveDebit >= width * 0.70) continue; // Too expensive after slippage
+            if (effectiveDebit >= actualWidth * 0.70) continue; // Too expensive after slippage
 
             // Scoring (Enhanced v2.3 — 6 dimensions aligned with LOQ)
             const lambda = Math.abs(longLeg.delta) * (currentPrice / mid);
@@ -891,7 +924,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
                 type: type === 'Call' ? 'Debit Call Spread' : 'Debit Put Spread',
                 longLeg: { ...longLeg, price: longLeg.ask },
                 shortLeg: { ...shortLeg, price: shortLeg.bid },
-                width,
+                width: actualWidth,
                 netDebit: Number(debit.toFixed(2)),
                 maxRisk: Number(maxRisk.toFixed(2)),
                 maxProfit: Number(maxProfit.toFixed(2)),
@@ -1062,15 +1095,35 @@ function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, ske
                     // Long legs: further OTM protection
                     const longPutStrike = shortPut.strike - width;
                     const longCallStrike = shortCall.strike + width;
+                    const maxDrift = width * 0.2;
 
-                    const longPut = expChain.find(o =>
+                    let longPut = expChain.find(o =>
                         o.type === 'Put' && Math.abs(o.strike - longPutStrike) < 0.1
                     );
-                    const longCall = expChain.find(o =>
+                    if (!longPut) {
+                        let bestDist = Infinity;
+                        for (const o of expChain) {
+                            if (o.type !== 'Put') continue;
+                            const dist = Math.abs(o.strike - longPutStrike);
+                            if (dist < bestDist && dist <= maxDrift) { bestDist = dist; longPut = o; }
+                        }
+                    }
+                    let longCall = expChain.find(o =>
                         o.type === 'Call' && Math.abs(o.strike - longCallStrike) < 0.1
                     );
+                    if (!longCall) {
+                        let bestDist = Infinity;
+                        for (const o of expChain) {
+                            if (o.type !== 'Call') continue;
+                            const dist = Math.abs(o.strike - longCallStrike);
+                            if (dist < bestDist && dist <= maxDrift) { bestDist = dist; longCall = o; }
+                        }
+                    }
 
                     if (!longPut || !longCall) continue;
+                    const actualPutWidth = Math.abs(shortPut.strike - longPut.strike);
+                    const actualCallWidth = Math.abs(shortCall.strike - longCall.strike);
+                    const icWidth = Math.max(actualPutWidth, actualCallWidth);
 
                     // Liquidity checks on all 4 legs
                     const legs = [shortPut, longPut, shortCall, longCall];
@@ -1098,7 +1151,7 @@ function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, ske
 
                     const totalCredit = putCredit + callCredit;
                     // Max risk = width of wider side - total credit (only one side can lose)
-                    const maxRisk = width - totalCredit;
+                    const maxRisk = icWidth - totalCredit;
                     if (maxRisk <= 0) continue;
 
                     // Slippage on all 4 legs — brokers fill spread orders as packages (2.5: multiply by 0.5)
@@ -1111,7 +1164,7 @@ function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, ske
                     const effectiveCredit = totalCredit - totalSlippage;
                     if (effectiveCredit <= 0) continue;
 
-                    const effectiveMaxRisk = width - effectiveCredit;
+                    const effectiveMaxRisk = icWidth - effectiveCredit;
                     const effectiveROI = (effectiveCredit / effectiveMaxRisk) * 100;
                     if (effectiveROI < 8) continue; // IC needs at least 8% ROI to be worth it
 
@@ -1194,7 +1247,7 @@ function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, ske
                         // Unified fields for scoring compatibility
                         shortLeg: { ...shortPut, price: shortPut.bid, dte },
                         longLeg: { ...longPut, price: longPut.ask },
-                        width,
+                        width: icWidth,
                         netCredit: Number(totalCredit.toFixed(2)),
                         maxRisk: Number(maxRisk.toFixed(2)),
                         maxProfit: Number(totalCredit.toFixed(2)),
@@ -1357,7 +1410,10 @@ export default async function handler(req, res) {
             try {
                 // Single reference call covering DTE 23–97 (spans both ~30 and ~90 DTE windows)
                 // Filtered in memory below — saves one API call vs separate dte:30 + dte:90 fetches
-                const strikePadding = 0.20;
+                // Widen strike range to accommodate spread width on lower-priced stocks
+                // Base ±20% + spread width headroom (e.g. $15 width on $120 stock = 12.5%)
+                const widthPadding = (lastClose && widthParam) ? (widthParam / lastClose) + 0.08 : 0;
+                const strikePadding = Math.max(0.20, 0.15 + widthPadding);
                 const minStrike = lastClose ? lastClose * (1 - strikePadding) : undefined;
                 const maxStrike = lastClose ? lastClose * (1 + strikePadding) : undefined;
                 const strikeFilter = (minStrike != null && maxStrike != null) ? { minStrike, maxStrike } : {};
@@ -1488,7 +1544,9 @@ export default async function handler(req, res) {
             console.warn(`[Strategy Recommend] ${upperTicker}: RV30 N/A (all sources failed); IV/RV will show N/A`);
         }
 
-        const fullChain = parseChain(allOptions, currentPrice, null);
+        // Pass wider strike padding to parseChain so long legs aren't filtered out
+        const chainStrikePad = (currentPrice && widthParam) ? Math.max(0.15, 0.10 + (widthParam / currentPrice) + 0.08) : 0.15;
+        const fullChain = parseChain(allOptions, currentPrice, null, chainStrikePad);
 
         // 4.1 — Degraded data detection: CBOE sometimes returns chains with all-zero Greeks.
         const zeroGreeksCount = fullChain.filter(o => o.delta === 0 && o.gamma === 0 && o.vega === 0).length;
@@ -1524,7 +1582,10 @@ export default async function handler(req, res) {
             ? oratsEnrich.slope
             : calculateSkew(fullChain, currentPrice, dteTarget);
 
+        const chainStrikes = strategyChain.map(o => o.strike);
+        const chainStrikeRange = chainStrikes.length > 0 ? { min: Math.min(...chainStrikes), max: Math.max(...chainStrikes) } : null;
         console.log(`[Strategy Recommend] ${upperTicker}: fullChain=${fullChain.length}, strategyChain=${strategyChain.length}, allOptions=${allOptions.length}`);
+        console.log(`[Strategy Recommend] ${upperTicker}: price=$${currentPrice}, strikePad=${(chainStrikePad * 100).toFixed(0)}%, strikeRange=$${chainStrikeRange?.min ?? '?'}–$${chainStrikeRange?.max ?? '?'}, widthParam=${widthParam}`);
         console.log(`[Strategy Recommend] ${upperTicker}: IV30=${iv30}, IV90=${iv90}, RV30=${rv30}`);
         console.log(`[Strategy Recommend] ${upperTicker}: DTE buckets in fullChain: ${[...new Set(fullChain.map(o => o.dte))].sort((a, b) => a - b).join(', ')}`);
         const regime = detectRegime(iv30, iv90, rv30, oratsEnrich.ivHvXernRatio);
