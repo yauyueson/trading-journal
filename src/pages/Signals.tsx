@@ -17,7 +17,7 @@ const MIN_RVOL = 0.5;    // Volume participation gate
 // ── Watchlist (same as cron scanner) ──────────────────────
 const WATCHLIST = [
   'SPY', 'QQQ', 'GOOG', 'JPM', 'META', 'TSLA', 'MSFT', 'NFLX',
-  'AAPL', 'NVDA', 'AMD', 'COST', 'IREN', 'BA', 'AMZN', 'HOOD',
+  'AAPL', 'NVDA', 'AMD', 'IREN', 'BA', 'AMZN', 'HOOD',
   'CRWV', 'COIN', 'MSTR', 'PLTR', 'AVGO', 'LULU', 'UBER', 'GS',
   'UNH', 'IWM', 'GLD',
 ];
@@ -29,7 +29,6 @@ interface DashboardRow {
   ticker: string;
   score: number;
   direction: 'CALL' | 'PUT' | 'NEUTRAL';
-  setup: string;
   confidence: number;
   close: number;
   adx: number;
@@ -187,7 +186,7 @@ export const SignalsPage: React.FC = () => {
   const [tab, setTab] = useState<'dashboard' | 'history'>('dashboard');
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  // EMA-only signal (backtest best: ema iv30plus std30 mpt5)
+  // EMA signal — best IS→OOS transfer per WFA (ema/mom tied, using EMA for scanner)
   const techOptions: TechScoreOptions = {
     ...settings.techScore.periods,
     w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 25, w_mom: 0, w_adx: 0, w_vol: 0,
@@ -240,7 +239,6 @@ export const SignalsPage: React.FC = () => {
           ticker,
           score: 0,
           direction: 'NEUTRAL' as const,
-          setup: '',
           confidence: 0,
           close: 0,
           adx: 0,
@@ -265,7 +263,6 @@ export const SignalsPage: React.FC = () => {
         ticker,
         score: sig.result.components?.sc_ema ?? 50,
         direction: sig.result.type,
-        setup: sig.result.setup,
         confidence: sig.result.confidence,
         close: sig.lastClose,
         adx,
@@ -327,7 +324,7 @@ export const SignalsPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-semibold">Signal Dashboard</h1>
             <p className="text-xs text-text-tertiary">
-              MOM strategy {'\u2022'} IV {'≥'} 30% {'\u2022'} Delta 0.35 {'\u2022'} DTE 45-65 {'\u2022'} TP 30%
+              Credit spreads {'\u2022'} IV {'≥'} 30% {'\u2022'} Delta 0.35 {'\u2022'} DTE 45-65 {'\u2022'} $15 width {'\u2022'} TP 30%
             </p>
           </div>
         </div>
@@ -445,14 +442,13 @@ export const SignalsPage: React.FC = () => {
                 <th className="px-3 py-2 font-medium text-right">ADX</th>
                 <th className="px-3 py-2 font-medium text-right">RVOL</th>
                 <th className="px-3 py-2 font-medium text-center">Streak</th>
-                <th className="px-3 py-2 font-medium">Setup</th>
                 <th className="px-3 py-2 font-medium text-right">Price</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && !scanner.loading && (
                 <tr>
-                  <td colSpan={11} className="px-3 py-8 text-center text-text-tertiary text-xs">
+                  <td colSpan={10} className="px-3 py-8 text-center text-text-tertiary text-xs">
                     {scanner.signals.length === 0 ? 'Scanning...' : 'No signals match filters.'}
                   </td>
                 </tr>
@@ -468,7 +464,7 @@ export const SignalsPage: React.FC = () => {
                     />
                     {isExpanded && (
                       <tr className="border-b border-white/5">
-                        <td colSpan={11} className="px-4 py-3 bg-white/[0.02]">
+                        <td colSpan={10} className="px-4 py-3 bg-white/[0.02]">
                           <DashboardDetailPanel row={row} />
                         </td>
                       </tr>
@@ -596,7 +592,6 @@ const DashboardRowView: React.FC<{
           <span className="text-[#555]">{'\u2014'}</span>
         )}
       </td>
-      <td className="px-3 py-2 text-xs text-text-secondary">{row.setup || '\u2014'}</td>
       <td className="px-3 py-2 text-right font-mono text-text-secondary">
         {row.close > 0 ? `$${row.close.toFixed(2)}` : '\u2014'}
       </td>
@@ -634,7 +629,7 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
             </span>
           </div>
           <div className="text-xs text-text-secondary">
-            Delta 0.35 {'\u2022'} DTE 45-65d {'\u2022'} $10 width {'\u2022'} TP 30% {'\u2022'} No SL (defined risk)
+            Delta 0.35 {'\u2022'} DTE 45-65d {'\u2022'} $15 width {'\u2022'} TP 30% {'\u2022'} No SL (defined risk)
           </div>
         </div>
       )}
@@ -754,19 +749,18 @@ const SignalHistoryTab: React.FC = () => {
               <th className="px-3 py-2 font-medium">Ticker</th>
               <th className="px-3 py-2 font-medium">Direction</th>
               <th className="px-3 py-2 font-medium text-right">Score</th>
-              <th className="px-3 py-2 font-medium">Setup</th>
               <th className="px-3 py-2 font-medium text-center">Conf</th>
             </tr>
           </thead>
           <tbody>
             {isLoading && (
-              <tr><td colSpan={7} className="px-3 py-8 text-center text-text-tertiary text-xs">Loading...</td></tr>
+              <tr><td colSpan={6} className="px-3 py-8 text-center text-text-tertiary text-xs">Loading...</td></tr>
             )}
             {error && (
-              <tr><td colSpan={7} className="px-3 py-8 text-center text-red-400 text-xs">Error: {(error as Error).message}</td></tr>
+              <tr><td colSpan={6} className="px-3 py-8 text-center text-red-400 text-xs">Error: {(error as Error).message}</td></tr>
             )}
             {!isLoading && !error && data?.length === 0 && (
-              <tr><td colSpan={7} className="px-3 py-8 text-center text-text-tertiary text-xs">No signals in this range.</td></tr>
+              <tr><td colSpan={6} className="px-3 py-8 text-center text-text-tertiary text-xs">No signals in this range.</td></tr>
             )}
             {data?.map(row => {
               const dir = dirBadge(row.direction as 'CALL' | 'PUT' | 'NEUTRAL');
@@ -790,7 +784,6 @@ const SignalHistoryTab: React.FC = () => {
                         {row.score.toFixed(0)}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-xs text-text-secondary">{row.setup}</td>
                     <td className="px-3 py-2 text-center">
                       {Array.from({ length: 3 }, (_, i) => (
                         <span key={i} className={i < row.confidence ? 'text-accent-green' : 'text-white/10'}>{'\u25CF'}</span>
@@ -799,7 +792,7 @@ const SignalHistoryTab: React.FC = () => {
                   </tr>
                   {isExpanded && (
                     <tr className="border-b border-white/5">
-                      <td colSpan={7} className="px-4 py-3 bg-white/[0.02]">
+                      <td colSpan={6} className="px-4 py-3 bg-white/[0.02]">
                         <HistoryDetailPanel row={row} />
                       </td>
                     </tr>

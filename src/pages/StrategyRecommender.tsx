@@ -7,7 +7,7 @@ import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { getSuggestedContracts } from '../lib/riskSizing';
 import { classifyTradeProfile } from '../lib/oss-core';
-import { formatCurrency, SETUPS, STRATEGIES } from '../lib/utils';
+import { formatCurrency, STRATEGIES } from '../lib/utils';
 import { useAddToWatchlist, useAddDirect } from '../hooks/usePositionMutations';
 import { PayoffDiagram } from '../components/strategy/PayoffDiagram';
 import type {
@@ -50,7 +50,6 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
     const [ticker, setTicker] = useState('SPY');
     const [direction, setDirection] = useState<'BULL' | 'BEAR'>(persisted.current.direction || 'BULL');
-    const [marketState, setMarketState] = useState<string>(persisted.current.marketState || 'TRENDING');
     const [riskFlags, setRiskFlags] = useState({
         overextended: false,
         mtfConflict: false,
@@ -60,7 +59,6 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         priceReversing: false
     });
     const [targetStrategy, setTargetStrategy] = useState('Auto-Select Strategy');
-    const [setup, setSetup] = useState(persisted.current.setup || 'Pullback Buy');
     const [techScoreTier, setTechScoreTier] = useState<{ label: string; value: number; range: string; color: string } | null>(null);
     const [techD8, setTechD8] = useState<number | null>(null);
     const [targetDte, setTargetDte] = useState(persisted.current.targetDte || 55);
@@ -83,8 +81,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
     // Persist selector state to localStorage
     useEffect(() => {
-        localStorage.setItem(LS_KEY, JSON.stringify({ direction, marketState, targetDte, spreadWidth, setup }));
-    }, [direction, marketState, targetDte, spreadWidth, setup]);
+        localStorage.setItem(LS_KEY, JSON.stringify({ direction, targetDte, spreadWidth }));
+    }, [direction, targetDte, spreadWidth]);
 
     const handleAnalyze = async () => {
         if (!ticker) return;
@@ -95,10 +93,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
         try {
             const encodedStrategy = encodeURIComponent(targetStrategy);
-            const encodedSetup = encodeURIComponent(setup);
             const flagsParams = `&overextended=${riskFlags.overextended}&mtfConflict=${riskFlags.mtfConflict}&lowVolume=${riskFlags.lowVolume}&nearEarnings=${riskFlags.nearEarnings}&highVolatility=${riskFlags.highVolatility}&priceReversing=${riskFlags.priceReversing}`;
             const d8Param = techD8 != null ? `&d8=${techD8.toFixed(2)}` : '';
-            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}&targetStrategy=${encodedStrategy}&setup=${encodedSetup}${flagsParams}${d8Param}`;
+            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}&targetStrategy=${encodedStrategy}${flagsParams}${d8Param}`;
             const res = await fetch(url);
             const text = await res.text();
             let data: unknown;
@@ -167,7 +164,6 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             dte: result.context.targetDte,
             gtRatio: entryGT,
             delta: entryDelta,
-            marketState,
         });
         const entryIvRegimeEntry = entryIvRegime;
         const entryIvRank = result.regime.ivRank != null ? result.regime.ivRank : undefined;
@@ -197,7 +193,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             strike: isSpreadType ? (rec as SpreadRecommendation).shortLeg.strike : (rec as SingleLegRecommendation).strike,
             type: rec.type,
             expiration: isSpreadType ? (rec as SpreadRecommendation).shortLeg.expiration : (rec as SingleLegRecommendation).expiration,
-            setup: setup || 'Algorithm Rec',
+            setup: 'Algorithm Rec',
             strategy: targetStrategy,
             entry_score: rec.score,
             ideal_entry: isSpreadType ? ((rec as SpreadRecommendation).netCredit ?? (rec as SpreadRecommendation).netDebit) : (rec as SingleLegRecommendation).price,
@@ -210,7 +206,6 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             tech_score: techScoreTier?.value ?? undefined,
             tech_score_source: 'manual',
             direction,
-            market_state: marketState,
             trade_profile: entryTradeProfile,
             iv_rank_entry: entryIvRank,
             iv_regime_entry: entryIvRegimeEntry,
@@ -242,7 +237,6 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             dte: result.context.targetDte,
             gtRatio: entryGT,
             delta: entryDelta,
-            marketState,
         });
 
         let legs: PositionLeg[] | undefined = undefined;
@@ -260,7 +254,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             strike: isSpreadType ? (rec as SpreadRecommendation).shortLeg.strike : (rec as SingleLegRecommendation).strike,
             type: rec.type,
             expiration: isSpreadType ? (rec as SpreadRecommendation).shortLeg.expiration : (rec as SingleLegRecommendation).expiration,
-            setup: setup || 'Algorithm Rec',
+            setup: 'Algorithm Rec',
             strategy: targetStrategy,
             entry_score: rec.score,
             stop_reason: `Algorithm Rec: ${rec.whyThis}`,
@@ -271,7 +265,6 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             tech_score: techScoreTier?.value ?? undefined,
             tech_score_source: 'manual',
             direction,
-            market_state: marketState,
             trade_profile: entryTradeProfile,
             iv_rank_entry: result.regime.ivRank != null ? result.regime.ivRank : undefined,
             iv_regime_entry: entryIvRegime,
@@ -284,7 +277,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         setOpenPosQty('');
         setOpenPosPrice('');
         setExpandedCard(null);
-    }, [onAddDirect, result, setup, targetStrategy, openPosQty, openPosPrice, openPosOwner, techScoreTier, direction, marketState, isSpread]);
+    }, [onAddDirect, result, targetStrategy, openPosQty, openPosPrice, openPosOwner, techScoreTier, direction, isSpread]);
 
     return (
         <div className="fade-in pb-24 sm:pb-0 font-sans">
@@ -367,7 +360,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         </button>
                     </div>
 
-                    {/* Row 2: TV Score Tier + Setup + Strategy (compact) */}
+                    {/* Row 2: TV Score Tier + Strategy (compact) */}
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                         <div className="md:col-span-3">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">TV Score</label>
@@ -392,21 +385,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                 ))}
                             </div>
                         </div>
-                        <div className="md:col-span-4">
-                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Setup</label>
-                            <select
-                                value={setup}
-                                onChange={(e) => setSetup(e.target.value)}
-                                className="w-full bg-[#000] border border-[#333] text-white rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-green appearance-none cursor-pointer text-sm font-bold transition-colors"
-                            >
-                                <option value="" disabled>Select Setup</option>
-                                {SETUPS.filter(s => s !== 'Other').map(s => (
-                                    <option key={s} value={s}>{s}</option>
-                                ))}
-                                <option value="Other">Other</option>
-                            </select>
-                        </div>
-                        <div className="md:col-span-5">
+                        <div className="md:col-span-9">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Strategy</label>
                             <select
                                 value={targetStrategy}
@@ -429,43 +408,14 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         >
                             <span className="text-[10px] text-accent-green/70 font-bold uppercase tracking-wider flex items-center gap-1.5">
                                 <TrendingUp size={12} />
-                                Pine Context — Market State, Risk Flags, DTE, Width
+                                Pine Context — Risk Flags, DTE, Width
                             </span>
                             <ChevronDown size={16} className={`text-accent-green/50 transition-transform ${showPineContext ? 'rotate-180' : ''}`} />
                         </button>
                         {showPineContext && (
                             <div className="px-4 pb-4 space-y-4">
-                                {/* Market State + d8 */}
+                                {/* d8 */}
                                 <div className="flex flex-col md:flex-row gap-4 items-end">
-                                    <div className="flex-1">
-                                        <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">
-                                            Market State
-                                            <span className="ml-1.5 text-gray-600 normal-case font-normal">(ADX + MB)</span>
-                                        </label>
-                                        <div className="grid grid-cols-4 gap-2 bg-[#000] p-1 rounded-lg border border-[#333]">
-                                            {[
-                                                { label: 'TRENDING', desc: 'ADX↑' },
-                                                { label: 'EXPLOSIVE', desc: 'MB↑↑' },
-                                                { label: 'RANGING', desc: 'ADX↓' },
-                                                { label: 'REVERTING', desc: 'Fade' },
-                                            ].map((opt) => (
-                                                <button
-                                                    key={opt.label}
-                                                    type="button"
-                                                    onClick={() => setMarketState(opt.label)}
-                                                    className={`py-2 rounded px-1 text-xs font-bold transition-all ${marketState === opt.label
-                                                        ? 'bg-[#3A3A3C] text-white shadow-sm'
-                                                        : 'text-gray-500 hover:text-gray-300'
-                                                        }`}
-                                                >
-                                                    <div className="flex flex-col items-center">
-                                                        <span className="text-[9px] sm:text-[10px]">{opt.label}</span>
-                                                        <span className="text-[8px] font-normal opacity-70">{opt.desc}</span>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
                                     <div className="w-full md:w-36">
                                         <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 block">EMA-8 d8%</label>
                                         <div className="flex items-center gap-2">
@@ -671,7 +621,6 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                             dte: result.context.targetDte,
                             gtRatio: topGT,
                             delta: topDelta,
-                            marketState,
                         });
                         const profileColors: Record<string, string> = {
                             'Gamma Burst': 'bg-purple-500/15 text-purple-300 border-purple-500/30',

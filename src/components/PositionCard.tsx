@@ -904,17 +904,15 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
                 </div>
             </div>
 
-            {/* Setup info */}
-            <div className="text-xs sm:text-sm text-text-secondary mb-4 flex flex-wrap gap-x-2 gap-y-1">
-                <span><span className="text-text-tertiary">Setup:</span> {position.setup}</span>
-                {position.stop_reason && (
+            {/* Exit condition */}
+            {position.stop_reason && (
+                <div className="text-xs sm:text-sm text-text-secondary mb-4 flex flex-wrap gap-x-2 gap-y-1">
                     <span className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-text-tertiary">·</span>
                         <span className="text-text-tertiary shrink-0">Exit if:</span>
                         <span className="truncate max-w-[160px] sm:max-w-[300px]" title={position.stop_reason}>{position.stop_reason}</span>
                     </span>
-                )}
-            </div>
+                </div>
+            )}
 
             {/* Expandable Greeks History */}
             <div className="mb-4">

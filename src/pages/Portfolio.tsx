@@ -8,7 +8,7 @@ import { DataFooter } from '../components/DataFooter';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { getPositionRiskAtStopOutDollars, aggregatePortfolioGreeks } from '../lib/riskSizing';
-import { SETUPS, formatCurrency } from '../lib/utils';
+import { formatCurrency } from '../lib/utils';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 import {
@@ -85,7 +85,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const [positionType, setPositionType] = useState<'single' | 'credit' | 'debit'>('single');
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
-    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL' as 'BULL' | 'BEAR', iv_regime_entry: '', market_state: '' });
+    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Directional', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL' as 'BULL' | 'BEAR', iv_regime_entry: '', market_state: '' });
     const [bulkData, setBulkData] = useState<Record<string, any>>({});
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -336,7 +336,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
         }
 
         setSubmitting(false);
-        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Pullback Buy', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL', iv_regime_entry: '', market_state: '' });
+        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Directional', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL', iv_regime_entry: '', market_state: '' });
         setPositionType('single');
         setShowForm(false);
     };
@@ -662,37 +662,9 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                                 />
                             </div>
 
-                            {positionType === 'single' && (
-                                <div className="space-y-1.5">
-                                    <label htmlFor="setup">Setup</label>
-                                    <select
-                                        id="setup"
-                                        className="input-field"
-                                        value={form.setup}
-                                        onChange={e => setForm({ ...form, setup: e.target.value })}
-                                    >
-                                        {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                </div>
-                            )}
+                            {positionType === 'single' && null}
                         </div>
 
-                        {/* Setup row for spreads (needs its own row since strikes take more space) */}
-                        {positionType !== 'single' && (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
-                                <div className="space-y-1.5">
-                                    <label htmlFor="setup-spread">Setup</label>
-                                    <select
-                                        id="setup-spread"
-                                        className="input-field"
-                                        value={form.setup}
-                                        onChange={e => setForm({ ...form, setup: e.target.value })}
-                                    >
-                                        {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                        )}
 
                         {/* Row 2: Analysis & Execution */}
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 sm:gap-6">

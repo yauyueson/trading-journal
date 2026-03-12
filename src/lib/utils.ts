@@ -47,15 +47,6 @@ export const SUPABASE_URL = 'https://irejefxhgetulqmxponl.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_STPE7Kl1Pnlwm6a-mCa-9g_U7hvret6';
 export const CONTRACT_MULTIPLIER = 100;
 
-export const SETUPS = [
-    'Perfect Storm', 'Breakout', 'Breakdown',
-    'Strong Trend', 'Strong Down',
-    'Pullback Buy', 'Failed Rally',
-    'Divergence', 'Distribution',
-    'Directional', 'Bullish', 'Bearish',
-    'Mixed', 'Other'
-];
-
 export const STRATEGIES = [
     'Auto-Select Strategy',
     'Long Call', 'Long Put',
@@ -63,9 +54,6 @@ export const STRATEGIES = [
     'Credit Call Spread', 'Credit Put Spread',
     'Iron Condor'
 ];
-
-export const MARKET_STATES = ['TRENDING', 'EXPLOSIVE', 'RANGING', 'REVERTING'] as const;
-export type MarketState = typeof MARKET_STATES[number];
 
 /** Compute realized P&L for a position from its transactions.
  *  For credit strategies (Credit spreads, Short positions), entry price is a credit received

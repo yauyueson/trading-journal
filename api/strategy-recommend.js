@@ -317,28 +317,11 @@ async function fetchEarnings(ticker) {
 // =============================================================================
 // ENTRY PROFILES — Setup → DTE peak, delta range, allowChase
 // =============================================================================
-// Maps the Pine Script setup name to concrete parameters that drive:
-//   dtePeak    → the DTE at which the Gaussian DTE score peaks (per-setup)
-//   deltaRange → [min, max] for the long leg in buildDebitSpreads
-//   allowChase → if false, long/single-leg debit scores are penalized when
-//                pullbackQuality === 'EXTENDED' (i.e., price far above EMA-8)
-const ENTRY_PROFILES = {
-    'Perfect Storm': { dtePeak: 14, deltaRange: [0.50, 0.70], allowChase: true },
-    'Breakout': { dtePeak: 14, deltaRange: [0.45, 0.60], allowChase: false },
-    'Strong Trend': { dtePeak: 55, deltaRange: [0.45, 0.65], allowChase: true },
-    'Pullback Buy': { dtePeak: 45, deltaRange: [0.55, 0.70], allowChase: true },
-    'Divergence': { dtePeak: 30, deltaRange: [0.40, 0.60], allowChase: false },
-    'Failed Rally': { dtePeak: 45, deltaRange: [0.55, 0.70], allowChase: true },
-    'Breakdown': { dtePeak: 14, deltaRange: [0.45, 0.60], allowChase: false },
-    'Strong Down': { dtePeak: 55, deltaRange: [0.45, 0.65], allowChase: true },
-    'Distribution': { dtePeak: 30, deltaRange: [0.40, 0.60], allowChase: false },
-    'Bullish': { dtePeak: 55, deltaRange: [0.45, 0.65], allowChase: false },
-    'Bearish': { dtePeak: 55, deltaRange: [0.45, 0.65], allowChase: false },
-};
-const DEFAULT_ENTRY_PROFILE = { dtePeak: 55, deltaRange: [0.45, 0.70], allowChase: false };
+// Credit spread strategy: DTE 45-65 optimal, delta 0.30-0.45, no setup dependency
+const DEFAULT_ENTRY_PROFILE = { dtePeak: 55, deltaRange: [0.30, 0.45], allowChase: false };
 
-function getEntryProfile(setup) {
-    return ENTRY_PROFILES[setup] || DEFAULT_ENTRY_PROFILE;
+function getEntryProfile() {
+    return DEFAULT_ENTRY_PROFILE;
 }
 
 /** Term structure slope = (IV30 - IV90) / IV90. Positive = backwardation, negative = contango. */
@@ -685,7 +668,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             const skewBonus = getSkewBonusForCreditSpread(skew, type);
 
             // Smooth Gaussian DTE curve: peak is setup-aware (dtePeak), σ=15
-            // Momentum setups (Breakout, Perfect Storm) peak at DTE=14; Trend at 37; Pullback at 28
+            // Momentum setups (Breakout, Perfect Storm) peak at DTE=14; Trend/Directional at 55
             const scoreDTE = Math.round(100 * Math.exp(-0.5 * Math.pow((dte - dtePeak) / 15, 2)));
 
             // Earnings penalty scaling (2.6): proportional to implied move size
@@ -1624,10 +1607,9 @@ export default async function handler(req, res) {
         const ivScoreInput = ivPercentile ?? ivRank;
         let targetRecs = [];
         const decodedStrategy = targetStrategy ? decodeURIComponent(targetStrategy) : 'Credit Put Spread';
-        const decodedSetup = setup ? decodeURIComponent(setup) : '';
 
         // --- Entry Profile: convert setup name → concrete builder params ---
-        const entryProfile = getEntryProfile(decodedSetup);
+        const entryProfile = getEntryProfile();
         let { dtePeak, deltaRange, allowChase } = entryProfile;
 
         // v4 Entry Context overrides: adjust DTE peak and delta range based on entry quality
@@ -1719,7 +1701,7 @@ export default async function handler(req, res) {
 
             // Iron Condor has its own comprehensive scorer — skip unified re-scoring
             if (simCat === 'IRON_CONDOR') {
-                rec.setup = decodedSetup;
+                rec.setup = '';
                 rec.strategyCategory = simCat;
                 rec.unifiedScore = rec.score;
                 rec.factors = rec.factors || [];
@@ -1729,10 +1711,10 @@ export default async function handler(req, res) {
                     simCat,
                     regime.mode,
                     regime.ivRvRatio,
-                    { ...unifiedOpts, skew, creditSpreadType, setup: decodedSetup }
+                    { ...unifiedOpts, skew, creditSpreadType }
                 );
 
-                rec.setup = decodedSetup;
+                rec.setup = '';
                 rec.strategyCategory = simCat;
                 rec.unifiedScore = unifiedScore;
                 // Overwrite the normal score with unifiedScore so UI doesn't need branching
@@ -1765,7 +1747,7 @@ export default async function handler(req, res) {
                     flagNotes.push('⚠️ Overextended: Debit strategies heavily penalized due to mean-reversion risk.');
                 } else if (isCredit) {
                     flagBonus += 15;
-                    flagNotes.push('🛡️ Overextended: Credit spreads boosted as they can absorb mean-reversion pullbacks.');
+                    flagNotes.push('🛡️ Overextended: Credit spreads benefit from mean-reversion environment — theta decay continues regardless.');
                 }
             }
 
@@ -1780,10 +1762,9 @@ export default async function handler(req, res) {
             }
 
             if (lowVolume) {
-                const isBreakout = decodedSetup.toLowerCase().includes('break');
-                if (isBreakout || isDebit) {
+                if (isDebit) {
                     flagBonus -= 25;
-                    flagNotes.push('⚠️ Low Volume: Breakout/Directional setups penalized without volume confirmation.');
+                    flagNotes.push('⚠️ Low Volume: Debit strategies penalized — momentum trades require volume confirmation.');
                 } else if (isIC) {
                     flagBonus += 15;
                     flagNotes.push('🛡️ Low Volume: Iron Condors boosted for range-bound low-volume chop.');
@@ -1837,8 +1818,8 @@ export default async function handler(req, res) {
             }
 
             // 3d. v4 Entry Context adjustments
-            // OPTIMAL  → pullback entry at 4H EMA support → debit strategies get maximum leverage
-            // CHASING  → extended entry above 4H EMA → credit collects theta while waiting for PB
+            // OPTIMAL  → price near EMA support → debit strategies get maximum leverage
+            // CHASING  → extended entry above EMA → credit collects theta while price reverts
             // MARGINAL → entry quality borderline → slight debit penalty
             // ACCEPTABLE → neutral; no adjustment
             if (entryCtx) {
@@ -1848,23 +1829,23 @@ export default async function handler(req, res) {
                 if (entryCtx === 'OPTIMAL') {
                     if (isDebit) {
                         ecBonus += 20;
-                        ecNotes.push('✦ OPTIMAL Entry: Price at 4H EMA support with momentum reset — debit strategies boosted for max leverage at pullback low.');
+                        ecNotes.push('✦ OPTIMAL Entry: Price near EMA support with momentum reset — debit strategies boosted.');
                     } else if (isCredit) {
                         ecBonus -= 10;
-                        ecNotes.push('↓ OPTIMAL Entry: At-support pullback favors debit over credit; credit still valid if IV regime strongly favors selling.');
+                        ecNotes.push('↓ OPTIMAL Entry: Near-support entry favors debit over credit; credit still valid if IV regime strongly favors selling.');
                     }
                 } else if (entryCtx === 'CHASING') {
                     if (isCredit) {
                         ecBonus += 15;
-                        ecNotes.push('🛡️ CHASING Entry: Price extended above 4H EMA — credit spreads collect theta while waiting for a pullback to materialize.');
+                        ecNotes.push('🛡️ CHASING Entry: Price extended above EMA — credit spreads collect theta while price reverts.');
                     } else if (isDebit) {
                         ecBonus -= 20;
-                        ecNotes.push('⚠️ CHASING Entry: Entering after 4H extension — debit strategies face mean-reversion risk; consider waiting for pullback or use credit.');
+                        ecNotes.push('⚠️ CHASING Entry: Extended entry — debit strategies face mean-reversion risk; consider credit instead.');
                     }
                 } else if (entryCtx === 'MARGINAL') {
                     if (isDebit) {
                         ecBonus -= 5;
-                        ecNotes.push('⚠️ MARGINAL Entry: Entry quality suboptimal — reduce size; wait for a better 4H setup before adding debit exposure.');
+                        ecNotes.push('⚠️ MARGINAL Entry: Entry quality suboptimal — reduce size or wait for a better setup.');
                     }
                 }
                 // ACCEPTABLE: no adjustment
@@ -2036,7 +2017,6 @@ export default async function handler(req, res) {
             },
             recommendedStrategy: decodedStrategy,
             entryProfileMeta: {
-                setup: decodedSetup,
                 dtePeak,
                 deltaRange,
                 allowChase,

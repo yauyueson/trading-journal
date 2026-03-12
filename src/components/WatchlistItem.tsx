@@ -150,8 +150,6 @@ export const WatchlistItem: React.FC<WatchlistItemProps> = ({ item, onMoveToActi
                                 ({dte}d)
                             </span>
                         )}
-                        <span className="mx-1 sm:mx-2">·</span>
-                        <span>{item.setup}</span>
                     </div>
                     <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm">
                         <div>

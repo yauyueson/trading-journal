@@ -25,7 +25,7 @@ export const TabNav: React.FC<TabNavProps> = ({ activeTab: activeTabProp, setAct
         { id: 'history', label: 'History', mobileLabel: 'History', Icon: History },
         { id: 'stats', label: 'Stats', mobileLabel: 'Stats', Icon: BarChart3 },
         { id: 'academy', label: 'Academy', mobileLabel: 'Learn', Icon: BookOpen },
-        { id: 'backtest', label: 'Backtest', mobileLabel: 'Test', Icon: FlaskConical }
+        { id: 'backtest', label: 'WFA Results', mobileLabel: 'WFA', Icon: FlaskConical }
     ];
 
     const scrollRef = useRef<HTMLDivElement>(null);

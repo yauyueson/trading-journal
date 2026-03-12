@@ -883,8 +883,6 @@ export interface TradeProfileInput {
     gtRatio?: number;
     /** Delta of the position (absolute value used internally). */
     delta: number;
-    /** Pine Script Market State: 'TRENDING' | 'EXPLOSIVE' | 'RANGING' | 'REVERTING'. */
-    marketState?: string | null;
 }
 
 /**
@@ -898,13 +896,12 @@ export interface TradeProfileInput {
  * 5. Theta Harvest — default for credit in flat/moderate environments
  */
 export function classifyTradeProfile(input: TradeProfileInput): TradeProfile {
-    const { isCredit, ivRegime, ivRank, dte, gtRatio = 0, delta, marketState } = input;
+    const { isCredit, ivRegime, ivRank, dte, gtRatio = 0, delta } = input;
     const absDelta = Math.abs(delta);
 
-    // 1. Gamma Burst: short DTE + explosive setup or high G/T + debit + cheap vol
+    // 1. Gamma Burst: short DTE + high G/T + debit + cheap vol
     const isLowIV = ivRegime === 'contango' || (ivRank != null && ivRank < 0.40);
-    const isExplosiveState = marketState === 'EXPLOSIVE';
-    if (!isCredit && dte <= 21 && (gtRatio > 3 || isExplosiveState) && (isLowIV || isExplosiveState)) {
+    if (!isCredit && dte <= 21 && gtRatio > 3 && isLowIV) {
         return 'Gamma Burst';
     }
 

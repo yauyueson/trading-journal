@@ -4,7 +4,6 @@ import { Position, WatchlistItem as WatchlistItemType } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { WatchlistItem } from '../components/WatchlistItem';
 import { DataFooter } from '../components/DataFooter';
-import { SETUPS } from '../lib/utils';
 import { usePositions } from '../hooks/usePositions';
 import { useAddToWatchlist, useDeletePosition } from '../hooks/usePositionMutations';
 import { useBuyModal } from '../context/BuyModalContext';
@@ -36,7 +35,7 @@ export const WatchlistPage: React.FC<WatchlistPageProps> = (props) => {
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
-    const [form, setForm] = useState({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
+    const [form, setForm] = useState({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Directional', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const [bulkPrices, setBulkPrices] = useState<Record<string, number>>({});
     const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -109,7 +108,7 @@ export const WatchlistPage: React.FC<WatchlistPageProps> = (props) => {
                 target_price: form.target_price ? parseFloat(form.target_price) : null,
                 owner: formOwner
             });
-            setForm({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Pullback Buy', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
+            setForm({ ticker: '', strike: '', type: 'Call', expiration: '', setup: 'Directional', entry_score: '', ideal_entry: '', stop_reason: '', target_price: '', notes: '' });
             setShowForm(false);
         } catch (e) {
             console.error("Error in form submit:", e);
@@ -143,9 +142,6 @@ export const WatchlistPage: React.FC<WatchlistPageProps> = (props) => {
                         <input type="date" value={form.expiration} onChange={e => setForm({ ...form, expiration: e.target.value })} className="px-4 py-3 rounded-xl" aria-label="Expiration date" required />
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <select value={form.setup} onChange={e => setForm({ ...form, setup: e.target.value })} className="px-4 py-3 rounded-xl" aria-label="Setup type">
-                            {SETUPS.map(s => <option key={s}>{s}</option>)}
-                        </select>
                         <input type="number" placeholder="Score" value={form.entry_score} onChange={e => setForm({ ...form, entry_score: e.target.value })} className="px-4 py-3 rounded-xl font-mono" aria-label="Entry score" required />
                         <input type="number" step="0.01" placeholder="Ideal Entry $" value={form.ideal_entry} onChange={e => setForm({ ...form, ideal_entry: e.target.value })} className="px-4 py-3 rounded-xl font-mono" aria-label="Ideal entry price" />
                         <input type="number" step="0.01" placeholder="Target $" value={form.target_price} onChange={e => setForm({ ...form, target_price: e.target.value })} className="px-4 py-3 rounded-xl font-mono" aria-label="Target price" />
