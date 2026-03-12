@@ -626,7 +626,6 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             if (spreadBid <= 0.10) { _diag.lowBid++; continue; }
 
             const spreadPct = spreadMid > 0 ? (spreadAsk - spreadBid) / spreadMid : 1.0;
-            if (spreadPct > 0.15) { _diag.wideSpread++; continue; }
 
             // Key Metrics — use mid-market fill for scoring (spreadBid is floor viability check above)
             const credit = spreadMid;

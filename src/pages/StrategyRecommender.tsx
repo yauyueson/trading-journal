@@ -1261,7 +1261,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                 if (f.ivBelow30 > 0) reasons.push(`${f.ivBelow30} option${f.ivBelow30 > 1 ? 's' : ''} rejected: IV < 30%`);
                                                 if (f.noDeltaMatch > 0) reasons.push(`${f.noDeltaMatch} option${f.noDeltaMatch > 1 ? 's' : ''} outside delta range (0.25\u20130.45)`);
                                                 if (f.noLongLeg > 0) reasons.push(`${f.noLongLeg} pair${f.noLongLeg > 1 ? 's' : ''} missing long leg at requested width`);
-                                                if (f.lowOI > 0) reasons.push(`${f.lowOI} pair${f.lowOI > 1 ? 's' : ''} rejected: open interest < 100`);
+                                                if (f.lowOI > 0) reasons.push(`${f.lowOI} pair${f.lowOI > 1 ? 's' : ''} rejected: low open interest`);
                                                 if (f.noLiquidity > 0) reasons.push(`${f.noLiquidity} pair${f.noLiquidity > 1 ? 's' : ''} rejected: no bid/ask or mid < $0.10`);
                                                 if (f.lowBid > 0) reasons.push(`${f.lowBid} pair${f.lowBid > 1 ? 's' : ''} rejected: spread bid \u2264 $0.10`);
                                                 if (f.wideSpread > 0) reasons.push(`${f.wideSpread} pair${f.wideSpread > 1 ? 's' : ''} rejected: bid-ask too wide (>15%)`);
