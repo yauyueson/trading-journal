@@ -15,6 +15,20 @@ interface HistoryPageProps {
     onUpdateOwner?: (id: string, owner: 'Yuchen' | 'Annie' | null) => Promise<void>;
 }
 
+function exitTypeBadge(type: Position['exit_type']) {
+    if (!type) return null;
+    const map: Record<string, { label: string; cls: string }> = {
+        TP:     { label: 'TP Hit',   cls: 'bg-green-500/15 text-green-400 border border-green-500/25' },
+        SL:     { label: 'SL Hit',   cls: 'bg-red-500/15 text-red-400 border border-red-500/25' },
+        TIME:   { label: 'Time',     cls: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25' },
+        MANUAL: { label: 'Manual',   cls: 'bg-gray-500/15 text-gray-400 border border-gray-500/25' },
+        ROLL:   { label: 'Rolled',   cls: 'bg-blue-500/15 text-blue-400 border border-blue-500/25' },
+    };
+    const m = map[type];
+    if (!m) return null;
+    return <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${m.cls}`}>{m.label}</span>;
+}
+
 export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsProp, transactions: transactionsProp, loading: loadingProp, onDelete: onDeleteProp, onUpdateOwner: onUpdateOwnerProp }) => {
     const { data: positionsQuery = [], isLoading: positionsLoading } = usePositions();
     const { data: transactionsQuery = [], isLoading: transactionsLoading } = useTransactions();
@@ -52,20 +66,6 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
         const holdDays = position.closed_at && position.created_at ? Math.ceil((new Date(position.closed_at).getTime() - new Date(position.created_at).getTime()) / 86400000) : 0;
         return { pnl, pnlPct, holdDays };
     };
-
-    function exitTypeBadge(type: Position['exit_type']) {
-        if (!type) return null;
-        const map: Record<string, { label: string; cls: string }> = {
-            TP:     { label: 'TP Hit',   cls: 'bg-green-500/15 text-green-400 border border-green-500/25' },
-            SL:     { label: 'SL Hit',   cls: 'bg-red-500/15 text-red-400 border border-red-500/25' },
-            TIME:   { label: 'Time',     cls: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25' },
-            MANUAL: { label: 'Manual',   cls: 'bg-gray-500/15 text-gray-400 border border-gray-500/25' },
-            ROLL:   { label: 'Rolled',   cls: 'bg-blue-500/15 text-blue-400 border border-blue-500/25' },
-        };
-        const m = map[type];
-        if (!m) return null;
-        return <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${m.cls}`}>{m.label}</span>;
-    }
 
     const overallStats = useMemo(() => {
         let totalPnL = 0, wins = 0, losses = 0;
@@ -178,7 +178,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
                                         </div>
                                         <div className="text-text-secondary text-xs sm:text-sm flex items-center flex-wrap gap-1.5">
                                             <span className="font-mono">${p.strike}</span>
-                                            {p.spread_width && <span className="text-text-tertiary">${p.spread_width}w</span>}
+                                            {p.spread_width != null && <span className="text-text-tertiary">${p.spread_width}w</span>}
                                             <span>·</span>
                                             <span>{holdDays}d hold</span>
                                             {exitTypeBadge(p.exit_type)}

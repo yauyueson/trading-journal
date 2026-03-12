@@ -193,10 +193,11 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                 accumulateBucket(holdDurationStats[holdBucket], pnl, holdDays, rMult);
             }
 
-            // Exit type bucket
-            const exitType = p.exit_type || 'MANUAL';
-            if (!exitTypeStats[exitType]) exitTypeStats[exitType] = emptyBucket();
-            accumulateBucket(exitTypeStats[exitType], pnl, holdDays, rMult);
+            // Exit type bucket (opt-in — only positions with explicit exit_type recorded)
+            if (p.exit_type) {
+                if (!exitTypeStats[p.exit_type]) exitTypeStats[p.exit_type] = emptyBucket();
+                accumulateBucket(exitTypeStats[p.exit_type], pnl, holdDays, rMult);
+            }
 
             // Spread width bucket (only for positions with spread_width set)
             if (p.spread_width != null) {
