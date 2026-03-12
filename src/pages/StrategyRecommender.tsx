@@ -109,6 +109,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         setError('');
         setResult(null);
         setExpandedCard(null);
+        setShowAdvanced(false);
+        setOpenPosIdx(null);
 
         try {
             const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}`;
@@ -224,6 +226,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             trade_profile: entryTradeProfile,
             iv_rank_entry: entryIvRank,
             iv_regime_entry: entryIvRegimeEntry,
+            spread_width: isSpread(rec) ? rec.width : undefined,
         };
 
         await onAddToWatchlist(item);
@@ -300,9 +303,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             <div className="mb-6">
                 <h1 className="text-2xl font-bold flex items-center gap-2">
                     <Activity className="text-accent-green" />
-                    Option Selector
+                    Spread Builder
                 </h1>
-                <p className="text-gray-400 text-sm mt-1">Single-strategy option selection driven by TradingView</p>
+                <p className="text-gray-400 text-sm mt-1">Credit spread recommendations · Delta 0.35 · DTE 45-65 · IV ≥ 30%</p>
             </div>
 
             {/* Input Panel */}
