@@ -617,7 +617,8 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             const shortMid = (shortLeg.bid + shortLeg.ask) / 2;
             const longMid = (longLeg.bid + longLeg.ask) / 2;
             if (shortMid < HF.minMid || longMid < HF.minMid) { _diag.noLiquidity++; continue; }
-            if (shortLeg.openInterest < HF.minOpenInterest || longLeg.openInterest < HF.minOpenInterest) { _diag.lowOI++; continue; }
+            // Short leg needs full OI; long leg (protection) only needs 10 — brokers fill spreads as packages
+            if (shortLeg.openInterest < HF.minOpenInterest || longLeg.openInterest < 10) { _diag.lowOI++; continue; }
             const spreadBid = shortLeg.bid - longLeg.ask;
             const spreadAsk = shortLeg.ask - longLeg.bid;
             const spreadMid = (spreadBid + spreadAsk) / 2;
@@ -1125,11 +1126,15 @@ function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, ske
                     const actualCallWidth = Math.abs(shortCall.strike - longCall.strike);
                     const icWidth = Math.max(actualPutWidth, actualCallWidth);
 
-                    // Liquidity checks on all 4 legs
-                    const legs = [shortPut, longPut, shortCall, longCall];
-                    const allLegsOK = legs.every(l => {
+                    // Liquidity checks: short legs need full OI, long legs (protection) only need 10
+                    const shortLegs = [shortPut, shortCall];
+                    const longLegs = [longPut, longCall];
+                    const allLegsOK = shortLegs.every(l => {
                         const mid = (l.bid + l.ask) / 2;
                         return mid >= HF.minMid && l.openInterest >= HF.minOpenInterest;
+                    }) && longLegs.every(l => {
+                        const mid = (l.bid + l.ask) / 2;
+                        return mid >= HF.minMid && l.openInterest >= 10;
                     });
                     if (!allLegsOK) continue;
 
