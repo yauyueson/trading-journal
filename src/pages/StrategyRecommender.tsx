@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { TrendingUp, TrendingDown, Activity, Info, ChevronDown, AlertCircle, Search, Bookmark, Settings2, RefreshCw, ShoppingCart } from 'lucide-react';
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
@@ -64,9 +65,37 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     const [openPosPrice, setOpenPosPrice] = useState('');
     const [openPosOwner, setOpenPosOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [openPosSubmitting, setOpenPosSubmitting] = useState(false);
+    const [showAdvanced, setShowAdvanced] = useState(false);
 
-    // Auto-focus ticker on mount
-    useEffect(() => { tickerRef.current?.focus(); }, []);
+    const [searchParams] = useSearchParams();
+
+    const didAutoAnalyze = useRef(false);
+    const urlTickerRef = useRef<string | null>(null);
+    const urlDirRef = useRef<string | null>(null);
+
+    // Seed from URL params on mount, auto-trigger analyze if both provided
+    useEffect(() => {
+        const urlTicker = searchParams.get('ticker');
+        const urlDir = searchParams.get('direction') as 'BULL' | 'BEAR' | null;
+        urlTickerRef.current = urlTicker;
+        urlDirRef.current = urlDir;
+        if (urlTicker) setTicker(urlTicker.toUpperCase());
+        if (urlDir === 'BULL' || urlDir === 'BEAR') setDirection(urlDir);
+        tickerRef.current?.focus();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // run once on mount
+
+    // Auto-analyze when URL params are present and state has settled
+    useEffect(() => {
+        if (didAutoAnalyze.current) return;
+        if (!urlTickerRef.current || !urlDirRef.current) return;
+        if (ticker === urlTickerRef.current.toUpperCase()) {
+            // State has settled with URL value — safe to analyze
+            didAutoAnalyze.current = true;
+            handleAnalyze();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ticker]);
 
     // Persist selector state to localStorage
     useEffect(() => {
@@ -254,6 +283,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             iv_rank_entry: result.regime.ivRank != null ? result.regime.ivRank : undefined,
             iv_regime_entry: entryIvRegime,
             max_risk_entry: isSpreadType ? (rec as SpreadRecommendation).maxRisk * 100 : undefined,
+            spread_width: isSpread(rec) ? rec.width : undefined,
         };
 
         await onAddDirect(item);
@@ -776,17 +806,10 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
                     {/* Target Recommendations */}
                     {(() => {
-                        const recs = (result.strategies.TARGET_STRATEGY as Recommendation[]) || [];
-                        return (
-                            <div className="space-y-4">
-                                {recs.length === 0 && (
-                                    <div className="text-center py-10 text-gray-500">
-                                        <Search size={32} className="mx-auto mb-2 opacity-20" />
-                                        No results found for this strategy with current filters.
-                                    </div>
-                                )}
-
-                                {recs.map((rec: Recommendation, idx: number) => {
+                        const allRecs = (result.strategies.TARGET_STRATEGY as Recommendation[]) || [];
+                        const spreadRecs = allRecs.filter(r => 'shortLeg' in r);
+                        const singleRecs = allRecs.filter(r => !('shortLeg' in r));
+                        const renderCard = (rec: Recommendation, idx: number) => {
                                     const displayScore = rec.score;
                                     const category = (rec as unknown as UnifiedCandidateType).strategyCategory || null;
                                     return (
@@ -1217,7 +1240,32 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                             )}
                                         </div>
                                     );
-                                })}
+                                };
+                        return (
+                            <div className="space-y-4">
+                                {allRecs.length === 0 && (
+                                    <div className="text-center py-10 text-gray-500">
+                                        <Search size={32} className="mx-auto mb-2 opacity-20" />
+                                        No results found for this strategy with current filters.
+                                    </div>
+                                )}
+
+                                {spreadRecs.map((rec, idx) => renderCard(rec, idx))}
+
+                                {singleRecs.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAdvanced(v => !v)}
+                                        className="w-full flex items-center justify-between px-4 py-2.5 bg-[#111] border border-[#2A2A2A] rounded-lg hover:bg-[#1a1a1a] transition-colors text-left"
+                                    >
+                                        <span className="text-xs font-medium text-gray-400">
+                                            Advanced — Single-leg options ({singleRecs.length})
+                                        </span>
+                                        <ChevronDown size={16} className={`text-gray-500 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+                                    </button>
+                                )}
+
+                                {showAdvanced && singleRecs.map((rec, idx) => renderCard(rec, spreadRecs.length + idx))}
                             </div>
                         );
                     })()}

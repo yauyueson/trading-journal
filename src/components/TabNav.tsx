@@ -19,7 +19,7 @@ export const TabNav: React.FC<TabNavProps> = ({ activeTab: activeTabProp, setAct
     const tabs = [
         { id: 'signals', label: 'Signals', mobileLabel: 'Signals', Icon: Radio },
         { id: 'scanner', label: 'Scan', mobileLabel: 'Scan', Icon: Search },
-        { id: 'selector', label: 'Option Selector', mobileLabel: 'Selector', Icon: Target },
+        { id: 'selector', label: 'Spread Builder', mobileLabel: 'Builder', Icon: Target },
         { id: 'portfolio', label: 'Portfolio', mobileLabel: 'Portfolio', Icon: LayoutDashboard },
         { id: 'history', label: 'History', mobileLabel: 'History', Icon: History },
         { id: 'stats', label: 'Stats', mobileLabel: 'Stats', Icon: BarChart3 },
