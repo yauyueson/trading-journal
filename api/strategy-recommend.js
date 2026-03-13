@@ -1556,32 +1556,23 @@ export default async function handler(req, res) {
         // F6.4 — CBOE fallback produces meaningless scores (all Greeks=0 → LOQ/CSQ ≈ 50)
         const scoresReliable = !(actualDataSource === 'CBOE' && dataQuality === 'degraded');
 
-        // Derive strategyChain by filtering fullChain to the DTE window matching the UI label:
-        //   targetDte 37 → 30-45d, targetDte 55 → 45-65d, targetDte 75 → 65-90d
-        // If no options exist in the exact window, snap to nearest available DTE ± window half-width.
+        // Derive strategyChain: include the closest N expirations to the target DTE.
+        // This avoids rigid window edges that miss monthly expirations by 1-2 days.
         let strategyChain = fullChain;
         if (dteTarget != null) {
-            // Map target to the UI window range
-            const dteWindows = { 37: [30, 45], 55: [45, 65], 75: [65, 90] };
-            const window = dteWindows[dteTarget] || [dteTarget - 10, dteTarget + 10];
-            const [dteMin, dteMax] = window;
+            // Get unique expirations sorted by distance from target
+            const expirations = [...new Set(fullChain.map(o => o.expiration))];
+            const expWithDte = expirations.map(exp => {
+                const opt = fullChain.find(o => o.expiration === exp);
+                return { exp, dte: opt?.dte ?? 0 };
+            }).sort((a, b) => Math.abs(a.dte - dteTarget) - Math.abs(b.dte - dteTarget));
 
-            strategyChain = fullChain.filter(o => o.dte >= dteMin && o.dte <= dteMax);
+            // Take the 3 closest expirations to the target DTE
+            const selectedExps = new Set(expWithDte.slice(0, 3).map(e => e.exp));
+            strategyChain = fullChain.filter(o => selectedExps.has(o.expiration));
 
-            if (strategyChain.length === 0) {
-                // No options in window — snap to nearest available DTE
-                const halfWidth = Math.round((dteMax - dteMin) / 2);
-                const availableDtes = [...new Set(fullChain.map(o => o.dte))];
-                if (availableDtes.length > 0) {
-                    const nearestDte = availableDtes.reduce((best, d) =>
-                        Math.abs(d - dteTarget) < Math.abs(best - dteTarget) ? d : best
-                    );
-                    strategyChain = fullChain.filter(o => Math.abs(o.dte - nearestDte) <= halfWidth);
-                    console.log(`[DTE Snap] ${upperTicker}: no options in DTE ${dteMin}-${dteMax}, snapped to ${nearestDte} ±${halfWidth}`);
-                }
-            } else {
-                console.log(`[DTE Window] ${upperTicker}: ${strategyChain.length} options in DTE ${dteMin}-${dteMax}`);
-            }
+            const selectedDtes = expWithDte.slice(0, 3).map(e => `${e.dte}d(${e.exp})`).join(', ');
+            console.log(`[DTE Select] ${upperTicker}: target=${dteTarget}, selected=${selectedDtes}, chain=${strategyChain.length} options`);
         }
 
         // Build complete IV Term Structure (v2.4 - MarketData upgrade)
