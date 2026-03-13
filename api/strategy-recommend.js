@@ -1556,20 +1556,31 @@ export default async function handler(req, res) {
         // F6.4 — CBOE fallback produces meaningless scores (all Greeks=0 → LOQ/CSQ ≈ 50)
         const scoresReliable = !(actualDataSource === 'CBOE' && dataQuality === 'degraded');
 
-        // Derive strategyChain by filtering fullChain in-memory (avoids double iteration of allOptions)
-        // Find the nearest available expiration to the target DTE, then include options within ±10 of that.
-        // This handles tickers with sparse expiration calendars (e.g., monthly-only with 20+ day gaps).
+        // Derive strategyChain by filtering fullChain to the DTE window matching the UI label:
+        //   targetDte 37 → 30-45d, targetDte 55 → 45-65d, targetDte 75 → 65-90d
+        // If no options exist in the exact window, snap to nearest available DTE ± window half-width.
         let strategyChain = fullChain;
         if (dteTarget != null) {
-            const availableDtes = [...new Set(fullChain.map(o => o.dte))];
-            if (availableDtes.length > 0) {
-                const nearestDte = availableDtes.reduce((best, d) =>
-                    Math.abs(d - dteTarget) < Math.abs(best - dteTarget) ? d : best
-                );
-                strategyChain = fullChain.filter(o => Math.abs(o.dte - nearestDte) <= 10);
-                if (nearestDte !== dteTarget) {
-                    console.log(`[DTE Snap] ${upperTicker}: target DTE ${dteTarget} → snapped to ${nearestDte} (nearest available)`);
+            // Map target to the UI window range
+            const dteWindows = { 37: [30, 45], 55: [45, 65], 75: [65, 90] };
+            const window = dteWindows[dteTarget] || [dteTarget - 10, dteTarget + 10];
+            const [dteMin, dteMax] = window;
+
+            strategyChain = fullChain.filter(o => o.dte >= dteMin && o.dte <= dteMax);
+
+            if (strategyChain.length === 0) {
+                // No options in window — snap to nearest available DTE
+                const halfWidth = Math.round((dteMax - dteMin) / 2);
+                const availableDtes = [...new Set(fullChain.map(o => o.dte))];
+                if (availableDtes.length > 0) {
+                    const nearestDte = availableDtes.reduce((best, d) =>
+                        Math.abs(d - dteTarget) < Math.abs(best - dteTarget) ? d : best
+                    );
+                    strategyChain = fullChain.filter(o => Math.abs(o.dte - nearestDte) <= halfWidth);
+                    console.log(`[DTE Snap] ${upperTicker}: no options in DTE ${dteMin}-${dteMax}, snapped to ${nearestDte} ±${halfWidth}`);
                 }
+            } else {
+                console.log(`[DTE Window] ${upperTicker}: ${strategyChain.length} options in DTE ${dteMin}-${dteMax}`);
             }
         }
 
