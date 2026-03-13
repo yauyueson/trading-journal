@@ -18,7 +18,7 @@
 | 出场靠情绪 | 亏很多才割肉，赚一点就跑 | 止损规则 + 多级视觉警告（危险/警告/信息） |
 | 时间漂移 | 短线单拿成长期 | 到期日提醒、持仓天数、短 DTE 惩罚（Theta Pain） |
 | 记录难坚持 | 工具重、步骤多，用几天就弃 | 30 秒内完成关键操作、移动端友好、自动拉价 |
-| 价格更新麻烦 | 手动查行情再填表 | Polygon.io / CBOE API 自动获取价格与 Greeks |
+| 价格更新麻烦 | 手动查行情再填表 | ORATS API 自动获取价格与 Greeks |
 
 ### 1.3 成功指标（可观测）
 
@@ -56,7 +56,7 @@
 │  Scanner    │  Watchlist  │  Portfolio  │  Strategy   │ History │ Backtest │
 │  (OSS 扫描)  │  (计划入场)  │  (持仓管理)  │  Recommender│ /Stats  │ /Signals │
 ├─────────────┴─────────────┴─────────────┴─────────────┴─────────┤
-│  数据与评分：Polygon.io(主)/CBOE(备) + Nasdaq · OSS (oss-core + api/_shared) │
+│  数据与评分：ORATS + Tiingo + Nasdaq · OSS (oss-core + api/_shared)           │
 │  持久化：Supabase (positions, transactions, greeks_history)       │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -88,7 +88,7 @@
 
 ### 4.1 性能
 
-- 扫描单次请求：在合理 DTE/Strike/Volume 过滤下，返回 Top 20 within 可接受延迟（依赖期权数据源：Polygon.io 或 CBOE 响应）。
+- 扫描单次请求：在合理 DTE/Strike/Volume 过滤下，返回 Top 20 within 可接受延迟（依赖 ORATS API 响应）。
 - 前端：首屏与列表滚动流畅；价格/Score 更新不阻塞主流程。
 
 ### 4.2 可用性与一致性
@@ -99,7 +99,7 @@
 ### 4.3 安全与合规
 
 - 认证与行级数据隔离（Supabase RLS）。
-- API 密钥与敏感配置不进入前端；期权数据（Polygon.io/CBOE）与 Nasdaq 调用在 Serverless 内完成。
+- API 密钥与敏感配置不进入前端；期权数据（ORATS）与 Nasdaq 调用在 Serverless 内完成。
 
 ### 4.4 兼容与部署
 
@@ -114,13 +114,13 @@
 
 - 期权计划、持仓、历史记录与基础统计。
 - OSS 评分（LOQ/CSQ、价差评分）与 IV 期限结构驱动的策略建议。
-- 期权价格与 Greeks 展示与更新（主源 Polygon.io 实时；备用 CBOE 15 分钟延迟）。
+- 期权价格与 Greeks 展示与更新（ORATS 实时数据）。
 - 单用户、单账户的纪律执行与复盘。
 
 ### 5.2 Out of Scope（明确不做或后续）
 
 - **实盘下单**：不连接券商，不执行真实订单。
-- **实时行情**：可选；配置 Polygon.io 为实时，未配置时使用 CBOE 延迟数据。
+- **实时行情**：ORATS 提供期权数据；不连接实时股票行情流。
 - **多用户协作**：无多账户、无分享仓位。
 - **合规/税务建议**：不提供税务或法律建议，仅提供记录与统计。
 
@@ -130,7 +130,7 @@
 
 ### 6.1 外部依赖
 
-- **期权数据**：由 `DATA_SOURCE` 控制。**Polygon.io**（主）：实时期权链与报价、Greeks 和 IV，需 API Key；**CBOE**（备）：延迟期权链与报价，免费、无 API Key，15 分钟延迟，无 Greeks。
+- **期权数据**：**ORATS**（`DATA_SOURCE=ORATS`）：期权链、Greeks、IV、cores、earnings、impliedMove，需 `ORATS_API_TOKEN`。**Tiingo**：股票K线/历史价格，需 `TIINGO_API_TOKEN`。
 - **Nasdaq**：历史价格（RV）、财报日期等，通过公开 API。
 - **Supabase**：数据库、Auth、Realtime。
 - **Vercel**：前端托管与 Serverless API（Hobby 计划）。
@@ -155,9 +155,7 @@
 | [05_API文档](./05_API文档.md) | 各 API 端点、参数、响应格式 |
 | [06_用户工作流](./06_用户工作流.md) | 从扫描到平仓的端到端流程 |
 | [07_止损与目标价短信提醒方案](./07_止损与目标价短信提醒方案.md) | Discord 自动提醒实现方案（已上线） |
-| [08_IV_Rank_上线步骤](./08_IV_Rank_上线步骤.md) | IV Rank 表迁移 + 环境变量配置步骤 |
-| [09_Polygon集成](./09_Polygon集成.md) | Polygon 数据源集成说明、配置步骤、用量优化 |
 
 ---
 
-*文档维护：Trading Journal Team · 2026年3月6日*
+*文档维护：Trading Journal Team · 2026年3月12日*

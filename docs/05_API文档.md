@@ -1,7 +1,7 @@
 # Trading Journal - API文档
 
-> 最后更新: 2026年3月2日
-> **数据源**: Polygon.io（主）/ CBOE（备）；API 用量优化：仅请求所需 DTE/行权 + 期权链缓存；付费档建议设置 `POLYGON_RATE_LIMIT_RPM=100`
+> 最后更新: 2026年3月12日
+> **数据源**: ORATS（期权链/Greeks/IV/cores/earnings/impliedMove）+ Tiingo（股票K线）
 
 ## 📋 目录
 
@@ -24,8 +24,8 @@
 Frontend (React)
     ↓
 Vercel Serverless Functions
-    ├── Polygon.io (主数据源) - 实时报价 + Greeks + IV；仅请求所需 DTE/行权；1 分钟期权链缓存
-    └── CBOE (备用数据源) - 15分钟延迟，免费
+    ├── ORATS (期权链/Greeks/IV/cores/earnings/impliedMove)
+    └── Tiingo (股票K线/历史价格)
     ↓
 Supabase PostgreSQL (数据存储)
 ```
@@ -43,11 +43,12 @@ Supabase PostgreSQL (数据存储)
 | ~~`/api/underlying-rv`~~ | ~~GET~~ | ~~标的已实现波动率~~ | ❌ 已移除 |
 | `/api/earnings` | GET | 获取财报日期（通过 Nasdaq API） | ✅ 生产 |
 | `/api/iv-rank` | GET | 获取指定 Ticker 的 IV Rank 与 Percentile | ✅ 生产 |
-| `/api/cron-iv-snapshot` | GET/POST | 定时任务，每日收集活跃持仓与热门标的 IV 快照并写入；检测 Regime 切换并发 Discord 提醒 | ✅ 生产 |
+| `/api/cron-iv` | GET/POST | 定时任务，每日收集活跃持仓与热门标的 IV 快照并写入；检测 Regime 切换并发 Discord 提醒 | ✅ 生产 |
 | ~~`/api/backfill-iv-history`~~ | ~~GET~~ | ~~回填历史波动率数据~~ | ❌ 已移除（回填已完成，脚本退役） |
 | `/api/analytics?type=score-validation` | GET | 按评分段统计候选分布（0-30/30-50/50-70/70-100），用于实证验证 | ✅ 生产 |
 | `/api/analytics?type=execution-quality` | GET | 基于 Delta 代理对入场时机分类（early/late/at-market） | ✅ 生产 |
-| `/api/backtest-candles` | GET | 获取 Polygon 日线/4H K 线数据，供回测引擎使用 | ✅ 生产 |
+| `/api/backtest-data?type=candles` | GET | 获取历史K线数据（Supabase 缓存 → Tiingo），供回测引擎使用 | ✅ 生产 |
+| `/api/backtest-data?type=iv` | GET | 获取 ORATS 历史 IV 数据（Supabase 缓存 → ORATS），供回测引擎使用 | ✅ 生产 |
 
 **评分逻辑统一**：所有 API 均引用 `api/_shared/scoring.cjs` / `api/_shared/ivHistory.cjs`，与前端 `src/lib/oss-core.ts` 逻辑镜像，保证扫描结果、策略推荐与持仓卡片 OSS 分数一致。
 
@@ -59,25 +60,21 @@ Supabase PostgreSQL (数据存储)
 
 ### 环境变量
 
-**说明**：未设置 `DATA_SOURCE` 时，代码默认使用 CBOE。配置为 `POLYGON` 时使用 Polygon.io（推荐）。
+**说明**：数据源已统一为 ORATS（期权数据）+ Tiingo（股票K线）。`DATA_SOURCE=ORATS`。
 
 **开发环境** (`.env.local`):
 ```bash
-# 推荐：Polygon.io（仅请求所需 DTE/行权 + 缓存）
-DATA_SOURCE=POLYGON
-POLYGON_API_KEY=your_polygon_api_key_here
-# 付费档：避免客户端过度限流，建议 100（与 Polygon 建议 100 req/s 一致）
-POLYGON_RATE_LIMIT_RPM=100
-
-# 不设置或 DATA_SOURCE=CBOE 时使用 CBOE 免费延迟数据
+DATA_SOURCE=ORATS
+ORATS_API_TOKEN=your_orats_api_token
+TIINGO_API_TOKEN=your_tiingo_api_token
 ```
 
 **生产环境** (Vercel Dashboard):
 ```
 Settings → Environment Variables
-├── DATA_SOURCE = POLYGON              # 推荐；不设则 CBOE
-├── POLYGON_API_KEY = ...              # DATA_SOURCE=POLYGON 时必填
-├── POLYGON_RATE_LIMIT_RPM = 100       # 付费档建议，否则默认 5 易触发 429
+├── DATA_SOURCE = ORATS                # 期权数据源
+├── ORATS_API_TOKEN = ...              # ORATS API Token
+├── TIINGO_API_TOKEN = ...             # Tiingo API Token（股票K线）
 ├── SUPABASE_URL = ...                 # Supabase 项目 URL
 ├── SUPABASE_ANON_KEY = ...            # Supabase 匿名 Key（读）
 ├── SUPABASE_SERVICE_ROLE_KEY = ...    # Supabase Secret Key（写 IV 快照，绕过 RLS）
@@ -86,19 +83,14 @@ Settings → Environment Variables
 └── ALERT_CHAIN_DELAY_MS = 100         # check-alerts/daily-recap 期权链请求间延迟
 ```
 
-**API 用量优化（Polygon）**：`/api/scan-options` 与 `/api/strategy-recommend` 在 Polygon 下先取标的价，再仅请求会用到的到期日与行权范围；同一 ticker 的期权链按参数做 **1 分钟内存缓存**，重复请求命中缓存。详见 `docs/09_Polygon集成.md`。
+### 数据源概览
 
-### 数据源对比
+| 提供商 | 用途 | 客户端 |
+|--------|------|--------|
+| **ORATS** | 期权链、Greeks、IV、cores、earnings、impliedMove、历史 IV | `lib/orats-client.js` |
+| **Tiingo** | 股票日线/4H K线、历史价格 | `lib/tiingo-client.js` |
 
-| 特性 | Polygon.io | CBOE |
-|------|------------|------|
-| **Greeks 精度** | 完整 | 全为 0 |
-| **价格延迟** | 实时 | 15 分钟 |
-| **IV 数据** | 完整 | 不完整 |
-| **请求优化** | 仅 DTE/行权 + 1 分钟缓存 | 全链 |
-| **成本** | 付费（需 API Key） | 免费 |
-
-### 数据格式（Polygon / CBOE 统一标准化后）
+### 数据格式（ORATS 标准化后）
 
 **示例**:
 ```json
@@ -148,7 +140,7 @@ POST /api/option-prices (批量)
 
 ### 用途
 通用价格获取接口。支持通过查询参数获取单份合约，或通过 POST Body 批量获取多份合约的价格与 Greeks。  
-**Polygon 批量优化**：POST 批量时按 **ticker 分组**，每个唯一 ticker 只请求一次期权链（2 次 API），再从链中解析各腿；调用量由「腿数」降为「2× 唯一 ticker 数」。
+**批量优化**：POST 批量时按 **ticker 分组**，每个唯一 ticker 只请求一次期权链，再从链中解析各腿；调用量由「腿数」降为「唯一 ticker 数」。
 
 ### 参数 (GET - 单个)
 | 参数 | 类型 | 必填 | 说明 | 示例 |
@@ -177,7 +169,7 @@ Body 格式:
   "success": true,
   "symbol": "QQQ260220C00630000",
   "price": 7.36,
-  "dataSource": "Polygon",
+  "dataSource": "ORATS",
   "bid": 7.32,
   "ask": 7.39,
   "lastPrice": 7.35,
@@ -206,21 +198,21 @@ Body 格式:
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| dataSource | string | 数据来源：`Polygon.io`（主）或 `CBOE`（备） |
+| dataSource | string | 数据来源：`ORATS` |
 | priceSource | string | 定价方式：`'mid'`（优先）、`'last'`（回退）或 `'none'` |
 | underlyingPrice | number | 标的股票价格（v2.8：多级回退保障准确性） |
-| delta | number | Delta值（-1到1）；Polygon 提供真实值，CBOE 为 0 |
-| gamma | number | Gamma值；Polygon 提供真实值 |
-| theta | number | Theta值（每日衰减）；Polygon 提供真实值 |
-| vega | number | Vega值（IV敏感度）；Polygon 提供真实值 |
-| iv | number | 隐含波动率（小数形式）；Polygon 提供真实值 |
+| delta | number | Delta值（-1到1）；ORATS 提供真实值 |
+| gamma | number | Gamma值；ORATS 提供真实值 |
+| theta | number | Theta值（每日衰减）；ORATS 提供真实值 |
+| vega | number | Vega值（IV敏感度）；ORATS 提供真实值 |
+| iv | number | 隐含波动率（小数形式）；ORATS 提供真实值 |
 | greeksSuspicious | boolean | 市场 Greeks 与 BSM 偏差 > 0.15 时为 true |
 | greeksNote | string | 可疑 Greek 的解释说明（仅当 greeksSuspicious=true） |
 
 > **v2.8 Price Fix**:
 > - `price` 优先使用 mid (bid+ask)/2，仅 bid/ask 均不可用时回退到 last trade（之前反之）
 > - `underlyingPrice` 通过股票快照/PCP 多级回退获取，不再依赖可能 stale 的 option snapshot
-> - Polygon plan 无 stock snapshot 权限时，自动通过 Put-Call Parity 从期权链推导（精度 ±0.5%）
+> - 必要时通过 Put-Call Parity 从期权链推导 underlyingPrice（精度 ±0.5%）
 
 ---
 
@@ -234,11 +226,11 @@ GET /api/scan-options
 
 ### 用途
 
-根据 OSS v2.3 算法扫描全链期权，返回经过数学评估后的最佳契约。**Polygon 提供真实 Greeks**；CBOE 下 Greeks 为 0。
+根据 OSS v2.3 算法扫描全链期权，返回经过数学评估后的最佳契约。**ORATS 提供完整 Greeks + IV**。
 
-### 数据源与用量优化（Polygon）
+### 数据源与用量优化
 
-当 `DATA_SOURCE=POLYGON` 时：
+使用 ORATS 时：
 - 先调用 `getUnderlyingPrice(ticker)` 获取标的价，再按 `dteMin`/`dteMax` 与 `strikeRange` 仅请求会用到的到期与行权范围，减少 payload。
 - 同一 (ticker, 参数) 的期权链结果 **1 分钟内存缓存**，短时间重复请求直接命中，降低成本。
 
@@ -268,7 +260,7 @@ GET /api/scan-options
 |------|------|
 | dataQuality | `'ok'` 或 `'degraded'`（Greeks 零值率 > 50%） |
 | scoresReliable | 综合数据源与质量判断，是否可信赖评分 |
-| quoteFreshness | Polygon 报价时间戳信息 |
+| quoteFreshness | 报价时间戳信息 |
 
 ---
 
@@ -282,7 +274,7 @@ GET /api/strategy-recommend
 
 ### 用途
 
-基于 IV 环境和用户方向偏好，智能生成 Credit Spread、Debit Spread 和 Long Option 策略。**使用 Polygon 构建完整 IV Term Structure**。
+基于 IV 环境和用户方向偏好，智能生成 Credit Spread、Debit Spread 和 Long Option 策略。**使用 ORATS 构建完整 IV Term Structure**。
 
 ### 响应字段（IV 与 Regime）
 
@@ -379,10 +371,9 @@ GET /api/strategy-recommend
 GET /api/check-alerts
 ```
 
-**实时价格监控**（Polygon / CBOE）:
-- ✅ Polygon 下获取当前价格（无延迟）；CBOE 为 15 分钟延迟
+**实时价格监控**:
+- ✅ ORATS 获取当前价格
 - ✅ 支持多腿策略的 Net Value 计算
-- ✅ Polygon 失败时自动降级到 CBOE
 
 **价差提醒（v2.7）**：2 腿持仓纳入监控：
 - **Credit Spread**: cost-to-close > 1.5× entry credit → 止损提醒；cost-to-close < 0.5× entry credit → 止盈提醒
@@ -400,10 +391,10 @@ GET /api/check-alerts
 GET /api/daily-recap
 ```
 
-**Discord 每日报告**（Polygon / CBOE）:
-- ✅ Polygon 下实时持仓价格；CBOE 为 15 分钟延迟
+**Discord 每日报告**:
+- ✅ ORATS 实时持仓价格
 - ✅ 精确 P&L 计算
-- ✅ Polygon 失败时自动降级 CBOE
+
 
 ---
 
@@ -442,7 +433,7 @@ GET/POST /api/batch-refresh-tech
 **用途**: 由 Vercel Cron 每交易日盘后触发（如 16:30 ET），自动获取所有活跃持仓标的及特定热门标的（如 SPY, QQQ, AAPL 等）当天的 IV30 与 IV90 值，并写入数据库 `ticker_iv_snapshots` 记录当日快照。
 **Regime 切换检测（v2.7）**：写入快照后查询近 5 日 Regime 历史，若检测到 CREDIT↔DEBIT 翻转则发送 Discord 提醒（`DISCORD_WEBHOOK_URL`）。Regime 阈值：`ratio > 1.05` → CREDIT，`ratio < 0.95` → DEBIT，其余 → NEUTRAL。需至少 3 天历史数据才会触发提醒。
 **限速**：环境变量 `CRON_IV_DELAY_MS`（默认 300ms）控制每个 ticker 之间的请求延迟。
-**注意**: 此端点通过获取单条期权链在内存中计算 IV 期权结构，每次耗费 2 个 Polygon API Quota（一次合约、一次快照）。需要使用带有 `SUPABASE_SERVICE_ROLE_KEY` 权限的后端脚本执行。
+**注意**: 此端点通过 ORATS 获取期权链数据计算 IV 期权结构。需要使用带有 `SUPABASE_SERVICE_ROLE_KEY` 权限的后端脚本执行。
 
 ### 3. ~~回填历史波动率数据~~ (已移除)
 
@@ -503,18 +494,16 @@ GET /api/analytics?type={score-validation|execution-quality}
 node _test_strategy.js
 ```
 
-**验证项**（当 `DATA_SOURCE=POLYGON`）:
-- ✅ `dataSource: "Polygon"`
+**验证项**（`DATA_SOURCE=ORATS`）:
+- ✅ `dataSource: "ORATS"`
 - ✅ Greeks 非零
 - ✅ `ivSurface` 对象存在
 
 ### Vite 开发环境限制
 
 ```bash
-npm run dev  # ⚠️ 使用简化的 CBOE 处理器，无 Polygon 集成
+npm run dev  # 本地开发；完整 API 测试需使用 `vercel dev` 或部署到 Vercel
 ```
-
-**注意**: 完整 Polygon 集成测试需使用 `vercel dev` 或部署到 Vercel。
 
 ### Vercel 部署测试
 
@@ -530,7 +519,6 @@ vercel --prod
 
 ## 📚 相关文档
 
-- [09_Polygon集成.md](./09_Polygon集成.md) - Polygon 数据源集成与配置
 - [03_核心算法.md](./03_核心算法.md) - 算法详解
 - [02_技术路径](./02_技术路径.md) - 架构、部署与运维
 

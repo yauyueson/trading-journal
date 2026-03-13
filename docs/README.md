@@ -1,6 +1,6 @@
 # Trading Journal - 文档总览
 
-> 最后更新: 2026年3月6日
+> 最后更新: 2026年3月12日
 
 欢迎来到Trading Journal项目文档中心！这里包含了项目的完整技术文档和使用指南。
 
@@ -45,7 +45,7 @@
 - 数据流设计（React Query 缓存 + Supabase 实时失效）
 - API集成方案
 - 状态管理策略（Context + React Query，无 prop drilling）
-- 测试体系（241 项 Vitest 测试 + GitHub Actions CI）
+- 测试体系（488 项 Vitest 测试 + GitHub Actions CI）
 - 性能优化技巧（懒加载路由、代码分割）
 
 **阅读时间**: 25分钟
@@ -93,7 +93,7 @@
 **适合**: 前端开发者、API集成者
 
 **内容**:
-- 数据源配置（DATA_SOURCE：Polygon 主 / CBOE 备）
+- 数据源配置（ORATS 主 + Tiingo 股票K线）
 - 期权价格API详解（端点、参数、响应格式、dataSource 字段）
 - OCC Symbol、价格计算逻辑
 - Supabase REST API使用
@@ -136,22 +136,6 @@
 
 ---
 
-### 8️⃣ [IV Rank 上线步骤](./08_IV_Rank_上线步骤.md)
-**适合**: 需要 IV Rank 功能的开发者  
-**内容**: IV Rank 功能上线步骤与数据准备。
-
----
-
-### 9️⃣ [Polygon 集成](./09_Polygon集成.md)
-**适合**: 开发者、运维
-
-**内容**:
-- 期权数据源架构（Polygon 主 / CBOE 备）
-- Polygon.io API 客户端、数据格式与用量优化（仅请求所需 DTE/行权 + 1 分钟缓存）
-- 环境变量、配置步骤与故障排除
-
-**阅读时间**: 15分钟
-
 ---
 
 ## 🚀 快速开始
@@ -187,9 +171,7 @@ docs/
 ├── 05_API文档.md                # API 接口与数据源配置
 ├── 06_用户工作流.md             # 使用指南和最佳实践
 ├── 07_止损与目标价短信提醒方案.md  # Discord 提醒实现方案
-├── 08_IV_Rank_上线步骤.md       # IV Rank 上线步骤
-├── 09_Polygon集成.md            # Polygon 数据源集成
-├── 算法改进总览_OSS_v2.7.md     # OSS v2.7 改进记录（当前版本）
+├── 算法改进总览_OSS_v2.7.md     # OSS v2.7/v2.8 改进记录（当前版本）
 └── AUDIT_10D_v1.md              # 10 维度独立审计报告
 ```
 
@@ -217,7 +199,6 @@ docs/
 ### API和集成
 - [数据源配置](./05_API文档.md#数据源配置)
 - [期权价格API](./05_API文档.md#期权价格api)
-- [Polygon 集成](./09_Polygon集成.md)
 - [Supabase API](./05_API文档.md#supabase-rest-api)
 - [错误处理](./05_API文档.md#错误处理)
 - 架构与部署见 [02_技术路径](./02_技术路径.md#部署与运维)，API 见 [05_API文档](./05_API文档.md)
@@ -250,6 +231,14 @@ docs/
 ---
 
 ## 🔄 文档更新日志
+
+### 2026-03-12（数据源迁移 + 文档清理）
+- ✅ **数据源更新**: 全项目文档统一为 **ORATS（期权数据）+ Tiingo（股票K线）**；移除所有 Polygon.io 引用
+- ✅ **删除过时文档**: `09_Polygon集成.md`（Polygon 不再使用）、`08_IV_Rank_上线步骤.md`（已部署）、`CHANGELOG_OSS.md`（停留在 v2.4，内容已被 `算法改进总览_OSS_v2.7.md` 覆盖）
+- ✅ **删除已完成计划**: `plans/2026-03-09-backtest-findings-integration.md`、`plans/2026-03-10-wfa-engine-overhaul.md`、`plans/2026-03-11-credit-spread-ux-overhaul.md`
+- ✅ **CLAUDE.md 更新**: `backtest-iv.js` → `backtest-data.js`（合并端点）、`cron-iv-snapshot.js` → `cron-iv.js`、WFA 引擎各阶段标记为已完成
+- ✅ **API 文档更新**: 端点表、数据源配置、环境变量统一为 ORATS + Tiingo
+- ✅ **技术路径更新**: 架构图、文件结构、数据源配置统一为 ORATS + Tiingo
 
 ### 2026-03-06（文档审计 — 代码↔文档一致性）
 - ✅ **03_核心算法**: Gamma Efficiency→Dollar Gamma (`gamma×S²/100`)，DTE 桶 '0-14'→'0-7'+'8-14'，MIN_BUCKET_SIZE 3→8，IV Rank sqrt 置信度，新增 Tech Score V4 质量门控章节
@@ -352,4 +341,4 @@ docs/
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年3月6日*
+*最后更新: 2026年3月12日*
