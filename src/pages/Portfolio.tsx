@@ -82,10 +82,10 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const [refreshing, setRefreshing] = useState(false);
     const [rollingPosition, setRollingPosition] = useState<{ position: Position, qty: number } | null>(null);
     const [sortBy] = useState('expiration');
-    const [positionType, setPositionType] = useState<'single' | 'credit' | 'debit'>('single');
+    const [positionType, setPositionType] = useState<'single' | 'credit' | 'debit'>('credit');
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
-    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Directional', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL' as 'BULL' | 'BEAR', iv_regime_entry: '', market_state: '' });
+    const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Put', expiration: '', setup: 'Directional', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL' as 'BULL' | 'BEAR', iv_regime_entry: '', market_state: '' });
     const [bulkData, setBulkData] = useState<Record<string, any>>({});
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -270,6 +270,21 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Derived values for credit spread strategy alignment
+    const dte = form.expiration
+        ? Math.round((new Date(form.expiration + 'T00:00:00').getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        : null;
+    const dteInRange = dte != null && dte >= 45 && dte <= 65;
+
+    const spreadWidth = (positionType !== 'single' && form.strike && form.strike2)
+        ? Math.abs(parseFloat(form.strike) - parseFloat(form.strike2))
+        : null;
+    const maxRiskPerContract = (positionType === 'credit' && spreadWidth != null && form.entry_price)
+        ? (spreadWidth - parseFloat(form.entry_price)) * 100
+        : (positionType === 'debit' && form.entry_price)
+            ? parseFloat(form.entry_price) * 100
+            : null;
+
     const deriveStrategy = (posType: string, optType: string): string => {
         if (posType === 'single') return `Long ${optType}`;
         if (posType === 'credit') return `Credit ${optType} Spread`;
@@ -331,13 +346,16 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                 direction: form.direction as 'BULL' | 'BEAR',
                 iv_regime_entry: form.iv_regime_entry || undefined,
                 market_state: form.market_state || undefined,
-                owner: formOwner
+                owner: formOwner,
+                spread_width: spreadWidth ?? undefined,
+                max_risk_entry: maxRiskPerContract != null && maxRiskPerContract > 0 ? maxRiskPerContract : undefined,
+                trade_profile: isCredit ? 'credit_spread' : 'debit_spread',
             });
         }
 
         setSubmitting(false);
-        setForm({ ticker: '', strike: '', strike2: '', type: 'Call', expiration: '', setup: 'Directional', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL', iv_regime_entry: '', market_state: '' });
-        setPositionType('single');
+        setForm({ ticker: '', strike: '', strike2: '', type: 'Put', expiration: '', setup: 'Directional', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL', iv_regime_entry: '', market_state: '' });
+        setPositionType('credit');
         setShowForm(false);
     };
 
@@ -651,7 +669,18 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                             )}
 
                             <div className="space-y-1.5">
-                                <label htmlFor="expiration">Expiration</label>
+                                <label htmlFor="expiration">
+                                    Expiration
+                                    {dte != null && (
+                                        <span className={`ml-2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                            dteInRange
+                                                ? 'bg-emerald-500/15 text-emerald-400'
+                                                : 'bg-orange-500/15 text-orange-400'
+                                        }`}>
+                                            {dte}d{!dteInRange && ' ⚠'}
+                                        </span>
+                                    )}
+                                </label>
                                 <input
                                     id="expiration"
                                     type="date"
@@ -661,10 +690,27 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                                     required
                                 />
                             </div>
-
-                            {positionType === 'single' && null}
                         </div>
 
+
+                        {/* Spread Info Bar */}
+                        {positionType !== 'single' && (spreadWidth != null || maxRiskPerContract != null) && (
+                            <div className="flex items-center gap-4 text-xs font-mono px-3 py-2 rounded-lg bg-bg-secondary/30 border border-border-default/30">
+                                {spreadWidth != null && (
+                                    <span className="text-text-secondary">
+                                        Width: <span className={`font-semibold ${spreadWidth === 15 ? 'text-emerald-400' : spreadWidth > 0 ? 'text-text-primary' : ''}`}>${spreadWidth}</span>
+                                        {spreadWidth !== 15 && spreadWidth > 0 && positionType === 'credit' && (
+                                            <span className="text-orange-400 ml-1">($15 recommended)</span>
+                                        )}
+                                    </span>
+                                )}
+                                {maxRiskPerContract != null && maxRiskPerContract > 0 && (
+                                    <span className="text-text-secondary">
+                                        Max Risk: <span className="text-text-primary font-semibold">${maxRiskPerContract.toFixed(0)}</span>/contract
+                                    </span>
+                                )}
+                            </div>
+                        )}
 
                         {/* Row 2: Analysis & Execution */}
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 sm:gap-6">

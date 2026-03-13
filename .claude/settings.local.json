@@ -124,7 +124,29 @@
       "WebFetch(domain:business-science.github.io)",
       "Bash(cp:*)",
       "Bash(mv:*)",
-      "Bash(do echo:*)"
+      "Bash(do echo:*)",
+      "WebFetch(domain:blog.amberdata.io)",
+      "WebFetch(domain:moontower.substack.com)",
+      "WebFetch(domain:quantpedia.com)",
+      "Bash(npm ls:*)",
+      "Bash(tasklist:*)",
+      "Bash(powershell:*)",
+      "Bash(npx tsx:*)",
+      "Bash(wmic process:*)",
+      "Bash(taskkill:*)",
+      "Bash(wmic cpu:*)",
+      "Bash(nvidia-smi:*)",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=6144\" npx tsx:*)",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=4096\" npx tsx:*)",
+      "Bash(npm test:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(rm /Users/yuchenqiu/03_Projects/trading-journal/docs/09_Polygon集成.md && rm /Users/yuchenqiu/03_Projects/trading-journal/docs/08_IV_Rank_上线步骤.md && rm /Users/yuchenqiu/03_Projects/trading-journal/CHANGELOG_OSS.md && rm /Users/yuchenqiu/03_Projects/trading-journal/docs/plans/2026-03-09-backtest-findings-integration.md && rm /Users/yuchenqiu/03_Projects/trading-journal/docs/plans/2026-03-10-wfa-engine-overhaul.md && rm /Users/yuchenqiu/03_Projects/trading-journal/docs/plans/2026-03-11-credit-spread-ux-overhaul.md)",
+      "Bash(git status:*)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
 }
