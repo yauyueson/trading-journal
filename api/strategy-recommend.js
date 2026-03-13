@@ -1685,7 +1685,7 @@ export default async function handler(req, res) {
         // 2. Build Targeted Strategy based on Pine Script recommendation
         const ivScoreInput = ivPercentile ?? ivRank;
         let targetRecs = [];
-        const decodedStrategy = targetStrategy ? decodeURIComponent(targetStrategy) : 'Auto-Select Strategy';
+        const decodedStrategy = targetStrategy ? decodeURIComponent(targetStrategy) : (isBull ? 'Credit Put Spread' : 'Credit Call Spread');
 
         // --- Entry Profile: convert setup name → concrete builder params ---
         const entryProfile = getEntryProfile();
