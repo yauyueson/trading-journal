@@ -57,7 +57,7 @@
 │  (OSS 扫描)  │  (计划入场)  │  (持仓管理)  │  Recommender│ /Stats  │ /Signals │
 ├─────────────┴─────────────┴─────────────┴─────────────┴─────────┤
 │  数据与评分：ORATS + Tiingo + Nasdaq · OSS (oss-core + api/_shared)           │
-│  持久化：Supabase (positions, transactions, greeks_history)       │
+│  持久化：Supabase (positions, transactions, position_greeks_history)       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

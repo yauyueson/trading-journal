@@ -1,6 +1,6 @@
 # Trading Journal - 文档总览
 
-> 最后更新: 2026年3月12日
+> 最后更新: 2026年3月13日
 
 欢迎来到Trading Journal项目文档中心！这里包含了项目的完整技术文档和使用指南。
 
@@ -78,7 +78,7 @@
 - PostgreSQL表结构设计
   - positions（持仓表）
   - transactions（交易记录表）
-  - greeks_history（Greeks历史表）
+  - position_greeks_history（Greeks历史表）
 - 关系设计和ER图
 - 索引策略
 - Row Level Security (RLS)
@@ -250,7 +250,7 @@ docs/
 
 ### 2026-03-05（v3.0 架构重构）
 - ✅ **架构文档更新**: React Router v6、React Query v5、Context 架构、懒加载路由
-- ✅ **新增测试体系**: 241 项 Vitest 测试（scoring parity 174 + oss-core 48 + riskSizing 19）
+- ✅ **新增测试体系**: 488 项 Vitest 测试（scoring parity 307 + oss-core 48 + riskSizing 19 + tech-parity 10 + backtest 35 + bsm 32 + slippage 12 + wfa 10 + option-sim 9）
 - ✅ **CI/CD**: GitHub Actions `lint → build → test`
 - ✅ **状态管理**: 从 App.tsx prop drilling → hooks + contexts 自治页面
 - ✅ **项目结构更新**: 新增 hooks/、context/、layouts/、tests/ 目录
@@ -341,4 +341,4 @@ docs/
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年3月12日*
+*最后更新: 2026年3月13日*

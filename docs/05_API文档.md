@@ -313,7 +313,7 @@ GET /api/strategy-recommend
 - **slopeTier**：档位，用于微调 Regime Bonus。取值：`strong_backwardation`、`backwardation`、`flat`、`contango`、`strong_contango`。
 
 **IV Rank 与 IV Percentile**：`ivRank`、`ivPercentile` 来自表 `ticker_iv_snapshots`（252 日窗口）。策略推荐中 Credit Spread、Debit Spread、Single-leg 均使用 `getIVRankAdjustment(ivRank, strategy)` 参与打分，详见 [03_核心算法.md](./03_核心算法.md)。**策略推荐页**（StrategyRecommender）在 regime 区域同时展示 **IV Rank** 与 **IV Percentile**（同色阶：低=便宜/绿、高=贵/黄），并显示样本天数与回填入口。  
-**写入 IV 快照**：`lib/_shared/ivHistory.cjs` 的 `saveTickerIVSnapshot` 使用 **Supabase Secret Key**（`SUPABASE_SERVICE_ROLE_KEY`）写入，以绕过 `ticker_iv_snapshots` 的 RLS；若仅配置 anon key 会报 401/RLS 错误。见 [08_IV_Rank_上线步骤.md](./08_IV_Rank_上线步骤.md)。
+**写入 IV 快照**：`lib/_shared/ivHistory.cjs` 的 `saveTickerIVSnapshot` 使用 **Supabase Secret Key**（`SUPABASE_SERVICE_ROLE_KEY`）写入，以绕过 `ticker_iv_snapshots` 的 RLS；若仅配置 anon key 会报 401/RLS 错误。
 
 **异常检测与统一分**:
 - 当 `ivSurface.anomaly = true` 时，表示检测到短期 IV 异常飙升（IV7/IV30 > 1.3，如财报前）
@@ -429,7 +429,7 @@ GET/POST /api/batch-refresh-tech
 | sampleDays | number | 可用的历史天数 |
 
 ### 2. 定时写入每日 IV 快照
-**端点**: `GET/POST /api/cron-iv-snapshot`
+**端点**: `GET/POST /api/cron-iv`
 **用途**: 由 Vercel Cron 每交易日盘后触发（如 16:30 ET），自动获取所有活跃持仓标的及特定热门标的（如 SPY, QQQ, AAPL 等）当天的 IV30 与 IV90 值，并写入数据库 `ticker_iv_snapshots` 记录当日快照。
 **Regime 切换检测（v2.7）**：写入快照后查询近 5 日 Regime 历史，若检测到 CREDIT↔DEBIT 翻转则发送 Discord 提醒（`DISCORD_WEBHOOK_URL`）。Regime 阈值：`ratio > 1.05` → CREDIT，`ratio < 0.95` → DEBIT，其余 → NEUTRAL。需至少 3 天历史数据才会触发提醒。
 **限速**：环境变量 `CRON_IV_DELAY_MS`（默认 300ms）控制每个 ticker 之间的请求延迟。
@@ -437,7 +437,7 @@ GET/POST /api/batch-refresh-tech
 
 ### 3. ~~回填历史波动率数据~~ (已移除)
 
-> ❌ **`/api/backfill-iv-history` 和 `api/setup-iv-rank.js` 已退役**。历史 RV30 回填已完成（SPY, QQQ, MSFT, META, TSLA, AMD, COST, IREN），回填行在 Migration 009 中标记为 `source='rv_proxy'`。IV 数据现通过 `cron-iv-snapshot.js` 每日自动积累。
+> ❌ **`/api/backfill-iv-history` 和 `api/setup-iv-rank.js` 已退役**。历史 RV30 回填已完成（SPY, QQQ, MSFT, META, TSLA, AMD, COST, IREN），回填行在 Migration 009 中标记为 `source='rv_proxy'`。IV 数据现通过 `cron-iv.js` 每日自动积累。
 
 ---
 

@@ -829,9 +829,9 @@ With `POLYGON_RATE_LIMIT_RPM=100` (if on upgraded tier), the limit is essentiall
 
 **F10.1 — Greeks at exit are NOT captured** (P1)
 
-`greeks_history` table captures IV and delta over time (from periodic refreshes), but there's no explicit capture of all four Greeks at the moment of position close. The exit entry in `greeks_history` may be stale (last refresh, not close time).
+`position_greeks_history` table captures IV and delta over time (from periodic refreshes), but there's no explicit capture of all four Greeks at the moment of position close. The exit entry in `position_greeks_history` may be stale (last refresh, not close time).
 
-**Recommendation**: When closing a position, add a final `greeks_history` record and capture all four Greeks + IV + underlying price. This requires one additional Polygon API call at close time.
+**Recommendation**: When closing a position, add a final `position_greeks_history` record and capture all four Greeks + IV + underlying price. This requires one additional Polygon API call at close time.
 
 **F10.2 — P&L decomposition is not implemented** (P2)
 
@@ -925,7 +925,7 @@ Fix the P0 and high-scoring P1 bugs. All are S-effort (< 1 day each):
 
 1. **Populate candidate_snapshot outcomes** — Add trigger on position close to match and update candidate_snapshots. ~2 hours.
 2. **Fix Kelly Criterion** — Implement proper f* = (p*b - q)/b using POP and R:R from the recommendation. ~3 hours.
-3. **Capture exit Greeks** — Add Polygon API call on position close, store in greeks_history and positions.exit_greeks. ~1 hour.
+3. **Capture exit Greeks** — Add Polygon API call on position close, store in position_greeks_history and positions.exit_greeks. ~1 hour.
 4. **Create parity test** — Build _test_parity.js that validates oss-core.ts vs scoring.cjs across 100 random inputs. ~2 hours.
 5. **Add concentration limits** — Compute and display warnings when >25% in one underlying or >50% in one sector. ~3 hours.
 6. **Add Greeks sanity checks** — Filter out options with delta>1, gamma<0, iv<0 in parseChain. ~30 min.

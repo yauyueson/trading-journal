@@ -239,7 +239,7 @@
 
 | 功能 | 说明 | 文件 |
 |------|------|------|
-| Regime 切换提醒 | 每日快照 Cron 查询近 5 日 Regime，检测到翻转时发送 Discord 提醒 | `cron-iv-snapshot.js` |
+| Regime 切换提醒 | 每日快照 Cron 查询近 5 日 Regime，检测到翻转时发送 Discord 提醒 | `cron-iv.js` |
 | 执行质量端点 | `GET /api/analytics?type=execution-quality`：基于 Delta 代理对入场时机分类（早/晚/市价） | `api/analytics.js` |
 
 ---
