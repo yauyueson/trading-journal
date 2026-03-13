@@ -8,69 +8,7 @@
  *   CRON_SECRET, DISCORD_WEBHOOK_URL, SUPABASE_URL, SUPABASE_ANON_KEY
  */
 
-/** Generate OCC symbol for CBOE lookup. */
-function generateOCCSymbol(symbol, expiration, type, strike) {
-  try {
-    const paddedSymbol = symbol.toUpperCase().padEnd(6, ' ');
-    const parts = expiration.split('-');
-    if (parts.length !== 3) return null;
-    const dateStr = parts[0].slice(2) + parts[1].padStart(2, '0') + parts[2].padStart(2, '0');
-    const typeCode = (type.toLowerCase().includes('call') || type.toLowerCase() === 'c') ? 'C' : 'P';
-    const strikeStr = Math.round(parseFloat(strike) * 1000).toString().padStart(8, '0');
-    return paddedSymbol + dateStr + typeCode + strikeStr;
-  } catch (_) {
-    return null;
-  }
-}
-
-/** Find an option's mid price from an options array (CBOE or ORATS format). Returns number | null. */
-function findOptionMid(options, ticker, expiration, strike, type) {
-  if (!options || !Array.isArray(options) || options.length === 0) return null;
-
-  // Detect format: ORATS normalized options have symbol+strike fields
-  const isORATS = options.length > 0 && options[0].symbol !== undefined && options[0].strike !== undefined;
-
-  if (isORATS) {
-    // ORATS format: direct field matching
-    const targetStrike = parseFloat(strike);
-    const targetType = (type || 'Call').toLowerCase().includes('call') ? 'Call' : 'Put';
-    const expStr = expiration.slice(0, 10); // YYYY-MM-DD
-
-    const match = options.find(opt =>
-      Math.abs(opt.strike - targetStrike) < 0.01 &&
-      opt.type === targetType &&
-      opt.expiration === expStr
-    );
-
-    if (!match) return null;
-    if (match.bid > 0 && match.ask > 0) return (match.bid + match.ask) / 2;
-    if (match.last > 0) return match.last;
-    return null;
-  }
-
-  // CBOE format: OCC symbol matching
-  const occ = generateOCCSymbol(ticker, expiration, type || 'Call', strike);
-  if (!occ) return null;
-  const cboeSymbol = occ.replace(/\s/g, '');
-
-  let match = options.find(o => o.option === cboeSymbol);
-
-  if (!match) {
-    const expDateStr = expiration.replace(/-/g, '').slice(2);
-    const typeCode = (type || 'Call').toLowerCase().includes('call') ? 'C' : 'P';
-    const strikeStr = Math.round(parseFloat(strike) * 1000).toString().padStart(8, '0');
-    match = options.find(o => {
-      if (!o.option) return false;
-      const sym = o.option.replace(/\s/g, '');
-      return sym.includes(expDateStr) && sym.charAt(12) === typeCode && sym.endsWith(strikeStr);
-    });
-  }
-
-  if (!match) return null;
-  if (match.bid > 0 && match.ask > 0) return (match.bid + match.ask) / 2;
-  if (match.last_trade_price > 0) return match.last_trade_price;
-  return null;
-}
+import { generateOCCSymbol, findOptionMid } from '../lib/_shared/utils.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -147,7 +85,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, message: 'No active positions', sent: 0 });
     }
 
-    const transactions = await supabaseQuery('transactions', 'select=*');
+    const positionIds = positions.map(p => p.id).filter(Boolean);
+    const transactions = positionIds.length > 0
+      ? await supabaseQuery('transactions', `position_id=in.(${positionIds.join(',')})&select=*`)
+      : [];
 
     const txnsByPos = (transactions || []).reduce((acc, t) => {
       if (!acc[t.position_id]) acc[t.position_id] = [];

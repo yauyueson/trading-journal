@@ -19,12 +19,7 @@ const POPULAR_TICKERS = [
     'COIN', 'MSTR', 'PLTR', 'HOOD', 'ROKU',
 ];
 
-const SCAN_TICKERS = [
-    'SPY', 'QQQ', 'GOOG', 'JPM', 'META', 'TSLA', 'MSFT', 'NFLX',
-    'AAPL', 'NVDA', 'AMD', 'COST', 'IREN', 'BA', 'AMZN', 'HOOD',
-    'CRWV', 'COIN', 'MSTR', 'PLTR', 'AVGO', 'LULU', 'UBER', 'GS',
-    'UNH', 'IWM', 'GLD',
-];
+import { SCAN_TICKERS } from '../lib/_shared/config.js';
 
 const DELAY_MS = 300;
 const BATCH_SIZE = 500;

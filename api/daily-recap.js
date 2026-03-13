@@ -21,74 +21,7 @@ function sendJson(res, status, obj) {
   }
 }
 
-/** Generate OCC symbol for CBOE lookup (same logic as option-price.js). */
-function generateOCCSymbol(symbol, expiration, type, strike) {
-  try {
-    const paddedSymbol = symbol.toUpperCase().padEnd(6, ' ');
-    const parts = expiration.split('-');
-    if (parts.length !== 3) return null;
-    const yy = parts[0].slice(2);
-    const mm = parts[1].padStart(2, '0');
-    const dd = parts[2].padStart(2, '0');
-    const dateStr = yy + mm + dd;
-    const loweredType = type.toLowerCase();
-    const typeCode = (loweredType.includes('call') || loweredType === 'c') ? 'C' : 'P';
-    const strikeNum = Math.round(parseFloat(strike) * 1000);
-    const strikeStr = strikeNum.toString().padStart(8, '0');
-    return paddedSymbol + dateStr + typeCode + strikeStr;
-  } catch (_) {
-    return null;
-  }
-}
-
-/** Find an option's mid price from an options array (CBOE or ORATS format). Returns number | null. */
-function findOptionMid(options, ticker, expiration, strike, type) {
-  if (!options || !Array.isArray(options) || options.length === 0) return null;
-
-  // Detect format: ORATS normalized options have symbol+strike fields
-  const isORATS = options.length > 0 && options[0].symbol !== undefined && options[0].strike !== undefined;
-
-  if (isORATS) {
-    // ORATS format: direct field matching
-    const targetStrike = parseFloat(strike);
-    const targetType = (type || 'Call').toLowerCase().includes('call') ? 'Call' : 'Put';
-    const expStr = expiration.slice(0, 10); // YYYY-MM-DD
-
-    const match = options.find(function (opt) {
-      return Math.abs(opt.strike - targetStrike) < 0.01 &&
-        opt.type === targetType &&
-        opt.expiration === expStr;
-    });
-
-    if (!match) return null;
-    if (match.bid > 0 && match.ask > 0) return (match.bid + match.ask) / 2;
-    if (match.last > 0) return match.last;
-    return null;
-  }
-
-  // CBOE format: OCC symbol matching
-  const occ = generateOCCSymbol(ticker, expiration, type || 'Call', strike);
-  if (!occ) return null;
-  const cboeSymbol = occ.replace(/\s/g, '');
-
-  let match = options.find(function (o) { return o.option === cboeSymbol; });
-
-  if (!match) {
-    const expDateStr = expiration.replace(/-/g, '').slice(2);
-    const typeCode = (type || 'Call').toLowerCase().includes('call') ? 'C' : 'P';
-    const strikeStr = Math.round(parseFloat(strike) * 1000).toString().padStart(8, '0');
-    match = options.find(function (o) {
-      if (!o.option) return false;
-      var sym = o.option.replace(/\s/g, '');
-      return sym.includes(expDateStr) && sym.charAt(12) === typeCode && sym.endsWith(strikeStr);
-    });
-  }
-
-  if (!match) return null;
-  if (match.bid > 0 && match.ask > 0) return (match.bid + match.ask) / 2;
-  if (match.last_trade_price > 0) return match.last_trade_price;
-  return null;
-}
+import { generateOCCSymbol, findOptionMid } from '../lib/_shared/utils.js';
 
 export default async function handler(req, res) {
   if (!res || typeof res.writeHead !== 'function') return;
@@ -145,7 +78,10 @@ export default async function handler(req, res) {
   try {
     const positionsRaw = await supabaseQuery('positions', 'status=eq.active&select=*');
     const positions = Array.isArray(positionsRaw) ? positionsRaw : [];
-    const transactionsRaw = await supabaseQuery('transactions', 'select=*');
+    const positionIds = positions.map(function (p) { return p.id; }).filter(Boolean);
+    const transactionsRaw = positionIds.length > 0
+      ? await supabaseQuery('transactions', 'position_id=in.(' + positionIds.join(',') + ')&select=*')
+      : [];
     const transactions = Array.isArray(transactionsRaw) ? transactionsRaw : [];
 
     const txnsByPos = transactions.reduce(function (acc, t) {

@@ -4,36 +4,10 @@
 // MFE = max favorable excursion of the underlying from entry to exit.
 // MAE = max adverse excursion of the underlying from entry to exit.
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-const SUPABASE_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
+import { supabaseGet as supabaseQuery, supabaseUpsert as _supabaseUpsert } from '../lib/_shared/supabase-rest.js';
 
-async function supabaseQuery(table, queryParams) {
-    const url = `${SUPABASE_URL}/rest/v1/${table}?${queryParams}`;
-    const res = await fetch(url, {
-        headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${SUPABASE_ANON}` },
-    });
-    if (!res.ok) return null;
-    return res.json();
-}
-
-async function supabaseUpsert(table, rows, onConflict) {
-    const key = SUPABASE_SERVICE || SUPABASE_ANON;
-    const url = `${SUPABASE_URL}/rest/v1/${table}`;
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'apikey': key,
-            'Authorization': `Bearer ${key}`,
-            'Content-Type': 'application/json',
-            'Prefer': `resolution=merge-duplicates`,
-        },
-        body: JSON.stringify(rows),
-    });
-    if (!res.ok) {
-        const text = await res.text();
-        console.warn(`[trade-outcomes] Upsert ${table} failed: ${res.status} ${text}`);
-    }
+async function supabaseUpsert(table, rows) {
+    return _supabaseUpsert(table, rows, 'trade-outcomes');
 }
 
 function computeMFEMAE(candles, entryPrice, direction) {

@@ -7,8 +7,7 @@
 
 import type { SpreadRecommendation, SingleLegRecommendation, Recommendation } from './types';
 import type { Position, Transaction } from './types';
-
-const CONTRACT_MULTIPLIER = 100;
+import { CONTRACT_MULTIPLIER } from './utils';
 
 /** Stop-out level: we size and display risk as "lose this much then stop" (e.g. 50% of max loss). */
 export const STOP_OUT_PCT = 0.5;
