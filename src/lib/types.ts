@@ -11,7 +11,6 @@ export interface Position {
     strategy?: string;
     entry_score: number;
     current_score: number;
-    entry_loq_score?: number;
     score_updated_at?: string;
     ideal_entry?: number;
     current_price?: number;

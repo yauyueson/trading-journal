@@ -49,9 +49,9 @@ Options trading journal with React 18 + Vite 5 + React Router v6 + React Query v
 
 ## Database Tables
 
-- `positions`, `transactions`, `greeks_history`, `ticker_iv_snapshots`, `app_settings` (existing)
+- `positions`, `transactions`, `position_greeks_history`, `ticker_iv_snapshots`, `app_settings` (existing)
 - `candidate_snapshots` (007), `stock_candles` (011), `signal_history` (012), `orats_iv_cache` (013)
-- `score_history` (008 — PENDING), `trade_outcomes` (014)
+- `score_history` (008), `trade_outcomes` (014)
 
 ## Ticker Watchlist
 

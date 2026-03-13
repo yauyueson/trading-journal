@@ -196,8 +196,8 @@ async function handleExecutionQuality(req, res) {
         order: 'recorded_at.asc',
         limit: '10000',
     });
-    const ghRes = await fetch(`${sbUrl}/rest/v1/greeks_history?${ghParams}`, { headers });
-    if (!ghRes.ok) return res.status(502).json({ error: 'Failed to fetch greeks_history' });
+    const ghRes = await fetch(`${sbUrl}/rest/v1/position_greeks_history?${ghParams}`, { headers });
+    if (!ghRes.ok) return res.status(502).json({ error: 'Failed to fetch position_greeks_history' });
     const greeksHistory = await ghRes.json();
 
     const histByPos = {};
