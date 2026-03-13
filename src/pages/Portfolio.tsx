@@ -86,6 +86,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
     const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Put', expiration: '', setup: 'Directional', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL' as 'BULL' | 'BEAR', iv_regime_entry: '', market_state: '' });
+    const [showAdvanced, setShowAdvanced] = useState(false);
     const [bulkData, setBulkData] = useState<Record<string, any>>({});
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -712,52 +713,27 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                             </div>
                         )}
 
-                        {/* Row 2: Analysis & Execution */}
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 sm:gap-6">
+                        {/* Row 2: Execution — Direction + Quantity + Price */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
                             <div className="space-y-1.5">
-                                <label htmlFor="score">Entry Score {scoreFetching && <span className="text-xs text-text-tertiary animate-pulse ml-1">fetching…</span>}</label>
-                                <input
-                                    id="score"
-                                    type="number"
-                                    placeholder={scoreFetching ? '…' : 'auto'}
-                                    className="input-field"
-                                    value={form.entry_score}
-                                    onChange={e => setForm({ ...form, entry_score: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label htmlFor="tech_score">TV Grade</label>
-                                <div className="flex gap-1.5">
-                                    {TV_GRADES.filter(g => g !== '').map(grade => (
+                                <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Direction</label>
+                                <div className="flex gap-2">
+                                    {(['BULL', 'BEAR'] as const).map(d => (
                                         <button
-                                            key={grade}
+                                            key={d}
                                             type="button"
-                                            onClick={() => setForm({ ...form, tech_score: form.tech_score === grade ? '' : grade })}
-                                            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${form.tech_score === grade
-                                                ? grade === 'S' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40'
-                                                : grade === 'A' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                                : grade === 'B' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                                : grade === 'C' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40'
-                                                : 'bg-red-500/20 text-red-400 border border-red-500/40'
-                                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                                            }`}
+                                            onClick={() => setForm({ ...form, direction: d })}
+                                            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${form.direction === d
+                                                    ? d === 'BULL'
+                                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                                        : 'bg-red-500/20 text-red-400 border border-red-500/40'
+                                                    : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                                }`}
                                         >
-                                            {grade}
+                                            {d === 'BULL' ? '▲ BULL' : '▼ BEAR'}
                                         </button>
                                     ))}
                                 </div>
-                            </div>
-
-                            <div className="space-y-1.5 lg:col-span-1">
-                                <label htmlFor="stop_reason">Stop Reason / Plan</label>
-                                <input
-                                    id="stop_reason"
-                                    placeholder="Why take this trade?"
-                                    className="input-field"
-                                    value={form.stop_reason}
-                                    onChange={e => setForm({ ...form, stop_reason: e.target.value })}
-                                />
                             </div>
 
                             <div className="space-y-1.5">
@@ -789,67 +765,103 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                                     />
                                 </div>
                             </div>
+
+                            <div className="space-y-1.5">
+                                <label htmlFor="score">Score {scoreFetching && <span className="text-xs text-text-tertiary animate-pulse ml-1">fetching…</span>}</label>
+                                <input
+                                    id="score"
+                                    type="number"
+                                    placeholder={scoreFetching ? '…' : 'auto'}
+                                    className="input-field"
+                                    value={form.entry_score}
+                                    onChange={e => setForm({ ...form, entry_score: e.target.value })}
+                                />
+                            </div>
                         </div>
 
-                        {/* Row 3: Direction + Market State + IV Regime */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Direction</label>
-                                <div className="flex gap-2">
-                                    {(['BULL', 'BEAR'] as const).map(d => (
-                                        <button
-                                            key={d}
-                                            type="button"
-                                            onClick={() => setForm({ ...form, direction: d })}
-                                            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${form.direction === d
-                                                    ? d === 'BULL'
-                                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                        {/* Collapsible: More Details */}
+                        <div>
+                            <button
+                                type="button"
+                                onClick={() => setShowAdvanced(!showAdvanced)}
+                                className="text-xs font-medium text-text-tertiary hover:text-text-secondary transition-colors flex items-center gap-1.5"
+                            >
+                                <ChevronDown size={14} className={`transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+                                More details (TV grade, trade notes, market state, IV regime)
+                            </button>
+                            {showAdvanced && (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mt-4 pt-4 border-t border-border-default/30">
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="tech_score">TV Grade</label>
+                                        <div className="flex gap-1.5">
+                                            {TV_GRADES.filter(g => g !== '').map(grade => (
+                                                <button
+                                                    key={grade}
+                                                    type="button"
+                                                    onClick={() => setForm({ ...form, tech_score: form.tech_score === grade ? '' : grade })}
+                                                    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${form.tech_score === grade
+                                                        ? grade === 'S' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40'
+                                                        : grade === 'A' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                                        : grade === 'B' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                                        : grade === 'C' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40'
                                                         : 'bg-red-500/20 text-red-400 border border-red-500/40'
-                                                    : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                                                }`}
+                                                        : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                                    }`}
+                                                >
+                                                    {grade}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="stop_reason">Trade Notes</label>
+                                        <input
+                                            id="stop_reason"
+                                            placeholder="Optional"
+                                            className="input-field"
+                                            value={form.stop_reason}
+                                            onChange={e => setForm({ ...form, stop_reason: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Market State</label>
+                                        <div className="grid grid-cols-4 gap-1">
+                                            {[
+                                                { label: 'TREND', value: 'TRENDING' },
+                                                { label: 'EXPL', value: 'EXPLOSIVE' },
+                                                { label: 'RANGE', value: 'RANGING' },
+                                                { label: 'REV', value: 'REVERTING' },
+                                            ].map(opt => (
+                                                <button
+                                                    key={opt.value}
+                                                    type="button"
+                                                    onClick={() => setForm({ ...form, market_state: form.market_state === opt.value ? '' : opt.value })}
+                                                    className={`py-2 rounded-lg text-[10px] font-bold transition-all ${form.market_state === opt.value
+                                                        ? 'bg-accent-green/20 text-accent-green border border-accent-green/40'
+                                                        : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                                        }`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="iv_regime" className="text-xs font-medium text-text-secondary uppercase tracking-wider">IV Regime</label>
+                                        <select
+                                            id="iv_regime"
+                                            className="input-field"
+                                            value={form.iv_regime_entry}
+                                            onChange={e => setForm({ ...form, iv_regime_entry: e.target.value })}
                                         >
-                                            {d === 'BULL' ? '▲ BULL' : '▼ BEAR'}
-                                        </button>
-                                    ))}
+                                            <option value="">— Unknown —</option>
+                                            <option value="CREDIT">CREDIT (Hi HV)</option>
+                                            <option value="DEBIT">DEBIT (Lo HV)</option>
+                                            <option value="NEUTRAL">NEUTRAL</option>
+                                        </select>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Market State</label>
-                                <div className="grid grid-cols-4 gap-1.5">
-                                    {[
-                                        { label: 'TREND', value: 'TRENDING' },
-                                        { label: 'EXPL', value: 'EXPLOSIVE' },
-                                        { label: 'RANGE', value: 'RANGING' },
-                                        { label: 'REV', value: 'REVERTING' },
-                                    ].map(opt => (
-                                        <button
-                                            key={opt.value}
-                                            type="button"
-                                            onClick={() => setForm({ ...form, market_state: form.market_state === opt.value ? '' : opt.value })}
-                                            className={`py-2 rounded-lg text-[10px] font-bold transition-all ${form.market_state === opt.value
-                                                ? 'bg-accent-green/20 text-accent-green border border-accent-green/40'
-                                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                                                }`}
-                                        >
-                                            {opt.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="space-y-1.5">
-                                <label htmlFor="iv_regime" className="text-xs font-medium text-text-secondary uppercase tracking-wider">IV Regime</label>
-                                <select
-                                    id="iv_regime"
-                                    className="input-field"
-                                    value={form.iv_regime_entry}
-                                    onChange={e => setForm({ ...form, iv_regime_entry: e.target.value })}
-                                >
-                                    <option value="">— Unknown —</option>
-                                    <option value="CREDIT">CREDIT (Hi HV)</option>
-                                    <option value="DEBIT">DEBIT (Lo HV)</option>
-                                    <option value="NEUTRAL">NEUTRAL</option>
-                                </select>
-                            </div>
+                            )}
                         </div>
 
                         {/* Actions */}
