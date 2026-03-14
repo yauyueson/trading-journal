@@ -314,7 +314,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                     <Activity className="text-accent-green" />
                     Spread Builder
                 </h1>
-                <p className="text-gray-400 text-sm mt-1">Credit spread recommendations · Delta 0.35 · DTE 45-65 · IV ≥ 30%</p>
+                <p className="text-gray-400 text-sm mt-1">{`Credit spread recommendations · ${profile.subtitle}`}</p>
             </div>
 
             {/* Input Panel */}
