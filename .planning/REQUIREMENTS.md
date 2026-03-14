@@ -39,8 +39,8 @@
 
 ### Cleanup + Signal Extension
 
-- [ ] **SCAN-01**: Scanner page (/scanner) removed — route, tab, page component, and Scanner-exclusive types cleaned up; scan-options.js API preserved (shared by Portfolio.tsx)
-- [ ] **MOM-01**: Signal type derived from signal_history components data (EMA or MOM) instead of hardcoded 'EMA' — flows through URL params and signal context banner
+- [x] **SCAN-01**: Scanner page (/scanner) removed — route, tab, page component, and Scanner-exclusive types cleaned up; scan-options.js API preserved (shared by Portfolio.tsx)
+- [x] **MOM-01**: Signal type derived from signal_history components data (EMA or MOM) instead of hardcoded 'EMA' — flows through URL params and signal context banner
 
 ## v2 Requirements
 
@@ -88,8 +88,8 @@
 | STRAT-02 | Phase 2 | Complete |
 | STRAT-03 | Phase 4 | Complete |
 | STRAT-04 | Phase 4 | Complete |
-| SCAN-01 | Phase 5 | Pending |
-| MOM-01 | Phase 5 | Pending |
+| SCAN-01 | Phase 5 | Complete |
+| MOM-01 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 19 total

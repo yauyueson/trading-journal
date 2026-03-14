@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 04-global-strategy-toggle 04-01-PLAN.md
-last_updated: "2026-03-14T17:27:46.567Z"
+stopped_at: Completed 05-scanner-removal-mom-signal-support 05-01-PLAN.md
+last_updated: "2026-03-14T17:41:25.966Z"
 last_activity: 2026-03-14 — Roadmap created from requirements + research
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 6
-  completed_plans: 6
+  total_phases: 5
+  completed_phases: 5
+  total_plans: 7
+  completed_plans: 7
   percent: 0
 ---
 
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 03-spread-builder-integration P01 | 5 | 2 tasks | 2 files |
 | Phase 03-spread-builder-integration P02 | 8 | 2 tasks | 2 files |
 | Phase 04-global-strategy-toggle P01 | 2 | 2 tasks | 3 files |
+| Phase 05-scanner-removal-mom-signal-support P01 | 2 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,8 @@ Recent decisions affecting current work:
 - [Phase 03-spread-builder-integration]: target_price fallback uses tpPct fraction directly when openPosTP empty — WFA-validated rate always stored
 - [Phase 04-global-strategy-toggle]: AppLayout global header toggle is the single control point for strategy — Backtest.tsx inline toggle removed
 - [Phase 04-global-strategy-toggle]: Stats.tsx shortTerm DTE buckets locked as <5d / 5-10d / 10-14d / 14+d per CONTEXT.md
+- [Phase 05-01]: Scanner.tsx deleted entirely — /scanner route replaced with Navigate redirect to /portfolio so old bookmarks gracefully redirect
+- [Phase 05-01]: deriveSignalType uses deviation-from-neutral (50) to pick EMA vs MOM — momDev > emaDev selects MOM, EMA wins ties per WFA primary signal finding
 
 ### Pending Todos
 
@@ -95,6 +98,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T17:25:36.718Z
-Stopped at: Completed 04-global-strategy-toggle 04-01-PLAN.md
+Last session: 2026-03-14T17:41:25.964Z
+Stopped at: Completed 05-scanner-removal-mom-signal-support 05-01-PLAN.md
 Resume file: None
