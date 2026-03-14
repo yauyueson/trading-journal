@@ -322,7 +322,7 @@ const DEFAULT_ENTRY_PROFILE = { dtePeak: 55, deltaRange: [0.30, 0.45], allowChas
 
 const STRATEGY_DEFAULTS = {
     swing: { dtePeak: 55, dteSigma: 15, deltaRange: [0.28, 0.42] },
-    shortTerm: { dtePeak: 10, dteSigma: 5, deltaRange: [0.15, 0.50] },
+    shortTerm: { dtePeak: 10, dteSigma: 5, deltaRange: [0.20, 0.40] },
 };
 
 function getEntryProfile(strategy) {
@@ -774,7 +774,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
     return sorted;
 }
 
-function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null, daysUntilEarnings = null, anomaly = false, dtePeak = 37, deltaRange = [0.45, 0.70], sampleDays = 60, volFcstAdj = 0) {
+function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null, daysUntilEarnings = null, anomaly = false, dtePeak = 37, deltaRange = [0.45, 0.70], sampleDays = 60, volFcstAdj = 0, dteSigmaParam = 15) {
     const results = [];
     const widths = customWidth ? [customWidth] : [2.5, 5];
     const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'long', sampleDays);
@@ -891,7 +891,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
 
             // Weighted scoring: lambda(25%) + R:R(25%) + delta(15%) + EV(20%) + BE(10%) + theta(-5%)
             // DTE score uses setup-tuned Gaussian peak (dtePeak)
-            const scoreDTEDebit = Math.round(100 * Math.exp(-0.5 * Math.pow((longLeg.dte - dtePeak) / 15, 2)));
+            const scoreDTEDebit = Math.round(100 * Math.exp(-0.5 * Math.pow((longLeg.dte - dtePeak) / dteSigmaParam, 2)));
             // Earnings penalty scaling for debit spreads (2.6)
             const dteDS = longLeg.dte || 30;
             const includesEarningsDS = daysUntilEarnings !== null && daysUntilEarnings >= 0 && daysUntilEarnings <= dteDS;
@@ -1702,20 +1702,23 @@ export default async function handler(req, res) {
         let { dtePeak, deltaRange, allowChase } = entryProfile;
 
         // v4 Entry Context overrides: adjust DTE peak and delta range based on entry quality
-        //   OPTIMAL  → pullback to 4H EMA support; tighten DTE (less theta bleed) + raise delta
+        //   OPTIMAL  → pullback to support; tighten DTE (less theta bleed) + raise delta
         //   CHASING  → extended above EMA; lengthen DTE (more time for pullback) + lower delta
+        // Clamps are strategy-relative: shortTerm has smaller absolute values than swing.
+        const baseDteMin = strategyDefaults.dtePeak * 0.5; // floor = half of strategy's peak
+        const baseDteMax = strategyDefaults.dtePeak * 2;   // ceiling = 2x strategy's peak
         if (entryCtx === 'OPTIMAL') {
-            dtePeak = Math.max(14, Math.round(dtePeak * 0.75));
+            dtePeak = Math.max(Math.round(baseDteMin), Math.round(dtePeak * 0.75));
             deltaRange = [
                 Math.min(parseFloat((deltaRange[0] + 0.05).toFixed(2)), 0.65),
                 Math.min(parseFloat((deltaRange[1] + 0.05).toFixed(2)), 0.80)
             ];
             console.log(`[EntryContext] ${entryCtx}: dtePeak→${dtePeak}, deltaRange→[${deltaRange}]`);
         } else if (entryCtx === 'CHASING') {
-            dtePeak = Math.min(45, Math.round(dtePeak * 1.25));
+            dtePeak = Math.min(Math.round(baseDteMax), Math.round(dtePeak * 1.25));
             deltaRange = [
-                Math.max(parseFloat((deltaRange[0] - 0.05).toFixed(2)), 0.35),
-                Math.max(parseFloat((deltaRange[1] - 0.10).toFixed(2)), 0.50)
+                Math.max(parseFloat((deltaRange[0] - 0.05).toFixed(2)), deltaRange[0] * 0.6),
+                Math.max(parseFloat((deltaRange[1] - 0.10).toFixed(2)), deltaRange[1] * 0.7)
             ];
             console.log(`[EntryContext] ${entryCtx}: dtePeak→${dtePeak}, deltaRange→[${deltaRange}]`);
         }
@@ -1750,7 +1753,7 @@ export default async function handler(req, res) {
                 rejectionDiagnostics = creditRes._diagnostics || null;
                 targetRecs = [
                     ...creditRes,
-                    ...buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj),
+                    ...buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma),
                     ...scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj),
                     ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays, volFcstAdj)
                 ];
@@ -1759,7 +1762,7 @@ export default async function handler(req, res) {
                 rejectionDiagnostics = creditRes._diagnostics || null;
                 targetRecs = [
                     ...creditRes,
-                    ...buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj),
+                    ...buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma),
                     ...scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj),
                     ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays, volFcstAdj)
                 ];
@@ -1768,14 +1771,14 @@ export default async function handler(req, res) {
             targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma);
             rejectionDiagnostics = targetRecs._diagnostics || null;
         } else if (decodedStrategy === 'Debit Call Spread') {
-            targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj);
+            targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma);
         } else if (decodedStrategy === 'Long Call') {
             targetRecs = scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Credit Call Spread') {
             targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma);
             rejectionDiagnostics = targetRecs._diagnostics || null;
         } else if (decodedStrategy === 'Debit Put Spread') {
-            targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj);
+            targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma);
         } else if (decodedStrategy === 'Long Put') {
             targetRecs = scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Iron Condor') {

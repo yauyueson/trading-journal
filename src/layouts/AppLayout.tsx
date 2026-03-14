@@ -40,7 +40,11 @@ export function AppLayout() {
               {(['swing', 'shortTerm'] as StrategyType[]).map(s => (
                 <button key={s} onClick={() => setActiveStrategy(s)}
                   className={`px-2 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer ${
-                    activeStrategy === s ? 'bg-accent-green/15 text-accent-green' : 'text-text-tertiary hover:text-text-secondary'
+                    activeStrategy === s
+                      ? s === 'swing'
+                        ? 'bg-green-500/15 text-green-400'
+                        : 'bg-blue-500/15 text-blue-400'
+                      : 'text-text-tertiary hover:text-text-secondary'
                   }`}>
                   {STRATEGY_PROFILES[s].shortLabel}
                 </button>

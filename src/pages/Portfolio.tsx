@@ -87,7 +87,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const [positionType, setPositionType] = useState<'single' | 'credit' | 'debit'>('credit');
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
-    const [strategyFilter, setStrategyFilter] = useState<'All' | 'swing' | 'shortTerm'>('All');
+    const [strategyFilter, setStrategyFilter] = useState<'All' | 'swing' | 'shortTerm' | 'untagged'>('All');
     const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Put', expiration: '', setup: 'Directional', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL' as 'BULL' | 'BEAR', iv_regime_entry: '', market_state: '' });
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [bulkData, setBulkData] = useState<Record<string, any>>({});
@@ -147,7 +147,11 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
 
     const allActivePositions = positions.filter(p => p.status === 'active');
     const ownerFiltered = ownerFilter === 'All' ? allActivePositions : allActivePositions.filter(p => p.owner === ownerFilter);
-    const activePositions = strategyFilter === 'All' ? ownerFiltered : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
+    const activePositions = strategyFilter === 'All'
+        ? ownerFiltered
+        : strategyFilter === 'untagged'
+            ? ownerFiltered.filter(p => !p.strategy_type)
+            : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
 
     // ... (risk calc unchanged)
     const totalRiskDollars = activePositions.reduce((sum, position) => {
@@ -447,11 +451,12 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                 </div>
                 {/* Strategy Filter */}
                 <div className="flex items-center gap-1.5">
-                    {([['All', 'All'], ['swing', 'Swing'], ['shortTerm', 'Short']] as const).map(([value, label]) => (
+                    <span className="text-xs text-text-tertiary">Strategy:</span>
+                    {([['All', 'All'], ['swing', 'Swing'], ['shortTerm', 'ST'], ['untagged', '—']] as const).map(([value, label]) => (
                         <button
                             key={value}
                             type="button"
-                            onClick={() => setStrategyFilter(value as 'All' | 'swing' | 'shortTerm')}
+                            onClick={() => setStrategyFilter(value as 'All' | 'swing' | 'shortTerm' | 'untagged')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${strategyFilter === value
                                 ? value === 'swing'
                                     ? 'bg-green-500/20 text-green-400 border border-green-500/40'

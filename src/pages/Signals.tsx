@@ -671,7 +671,7 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
           <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg px-4 py-3">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-blue-400 font-semibold text-sm">{spreadType}</span>
-              <span className="inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-500/15 text-blue-400">Short</span>
+              <span className="inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-500/15 text-blue-400">ST</span>
             </div>
             <div className="text-xs text-text-secondary mb-2">{shortTerm.subtitle}</div>
             <span className="text-[10px] text-text-tertiary">

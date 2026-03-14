@@ -550,7 +550,7 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
                                     ? 'bg-green-500/15 text-green-400'
                                     : 'bg-blue-500/15 text-blue-400'
                             }`}>
-                                {position.strategy_type === 'swing' ? 'Swing' : 'Short'}
+                                {position.strategy_type === 'swing' ? 'Swing' : 'ST'}
                             </span>
                         )}
                         {onUpdateOwner && (

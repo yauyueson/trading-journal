@@ -56,14 +56,14 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
   },
   shortTerm: {
     label: 'Short-Term (7-14 DTE)',
-    shortLabel: 'Short',
+    shortLabel: 'ST',
     dteMin: 7,
     dteMax: 14,
     dtePeak: 10,
     dteSigma: 5,
-    deltaMin: 0.30,
-    deltaMax: 0.45,
-    defaultDelta: 0.45,
+    deltaMin: 0.20,
+    deltaMax: 0.40,
+    defaultDelta: 0.40,
     spreadWidths: [2.5, 5, 7.5, 10],
     defaultWidth: 2.5,
     profitTarget: 0.40,
@@ -80,7 +80,7 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
       { label: '$7.5', val: 7.5 },
       { label: '$10', val: 10 },
     ],
-    subtitle: 'Delta 0.45 \u2022 DTE 7-14 \u2022 $2.5 width \u2022 TP 40% \u2022 No SL',
+    subtitle: 'Delta 0.40 \u2022 DTE 7-14 \u2022 $2.5 width \u2022 TP 40% \u2022 No SL',
   },
 };
 
