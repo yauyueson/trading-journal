@@ -32,8 +32,8 @@
 
 ### Strategy Integration
 
-- [ ] **STRAT-01**: strategy-recommend.js accepts `strategy` query param and uses profile-specific dtePeak, DTE sigma, defaultWidth, and deltaRange
-- [ ] **STRAT-02**: scan-options.js accepts `strategy` query param and adjusts DTE/delta defaults per profile
+- [x] **STRAT-01**: strategy-recommend.js accepts `strategy` query param and uses profile-specific dtePeak, DTE sigma, defaultWidth, and deltaRange
+- [x] **STRAT-02**: scan-options.js accepts `strategy` query param and adjusts DTE/delta defaults per profile
 - [ ] **STRAT-03**: Global strategy toggle accessible within spread builder flow (in AppLayout header or selector page header)
 - [ ] **STRAT-04**: All page subtitles and DTE/width/delta defaults react to active strategy selection
 
@@ -79,8 +79,8 @@
 | EXIT-01 | Phase 3 | Pending |
 | EXIT-02 | Phase 2 | Complete |
 | EXIT-03 | Phase 3 | Pending |
-| STRAT-01 | Phase 2 | Pending |
-| STRAT-02 | Phase 2 | Pending |
+| STRAT-01 | Phase 2 | Complete |
+| STRAT-02 | Phase 2 | Complete |
 | STRAT-03 | Phase 4 | Pending |
 | STRAT-04 | Phase 4 | Pending |
 
