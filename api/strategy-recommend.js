@@ -322,9 +322,16 @@ async function fetchEarnings(ticker) {
 const DEFAULT_ENTRY_PROFILE = { dtePeak: 55, deltaRange: [0.30, 0.45], allowChase: false };
 
 const STRATEGY_DEFAULTS = {
-    swing: { dtePeak: 55, dteSigma: 15, deltaRange: [0.28, 0.42] },
-    shortTerm: { dtePeak: 10, dteSigma: 5, deltaRange: [0.20, 0.40] },
+    swing: {
+        dtePeak: 55, dteSigma: 15, deltaRange: [0.28, 0.42],
+        defaultWidth: 15, profitTarget: 0.30, ivRankMin: 30,
+    },
+    shortTerm: {
+        dtePeak: 10, dteSigma: 5, deltaRange: [0.20, 0.40],
+        defaultWidth: 2.5, profitTarget: 0.40, ivRankMin: 40,
+    },
 };
+// Values must match src/lib/strategyProfiles.ts STRATEGY_PROFILES
 
 function getEntryProfile(strategy) {
     const defaults = STRATEGY_DEFAULTS[strategy] || STRATEGY_DEFAULTS.swing;
@@ -1129,7 +1136,7 @@ export default async function handler(req, res) {
     const dteTarget = parseInt(targetDteStr) || 55;
 
     const widthStr = spreadWidth ? String(spreadWidth).replace(/[^0-9.]/g, '') : null;
-    const widthParam = widthStr ? parseFloat(widthStr) : null;
+    const widthParam = widthStr ? parseFloat(widthStr) : strategyDefaults.defaultWidth;
 
     try {
         await ensureScoring();
@@ -1942,6 +1949,12 @@ export default async function handler(req, res) {
                 }
             },
             recommendedStrategy: decodedStrategy,
+            strategyProfile: {
+                strategy: activeStrategy,
+                profitTarget: strategyDefaults.profitTarget,
+                ivRankMin: strategyDefaults.ivRankMin,
+                defaultWidth: strategyDefaults.defaultWidth,
+            },
             entryProfileMeta: {
                 dtePeak,
                 deltaRange,

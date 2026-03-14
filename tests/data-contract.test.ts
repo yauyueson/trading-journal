@@ -1,7 +1,9 @@
 // tests/data-contract.test.ts
-// Regression tests for Phase 2 Plan 1 data contract:
+// Regression tests for Phase 2 data contracts:
 //   EXIT-02 — target_price and spread_width in DirectAddItem type and useAddDirect mutation
 //   SIG-01  — signal metadata (score, streak, signalType, adx, rvol, iv30d) in Signals navigate() calls
+//   STRAT-01 — strategy-recommend.js STRATEGY_DEFAULTS enriched with profitTarget/ivRankMin/defaultWidth
+//   STRAT-02 — scan-options.js applies profile-specific delta defaults
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -105,5 +107,100 @@ describe('SIG-01 — Signals page navigate() URL params', () => {
 
   it('src/pages/Signals.tsx shortTerm button uses buildParams helper with "shortTerm"', () => {
     expect(signalsSrc).toContain("buildParams('shortTerm')");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// STRAT-01: strategy-recommend.js STRATEGY_DEFAULTS enrichment
+// ---------------------------------------------------------------------------
+
+const stratRecommendSrc = readFileSync(
+  resolve(__dirname, '../api/strategy-recommend.js'),
+  'utf-8'
+);
+
+const scanOptionsSrc = readFileSync(
+  resolve(__dirname, '../api/scan-options.js'),
+  'utf-8'
+);
+
+describe('STRAT-01 — strategy-recommend.js STRATEGY_DEFAULTS enrichment', () => {
+  it('STRATEGY_DEFAULTS should contain profitTarget for both profiles', () => {
+    // Find STRATEGY_DEFAULTS block
+    const defaultsStart = stratRecommendSrc.indexOf('const STRATEGY_DEFAULTS');
+    expect(defaultsStart).toBeGreaterThan(-1);
+    const defaultsBlock = stratRecommendSrc.slice(defaultsStart, stratRecommendSrc.indexOf('\n};', defaultsStart) + 3);
+    expect(defaultsBlock).toContain('profitTarget');
+  });
+
+  it('STRATEGY_DEFAULTS should contain ivRankMin for both profiles', () => {
+    const defaultsStart = stratRecommendSrc.indexOf('const STRATEGY_DEFAULTS');
+    expect(defaultsStart).toBeGreaterThan(-1);
+    const defaultsBlock = stratRecommendSrc.slice(defaultsStart, stratRecommendSrc.indexOf('\n};', defaultsStart) + 3);
+    expect(defaultsBlock).toContain('ivRankMin');
+  });
+
+  it('STRATEGY_DEFAULTS should contain defaultWidth for both profiles', () => {
+    const defaultsStart = stratRecommendSrc.indexOf('const STRATEGY_DEFAULTS');
+    expect(defaultsStart).toBeGreaterThan(-1);
+    const defaultsBlock = stratRecommendSrc.slice(defaultsStart, stratRecommendSrc.indexOf('\n};', defaultsStart) + 3);
+    expect(defaultsBlock).toContain('defaultWidth');
+  });
+
+  it('Response JSON should include strategyProfile object', () => {
+    expect(stratRecommendSrc).toContain('strategyProfile');
+  });
+
+  it('Width fallback should reference strategyDefaults.defaultWidth (not hardcoded 15)', () => {
+    expect(stratRecommendSrc).toContain('strategyDefaults.defaultWidth');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// STRAT-01: StrategyResult type contract
+// ---------------------------------------------------------------------------
+
+describe('STRAT-01 — StrategyResult type has strategyProfile field', () => {
+  it('src/lib/types.ts StrategyResult should include strategyProfile optional field', () => {
+    expect(typesSrc).toContain('strategyProfile');
+  });
+
+  it('src/lib/types.ts strategyProfile should include profitTarget number field', () => {
+    // Find the strategyProfile block in the interface
+    const profileStart = typesSrc.indexOf('strategyProfile');
+    expect(profileStart).toBeGreaterThan(-1);
+    const profileBlock = typesSrc.slice(profileStart, typesSrc.indexOf('\n    };', profileStart) + 7);
+    expect(profileBlock).toContain('profitTarget');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// STRAT-02: scan-options.js profile-specific delta defaults
+// ---------------------------------------------------------------------------
+
+describe('STRAT-02 — scan-options.js profile-specific delta defaults', () => {
+  it('scan-options.js should define deltaDefaults with profile-specific values', () => {
+    expect(scanOptionsSrc).toContain('deltaDefaults');
+  });
+
+  it('scan-options.js deltaDefaults should include shortTerm min 0.20', () => {
+    expect(scanOptionsSrc).toContain("'0.20'");
+  });
+
+  it('scan-options.js deltaDefaults should include swing min 0.28', () => {
+    expect(scanOptionsSrc).toContain("'0.28'");
+  });
+
+  it('scan-options.js minDelta destructuring should use deltaDefaults.min', () => {
+    expect(scanOptionsSrc).toContain('minDelta = deltaDefaults.min');
+  });
+
+  it('scan-options.js maxDelta destructuring should use deltaDefaults.max', () => {
+    expect(scanOptionsSrc).toContain('maxDelta = deltaDefaults.max');
+  });
+
+  it('scan-options.js strategy param (long/short LOQ/CSQ) should NOT be modified', () => {
+    // strategy = 'long' default must remain for LOQ/CSQ toggle
+    expect(scanOptionsSrc).toContain("strategy = 'long'");
   });
 });

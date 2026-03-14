@@ -323,6 +323,13 @@ export interface StrategyResult {
             spreadCeiling: number;
         };
     };
+    /** Strategy profile metadata returned by strategy-recommend.js (Phase 3 spread builder reads from here). */
+    strategyProfile?: {
+        strategy: string;
+        profitTarget: number;
+        ivRankMin: number;
+        defaultWidth: number;
+    };
 }
 
 // ────────────────────────────────────────────────────────────────

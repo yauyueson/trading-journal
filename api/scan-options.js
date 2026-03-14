@@ -46,6 +46,9 @@ export default async function handler(req, res) {
 
     const activeProfile = req.query.activeProfile === 'shortTerm' ? 'shortTerm' : 'swing';
     const dteDefaults = activeProfile === 'shortTerm' ? { min: '5', max: '21' } : { min: '20', max: '60' };
+    const deltaDefaults = activeProfile === 'shortTerm'
+        ? { min: '0.20', max: '0.40' }
+        : { min: '0.28', max: '0.42' };
     const {
         ticker,
         strategy = 'long',
@@ -54,8 +57,8 @@ export default async function handler(req, res) {
         strikeRange = '0.25',
         minVolume = '50',
         maxSpreadPct = '0.10',
-        minDelta = '0',
-        maxDelta = '1',
+        minDelta = deltaDefaults.min,
+        maxDelta = deltaDefaults.max,
         direction = 'all',
         dayTrade = 'false'
     } = req.query;
