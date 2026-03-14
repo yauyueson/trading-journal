@@ -1055,233 +1055,6 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, iv
 }
 
 // =============================================================================
-// IRON CONDOR BUILDER
-// =============================================================================
-
-function buildIronCondors(chain, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, sampleDays = 60, volFcstAdj = 0) {
-    const results = [];
-    const widths = customWidth ? [customWidth] : [5, 10];
-    const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short', sampleDays);
-    const HF = HARD_FILTER_CREDIT;
-
-    // Find unique expirations that have both put and call options
-    const expirations = [...new Set(chain.map(o => o.expiration))];
-
-    for (const exp of expirations) {
-        const expChain = chain.filter(o => o.expiration === exp);
-        const dte = expChain[0]?.dte;
-        if (!dte || dte < 21 || dte > 60) continue; // IC sweet spot: 21-60 DTE
-
-        // Earnings awareness (score penalty applied below, no hard block)
-        const includesEarnings = daysUntilEarnings !== null && daysUntilEarnings <= dte && daysUntilEarnings >= 0;
-
-        // Find short put candidates (below price, 15-25Δ)
-        const shortPuts = expChain.filter(o =>
-            o.type === 'Put' &&
-            Math.abs(o.delta) >= 0.15 &&
-            Math.abs(o.delta) <= 0.25 &&
-            o.bid > 0 && o.ask > 0
-        );
-
-        // Find short call candidates (above price, 15-25Δ)
-        const shortCalls = expChain.filter(o =>
-            o.type === 'Call' &&
-            Math.abs(o.delta) >= 0.15 &&
-            Math.abs(o.delta) <= 0.25 &&
-            o.bid > 0 && o.ask > 0
-        );
-
-        for (const shortPut of shortPuts) {
-            for (const shortCall of shortCalls) {
-                // Short call must be above current price, short put below
-                if (shortCall.strike <= currentPrice || shortPut.strike >= currentPrice) continue;
-
-                for (const width of widths) {
-                    // Long legs: further OTM protection
-                    const longPutStrike = shortPut.strike - width;
-                    const longCallStrike = shortCall.strike + width;
-                    const maxDrift = width * 0.2;
-
-                    let longPut = expChain.find(o =>
-                        o.type === 'Put' && Math.abs(o.strike - longPutStrike) < 0.1
-                    );
-                    if (!longPut) {
-                        let bestDist = Infinity;
-                        for (const o of expChain) {
-                            if (o.type !== 'Put') continue;
-                            const dist = Math.abs(o.strike - longPutStrike);
-                            if (dist < bestDist && dist <= maxDrift) { bestDist = dist; longPut = o; }
-                        }
-                    }
-                    let longCall = expChain.find(o =>
-                        o.type === 'Call' && Math.abs(o.strike - longCallStrike) < 0.1
-                    );
-                    if (!longCall) {
-                        let bestDist = Infinity;
-                        for (const o of expChain) {
-                            if (o.type !== 'Call') continue;
-                            const dist = Math.abs(o.strike - longCallStrike);
-                            if (dist < bestDist && dist <= maxDrift) { bestDist = dist; longCall = o; }
-                        }
-                    }
-
-                    if (!longPut || !longCall) continue;
-                    const actualPutWidth = Math.abs(shortPut.strike - longPut.strike);
-                    const actualCallWidth = Math.abs(shortCall.strike - longCall.strike);
-                    const icWidth = Math.max(actualPutWidth, actualCallWidth);
-
-                    // Liquidity checks: short legs need full OI, long legs (protection) only need 10
-                    const shortLegs = [shortPut, shortCall];
-                    const longLegs = [longPut, longCall];
-                    const allLegsOK = shortLegs.every(l => {
-                        const mid = (l.bid + l.ask) / 2;
-                        return mid >= HF.minMid && l.openInterest >= HF.minOpenInterest;
-                    }) && longLegs.every(l => {
-                        const mid = (l.bid + l.ask) / 2;
-                        return mid >= HF.minMid && l.openInterest >= 10;
-                    });
-                    if (!allLegsOK) continue;
-
-                    // Credit calculation: put side + call side
-                    const putCreditBid = shortPut.bid - longPut.ask;
-                    const putCreditAsk = shortPut.ask - longPut.bid;
-                    const putCredit = (putCreditBid + putCreditAsk) / 2;
-
-                    const callCreditBid = shortCall.bid - longCall.ask;
-                    const callCreditAsk = shortCall.ask - longCall.bid;
-                    const callCredit = (callCreditBid + callCreditAsk) / 2;
-
-                    if (putCredit <= 0 || callCredit <= 0) continue;
-
-                    // Spread % check on each side
-                    const putSpreadPct = putCredit > 0 ? (putCreditAsk - putCreditBid) / putCredit : 1;
-                    const callSpreadPct = callCredit > 0 ? (callCreditAsk - callCreditBid) / callCredit : 1;
-                    if (putSpreadPct > HF.maxSpreadPctCeiling || callSpreadPct > HF.maxSpreadPctCeiling) continue;
-
-                    const totalCredit = putCredit + callCredit;
-                    // Max risk = width of wider side - total credit (only one side can lose)
-                    const maxRisk = icWidth - totalCredit;
-                    if (maxRisk <= 0) continue;
-
-                    // Slippage on all 4 legs — brokers fill spread orders as packages (2.5: multiply by 0.5)
-                    const rawSlippage =
-                        estimateSlippage(shortPut.bid, shortPut.ask, shortPut.openInterest) +
-                        estimateSlippage(longPut.bid, longPut.ask, longPut.openInterest) +
-                        estimateSlippage(shortCall.bid, shortCall.ask, shortCall.openInterest) +
-                        estimateSlippage(longCall.bid, longCall.ask, longCall.openInterest);
-                    const totalSlippage = rawSlippage * 0.5;
-                    const effectiveCredit = totalCredit - totalSlippage;
-                    if (effectiveCredit <= 0) continue;
-
-                    const effectiveMaxRisk = icWidth - effectiveCredit;
-                    const effectiveROI = (effectiveCredit / effectiveMaxRisk) * 100;
-                    if (effectiveROI < 8) continue; // IC needs at least 8% ROI to be worth it
-
-                    // Breakeven range
-                    const lowerBreakeven = shortPut.strike - totalCredit;
-                    const upperBreakeven = shortCall.strike + totalCredit;
-                    const rangeWidth = upperBreakeven - lowerBreakeven;
-                    const rangePct = rangeWidth / currentPrice;
-
-                    // POP estimation: probability price stays within breakeven range
-                    // Use BSM to estimate P(lowerBE < S < upperBE) at expiry
-                    const iv = (shortPut.iv + shortCall.iv) / 2 || 0.3;
-                    const T = dte / 365;
-                    const pAboveLower = _bsmN2(currentPrice, lowerBreakeven, T, iv);  // P(S > lowerBE)
-                    const pAboveUpper = _bsmN2(currentPrice, upperBreakeven, T, iv);  // P(S > upperBE)
-                    const pop = pAboveLower - pAboveUpper; // P(lowerBE < S < upperBE)
-
-                    // Directional alignment score (2.4): reward wider wing on the skew-favored side.
-                    // skew > 0 (puts rich) → wider put wing is better. skew < 0 → wider call wing.
-                    const putDistance = (currentPrice - shortPut.strike) / currentPrice;
-                    const callDistance = (shortCall.strike - currentPrice) / currentPrice;
-                    let alignmentScore;
-                    const absSkewIC = Math.abs(skew || 0);
-                    if (absSkewIC > 0.03) {
-                        // Directionally skewed: reward wider wing on the expensive side
-                        const putWingWider = putDistance > callDistance;
-                        const aligned = (skew > 0 && putWingWider) || (skew < 0 && !putWingWider);
-                        if (aligned) {
-                            const widthRatio = Math.min(putDistance, callDistance) / Math.max(putDistance, callDistance);
-                            alignmentScore = 60 + (1 - widthRatio) * 40; // Wider divergence → higher score
-                        } else {
-                            alignmentScore = 40 * (Math.min(putDistance, callDistance) / Math.max(putDistance, callDistance));
-                        }
-                    } else {
-                        // Neutral skew: fall back to symmetry
-                        const symmetryRatio = Math.min(putDistance, callDistance) / Math.max(putDistance, callDistance);
-                        alignmentScore = symmetryRatio * 100;
-                    }
-
-                    // Scoring: POP (40%) + Credit/Risk (25%) + Alignment (15%) + DTE curve (20%)
-                    const scorePOP = pop * 100;
-                    const scoreROI = Math.min(effectiveROI * 3, 100);
-                    const scoreDTE = Math.round(100 * Math.exp(-0.5 * Math.pow((dte - 37) / 15, 2)));
-
-                    let finalScore = (0.40 * scorePOP) + (0.25 * scoreROI) + (0.15 * alignmentScore) + (0.20 * scoreDTE);
-                    finalScore += ivRankAdj * 2 + volFcstAdj * 2;
-
-                    // IV/RV bonus: IC benefits from high IV (selling premium on both sides)
-                    if (ivRvRatio != null && ivRvRatio > 1.20) finalScore += 8;
-                    if (ivRvRatio != null && ivRvRatio > 1.40) finalScore += 5;
-
-                    // Anomaly penalty: IV spike makes short-term ICs risky
-                    if (anomaly && dte <= 35) finalScore -= 25;
-                    if (includesEarnings) {
-                        const earningsPremiumIC = estimateEarningsPremium(daysUntilEarnings, dte, (shortPut.iv + shortCall.iv) / 2 || 0.3, currentPrice);
-                        const earningsMovePctIC = earningsPremiumIC?.earningsMovePct ?? 5;
-                        const earningsScaleIC = Math.min(2.0, Math.max(1.0, earningsMovePctIC / 5));
-                        finalScore -= 20 * earningsScaleIC;
-                    }
-
-                    const whyThisParts = [];
-                    if (pop > 0.50) whyThisParts.push(`${(pop * 100).toFixed(0)}% POP`);
-                    if (effectiveROI > 12) whyThisParts.push(`${effectiveROI.toFixed(0)}% ROI`);
-                    if (alignmentScore > 75) whyThisParts.push(absSkewIC > 0.03 ? 'Good Wing Alignment' : 'Balanced Wings');
-                    if (ivRvRatio && ivRvRatio > 1.20) whyThisParts.push('Rich Premium');
-                    if (rangePct > 0.10) whyThisParts.push(`${(rangePct * 100).toFixed(1)}% Range`);
-
-                    results.push({
-                        type: 'Iron Condor',
-                        putSide: {
-                            shortLeg: { ...shortPut, price: shortPut.bid },
-                            longLeg: { ...longPut, price: longPut.ask },
-                            credit: Number(putCredit.toFixed(2)),
-                        },
-                        callSide: {
-                            shortLeg: { ...shortCall, price: shortCall.bid },
-                            longLeg: { ...longCall, price: longCall.ask },
-                            credit: Number(callCredit.toFixed(2)),
-                        },
-                        // Unified fields for scoring compatibility
-                        shortLeg: { ...shortPut, price: shortPut.bid, dte },
-                        longLeg: { ...longPut, price: longPut.ask },
-                        width: icWidth,
-                        netCredit: Number(totalCredit.toFixed(2)),
-                        maxRisk: Number(maxRisk.toFixed(2)),
-                        maxProfit: Number(totalCredit.toFixed(2)),
-                        roi: Number((totalCredit / maxRisk * 100).toFixed(1)),
-                        pop: Number((pop * 100).toFixed(1)),
-                        expectedValue: Number(((totalCredit * pop) - (maxRisk * (1 - pop))).toFixed(2)),
-                        lowerBreakeven: Number(lowerBreakeven.toFixed(2)),
-                        upperBreakeven: Number(upperBreakeven.toFixed(2)),
-                        rangePct: Number((rangePct * 100).toFixed(1)),
-                        alignment: Number(alignmentScore.toFixed(0)),
-                        score: Math.min(100, Math.max(0, Math.round(finalScore))),
-                        whyThis: whyThisParts.join(', ') || 'Neutral Premium Collection',
-                        recommendation: {
-                            action: "SELL (Open)",
-                            note: `✅ Iron Condor: Collect $${totalCredit.toFixed(2)} credit. Price must stay between $${lowerBreakeven.toFixed(2)} and $${upperBreakeven.toFixed(2)} (${(rangePct * 100).toFixed(1)}% range). ${pop > 0.55 ? 'Good probability of profit.' : 'Moderate probability — consider widening wings.'} ${ivRvRatio && ivRvRatio > 1.20 ? 'IV premium is rich — favorable for selling.' : ''}`
-                        }
-                    });
-                }
-            }
-        }
-    }
-    return results.sort((a, b) => b.score - a.score).slice(0, 5);
-}
-
-// =============================================================================
 // MAIN HANDLER
 // =============================================================================
 
@@ -1755,7 +1528,6 @@ export default async function handler(req, res) {
                     ...creditRes,
                     ...buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma),
                     ...scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj),
-                    ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays, volFcstAdj)
                 ];
             } else {
                 const creditRes = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma);
@@ -1764,7 +1536,6 @@ export default async function handler(req, res) {
                     ...creditRes,
                     ...buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma),
                     ...scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj),
-                    ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays, volFcstAdj)
                 ];
             }
         } else if (decodedStrategy === 'Credit Put Spread') {
@@ -1781,8 +1552,6 @@ export default async function handler(req, res) {
             targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma);
         } else if (decodedStrategy === 'Long Put') {
             targetRecs = scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj);
-        } else if (decodedStrategy === 'Iron Condor') {
-            targetRecs = buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays, volFcstAdj);
         }
 
         // Build rejection summary: chain-level + spread-builder-level diagnostics
@@ -1807,17 +1576,10 @@ export default async function handler(req, res) {
             const recType = rec.type || decodedStrategy;
             if (recType.includes('Debit')) simCat = 'DEBIT_SPREAD';
             if (recType.includes('Long')) simCat = 'SINGLE_LEG';
-            if (recType === 'Iron Condor') simCat = 'IRON_CONDOR';
 
             const creditSpreadType = (simCat === 'CREDIT_SPREAD' && recType.includes('Put')) ? 'Put' : 'Call';
 
-            // Iron Condor has its own comprehensive scorer — skip unified re-scoring
-            if (simCat === 'IRON_CONDOR') {
-                rec.setup = '';
-                rec.strategyCategory = simCat;
-                rec.unifiedScore = rec.score;
-                rec.factors = rec.factors || [];
-            } else {
+            {
                 const { score: unifiedScore, factors } = calculateUnifiedScore(
                     rec,
                     simCat,
@@ -1850,7 +1612,6 @@ export default async function handler(req, res) {
             const flagNotes = [];
             const isDebit = pick.strategyCategory === 'DEBIT_SPREAD' || pick.strategyCategory === 'SINGLE_LEG';
             const isCredit = pick.strategyCategory === 'CREDIT_SPREAD';
-            const isIC = pick.strategyCategory === 'IRON_CONDOR';
             const _dte = pick.shortLeg?.dte || pick.longLeg?.dte || 30;
 
             if (overextended) {
@@ -1877,9 +1638,6 @@ export default async function handler(req, res) {
                 if (isDebit) {
                     flagBonus -= 25;
                     flagNotes.push('⚠️ Low Volume: Debit strategies penalized — momentum trades require volume confirmation.');
-                } else if (isIC) {
-                    flagBonus += 15;
-                    flagNotes.push('🛡️ Low Volume: Iron Condors boosted for range-bound low-volume chop.');
                 }
             }
 
@@ -1907,9 +1665,6 @@ export default async function handler(req, res) {
                 if (isDebit || pick.strategyCategory === 'SINGLE_LEG') {
                     flagBonus -= 25;
                     flagNotes.push('🔄 Price Reversing: Direction-heavy strategies penalized due to lack of stable trend momentum.');
-                } else if (isIC) {
-                    flagBonus += 15;
-                    flagNotes.push('🛡️ Price Reversing: Excellent environment for Iron Condors as price reverts to the mean.');
                 } else if (isCredit) {
                     flagBonus -= 5;
                     flagNotes.push('🔄 Price Reversing: Use caution even with credit spreads during trend transitions.');

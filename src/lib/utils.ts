@@ -52,7 +52,6 @@ export const STRATEGIES = [
     'Long Call', 'Long Put',
     'Debit Call Spread', 'Debit Put Spread',
     'Credit Call Spread', 'Credit Put Spread',
-    'Iron Condor'
 ];
 
 /** Compute realized P&L for a position from its transactions.
