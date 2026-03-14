@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-spread-builder-integration/03-01-PLAN.md
-last_updated: "2026-03-14T16:47:22.978Z"
+stopped_at: Completed 03-spread-builder-integration/03-02-PLAN.md
+last_updated: "2026-03-14T16:51:14.690Z"
 last_activity: 2026-03-14 — Roadmap created from requirements + research
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02-data-contract-api-foundation P01 | 2 | 1 tasks | 4 files |
 | Phase 02-data-contract-api-foundation P02 | 8 | 1 tasks | 4 files |
 | Phase 03-spread-builder-integration P01 | 5 | 2 tasks | 2 files |
+| Phase 03-spread-builder-integration P02 | 8 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ Recent decisions affecting current work:
 - [Phase 03-01]: Signal params read at render time (outside useEffect) — avoids stale closure issues with URL params
 - [Phase 03-01]: IV gate wraps entire Target Recommendations section as one unit — single gate point per IVR-02 requirement
 - [Phase 03-01]: ivRankMin from result.strategyProfile?.ivRankMin with getProfile fallback — respects API-provided profile
+- [Phase 03-spread-builder-integration]: openPosTP reactive effect fires on [openPosPrice, activeStrategy, result] only — user edits don't trigger re-computation
+- [Phase 03-spread-builder-integration]: target_price fallback uses tpPct fraction directly when openPosTP empty — WFA-validated rate always stored
 
 ### Pending Todos
 
@@ -89,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T16:47:22.976Z
-Stopped at: Completed 03-spread-builder-integration/03-01-PLAN.md
+Last session: 2026-03-14T16:51:14.688Z
+Stopped at: Completed 03-spread-builder-integration/03-02-PLAN.md
 Resume file: None

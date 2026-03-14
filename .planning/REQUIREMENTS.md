@@ -26,9 +26,9 @@
 
 ### Exit Automation
 
-- [ ] **EXIT-01**: When opening a position from spread builder, profit target auto-filled from active strategy profile (swing 30%, shortTerm 40%)
+- [x] **EXIT-01**: When opening a position from spread builder, profit target auto-filled from active strategy profile (swing 30%, shortTerm 40%)
 - [x] **EXIT-02**: target_price field added to DirectAddItem type and written by useAddDirect mutation
-- [ ] **EXIT-03**: Auto-filled TP is editable — user can override if they choose
+- [x] **EXIT-03**: Auto-filled TP is editable — user can override if they choose
 
 ### Strategy Integration
 
@@ -76,9 +76,9 @@
 | IVR-02 | Phase 3 | Complete |
 | IVR-03 | Phase 3 | Complete |
 | IVR-04 | Phase 3 | Complete |
-| EXIT-01 | Phase 3 | Pending |
+| EXIT-01 | Phase 3 | Complete |
 | EXIT-02 | Phase 2 | Complete |
-| EXIT-03 | Phase 3 | Pending |
+| EXIT-03 | Phase 3 | Complete |
 | STRAT-01 | Phase 2 | Complete |
 | STRAT-02 | Phase 2 | Complete |
 | STRAT-03 | Phase 4 | Pending |
