@@ -312,12 +312,38 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     return (
         <div className="fade-in pb-24 sm:pb-0 font-sans">
             {/* Header */}
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <Activity className="text-accent-green" />
-                    Spread Builder
-                </h1>
-                <p className="text-gray-400 text-sm mt-1">{`Credit spread recommendations · ${profile.subtitle}`}</p>
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                        <Activity className="text-accent-green" />
+                        Spread Builder
+                    </h1>
+                    <p className="text-gray-400 text-sm mt-1">{`Credit spread recommendations · ${profile.subtitle}`}</p>
+                </div>
+                <div className="flex gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
+                    <button
+                        type="button"
+                        onClick={() => setActiveStrategy('swing')}
+                        className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                            activeStrategy === 'swing'
+                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                    >
+                        Swing
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setActiveStrategy('shortTerm')}
+                        className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                            activeStrategy === 'shortTerm'
+                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                    >
+                        Short-Term
+                    </button>
+                </div>
             </div>
 
             {/* Input Panel */}
