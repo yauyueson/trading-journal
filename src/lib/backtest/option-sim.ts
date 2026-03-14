@@ -134,6 +134,26 @@ export const DEFAULT_CREDIT_CONFIG: SimConfig = {
   minIVRank: 30,              // Phase 4-5: IV >= 30% structural filter
 };
 
+/**
+ * Short-term (1-2 week) credit spread config.
+ * Targets 7-21 DTE with tighter spreads, further OTM deltas,
+ * and faster profit targets. Derived from the validated 45-65 DTE strategy.
+ */
+export const DEFAULT_SHORT_CREDIT_CONFIG: SimConfig = {
+  ...DEFAULT_LEAP_CONFIG,
+  mode: 'CREDIT_SPREAD',
+  creditShortDelta: 0.35,       // Validated range for short DTE
+  creditSpreadWidth: 2.5,       // Tighter spreads — less premium available at short DTE
+  creditDTERange: [7, 14],      // 1-2 week expiries
+  creditProfitTarget: 0.50,     // Faster theta decay → capture more
+  creditStopLossMultiple: 100,  // No SL (defined risk) — to be validated
+  creditTimeStopDTE: 1,         // Close 1 day before expiry (pin risk)
+  monitoringIntervalDays: 1,    // Daily monitoring (essential for short DTE)
+  minIVRank: 30,                // Require rich premium
+  fillMode: 'mid' as FillMode,
+  slippage: { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: false },
+};
+
 // ── Trading Day Helpers ──────────────────────────────────
 
 /**

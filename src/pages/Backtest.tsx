@@ -4,8 +4,9 @@ import {
     ResponsiveContainer, CartesianGrid,
     BarChart, Bar, Legend
 } from 'recharts';
-import { TrendingUp, Activity, ShieldAlert, BarChart3, Layers, AlertTriangle, Info } from 'lucide-react';
+import { TrendingUp, Activity, ShieldAlert, BarChart3, Layers, AlertTriangle, Info, Clock, Zap } from 'lucide-react';
 import wfaRaw from '../../data/wfa-results.json';
+import wfaShortRaw from '../../data/wfa-results-short.json';
 import signalsRaw from '../../data/viewer-signals.json';
 import configsRaw from '../../data/viewer-configs.json';
 
@@ -42,6 +43,67 @@ interface ViewerConfigs { optionFilters: OptionFilterRow[]; exitRows: ExitRow[];
 const wfaData = wfaRaw as unknown as WFAData;
 const signalsData = signalsRaw as unknown as ViewerSignals;
 const configsData = configsRaw as unknown as ViewerConfigs;
+
+type StrategyMode = 'swing' | 'short';
+
+// Normalize short-DTE data to match WFAData shape
+const wfaShortData: WFAData = (() => {
+    const raw = wfaShortRaw as any;
+    const trades: Trade[] = (raw.allOOSTrades ?? []).map((t: any) => ({
+        ticker: t.ticker, entryDate: t.entryDate, exitDate: t.exitDate,
+        pnl: t.pnl, pnlPct: t.pnlPct, holdDays: t.holdDays,
+        exitType: t.exitType, direction: t.direction, entryDelta: t.entryDelta,
+        entryDTE: t.entryDTE, strike: t.strike, spreadWidth: t.spreadWidth ?? 2.5,
+    }));
+
+    // Build equity curve from sorted trades
+    const sorted = [...trades].sort((a, b) => a.exitDate.localeCompare(b.exitDate));
+    let equity = 100_000;
+    const oosEquityCurve = sorted.map(t => { equity += t.pnl; return { date: t.exitDate, equity }; });
+
+    const windows: WFAWindow[] = (raw.windows ?? []).map((w: any, i: number) => ({
+        windowIndex: i,
+        trainStart: w.trainStart, trainEnd: w.trainEnd,
+        oosStart: w.oosStart, oosEnd: w.oosEnd,
+        bestTrainSharpe: w.bestTrainSharpe, oosSharpe: w.oosSharpe,
+        oosTrades: (w.oosTrades ?? []).map((t: any) => ({
+            ticker: t.ticker, entryDate: t.entryDate, exitDate: t.exitDate,
+            pnl: t.pnl, pnlPct: t.pnlPct, holdDays: t.holdDays,
+            exitType: t.exitType, direction: t.direction, entryDelta: t.entryDelta,
+            entryDTE: t.entryDTE, strike: t.strike, spreadWidth: t.spreadWidth ?? 2.5,
+        })),
+        bestConfig: {
+            signalWeightPreset: w.bestConfig?.preset ?? 'ema',
+            creditProfitTarget: w.bestConfig?.tp ?? 0.40,
+            minIVRank: w.bestConfig?.ivMin ?? 30,
+            // Extra fields for short-DTE display
+            ...w.bestConfig,
+        },
+    }));
+
+    return {
+        config: {
+            tickers: [...new Set(trades.map((t: Trade) => t.ticker))] as string[],
+            startDate: windows[0]?.trainStart ?? '',
+            endDate: windows[windows.length - 1]?.oosEnd ?? '',
+            trainWindowDays: 252, forwardStepDays: 63, purgeGapDays: 25,
+            startingCapital: 100_000, maxPositions: 10, maxPerTicker: 2,
+        },
+        windows,
+        allOOSTrades: trades,
+        oosEquityCurve,
+        oosSharpe: raw.oosSharpe ?? 0,
+        oosWinRate: raw.oosWinRate ?? 0,
+        oosMaxDD: raw.oosMaxDD ?? 0,
+        oosTotalPnl: raw.oosTotalPnl ?? 0,
+        wfEfficiency: raw.wfEfficiency ?? 0,
+        stressMetrics: {
+            peakCorrelatedDD: 0, peakCorrelatedDDDate: '', tickersInDDOnWorstDay: 0,
+            avgPairwiseCorrelation: 0, worstDayLoss: 0, worstDayLossDate: '',
+            correlationPenalty: 0, perTickerDD: {},
+        },
+    };
+})();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -152,18 +214,28 @@ const SharpeBarTooltip: React.FC<{ active?: boolean; payload?: { dataKey: string
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export const BacktestPage: React.FC = () => {
+    const [strategy, setStrategy] = useState<StrategyMode>('swing');
     const [tab, setTab] = useState<'windows' | 'signals' | 'configs' | 'tickers' | 'stress'>('windows');
     const [signalSubTab, setSignalSubTab] = useState<'iv' | 'tier'>('iv');
     const [configSubTab, setConfigSubTab] = useState<'iv' | 'filters' | 'exits'>('iv');
     const [selectedSignalFilter, setSelectedSignalFilter] = useState<string>('all');
     const [exitSignalFilter, setExitSignalFilter] = useState<string>('ema');
 
+    const isShort = strategy === 'short';
+    const activeData = isShort ? wfaShortData : wfaData;
+
+    // When switching to short mode, reset tab if on signals/configs
+    const handleStrategyChange = (mode: StrategyMode) => {
+        setStrategy(mode);
+        if (mode === 'short' && (tab === 'signals' || tab === 'configs')) setTab('windows');
+    };
+
     // Deduplicate equity curve: last trade per date wins
     const equityCurve = useMemo(() => {
         const map = new Map<string, number>();
-        for (const pt of wfaData.oosEquityCurve) map.set(pt.date, pt.equity);
+        for (const pt of activeData.oosEquityCurve) map.set(pt.date, pt.equity);
         return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([date, equity]) => ({ date, equity }));
-    }, []);
+    }, [activeData]);
 
     const xTicks = useMemo(() => {
         const years = new Set<string>();
@@ -174,19 +246,19 @@ export const BacktestPage: React.FC = () => {
     // Ticker stats
     const tickerStats = useMemo(() => {
         const map: Record<string, { trades: number; wins: number; pnl: number }> = {};
-        for (const t of wfaData.allOOSTrades) {
+        for (const t of activeData.allOOSTrades) {
             if (!map[t.ticker]) map[t.ticker] = { trades: 0, wins: 0, pnl: 0 };
             map[t.ticker].trades++;
             if (t.exitType === 'PROFIT_TARGET') map[t.ticker].wins++;
             map[t.ticker].pnl += t.pnl;
         }
         return Object.entries(map).map(([ticker, v]) => ({ ticker, ...v, winRate: v.wins / v.trades * 100 })).sort((a, b) => b.pnl - a.pnl);
-    }, []);
+    }, [activeData]);
 
     // WFA preset wins
     const presetStats = useMemo(() => {
         const map: Record<string, { wins: number; totalSharpe: number; totalWR: number; windows: number[] }> = {};
-        for (const w of wfaData.windows) {
+        for (const w of activeData.windows) {
             const p = w.bestConfig.signalWeightPreset;
             if (!map[p]) map[p] = { wins: 0, totalSharpe: 0, totalWR: 0, windows: [] };
             map[p].wins++;
@@ -196,7 +268,7 @@ export const BacktestPage: React.FC = () => {
             map[p].windows.push(w.windowIndex);
         }
         return Object.entries(map).map(([preset, v]) => ({ preset, label: PRESET_LABELS[preset] ?? preset, wins: v.wins, avgSharpe: v.totalSharpe / v.wins, avgWR: v.totalWR / v.wins, windows: v.windows })).sort((a, b) => b.wins - a.wins);
-    }, []);
+    }, [activeData]);
 
     // Signal bar chart data (IV filter comparison)
     const signalChartData = useMemo(() => {
@@ -225,25 +297,37 @@ export const BacktestPage: React.FC = () => {
         });
     }, []);
 
-    const { oosSharpe, oosWinRate, oosMaxDD, oosTotalPnl, wfEfficiency, allOOSTrades, config } = wfaData;
+    const { oosSharpe, oosWinRate, oosMaxDD, oosTotalPnl, wfEfficiency, allOOSTrades, config } = activeData;
     const roc = oosTotalPnl / config.startingCapital * 100;
     const exitBreakdown = useMemo(() => {
         const counts: Record<string, number> = {};
         for (const t of allOOSTrades) counts[t.exitType] = (counts[t.exitType] ?? 0) + 1;
         return counts;
-    }, []);
+    }, [allOOSTrades]);
 
     return (
         <div className="fade-in pb-24 sm:pb-8 space-y-5">
+            {/* Strategy Toggle */}
+            <div className="flex items-center gap-1 bg-[#1A1A1A] rounded-lg p-1 w-fit border border-white/5">
+                <button onClick={() => handleStrategyChange('swing')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${strategy === 'swing' ? 'bg-accent-green/15 text-accent-green border border-accent-green/30' : 'text-text-tertiary hover:text-text-secondary'}`}>
+                    <Clock size={12} />Swing (45-65 DTE)
+                </button>
+                <button onClick={() => handleStrategyChange('short')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${strategy === 'short' ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30' : 'text-text-tertiary hover:text-text-secondary'}`}>
+                    <Zap size={12} />Short-Term (7-14 DTE)
+                </button>
+            </div>
+
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div>
                     <h2 className="text-2xl font-bold">WFA Results</h2>
                     <p className="text-text-secondary text-sm mt-0.5">Walk-Forward Analysis · {config.tickers.length} tickers · {config.startDate} → {config.endDate}</p>
+                    {isShort && <p className="text-blue-400/70 text-[11px] mt-0.5 font-mono">DTE 7-14 · $2.5 width · Delta 0.45 · TP 40% · No SL</p>}
+                    {!isShort && <p className="text-emerald-400/70 text-[11px] mt-0.5 font-mono">DTE 45-65 · $15 width · Delta 0.35 · TP 30% · No SL</p>}
                 </div>
                 <div className="text-right text-[11px] text-text-tertiary font-mono space-y-0.5">
                     <div>Train {config.trainWindowDays}d · OOS {config.forwardStepDays}d · Purge {config.purgeGapDays}d</div>
-                    <div>{wfaData.windows.length} windows · $100K start</div>
+                    <div>{activeData.windows.length} windows · $100K start</div>
                 </div>
             </div>
 
@@ -255,7 +339,8 @@ export const BacktestPage: React.FC = () => {
                 <Stat label="Total P&L" value={`$${(oosTotalPnl / 1000).toFixed(0)}K`} sub={`${roc.toFixed(0)}% ROC`} tone="good" icon={<TrendingUp size={11} />} />
                 <Stat label="WF Efficiency" value={`${(wfEfficiency * 100).toFixed(0)}%`} sub="OOS / In-sample" tone={wfEfficiency >= 0.8 ? 'good' : 'warn'} icon={<Layers size={11} />} />
                 <Stat label="Trades" value={allOOSTrades.length.toLocaleString()} sub={`${config.tickers.length} tickers`} tone="neutral" />
-                <Stat label="Avg Corr" value={wfaData.stressMetrics.avgPairwiseCorrelation.toFixed(3)} sub="Pairwise ρ" tone={wfaData.stressMetrics.avgPairwiseCorrelation < 0.25 ? 'good' : 'warn'} icon={<AlertTriangle size={11} />} />
+                {!isShort && <Stat label="Avg Corr" value={activeData.stressMetrics.avgPairwiseCorrelation.toFixed(3)} sub="Pairwise ρ" tone={activeData.stressMetrics.avgPairwiseCorrelation < 0.25 ? 'good' : 'warn'} icon={<AlertTriangle size={11} />} />}
+                {isShort && <Stat label="Avg Hold" value={`${(allOOSTrades.reduce((s, t) => s + t.holdDays, 0) / Math.max(1, allOOSTrades.length)).toFixed(1)}d`} sub="Per trade" tone="neutral" icon={<Clock size={11} />} />}
             </div>
 
             {/* Equity Curve */}
@@ -263,7 +348,7 @@ export const BacktestPage: React.FC = () => {
                 <div className="flex items-center justify-between mb-3">
                     <div>
                         <span className="text-sm font-semibold">Equity Curve</span>
-                        <span className="text-text-tertiary text-xs ml-2">OOS only · $100K → $713K</span>
+                        <span className="text-text-tertiary text-xs ml-2">OOS only · $100K → ${equityCurve.length ? `$${(equityCurve[equityCurve.length - 1].equity / 1000).toFixed(0)}K` : '—'}</span>
                     </div>
                     <span className="text-emerald-400 font-mono text-sm font-bold">+{roc.toFixed(0)}%</span>
                 </div>
@@ -287,10 +372,10 @@ export const BacktestPage: React.FC = () => {
             {/* Tabs */}
             <div className="flex gap-1.5 border-b border-[#2A2A2A] pb-3 overflow-x-auto scrollbar-hide">
                 <TabBtn active={tab === 'windows'} onClick={() => setTab('windows')}>Windows</TabBtn>
-                <TabBtn active={tab === 'signals'} onClick={() => setTab('signals')}>Signals</TabBtn>
-                <TabBtn active={tab === 'configs'} onClick={() => setTab('configs')}>Configs</TabBtn>
+                {!isShort && <TabBtn active={tab === 'signals'} onClick={() => setTab('signals')}>Signals</TabBtn>}
+                {!isShort && <TabBtn active={tab === 'configs'} onClick={() => setTab('configs')}>Configs</TabBtn>}
                 <TabBtn active={tab === 'tickers'} onClick={() => setTab('tickers')}>Tickers</TabBtn>
-                <TabBtn active={tab === 'stress'} onClick={() => setTab('stress')}>Stress</TabBtn>
+                {!isShort && <TabBtn active={tab === 'stress'} onClick={() => setTab('stress')}>Stress</TabBtn>}
             </div>
 
             {/* ── Tab: Windows ── */}
@@ -305,13 +390,16 @@ export const BacktestPage: React.FC = () => {
                                 <th className="text-right pb-2 pr-3 font-medium">OOS Sharpe</th>
                                 <th className="text-right pb-2 pr-3 font-medium">Win Rate</th>
                                 <th className="text-right pb-2 pr-3 font-medium">Trades</th>
+                                {isShort && <th className="text-right pb-2 pr-3 font-medium">P&L</th>}
                                 <th className="text-center pb-2 pr-3 font-medium">Signal</th>
                                 <th className="text-center pb-2 pr-3 font-medium">TP</th>
+                                {isShort && <th className="text-center pb-2 pr-3 font-medium">Width</th>}
+                                {isShort && <th className="text-center pb-2 pr-3 font-medium">Delta</th>}
                                 <th className="text-center pb-2 font-medium">IV≥</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {wfaData.windows.map(w => {
+                            {activeData.windows.map(w => {
                                 const trades = w.oosTrades ?? [];
                                 const wins = trades.filter(t => t.exitType === 'PROFIT_TARGET').length;
                                 const wr = trades.length ? wins / trades.length * 100 : 0;
@@ -323,8 +411,11 @@ export const BacktestPage: React.FC = () => {
                                         <td className={`py-2.5 pr-3 text-right font-mono font-bold ${sharpeColor(w.oosSharpe)}`}>{w.oosSharpe.toFixed(2)}</td>
                                         <td className={`py-2.5 pr-3 text-right font-mono ${wrColor(wr)}`}>{trades.length ? `${wr.toFixed(1)}%` : '—'}</td>
                                         <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{trades.length}</td>
+                                        {isShort && <td className={`py-2.5 pr-3 text-right font-mono ${trades.reduce((s, t) => s + t.pnl, 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{trades.length ? `$${trades.reduce((s, t) => s + t.pnl, 0).toFixed(0)}` : '—'}</td>}
                                         <td className="py-2.5 pr-3 text-center"><PresetBadge preset={w.bestConfig.signalWeightPreset} /></td>
                                         <td className="py-2.5 pr-3 text-center font-mono text-text-secondary">{(w.bestConfig.creditProfitTarget * 100).toFixed(0)}%</td>
+                                        {isShort && <td className="py-2.5 pr-3 text-center font-mono text-text-secondary">${(w.bestConfig as any).width ?? '—'}</td>}
+                                        {isShort && <td className="py-2.5 pr-3 text-center font-mono text-text-secondary">{(w.bestConfig as any).delta ?? '—'}</td>}
                                         <td className="py-2.5 text-center font-mono text-text-secondary">{w.bestConfig.minIVRank > 0 ? `${w.bestConfig.minIVRank}%` : '—'}</td>
                                     </tr>
                                 );
@@ -333,7 +424,7 @@ export const BacktestPage: React.FC = () => {
                     </table>
                     <div className="mt-4 text-[10px] text-text-tertiary flex items-center gap-1.5">
                         <Info size={10} />
-                        Delta 0.35 · $15 width · DTE 45-65 · no stop loss across all windows
+                        {isShort ? 'Delta 0.45 · $2.5 width · DTE 7-14 · no stop loss (dominant config)' : 'Delta 0.35 · $15 width · DTE 45-65 · no stop loss across all windows'}
                     </div>
                 </div>
             )}
@@ -693,24 +784,24 @@ export const BacktestPage: React.FC = () => {
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         <div className="bg-[#1A1A1A] rounded-xl border border-red-500/20 p-4">
                             <div className="text-[10px] text-text-tertiary uppercase mb-1">Peak Correlated DD</div>
-                            <div className="text-xl font-mono font-bold text-red-400">{wfaData.stressMetrics.peakCorrelatedDD.toFixed(1)}%</div>
-                            <div className="text-[10px] text-text-tertiary mt-1">On {wfaData.stressMetrics.peakCorrelatedDDDate} · {wfaData.stressMetrics.tickersInDDOnWorstDay} tickers in DD</div>
+                            <div className="text-xl font-mono font-bold text-red-400">{activeData.stressMetrics.peakCorrelatedDD.toFixed(1)}%</div>
+                            <div className="text-[10px] text-text-tertiary mt-1">On {activeData.stressMetrics.peakCorrelatedDDDate} · {activeData.stressMetrics.tickersInDDOnWorstDay} tickers in DD</div>
                         </div>
                         <div className="bg-[#1A1A1A] rounded-xl border border-red-500/20 p-4">
                             <div className="text-[10px] text-text-tertiary uppercase mb-1">Worst Day Loss</div>
-                            <div className="text-xl font-mono font-bold text-red-400">${Math.abs(wfaData.stressMetrics.worstDayLoss / 1000).toFixed(1)}K</div>
-                            <div className="text-[10px] text-text-tertiary mt-1">{wfaData.stressMetrics.worstDayLossDate}</div>
+                            <div className="text-xl font-mono font-bold text-red-400">${Math.abs(activeData.stressMetrics.worstDayLoss / 1000).toFixed(1)}K</div>
+                            <div className="text-[10px] text-text-tertiary mt-1">{activeData.stressMetrics.worstDayLossDate}</div>
                         </div>
                         <div className="bg-[#1A1A1A] rounded-xl border border-yellow-500/20 p-4">
                             <div className="text-[10px] text-text-tertiary uppercase mb-1">Avg Pairwise Corr</div>
-                            <div className="text-xl font-mono font-bold text-yellow-400">{wfaData.stressMetrics.avgPairwiseCorrelation.toFixed(3)}</div>
-                            <div className="text-[10px] text-text-tertiary mt-1">Penalty: {(wfaData.stressMetrics.correlationPenalty * 100).toFixed(1)}%</div>
+                            <div className="text-xl font-mono font-bold text-yellow-400">{activeData.stressMetrics.avgPairwiseCorrelation.toFixed(3)}</div>
+                            <div className="text-[10px] text-text-tertiary mt-1">Penalty: {(activeData.stressMetrics.correlationPenalty * 100).toFixed(1)}%</div>
                         </div>
                     </div>
                     <div className="bg-[#1A1A1A] rounded-xl border border-white/5 p-4">
                         <div className="text-xs font-semibold mb-3 text-text-secondary">Per-Ticker Max Drawdown</div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            {Object.entries(wfaData.stressMetrics.perTickerDD).sort(([, a], [, b]) => a - b).map(([ticker, dd]) => (
+                            {Object.entries(activeData.stressMetrics.perTickerDD).sort(([, a], [, b]) => a - b).map(([ticker, dd]) => (
                                 <div key={ticker} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[#111] border border-white/5">
                                     <span className="font-mono font-bold text-xs text-white">{ticker}</span>
                                     <span className="font-mono text-xs text-red-400">${Math.abs(dd).toFixed(0)}</span>
@@ -720,9 +811,9 @@ export const BacktestPage: React.FC = () => {
                     </div>
                     <div className="bg-[#1A1A1A] rounded-xl border border-white/5 p-4 text-xs text-text-secondary space-y-2">
                         <div className="font-semibold text-white">Interpretation</div>
-                        <p>Peak correlated drawdown of <span className="text-red-400 font-mono">67.8%</span> on 2024-09-17 is theoretical worst-case (all {wfaData.stressMetrics.tickersInDDOnWorstDay} tickers simultaneously in DD). The actual OOS max DD was only <span className="text-yellow-400 font-mono">{oosMaxDD.toFixed(1)}%</span> because positions don't all peak at the same time.</p>
-                        <p>Worst realized single-day loss of <span className="text-red-400 font-mono">${Math.abs(wfaData.stressMetrics.worstDayLoss / 1000).toFixed(1)}K</span> on {wfaData.stressMetrics.worstDayLossDate} (Liberation Day tariff shock) = <span className="font-mono">{(Math.abs(wfaData.stressMetrics.worstDayLoss) / 100000 * 100).toFixed(1)}%</span> of starting capital — manageable under defined-risk spreads.</p>
-                        <p>Avg pairwise correlation <span className="text-yellow-400 font-mono">ρ={wfaData.stressMetrics.avgPairwiseCorrelation.toFixed(3)}</span> indicates reasonable diversification. <span className="font-mono">maxPerTicker={config.maxPerTicker}</span> and <span className="font-mono">maxPositions={config.maxPositions}</span> caps further contain concentration.</p>
+                        <p>Peak correlated drawdown of <span className="text-red-400 font-mono">67.8%</span> on 2024-09-17 is theoretical worst-case (all {activeData.stressMetrics.tickersInDDOnWorstDay} tickers simultaneously in DD). The actual OOS max DD was only <span className="text-yellow-400 font-mono">{oosMaxDD.toFixed(1)}%</span> because positions don't all peak at the same time.</p>
+                        <p>Worst realized single-day loss of <span className="text-red-400 font-mono">${Math.abs(activeData.stressMetrics.worstDayLoss / 1000).toFixed(1)}K</span> on {activeData.stressMetrics.worstDayLossDate} (Liberation Day tariff shock) = <span className="font-mono">{(Math.abs(activeData.stressMetrics.worstDayLoss) / 100000 * 100).toFixed(1)}%</span> of starting capital — manageable under defined-risk spreads.</p>
+                        <p>Avg pairwise correlation <span className="text-yellow-400 font-mono">ρ={activeData.stressMetrics.avgPairwiseCorrelation.toFixed(3)}</span> indicates reasonable diversification. <span className="font-mono">maxPerTicker={config.maxPerTicker}</span> and <span className="font-mono">maxPositions={config.maxPositions}</span> caps further contain concentration.</p>
                     </div>
                 </div>
             )}
