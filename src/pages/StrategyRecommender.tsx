@@ -65,6 +65,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     const [openPosIdx, setOpenPosIdx] = useState<number | null>(null);
     const [openPosQty, setOpenPosQty] = useState('');
     const [openPosPrice, setOpenPosPrice] = useState('');
+    const [openPosTP, setOpenPosTP] = useState('');
     const [openPosOwner, setOpenPosOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [openPosSubmitting, setOpenPosSubmitting] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
@@ -123,6 +124,14 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         setSpreadWidth(p.defaultWidth);
     }, [activeStrategy]);
 
+    // Reactive TP auto-fill: recomputes whenever fill price changes
+    useEffect(() => {
+        if (!openPosPrice) { setOpenPosTP(''); return; }
+        const fillPrice = parseFloat(openPosPrice);
+        if (isNaN(fillPrice) || fillPrice <= 0) { setOpenPosTP(''); return; }
+        const tpPct = result?.strategyProfile?.profitTarget ?? getProfile(activeStrategy).profitTarget;
+        setOpenPosTP((fillPrice * tpPct).toFixed(2));
+    }, [openPosPrice, activeStrategy, result]);
 
     const handleAnalyze = async () => {
         if (!ticker) return;
@@ -132,6 +141,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         setExpandedCard(null);
         setShowAdvanced(false);
         setOpenPosIdx(null);
+        setOpenPosTP('');
         setIvGateDismissed(false);
 
         try {
@@ -289,6 +299,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             ];
         }
 
+        const tpPct = result?.strategyProfile?.profitTarget ?? getProfile(activeStrategy).profitTarget;
         const item: DirectAddItem = {
             ticker: result.context.ticker,
             strike: isSpreadType ? (rec as SpreadRecommendation).shortLeg.strike : (rec as SingleLegRecommendation).strike,
@@ -310,6 +321,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             max_risk_entry: isSpreadType ? (rec as SpreadRecommendation).maxRisk * 100 : undefined,
             spread_width: isSpread(rec) ? rec.width : undefined,
             strategy_type: activeStrategy,
+            target_price: parseFloat(openPosTP) > 0
+                ? parseFloat(openPosTP) / (parseFloat(openPosPrice) || 1)
+                : tpPct,
         };
 
         await onAddDirect(item);
@@ -317,8 +331,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         setOpenPosIdx(null);
         setOpenPosQty('');
         setOpenPosPrice('');
+        setOpenPosTP('');
         setExpandedCard(null);
-    }, [onAddDirect, result, openPosQty, openPosPrice, openPosOwner, techScoreTier, direction, isSpread, activeStrategy]);
+    }, [onAddDirect, result, openPosQty, openPosPrice, openPosOwner, techScoreTier, direction, isSpread, activeStrategy, openPosTP]);
 
     return (
         <div className="fade-in pb-24 sm:pb-0 font-sans">
@@ -1274,6 +1289,26 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                             placeholder="0.00"
                                                                         />
                                                                     </div>
+                                                                    {openPosPrice && (
+                                                                        <div className="w-28">
+                                                                            <label className="text-[10px] text-gray-500 uppercase block mb-1">
+                                                                                TP $
+                                                                                {openPosTP && (
+                                                                                    <span className="text-emerald-400 ml-1 normal-case">
+                                                                                        ({((parseFloat(openPosTP) / (parseFloat(openPosPrice) || 1)) * 100).toFixed(0)}%)
+                                                                                    </span>
+                                                                                )}
+                                                                            </label>
+                                                                            <input
+                                                                                type="number"
+                                                                                step="0.01"
+                                                                                value={openPosTP}
+                                                                                onChange={(e) => setOpenPosTP(e.target.value)}
+                                                                                className="w-full bg-[#000] border border-[#333] text-white rounded px-2 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500"
+                                                                                placeholder="0.00"
+                                                                            />
+                                                                        </div>
+                                                                    )}
                                                                     <div className="flex gap-1">
                                                                         {(['Yuchen', 'Annie'] as const).map(name => (
                                                                             <button
@@ -1303,7 +1338,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                         Confirm
                                                                     </button>
                                                                     <button
-                                                                        onClick={(e) => { e.stopPropagation(); setOpenPosIdx(null); }}
+                                                                        onClick={(e) => { e.stopPropagation(); setOpenPosIdx(null); setOpenPosTP(''); }}
                                                                         className="px-3 py-2 text-gray-500 hover:text-gray-300 text-sm transition-colors"
                                                                     >
                                                                         Cancel
