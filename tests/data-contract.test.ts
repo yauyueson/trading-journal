@@ -391,3 +391,91 @@ describe('EXIT-03 — openPosTP state is user-editable with reset path', () => {
     expect(recommenderSrc).toContain("setOpenPosTP('')");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 4 (04-01) — STRAT-03 regression guard + STRAT-04 strategy-aware pages
+// ---------------------------------------------------------------------------
+
+const appLayoutSrc = readFileSync(
+  resolve(__dirname, '../src/layouts/AppLayout.tsx'),
+  'utf-8'
+);
+
+const backtestSrc = readFileSync(
+  resolve(__dirname, '../src/pages/Backtest.tsx'),
+  'utf-8'
+);
+
+const statsSrc = readFileSync(
+  resolve(__dirname, '../src/pages/Stats.tsx'),
+  'utf-8'
+);
+
+// ---------------------------------------------------------------------------
+// STRAT-03: AppLayout global toggle regression guard
+// ---------------------------------------------------------------------------
+describe('STRAT-03 — AppLayout global strategy toggle (regression guard)', () => {
+  it('AppLayout.tsx contains activeStrategy reference', () => {
+    expect(appLayoutSrc).toContain('activeStrategy');
+  });
+
+  it('AppLayout.tsx contains setActiveStrategy reference', () => {
+    expect(appLayoutSrc).toContain('setActiveStrategy');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// STRAT-04: Backtest.tsx context-driven strategy (no local state)
+// ---------------------------------------------------------------------------
+describe('STRAT-04 — Backtest.tsx derives strategy from global activeStrategy', () => {
+  it('Backtest.tsx imports useAppSettings', () => {
+    expect(backtestSrc).toContain('useAppSettings');
+  });
+
+  it('Backtest.tsx derives isShort from activeStrategy === shortTerm (not local state)', () => {
+    expect(backtestSrc).toContain("activeStrategy === 'shortTerm'");
+  });
+
+  it('Backtest.tsx does NOT contain useState<StrategyMode> (local toggle removed)', () => {
+    expect(backtestSrc).not.toContain('useState<StrategyMode>');
+  });
+
+  it('Backtest.tsx does NOT contain useState with swing default (local toggle removed)', () => {
+    expect(backtestSrc).not.toContain("useState('swing')");
+  });
+
+  it('Backtest.tsx imports getProfile for profile-driven label strings', () => {
+    expect(backtestSrc).toContain('getProfile');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// STRAT-04: Stats.tsx strategy-aware DTE buckets
+// ---------------------------------------------------------------------------
+describe('STRAT-04 — Stats.tsx strategy-aware DTE buckets', () => {
+  it('Stats.tsx imports useAppSettings', () => {
+    expect(statsSrc).toContain('useAppSettings');
+  });
+
+  it('Stats.tsx references activeStrategy', () => {
+    expect(statsSrc).toContain('activeStrategy');
+  });
+
+  it('Stats.tsx contains shortTerm DTE bucket label <5d', () => {
+    expect(statsSrc).toContain("'<5d'");
+  });
+
+  it('Stats.tsx contains shortTerm DTE bucket label 10-14d', () => {
+    expect(statsSrc).toContain("'10-14d'");
+  });
+
+  it('Stats.tsx useMemo includes activeStrategy in dependency array', () => {
+    // activeStrategy must appear in the deps array of the main stats useMemo
+    expect(statsSrc).toMatch(/\[closedPositions,\s*transactions,\s*activeStrategy\]/);
+  });
+
+  it('Stats.tsx DTE sort order includes shortTerm buckets', () => {
+    expect(statsSrc).toContain("'5-10d'");
+    expect(statsSrc).toContain("'14+d'");
+  });
+});
