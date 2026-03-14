@@ -4,15 +4,18 @@ import {
     ResponsiveContainer, CartesianGrid,
     BarChart, Bar, Legend
 } from 'recharts';
-import { TrendingUp, Activity, ShieldAlert, BarChart3, Layers, AlertTriangle, Info, Clock, Zap } from 'lucide-react';
+import { TrendingUp, Activity, ShieldAlert, BarChart3, Layers, AlertTriangle, Info, Clock } from 'lucide-react';
 import wfaRaw from '../../data/wfa-results.json';
 import wfaShortRaw from '../../data/wfa-results-short.json';
 import signalsRaw from '../../data/viewer-signals.json';
 import configsRaw from '../../data/viewer-configs.json';
+import { useAppSettings } from '../context/AppSettingsContext';
+import { getProfile } from '../lib/strategyProfiles';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface WFAWindow {
+
     windowIndex: number; trainStart: string; trainEnd: string;
     oosStart: string; oosEnd: string;
     bestTrainSharpe: number; oosSharpe: number;
@@ -43,8 +46,6 @@ interface ViewerConfigs { optionFilters: OptionFilterRow[]; exitRows: ExitRow[];
 const wfaData = wfaRaw as unknown as WFAData;
 const signalsData = signalsRaw as unknown as ViewerSignals;
 const configsData = configsRaw as unknown as ViewerConfigs;
-
-type StrategyMode = 'swing' | 'short';
 
 // Normalize short-DTE data to match WFAData shape
 const wfaShortData: WFAData = (() => {
@@ -214,21 +215,21 @@ const SharpeBarTooltip: React.FC<{ active?: boolean; payload?: { dataKey: string
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export const BacktestPage: React.FC = () => {
-    const [strategy, setStrategy] = useState<StrategyMode>('swing');
+    const { activeStrategy } = useAppSettings();
+    const profile = getProfile(activeStrategy);
+    const isShort = activeStrategy === 'shortTerm';
     const [tab, setTab] = useState<'windows' | 'signals' | 'configs' | 'tickers' | 'stress'>('windows');
     const [signalSubTab, setSignalSubTab] = useState<'iv' | 'tier'>('iv');
     const [configSubTab, setConfigSubTab] = useState<'iv' | 'filters' | 'exits'>('iv');
     const [selectedSignalFilter, setSelectedSignalFilter] = useState<string>('all');
     const [exitSignalFilter, setExitSignalFilter] = useState<string>('ema');
 
-    const isShort = strategy === 'short';
     const activeData = isShort ? wfaShortData : wfaData;
 
-    // When switching to short mode, reset tab if on signals/configs
-    const handleStrategyChange = (mode: StrategyMode) => {
-        setStrategy(mode);
-        if (mode === 'short' && (tab === 'signals' || tab === 'configs')) setTab('windows');
-    };
+    // When switching to short mode via the global toggle, reset tab if on signals/configs
+    React.useEffect(() => {
+        if (isShort && (tab === 'signals' || tab === 'configs')) setTab('windows');
+    }, [isShort]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Deduplicate equity curve: last trade per date wins
     const equityCurve = useMemo(() => {
@@ -307,23 +308,12 @@ export const BacktestPage: React.FC = () => {
 
     return (
         <div className="fade-in pb-24 sm:pb-8 space-y-5">
-            {/* Strategy Toggle */}
-            <div className="flex items-center gap-1 bg-[#1A1A1A] rounded-lg p-1 w-fit border border-white/5">
-                <button onClick={() => handleStrategyChange('swing')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${strategy === 'swing' ? 'bg-accent-green/15 text-accent-green border border-accent-green/30' : 'text-text-tertiary hover:text-text-secondary'}`}>
-                    <Clock size={12} />Swing (45-65 DTE)
-                </button>
-                <button onClick={() => handleStrategyChange('short')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${strategy === 'short' ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30' : 'text-text-tertiary hover:text-text-secondary'}`}>
-                    <Zap size={12} />Short-Term (7-14 DTE)
-                </button>
-            </div>
-
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div>
                     <h2 className="text-2xl font-bold">WFA Results</h2>
                     <p className="text-text-secondary text-sm mt-0.5">Walk-Forward Analysis · {config.tickers.length} tickers · {config.startDate} → {config.endDate}</p>
-                    {isShort && <p className="text-blue-400/70 text-[11px] mt-0.5 font-mono">DTE 7-14 · $2.5 width · Delta 0.45 · TP 40% · No SL</p>}
-                    {!isShort && <p className="text-emerald-400/70 text-[11px] mt-0.5 font-mono">DTE 45-65 · $15 width · Delta 0.35 · TP 30% · No SL</p>}
+                    <p className={`text-[11px] mt-0.5 font-mono ${isShort ? 'text-blue-400/70' : 'text-emerald-400/70'}`}>{profile.subtitle}</p>
                 </div>
                 <div className="text-right text-[11px] text-text-tertiary font-mono space-y-0.5">
                     <div>Train {config.trainWindowDays}d · OOS {config.forwardStepDays}d · Purge {config.purgeGapDays}d</div>
@@ -424,7 +414,7 @@ export const BacktestPage: React.FC = () => {
                     </table>
                     <div className="mt-4 text-[10px] text-text-tertiary flex items-center gap-1.5">
                         <Info size={10} />
-                        {isShort ? 'Delta 0.45 · $2.5 width · DTE 7-14 · no stop loss (dominant config)' : 'Delta 0.35 · $15 width · DTE 45-65 · no stop loss across all windows'}
+                        {profile.subtitle} · no stop loss across all windows
                     </div>
                 </div>
             )}

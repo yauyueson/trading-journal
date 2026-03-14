@@ -10,6 +10,7 @@ import { DisciplineCard } from '../components/stats/DisciplineCard';
 import { MFEMAEChart } from '../components/stats/MFEMAEChart';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
+import { useAppSettings } from '../context/AppSettingsContext';
 
 interface StatsPageProps {
     positions?: Position[];
@@ -107,6 +108,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
     const positions = positionsProp ?? positionsQuery;
     const transactions = transactionsProp ?? transactionsQuery;
     const loading = loadingProp ?? (positionsLoading || transactionsLoading);
+    const { activeStrategy } = useAppSettings();
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
     const [statsTab, setStatsTab] = useState<StatsTab>('overview');
     const allClosedPositions = positions.filter(p => p.status === 'closed');
@@ -171,12 +173,14 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
             if (!crossTabStats[crossKey]) crossTabStats[crossKey] = emptyBucket();
             accumulateBucket(crossTabStats[crossKey], pnl, holdDays, rMult);
 
-            // DTE bucket (days from open to expiration)
+            // DTE bucket (days from open to expiration) — strategy-conditional
             if (p.expiration && p.created_at) {
                 const openDate = new Date(p.created_at);
                 const expDate = new Date(p.expiration);
                 const dte = Math.round((expDate.getTime() - openDate.getTime()) / 86400000);
-                const dteBucket = dte < 30 ? '<30d' : dte < 45 ? '30-45d' : dte < 65 ? '45-65d' : '65+d';
+                const dteBucket = activeStrategy === 'shortTerm'
+                    ? (dte < 5 ? '<5d' : dte < 10 ? '5-10d' : dte < 14 ? '10-14d' : '14+d')
+                    : (dte < 30 ? '<30d' : dte < 45 ? '30-45d' : dte < 65 ? '45-65d' : '65+d');
                 if (!dteStats[dteBucket]) dteStats[dteBucket] = emptyBucket();
                 accumulateBucket(dteStats[dteBucket], pnl, holdDays, rMult);
             }
@@ -230,7 +234,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
             exitTypeStats, spreadWidthStats,
             equityTrades, heatmapTrades,
         };
-    }, [closedPositions, transactions]);
+    }, [closedPositions, transactions, activeStrategy]);
 
     if (loading) return <LoadingSpinner />;
 
@@ -378,7 +382,9 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                                     <h3 className="text-lg font-semibold mb-4 text-white/90">By DTE at Entry</h3>
                                     <div className="mb-8">
                                         <BucketList entries={Object.entries(stats.dteStats).sort((a, b) => {
-                                            const order = ['<30d', '30-45d', '45-65d', '65+d'];
+                                            const order = activeStrategy === 'shortTerm'
+                                                ? ['<5d', '5-10d', '10-14d', '14+d']
+                                                : ['<30d', '30-45d', '45-65d', '65+d'];
                                             return order.indexOf(a[0]) - order.indexOf(b[0]);
                                         })} renderLabel={key => (
                                             <div className="font-medium text-[#E0E0E0]">{key} DTE</div>
