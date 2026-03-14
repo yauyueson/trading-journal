@@ -412,15 +412,16 @@ const statsSrc = readFileSync(
 );
 
 // ---------------------------------------------------------------------------
-// STRAT-03: AppLayout global toggle regression guard
+// STRAT-03: Strategy derived from DTE selection (no explicit toggle)
 // ---------------------------------------------------------------------------
-describe('STRAT-03 — AppLayout global strategy toggle (regression guard)', () => {
-  it('AppLayout.tsx contains activeStrategy reference', () => {
-    expect(appLayoutSrc).toContain('activeStrategy');
+describe('STRAT-03 — strategy derived from DTE selection in spread builder', () => {
+  it('StrategyRecommender.tsx uses deriveStrategyFromDte', () => {
+    expect(recommenderSrc).toContain('deriveStrategyFromDte');
   });
 
-  it('AppLayout.tsx contains setActiveStrategy reference', () => {
-    expect(appLayoutSrc).toContain('setActiveStrategy');
+  it('strategyProfiles.ts exports deriveStrategyFromDte', () => {
+    const profilesSrc = readFileSync(resolve(__dirname, '../src/lib/strategyProfiles.ts'), 'utf-8');
+    expect(profilesSrc).toContain('export function deriveStrategyFromDte');
   });
 });
 

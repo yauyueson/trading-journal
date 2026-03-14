@@ -87,3 +87,19 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
 export function getProfile(strategy: StrategyType): StrategyProfile {
   return STRATEGY_PROFILES[strategy];
 }
+
+/** All DTE options from both profiles, grouped by strategy for the unified DTE selector */
+export const ALL_DTE_OPTIONS: { strategy: StrategyType; label: string; val: number; text: string }[] = [
+  ...STRATEGY_PROFILES.shortTerm.dteOptions.map(o => ({ strategy: 'shortTerm' as StrategyType, ...o })),
+  ...STRATEGY_PROFILES.swing.dteOptions.map(o => ({ strategy: 'swing' as StrategyType, ...o })),
+];
+
+/** Derive the strategy type from a selected DTE value */
+export function deriveStrategyFromDte(dteVal: number): StrategyType {
+  // If the DTE value matches any shortTerm option, it's shortTerm
+  if (STRATEGY_PROFILES.shortTerm.dteOptions.some(o => o.val === dteVal)) return 'shortTerm';
+  // If it matches any swing option, it's swing
+  if (STRATEGY_PROFILES.swing.dteOptions.some(o => o.val === dteVal)) return 'swing';
+  // Fallback: below 30 = shortTerm, else swing
+  return dteVal < 30 ? 'shortTerm' : 'swing';
+}

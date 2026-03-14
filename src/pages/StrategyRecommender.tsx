@@ -6,7 +6,7 @@ import { DataFooter } from '../components/DataFooter';
 import { ScoreFactorsView } from '../components/ScoreFactorsView';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { useAppSettings } from '../context/AppSettingsContext';
-import { getProfile } from '../lib/strategyProfiles';
+import { getProfile, deriveStrategyFromDte, STRATEGY_PROFILES } from '../lib/strategyProfiles';
 import { getSuggestedContracts } from '../lib/riskSizing';
 import { classifyTradeProfile } from '../lib/oss-core';
 import { formatCurrency } from '../lib/utils';
@@ -95,7 +95,12 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         urlDirRef.current = urlDir;
         if (urlTicker) setTicker(urlTicker.toUpperCase());
         if (urlDir === 'BULL' || urlDir === 'BEAR') setDirection(urlDir);
-        if (urlStrategy === 'swing' || urlStrategy === 'shortTerm') setActiveStrategy(urlStrategy);
+        if (urlStrategy === 'swing' || urlStrategy === 'shortTerm') {
+            setActiveStrategy(urlStrategy);
+            const p = getProfile(urlStrategy);
+            setTargetDte(p.dtePeak);
+            setSpreadWidth(p.defaultWidth);
+        }
         tickerRef.current?.focus();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // run once on mount
@@ -117,12 +122,15 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         localStorage.setItem(LS_KEY, JSON.stringify({ direction, targetDte, spreadWidth }));
     }, [direction, targetDte, spreadWidth]);
 
-    // Reset defaults when strategy profile changes
-    useEffect(() => {
-        const p = getProfile(activeStrategy);
-        setTargetDte(p.dtePeak);
-        setSpreadWidth(p.defaultWidth);
-    }, [activeStrategy]);
+    // When DTE changes, derive the strategy and update width defaults
+    const handleDteSelect = useCallback((dteVal: number) => {
+        setTargetDte(dteVal);
+        const derived = deriveStrategyFromDte(dteVal);
+        if (derived !== activeStrategy) {
+            setActiveStrategy(derived);
+            setSpreadWidth(getProfile(derived).defaultWidth);
+        }
+    }, [activeStrategy, setActiveStrategy]);
 
     // Reactive TP auto-fill: recomputes whenever fill price changes
     useEffect(() => {
@@ -338,38 +346,12 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     return (
         <div className="fade-in pb-24 sm:pb-0 font-sans">
             {/* Header */}
-            <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <Activity className="text-accent-green" />
-                        Spread Builder
-                    </h1>
-                    <p className="text-gray-400 text-sm mt-1">{`Credit spread recommendations · ${profile.subtitle}`}</p>
-                </div>
-                <div className="flex gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
-                    <button
-                        type="button"
-                        onClick={() => setActiveStrategy('swing')}
-                        className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
-                            activeStrategy === 'swing'
-                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                : 'text-gray-500 hover:text-gray-300'
-                        }`}
-                    >
-                        Swing
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveStrategy('shortTerm')}
-                        className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
-                            activeStrategy === 'shortTerm'
-                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                                : 'text-gray-500 hover:text-gray-300'
-                        }`}
-                    >
-                        Short-Term
-                    </button>
-                </div>
+            <div className="mb-6">
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                    <Activity className="text-accent-green" />
+                    Spread Builder
+                </h1>
+                <p className="text-gray-400 text-sm mt-1">{`Credit spread recommendations · ${profile.subtitle}`}</p>
             </div>
 
             {/* Input Panel */}
@@ -474,23 +456,53 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                     <div className="flex flex-col md:flex-row gap-4 items-end">
                         <div className="flex-1">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Target DTE</label>
-                            <div className="grid grid-cols-3 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
-                                {profile.dteOptions.map((opt) => (
-                                    <button
-                                        key={opt.val}
-                                        type="button"
-                                        onClick={() => setTargetDte(opt.val)}
-                                        className={`py-1.5 rounded px-1 text-xs font-bold transition-all ${targetDte === opt.val
-                                            ? 'bg-[#3A3A3C] text-white shadow-sm'
-                                            : 'text-gray-500 hover:text-gray-300'
-                                            }`}
-                                    >
-                                        <div className="flex flex-col items-center">
-                                            <span className="text-[10px]">{opt.label}</span>
-                                            <span className="text-[9px] font-normal opacity-70">{opt.text}</span>
+                            <div className="bg-[#000] p-1 rounded-lg border border-[#333]">
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    {/* Short-Term group */}
+                                    <div>
+                                        <div className="text-[9px] text-blue-400/70 font-medium uppercase tracking-wider text-center mb-1 mt-0.5">Short-Term</div>
+                                        <div className="grid grid-cols-3 gap-1">
+                                            {STRATEGY_PROFILES.shortTerm.dteOptions.map((opt) => (
+                                                <button
+                                                    key={opt.val}
+                                                    type="button"
+                                                    onClick={() => handleDteSelect(opt.val)}
+                                                    className={`py-1.5 rounded px-1 text-xs font-bold transition-all ${targetDte === opt.val
+                                                        ? 'bg-blue-500/20 text-blue-400 shadow-sm border border-blue-500/30'
+                                                        : 'text-gray-500 hover:text-gray-300'
+                                                    }`}
+                                                >
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="text-[10px]">{opt.label}</span>
+                                                        <span className="text-[9px] font-normal opacity-70">{opt.text}</span>
+                                                    </div>
+                                                </button>
+                                            ))}
                                         </div>
-                                    </button>
-                                ))}
+                                    </div>
+                                    {/* Swing group */}
+                                    <div>
+                                        <div className="text-[9px] text-green-400/70 font-medium uppercase tracking-wider text-center mb-1 mt-0.5">Swing</div>
+                                        <div className="grid grid-cols-3 gap-1">
+                                            {STRATEGY_PROFILES.swing.dteOptions.map((opt) => (
+                                                <button
+                                                    key={opt.val}
+                                                    type="button"
+                                                    onClick={() => handleDteSelect(opt.val)}
+                                                    className={`py-1.5 rounded px-1 text-xs font-bold transition-all ${targetDte === opt.val
+                                                        ? 'bg-green-500/20 text-green-400 shadow-sm border border-green-500/30'
+                                                        : 'text-gray-500 hover:text-gray-300'
+                                                    }`}
+                                                >
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="text-[10px]">{opt.label}</span>
+                                                        <span className="text-[9px] font-normal opacity-70">{opt.text}</span>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div className="w-full md:w-44">

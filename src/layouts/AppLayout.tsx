@@ -1,7 +1,5 @@
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useAppSettings } from '../context/AppSettingsContext';
-import { STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
 import { LoginPage } from '../pages/Login';
 import { TabNav } from '../components/TabNav';
 import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation';
@@ -10,7 +8,6 @@ import { useNavigate } from 'react-router-dom';
 
 export function AppLayout() {
   const { authLoading, isAuthenticated, logout } = useAuth();
-  const { activeStrategy, setActiveStrategy } = useAppSettings();
   const navigate = useNavigate();
 
   // Realtime → React Query cache invalidation
@@ -36,20 +33,6 @@ export function AppLayout() {
         <div className="mx-auto px-4 py-3 flex justify-between items-center max-w-5xl lg:max-w-6xl">
           <h1 className="text-xl font-semibold">Trading Journal</h1>
           <div className="flex items-center gap-2 sm:gap-4">
-            <div className="flex items-center gap-1 bg-[#1A1A1A] rounded-lg p-0.5 border border-white/5">
-              {(['swing', 'shortTerm'] as StrategyType[]).map(s => (
-                <button key={s} onClick={() => setActiveStrategy(s)}
-                  className={`px-2 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer ${
-                    activeStrategy === s
-                      ? s === 'swing'
-                        ? 'bg-green-500/15 text-green-400'
-                        : 'bg-blue-500/15 text-blue-400'
-                      : 'text-text-tertiary hover:text-text-secondary'
-                  }`}>
-                  {STRATEGY_PROFILES[s].shortLabel}
-                </button>
-              ))}
-            </div>
             <button
               onClick={() => navigate('/settings')}
               className="flex items-center gap-1.5 text-text-tertiary text-sm hover:text-text-secondary transition-colors min-w-[44px] min-h-[44px] justify-center sm:justify-start"
