@@ -1113,15 +1113,6 @@ export default async function handler(req, res) {
     const { ticker, direction = 'BULL', targetDte, spreadWidth, targetStrategy, setup, entryContext, entryQuality, strategy: strategyParam, minOI: minOIParam } = req.query;
     const activeStrategy = (strategyParam === 'shortTerm') ? 'shortTerm' : 'swing';
     const strategyDefaults = STRATEGY_DEFAULTS[activeStrategy];
-    // User-configurable min OI from settings — override module-level defaults for this request
-    const originalMinOI = HARD_FILTER_DEFAULTS.minOpenInterest;
-    if (minOIParam != null) {
-        const parsed = parseInt(minOIParam, 10);
-        if (!isNaN(parsed) && parsed >= 0) {
-            HARD_FILTER_DEFAULTS.minOpenInterest = parsed;
-            HARD_FILTER_CREDIT.minOpenInterest = parsed;
-        }
-    }
 
     if (!ticker) {
         return res.status(400).json({ error: 'Missing ticker parameter' });
@@ -1147,8 +1138,20 @@ export default async function handler(req, res) {
     const widthStr = spreadWidth ? String(spreadWidth).replace(/[^0-9.]/g, '') : null;
     const widthParam = widthStr ? parseFloat(widthStr) : strategyDefaults.defaultWidth;
 
+    let originalMinOI = 50; // default, overwritten after ensureScoring()
     try {
         await ensureScoring();
+
+        // User-configurable min OI from settings — override module-level defaults for this request
+        originalMinOI = HARD_FILTER_DEFAULTS.minOpenInterest;
+        if (minOIParam != null) {
+            const parsed = parseInt(minOIParam, 10);
+            if (!isNaN(parsed) && parsed >= 0) {
+                HARD_FILTER_DEFAULTS.minOpenInterest = parsed;
+                HARD_FILTER_CREDIT.minOpenInterest = parsed;
+            }
+        }
+
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
         const dataSource = (process.env.DATA_SOURCE || 'CBOE').trim().toUpperCase();
@@ -1986,7 +1989,7 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Internal Server Error', message: errMsg });
     } finally {
         // Restore original OI thresholds
-        HARD_FILTER_DEFAULTS.minOpenInterest = originalMinOI;
-        HARD_FILTER_CREDIT.minOpenInterest = originalMinOI;
+        if (HARD_FILTER_DEFAULTS) HARD_FILTER_DEFAULTS.minOpenInterest = originalMinOI;
+        if (HARD_FILTER_CREDIT) HARD_FILTER_CREDIT.minOpenInterest = originalMinOI;
     }
 }
