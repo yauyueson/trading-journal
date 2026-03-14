@@ -52,7 +52,11 @@ Plans:
   3. Opening a position from the spread builder pre-fills the profit target field with the strategy-specific TP percentage (30% for swing, 40% for shortTerm); the field is editable
   4. The IV rank threshold displayed and applied matches `strategyProfiles.ts` exactly — changing the profile source updates the gate with no other code changes required
   5. All 488 existing tests pass; IV gate logic is in the render/API-response layer with no changes to scoring functions
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Signal context banner and IV rank gate overlay in StrategyRecommender
+- [ ] 03-02-PLAN.md — Reactive take-profit auto-fill in open-position form
 
 ### Phase 4: Global Strategy Toggle
 **Goal**: The active strategy is always visible and switchable from any page, and all pages reflect strategy-specific parameter defaults
@@ -73,5 +77,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Prerequisite Fixes | 0/1 | Planning complete | - |
 | 2. Data Contract + API Foundation | 1/2 | In Progress|  |
-| 3. Spread Builder Integration | 0/TBD | Not started | - |
+| 3. Spread Builder Integration | 0/2 | Planning complete | - |
 | 4. Global Strategy Toggle | 0/TBD | Not started | - |
