@@ -53,7 +53,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
     const [ticker, setTicker] = useState('SPY');
     const [direction, setDirection] = useState<'BULL' | 'BEAR'>(persisted.current.direction || 'BULL');
-    const [techScoreTier, setTechScoreTier] = useState<{ label: string; value: number; range: string; color: string } | null>(null);
+    const [techScoreTier] = useState<{ label: string; value: number; range: string; color: string } | null>(null);
     const [targetDte, setTargetDte] = useState(persisted.current.targetDte || profile.dtePeak);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -424,43 +424,15 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         </button>
                     </div>
 
-                    {/* Row 2: TV Score Tier */}
-                    <div>
-                        <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">TV Score Tier</label>
-                        <div className="flex gap-2">
-                            {[
-                                { label: 'S', value: 92, range: '90+', color: 'text-emerald-400 border-emerald-500/50 bg-emerald-500/20' },
-                                { label: 'A', value: 85, range: '80–89', color: 'text-green-400 border-green-500/50 bg-green-500/15' },
-                                { label: 'B', value: 75, range: '70–79', color: 'text-yellow-400 border-yellow-500/50 bg-yellow-500/15' },
-                            ].map((tier) => (
-                                <button
-                                    key={tier.label}
-                                    type="button"
-                                    onClick={() => setTechScoreTier(techScoreTier?.label === tier.label ? null : tier)}
-                                    className={`px-4 py-2 rounded-lg text-center transition-all border ${techScoreTier?.label === tier.label
-                                        ? `${tier.color} shadow-sm`
-                                        : 'text-gray-500 border-[#333] bg-[#000] hover:text-gray-300'
-                                        }`}
-                                >
-                                    <div className="text-sm font-black">{tier.label}</div>
-                                    <div className="text-[9px] font-normal opacity-70">{tier.range}</div>
-                                </button>
-                            ))}
-                            <div className="ml-2 flex items-center text-xs text-gray-500">
-                                {techScoreTier ? <span className="text-accent-green font-medium">{techScoreTier.label}-tier selected</span> : 'none selected'}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Row 3: DTE + Spread Width */}
+                    {/* Row 2: DTE + Spread Width */}
                     <div className="flex flex-col md:flex-row gap-4 items-end">
                         <div className="flex-1">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Target DTE</label>
-                            <div className="bg-[#000] p-1 rounded-lg border border-[#333]">
-                                <div className="grid grid-cols-2 gap-1.5">
+                            <div className="bg-[#000] p-1.5 rounded-lg border border-[#333]">
+                                <div className="flex gap-0">
                                     {/* Short-Term group */}
-                                    <div>
-                                        <div className="text-[9px] text-blue-400/70 font-medium uppercase tracking-wider text-center mb-1 mt-0.5">Short-Term</div>
+                                    <div className="flex-1 pr-2">
+                                        <div className="text-[9px] text-blue-400 font-semibold uppercase tracking-wider text-center mb-1.5 mt-0.5">Short-Term</div>
                                         <div className="grid grid-cols-3 gap-1">
                                             {STRATEGY_PROFILES.shortTerm.dteOptions.map((opt) => (
                                                 <button
@@ -480,9 +452,11 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                             ))}
                                         </div>
                                     </div>
+                                    {/* Divider */}
+                                    <div className="w-px bg-[#444] mx-1 my-1 self-stretch" />
                                     {/* Swing group */}
-                                    <div>
-                                        <div className="text-[9px] text-green-400/70 font-medium uppercase tracking-wider text-center mb-1 mt-0.5">Swing</div>
+                                    <div className="flex-1 pl-2">
+                                        <div className="text-[9px] text-green-400 font-semibold uppercase tracking-wider text-center mb-1.5 mt-0.5">Swing</div>
                                         <div className="grid grid-cols-3 gap-1">
                                             {STRATEGY_PROFILES.swing.dteOptions.map((opt) => (
                                                 <button
