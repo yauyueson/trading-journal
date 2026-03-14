@@ -34,8 +34,8 @@
 
 - [x] **STRAT-01**: strategy-recommend.js accepts `strategy` query param and uses profile-specific dtePeak, DTE sigma, defaultWidth, and deltaRange
 - [x] **STRAT-02**: scan-options.js accepts `strategy` query param and adjusts DTE/delta defaults per profile
-- [ ] **STRAT-03**: Global strategy toggle accessible within spread builder flow (in AppLayout header or selector page header)
-- [ ] **STRAT-04**: All page subtitles and DTE/width/delta defaults react to active strategy selection
+- [x] **STRAT-03**: Global strategy toggle accessible within spread builder flow (in AppLayout header or selector page header)
+- [x] **STRAT-04**: All page subtitles and DTE/width/delta defaults react to active strategy selection
 
 ## v2 Requirements
 
@@ -81,8 +81,8 @@
 | EXIT-03 | Phase 3 | Complete |
 | STRAT-01 | Phase 2 | Complete |
 | STRAT-02 | Phase 2 | Complete |
-| STRAT-03 | Phase 4 | Pending |
-| STRAT-04 | Phase 4 | Pending |
+| STRAT-03 | Phase 4 | Complete |
+| STRAT-04 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 17 total

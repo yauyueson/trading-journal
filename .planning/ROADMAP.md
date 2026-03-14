@@ -9,7 +9,7 @@ This milestone operationalizes the WFA-validated trading edge by wiring the vali
 - [ ] **Phase 1: Prerequisite Fixes** - Correct pre-existing bugs that corrupt strategy-specific parameters before any feature work
 - [ ] **Phase 2: Data Contract + API Foundation** - Establish type contract for TP, wire API params, propagate signal context from signals page
 - [x] **Phase 3: Spread Builder Integration** - Connect signal banner, IV rank gate, and TP auto-fill in StrategyRecommender (completed 2026-03-14)
-- [ ] **Phase 4: Global Strategy Toggle** - Surface active strategy indicator in AppLayout and propagate strategy-aware defaults across all pages
+- [x] **Phase 4: Global Strategy Toggle** - Surface active strategy indicator in AppLayout and propagate strategy-aware defaults across all pages (completed 2026-03-14)
 
 ## Phase Details
 
@@ -66,7 +66,7 @@ Plans:
   1. A SWING / ST toggle is visible in the AppLayout header on every page — user never needs to navigate to settings to see or change the active strategy
   2. Switching strategy updates page subtitles and default DTE/delta/width values on Scanner, Signals, and Selector pages without requiring a page reload
   3. Portfolio DTE health indicators adapt to the active strategy's DTE range (swing 45-65d, shortTerm 7-14d)
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 04-01-PLAN.md — Wire Backtest.tsx and Stats.tsx to global activeStrategy (STRAT-03 already done, STRAT-04 cleanup)
@@ -81,4 +81,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Prerequisite Fixes | 0/1 | Planning complete | - |
 | 2. Data Contract + API Foundation | 1/2 | In Progress|  |
 | 3. Spread Builder Integration | 2/2 | Complete   | 2026-03-14 |
-| 4. Global Strategy Toggle | 0/1 | Planning complete | - |
+| 4. Global Strategy Toggle | 1/1 | Complete   | 2026-03-14 |
