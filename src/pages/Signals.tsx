@@ -93,6 +93,17 @@ function computeStatus(score: number, dir: string, iv: number | null, adx: numbe
   return 'GO';
 }
 
+/** Derive dominant signal type from tech score components.
+ *  Whichever sub-score (sc_ema or sc_mom) deviates more from neutral (50)
+ *  is the dominant signal. Ties default to EMA (WFA primary signal). */
+function deriveSignalType(components: Record<string, number>): 'EMA' | 'MOM' {
+  const ema = components?.sc_ema ?? 50;
+  const mom = components?.sc_mom ?? 50;
+  const emaDev = Math.abs(ema - 50);
+  const momDev = Math.abs(mom - 50);
+  return momDev > emaDev ? 'MOM' : 'EMA';
+}
+
 // ── IV data hook ──────────────────────────────────────────
 
 function useWatchlistIV(tickers: string[]) {
@@ -344,7 +355,7 @@ export const SignalsPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-semibold">Signal Dashboard</h1>
             <p className="text-xs text-text-tertiary">
-              EMA signal {'\u2022'} IV {'\u2265'} 30% {'\u2022'} ADX {'\u2265'} 15 {'\u2022'} RVOL {'\u2265'} 0.5
+              EMA + MOM signals {'\u2022'} IV {'\u2265'} 30% {'\u2022'} ADX {'\u2265'} 15 {'\u2022'} RVOL {'\u2265'} 0.5
             </p>
           </div>
         </div>
@@ -710,7 +721,7 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
                 strategy: strategyParam,
                 score: String(Math.round(row.score)),
                 streak: String(row.streak),
-                signalType: 'EMA',
+                signalType: deriveSignalType(row.components),
                 adx: String(row.adx.toFixed(1)),
                 rvol: String(row.rvol.toFixed(2)),
               });
