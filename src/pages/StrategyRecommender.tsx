@@ -298,6 +298,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             iv_regime_entry: entryIvRegime,
             max_risk_entry: isSpreadType ? (rec as SpreadRecommendation).maxRisk * 100 : undefined,
             spread_width: isSpread(rec) ? rec.width : undefined,
+            strategy_type: activeStrategy,
         };
 
         await onAddDirect(item);
@@ -306,7 +307,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         setOpenPosQty('');
         setOpenPosPrice('');
         setExpandedCard(null);
-    }, [onAddDirect, result, openPosQty, openPosPrice, openPosOwner, techScoreTier, direction, isSpread]);
+    }, [onAddDirect, result, openPosQty, openPosPrice, openPosOwner, techScoreTier, direction, isSpread, activeStrategy]);
 
     return (
         <div className="fade-in pb-24 sm:pb-0 font-sans">
