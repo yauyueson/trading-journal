@@ -321,13 +321,13 @@ async function fetchEarnings(ticker) {
 const DEFAULT_ENTRY_PROFILE = { dtePeak: 55, deltaRange: [0.30, 0.45], allowChase: false };
 
 const STRATEGY_DEFAULTS = {
-    swing: { dtePeak: 55, dteSigma: 15 },
-    shortTerm: { dtePeak: 10, dteSigma: 5 },
+    swing: { dtePeak: 55, dteSigma: 15, deltaRange: [0.28, 0.42] },
+    shortTerm: { dtePeak: 10, dteSigma: 5, deltaRange: [0.15, 0.50] },
 };
 
 function getEntryProfile(strategy) {
     const defaults = STRATEGY_DEFAULTS[strategy] || STRATEGY_DEFAULTS.swing;
-    return { ...DEFAULT_ENTRY_PROFILE, dtePeak: defaults.dtePeak };
+    return { ...DEFAULT_ENTRY_PROFILE, dtePeak: defaults.dtePeak, deltaRange: defaults.deltaRange || DEFAULT_ENTRY_PROFILE.deltaRange };
 }
 
 /** Term structure slope = (IV30 - IV90) / IV90. Positive = backwardation, negative = contango. */
@@ -565,7 +565,7 @@ function getProbITMAtStrike(chain, optionType, expiration, targetStrike) {
     return a.probabilityITM + t * (b.probabilityITM - a.probabilityITM);
 }
 
-function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, dtePeak = 55, sampleDays = 60, volFcstAdj = 0) {
+function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, dtePeak = 55, sampleDays = 60, volFcstAdj = 0, deltaRange = [0.25, 0.45]) {
     const results = [];
     const widths = customWidth ? [customWidth] : [10, 5];
     const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short', sampleDays);
@@ -574,7 +574,8 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
     // Rejection diagnostics
     const _diag = { ivBelow30: 0, noDeltaMatch: 0, noLongLeg: 0, noLiquidity: 0, lowOI: 0, lowBid: 0, wideSpread: 0, earningsGuard: 0, slippageKill: 0, lowROI: 0, spreadCeiling: 0 };
 
-    const candidateShorts = chain.filter(o => o.type === type && Math.abs(o.delta) >= 0.25 && Math.abs(o.delta) <= 0.45);
+    const [creditDeltaMin, creditDeltaMax] = deltaRange;
+    const candidateShorts = chain.filter(o => o.type === type && Math.abs(o.delta) >= creditDeltaMin && Math.abs(o.delta) <= creditDeltaMax);
     // Filter on ticker-level IV Rank (0-1), not individual option IV
     const ivRankPass = ivRank == null || ivRank >= 0.30;
     const shorts = ivRankPass ? candidateShorts : [];
@@ -1745,7 +1746,7 @@ export default async function handler(req, res) {
 
         if (decodedStrategy === 'Auto-Select Strategy') {
             if (isBull) {
-                const creditRes = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj);
+                const creditRes = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange);
                 rejectionDiagnostics = creditRes._diagnostics || null;
                 targetRecs = [
                     ...creditRes,
@@ -1754,7 +1755,7 @@ export default async function handler(req, res) {
                     ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays, volFcstAdj)
                 ];
             } else {
-                const creditRes = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj);
+                const creditRes = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange);
                 rejectionDiagnostics = creditRes._diagnostics || null;
                 targetRecs = [
                     ...creditRes,
@@ -1764,14 +1765,14 @@ export default async function handler(req, res) {
                 ];
             }
         } else if (decodedStrategy === 'Credit Put Spread') {
-            targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj);
+            targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange);
             rejectionDiagnostics = targetRecs._diagnostics || null;
         } else if (decodedStrategy === 'Debit Call Spread') {
             targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Long Call') {
             targetRecs = scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Credit Call Spread') {
-            targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj);
+            targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange);
             rejectionDiagnostics = targetRecs._diagnostics || null;
         } else if (decodedStrategy === 'Debit Put Spread') {
             targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj);
