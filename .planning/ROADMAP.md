@@ -36,7 +36,7 @@ Plans:
   2. Calling `strategy-recommend.js?strategy=shortTerm` returns profile-specific DTE, delta, and width defaults differing from the swing defaults
   3. Clicking "Build Swing Spread" or "Build ST Spread" on the signals page generates a URL containing `score`, `streak`, and `signal` query params alongside the existing `ticker`, `direction`, `strategy` params
   4. All 488 existing tests pass; new unit tests cover target_price mutation and URL param construction
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 02-01-PLAN.md — Add target_price type contract, mutation write path, and signal URL param encoding
@@ -72,6 +72,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Prerequisite Fixes | 0/1 | Planning complete | - |
-| 2. Data Contract + API Foundation | 0/2 | Planning complete | - |
+| 2. Data Contract + API Foundation | 1/2 | In Progress|  |
 | 3. Spread Builder Integration | 0/TBD | Not started | - |
 | 4. Global Strategy Toggle | 0/TBD | Not started | - |

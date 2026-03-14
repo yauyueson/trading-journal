@@ -13,7 +13,7 @@
 
 ### Signal Context
 
-- [ ] **SIG-01**: Signals page CTA passes signal metadata (signalType, score, direction, streak, adxValue, rvol) as URL params when navigating to spread builder
+- [x] **SIG-01**: Signals page CTA passes signal metadata (signalType, score, direction, streak, adxValue, rvol) as URL params when navigating to spread builder
 - [ ] **SIG-02**: Spread builder displays full signal context banner when arrived from signals page — shows signal type, score, direction, streak, ADX, RVOL
 - [ ] **SIG-03**: Signal context banner is absent when user navigates to spread builder directly (manual ticker entry) — no fake signal shown
 
@@ -27,7 +27,7 @@
 ### Exit Automation
 
 - [ ] **EXIT-01**: When opening a position from spread builder, profit target auto-filled from active strategy profile (swing 30%, shortTerm 40%)
-- [ ] **EXIT-02**: target_price field added to DirectAddItem type and written by useAddDirect mutation
+- [x] **EXIT-02**: target_price field added to DirectAddItem type and written by useAddDirect mutation
 - [ ] **EXIT-03**: Auto-filled TP is editable — user can override if they choose
 
 ### Strategy Integration
@@ -69,7 +69,7 @@
 | PRE-01 | Phase 1 | Complete |
 | PRE-02 | Phase 1 | Complete |
 | PRE-03 | Phase 1 | Complete |
-| SIG-01 | Phase 2 | Pending |
+| SIG-01 | Phase 2 | Complete |
 | SIG-02 | Phase 3 | Pending |
 | SIG-03 | Phase 3 | Pending |
 | IVR-01 | Phase 3 | Pending |
@@ -77,7 +77,7 @@
 | IVR-03 | Phase 3 | Pending |
 | IVR-04 | Phase 3 | Pending |
 | EXIT-01 | Phase 3 | Pending |
-| EXIT-02 | Phase 2 | Pending |
+| EXIT-02 | Phase 2 | Complete |
 | EXIT-03 | Phase 3 | Pending |
 | STRAT-01 | Phase 2 | Pending |
 | STRAT-02 | Phase 2 | Pending |
