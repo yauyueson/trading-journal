@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 3 context gathered
-last_updated: "2026-03-14T16:22:42.604Z"
+stopped_at: Completed 03-spread-builder-integration/03-01-PLAN.md
+last_updated: "2026-03-14T16:47:22.978Z"
 last_activity: 2026-03-14 — Roadmap created from requirements + research
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 5
+  completed_plans: 4
   percent: 0
 ---
 
@@ -53,6 +53,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01-prerequisite-fixes P01 | 2 | 2 tasks | 7 files |
 | Phase 02-data-contract-api-foundation P01 | 2 | 1 tasks | 4 files |
 | Phase 02-data-contract-api-foundation P02 | 8 | 1 tasks | 4 files |
+| Phase 03-spread-builder-integration P01 | 5 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - [Phase 02-02]: STRATEGY_DEFAULTS values match strategyProfiles.ts exactly — single source of truth contract enforced by test
 - [Phase 02-02]: widthParam fallback changed from null to strategyDefaults.defaultWidth so shortTerm gets 2.5 default width without requiring explicit param
 - [Phase 02-02]: deltaDefaults computed before req.query destructure, mirroring the dteDefaults pattern
+- [Phase 03-01]: Signal params read at render time (outside useEffect) — avoids stale closure issues with URL params
+- [Phase 03-01]: IV gate wraps entire Target Recommendations section as one unit — single gate point per IVR-02 requirement
+- [Phase 03-01]: ivRankMin from result.strategyProfile?.ivRankMin with getProfile fallback — respects API-provided profile
 
 ### Pending Todos
 
@@ -85,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T16:22:42.602Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-spread-builder-integration/03-CONTEXT.md
+Last session: 2026-03-14T16:47:22.976Z
+Stopped at: Completed 03-spread-builder-integration/03-01-PLAN.md
+Resume file: None

@@ -14,15 +14,15 @@
 ### Signal Context
 
 - [x] **SIG-01**: Signals page CTA passes signal metadata (signalType, score, direction, streak, adxValue, rvol) as URL params when navigating to spread builder
-- [ ] **SIG-02**: Spread builder displays full signal context banner when arrived from signals page — shows signal type, score, direction, streak, ADX, RVOL
-- [ ] **SIG-03**: Signal context banner is absent when user navigates to spread builder directly (manual ticker entry) — no fake signal shown
+- [x] **SIG-02**: Spread builder displays full signal context banner when arrived from signals page — shows signal type, score, direction, streak, ADX, RVOL
+- [x] **SIG-03**: Signal context banner is absent when user navigates to spread builder directly (manual ticker entry) — no fake signal shown
 
 ### IV Rank Filtering
 
-- [ ] **IVR-01**: Spread builder gates recommendations using strategy-specific IV rank threshold (swing >= 30%, shortTerm >= 40%)
-- [ ] **IVR-02**: Sub-threshold candidates shown greyed-out with LOW_IV warning badge, not hidden entirely
-- [ ] **IVR-03**: IV rank threshold sourced from strategyProfiles.ts (single source of truth), not hardcoded in UI
-- [ ] **IVR-04**: IV rank filter operates at API response display layer, not inside scoring functions (preserves 307 parity tests)
+- [x] **IVR-01**: Spread builder gates recommendations using strategy-specific IV rank threshold (swing >= 30%, shortTerm >= 40%)
+- [x] **IVR-02**: Sub-threshold candidates shown greyed-out with LOW_IV warning badge, not hidden entirely
+- [x] **IVR-03**: IV rank threshold sourced from strategyProfiles.ts (single source of truth), not hardcoded in UI
+- [x] **IVR-04**: IV rank filter operates at API response display layer, not inside scoring functions (preserves 307 parity tests)
 
 ### Exit Automation
 
@@ -70,12 +70,12 @@
 | PRE-02 | Phase 1 | Complete |
 | PRE-03 | Phase 1 | Complete |
 | SIG-01 | Phase 2 | Complete |
-| SIG-02 | Phase 3 | Pending |
-| SIG-03 | Phase 3 | Pending |
-| IVR-01 | Phase 3 | Pending |
-| IVR-02 | Phase 3 | Pending |
-| IVR-03 | Phase 3 | Pending |
-| IVR-04 | Phase 3 | Pending |
+| SIG-02 | Phase 3 | Complete |
+| SIG-03 | Phase 3 | Complete |
+| IVR-01 | Phase 3 | Complete |
+| IVR-02 | Phase 3 | Complete |
+| IVR-03 | Phase 3 | Complete |
+| IVR-04 | Phase 3 | Complete |
 | EXIT-01 | Phase 3 | Pending |
 | EXIT-02 | Phase 2 | Complete |
 | EXIT-03 | Phase 3 | Pending |
