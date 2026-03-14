@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-03-14T14:53:57.788Z"
+stopped_at: Completed 01-prerequisite-fixes/01-01-PLAN.md
+last_updated: "2026-03-14T15:19:51.571Z"
 last_activity: 2026-03-14 — Roadmap created from requirements + research
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
   percent: 0
 ---
 
@@ -50,6 +50,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01-prerequisite-fixes P01 | 2 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -61,6 +62,9 @@ Recent decisions affecting current work:
 - Roadmap: IV rank filter in render/API-response layer only — not inside scoring functions (preserves 307 parity tests)
 - Roadmap: Signal context via URL params (not location.state) — survives page refresh, zero new infrastructure
 - Roadmap: Auto-fill TP at entry only, no position card progress bars — highest-leverage intervention point
+- [Phase 01-01]: Param renamed to activeProfile (not strategy) to avoid collision with strategy=long/short LOQ/CSQ toggle in scan-options.js
+- [Phase 01-01]: CreditSpreadSettings type fully removed — downstream phases use STRATEGY_PROFILES directly as single source of truth
+- [Phase 01-01]: WFA info card shows both profiles side-by-side with hardcoded Sharpe values (swing 2.14, shortTerm 4.77)
 
 ### Pending Todos
 
@@ -73,6 +77,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T14:53:57.785Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-prerequisite-fixes/01-CONTEXT.md
+Last session: 2026-03-14T15:19:51.570Z
+Stopped at: Completed 01-prerequisite-fixes/01-01-PLAN.md
+Resume file: None
