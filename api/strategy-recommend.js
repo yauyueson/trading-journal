@@ -320,8 +320,14 @@ async function fetchEarnings(ticker) {
 // Credit spread strategy: DTE 45-65 optimal, delta 0.30-0.45, no setup dependency
 const DEFAULT_ENTRY_PROFILE = { dtePeak: 55, deltaRange: [0.30, 0.45], allowChase: false };
 
-function getEntryProfile() {
-    return DEFAULT_ENTRY_PROFILE;
+const STRATEGY_DEFAULTS = {
+    swing: { dtePeak: 55, dteSigma: 15 },
+    shortTerm: { dtePeak: 10, dteSigma: 5 },
+};
+
+function getEntryProfile(strategy) {
+    const defaults = STRATEGY_DEFAULTS[strategy] || STRATEGY_DEFAULTS.swing;
+    return { ...DEFAULT_ENTRY_PROFILE, dtePeak: defaults.dtePeak };
 }
 
 /** Term structure slope = (IV30 - IV90) / IV90. Positive = backwardation, negative = contango. */
@@ -691,9 +697,10 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             // 2. Skew Adjustment: magnitude-based bonus (|skew| larger → same-direction bonus scales 5..15, capped)
             const skewBonus = getSkewBonusForCreditSpread(skew, type);
 
-            // Smooth Gaussian DTE curve: peak is setup-aware (dtePeak), σ=15
+            // Smooth Gaussian DTE curve: peak is setup-aware (dtePeak), σ depends on strategy
             // Momentum setups (Breakout, Perfect Storm) peak at DTE=14; Trend/Directional at 55
-            const scoreDTE = Math.round(100 * Math.exp(-0.5 * Math.pow((dte - dtePeak) / 15, 2)));
+            const dteSigma = strategyDefaults.dteSigma;
+            const scoreDTE = Math.round(100 * Math.exp(-0.5 * Math.pow((dte - dtePeak) / dteSigma, 2)));
 
             // Earnings penalty scaling (2.6): proportional to implied move size
             const earningsPremium = includesEarnings
@@ -1286,7 +1293,9 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const { ticker, direction = 'BULL', targetDte, spreadWidth, targetStrategy, setup, entryContext, entryQuality } = req.query;
+    const { ticker, direction = 'BULL', targetDte, spreadWidth, targetStrategy, setup, entryContext, entryQuality, strategy: strategyParam } = req.query;
+    const activeStrategy = (strategyParam === 'shortTerm') ? 'shortTerm' : 'swing';
+    const strategyDefaults = STRATEGY_DEFAULTS[activeStrategy];
 
     if (!ticker) {
         return res.status(400).json({ error: 'Missing ticker parameter' });
@@ -1688,7 +1697,7 @@ export default async function handler(req, res) {
         const decodedStrategy = targetStrategy ? decodeURIComponent(targetStrategy) : (isBull ? 'Credit Put Spread' : 'Credit Call Spread');
 
         // --- Entry Profile: convert setup name → concrete builder params ---
-        const entryProfile = getEntryProfile();
+        const entryProfile = getEntryProfile(activeStrategy);
         let { dtePeak, deltaRange, allowChase } = entryProfile;
 
         // v4 Entry Context overrides: adjust DTE peak and delta range based on entry quality

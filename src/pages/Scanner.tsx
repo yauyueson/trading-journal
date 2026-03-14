@@ -1,8 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Info, Plus, Activity } from 'lucide-react';
 import { ScoredResult, Strategy, WatchlistItem, ScannerApiContext } from '../lib/types';
 import { useAddToWatchlist } from '../hooks/usePositionMutations';
+import { useAppSettings } from '../context/AppSettingsContext';
+import { getProfile } from '../lib/strategyProfiles';
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
 import { ScoreFactorsView } from '../components/ScoreFactorsView';
@@ -16,16 +18,26 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
     const onAddToWatchlist = onAddToWatchlistProp ?? ((item: WatchlistItem) => {
         addToWatchlistMut.mutate(item);
     });
+    const { activeStrategy } = useAppSettings();
+    const profile = getProfile(activeStrategy);
+
     // Search State
     const [ticker, setTicker] = useState('SPY');
     const [strategy, setStrategy] = useState<Strategy>('short');
-    const [dteMin, setDteMin] = useState(45);
-    const [dteMax, setDteMax] = useState(65);
+    const [dteMin, setDteMin] = useState(profile.dteMin);
+    const [dteMax, setDteMax] = useState(profile.dteMax);
     const [minVolume, setMinVolume] = useState(50);
     const [deltaMin, setDeltaMin] = useState(0.28);
     const [deltaMax, setDeltaMax] = useState(0.42);
     const [direction, setDirection] = useState<'all' | 'call' | 'put'>('put');
     const [isDayTrade, setIsDayTrade] = useState(false);
+
+    // Reset DTE when strategy profile changes
+    useEffect(() => {
+        const p = getProfile(activeStrategy);
+        setDteMin(p.dteMin);
+        setDteMax(p.dteMax);
+    }, [activeStrategy]);
 
     // Results State
     const [results, setResults] = useState<ScoredResult[]>([]);
@@ -53,6 +65,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
                 dayTrade: isDayTrade.toString()
             });
 
+            params.set('profileStrategy', activeStrategy);
             const res = await fetch(`/api/scan-options?${params}`);
             const data = await res.json();
 
@@ -166,10 +179,10 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
                     <button
                         onClick={() => {
                             setStrategy('short');
-                            setDteMin(45);
-                            setDteMax(65);
-                            setDeltaMin(0.28);
-                            setDeltaMax(0.42);
+                            setDteMin(profile.dteMin);
+                            setDteMax(profile.dteMax);
+                            setDeltaMin(profile.deltaMin);
+                            setDeltaMax(profile.deltaMax);
                             setDirection('put');
                             setIsDayTrade(false);
                             setMinVolume(50);
@@ -178,7 +191,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
                     >
                         Credit Spread Defaults
                     </button>
-                    <span className="text-[11px] text-text-tertiary">Short · DTE 45-65 · Delta 0.28-0.42 · Puts</span>
+                    <span className="text-[11px] text-text-tertiary">Short · DTE {profile.dteMin}-{profile.dteMax} · Delta {profile.deltaMin}-{profile.deltaMax} · Puts</span>
                 </div>
 
                 {/* Filters */}

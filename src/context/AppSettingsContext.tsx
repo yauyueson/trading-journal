@@ -2,9 +2,11 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { AppSettings, DEFAULT_APP_SETTINGS } from '../lib/types/settings';
+import type { StrategyType } from '../lib/strategyProfiles';
 
 const STORAGE_KEY = 'trading-journal-app-settings';
 const STORAGE_TS_KEY = 'trading-journal-app-settings-ts';
+const STRATEGY_STORAGE_KEY = 'trading-journal-active-strategy';
 const SETTINGS_FRESH_TTL = 5 * 60 * 1000; // 5 minutes
 
 function loadFromStorage(): AppSettings {
@@ -46,6 +48,8 @@ interface AppSettingsContextValue {
   // Derived convenience values (same as old PortfolioSettingsContext)
   maxRiskPerTrade: number;
   stopOutFraction: number;
+  activeStrategy: StrategyType;
+  setActiveStrategy: (s: StrategyType) => void;
 }
 
 const AppSettingsContext = createContext<AppSettingsContextValue | null>(null);
@@ -53,6 +57,18 @@ const AppSettingsContext = createContext<AppSettingsContextValue | null>(null);
 export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<AppSettings>(loadFromStorage);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeStrategy, setActiveStrategyState] = useState<StrategyType>(() => {
+    try {
+      const stored = localStorage.getItem(STRATEGY_STORAGE_KEY);
+      if (stored === 'swing' || stored === 'shortTerm') return stored;
+    } catch {}
+    return 'swing';
+  });
+
+  const setActiveStrategy = useCallback((s: StrategyType) => {
+    setActiveStrategyState(s);
+    try { localStorage.setItem(STRATEGY_STORAGE_KEY, s); } catch {}
+  }, []);
 
   // Load from Supabase on mount — skip if localStorage has fresh data (< 5 min old)
   useEffect(() => {
@@ -108,7 +124,7 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const stopOutFraction = settings.portfolio.stopOutPct / 100;
 
   return (
-    <AppSettingsContext.Provider value={{ settings, updateSettings, isLoading, maxRiskPerTrade, stopOutFraction }}>
+    <AppSettingsContext.Provider value={{ settings, updateSettings, isLoading, maxRiskPerTrade, stopOutFraction, activeStrategy, setActiveStrategy }}>
       {children}
     </AppSettingsContext.Provider>
   );

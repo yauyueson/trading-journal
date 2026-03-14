@@ -7,6 +7,7 @@ import { RollModal } from '../components/RollModal';
 import { DataFooter } from '../components/DataFooter';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { useAppSettings } from '../context/AppSettingsContext';
+import { getProfile } from '../lib/strategyProfiles';
 import { getPositionRiskAtStopOutDollars, aggregatePortfolioGreeks } from '../lib/riskSizing';
 import { formatCurrency } from '../lib/utils';
 import { usePositions } from '../hooks/usePositions';
@@ -74,7 +75,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
             deletePositionMut.mutate(id);
         }
     });
-    const { settings, maxRiskPerTrade, stopOutFraction } = useAppSettings();
+    const { settings, maxRiskPerTrade, stopOutFraction, activeStrategy } = useAppSettings();
+    const profile = getProfile(activeStrategy);
     const { accountSize: portfolioTotal, riskPct, stopOutPct } = settings.portfolio;
     const [showForm, setShowForm] = useState(false);
     const [showAccountSettings, setShowAccountSettings] = useState(false);
@@ -275,7 +277,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const dte = form.expiration
         ? Math.round((new Date(form.expiration + 'T00:00:00').getTime() - Date.now()) / (1000 * 60 * 60 * 24))
         : null;
-    const dteInRange = dte != null && dte >= 45 && dte <= 65;
+    const dteInRange = dte != null && dte >= profile.dteMin && dte <= profile.dteMax;
 
     const spreadWidth = (positionType !== 'single' && form.strike && form.strike2)
         ? Math.abs(parseFloat(form.strike) - parseFloat(form.strike2))

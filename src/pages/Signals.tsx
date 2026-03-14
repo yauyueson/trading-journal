@@ -6,6 +6,7 @@ import { useSignalScanner } from '../hooks/useSignalScanner';
 import { useSignalHistory, type SignalHistoryRow } from '../hooks/useSignalHistory';
 import { usePositions } from '../hooks/usePositions';
 import { useAppSettings } from '../context/AppSettingsContext';
+import { getProfile } from '../lib/strategyProfiles';
 import { supabase } from '../lib/supabase';
 import type { TechScoreOptions } from '../lib/tech-analysis';
 
@@ -194,7 +195,8 @@ function useSignalStreaks(tickers: string[]) {
 
 export const SignalsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { settings } = useAppSettings();
+  const { settings, activeStrategy } = useAppSettings();
+  const profile = getProfile(activeStrategy);
   const scanner = useSignalScanner();
   const { data: positions } = usePositions();
   const [dirFilter, setDirFilter] = useState<'ALL' | 'CALL' | 'PUT'>('ALL');
@@ -344,7 +346,7 @@ export const SignalsPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-semibold">Signal Dashboard</h1>
             <p className="text-xs text-text-tertiary">
-              Credit spreads {'\u2022'} IV {'≥'} 30% {'\u2022'} Delta 0.35 {'\u2022'} DTE 45-65 {'\u2022'} $15 width {'\u2022'} TP 30%
+              Credit spreads {'\u2022'} {profile.subtitle}
             </p>
           </div>
         </div>
@@ -639,6 +641,8 @@ const DashboardRowView: React.FC<{
 // ── Dashboard Detail Panel ────────────────────────────────
 
 const DashboardDetailPanel: React.FC<{ row: DashboardRow; onBuildSpread: () => void }> = ({ row, onBuildSpread }) => {
+  const { activeStrategy } = useAppSettings();
+  const profile = getProfile(activeStrategy);
   const isGo = row.status === 'GO';
 
   return (
@@ -666,7 +670,7 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow; onBuildSpread: () => v
             </span>
           </div>
           <div className="text-xs text-text-secondary">
-            Delta 0.35 {'\u2022'} DTE 45-65d {'\u2022'} $15 width {'\u2022'} TP 30% {'\u2022'} No SL (defined risk)
+            {profile.subtitle}
           </div>
         </div>
       )}

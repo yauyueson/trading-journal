@@ -6,6 +6,7 @@ import { DataFooter } from '../components/DataFooter';
 import { ScoreFactorsView } from '../components/ScoreFactorsView';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { useAppSettings } from '../context/AppSettingsContext';
+import { getProfile } from '../lib/strategyProfiles';
 import { getSuggestedContracts } from '../lib/riskSizing';
 import { classifyTradeProfile } from '../lib/oss-core';
 import { formatCurrency } from '../lib/utils';
@@ -44,7 +45,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     const addDirectMut = useAddDirect();
     const onAddToWatchlist = onAddToWatchlistProp ?? (async (item: WatchlistItem) => { addToWatchlistMut.mutate(item); });
     const onAddDirect = onAddDirectProp ?? (async (item: DirectAddItem) => { addDirectMut.mutate(item); });
-    const { settings, stopOutFraction } = useAppSettings();
+    const { settings, stopOutFraction, activeStrategy } = useAppSettings();
+    const profile = getProfile(activeStrategy);
     const { accountSize: portfolioTotal, riskPct } = settings.portfolio;
     const tickerRef = useRef<HTMLInputElement>(null);
     const persisted = useRef(loadPersistedState());
@@ -52,13 +54,13 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     const [ticker, setTicker] = useState('SPY');
     const [direction, setDirection] = useState<'BULL' | 'BEAR'>(persisted.current.direction || 'BULL');
     const [techScoreTier, setTechScoreTier] = useState<{ label: string; value: number; range: string; color: string } | null>(null);
-    const [targetDte, setTargetDte] = useState(persisted.current.targetDte || 55);
+    const [targetDte, setTargetDte] = useState(persisted.current.targetDte || profile.dtePeak);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [result, setResult] = useState<StrategyResult | null>(null);
     const [expandedCard, setExpandedCard] = useState<number | null>(null);
     const [showSettings, setShowSettings] = useState(false);
-    const [spreadWidth, setSpreadWidth] = useState(persisted.current.spreadWidth || 15);
+    const [spreadWidth, setSpreadWidth] = useState(persisted.current.spreadWidth || profile.defaultWidth);
     // Open Position inline form state
     const [openPosIdx, setOpenPosIdx] = useState<number | null>(null);
     const [openPosQty, setOpenPosQty] = useState('');
@@ -102,6 +104,13 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         localStorage.setItem(LS_KEY, JSON.stringify({ direction, targetDte, spreadWidth }));
     }, [direction, targetDte, spreadWidth]);
 
+    // Reset defaults when strategy profile changes
+    useEffect(() => {
+        const p = getProfile(activeStrategy);
+        setTargetDte(p.dtePeak);
+        setSpreadWidth(p.defaultWidth);
+    }, [activeStrategy]);
+
 
     const handleAnalyze = async () => {
         if (!ticker) return;
@@ -113,7 +122,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         setOpenPosIdx(null);
 
         try {
-            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}`;
+            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}&strategy=${activeStrategy}`;
             const res = await fetch(url);
             const text = await res.text();
             let data: unknown;
@@ -411,11 +420,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         <div className="flex-1">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Target DTE</label>
                             <div className="grid grid-cols-3 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
-                                {[
-                                    { label: 'Short', val: 37, text: '30-45d' },
-                                    { label: 'Optimal', val: 55, text: '45-65d' },
-                                    { label: 'Extended', val: 75, text: '65-90d' },
-                                ].map((opt) => (
+                                {profile.dteOptions.map((opt) => (
                                     <button
                                         key={opt.val}
                                         type="button"
@@ -436,12 +441,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         <div className="w-full md:w-44">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Spread Width</label>
                             <div className="grid grid-cols-4 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
-                                {[
-                                    { label: '$5', val: 5 },
-                                    { label: '$10', val: 10 },
-                                    { label: '$15', val: 15 },
-                                    { label: '$20', val: 20 },
-                                ].map((opt) => (
+                                {profile.widthOptions.map((opt) => (
                                     <button
                                         key={opt.val}
                                         type="button"

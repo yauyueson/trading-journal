@@ -44,11 +44,13 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
+    const activeProfile = req.query.profileStrategy === 'shortTerm' ? 'shortTerm' : 'swing';
+    const dteDefaults = activeProfile === 'shortTerm' ? { min: '5', max: '21' } : { min: '20', max: '60' };
     const {
         ticker,
         strategy = 'long',
-        dteMin = '20',
-        dteMax = '60',
+        dteMin = dteDefaults.min,
+        dteMax = dteDefaults.max,
         strikeRange = '0.25',
         minVolume = '50',
         maxSpreadPct = '0.10',
