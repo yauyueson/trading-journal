@@ -153,7 +153,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         setIvGateDismissed(false);
 
         try {
-            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}&strategy=${activeStrategy}`;
+            const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}&strategy=${activeStrategy}&minOI=${settings.portfolio.minOpenInterest ?? 50}`;
             const res = await fetch(url);
             const text = await res.text();
             let data: unknown;

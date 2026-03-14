@@ -105,6 +105,21 @@ export const AppSettingsPage: React.FC = () => {
           </div>
           <p className="text-xs text-gray-500 mt-1">Exit when loss reaches this % of max loss.</p>
         </div>
+        {/* Min Open Interest */}
+        <div>
+          <label className="text-xs text-gray-400 mb-1.5 block uppercase tracking-wider">
+            Min Open Interest
+          </label>
+          <div className="flex items-center gap-3">
+            <input type="number" min={0} max={1000} step={10}
+              value={draft.portfolio.minOpenInterest}
+              onChange={e => setPortfolio({ minOpenInterest: parseInt(e.target.value) || 0 })}
+              className="w-24 px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+            />
+            <span className="text-gray-500 text-sm">contracts</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">Minimum OI to show options in spread builder. WFA: lower is better (no OI filter optimal).</p>
+        </div>
       </section>
 
       {/* Tech Score */}

@@ -5,6 +5,8 @@ export interface PortfolioSettings {
   riskPct: number;
   /** Exit when loss reaches this % of max loss (e.g. 50 = stop at 50% of max loss) */
   stopOutPct: number;
+  /** Minimum open interest to show a contract in spread builder (default 50) */
+  minOpenInterest: number;
 }
 
 export interface TechScoreWeights {
@@ -51,6 +53,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     accountSize: 5700,
     riskPct: 1,
     stopOutPct: 50,
+    minOpenInterest: 50,
   },
   techScore: {
     weights: { w_mb: 30, w_bxs: 25, w_bxl: 20, w_ema: 15, w_mom: 10 },

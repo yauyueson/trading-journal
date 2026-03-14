@@ -1110,9 +1110,18 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const { ticker, direction = 'BULL', targetDte, spreadWidth, targetStrategy, setup, entryContext, entryQuality, strategy: strategyParam } = req.query;
+    const { ticker, direction = 'BULL', targetDte, spreadWidth, targetStrategy, setup, entryContext, entryQuality, strategy: strategyParam, minOI: minOIParam } = req.query;
     const activeStrategy = (strategyParam === 'shortTerm') ? 'shortTerm' : 'swing';
     const strategyDefaults = STRATEGY_DEFAULTS[activeStrategy];
+    // User-configurable min OI from settings — override module-level defaults for this request
+    const originalMinOI = HARD_FILTER_DEFAULTS.minOpenInterest;
+    if (minOIParam != null) {
+        const parsed = parseInt(minOIParam, 10);
+        if (!isNaN(parsed) && parsed >= 0) {
+            HARD_FILTER_DEFAULTS.minOpenInterest = parsed;
+            HARD_FILTER_CREDIT.minOpenInterest = parsed;
+        }
+    }
 
     if (!ticker) {
         return res.status(400).json({ error: 'Missing ticker parameter' });
@@ -1975,5 +1984,9 @@ export default async function handler(req, res) {
         const errMsg = error && typeof error.message === 'string' ? error.message : String(error);
         console.error('Strategy API Error:', errMsg);
         return res.status(500).json({ error: 'Internal Server Error', message: errMsg });
+    } finally {
+        // Restore original OI thresholds
+        HARD_FILTER_DEFAULTS.minOpenInterest = originalMinOI;
+        HARD_FILTER_CREDIT.minOpenInterest = originalMinOI;
     }
 }

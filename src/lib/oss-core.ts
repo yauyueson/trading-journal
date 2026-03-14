@@ -21,14 +21,14 @@
 
 export const HARD_FILTER_DEFAULTS = {
     minMid: 0.10,
-    minOpenInterest: 100,
+    minOpenInterest: 50,
     maxSpreadPctCeiling: 0.35,
 } as const;
 
 /** Stricter tier for credit spreads — sellers need tighter fills. */
 export const HARD_FILTER_CREDIT = {
     minMid: 0.10,
-    minOpenInterest: 100,
+    minOpenInterest: 50,
     maxSpreadPctCeiling: 0.30,
 } as const;
 
