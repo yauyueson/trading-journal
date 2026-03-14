@@ -7,9 +7,9 @@
 
 ### Prerequisites
 
-- [ ] **PRE-01**: shortTerm ivRankMin fixed from 30 to 40 in strategyProfiles.ts to match WFA-validated threshold
-- [ ] **PRE-02**: API param naming standardized — scan-options.js uses `activeProfile` (not `profileStrategy`), strategy-recommend.js continues using `strategy`
-- [ ] **PRE-03**: Audit and redirect all `settings.creditSpread.*` reads to `getProfile(activeStrategy).*` where strategy-specific params are used
+- [x] **PRE-01**: shortTerm ivRankMin fixed from 30 to 40 in strategyProfiles.ts to match WFA-validated threshold
+- [x] **PRE-02**: API param naming standardized — scan-options.js uses `activeProfile` (not `profileStrategy`), strategy-recommend.js continues using `strategy`
+- [x] **PRE-03**: Audit and redirect all `settings.creditSpread.*` reads to `getProfile(activeStrategy).*` where strategy-specific params are used
 
 ### Signal Context
 
@@ -66,9 +66,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PRE-01 | Phase 1 | Pending |
-| PRE-02 | Phase 1 | Pending |
-| PRE-03 | Phase 1 | Pending |
+| PRE-01 | Phase 1 | Complete |
+| PRE-02 | Phase 1 | Complete |
+| PRE-03 | Phase 1 | Complete |
 | SIG-01 | Phase 2 | Pending |
 | SIG-02 | Phase 3 | Pending |
 | SIG-03 | Phase 3 | Pending |
