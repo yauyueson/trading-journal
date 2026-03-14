@@ -67,7 +67,7 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     spreadWidths: [2.5, 5, 7.5, 10],
     defaultWidth: 2.5,
     profitTarget: 0.40,
-    ivRankMin: 30,
+    ivRankMin: 40,
     timeStopDTE: 1,
     dteOptions: [
       { label: 'Weekly', val: 7, text: '5-10d' },

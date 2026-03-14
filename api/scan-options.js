@@ -44,7 +44,7 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const activeProfile = req.query.profileStrategy === 'shortTerm' ? 'shortTerm' : 'swing';
+    const activeProfile = req.query.activeProfile === 'shortTerm' ? 'shortTerm' : 'swing';
     const dteDefaults = activeProfile === 'shortTerm' ? { min: '5', max: '21' } : { min: '20', max: '60' };
     const {
         ticker,

@@ -65,7 +65,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
                 dayTrade: isDayTrade.toString()
             });
 
-            params.set('profileStrategy', activeStrategy);
+            params.set('activeProfile', activeStrategy);
             const res = await fetch(`/api/scan-options?${params}`);
             const data = await res.json();
 
