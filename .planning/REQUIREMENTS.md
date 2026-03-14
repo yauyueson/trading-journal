@@ -37,6 +37,11 @@
 - [x] **STRAT-03**: Global strategy toggle accessible within spread builder flow (in AppLayout header or selector page header)
 - [x] **STRAT-04**: All page subtitles and DTE/width/delta defaults react to active strategy selection
 
+### Cleanup + Signal Extension
+
+- [ ] **SCAN-01**: Scanner page (/scanner) removed — route, tab, page component, and scan-options.js API route all cleaned up
+- [ ] **MOM-01**: Signal type derived from signal_history components data (EMA or MOM) instead of hardcoded 'EMA' — flows through URL params and signal context banner
+
 ## v2 Requirements
 
 ### Position Monitoring
@@ -83,10 +88,12 @@
 | STRAT-02 | Phase 2 | Complete |
 | STRAT-03 | Phase 4 | Complete |
 | STRAT-04 | Phase 4 | Complete |
+| SCAN-01 | Phase 5 | Pending |
+| MOM-01 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 17 total
-- Mapped to phases: 17
+- v1 requirements: 19 total
+- Mapped to phases: 19
 - Unmapped: 0
 
 ---

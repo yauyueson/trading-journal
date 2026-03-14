@@ -82,3 +82,15 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 2. Data Contract + API Foundation | 1/2 | In Progress|  |
 | 3. Spread Builder Integration | 2/2 | Complete   | 2026-03-14 |
 | 4. Global Strategy Toggle | 1/1 | Complete   | 2026-03-14 |
+
+### Phase 5: Scanner Removal + MOM Signal Support
+**Goal**: Remove the Scanner page (not part of WFA workflow) and extend signal type detection to support MOM signals alongside EMA
+**Depends on**: Phase 4
+**Requirements**: SCAN-01, MOM-01
+**Success Criteria** (what must be TRUE):
+  1. /scanner route is removed — navigating to it redirects or shows 404
+  2. Scanner tab is removed from TabNav
+  3. Signal type in Signals page CTA URL is derived from signal_history components (EMA or MOM), not hardcoded 'EMA'
+  4. Signal context banner in spread builder displays correct signal type (EMA or MOM) based on URL param
+  5. All existing tests pass with no new failures
+**Plans**: TBD
