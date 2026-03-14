@@ -565,7 +565,7 @@ function getProbITMAtStrike(chain, optionType, expiration, targetStrike) {
     return a.probabilityITM + t * (b.probabilityITM - a.probabilityITM);
 }
 
-function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, dtePeak = 55, sampleDays = 60, volFcstAdj = 0, deltaRange = [0.25, 0.45]) {
+function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, dtePeak = 55, sampleDays = 60, volFcstAdj = 0, deltaRange = [0.25, 0.45], dteSigmaParam = 15) {
     const results = [];
     const widths = customWidth ? [customWidth] : [10, 5];
     const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short', sampleDays);
@@ -700,7 +700,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
 
             // Smooth Gaussian DTE curve: peak is setup-aware (dtePeak), σ depends on strategy
             // Momentum setups (Breakout, Perfect Storm) peak at DTE=14; Trend/Directional at 55
-            const dteSigma = strategyDefaults.dteSigma;
+            const dteSigma = dteSigmaParam;
             const scoreDTE = Math.round(100 * Math.exp(-0.5 * Math.pow((dte - dtePeak) / dteSigma, 2)));
 
             // Earnings penalty scaling (2.6): proportional to implied move size
@@ -1746,7 +1746,7 @@ export default async function handler(req, res) {
 
         if (decodedStrategy === 'Auto-Select Strategy') {
             if (isBull) {
-                const creditRes = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange);
+                const creditRes = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma);
                 rejectionDiagnostics = creditRes._diagnostics || null;
                 targetRecs = [
                     ...creditRes,
@@ -1755,7 +1755,7 @@ export default async function handler(req, res) {
                     ...buildIronCondors(strategyChain, currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, ivRankSampleDays, volFcstAdj)
                 ];
             } else {
-                const creditRes = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange);
+                const creditRes = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma);
                 rejectionDiagnostics = creditRes._diagnostics || null;
                 targetRecs = [
                     ...creditRes,
@@ -1765,14 +1765,14 @@ export default async function handler(req, res) {
                 ];
             }
         } else if (decodedStrategy === 'Credit Put Spread') {
-            targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange);
+            targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma);
             rejectionDiagnostics = targetRecs._diagnostics || null;
         } else if (decodedStrategy === 'Debit Call Spread') {
             targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Long Call') {
             targetRecs = scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Credit Call Spread') {
-            targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange);
+            targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma);
             rejectionDiagnostics = targetRecs._diagnostics || null;
         } else if (decodedStrategy === 'Debit Put Spread') {
             targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj);
