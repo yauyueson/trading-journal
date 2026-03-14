@@ -20,9 +20,10 @@ Correct pre-existing config bugs so strategy parameters are accurate and consist
 - strategyProfiles.ts is the single source of truth for all strategy parameters — no user override
 
 ### API param naming
-- Clean break: rename `profileStrategy` to `strategy` in both Scanner.tsx and scan-options.js
+- Clean break: rename `profileStrategy` to `activeProfile` in both Scanner.tsx and scan-options.js (avoids collision with existing `strategy` param for LOQ/CSQ toggle)
 - No backward compat alias — Scanner.tsx is the only caller
-- Signals.tsx CTA already passes `strategy` — confirm consistency across all navigate() calls
+- strategy-recommend.js already uses `strategy` correctly — no change needed there
+- Signals.tsx CTA passes `strategy` to /selector which maps to strategy-recommend.js — confirm consistency
 
 ### ivRankMin fix
 - Fix shortTerm ivRankMin from 30 to 40 in strategyProfiles.ts to match WFA-validated threshold

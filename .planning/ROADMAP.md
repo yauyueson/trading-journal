@@ -19,7 +19,7 @@ This milestone operationalizes the WFA-validated trading edge by wiring the vali
 **Requirements**: PRE-01, PRE-02, PRE-03
 **Success Criteria** (what must be TRUE):
   1. shortTerm strategy profile uses ivRankMin of 40% (not 30%), matching WFA-validated threshold
-  2. Both scan-options.js and strategy-recommend.js accept `strategy` as the query param name — no divergence
+  2. scan-options.js accepts `activeProfile` (not `profileStrategy`) as the strategy profile param — no collision with existing `strategy` param
   3. All code paths that previously read `settings.creditSpread.*` for strategy-specific params now read from `getProfile(activeStrategy).*`
   4. All 488 existing tests pass with no new failures
 **Plans:** 1 plan

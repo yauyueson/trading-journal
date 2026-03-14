@@ -8,7 +8,7 @@
 ### Prerequisites
 
 - [ ] **PRE-01**: shortTerm ivRankMin fixed from 30 to 40 in strategyProfiles.ts to match WFA-validated threshold
-- [ ] **PRE-02**: API param naming standardized — both scan-options.js and strategy-recommend.js use `strategy` (not `profileStrategy`)
+- [ ] **PRE-02**: API param naming standardized — scan-options.js uses `activeProfile` (not `profileStrategy`), strategy-recommend.js continues using `strategy`
 - [ ] **PRE-03**: Audit and redirect all `settings.creditSpread.*` reads to `getProfile(activeStrategy).*` where strategy-specific params are used
 
 ### Signal Context
