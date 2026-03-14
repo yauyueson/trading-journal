@@ -39,7 +39,7 @@
 
 ### Cleanup + Signal Extension
 
-- [ ] **SCAN-01**: Scanner page (/scanner) removed — route, tab, page component, and scan-options.js API route all cleaned up
+- [ ] **SCAN-01**: Scanner page (/scanner) removed — route, tab, page component, and Scanner-exclusive types cleaned up; scan-options.js API preserved (shared by Portfolio.tsx)
 - [ ] **MOM-01**: Signal type derived from signal_history components data (EMA or MOM) instead of hardcoded 'EMA' — flows through URL params and signal context banner
 
 ## v2 Requirements
