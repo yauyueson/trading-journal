@@ -503,11 +503,31 @@ function generateStrategyNote(strategyType, metrics) {
  * @param {number} currentPrice - Underlying spot price
  * @returns {{ impliedEarningsMove: number, earningsMovePct: number, postEarningsIVEstimate: number } | null}
  */
-function estimateEarningsPremium(daysUntilEarnings, dte, iv, currentPrice) {
+function estimateEarningsPremium(daysUntilEarnings, dte, iv, currentPrice, oratsImpErnMv = null) {
     if (daysUntilEarnings == null || daysUntilEarnings < 0 || daysUntilEarnings > dte) return null;
     if (!iv || iv <= 0 || !currentPrice || currentPrice <= 0 || dte <= 0) return null;
 
-    // --- Variance decomposition ---
+    // Prefer ORATS implied earnings move when available (market-priced, more accurate).
+    // ORATS impErnMv is in % (e.g. 8.5 = 8.5% expected move).
+    if (oratsImpErnMv != null && oratsImpErnMv > 0) {
+        const earningsMovePct = oratsImpErnMv;
+        const impliedEarningsMove = (earningsMovePct / 100) * currentPrice;
+        // Estimate post-earnings IV: strip jump from total variance
+        const totalVar = iv * iv * dte / 252;
+        const jumpVar = (earningsMovePct / 100) * (earningsMovePct / 100);
+        const diffuseVar = Math.max(0, totalVar - jumpVar);
+        const remainingDTE = Math.max(dte - 1, 1);
+        const postIV = Math.sqrt(Math.max(0, diffuseVar) * 252 / remainingDTE);
+        return {
+            impliedEarningsMove: Number(impliedEarningsMove.toFixed(2)),
+            earningsMovePct: Number(earningsMovePct.toFixed(2)),
+            postEarningsIVEstimate: Number((postIV * 100).toFixed(1)),
+            source: 'orats',
+            daysUntilEarnings
+        };
+    }
+
+    // --- Variance decomposition fallback ---
     // Total annualized variance carried by the option over its life:
     const totalVar = iv * iv * dte / 252;                  // σ²·T (in annual units)
 
@@ -575,7 +595,7 @@ function getProbITMAtStrike(chain, optionType, expiration, targetStrike) {
     return a.probabilityITM + t * (b.probabilityITM - a.probabilityITM);
 }
 
-function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, dtePeak = 55, sampleDays = 60, volFcstAdj = 0, deltaRange = [0.25, 0.45], dteSigmaParam = 15) {
+function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarnings, skew, customWidth, ivRank = null, anomaly = false, dtePeak = 55, sampleDays = 60, volFcstAdj = 0, deltaRange = [0.25, 0.45], dteSigmaParam = 15, oratsOpts = {}) {
     const results = [];
     const widths = customWidth ? [customWidth] : [10, 5];
     const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'short', sampleDays);
@@ -719,7 +739,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
 
             // Earnings penalty scaling (2.6): proportional to implied move size
             const earningsPremium = includesEarnings
-                ? estimateEarningsPremium(daysUntilEarnings, dte, shortLeg.iv, currentPrice)
+                ? estimateEarningsPremium(daysUntilEarnings, dte, shortLeg.iv, currentPrice, oratsOpts.impErnMv)
                 : null;
             const earningsMovePct = earningsPremium?.earningsMovePct ?? 5;
             const earningsScale = includesEarnings ? Math.min(2.0, Math.max(1.0, earningsMovePct / 5)) : 1.0;
@@ -727,7 +747,9 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             let finalScore = (0.20 * scoreEV) + (0.20 * scoreROI) + (0.20 * scorePOP) + (0.15 * scoreDistance) + (0.25 * scoreDTE) + skewBonus + gammaPenalty + relativeIVBonus;
             finalScore += ivRankAdj * 2 + volFcstAdj * 8;
             if (includesEarnings) finalScore -= 25 * earningsScale;
-            if (anomaly && dte <= 35) finalScore -= 30; // Anomaly IV (e.g. Earnings) → Penalize short-dated short sellers
+            if (anomaly && dte <= 35) finalScore -= 30;
+            // Takeover target penalty: pin risk makes credit spreads dangerous
+            if (oratsOpts.tkOver === 1) finalScore -= 20; // Anomaly IV (e.g. Earnings) → Penalize short-dated short sellers
 
             if (effectiveROI < 10) { _diag.lowROI++; continue; } // Lowered ROI floor because we are using net effective ROI now
 
@@ -788,7 +810,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
     return sorted;
 }
 
-function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null, daysUntilEarnings = null, anomaly = false, dtePeak = 37, deltaRange = [0.45, 0.70], sampleDays = 60, volFcstAdj = 0, dteSigmaParam = 15) {
+function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, ivRank = null, daysUntilEarnings = null, anomaly = false, dtePeak = 37, deltaRange = [0.45, 0.70], sampleDays = 60, volFcstAdj = 0, dteSigmaParam = 15, oratsOpts = {}) {
     const results = [];
     const widths = customWidth ? [customWidth] : [2.5, 5];
     const ivRankAdj = getIVRankAdjustment(ivRank ?? null, 'long', sampleDays);
@@ -910,7 +932,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
             const dteDS = longLeg.dte || 30;
             const includesEarningsDS = daysUntilEarnings !== null && daysUntilEarnings >= 0 && daysUntilEarnings <= dteDS;
             const earningsPremiumDS = includesEarningsDS
-                ? estimateEarningsPremium(daysUntilEarnings, dteDS, longLeg.iv, currentPrice)
+                ? estimateEarningsPremium(daysUntilEarnings, dteDS, longLeg.iv, currentPrice, oratsOpts.impErnMv)
                 : null;
             const earningsMovePctDS = earningsPremiumDS?.earningsMovePct ?? 5;
             const earningsScaleDS = includesEarningsDS ? Math.min(2.0, Math.max(1.0, earningsMovePctDS / 5)) : 1.0;
@@ -1531,39 +1553,46 @@ export default async function handler(req, res) {
             console.log(`[VolForecast] ${upperTicker}: adj=${volFcstAdj.toFixed(3)}, fcst20d=${oratsEnrich.orFcst20d}, iv30=${iv30?.toFixed(4)}, R²=${oratsEnrich.fcstR2}`);
         }
 
+        // ORATS enrichment options passed to builders for earnings/takeover/liquidity adjustments
+        const oratsOpts = {
+            impErnMv: oratsCores?.impErnMv ?? null,
+            tkOver: oratsEnrich.tkOver ?? 0,
+            avgOptVolu20d: oratsEnrich.avgOptVolu20d ?? null,
+        };
+
         // Collect rejection diagnostics from spread builders
         let rejectionDiagnostics = null;
 
         if (decodedStrategy === 'Auto-Select Strategy') {
             if (isBull) {
-                const creditRes = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma);
+                const creditRes = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma, oratsOpts);
                 rejectionDiagnostics = creditRes._diagnostics || null;
                 targetRecs = [
                     ...creditRes,
-                    ...buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma),
+                    ...buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma, oratsOpts),
                     ...scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj),
                 ];
             } else {
-                const creditRes = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma);
+                const creditRes = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma, oratsOpts);
                 rejectionDiagnostics = creditRes._diagnostics || null;
                 targetRecs = [
                     ...creditRes,
-                    ...buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma),
+                    ...buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma, oratsOpts),
                     ...scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj),
                 ];
             }
         } else if (decodedStrategy === 'Credit Put Spread') {
-            targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma);
+            targetRecs = buildCreditSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma, oratsOpts);
             rejectionDiagnostics = targetRecs._diagnostics || null;
         } else if (decodedStrategy === 'Debit Call Spread') {
-            targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma);
+            targetRecs = buildDebitSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma, oratsOpts);
         } else if (decodedStrategy === 'Long Call') {
             targetRecs = scoreSingleLegs(strategyChain, 'Call', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj);
         } else if (decodedStrategy === 'Credit Call Spread') {
-            targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma);
+            targetRecs = buildCreditSpreads(strategyChain, 'Call', currentPrice, regime.ivRvRatio, daysUntilEarnings, skew, widthParam, ivScoreInput, ivSurface.anomaly, dtePeak, ivRankSampleDays, volFcstAdj, deltaRange, strategyDefaults.dteSigma, oratsOpts);
             rejectionDiagnostics = targetRecs._diagnostics || null;
         } else if (decodedStrategy === 'Debit Put Spread') {
-            targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma);
+            targetRecs = buildDebitSpreads(strategyChain, 'Put', currentPrice, regime.ivRvRatio, widthParam, ivScoreInput, daysUntilEarnings, ivSurface.anomaly, dtePeak, deltaRange, ivRankSampleDays, volFcstAdj, strategyDefaults.dteSigma, oratsOpts);
         } else if (decodedStrategy === 'Long Put') {
             targetRecs = scoreSingleLegs(strategyChain, 'Put', regime.ivRvRatio, currentPrice, regime.ivRatio, ivScoreInput, ivRankSampleDays, volFcstAdj);
         }
@@ -1745,6 +1774,21 @@ export default async function handler(req, res) {
                 }
             }
         }
+
+        // Ticker-level liquidity discount: illiquid tickers get wider slippage and less reliable fills.
+        // avgOptVolu20d < 5000 = thin, < 1000 = very thin. Apply -3 to -8 score penalty.
+        const avgOptVol = oratsEnrich.avgOptVolu20d;
+        if (avgOptVol != null && avgOptVol < 5000) {
+            const liqPenalty = avgOptVol < 1000 ? -8 : avgOptVol < 2000 ? -5 : -3;
+            for (const rec of targetRecs) {
+                rec.score = Math.max(0, (rec.score || 0) + liqPenalty);
+                rec.unifiedScore = Math.max(0, (rec.unifiedScore || 0) + liqPenalty);
+                if (Array.isArray(rec.factors)) {
+                    rec.factors.push({ name: 'Low Ticker Liquidity', impact: liqPenalty, description: `20d avg option volume ${Math.round(avgOptVol)} is below 5K threshold`, value: undefined });
+                }
+            }
+        }
+
         targetRecs.sort((a, b) => b.unifiedScore - a.unifiedScore);
 
         // If Auto-Select Strategy mode, truncate to top 5 out of all structures generated
@@ -1754,7 +1798,7 @@ export default async function handler(req, res) {
 
         const contextIV = iv30 ?? null;
         const earningsPremiumContext = contextIV && currentPrice > 0
-            ? estimateEarningsPremium(daysUntilEarnings, dteTarget, contextIV, currentPrice)
+            ? estimateEarningsPremium(daysUntilEarnings, dteTarget, contextIV, currentPrice, oratsCores?.impErnMv)
             : null;
 
         // 4.2 — Fire-and-forget: persist top-5 candidates for Score→P&L validation
