@@ -48,21 +48,13 @@ describe('PRE-01 — strategyProfiles ivRankMin', () => {
 
 // ---------------------------------------------------------------------------
 // PRE-02: API param naming — activeProfile (not profileStrategy)
+// Scanner.tsx removed in phase 05 — test updated to only verify scan-options.js
 // ---------------------------------------------------------------------------
 describe('PRE-02 — API param naming', () => {
-  const scannerSrc = readFileSync(
-    resolve(__dirname, '../src/pages/Scanner.tsx'),
-    'utf-8'
-  );
   const scanApiSrc = readFileSync(
     resolve(__dirname, '../api/scan-options.js'),
     'utf-8'
   );
-
-  it('Scanner.tsx should use params.set("activeProfile", ...) not "profileStrategy"', () => {
-    expect(scannerSrc).toContain("params.set('activeProfile'");
-    expect(scannerSrc).not.toContain("params.set('profileStrategy'");
-  });
 
   it('scan-options.js should read req.query.activeProfile not req.query.profileStrategy', () => {
     expect(scanApiSrc).toContain('req.query.activeProfile');

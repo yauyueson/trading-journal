@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, History, BarChart3, Search, Target, BookOpen, FlaskConical, Radio } from 'lucide-react';
+import { LayoutDashboard, History, BarChart3, Target, BookOpen, FlaskConical, Radio } from 'lucide-react';
 import { PATH_TO_TAB, TAB_PATHS } from '../router';
 
 interface TabNavProps {
@@ -18,7 +18,6 @@ export const TabNav: React.FC<TabNavProps> = ({ activeTab: activeTabProp, setAct
 
     const tabs = [
         { id: 'signals', label: 'Signals', mobileLabel: 'Signals', Icon: Radio },
-        { id: 'scanner', label: 'Scan', mobileLabel: 'Scan', Icon: Search },
         { id: 'selector', label: 'Spread Builder', mobileLabel: 'Builder', Icon: Target },
         { id: 'portfolio', label: 'Portfolio', mobileLabel: 'Portfolio', Icon: LayoutDashboard },
         { id: 'history', label: 'History', mobileLabel: 'History', Icon: History },

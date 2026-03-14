@@ -4,7 +4,6 @@ import { AppLayout } from './layouts/AppLayout';
 // Tab ID <-> URL path mapping (used by TabNav)
 export const TAB_PATHS: Record<string, string> = {
   signals: '/signals',
-  scanner: '/scanner',
   selector: '/selector',
   portfolio: '/portfolio',
   history: '/history',
@@ -37,7 +36,7 @@ export const router = createBrowserRouter([
       },
       {
         path: '/scanner',
-        lazy: () => import('./pages/Scanner').then(m => ({ Component: m.ScannerPage })),
+        element: <Navigate to="/portfolio" replace />,
       },
       {
         path: '/selector',

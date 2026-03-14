@@ -333,23 +333,6 @@ export interface StrategyResult {
 }
 
 // ────────────────────────────────────────────────────────────────
-// Scanner Context (from API response)
-// ────────────────────────────────────────────────────────────────
-
-export interface ScannerApiContext {
-    ticker: string;
-    currentPrice: number;
-    ivRatio: number;
-    iv30: number | null;
-    iv90: number | null;
-    ivStatus: 'contango' | 'neutral' | 'backwardation';
-    strategy: string;
-    totalOptions: number;
-    filteredCount: number;
-    cboeTimestamp: string | null;
-}
-
-// ────────────────────────────────────────────────────────────────
 // Position Action
 // ────────────────────────────────────────────────────────────────
 
