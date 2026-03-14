@@ -53,7 +53,6 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
     const [ticker, setTicker] = useState('SPY');
     const [direction, setDirection] = useState<'BULL' | 'BEAR'>(persisted.current.direction || 'BULL');
-    const [techScoreTier] = useState<{ label: string; value: number; range: string; color: string } | null>(null);
     const [targetDte, setTargetDte] = useState(persisted.current.targetDte || profile.dtePeak);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -123,14 +122,14 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     }, [direction, targetDte, spreadWidth]);
 
     // When DTE changes, derive the strategy and update width defaults
-    const handleDteSelect = useCallback((dteVal: number) => {
+    const handleDteSelect = (dteVal: number) => {
         setTargetDte(dteVal);
         const derived = deriveStrategyFromDte(dteVal);
         if (derived !== activeStrategy) {
             setActiveStrategy(derived);
             setSpreadWidth(getProfile(derived).defaultWidth);
         }
-    }, [activeStrategy, setActiveStrategy]);
+    };
 
     // Reactive TP auto-fill: recomputes whenever fill price changes
     useEffect(() => {
@@ -260,7 +259,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                 ? `EV: $${(rec as SpreadRecommendation).expectedValue ?? '0'}. Width: $${(rec as SpreadRecommendation).width}`
                 : `Delta: ${(rec as SingleLegRecommendation).delta}`,
             legs: legs as WatchlistItem['legs'],
-            tech_score: techScoreTier?.value ?? undefined,
+            tech_score: undefined,
             tech_score_source: 'manual',
             direction,
             trade_profile: entryTradeProfile,
@@ -320,7 +319,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             entry_price: parseFloat(openPosPrice) || 0,
             legs,
             owner: openPosOwner,
-            tech_score: techScoreTier?.value ?? undefined,
+            tech_score: undefined,
             tech_score_source: 'manual',
             direction,
             trade_profile: entryTradeProfile,
@@ -341,7 +340,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         setOpenPosPrice('');
         setOpenPosTP('');
         setExpandedCard(null);
-    }, [onAddDirect, result, openPosQty, openPosPrice, openPosOwner, techScoreTier, direction, isSpread, activeStrategy, openPosTP]);
+    }, [onAddDirect, result, openPosQty, openPosPrice, openPosOwner, direction, isSpread, activeStrategy, openPosTP]);
 
     return (
         <div className="fade-in pb-24 sm:pb-0 font-sans">

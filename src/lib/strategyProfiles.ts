@@ -88,12 +88,6 @@ export function getProfile(strategy: StrategyType): StrategyProfile {
   return STRATEGY_PROFILES[strategy];
 }
 
-/** All DTE options from both profiles, grouped by strategy for the unified DTE selector */
-export const ALL_DTE_OPTIONS: { strategy: StrategyType; label: string; val: number; text: string }[] = [
-  ...STRATEGY_PROFILES.shortTerm.dteOptions.map(o => ({ strategy: 'shortTerm' as StrategyType, ...o })),
-  ...STRATEGY_PROFILES.swing.dteOptions.map(o => ({ strategy: 'swing' as StrategyType, ...o })),
-];
-
 /** Derive the strategy type from a selected DTE value */
 export function deriveStrategyFromDte(dteVal: number): StrategyType {
   // If the DTE value matches any shortTerm option, it's shortTerm

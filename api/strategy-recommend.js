@@ -657,7 +657,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             if (shortLeg.bid <= 0 || longLeg.ask <= 0) { _diag.noLiquidity++; continue; }
 
             // Hard filters on both legs — credit spreads use stricter tier
-            const HF = HARD_FILTER_CREDIT;
+            const HF = hfCredit;
             const shortMid = (shortLeg.bid + shortLeg.ask) / 2;
             const longMid = (longLeg.bid + longLeg.ask) / 2;
             if (shortMid < HF.minMid || longMid < HF.minMid) { _diag.noLiquidity++; continue; }
@@ -851,8 +851,8 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
             // Hard filters on both legs
             const longMidDS = (longLeg.bid + longLeg.ask) / 2;
             const shortMidDS = (shortLeg.bid + shortLeg.ask) / 2;
-            if (longMidDS < HARD_FILTER_DEFAULTS.minMid || shortMidDS < HARD_FILTER_DEFAULTS.minMid) continue;
-            if (longLeg.openInterest < HARD_FILTER_DEFAULTS.minOpenInterest || shortLeg.openInterest < HARD_FILTER_DEFAULTS.minOpenInterest) continue;
+            if (longMidDS < hfDefaults.minMid || shortMidDS < hfDefaults.minMid) continue;
+            if (longLeg.openInterest < hfDefaults.minOpenInterest || shortLeg.openInterest < hfDefaults.minOpenInterest) continue;
 
             // Use mid-market fill for scoring; worst-case is longLeg.ask - shortLeg.bid
             const debitBid = longLeg.bid - shortLeg.ask;
@@ -872,7 +872,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
 
             if (debit >= actualWidth * 0.55) continue;
             // if (riskReward < 1.5) continue; // Relaxed in favor of EV check
-            if (spreadPctVal > HARD_FILTER_DEFAULTS.maxSpreadPctCeiling) continue; // Consistent with credit spreads
+            if (spreadPctVal > hfDefaults.maxSpreadPctCeiling) continue; // Consistent with credit spreads
 
             // 4. Slippage (Debit) — OI-adjusted
             // 2.5: brokers fill 2-leg spread orders as packages, so multiply per-leg sum by 0.7
@@ -1009,10 +1009,10 @@ function scoreSingleLegs(chain, type, ivRvRatio, currentPrice, ivRatio = 1.0, iv
     for (const opt of filtered) {
         const mid = (opt.bid + opt.ask) / 2;
         if (mid <= 0) continue;
-        if (mid < HARD_FILTER_DEFAULTS.minMid) continue;
-        if (opt.openInterest < HARD_FILTER_DEFAULTS.minOpenInterest) continue;
+        if (mid < hfDefaults.minMid) continue;
+        if (opt.openInterest < hfDefaults.minOpenInterest) continue;
         const spreadPctVal = (opt.ask - opt.bid) / mid;
-        if (spreadPctVal > HARD_FILTER_DEFAULTS.maxSpreadPctCeiling) continue;
+        if (spreadPctVal > hfDefaults.maxSpreadPctCeiling) continue;
         const lambda = Math.abs(opt.delta) * (currentPrice / mid);
         const dollarGamma = calculateDollarGamma(opt.gamma, currentPrice);
         const thetaBurn = Math.abs(opt.theta) / mid;
@@ -1138,17 +1138,17 @@ export default async function handler(req, res) {
     const widthStr = spreadWidth ? String(spreadWidth).replace(/[^0-9.]/g, '') : null;
     const widthParam = widthStr ? parseFloat(widthStr) : strategyDefaults.defaultWidth;
 
-    let originalMinOI = 50; // default, overwritten after ensureScoring()
     try {
         await ensureScoring();
 
-        // User-configurable min OI from settings — override module-level defaults for this request
-        originalMinOI = HARD_FILTER_DEFAULTS.minOpenInterest;
+        // Request-scoped filter copies — safe for concurrent requests (no global mutation)
+        const hfDefaults = { ...HARD_FILTER_DEFAULTS };
+        const hfCredit = { ...HARD_FILTER_CREDIT };
         if (minOIParam != null) {
             const parsed = parseInt(minOIParam, 10);
             if (!isNaN(parsed) && parsed >= 0) {
-                HARD_FILTER_DEFAULTS.minOpenInterest = parsed;
-                HARD_FILTER_CREDIT.minOpenInterest = parsed;
+                hfDefaults.minOpenInterest = parsed;
+                hfCredit.minOpenInterest = parsed;
             }
         }
 
@@ -1987,9 +1987,5 @@ export default async function handler(req, res) {
         const errMsg = error && typeof error.message === 'string' ? error.message : String(error);
         console.error('Strategy API Error:', errMsg);
         return res.status(500).json({ error: 'Internal Server Error', message: errMsg });
-    } finally {
-        // Restore original OI thresholds
-        if (HARD_FILTER_DEFAULTS) HARD_FILTER_DEFAULTS.minOpenInterest = originalMinOI;
-        if (HARD_FILTER_CREDIT) HARD_FILTER_CREDIT.minOpenInterest = originalMinOI;
     }
 }
