@@ -702,18 +702,38 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
       {/* Dual Build Spread CTAs */}
       {row.status === 'GO' && (
         <div className="mt-3 pt-3 border-t border-white/10 flex flex-col sm:flex-row gap-2">
-          <button
-            onClick={e => { e.stopPropagation(); navigate(`/selector?ticker=${row.ticker}&direction=${dir}&strategy=swing`); }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors"
-          >
-            Build Swing Spread →
-          </button>
-          <button
-            onClick={e => { e.stopPropagation(); navigate(`/selector?ticker=${row.ticker}&direction=${dir}&strategy=shortTerm`); }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors"
-          >
-            Build Short-Term Spread →
-          </button>
+          {(() => {
+            const buildParams = (strategyParam: string) => {
+              const p = new URLSearchParams({
+                ticker: row.ticker,
+                direction: dir,
+                strategy: strategyParam,
+                score: String(Math.round(row.score)),
+                streak: String(row.streak),
+                signalType: 'EMA',
+                adx: String(row.adx.toFixed(1)),
+                rvol: String(row.rvol.toFixed(2)),
+              });
+              if (row.iv30 != null) p.set('iv30d', String(row.iv30.toFixed(4)));
+              return p.toString();
+            };
+            return (
+              <>
+                <button
+                  onClick={e => { e.stopPropagation(); navigate(`/selector?${buildParams('swing')}`); }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors"
+                >
+                  Build Swing Spread →
+                </button>
+                <button
+                  onClick={e => { e.stopPropagation(); navigate(`/selector?${buildParams('shortTerm')}`); }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors"
+                >
+                  Build Short-Term Spread →
+                </button>
+              </>
+            );
+          })()}
         </div>
       )}
     </div>

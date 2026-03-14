@@ -147,6 +147,8 @@ export interface DirectAddItem {
     spread_width?: number;
     /** Which strategy profile was used to open this position. */
     strategy_type?: 'swing' | 'shortTerm';
+    /** Take-profit target price, stored as a percentage (e.g., 0.30 = 30%). */
+    target_price?: number;
 }
 
 // ────────────────────────────────────────────────────────────────
