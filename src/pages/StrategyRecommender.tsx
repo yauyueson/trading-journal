@@ -68,8 +68,18 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     const [openPosOwner, setOpenPosOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [openPosSubmitting, setOpenPosSubmitting] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
+    const [ivGateDismissed, setIvGateDismissed] = useState(false);
 
     const [searchParams] = useSearchParams();
+
+    // Signal context from URL params (set by Signals page navigate call)
+    const urlScore = searchParams.get('score');
+    const urlStreak = searchParams.get('streak');
+    const urlSignalType = searchParams.get('signalType');
+    const urlAdx = searchParams.get('adx');
+    const urlRvol = searchParams.get('rvol');
+    const urlIv30d = searchParams.get('iv30d');
+    const hasSignalContext = !!(urlScore || urlStreak || urlSignalType || urlAdx || urlRvol);
 
     const didAutoAnalyze = useRef(false);
     const urlTickerRef = useRef<string | null>(null);
@@ -122,6 +132,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         setExpandedCard(null);
         setShowAdvanced(false);
         setOpenPosIdx(null);
+        setIvGateDismissed(false);
 
         try {
             const url = `/api/strategy-recommend?ticker=${ticker}&direction=${direction}&targetDte=${targetDte}&spreadWidth=${spreadWidth}&strategy=${activeStrategy}`;
@@ -561,6 +572,62 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             {/* Results */}
             {result && (
                 <div className="space-y-6 animate-fade-in">
+                    {/* Signal Context Banner — only shown when arriving from signals page */}
+                    {hasSignalContext && (
+                        <div className="bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded px-2 py-0.5 text-xs font-bold">
+                                    WFA Validated
+                                </span>
+                                <span className="text-xs text-gray-500">Signal context from {urlSignalType || 'EMA'} scan</span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {urlSignalType != null && (
+                                    <div>
+                                        <div className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-0.5">Signal</div>
+                                        <div className="text-sm font-bold text-white">{urlSignalType}</div>
+                                    </div>
+                                )}
+                                {direction && (
+                                    <div>
+                                        <div className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-0.5">Direction</div>
+                                        <div className={`text-sm font-bold ${direction === 'BULL' ? 'text-green-400' : 'text-red-400'}`}>{direction}</div>
+                                    </div>
+                                )}
+                                {urlScore != null && (
+                                    <div>
+                                        <div className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-0.5">Score</div>
+                                        <div className="text-sm font-bold text-white">{urlScore}</div>
+                                    </div>
+                                )}
+                                {urlStreak != null && (
+                                    <div>
+                                        <div className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-0.5">Streak</div>
+                                        <div className="text-sm font-bold text-white">{urlStreak}d</div>
+                                    </div>
+                                )}
+                                {urlAdx != null && (
+                                    <div>
+                                        <div className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-0.5">ADX</div>
+                                        <div className="text-sm font-bold text-white">{urlAdx}</div>
+                                    </div>
+                                )}
+                                {urlRvol != null && (
+                                    <div>
+                                        <div className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-0.5">RVOL</div>
+                                        <div className="text-sm font-bold text-white">{urlRvol}</div>
+                                    </div>
+                                )}
+                                {urlIv30d != null && (
+                                    <div>
+                                        <div className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-0.5">IV30</div>
+                                        <div className="text-sm font-bold text-white">{(parseFloat(urlIv30d) * 100).toFixed(1)}%</div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Regime Card */}
                     {(() => {
                         // Compute Trade Profile from result + user inputs
@@ -836,8 +903,17 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         );
                     })()}
 
-                    {/* Target Recommendations */}
+                    {/* Target Recommendations — wrapped with IV gate overlay */}
                     {(() => {
+                        const ivRankMin = result.strategyProfile?.ivRankMin ?? getProfile(activeStrategy).ivRankMin;
+                        const ivRankPct = result.regime.ivRank != null ? result.regime.ivRank * 100 : null;
+                        const ivBelowThreshold = ivRankPct != null && ivRankPct < ivRankMin;
+                        const ivUnknown = result.regime.ivRank == null;
+                        const showIvGate = (ivBelowThreshold || ivUnknown) && !ivGateDismissed;
+                        return (
+                            <div className="relative">
+                                <div className={showIvGate ? 'opacity-40 pointer-events-none select-none' : ''}>
+                                    {(() => {
                         const allRecs = (result.strategies.TARGET_STRATEGY as Recommendation[]) || [];
                         const spreadRecs = allRecs.filter(r => 'shortLeg' in r);
                         const singleRecs = allRecs.filter(r => !('shortLeg' in r));
@@ -1336,6 +1412,29 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                 )}
 
                                 {showAdvanced && singleRecs.map((rec, idx) => renderCard(rec, spreadRecs.length + idx))}
+                            </div>
+                        );
+                    })()}
+                                </div>
+                                {showIvGate && (
+                                    <div className="absolute inset-0 flex items-center justify-center z-10">
+                                        <div className="bg-[#1C1C1E] border border-amber-500/40 rounded-xl p-6 max-w-md mx-4 shadow-2xl text-center">
+                                            <AlertCircle className="text-amber-400 mx-auto mb-3" size={28} />
+                                            <p className="text-amber-300 font-bold mb-1">IV Rank below WFA threshold</p>
+                                            <p className="text-gray-400 text-sm mb-4">
+                                                {ivBelowThreshold
+                                                    ? `IV Rank ${ivRankPct!.toFixed(0)}% is below the ${ivRankMin}% WFA threshold for ${activeStrategy} trades`
+                                                    : 'IV Rank unavailable — cannot validate against WFA threshold'}
+                                            </p>
+                                            <button
+                                                onClick={() => setIvGateDismissed(true)}
+                                                className="px-4 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-lg text-sm font-bold transition-all"
+                                            >
+                                                I understand the risk — proceed
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         );
                     })()}
