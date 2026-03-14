@@ -346,3 +346,48 @@ describe('IVR-04 — IV gate is render-layer only (not in scoring functions)', (
     expect(scoringSrc).not.toContain('ivRankMin');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 3 (03-02) — Reactive TP auto-fill source-inspection tests
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// EXIT-01: handleOpenPosition sets target_price on DirectAddItem using profitTarget
+// ---------------------------------------------------------------------------
+describe('EXIT-01 — target_price wired into DirectAddItem via profitTarget', () => {
+  it('StrategyRecommender.tsx includes target_price in DirectAddItem construction', () => {
+    // target_price must appear in the handleOpenPosition item construction
+    const handleOpenIdx = recommenderSrc.indexOf('handleOpenPosition');
+    expect(handleOpenIdx).toBeGreaterThan(-1);
+    const handleOpenBlock = recommenderSrc.slice(handleOpenIdx, recommenderSrc.indexOf('}, [onAddDirect', handleOpenIdx) + 50);
+    expect(handleOpenBlock).toContain('target_price');
+  });
+
+  it('StrategyRecommender.tsx reads profitTarget from strategyProfile or getProfile fallback', () => {
+    // Both the reactive effect and handleOpenPosition use profitTarget
+    expect(recommenderSrc).toContain('profitTarget');
+  });
+
+  it('StrategyRecommender.tsx converts TP dollar amount to fraction (dollar-to-fraction division)', () => {
+    // The dollar-to-fraction conversion: divide openPosTP by openPosPrice
+    expect(recommenderSrc).toMatch(/parseFloat\(openPosTP\)\s*\/\s*\(parseFloat\(openPosPrice\)/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EXIT-03: openPosTP state exists, is wired to onChange, and has a reset path
+// ---------------------------------------------------------------------------
+describe('EXIT-03 — openPosTP state is user-editable with reset path', () => {
+  it('StrategyRecommender.tsx declares openPosTP state', () => {
+    expect(recommenderSrc).toContain('openPosTP');
+  });
+
+  it('StrategyRecommender.tsx wires setOpenPosTP to an onChange handler (field is editable)', () => {
+    // The onChange for the TP input must call setOpenPosTP
+    expect(recommenderSrc).toMatch(/onChange.*setOpenPosTP/s);
+  });
+
+  it('StrategyRecommender.tsx resets openPosTP via setOpenPosTP empty string', () => {
+    expect(recommenderSrc).toContain("setOpenPosTP('')");
+  });
+});
