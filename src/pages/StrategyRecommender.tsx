@@ -45,7 +45,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     const addDirectMut = useAddDirect();
     const onAddToWatchlist = onAddToWatchlistProp ?? (async (item: WatchlistItem) => { addToWatchlistMut.mutate(item); });
     const onAddDirect = onAddDirectProp ?? (async (item: DirectAddItem) => { addDirectMut.mutate(item); });
-    const { settings, stopOutFraction, activeStrategy } = useAppSettings();
+    const { settings, stopOutFraction, activeStrategy, setActiveStrategy } = useAppSettings();
     const profile = getProfile(activeStrategy);
     const { accountSize: portfolioTotal, riskPct } = settings.portfolio;
     const tickerRef = useRef<HTMLInputElement>(null);
@@ -79,10 +79,12 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     useEffect(() => {
         const urlTicker = searchParams.get('ticker');
         const urlDir = searchParams.get('direction') as 'BULL' | 'BEAR' | null;
+        const urlStrategy = searchParams.get('strategy');
         urlTickerRef.current = urlTicker;
         urlDirRef.current = urlDir;
         if (urlTicker) setTicker(urlTicker.toUpperCase());
         if (urlDir === 'BULL' || urlDir === 'BEAR') setDirection(urlDir);
+        if (urlStrategy === 'swing' || urlStrategy === 'shortTerm') setActiveStrategy(urlStrategy);
         tickerRef.current?.focus();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // run once on mount

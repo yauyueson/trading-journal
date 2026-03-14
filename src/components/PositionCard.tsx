@@ -544,6 +544,15 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
                         <span className="text-xl sm:text-2xl font-bold">{position.ticker}</span>
+                        {position.strategy_type && (
+                            <span className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded ${
+                                position.strategy_type === 'swing'
+                                    ? 'bg-green-500/15 text-green-400'
+                                    : 'bg-blue-500/15 text-blue-400'
+                            }`}>
+                                {position.strategy_type === 'swing' ? 'Swing' : 'Short'}
+                            </span>
+                        )}
                         {onUpdateOwner && (
                             <select
                                 value={position.owner || ''}

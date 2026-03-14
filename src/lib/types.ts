@@ -42,6 +42,8 @@ export interface Position {
     exit_type?: 'TP' | 'SL' | 'TIME' | 'MANUAL' | 'ROLL';
     /** Spread width in dollars (e.g. 15 for a $15-wide spread). Null for single-leg positions. */
     spread_width?: number;
+    /** Which strategy profile was used to open this position. */
+    strategy_type?: 'swing' | 'shortTerm' | null;
 }
 
 export interface PositionLeg {
@@ -143,6 +145,8 @@ export interface DirectAddItem {
     trade_profile?: string;
     iv_rank_entry?: number;
     spread_width?: number;
+    /** Which strategy profile was used to open this position. */
+    strategy_type?: 'swing' | 'shortTerm';
 }
 
 // ────────────────────────────────────────────────────────────────

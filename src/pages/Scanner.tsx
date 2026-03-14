@@ -4,7 +4,7 @@ import { Search, Info, Plus, Activity } from 'lucide-react';
 import { ScoredResult, Strategy, WatchlistItem, ScannerApiContext } from '../lib/types';
 import { useAddToWatchlist } from '../hooks/usePositionMutations';
 import { useAppSettings } from '../context/AppSettingsContext';
-import { getProfile } from '../lib/strategyProfiles';
+import { getProfile, STRATEGY_PROFILES } from '../lib/strategyProfiles';
 import { Tooltip } from '../components/Tooltip';
 import { DataFooter } from '../components/DataFooter';
 import { ScoreFactorsView } from '../components/ScoreFactorsView';
@@ -18,7 +18,7 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
     const onAddToWatchlist = onAddToWatchlistProp ?? ((item: WatchlistItem) => {
         addToWatchlistMut.mutate(item);
     });
-    const { activeStrategy } = useAppSettings();
+    const { activeStrategy, setActiveStrategy } = useAppSettings();
     const profile = getProfile(activeStrategy);
 
     // Search State
@@ -174,22 +174,49 @@ export const ScannerPage: React.FC<ScannerPageProps> = ({ onAddToWatchlist: onAd
                     </div>
                 </div>
 
-                {/* Credit Spread Preset */}
-                <div className="flex items-center gap-2 mb-3">
+                {/* Credit Spread Presets */}
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
                     <button
                         onClick={() => {
+                            const p = STRATEGY_PROFILES.swing;
                             setStrategy('short');
-                            setDteMin(profile.dteMin);
-                            setDteMax(profile.dteMax);
-                            setDeltaMin(profile.deltaMin);
-                            setDeltaMax(profile.deltaMax);
+                            setDteMin(p.dteMin);
+                            setDteMax(p.dteMax);
+                            setDeltaMin(p.deltaMin);
+                            setDeltaMax(p.deltaMax);
                             setDirection('put');
                             setIsDayTrade(false);
                             setMinVolume(50);
+                            setActiveStrategy('swing');
                         }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-accent-green/10 text-accent-green border border-accent-green/20 hover:bg-accent-green/20 transition-colors"
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                            activeStrategy === 'swing'
+                                ? 'bg-green-500/15 text-green-400 border-green-500/30'
+                                : 'bg-white/5 text-text-tertiary border-white/10 hover:bg-white/10'
+                        }`}
                     >
-                        Credit Spread Defaults
+                        Swing Defaults
+                    </button>
+                    <button
+                        onClick={() => {
+                            const p = STRATEGY_PROFILES.shortTerm;
+                            setStrategy('short');
+                            setDteMin(p.dteMin);
+                            setDteMax(p.dteMax);
+                            setDeltaMin(p.deltaMin);
+                            setDeltaMax(p.deltaMax);
+                            setDirection('put');
+                            setIsDayTrade(false);
+                            setMinVolume(50);
+                            setActiveStrategy('shortTerm');
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                            activeStrategy === 'shortTerm'
+                                ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                                : 'bg-white/5 text-text-tertiary border-white/10 hover:bg-white/10'
+                        }`}
+                    >
+                        Short-Term Defaults
                     </button>
                     <span className="text-[11px] text-text-tertiary">Short · DTE {profile.dteMin}-{profile.dteMax} · Delta {profile.deltaMin}-{profile.deltaMax} · Puts</span>
                 </div>

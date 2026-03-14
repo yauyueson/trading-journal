@@ -6,7 +6,7 @@ import { useSignalScanner } from '../hooks/useSignalScanner';
 import { useSignalHistory, type SignalHistoryRow } from '../hooks/useSignalHistory';
 import { usePositions } from '../hooks/usePositions';
 import { useAppSettings } from '../context/AppSettingsContext';
-import { getProfile } from '../lib/strategyProfiles';
+import { STRATEGY_PROFILES } from '../lib/strategyProfiles';
 import { supabase } from '../lib/supabase';
 import type { TechScoreOptions } from '../lib/tech-analysis';
 
@@ -194,9 +194,7 @@ function useSignalStreaks(tickers: string[]) {
 // ── Page ──────────────────────────────────────────────────
 
 export const SignalsPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { settings, activeStrategy } = useAppSettings();
-  const profile = getProfile(activeStrategy);
+  const { settings } = useAppSettings();
   const scanner = useSignalScanner();
   const { data: positions } = usePositions();
   const [dirFilter, setDirFilter] = useState<'ALL' | 'CALL' | 'PUT'>('ALL');
@@ -346,7 +344,7 @@ export const SignalsPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-semibold">Signal Dashboard</h1>
             <p className="text-xs text-text-tertiary">
-              Credit spreads {'\u2022'} {profile.subtitle}
+              EMA signal {'\u2022'} IV {'\u2265'} 30% {'\u2022'} ADX {'\u2265'} 15 {'\u2022'} RVOL {'\u2265'} 0.5
             </p>
           </div>
         </div>
@@ -488,13 +486,7 @@ export const SignalsPage: React.FC = () => {
                     {isExpanded && (
                       <tr className="border-b border-white/5">
                         <td colSpan={10} className="px-4 py-3 bg-white/[0.02]">
-                          <DashboardDetailPanel
-                            row={row}
-                            onBuildSpread={() => {
-                              const dir = row.direction === 'CALL' ? 'BULL' : 'BEAR';
-                              navigate(`/selector?ticker=${row.ticker}&direction=${dir}`);
-                            }}
-                          />
+                          <DashboardDetailPanel row={row} />
                         </td>
                       </tr>
                     )}
@@ -640,10 +632,13 @@ const DashboardRowView: React.FC<{
 
 // ── Dashboard Detail Panel ────────────────────────────────
 
-const DashboardDetailPanel: React.FC<{ row: DashboardRow; onBuildSpread: () => void }> = ({ row, onBuildSpread }) => {
-  const { activeStrategy } = useAppSettings();
-  const profile = getProfile(activeStrategy);
+const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
+  const navigate = useNavigate();
+  const swing = STRATEGY_PROFILES.swing;
+  const shortTerm = STRATEGY_PROFILES.shortTerm;
   const isGo = row.status === 'GO';
+  const dir = row.direction === 'CALL' ? 'BULL' : 'BEAR';
+  const spreadType = row.direction === 'CALL' ? 'Bull Put Spread' : 'Bear Call Spread';
 
   return (
     <div className="space-y-3">
@@ -658,19 +653,30 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow; onBuildSpread: () => v
         </div>
       </div>
 
-      {/* GO action box */}
+      {/* Dual-strategy GO cards */}
       {isGo && row.streak > 0 && (
-        <div className="bg-green-500/5 border border-green-500/20 rounded-lg px-4 py-3">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-green-400 font-semibold text-sm">
-              {row.direction === 'CALL' ? 'Bull Put Spread' : 'Bear Call Spread'}
-            </span>
-            <span className="text-xs text-text-tertiary">
-              Signal active {row.streak} day{row.streak > 1 ? 's' : ''} (since {row.firstFired})
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Swing card */}
+          <div className="bg-green-500/5 border border-green-500/20 rounded-lg px-4 py-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-green-400 font-semibold text-sm">{spreadType}</span>
+              <span className="inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded bg-green-500/15 text-green-400">Swing</span>
+            </div>
+            <div className="text-xs text-text-secondary mb-2">{swing.subtitle}</div>
+            <span className="text-[10px] text-text-tertiary">
+              Signal active {row.streak}d (since {row.firstFired})
             </span>
           </div>
-          <div className="text-xs text-text-secondary">
-            {profile.subtitle}
+          {/* Short-Term card */}
+          <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg px-4 py-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-blue-400 font-semibold text-sm">{spreadType}</span>
+              <span className="inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-500/15 text-blue-400">Short</span>
+            </div>
+            <div className="text-xs text-text-secondary mb-2">{shortTerm.subtitle}</div>
+            <span className="text-[10px] text-text-tertiary">
+              Signal active {row.streak}d (since {row.firstFired})
+            </span>
           </div>
         </div>
       )}
@@ -693,18 +699,21 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow; onBuildSpread: () => v
         </div>
       )}
 
-      {/* Build Spread CTA */}
+      {/* Dual Build Spread CTAs */}
       {row.status === 'GO' && (
-        <div className="mt-3 pt-3 border-t border-white/10">
+        <div className="mt-3 pt-3 border-t border-white/10 flex flex-col sm:flex-row gap-2">
           <button
-            onClick={e => { e.stopPropagation(); onBuildSpread(); }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-accent-green text-black hover:bg-accent-green/90 transition-colors"
+            onClick={e => { e.stopPropagation(); navigate(`/selector?ticker=${row.ticker}&direction=${dir}&strategy=swing`); }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors"
           >
-            Build Spread →
+            Build Swing Spread →
           </button>
-          <p className="text-[10px] text-text-tertiary mt-1">
-            Opens Spread Builder pre-filled with {row.ticker} {row.direction === 'CALL' ? 'Bull Put' : 'Bear Call'}
-          </p>
+          <button
+            onClick={e => { e.stopPropagation(); navigate(`/selector?ticker=${row.ticker}&direction=${dir}&strategy=shortTerm`); }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors"
+          >
+            Build Short-Term Spread →
+          </button>
         </div>
       )}
     </div>

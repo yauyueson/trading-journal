@@ -121,6 +121,7 @@ export function useAddDirect() {
         max_risk_entry: item.max_risk_entry || null,
         trade_profile: item.trade_profile || null,
         iv_rank_entry: item.iv_rank_entry ?? null,
+        strategy_type: item.strategy_type || null,
       }]).select();
 
       if (error) throw error;

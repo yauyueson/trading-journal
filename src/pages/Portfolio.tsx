@@ -87,6 +87,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const [positionType, setPositionType] = useState<'single' | 'credit' | 'debit'>('credit');
     const [formOwner, setFormOwner] = useState<'Yuchen' | 'Annie'>('Yuchen');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
+    const [strategyFilter, setStrategyFilter] = useState<'All' | 'swing' | 'shortTerm'>('All');
     const [form, setForm] = useState({ ticker: '', strike: '', strike2: '', type: 'Put', expiration: '', setup: 'Directional', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL' as 'BULL' | 'BEAR', iv_regime_entry: '', market_state: '' });
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [bulkData, setBulkData] = useState<Record<string, any>>({});
@@ -145,7 +146,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     }, [form.ticker, form.strike, form.expiration, form.type, fetchEntryScore]);
 
     const allActivePositions = positions.filter(p => p.status === 'active');
-    const activePositions = ownerFilter === 'All' ? allActivePositions : allActivePositions.filter(p => p.owner === ownerFilter);
+    const ownerFiltered = ownerFilter === 'All' ? allActivePositions : allActivePositions.filter(p => p.owner === ownerFilter);
+    const activePositions = strategyFilter === 'All' ? ownerFiltered : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
 
     // ... (risk calc unchanged)
     const totalRiskDollars = activePositions.reduce((sum, position) => {
@@ -317,7 +319,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                 direction: form.direction as 'BULL' | 'BEAR',
                 iv_regime_entry: form.iv_regime_entry || undefined,
                 market_state: form.market_state || undefined,
-                owner: formOwner
+                owner: formOwner,
+                strategy_type: activeStrategy,
             });
         } else {
             const shortStrike = parseFloat(form.strike);
@@ -353,6 +356,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                 spread_width: spreadWidth ?? undefined,
                 max_risk_entry: maxRiskPerContract != null && maxRiskPerContract > 0 ? maxRiskPerContract : undefined,
                 trade_profile: isCredit ? 'credit_spread' : 'debit_spread',
+                strategy_type: activeStrategy,
             });
         }
 
@@ -438,6 +442,26 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                                 }`}
                         >
                             {value}
+                        </button>
+                    ))}
+                </div>
+                {/* Strategy Filter */}
+                <div className="flex items-center gap-1.5">
+                    {([['All', 'All'], ['swing', 'Swing'], ['shortTerm', 'Short']] as const).map(([value, label]) => (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => setStrategyFilter(value as 'All' | 'swing' | 'shortTerm')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${strategyFilter === value
+                                ? value === 'swing'
+                                    ? 'bg-green-500/20 text-green-400 border border-green-500/40'
+                                    : value === 'shortTerm'
+                                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                        : 'bg-white/10 text-text-primary border border-white/20'
+                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                }`}
+                        >
+                            {label}
                         </button>
                     ))}
                 </div>
