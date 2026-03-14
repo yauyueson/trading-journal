@@ -697,7 +697,11 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
 
             const scoreROI = Math.min(effectiveROI * 4, 100);
             const scorePOP = pop * 100;
-            const scoreDistance = Math.min(distance * 1000, 100);
+            // IV-normalized distance: same % OTM is less safe in high-IV names
+            // 2.5 sigma OTM = 100 (very safe), 1 sigma = 40 (moderate)
+            const sigma1 = (shortLeg.iv || 0.30) * Math.sqrt(Math.max(dte, 1) / 365);
+            const distanceInSigma = sigma1 > 0 ? distance / sigma1 : distance * 10;
+            const scoreDistance = Math.min(distanceInSigma * 40, 100);
 
             // 5. Gamma Risk — pass spot and mid for proper normalization (avoids TSLA vs SPY price distortion)
             const gammaPenalty = getGammaRiskPenalty(shortLeg.gamma, shortLeg.theta, dte, currentPrice, shortMid);
@@ -721,7 +725,7 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
             const earningsScale = includesEarnings ? Math.min(2.0, Math.max(1.0, earningsMovePct / 5)) : 1.0;
 
             let finalScore = (0.20 * scoreEV) + (0.20 * scoreROI) + (0.20 * scorePOP) + (0.15 * scoreDistance) + (0.25 * scoreDTE) + skewBonus + gammaPenalty + relativeIVBonus;
-            finalScore += ivRankAdj * 2 + volFcstAdj * 2;
+            finalScore += ivRankAdj * 2 + volFcstAdj * 8;
             if (includesEarnings) finalScore -= 25 * earningsScale;
             if (anomaly && dte <= 35) finalScore -= 30; // Anomaly IV (e.g. Earnings) → Penalize short-dated short sellers
 
@@ -913,7 +917,7 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
 
             let finalScore = (0.25 * lambdaScore) + (0.25 * rrScore) + (0.15 * deltaScore) +
                 (0.20 * evScore) + (0.10 * (50 + bePenalty * 12.5)) - (0.05 * thetaPenalty) + (0.05 * scoreDTEDebit);
-            finalScore += ivRankAdj * 2 + volFcstAdj * 2;
+            finalScore += ivRankAdj * 2 + volFcstAdj * 8;
             if (includesEarningsDS) finalScore -= 15 * earningsScaleDS; // Earnings → IV crush risk for debit buyers
             if (anomaly && (longLeg.dte || 30) <= 35) finalScore -= 20; // Anomaly IV → Penalize buyers due to IV crush risk
 

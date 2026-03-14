@@ -55,6 +55,10 @@ export interface CreditSpreadMetrics {
     currentPrice: number;
     /** If set, POP is derived from delta at breakeven (more accurate than short-strike delta). */
     deltaAtBreakeven?: number;
+    /** Short leg IV (decimal, e.g. 0.30). Used for IV-normalized distance scoring. */
+    shortIv?: number;
+    /** Days to expiration. Used for IV-normalized distance scoring. */
+    dte?: number;
 }
 
 export interface DebitSpreadMetrics {
@@ -238,13 +242,14 @@ export function calculateSellerEdge(pop: number, premium: number): number {
  *
  * EV = (POP × Credit) - ((1-POP) × MaxRisk × exitMultiplier)
  *
- * exitMultiplier (default 0.75): empirical adjustment reflecting that most losing
- * trades are managed and closed before reaching full max loss. Reduces the
- * theoretical worst-case drawdown to a realistic expected loss.
+ * exitMultiplier (default 0.92): fraction of max loss realized on losing trades.
+ * Calibrated from WFA results: no stop-loss strategy means losers approach max loss,
+ * but early management/rolling saves ~8% on average. Previous default (0.75) was
+ * overly optimistic, inflating EV for thin-credit/wide-risk spreads.
  *
  * Positive EV = edge in seller's favor; Negative EV = expected loss.
  */
-export function calculateExpectedValue(pop: number, credit: number, maxRisk: number, exitMultiplier: number = 0.75): number {
+export function calculateExpectedValue(pop: number, credit: number, maxRisk: number, exitMultiplier: number = 0.92): number {
     return (pop * credit) - ((1 - pop) * maxRisk * exitMultiplier);
 }
 
@@ -450,7 +455,7 @@ export function getVolForecastAdjustment(
     if (orFcst20d == null || iv30 == null || iv30 <= 0) return 0;
     const quality = Math.max(0, Math.min(1, fcstR2 ?? 0));
     if (quality < 0.1) return 0; // forecast too unreliable
-    const diff = Math.max(-0.3, Math.min(0.3, (orFcst20d / iv30) - 1));
+    const diff = Math.max(-0.8, Math.min(0.8, (orFcst20d / iv30) - 1));
     // Long benefits from rising vol forecast, short from falling
     const raw = strategy === 'long' ? diff : -diff;
     return raw * quality;
@@ -803,7 +808,7 @@ export function calculateSingleLOQ(
  * have similar EV but different risk profiles (lottery vs. grinder).
  */
 export function calculateCreditSpreadScore(metrics: CreditSpreadMetrics): number {
-    const { credit, width, shortDelta, shortStrike, currentPrice, deltaAtBreakeven } = metrics;
+    const { credit, width, shortDelta, shortStrike, currentPrice, deltaAtBreakeven, shortIv, dte } = metrics;
     const maxRisk = width - credit;
     if (maxRisk <= 0) return 0;
 
@@ -819,7 +824,18 @@ export function calculateCreditSpreadScore(metrics: CreditSpreadMetrics): number
 
     const scoreROI = Math.min(roi * 4, 100);
     const scorePOP = pop * 100;
-    const scoreDistance = Math.min(distance * 1000, 100);
+
+    // IV-normalized distance: same % OTM is less safe in high-IV names.
+    // When IV/DTE available, measure distance in sigma units (2.5σ = 100).
+    // Fallback to legacy linear scaling when IV data is missing.
+    let scoreDistance: number;
+    if (shortIv && shortIv > 0 && dte && dte > 0) {
+        const sigma1 = shortIv * Math.sqrt(dte / 365);
+        const distInSigma = sigma1 > 0 ? distance / sigma1 : distance * 10;
+        scoreDistance = Math.min(distInSigma * 40, 100);
+    } else {
+        scoreDistance = Math.min(distance * 1000, 100);
+    }
 
     const finalScore = 0.30 * scoreEV + 0.25 * scoreROI + 0.25 * scorePOP + 0.20 * scoreDistance;
     return Math.round(Math.min(100, Math.max(0, finalScore)));

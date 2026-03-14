@@ -125,12 +125,12 @@ describe('calculateExpectedValue', () => {
   it('certain win (pop=1) → full credit', () => {
     expect(calculateExpectedValue(1, 1.0, 3.0)).toBeCloseTo(1.0, 5);
   });
-  it('certain loss (pop=0) → -maxRisk * 0.75', () => {
-    expect(calculateExpectedValue(0, 1.0, 3.0)).toBeCloseTo(-2.25, 5);
+  it('certain loss (pop=0) → -maxRisk * 0.92', () => {
+    expect(calculateExpectedValue(0, 1.0, 3.0)).toBeCloseTo(-2.76, 5);
   });
   it('even odds, small edge', () => {
     const ev = calculateExpectedValue(0.8, 1.0, 3.0);
-    expect(ev).toBeCloseTo(0.8 - 0.2 * 3.0 * 0.75, 5); // 0.35
+    expect(ev).toBeCloseTo(0.8 - 0.2 * 3.0 * 0.92, 5); // 0.248
   });
   it('custom exitMultiplier', () => {
     expect(calculateExpectedValue(0.5, 1.0, 2.0, 1.0)).toBeCloseTo(-0.5, 5);
