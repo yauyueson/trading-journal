@@ -25,9 +25,10 @@ function _normCDF(x) {
  * For puts: P(ITM) = 1 - bsmN2(S, K, T, sigma)
  * d2 = (ln(S/K) - 0.5*σ²*T) / (σ*√T)  [r≈0]
  */
-function _bsmN2(S, K, T, sigma) {
+/** BSM P(S > K at expiry). Uses risk-free rate for accurate POP at longer DTE. */
+function _bsmN2(S, K, T, sigma, r = 0.045) {
     if (T <= 0 || sigma <= 0 || S <= 0 || K <= 0) return 0.5;
-    const d2 = (Math.log(S / K) - 0.5 * sigma * sigma * T) / (sigma * Math.sqrt(T));
+    const d2 = (Math.log(S / K) + (r - 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
     return _normCDF(d2);
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -357,7 +358,14 @@ function detectRegime(iv30, iv90, rv30, ivHvXernRatio) {
     const ivRvRatio = (ivHvXernRatio != null && ivHvXernRatio > 0)
         ? ivHvXernRatio
         : (rv30 ? iv30Pct / rv30 : null);
-    // VRP = IV30(%) - RV30(%) — positive means market paying premium above realized vol (seller-friendly)
+
+    // Variance Risk Premium: IV² - RV² (in decimal variance units).
+    // This is the academically correct form — captures absolute premium magnitude,
+    // not just ratio. A ratio of 1.11 means different things at 20% vs 60% IV.
+    // vrpVariance > 0 = seller's edge, < 0 = buyer's edge.
+    const rv30Dec = rv30 != null ? rv30 / 100 : null; // rv30 is in % (e.g. 24.3), convert to decimal
+    const vrpVariance = rv30Dec != null ? (iv30 * iv30 - rv30Dec * rv30Dec) : null;
+    // Legacy VRP in % difference (for display/advice text)
     const vrp = rv30 != null ? iv30Pct - rv30 : null;
 
     // Absolute IV level context
@@ -367,10 +375,12 @@ function detectRegime(iv30, iv90, rv30, ivHvXernRatio) {
         : ivLevel === 'suppressed'
             ? `IV30 is low (${iv30Pct.toFixed(1)}%): premiums are thin—credit spreads collect less; debit spreads are relatively cheap. `
             : '';
-    const vrpNote = vrp != null
-        ? vrp > 5
+    // Use variance-based VRP for edge sizing (vrpVariance), legacy % diff for display readability
+    const vrpBps = vrpVariance != null ? vrpVariance * 10000 : null;
+    const vrpNote = vrpVariance != null
+        ? vrpBps > 50
             ? `VRP is +${vrp.toFixed(1)}% (IV well above RV): strong seller's edge—market is paying meaningfully above recent realized vol. `
-            : vrp < 0
+            : vrpBps < -20
                 ? `VRP is ${vrp.toFixed(1)}% (IV below RV): vol is cheap vs recent realized—sellers have no premium edge; consider buyers or stay selective. `
                 : ''
         : '';
@@ -425,7 +435,7 @@ function detectRegime(iv30, iv90, rv30, ivHvXernRatio) {
         adviceDetail += 'Debit spreads cap risk and keep positive delta with lower capital than a naked long.';
     }
 
-    return { ivRatio: termRatio, slope, slopeTier, ivRvRatio, vrp, ivLevel, mode, advice, adviceDetail };
+    return { ivRatio: termRatio, slope, slopeTier, ivRvRatio, vrp, vrpVariance, ivLevel, mode, advice, adviceDetail };
 }
 
 function generateStrategyNote(strategyType, metrics) {
@@ -1870,6 +1880,7 @@ export default async function handler(req, res) {
                 advice: regime.advice,
                 adviceDetail: regime.adviceDetail || null,
                 vrp: regime.vrp != null ? Number(regime.vrp.toFixed(1)) : null,
+                vrpVariance: regime.vrpVariance != null ? Number((regime.vrpVariance * 10000).toFixed(1)) : null,  // in basis points (e.g. 68.4 = 0.00684 var units)
                 ivLevel: regime.ivLevel || null,
                 ivSurface: {
                     iv7: ivSurface.iv7 ? Number((ivSurface.iv7 * 100).toFixed(1)) : null,
