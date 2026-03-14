@@ -22,7 +22,10 @@ This milestone operationalizes the WFA-validated trading edge by wiring the vali
   2. Both scan-options.js and strategy-recommend.js accept `strategy` as the query param name — no divergence
   3. All code paths that previously read `settings.creditSpread.*` for strategy-specific params now read from `getProfile(activeStrategy).*`
   4. All 488 existing tests pass with no new failures
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 01-01-PLAN.md — Fix ivRankMin, standardize API param naming, replace credit spread settings with WFA info card
 
 ### Phase 2: Data Contract + API Foundation
 **Goal**: The type contract for profit target is in place, API routes are strategy-aware, and signal context is emitted from the signals page into the URL
@@ -64,7 +67,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Prerequisite Fixes | 0/TBD | Not started | - |
+| 1. Prerequisite Fixes | 0/1 | Planning complete | - |
 | 2. Data Contract + API Foundation | 0/TBD | Not started | - |
 | 3. Spread Builder Integration | 0/TBD | Not started | - |
 | 4. Global Strategy Toggle | 0/TBD | Not started | - |
