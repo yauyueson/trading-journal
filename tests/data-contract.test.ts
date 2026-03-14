@@ -4,6 +4,13 @@
 //   SIG-01  — signal metadata (score, streak, signalType, adx, rvol, iv30d) in Signals navigate() calls
 //   STRAT-01 — strategy-recommend.js STRATEGY_DEFAULTS enriched with profitTarget/ivRankMin/defaultWidth
 //   STRAT-02 — scan-options.js applies profile-specific delta defaults
+// Phase 3 (03-01) contracts:
+//   SIG-02  — StrategyRecommender reads all signal params from searchParams
+//   SIG-03  — Signal banner conditional on hasSignalContext
+//   IVR-01  — IV gate compares ivRankPct to ivRankMin threshold
+//   IVR-02  — IV gate wraps results with opacity/pointer-events classes
+//   IVR-03  — Threshold read from strategyProfile?.ivRankMin with getProfile fallback
+//   IVR-04  — No ivRankMin threshold in scoring functions (render-layer only)
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -202,5 +209,140 @@ describe('STRAT-02 — scan-options.js profile-specific delta defaults', () => {
   it('scan-options.js strategy param (long/short LOQ/CSQ) should NOT be modified', () => {
     // strategy = 'long' default must remain for LOQ/CSQ toggle
     expect(scanOptionsSrc).toContain("strategy = 'long'");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 3 (03-01) — signal context banner + IV gate source-inspection tests
+// ---------------------------------------------------------------------------
+
+const recommenderSrc = readFileSync(
+  resolve(__dirname, '../src/pages/StrategyRecommender.tsx'),
+  'utf-8'
+);
+
+const ossSrc = readFileSync(
+  resolve(__dirname, '../src/lib/oss-core.ts'),
+  'utf-8'
+);
+
+const scoringSrc = readFileSync(
+  resolve(__dirname, '../lib/_shared/scoring.cjs'),
+  'utf-8'
+);
+
+// ---------------------------------------------------------------------------
+// SIG-02: StrategyRecommender reads all signal params from searchParams
+// ---------------------------------------------------------------------------
+describe('SIG-02 — StrategyRecommender reads signal params from searchParams', () => {
+  it('StrategyRecommender.tsx reads score from searchParams', () => {
+    expect(recommenderSrc).toContain("searchParams.get('score')");
+  });
+
+  it('StrategyRecommender.tsx reads streak from searchParams', () => {
+    expect(recommenderSrc).toContain("searchParams.get('streak')");
+  });
+
+  it('StrategyRecommender.tsx reads signalType from searchParams', () => {
+    expect(recommenderSrc).toContain("searchParams.get('signalType')");
+  });
+
+  it('StrategyRecommender.tsx reads adx from searchParams', () => {
+    expect(recommenderSrc).toContain("searchParams.get('adx')");
+  });
+
+  it('StrategyRecommender.tsx reads rvol from searchParams', () => {
+    expect(recommenderSrc).toContain("searchParams.get('rvol')");
+  });
+
+  it('StrategyRecommender.tsx reads iv30d from searchParams', () => {
+    expect(recommenderSrc).toContain("searchParams.get('iv30d')");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SIG-03: Signal banner conditional on hasSignalContext
+// ---------------------------------------------------------------------------
+describe('SIG-03 — Signal banner conditional on hasSignalContext', () => {
+  it('StrategyRecommender.tsx defines hasSignalContext variable', () => {
+    expect(recommenderSrc).toContain('hasSignalContext');
+  });
+
+  it('StrategyRecommender.tsx derives hasSignalContext from signal params', () => {
+    // hasSignalContext must be a boolean derived from urlScore, urlStreak, etc.
+    expect(recommenderSrc).toMatch(/hasSignalContext\s*=\s*!!/);
+  });
+
+  it('StrategyRecommender.tsx uses hasSignalContext as JSX conditional', () => {
+    // Banner is rendered conditionally via {hasSignalContext && (
+    expect(recommenderSrc).toContain('{hasSignalContext && (');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IVR-01: IV gate compares ivRankPct to ivRankMin threshold
+// ---------------------------------------------------------------------------
+describe('IVR-01 — IV gate threshold comparison', () => {
+  it('StrategyRecommender.tsx defines ivBelowThreshold flag', () => {
+    expect(recommenderSrc).toContain('ivBelowThreshold');
+  });
+
+  it('StrategyRecommender.tsx compares ivRankPct < ivRankMin', () => {
+    expect(recommenderSrc).toContain('ivRankPct < ivRankMin');
+  });
+
+  it('StrategyRecommender.tsx guards ivRank null before comparison', () => {
+    expect(recommenderSrc).toContain('ivRankPct != null');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IVR-02: IV gate wraps entire recommendations section with opacity/pointer-events
+// ---------------------------------------------------------------------------
+describe('IVR-02 — IV gate wraps recommendations with overlay classes', () => {
+  it('StrategyRecommender.tsx uses opacity-40 class for IV gate overlay', () => {
+    expect(recommenderSrc).toContain('opacity-40');
+  });
+
+  it('StrategyRecommender.tsx uses pointer-events-none class for IV gate overlay', () => {
+    expect(recommenderSrc).toContain('pointer-events-none');
+  });
+
+  it('StrategyRecommender.tsx uses select-none class for IV gate overlay', () => {
+    expect(recommenderSrc).toContain('select-none');
+  });
+
+  it('StrategyRecommender.tsx shows dismissible IV gate overlay', () => {
+    expect(recommenderSrc).toContain('showIvGate');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IVR-03: Threshold read from strategyProfile?.ivRankMin with getProfile fallback
+// ---------------------------------------------------------------------------
+describe('IVR-03 — IV threshold from strategyProfile with getProfile fallback', () => {
+  it('StrategyRecommender.tsx reads ivRankMin from result.strategyProfile', () => {
+    expect(recommenderSrc).toMatch(/strategyProfile\??\.ivRankMin/);
+  });
+
+  it('StrategyRecommender.tsx has getProfile fallback for ivRankMin', () => {
+    expect(recommenderSrc).toContain('getProfile(activeStrategy).ivRankMin');
+  });
+
+  it('StrategyRecommender.tsx uses nullish coalescing for ivRankMin fallback', () => {
+    expect(recommenderSrc).toMatch(/strategyProfile\??\.ivRankMin\s*\?\?\s*getProfile/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IVR-04: No ivRankMin threshold check in scoring functions (render-layer only)
+// ---------------------------------------------------------------------------
+describe('IVR-04 — IV gate is render-layer only (not in scoring functions)', () => {
+  it('src/lib/oss-core.ts does NOT contain ivRankMin', () => {
+    expect(ossSrc).not.toContain('ivRankMin');
+  });
+
+  it('lib/_shared/scoring.cjs does NOT contain ivRankMin', () => {
+    expect(scoringSrc).not.toContain('ivRankMin');
   });
 });
