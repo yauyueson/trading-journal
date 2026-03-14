@@ -9,7 +9,7 @@ This milestone operationalizes the WFA-validated trading edge by wiring the vali
 - [ ] **Phase 1: Prerequisite Fixes** - Correct pre-existing bugs that corrupt strategy-specific parameters before any feature work
 - [ ] **Phase 2: Data Contract + API Foundation** - Establish type contract for TP, wire API params, propagate signal context from signals page
 - [x] **Phase 3: Spread Builder Integration** - Connect signal banner, IV rank gate, and TP auto-fill in StrategyRecommender (completed 2026-03-14)
-- [x] **Phase 4: Global Strategy Toggle** - Surface active strategy indicator in AppLayout and propagate strategy-aware defaults across all pages (completed 2026-03-14)
+- [x] **Phase 4: Global Strategy Toggle** - Surface active strategy indicator in AppLayout and propagate strategy-aware defaults across all pages (completed 2026-03-14)
 
 ## Phase Details
 
@@ -74,7 +74,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -82,6 +82,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 2. Data Contract + API Foundation | 1/2 | In Progress|  |
 | 3. Spread Builder Integration | 2/2 | Complete   | 2026-03-14 |
 | 4. Global Strategy Toggle | 1/1 | Complete   | 2026-03-14 |
+| 5. Scanner Removal + MOM Signal | 0/1 | Planning complete | - |
 
 ### Phase 5: Scanner Removal + MOM Signal Support
 **Goal**: Remove the Scanner page (not part of WFA workflow) and extend signal type detection to support MOM signals alongside EMA
@@ -93,4 +94,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
   3. Signal type in Signals page CTA URL is derived from signal_history components (EMA or MOM), not hardcoded 'EMA'
   4. Signal context banner in spread builder displays correct signal type (EMA or MOM) based on URL param
   5. All existing tests pass with no new failures
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 05-01-PLAN.md — Remove Scanner page/route/tab and derive signal type from components data
