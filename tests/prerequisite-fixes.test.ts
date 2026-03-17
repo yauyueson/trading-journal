@@ -15,12 +15,12 @@ import { DEFAULT_APP_SETTINGS } from '../src/lib/types/settings';
 // PRE-01: ivRankMin values
 // ---------------------------------------------------------------------------
 describe('PRE-01 — strategyProfiles ivRankMin', () => {
-  it('shortTerm.ivRankMin should be 40 (not 30)', () => {
-    expect(STRATEGY_PROFILES.shortTerm.ivRankMin).toBe(40);
+  it('shortTerm.ivRankMin should be 50 (WFA v2 validated)', () => {
+    expect(STRATEGY_PROFILES.shortTerm.ivRankMin).toBe(50);
   });
 
-  it('swing.ivRankMin should remain 30', () => {
-    expect(STRATEGY_PROFILES.swing.ivRankMin).toBe(30);
+  it('swing.ivRankMin should be 20 (WFA v2 validated)', () => {
+    expect(STRATEGY_PROFILES.swing.ivRankMin).toBe(20);
   });
 
   it('STRATEGY_PROFILES.swing has all expected StrategyProfile fields', () => {

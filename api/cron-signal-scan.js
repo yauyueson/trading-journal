@@ -89,7 +89,7 @@ async function sendDiscord(signals, totalScanned, date) {
             const emoji = s.direction === 'CALL' ? '🟢' : '🔴';
             const dirLabel = s.direction === 'CALL' ? 'BUY' : 'SELL';
             const ivLabel = s.iv30 != null ? `IV: ${(s.iv30 * 100).toFixed(0)}%` : 'IV: n/a';
-            const ivWarn = s.iv30 != null && s.iv30 < 0.30 ? ' ⚠️ low premium' : '';
+            const ivWarn = s.iv30 != null && s.iv30 < 0.20 ? ' ⚠️ low premium' : '';
             fields.push({
                 name: `${s.ticker} ${emoji} ${dirLabel}`,
                 value: `Score: **${s.score}** | ${s.setup} | Conf: ${s.confidence}\nADX: ${s.adx} | RVOL: ${s.rvol} | ${ivLabel}${ivWarn} | $${s.close.toFixed(2)}`,
@@ -197,7 +197,7 @@ export default async function handler(req, res) {
                 rvol,
                 close: result.debug?.close ?? 0,
                 iv30,
-                ivAdequate: iv30 == null || iv30 >= 0.30,  // Phase 5: IV >= 30% structural filter
+                ivAdequate: iv30 == null || iv30 >= 0.20,  // WFA v2: IV >= 20% structural filter
             };
             signals.push(signal);
 

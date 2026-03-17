@@ -71,6 +71,11 @@ export interface EntrySignal {
   direction: 'CALL' | 'PUT';
   score: number;
   ivRank?: number;
+  // v2: ORATS cores enrichment for volatility filters
+  vrp?: number;          // IV²-RV² variance risk premium
+  contango?: number;     // IV60/IV30 - 1 term structure
+  slope?: number;        // ORATS put skew slope
+  smvVol?: number;       // ORATS smoothed vol
 }
 
 export interface SimConfig {
@@ -104,9 +109,14 @@ export interface SimConfig {
   maxIVSkew?: number;            // max |shortIV - longIV| allowed (absolute, e.g. 0.06)
   // Signal selection (determines which tech indicator generates entries)
   signalWeightPreset?: SignalPresetKey;  // 'ema'|'mom'|'em'|'mf' (default: 'ema')
+  // v2: Volatility & microstructure filters (from ORATS cores)
+  vrpFilter?: number;       // min VRP (IV²-RV²) to enter; 0 or undefined = disabled
+  contangoFilter?: number;  // min contango (IV60/IV30-1) to enter; 0 or undefined = disabled
+  slopeFilter?: number;     // min ORATS slope to enter; 0 or undefined = disabled
+  useSmvVol?: boolean;      // use smvVol for IV source instead of midIv
 }
 
-export type SignalPresetKey = 'ema' | 'mom' | 'em' | 'mf';
+export type SignalPresetKey = 'ema' | 'mom' | 'em' | 'mf' | 'full' | 'mb' | 'adx' | 'vol';
 
 export const DEFAULT_LEAP_CONFIG: SimConfig = {
   mode: 'LEAP',
@@ -120,7 +130,7 @@ export const DEFAULT_LEAP_CONFIG: SimConfig = {
   creditDTERange: [45, 65],     // Phase 5: [45,65] +55% Sharpe vs [30,50]
   creditProfitTarget: 0.30,     // Phase 1-5: TP 30% consistent winner (was 0.50)
   creditStopLossMultiple: 100,  // Phase 1-5: no SL, defined risk (was 2.0)
-  creditTimeStopDTE: 7,
+  creditTimeStopDTE: 5,
   monitoringIntervalDays: 1,
   minIVRank: 0,
   fillMode: 'mid' as FillMode,
@@ -131,7 +141,7 @@ export const DEFAULT_CREDIT_CONFIG: SimConfig = {
   ...DEFAULT_LEAP_CONFIG,
   mode: 'CREDIT_SPREAD',
   monitoringIntervalDays: 1,
-  minIVRank: 30,              // Phase 4-5: IV >= 30% structural filter
+  minIVRank: 20,              // WFA v2: IV >= 20% structural filter
 };
 
 /**
@@ -143,13 +153,13 @@ export const DEFAULT_SHORT_CREDIT_CONFIG: SimConfig = {
   ...DEFAULT_LEAP_CONFIG,
   mode: 'CREDIT_SPREAD',
   creditShortDelta: 0.35,       // Validated range for short DTE
-  creditSpreadWidth: 2.5,       // Tighter spreads — less premium available at short DTE
-  creditDTERange: [7, 14],      // 1-2 week expiries
-  creditProfitTarget: 0.50,     // Faster theta decay → capture more
+  creditSpreadWidth: 1,         // Tighter spreads — less premium available at short DTE
+  creditDTERange: [7, 21],      // 1-3 week expiries
+  creditProfitTarget: 0.35,     // Faster theta decay → capture more
   creditStopLossMultiple: 100,  // No SL (defined risk) — to be validated
   creditTimeStopDTE: 1,         // Close 1 day before expiry (pin risk)
   monitoringIntervalDays: 1,    // Daily monitoring (essential for short DTE)
-  minIVRank: 30,                // Require rich premium
+  minIVRank: 50,                // Require rich premium
   fillMode: 'mid' as FillMode,
   slippage: { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: false },
 };
@@ -362,6 +372,17 @@ export async function simulateCreditSpread(
 ): Promise<OptionTrade | null> {
   // IV rank filter
   if (config.minIVRank > 0 && (signal.ivRank == null || signal.ivRank < config.minIVRank)) {
+    return null;
+  }
+
+  // v2: Volatility & microstructure filters (from ORATS cores enrichment)
+  if (config.vrpFilter && config.vrpFilter > 0 && (signal.vrp == null || signal.vrp < config.vrpFilter)) {
+    return null;
+  }
+  if (config.contangoFilter && config.contangoFilter > 0 && (signal.contango == null || signal.contango < config.contangoFilter)) {
+    return null;
+  }
+  if (config.slopeFilter && config.slopeFilter > 0 && (signal.slope == null || signal.slope < config.slopeFilter)) {
     return null;
   }
 

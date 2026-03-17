@@ -190,8 +190,8 @@ describe('STRAT-02 — scan-options.js profile-specific delta defaults', () => {
     expect(scanOptionsSrc).toContain('deltaDefaults');
   });
 
-  it('scan-options.js deltaDefaults should include shortTerm min 0.20', () => {
-    expect(scanOptionsSrc).toContain("'0.20'");
+  it('scan-options.js deltaDefaults should include shortTerm min 0.25', () => {
+    expect(scanOptionsSrc).toContain("'0.25'");
   });
 
   it('scan-options.js deltaDefaults should include swing min 0.28', () => {

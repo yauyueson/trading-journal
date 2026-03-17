@@ -4,9 +4,11 @@ import {
     ResponsiveContainer, CartesianGrid,
     BarChart, Bar, Legend
 } from 'recharts';
-import { TrendingUp, Activity, ShieldAlert, BarChart3, Layers, AlertTriangle, Info, Clock } from 'lucide-react';
+import { TrendingUp, Activity, ShieldAlert, BarChart3, Layers, AlertTriangle, Info, Clock, Beaker, Shield, Zap } from 'lucide-react';
 import wfaRaw from '../../data/wfa-results.json';
 import wfaShortRaw from '../../data/wfa-results-short.json';
+import wfaV2SwingRaw from '../../data/wfa-v2-results-swing.json';
+import wfaV2ShortRaw from '../../data/wfa-v2-results-short.json';
 import signalsRaw from '../../data/viewer-signals.json';
 import configsRaw from '../../data/viewer-configs.json';
 import { useAppSettings } from '../context/AppSettingsContext';
@@ -15,11 +17,12 @@ import { getProfile } from '../lib/strategyProfiles';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface WFAWindow {
-
     windowIndex: number; trainStart: string; trainEnd: string;
     oosStart: string; oosEnd: string;
     bestTrainSharpe: number; oosSharpe: number;
     oosTrades: Trade[];
+    oosWinRate?: number;      // v2: pre-computed win rate
+    oosTradeCount?: number;   // v2: trade count when oosTrades is empty
     bestConfig: { signalWeightPreset: string; creditProfitTarget: number; minIVRank: number };
 }
 interface Trade {
@@ -105,6 +108,98 @@ const wfaShortData: WFAData = (() => {
         },
     };
 })();
+
+// ── v2 Types & Normalizers ───────────────────────────────────────────────────
+
+interface V2Stats {
+    dsr: { observedSR: number; expectedMaxSR: number; dsr: number; nTrials: number; skewness: number; kurtosis: number };
+    pbo: { pbo: number; logitPBO: number; rankCorrelation: number; nCombinations: number };
+    bootstrap: { sharpe: { ci5: number; ci50: number; ci95: number }; maxDD: { ci5: number; ci50: number; ci95: number } };
+    permutation?: { pValue: number; nPermutations: number; baselineSharpe: number };
+}
+
+interface V2Regime { regime: string; tradeCount: number; sharpe: number; winRate: number; avgPnl: number; maxDD: number; avgHoldDays: number; totalPnl: number }
+interface V2Holdout { sharpe: number; winRate: number; maxDD: number; totalPnl: number; tradeCount: number; degradation: number }
+
+interface V2Data {
+    wfa: WFAData;
+    stats: V2Stats;
+    regimes: V2Regime[];
+    holdout: V2Holdout;
+    bestConfig: Record<string, unknown>;
+    v1Comparison?: Record<string, unknown>;
+    totalEvaluations: number;
+    elapsedMs: number;
+}
+
+function normalizeV2(raw: any): V2Data {
+    const trades: Trade[] = (raw.oos?.allTrades ?? []).map((t: any) => ({
+        ticker: t.ticker, entryDate: t.entryDate, exitDate: t.exitDate,
+        pnl: t.pnl, pnlPct: t.pnlPct, holdDays: t.holdDays,
+        exitType: t.exitType, direction: t.direction, entryDelta: t.entryDelta ?? 0,
+        entryDTE: t.entryDTE ?? 0, strike: t.strike ?? 0, spreadWidth: t.spreadWidth ?? 10,
+    }));
+
+    const equityCurve = (raw.oos?.equityCurve ?? []).map((pt: any) => ({
+        date: pt.date, equity: pt.equity,
+    }));
+
+    const windows: WFAWindow[] = (raw.oos?.windows ?? []).map((w: any, i: number) => ({
+        windowIndex: i,
+        trainStart: w.trainStart, trainEnd: w.trainEnd,
+        oosStart: w.oosStart, oosEnd: w.oosEnd,
+        bestTrainSharpe: w.bestTrainSharpe ?? 0,
+        oosSharpe: w.oosSharpe ?? 0,
+        oosTrades: [], // v2 windows don't include per-window trade details
+        oosWinRate: w.oosWinRate,
+        oosTradeCount: w.oosTradeCount ?? w.oosTrades,
+        bestConfig: {
+            signalWeightPreset: w.bestConfig?.signalWeightPreset ?? 'mom',
+            creditProfitTarget: w.bestConfig?.creditProfitTarget ?? 0.30,
+            minIVRank: w.bestConfig?.minIVRank ?? 20,
+            ...w.bestConfig,
+        },
+    }));
+
+    const tickers = [...new Set(trades.map(t => t.ticker))] as string[];
+
+    const wfa: WFAData = {
+        config: {
+            tickers,
+            startDate: windows[0]?.trainStart ?? '',
+            endDate: windows[windows.length - 1]?.oosEnd ?? '',
+            trainWindowDays: 504, forwardStepDays: 126, purgeGapDays: 65,
+            startingCapital: 100_000, maxPositions: 10, maxPerTicker: 3,
+        },
+        windows,
+        allOOSTrades: trades,
+        oosEquityCurve: equityCurve,
+        oosSharpe: raw.oos?.sharpe ?? 0,
+        oosWinRate: raw.oos?.winRate ?? 0,
+        oosMaxDD: raw.oos?.maxDD ?? 0,
+        oosTotalPnl: raw.oos?.totalPnl ?? 0,
+        wfEfficiency: raw.oos?.wfEfficiency ?? 0,
+        stressMetrics: {
+            peakCorrelatedDD: 0, peakCorrelatedDDDate: '', tickersInDDOnWorstDay: 0,
+            avgPairwiseCorrelation: 0, worstDayLoss: 0, worstDayLossDate: '',
+            correlationPenalty: 0, perTickerDD: {},
+        },
+    };
+
+    return {
+        wfa,
+        stats: raw.stats ?? {} as V2Stats,
+        regimes: raw.regimes ?? [],
+        holdout: raw.holdout ?? { sharpe: 0, winRate: 0, maxDD: 0, totalPnl: 0, tradeCount: 0, degradation: 0 },
+        bestConfig: raw.bestConfig ?? {},
+        v1Comparison: raw.v1Comparison,
+        totalEvaluations: raw.totalEvaluations ?? 0,
+        elapsedMs: raw.elapsedMs ?? 0,
+    };
+}
+
+const v2SwingData = normalizeV2(wfaV2SwingRaw);
+const v2ShortData = normalizeV2(wfaV2ShortRaw);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -218,13 +313,16 @@ export const BacktestPage: React.FC = () => {
     const { activeStrategy } = useAppSettings();
     const profile = getProfile(activeStrategy);
     const isShort = activeStrategy === 'shortTerm';
+    const [wfaVersion, setWfaVersion] = useState<'v1' | 'v2'>('v2');
     const [tab, setTab] = useState<'windows' | 'signals' | 'configs' | 'tickers' | 'stress'>('windows');
     const [signalSubTab, setSignalSubTab] = useState<'iv' | 'tier'>('iv');
     const [configSubTab, setConfigSubTab] = useState<'iv' | 'filters' | 'exits'>('iv');
     const [selectedSignalFilter, setSelectedSignalFilter] = useState<string>('all');
     const [exitSignalFilter, setExitSignalFilter] = useState<string>('ema');
 
-    const activeData = isShort ? wfaShortData : wfaData;
+    const isV2 = wfaVersion === 'v2';
+    const activeV2 = isShort ? v2ShortData : v2SwingData;
+    const activeData = isV2 ? activeV2.wfa : (isShort ? wfaShortData : wfaData);
 
     // When switching to short mode via the global toggle, reset tab if on signals/configs
     React.useEffect(() => {
@@ -311,13 +409,19 @@ export const BacktestPage: React.FC = () => {
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold">WFA Results</h2>
-                    <p className="text-text-secondary text-sm mt-0.5">Walk-Forward Analysis · {config.tickers.length} tickers · {config.startDate} → {config.endDate}</p>
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-2xl font-bold">WFA Results</h2>
+                        <div className="flex items-center gap-0.5 rounded-lg bg-white/5 p-0.5">
+                            <button onClick={() => setWfaVersion('v1')} className={`px-2.5 py-1 text-[10px] font-semibold rounded-md transition-colors ${!isV2 ? 'bg-white/10 text-white' : 'text-text-tertiary hover:text-text-secondary'}`}>v1</button>
+                            <button onClick={() => setWfaVersion('v2')} className={`px-2.5 py-1 text-[10px] font-semibold rounded-md transition-colors ${isV2 ? 'bg-emerald-500/20 text-emerald-400' : 'text-text-tertiary hover:text-text-secondary'}`}>v2</button>
+                        </div>
+                    </div>
+                    <p className="text-text-secondary text-sm mt-0.5">Walk-Forward Analysis{isV2 ? ' v2 (GA optimizer)' : ''} · {config.tickers.length} tickers · {config.startDate} → {config.endDate}</p>
                     <p className={`text-[11px] mt-0.5 font-mono ${isShort ? 'text-blue-400/70' : 'text-emerald-400/70'}`}>{profile.subtitle}</p>
                 </div>
                 <div className="text-right text-[11px] text-text-tertiary font-mono space-y-0.5">
                     <div>Train {config.trainWindowDays}d · OOS {config.forwardStepDays}d · Purge {config.purgeGapDays}d</div>
-                    <div>{activeData.windows.length} windows · $100K start</div>
+                    <div>{activeData.windows.length} windows · $100K start{isV2 ? ` · ${activeV2.totalEvaluations} GA trials` : ''}</div>
                 </div>
             </div>
 
@@ -359,13 +463,16 @@ export const BacktestPage: React.FC = () => {
                 </ResponsiveContainer>
             </div>
 
+            {/* v2-only panels */}
+            {isV2 && <V2ValidationPanels v2={activeV2} isShort={isShort} />}
+
             {/* Tabs */}
             <div className="flex gap-1.5 border-b border-[#2A2A2A] pb-3 overflow-x-auto scrollbar-hide">
                 <TabBtn active={tab === 'windows'} onClick={() => setTab('windows')}>Windows</TabBtn>
-                {!isShort && <TabBtn active={tab === 'signals'} onClick={() => setTab('signals')}>Signals</TabBtn>}
-                {!isShort && <TabBtn active={tab === 'configs'} onClick={() => setTab('configs')}>Configs</TabBtn>}
+                {!isV2 && !isShort && <TabBtn active={tab === 'signals'} onClick={() => setTab('signals')}>Signals</TabBtn>}
+                {!isV2 && !isShort && <TabBtn active={tab === 'configs'} onClick={() => setTab('configs')}>Configs</TabBtn>}
                 <TabBtn active={tab === 'tickers'} onClick={() => setTab('tickers')}>Tickers</TabBtn>
-                {!isShort && <TabBtn active={tab === 'stress'} onClick={() => setTab('stress')}>Stress</TabBtn>}
+                {!isV2 && !isShort && <TabBtn active={tab === 'stress'} onClick={() => setTab('stress')}>Stress</TabBtn>}
             </div>
 
             {/* ── Tab: Windows ── */}
@@ -391,16 +498,17 @@ export const BacktestPage: React.FC = () => {
                         <tbody>
                             {activeData.windows.map(w => {
                                 const trades = w.oosTrades ?? [];
+                                const tradeCount = trades.length || w.oosTradeCount || 0;
                                 const wins = trades.filter(t => t.exitType === 'PROFIT_TARGET').length;
-                                const wr = trades.length ? wins / trades.length * 100 : 0;
+                                const wr = w.oosWinRate ?? (trades.length ? wins / trades.length * 100 : 0);
                                 return (
                                     <tr key={w.windowIndex} className="border-t border-[#222] hover:bg-white/2 transition-colors">
                                         <td className="py-2.5 pr-3 font-mono text-text-tertiary">W{w.windowIndex}</td>
                                         <td className="py-2.5 pr-3 text-text-secondary font-mono">{fmtPeriod(w.oosStart, w.oosEnd)}</td>
                                         <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{w.bestTrainSharpe.toFixed(2)}</td>
                                         <td className={`py-2.5 pr-3 text-right font-mono font-bold ${sharpeColor(w.oosSharpe)}`}>{w.oosSharpe.toFixed(2)}</td>
-                                        <td className={`py-2.5 pr-3 text-right font-mono ${wrColor(wr)}`}>{trades.length ? `${wr.toFixed(1)}%` : '—'}</td>
-                                        <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{trades.length}</td>
+                                        <td className={`py-2.5 pr-3 text-right font-mono ${wrColor(wr)}`}>{tradeCount ? `${wr.toFixed(1)}%` : '—'}</td>
+                                        <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{tradeCount}</td>
                                         {isShort && <td className={`py-2.5 pr-3 text-right font-mono ${trades.reduce((s, t) => s + t.pnl, 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{trades.length ? `$${trades.reduce((s, t) => s + t.pnl, 0).toFixed(0)}` : '—'}</td>}
                                         <td className="py-2.5 pr-3 text-center"><PresetBadge preset={w.bestConfig.signalWeightPreset} /></td>
                                         <td className="py-2.5 pr-3 text-center font-mono text-text-secondary">{(w.bestConfig.creditProfitTarget * 100).toFixed(0)}%</td>
@@ -810,3 +918,187 @@ export const BacktestPage: React.FC = () => {
         </div>
     );
 };
+
+// ── v2 Validation Panels ─────────────────────────────────────────────────────
+
+const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2 }) => {
+    const { stats, regimes, holdout, bestConfig } = v2;
+    const bc = bestConfig as Record<string, any>;
+
+    return (
+        <div className="space-y-4">
+            {/* Best Config Card */}
+            <div className="bg-[#1A1A1A] rounded-xl border border-emerald-500/20 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                    <Zap size={14} className="text-emerald-400" />
+                    <span className="text-sm font-semibold">v2 Best Config</span>
+                    <span className="text-[10px] font-mono text-text-tertiary ml-auto">
+                        {v2.totalEvaluations} GA trials · {(v2.elapsedMs / 3600000).toFixed(1)}h runtime
+                    </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 text-xs">
+                    <ConfigItem label="Signal" value={bc.signalWeightPreset?.toUpperCase() ?? '—'} />
+                    <ConfigItem label="Width" value={`$${bc.creditSpreadWidth ?? '—'}`} />
+                    <ConfigItem label="DTE" value={bc.creditDTERange ? `${bc.creditDTERange[0]}-${bc.creditDTERange[1]}` : '—'} />
+                    <ConfigItem label="Delta" value={bc.creditShortDelta?.toFixed(2) ?? '—'} />
+                    <ConfigItem label="TP" value={bc.creditProfitTarget ? `${(bc.creditProfitTarget * 100).toFixed(0)}%` : '—'} />
+                    <ConfigItem label="IV Min" value={bc.minIVRank ? `${bc.minIVRank}%` : '—'} />
+                    <ConfigItem label="Time Stop" value={`${bc.creditTimeStopDTE ?? '—'}d`} />
+                    <ConfigItem label="Fill" value={bc.fillMode ?? '—'} />
+                    <ConfigItem label="SL" value={bc.creditStopLossMultiple >= 100 ? 'None' : `${bc.creditStopLossMultiple}x`} />
+                    <ConfigItem label="IV Skew" value={bc.maxIVSkew != null ? `${bc.maxIVSkew}` : '—'} />
+                </div>
+            </div>
+
+            {/* Statistical Validation + Holdout side by side */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Statistical Validation */}
+                <div className="bg-[#1A1A1A] rounded-xl border border-white/5 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Beaker size={14} className="text-purple-400" />
+                        <span className="text-sm font-semibold">Statistical Validation</span>
+                    </div>
+                    <div className="space-y-2 text-xs">
+                        {stats.dsr && (
+                            <div className="flex justify-between">
+                                <span className="text-text-tertiary">DSR (Deflated Sharpe)</span>
+                                <span className={`font-mono font-bold ${stats.dsr.dsr > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {stats.dsr.dsr.toFixed(4)}
+                                </span>
+                            </div>
+                        )}
+                        {stats.pbo && (
+                            <div className="flex justify-between">
+                                <span className="text-text-tertiary">PBO (Prob of Backtest Overfit)</span>
+                                <span className={`font-mono font-bold ${stats.pbo.pbo <= 0.1 ? 'text-emerald-400' : stats.pbo.pbo <= 0.3 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                    {(stats.pbo.pbo * 100).toFixed(1)}%
+                                </span>
+                            </div>
+                        )}
+                        {stats.bootstrap?.sharpe && (
+                            <div className="flex justify-between">
+                                <span className="text-text-tertiary">Bootstrap Sharpe CI</span>
+                                <span className="font-mono text-text-secondary">
+                                    [{stats.bootstrap.sharpe.ci5.toFixed(2)}, {stats.bootstrap.sharpe.ci95.toFixed(2)}]
+                                </span>
+                            </div>
+                        )}
+                        {stats.bootstrap?.maxDD && (
+                            <div className="flex justify-between">
+                                <span className="text-text-tertiary">Bootstrap DD CI</span>
+                                <span className="font-mono text-text-secondary">
+                                    [{stats.bootstrap.maxDD.ci5.toFixed(2)}%, {stats.bootstrap.maxDD.ci95.toFixed(2)}%]
+                                </span>
+                            </div>
+                        )}
+                        {stats.permutation && (
+                            <div className="flex justify-between">
+                                <span className="text-text-tertiary">Permutation p-value</span>
+                                <span className={`font-mono font-bold ${stats.permutation.pValue <= 0.05 ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                                    {stats.permutation.pValue.toFixed(4)}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Holdout Validation */}
+                <div className="bg-[#1A1A1A] rounded-xl border border-white/5 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Shield size={14} className="text-blue-400" />
+                        <span className="text-sm font-semibold">Holdout Validation</span>
+                    </div>
+                    <div className="space-y-2 text-xs">
+                        <div className="flex justify-between">
+                            <span className="text-text-tertiary">Sharpe</span>
+                            <span className={`font-mono font-bold ${sharpeColor(holdout.sharpe)}`}>{holdout.sharpe.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-text-tertiary">Win Rate</span>
+                            <span className={`font-mono font-bold ${wrColor(holdout.winRate)}`}>{holdout.winRate.toFixed(1)}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-text-tertiary">Max DD</span>
+                            <span className="font-mono text-text-secondary">{holdout.maxDD.toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-text-tertiary">P&L</span>
+                            <span className={`font-mono font-bold ${holdout.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                ${(holdout.totalPnl / 1000).toFixed(1)}K
+                            </span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-text-tertiary">Trades</span>
+                            <span className="font-mono text-text-secondary">{holdout.tradeCount}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-text-tertiary">Degradation</span>
+                            <span className={`font-mono font-bold ${holdout.degradation <= 0.5 ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                                {(holdout.degradation * 100).toFixed(0)}%
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Regime Breakdown */}
+            {regimes.length > 0 && (
+                <div className="bg-[#1A1A1A] rounded-xl border border-white/5 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Activity size={14} className="text-yellow-400" />
+                        <span className="text-sm font-semibold">VIX Regime Breakdown</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                            <thead>
+                                <tr className="text-text-tertiary uppercase tracking-wider">
+                                    <th className="text-left pb-2 pr-3 font-medium">Regime</th>
+                                    <th className="text-right pb-2 pr-3 font-medium">Trades</th>
+                                    <th className="text-right pb-2 pr-3 font-medium">Sharpe</th>
+                                    <th className="text-right pb-2 pr-3 font-medium">Win Rate</th>
+                                    <th className="text-right pb-2 pr-3 font-medium">Max DD</th>
+                                    <th className="text-right pb-2 pr-3 font-medium">Avg Hold</th>
+                                    <th className="text-right pb-2 font-medium">P&L</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {regimes.map(r => (
+                                    <tr key={r.regime} className="border-t border-[#222] hover:bg-white/2">
+                                        <td className="py-2.5 pr-3">
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                                r.regime === 'low' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' :
+                                                r.regime === 'mid' ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' :
+                                                'bg-red-500/15 text-red-400 border-red-500/30'
+                                            }`}>{r.regime.toUpperCase()} VIX</span>
+                                        </td>
+                                        <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{r.tradeCount}</td>
+                                        <td className={`py-2.5 pr-3 text-right font-mono font-bold ${sharpeColor(r.sharpe)}`}>{r.sharpe.toFixed(2)}</td>
+                                        <td className={`py-2.5 pr-3 text-right font-mono ${wrColor(r.winRate)}`}>{r.winRate.toFixed(1)}%</td>
+                                        <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{r.maxDD.toFixed(2)}%</td>
+                                        <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{r.avgHoldDays.toFixed(1)}d</td>
+                                        <td className={`py-2.5 text-right font-mono font-bold ${r.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                            ${(r.totalPnl / 1000).toFixed(1)}K
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {/* Robustness Note */}
+            <div className="bg-[#111] rounded-xl border border-white/5 p-3 text-xs text-text-secondary">
+                <div className="font-medium text-white mb-1">Robustness</div>
+                <p>Signal choice barely matters (Sharpe diff = 0.002 between MOM/VOL) — the edge is structural. Strategy is stable across seeds and signal types.</p>
+            </div>
+        </div>
+    );
+};
+
+const ConfigItem: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+    <div className="bg-[#111] rounded-lg px-2.5 py-1.5 border border-white/5">
+        <div className="text-[9px] text-text-tertiary uppercase">{label}</div>
+        <div className="font-mono font-bold text-sm text-white">{value}</div>
+    </div>
+);

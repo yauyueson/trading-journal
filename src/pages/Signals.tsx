@@ -10,9 +10,9 @@ import { STRATEGY_PROFILES } from '../lib/strategyProfiles';
 import { supabase } from '../lib/supabase';
 import type { TechScoreOptions } from '../lib/tech-analysis';
 
-// ── Strategy criteria (from backtest: ema iv30plus std30 mpt5, S-tier) ──
+// ── Strategy criteria (from backtest: mom iv20plus std30 mpt5, S-tier) ──
 const MIN_SCORE = 90;  // S-tier (score >= 90) — best IS→OOS transfer
-const MIN_IV = 0.30;     // IV >= 30% structural filter
+const MIN_IV = 0.20;     // IV >= 20% structural filter
 const MIN_ADX = 15;      // Trend strength gate
 const MIN_RVOL = 0.5;    // Volume participation gate
 
@@ -205,10 +205,10 @@ export const SignalsPage: React.FC = () => {
   const [tab, setTab] = useState<'dashboard' | 'history'>('dashboard');
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  // EMA signal — best IS→OOS transfer per WFA (ema/mom tied, using EMA for scanner)
+  // MOM signal — best IS→OOS transfer per WFA (ema/mom tied, using MOM for scanner)
   const techOptions: TechScoreOptions = {
     ...settings.techScore.periods,
-    w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 25, w_mom: 0, w_adx: 0, w_vol: 0,
+    w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 0, w_mom: 25, w_adx: 0, w_vol: 0,
   };
 
   // Seed scanner with full watchlist on mount
@@ -276,12 +276,12 @@ export const SignalsPage: React.FC = () => {
 
       const adx = (sig.result.debug?.adx as number) ?? 0;
       const rvol = (sig.result.debug?.rvol as number) ?? 0;
-      const emaScore = sig.result.components?.sc_ema ?? 50;
+      const emaScore = sig.result.components?.sc_mom ?? 50;
       const status = computeStatus(emaScore, sig.result.type, iv, adx, rvol);
 
       return {
         ticker,
-        score: sig.result.components?.sc_ema ?? 50,
+        score: sig.result.components?.sc_mom ?? 50,
         direction: sig.result.type,
         confidence: sig.result.confidence,
         close: sig.lastClose,
@@ -344,7 +344,7 @@ export const SignalsPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-semibold">Signal Dashboard</h1>
             <p className="text-xs text-text-tertiary">
-              EMA + MOM signals {'\u2022'} IV {'\u2265'} 30% {'\u2022'} ADX {'\u2265'} 15 {'\u2022'} RVOL {'\u2265'} 0.5
+              MOM signal {'\u2022'} IV {'\u2265'} 20% {'\u2022'} ADX {'\u2265'} 15 {'\u2022'} RVOL {'\u2265'} 0.5
             </p>
           </div>
         </div>
@@ -457,7 +457,7 @@ export const SignalsPage: React.FC = () => {
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Ticker</th>
                 <th className="px-3 py-2 font-medium">Dir</th>
-                <th className="px-3 py-2 font-medium text-right">EMA</th>
+                <th className="px-3 py-2 font-medium text-right">MOM</th>
                 <th className="px-3 py-2 font-medium text-right">IV</th>
                 <th className="px-3 py-2 font-medium text-right">ADX</th>
                 <th className="px-3 py-2 font-medium text-right">RVOL</th>
@@ -646,8 +646,8 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
       <div>
         <h4 className="text-xs font-medium text-text-secondary mb-2">Entry Criteria</h4>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <CriteriaCheck label="EMA ≥ 90" value={row.score} pass={row.score >= MIN_SCORE} fmt={v => v.toFixed(0)} />
-          <CriteriaCheck label="IV ≥ 30%" value={row.iv30} pass={row.iv30 != null && row.iv30 >= MIN_IV} fmt={v => v != null ? `${(v * 100).toFixed(0)}%` : 'n/a'} />
+          <CriteriaCheck label="MOM ≥ 90" value={row.score} pass={row.score >= MIN_SCORE} fmt={v => v.toFixed(0)} />
+          <CriteriaCheck label="IV ≥ 20%" value={row.iv30} pass={row.iv30 != null && row.iv30 >= MIN_IV} fmt={v => v != null ? `${(v * 100).toFixed(0)}%` : 'n/a'} />
           <CriteriaCheck label="ADX ≥ 15" value={row.adx} pass={row.adx >= MIN_ADX} fmt={v => v.toFixed(1)} />
           <CriteriaCheck label="RVOL ≥ 0.5" value={row.rvol} pass={row.rvol >= MIN_RVOL} fmt={v => v.toFixed(2)} />
         </div>
@@ -710,7 +710,7 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
                 strategy: strategyParam,
                 score: String(Math.round(row.score)),
                 streak: String(row.streak),
-                signalType: 'EMA',
+                signalType: 'MOM',
                 adx: String(row.adx.toFixed(1)),
                 rvol: String(row.rvol.toFixed(2)),
               });
