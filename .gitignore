@@ -8,4 +8,11 @@ nul
 .mcp.json
 data/*.sqlite
 data/*.json
+!data/wfa-results.json
+!data/wfa-results-short.json
+!data/wfa-v2-results-swing.json
+!data/wfa-v2-results-short.json
+!data/viewer-signals.json
+!data/viewer-configs.json
+data/cache/
 .worktrees/
