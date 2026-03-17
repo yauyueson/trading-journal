@@ -11,7 +11,6 @@ import wfaV2SwingRaw from '../../data/wfa-v2-results-swing.json';
 import wfaV2ShortRaw from '../../data/wfa-v2-results-short.json';
 import signalsRaw from '../../data/viewer-signals.json';
 import configsRaw from '../../data/viewer-configs.json';
-import { useAppSettings } from '../context/AppSettingsContext';
 import { getProfile } from '../lib/strategyProfiles';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -310,9 +309,9 @@ const SharpeBarTooltip: React.FC<{ active?: boolean; payload?: { dataKey: string
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export const BacktestPage: React.FC = () => {
-    const { activeStrategy } = useAppSettings();
-    const profile = getProfile(activeStrategy);
-    const isShort = activeStrategy === 'shortTerm';
+    const [backtestProfile, setBacktestProfile] = useState<'swing' | 'shortTerm'>('swing');
+    const profile = getProfile(backtestProfile);
+    const isShort = backtestProfile === 'shortTerm';
     const [wfaVersion, setWfaVersion] = useState<'v1' | 'v2'>('v2');
     const [tab, setTab] = useState<'windows' | 'signals' | 'configs' | 'tickers' | 'stress'>('windows');
     const [signalSubTab, setSignalSubTab] = useState<'iv' | 'tier'>('iv');
@@ -324,7 +323,7 @@ export const BacktestPage: React.FC = () => {
     const activeV2 = isShort ? v2ShortData : v2SwingData;
     const activeData = isV2 ? activeV2.wfa : (isShort ? wfaShortData : wfaData);
 
-    // When switching to short mode via the global toggle, reset tab if on signals/configs
+    // When switching to short mode, reset tab if on v1-only tabs
     React.useEffect(() => {
         if (isShort && (tab === 'signals' || tab === 'configs')) setTab('windows');
     }, [isShort]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -412,8 +411,12 @@ export const BacktestPage: React.FC = () => {
                     <div className="flex items-center gap-3">
                         <h2 className="text-2xl font-bold">WFA Results</h2>
                         <div className="flex items-center gap-0.5 rounded-lg bg-white/5 p-0.5">
+                            <button onClick={() => setBacktestProfile('swing')} className={`px-2.5 py-1 text-[10px] font-semibold rounded-md transition-colors ${!isShort ? 'bg-emerald-500/20 text-emerald-400' : 'text-text-tertiary hover:text-text-secondary'}`}>Swing</button>
+                            <button onClick={() => setBacktestProfile('shortTerm')} className={`px-2.5 py-1 text-[10px] font-semibold rounded-md transition-colors ${isShort ? 'bg-blue-500/20 text-blue-400' : 'text-text-tertiary hover:text-text-secondary'}`}>Short DTE</button>
+                        </div>
+                        <div className="flex items-center gap-0.5 rounded-lg bg-white/5 p-0.5">
                             <button onClick={() => setWfaVersion('v1')} className={`px-2.5 py-1 text-[10px] font-semibold rounded-md transition-colors ${!isV2 ? 'bg-white/10 text-white' : 'text-text-tertiary hover:text-text-secondary'}`}>v1</button>
-                            <button onClick={() => setWfaVersion('v2')} className={`px-2.5 py-1 text-[10px] font-semibold rounded-md transition-colors ${isV2 ? 'bg-emerald-500/20 text-emerald-400' : 'text-text-tertiary hover:text-text-secondary'}`}>v2</button>
+                            <button onClick={() => setWfaVersion('v2')} className={`px-2.5 py-1 text-[10px] font-semibold rounded-md transition-colors ${isV2 ? 'bg-white/10 text-white' : 'text-text-tertiary hover:text-text-secondary'}`}>v2</button>
                         </div>
                     </div>
                     <p className="text-text-secondary text-sm mt-0.5">Walk-Forward Analysis{isV2 ? ' v2 (GA optimizer)' : ''} · {config.tickers.length} tickers · {config.startDate} → {config.endDate}</p>
@@ -930,7 +933,7 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2 }) 
             {/* What is this? — intro for newcomers */}
             <div className="bg-[#111] rounded-xl border border-white/5 p-3 text-xs text-text-secondary">
                 <div className="font-medium text-white mb-1">What am I looking at?</div>
-                <p>This strategy was optimized by testing <span className="text-white font-mono">{v2.totalEvaluations}</span> different parameter combinations over <span className="text-white font-mono">{(v2.elapsedMs / 3600000).toFixed(1)}h</span> of compute. The optimizer trained on historical data, then validated on <em>unseen</em> future data (out-of-sample) to ensure the results aren't just curve-fitting. Use the <span className="text-white">Swing / ST</span> toggle in the top nav to switch between the two strategy profiles.</p>
+                <p>This strategy was optimized by testing <span className="text-white font-mono">{v2.totalEvaluations}</span> different parameter combinations over <span className="text-white font-mono">{(v2.elapsedMs / 3600000).toFixed(1)}h</span> of compute. The optimizer trained on historical data, then validated on <em>unseen</em> future data (out-of-sample) to ensure the results aren't just curve-fitting. Use the <span className="text-white">Swing / Short DTE</span> toggle above to compare both strategy profiles.</p>
             </div>
 
             {/* Best Config Card */}

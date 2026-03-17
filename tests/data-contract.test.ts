@@ -426,23 +426,19 @@ describe('STRAT-03 — strategy derived from DTE selection in spread builder', (
 });
 
 // ---------------------------------------------------------------------------
-// STRAT-04: Backtest.tsx context-driven strategy (no local state)
+// STRAT-04: Backtest.tsx has local profile toggle (swing/shortTerm)
 // ---------------------------------------------------------------------------
-describe('STRAT-04 — Backtest.tsx derives strategy from global activeStrategy', () => {
-  it('Backtest.tsx imports useAppSettings', () => {
-    expect(backtestSrc).toContain('useAppSettings');
+describe('STRAT-04 — Backtest.tsx has local profile toggle', () => {
+  it('Backtest.tsx has local backtestProfile state for swing/shortTerm toggle', () => {
+    expect(backtestSrc).toContain('backtestProfile');
   });
 
-  it('Backtest.tsx derives isShort from activeStrategy === shortTerm (not local state)', () => {
-    expect(backtestSrc).toContain("activeStrategy === 'shortTerm'");
+  it('Backtest.tsx derives isShort from local backtestProfile', () => {
+    expect(backtestSrc).toContain("backtestProfile === 'shortTerm'");
   });
 
-  it('Backtest.tsx does NOT contain useState<StrategyMode> (local toggle removed)', () => {
+  it('Backtest.tsx does NOT contain useState<StrategyMode> (old enum toggle)', () => {
     expect(backtestSrc).not.toContain('useState<StrategyMode>');
-  });
-
-  it('Backtest.tsx does NOT contain useState with swing default (local toggle removed)', () => {
-    expect(backtestSrc).not.toContain("useState('swing')");
   });
 
   it('Backtest.tsx imports getProfile for profile-driven label strings', () => {
