@@ -927,26 +927,30 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2 }) 
 
     return (
         <div className="space-y-4">
+            {/* What is this? — intro for newcomers */}
+            <div className="bg-[#111] rounded-xl border border-white/5 p-3 text-xs text-text-secondary">
+                <div className="font-medium text-white mb-1">What am I looking at?</div>
+                <p>This strategy was optimized by testing <span className="text-white font-mono">{v2.totalEvaluations}</span> different parameter combinations over <span className="text-white font-mono">{(v2.elapsedMs / 3600000).toFixed(1)}h</span> of compute. The optimizer trained on historical data, then validated on <em>unseen</em> future data (out-of-sample) to ensure the results aren't just curve-fitting. Use the <span className="text-white">Swing / ST</span> toggle in the top nav to switch between the two strategy profiles.</p>
+            </div>
+
             {/* Best Config Card */}
             <div className="bg-[#1A1A1A] rounded-xl border border-emerald-500/20 p-4">
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-2 mb-2">
                     <Zap size={14} className="text-emerald-400" />
-                    <span className="text-sm font-semibold">v2 Best Config</span>
-                    <span className="text-[10px] font-mono text-text-tertiary ml-auto">
-                        {v2.totalEvaluations} GA trials · {(v2.elapsedMs / 3600000).toFixed(1)}h runtime
-                    </span>
+                    <span className="text-sm font-semibold">Optimized Parameters</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 text-xs">
-                    <ConfigItem label="Signal" value={bc.signalWeightPreset?.toUpperCase() ?? '—'} />
-                    <ConfigItem label="Width" value={`$${bc.creditSpreadWidth ?? '—'}`} />
-                    <ConfigItem label="DTE" value={bc.creditDTERange ? `${bc.creditDTERange[0]}-${bc.creditDTERange[1]}` : '—'} />
-                    <ConfigItem label="Delta" value={bc.creditShortDelta?.toFixed(2) ?? '—'} />
-                    <ConfigItem label="TP" value={bc.creditProfitTarget ? `${(bc.creditProfitTarget * 100).toFixed(0)}%` : '—'} />
-                    <ConfigItem label="IV Min" value={bc.minIVRank ? `${bc.minIVRank}%` : '—'} />
-                    <ConfigItem label="Time Stop" value={`${bc.creditTimeStopDTE ?? '—'}d`} />
-                    <ConfigItem label="Fill" value={bc.fillMode ?? '—'} />
-                    <ConfigItem label="SL" value={bc.creditStopLossMultiple >= 100 ? 'None' : `${bc.creditStopLossMultiple}x`} />
-                    <ConfigItem label="IV Skew" value={bc.maxIVSkew != null ? `${bc.maxIVSkew}` : '—'} />
+                <p className="text-[11px] text-text-tertiary mb-3">The best configuration found by the optimizer. These are the exact settings used for live trading signals.</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 text-xs">
+                    <ConfigItem label="Signal Type" value={bc.signalWeightPreset?.toUpperCase() ?? '—'} hint="Which technical indicator triggers entries" />
+                    <ConfigItem label="Spread Width" value={`$${bc.creditSpreadWidth ?? '—'}`} hint="Distance between short and long strikes" />
+                    <ConfigItem label="Days to Expiry" value={bc.creditDTERange ? `${bc.creditDTERange[0]}–${bc.creditDTERange[1]}d` : '—'} hint="How many days until options expire" />
+                    <ConfigItem label="Short Delta" value={bc.creditShortDelta?.toFixed(2) ?? '—'} hint="Probability of the sold option expiring in-the-money" />
+                    <ConfigItem label="Take Profit" value={bc.creditProfitTarget ? `${(bc.creditProfitTarget * 100).toFixed(0)}%` : '—'} hint="Close the trade when this % of max profit is captured" />
+                    <ConfigItem label="IV Rank Min" value={bc.minIVRank ? `${bc.minIVRank}%` : '—'} hint="Only enter when implied volatility is elevated (premium is rich)" />
+                    <ConfigItem label="Time Stop" value={`${bc.creditTimeStopDTE ?? '—'}d before expiry`} hint="Close the trade this many days before expiration" />
+                    <ConfigItem label="Stop Loss" value={bc.creditStopLossMultiple >= 100 ? 'None (defined risk)' : `${bc.creditStopLossMultiple}x credit`} hint="No SL needed — max loss is capped by the spread width" />
+                    <ConfigItem label="Fill Model" value={bc.fillMode === 'bidask' ? 'Bid/Ask (realistic)' : bc.fillMode ?? '—'} hint="How trade execution prices are simulated" />
+                    <ConfigItem label="Max IV Skew" value={bc.maxIVSkew != null ? `${bc.maxIVSkew}` : '—'} hint="Max allowed IV difference between spread legs" />
                 </div>
             </div>
 
@@ -954,89 +958,95 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2 }) 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Statistical Validation */}
                 <div className="bg-[#1A1A1A] rounded-xl border border-white/5 p-4">
-                    <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center gap-2 mb-1">
                         <Beaker size={14} className="text-purple-400" />
-                        <span className="text-sm font-semibold">Statistical Validation</span>
+                        <span className="text-sm font-semibold">Is it real or luck?</span>
                     </div>
-                    <div className="space-y-2 text-xs">
+                    <p className="text-[10px] text-text-tertiary mb-3">Statistical tests that check whether the strategy's edge is genuine or just random chance / overfitting.</p>
+                    <div className="space-y-2.5 text-xs">
                         {stats.dsr && (
-                            <div className="flex justify-between">
-                                <span className="text-text-tertiary">DSR (Deflated Sharpe)</span>
-                                <span className={`font-mono font-bold ${stats.dsr.dsr > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                    {stats.dsr.dsr.toFixed(4)}
-                                </span>
-                            </div>
+                            <V2StatRow
+                                label="Deflated Sharpe Ratio"
+                                value={stats.dsr.dsr.toFixed(4)}
+                                good={stats.dsr.dsr > 0}
+                                explain={`Adjusts the Sharpe ratio for how many configs were tested (${stats.dsr.nTrials}). Positive = edge survives the penalty for data mining.`}
+                            />
                         )}
                         {stats.pbo && (
-                            <div className="flex justify-between">
-                                <span className="text-text-tertiary">PBO (Prob of Backtest Overfit)</span>
-                                <span className={`font-mono font-bold ${stats.pbo.pbo <= 0.1 ? 'text-emerald-400' : stats.pbo.pbo <= 0.3 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                    {(stats.pbo.pbo * 100).toFixed(1)}%
-                                </span>
-                            </div>
+                            <V2StatRow
+                                label="Probability of Overfitting"
+                                value={`${(stats.pbo.pbo * 100).toFixed(1)}%`}
+                                good={stats.pbo.pbo <= 0.1}
+                                warn={stats.pbo.pbo > 0.1 && stats.pbo.pbo <= 0.3}
+                                explain="Chance that the chosen config is overfit to historical data. Lower is better. 0% = no evidence of overfitting."
+                            />
                         )}
                         {stats.bootstrap?.sharpe && (
-                            <div className="flex justify-between">
-                                <span className="text-text-tertiary">Bootstrap Sharpe CI</span>
-                                <span className="font-mono text-text-secondary">
-                                    [{stats.bootstrap.sharpe.ci5.toFixed(2)}, {stats.bootstrap.sharpe.ci95.toFixed(2)}]
-                                </span>
-                            </div>
+                            <V2StatRow
+                                label="Sharpe 90% Confidence"
+                                value={`${stats.bootstrap.sharpe.ci5.toFixed(2)} – ${stats.bootstrap.sharpe.ci95.toFixed(2)}`}
+                                good={stats.bootstrap.sharpe.ci5 > 0}
+                                explain="If we ran this strategy 1000 times with random trade ordering, the Sharpe ratio would land in this range 90% of the time."
+                            />
                         )}
                         {stats.bootstrap?.maxDD && (
-                            <div className="flex justify-between">
-                                <span className="text-text-tertiary">Bootstrap DD CI</span>
-                                <span className="font-mono text-text-secondary">
-                                    [{stats.bootstrap.maxDD.ci5.toFixed(2)}%, {stats.bootstrap.maxDD.ci95.toFixed(2)}%]
-                                </span>
-                            </div>
+                            <V2StatRow
+                                label="Max Drawdown 90% CI"
+                                value={`${stats.bootstrap.maxDD.ci5.toFixed(2)}% – ${stats.bootstrap.maxDD.ci95.toFixed(2)}%`}
+                                good
+                                explain="Expected range for the worst peak-to-trough decline. Plan for the upper end of this range."
+                            />
                         )}
                         {stats.permutation && (
-                            <div className="flex justify-between">
-                                <span className="text-text-tertiary">Permutation p-value</span>
-                                <span className={`font-mono font-bold ${stats.permutation.pValue <= 0.05 ? 'text-emerald-400' : 'text-yellow-400'}`}>
-                                    {stats.permutation.pValue.toFixed(4)}
-                                </span>
-                            </div>
+                            <V2StatRow
+                                label="Permutation p-value"
+                                value={stats.permutation.pValue.toFixed(4)}
+                                good={stats.permutation.pValue <= 0.05}
+                                explain={`Compares strategy returns to ${stats.permutation.nPermutations.toLocaleString()} random shuffles. Below 0.05 = statistically significant (not random).`}
+                            />
                         )}
                     </div>
                 </div>
 
                 {/* Holdout Validation */}
                 <div className="bg-[#1A1A1A] rounded-xl border border-white/5 p-4">
-                    <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center gap-2 mb-1">
                         <Shield size={14} className="text-blue-400" />
-                        <span className="text-sm font-semibold">Holdout Validation</span>
+                        <span className="text-sm font-semibold">Holdout Test</span>
                     </div>
-                    <div className="space-y-2 text-xs">
-                        <div className="flex justify-between">
-                            <span className="text-text-tertiary">Sharpe</span>
-                            <span className={`font-mono font-bold ${sharpeColor(holdout.sharpe)}`}>{holdout.sharpe.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-text-tertiary">Win Rate</span>
-                            <span className={`font-mono font-bold ${wrColor(holdout.winRate)}`}>{holdout.winRate.toFixed(1)}%</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-text-tertiary">Max DD</span>
-                            <span className="font-mono text-text-secondary">{holdout.maxDD.toFixed(2)}%</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-text-tertiary">P&L</span>
-                            <span className={`font-mono font-bold ${holdout.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                ${(holdout.totalPnl / 1000).toFixed(1)}K
-                            </span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-text-tertiary">Trades</span>
-                            <span className="font-mono text-text-secondary">{holdout.tradeCount}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-text-tertiary">Degradation</span>
-                            <span className={`font-mono font-bold ${holdout.degradation <= 0.5 ? 'text-emerald-400' : 'text-yellow-400'}`}>
-                                {(holdout.degradation * 100).toFixed(0)}%
-                            </span>
-                        </div>
+                    <p className="text-[10px] text-text-tertiary mb-3">Performance on a completely hidden data period that the optimizer never saw — the ultimate sanity check.</p>
+                    <div className="space-y-2.5 text-xs">
+                        <V2StatRow
+                            label="Sharpe Ratio"
+                            value={holdout.sharpe.toFixed(2)}
+                            good={holdout.sharpe >= 0.5}
+                            explain="Risk-adjusted return on unseen data. Above 1.0 is good, above 0.5 is acceptable."
+                        />
+                        <V2StatRow
+                            label="Win Rate"
+                            value={`${holdout.winRate.toFixed(1)}%`}
+                            good={holdout.winRate >= 70}
+                            explain="Percentage of trades that were profitable on holdout data."
+                        />
+                        <V2StatRow
+                            label="Max Drawdown"
+                            value={`${holdout.maxDD.toFixed(2)}%`}
+                            good={holdout.maxDD < 5}
+                            explain="Largest peak-to-trough decline on holdout data."
+                        />
+                        <V2StatRow
+                            label="Profit / Loss"
+                            value={`$${(holdout.totalPnl / 1000).toFixed(1)}K`}
+                            good={holdout.totalPnl > 0}
+                            explain={`Total P&L across ${holdout.tradeCount} holdout trades.`}
+                        />
+                        <V2StatRow
+                            label="Performance Degradation"
+                            value={`${(holdout.degradation * 100).toFixed(0)}%`}
+                            good={holdout.degradation <= 0.5}
+                            warn={holdout.degradation > 0.5 && holdout.degradation <= 0.7}
+                            explain="How much worse holdout performs vs. the optimized period. Lower = strategy generalizes well. Under 50% is healthy."
+                        />
                     </div>
                 </div>
             </div>
@@ -1044,15 +1054,16 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2 }) 
             {/* Regime Breakdown */}
             {regimes.length > 0 && (
                 <div className="bg-[#1A1A1A] rounded-xl border border-white/5 p-4">
-                    <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center gap-2 mb-1">
                         <Activity size={14} className="text-yellow-400" />
-                        <span className="text-sm font-semibold">VIX Regime Breakdown</span>
+                        <span className="text-sm font-semibold">Performance by Market Conditions</span>
                     </div>
+                    <p className="text-[10px] text-text-tertiary mb-3">How the strategy performs under different levels of market fear, measured by the VIX index (the "fear gauge").</p>
                     <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                             <thead>
                                 <tr className="text-text-tertiary uppercase tracking-wider">
-                                    <th className="text-left pb-2 pr-3 font-medium">Regime</th>
+                                    <th className="text-left pb-2 pr-3 font-medium">Market Condition</th>
                                     <th className="text-right pb-2 pr-3 font-medium">Trades</th>
                                     <th className="text-right pb-2 pr-3 font-medium">Sharpe</th>
                                     <th className="text-right pb-2 pr-3 font-medium">Win Rate</th>
@@ -1062,43 +1073,71 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2 }) 
                                 </tr>
                             </thead>
                             <tbody>
-                                {regimes.map(r => (
-                                    <tr key={r.regime} className="border-t border-[#222] hover:bg-white/2">
-                                        <td className="py-2.5 pr-3">
-                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-                                                r.regime === 'low' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' :
-                                                r.regime === 'mid' ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' :
-                                                'bg-red-500/15 text-red-400 border-red-500/30'
-                                            }`}>{r.regime.toUpperCase()} VIX</span>
-                                        </td>
-                                        <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{r.tradeCount}</td>
-                                        <td className={`py-2.5 pr-3 text-right font-mono font-bold ${sharpeColor(r.sharpe)}`}>{r.sharpe.toFixed(2)}</td>
-                                        <td className={`py-2.5 pr-3 text-right font-mono ${wrColor(r.winRate)}`}>{r.winRate.toFixed(1)}%</td>
-                                        <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{r.maxDD.toFixed(2)}%</td>
-                                        <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{r.avgHoldDays.toFixed(1)}d</td>
-                                        <td className={`py-2.5 text-right font-mono font-bold ${r.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                            ${(r.totalPnl / 1000).toFixed(1)}K
-                                        </td>
-                                    </tr>
-                                ))}
+                                {regimes.map(r => {
+                                    const regimeInfo = REGIME_INFO[r.regime] ?? { label: r.regime, desc: '', cls: 'bg-white/10 text-white border-white/20' };
+                                    return (
+                                        <tr key={r.regime} className="border-t border-[#222] hover:bg-white/2">
+                                            <td className="py-2.5 pr-3">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border whitespace-nowrap ${regimeInfo.cls}`}>
+                                                        {regimeInfo.label}
+                                                    </span>
+                                                    <span className="text-[10px] text-text-tertiary hidden sm:inline">{regimeInfo.desc}</span>
+                                                </div>
+                                            </td>
+                                            <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{r.tradeCount}</td>
+                                            <td className={`py-2.5 pr-3 text-right font-mono font-bold ${sharpeColor(r.sharpe)}`}>{r.sharpe.toFixed(2)}</td>
+                                            <td className={`py-2.5 pr-3 text-right font-mono ${wrColor(r.winRate)}`}>{r.winRate.toFixed(1)}%</td>
+                                            <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{r.maxDD.toFixed(2)}%</td>
+                                            <td className="py-2.5 pr-3 text-right font-mono text-text-secondary">{r.avgHoldDays.toFixed(1)}d</td>
+                                            <td className={`py-2.5 text-right font-mono font-bold ${r.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                ${(r.totalPnl / 1000).toFixed(1)}K
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
+                    <p className="text-[10px] text-text-tertiary mt-3">
+                        VIX (CBOE Volatility Index) measures expected market volatility over the next 30 days. <span className="text-emerald-400">Low VIX ({'<'}20)</span> = calm markets, <span className="text-yellow-400">Mid VIX (20–30)</span> = elevated uncertainty, <span className="text-red-400">High VIX ({'>'}30)</span> = fear/crisis (e.g. COVID crash, tariff shock). Most trades happen in calm markets because that's when conditions are normal.
+                    </p>
                 </div>
             )}
 
             {/* Robustness Note */}
             <div className="bg-[#111] rounded-xl border border-white/5 p-3 text-xs text-text-secondary">
-                <div className="font-medium text-white mb-1">Robustness</div>
-                <p>Signal choice barely matters (Sharpe diff = 0.002 between MOM/VOL) — the edge is structural. Strategy is stable across seeds and signal types.</p>
+                <div className="font-medium text-white mb-1">Why this works</div>
+                <p>Credit spreads profit from time decay and mean reversion — the edge is <em>structural</em>, not dependent on predicting direction. Signal choice barely matters (Sharpe difference = 0.002 between MOM/VOL signals). The strategy is stable across different random seeds, signal types, and market conditions.</p>
             </div>
         </div>
     );
 };
 
-const ConfigItem: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-    <div className="bg-[#111] rounded-lg px-2.5 py-1.5 border border-white/5">
+const REGIME_INFO: Record<string, { label: string; desc: string; cls: string }> = {
+    low:  { label: 'Calm',      desc: 'VIX < 20 — normal markets',         cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+    mid:  { label: 'Elevated',  desc: 'VIX 20–30 — heightened uncertainty', cls: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' },
+    high: { label: 'Crisis',    desc: 'VIX > 30 — fear / panic',            cls: 'bg-red-500/15 text-red-400 border-red-500/30' },
+};
+
+const V2StatRow: React.FC<{
+    label: string; value: string; good: boolean; warn?: boolean; explain: string;
+}> = ({ label, value, good, warn, explain }) => (
+    <div>
+        <div className="flex justify-between items-center">
+            <span className="text-text-tertiary">{label}</span>
+            <span className={`font-mono font-bold ${good ? 'text-emerald-400' : warn ? 'text-yellow-400' : 'text-red-400'}`}>
+                {value}
+            </span>
+        </div>
+        <p className="text-[10px] text-text-tertiary/70 mt-0.5 leading-relaxed">{explain}</p>
+    </div>
+);
+
+const ConfigItem: React.FC<{ label: string; value: string; hint?: string }> = ({ label, value, hint }) => (
+    <div className="bg-[#111] rounded-lg px-2.5 py-1.5 border border-white/5" title={hint}>
         <div className="text-[9px] text-text-tertiary uppercase">{label}</div>
         <div className="font-mono font-bold text-sm text-white">{value}</div>
+        {hint && <div className="text-[9px] text-text-tertiary/60 mt-0.5 leading-tight">{hint}</div>}
     </div>
 );
