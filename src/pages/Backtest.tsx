@@ -1253,8 +1253,8 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2, is
                 <div className="space-y-4">
                     {/* Intro */}
                     <div className="bg-[#111] rounded-xl border border-white/5 p-3 text-xs text-text-secondary">
-                        <div className="font-medium text-white mb-1">Three Experiments, One Answer</div>
-                        <p>We ran the optimizer three times with different settings to answer key questions: Does the ADX trend filter help or hurt? Does the signal type matter? Do different random seeds find the same answer? The results are remarkably consistent.</p>
+                        <div className="font-medium text-white mb-1">Four Experiments, One Answer</div>
+                        <p>We ran the optimizer four times with different settings. The latest run adds <strong className="text-white">dirConfTier</strong> — a direction confidence filter that only enters trades when the signal's directional conviction is high. It produced the best holdout Sharpe (1.61) and lowest max drawdown (0.88%).</p>
                     </div>
 
                     {/* Comparison Table */}
@@ -1265,16 +1265,16 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2, is
                                 <tr className="text-text-tertiary uppercase tracking-wider">
                                     <th className="text-left pb-2 pr-3 font-medium">Metric</th>
                                     <th className="text-right pb-2 pr-3 font-medium">
-                                        <span className="text-emerald-400">Baseline</span>
-                                        <div className="text-[9px] normal-case font-normal">{v2.bestConfig?.signalWeightPreset ? `${(v2.bestConfig as any).signalWeightPreset.toUpperCase()} signal` : 'Baseline'}</div>
+                                        <span className="text-amber-400">Latest</span>
+                                        <div className="text-[9px] normal-case font-normal">dirConf=high, VOL</div>
                                     </th>
                                     <th className="text-right pb-2 pr-3 font-medium">
                                         <span className="text-blue-400">No-ADX</span>
-                                        <div className="text-[9px] normal-case font-normal">ADX removed, VOL signal</div>
+                                        <div className="text-[9px] normal-case font-normal">ADX removed, VOL</div>
                                     </th>
                                     <th className="text-right pb-2 font-medium">
                                         <span className="text-purple-400">Seed 43</span>
-                                        <div className="text-[9px] normal-case font-normal">Different random seed</div>
+                                        <div className="text-[9px] normal-case font-normal">dirConf=any, VOL</div>
                                     </th>
                                 </tr>
                             </thead>
@@ -1282,19 +1282,20 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2, is
                                 {[
                                     { label: 'OOS Sharpe', baseline: v2.wfa.oosSharpe, noAdx: noAdx.wfa.oosSharpe, seed43: seed43.wfa.oosSharpe, fmt: (v: number) => v.toFixed(2), colorFn: sharpeColor },
                                     { label: 'Win Rate', baseline: v2.wfa.oosWinRate, noAdx: noAdx.wfa.oosWinRate, seed43: seed43.wfa.oosWinRate, fmt: (v: number) => `${v.toFixed(1)}%`, colorFn: wrColor },
-                                    { label: 'Max DD', baseline: v2.wfa.oosMaxDD, noAdx: noAdx.wfa.oosMaxDD, seed43: seed43.wfa.oosMaxDD, fmt: (v: number) => `${v.toFixed(2)}%`, colorFn: () => 'text-text-secondary' },
+                                    { label: 'Max DD', baseline: v2.wfa.oosMaxDD, noAdx: noAdx.wfa.oosMaxDD, seed43: seed43.wfa.oosMaxDD, fmt: (v: number) => `${v.toFixed(2)}%`, colorFn: (v: number) => v < 1 ? 'text-emerald-400' : v < 2 ? 'text-yellow-400' : 'text-text-secondary' },
                                     { label: 'Total P&L', baseline: v2.wfa.oosTotalPnl, noAdx: noAdx.wfa.oosTotalPnl, seed43: seed43.wfa.oosTotalPnl, fmt: (v: number) => `$${(v / 1000).toFixed(0)}K`, colorFn: (v: number) => v >= 0 ? 'text-emerald-400' : 'text-red-400' },
                                     { label: 'Trades', baseline: v2.wfa.allOOSTrades.length, noAdx: noAdx.wfa.allOOSTrades.length, seed43: seed43.wfa.allOOSTrades.length, fmt: (v: number) => String(v), colorFn: () => 'text-text-secondary' },
                                     { label: 'WF Efficiency', baseline: v2.wfa.wfEfficiency, noAdx: noAdx.wfa.wfEfficiency, seed43: seed43.wfa.wfEfficiency, fmt: (v: number) => v.toFixed(2), colorFn: (v: number) => v >= 1 ? 'text-emerald-400' : 'text-yellow-400' },
                                     { label: 'Holdout Sharpe', baseline: v2.holdout.sharpe, noAdx: noAdx.holdout.sharpe, seed43: seed43.holdout.sharpe, fmt: (v: number) => v.toFixed(2), colorFn: sharpeColor },
                                     { label: 'Holdout Degrad.', baseline: v2.holdout.degradation, noAdx: noAdx.holdout.degradation, seed43: seed43.holdout.degradation, fmt: (v: number) => `${(v * 100).toFixed(0)}%`, colorFn: (v: number) => v <= 0.5 ? 'text-emerald-400' : v <= 0.7 ? 'text-yellow-400' : 'text-red-400' },
-                                    { label: 'Best Signal', baseline: 0, noAdx: 0, seed43: 0, fmt: (_: number, key: string) => key === 'baseline' ? ((v2.bestConfig as any)?.signalWeightPreset ?? 'VOL').toUpperCase() : 'VOL', colorFn: () => 'text-white' },
+                                    { label: 'dirConfTier', baseline: 0, noAdx: 0, seed43: 0, fmt: (_: number, key: string) => key === 'baseline' ? ((v2.bestConfig as any)?.dirConfTier ?? 'high') : 'any', colorFn: (_: number, key?: string) => key === 'baseline' ? 'text-amber-400' : 'text-text-secondary' },
+                                    { label: 'Signal', baseline: 0, noAdx: 0, seed43: 0, fmt: (_: number, key: string) => key === 'baseline' ? ((v2.bestConfig as any)?.signalWeightPreset ?? 'VOL').toUpperCase() : 'VOL', colorFn: () => 'text-white' },
                                 ].map(row => (
                                     <tr key={row.label} className="border-t border-[#222]">
                                         <td className="py-2 pr-3 text-text-tertiary font-sans">{row.label}</td>
-                                        <td className={`py-2 pr-3 text-right font-bold ${row.colorFn(row.baseline)}`}>{row.fmt(row.baseline, 'baseline')}</td>
-                                        <td className={`py-2 pr-3 text-right font-bold ${row.colorFn(row.noAdx)}`}>{row.fmt(row.noAdx, 'noAdx')}</td>
-                                        <td className={`py-2 text-right font-bold ${row.colorFn(row.seed43)}`}>{row.fmt(row.seed43, 'seed43')}</td>
+                                        <td className={`py-2 pr-3 text-right font-bold ${row.colorFn(row.baseline, 'baseline')}`}>{row.fmt(row.baseline, 'baseline')}</td>
+                                        <td className={`py-2 pr-3 text-right font-bold ${row.colorFn(row.noAdx, 'noAdx')}`}>{row.fmt(row.noAdx, 'noAdx')}</td>
+                                        <td className={`py-2 text-right font-bold ${row.colorFn(row.seed43, 'seed43')}`}>{row.fmt(row.seed43, 'seed43')}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -1303,48 +1304,53 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2, is
 
                     {/* Key Findings */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="bg-[#1A1A1A] rounded-xl border border-emerald-500/15 p-4">
-                            <div className="text-sm font-semibold mb-2 text-emerald-400">Finding: ADX Filter Removal</div>
+                        <div className="bg-[#1A1A1A] rounded-xl border border-amber-500/15 p-4">
+                            <div className="text-sm font-semibold mb-2 text-amber-400">Finding: Direction Confidence Filter</div>
                             <div className="text-xs text-text-secondary space-y-2">
-                                <p><strong className="text-white">What changed:</strong> Removed the ADX \u2265 15 trend strength requirement. This tripled the signal count (10K \u2192 30K signals) but only marginally increased trades (532 \u2192 549).</p>
-                                <p><strong className="text-white">Why it works:</strong> The VOL signal (RVOL + Momentum) emerged as the winner when ADX isn't pre-filtering — volume confirmation matters more than trend strength for credit spreads. The strategy now trades in ranging markets too.</p>
-                                <p><strong className="text-white">Best holdout:</strong> No-ADX has the best holdout Sharpe ({noAdx.holdout.sharpe.toFixed(2)}) with only {(noAdx.holdout.degradation * 100).toFixed(0)}% degradation — the most future-proof variant.</p>
+                                <p><strong className="text-white">What it does:</strong> <code className="text-amber-400">dirConfTier=high</code> requires strong directional conviction before entering a trade. It scores each signal on 7 technical components and only trades when they agree on direction.</p>
+                                <p><strong className="text-white">Impact on risk:</strong> Max drawdown dropped from 1.89% to <strong className="text-emerald-400">0.88%</strong> — a 53% reduction. The filter eliminates false-direction signals that caused the worst losses in prior runs.</p>
+                                <p><strong className="text-white">Impact on holdout:</strong> Holdout Sharpe jumped from 0.88 to <strong className="text-emerald-400">1.61</strong> — the best generalization of any run. High-confidence signals carry forward to unseen markets.</p>
                             </div>
                         </div>
-                        <div className="bg-[#1A1A1A] rounded-xl border border-purple-500/15 p-4">
-                            <div className="text-sm font-semibold mb-2 text-purple-400">Finding: Signal Doesn't Matter Much</div>
+                        <div className="bg-[#1A1A1A] rounded-xl border border-emerald-500/15 p-4">
+                            <div className="text-sm font-semibold mb-2 text-emerald-400">Finding: Trade Structure Is the Edge</div>
                             <div className="text-xs text-text-secondary space-y-2">
-                                <p><strong className="text-white">Sharpe diff = 0.002</strong> between MOM (seed 42) and VOL (seed 43) signals. Despite starting from different random points, both optimizer runs converged to nearly identical performance.</p>
-                                <p><strong className="text-white">5 of 6 core params match:</strong> Delta (0.35), Width ($10), TP (30%), SL (None), Time Stop (5 DTE), IV Rank (\u2265 20). Only delta slightly differs (0.35 vs 0.40) — both in the same neighborhood.</p>
-                                <p><strong className="text-white">What this means:</strong> The edge comes from the <em>trade structure</em> (spread width, DTE, profit target), not from which signal triggers the entry. This is a strong robustness signal.</p>
+                                <p><strong className="text-white">All 4 runs agree</strong> on core structure: Delta 0.35, TP 30%, SL None, Time Stop 5 DTE. The signal type (MOM/VOL) and filters (IV rank, ADX, dirConf) vary — but the spread structure is unanimous.</p>
+                                <p><strong className="text-white">Width scaled up:</strong> Latest run selected $20 width (vs prior $10-15), increasing PnL from $57K to $89K while <em>reducing</em> max DD. The dirConf filter makes wider spreads safer.</p>
+                                <p><strong className="text-white">IV Rank dropped to 0:</strong> With dirConf=high filtering quality, IV rank became unnecessary — the optimizer removed it entirely. Fewer filters = more trades without sacrificing quality.</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Production Choice Rationale */}
-                    <div className="bg-gradient-to-br from-emerald-500/5 to-blue-500/5 rounded-xl border border-emerald-500/10 p-4 text-xs text-text-secondary">
-                        <div className="font-semibold text-white mb-2">Why We Chose the No-ADX Hybrid Config</div>
-                        <p className="mb-2">The production config is a hybrid that cherry-picks the best from each experiment:</p>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="bg-gradient-to-br from-amber-500/5 to-emerald-500/5 rounded-xl border border-amber-500/10 p-4 text-xs text-text-secondary">
+                        <div className="font-semibold text-white mb-2">Why dirConfTier=high Is the Production Config</div>
+                        <p className="mb-2">The latest run with direction confidence filtering produced the best risk-adjusted results across all metrics that matter for live trading:</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                            <div className="bg-[#111]/50 rounded-lg px-2.5 py-2 border border-white/5">
+                                <div className="text-[9px] text-text-tertiary">Quality Gate</div>
+                                <div className="font-mono font-bold text-amber-400">dirConf=high</div>
+                                <div className="text-[9px] text-text-tertiary">Replaces IV rank filter</div>
+                            </div>
                             <div className="bg-[#111]/50 rounded-lg px-2.5 py-2 border border-white/5">
                                 <div className="text-[9px] text-text-tertiary">Signal</div>
                                 <div className="font-mono font-bold text-emerald-400">VOL</div>
-                                <div className="text-[9px] text-text-tertiary">From no-ADX run</div>
-                            </div>
-                            <div className="bg-[#111]/50 rounded-lg px-2.5 py-2 border border-white/5">
-                                <div className="text-[9px] text-text-tertiary">ADX Gate</div>
-                                <div className="font-mono font-bold text-emerald-400">Disabled</div>
-                                <div className="text-[9px] text-text-tertiary">From no-ADX run</div>
+                                <div className="text-[9px] text-text-tertiary">Volume-confirmed</div>
                             </div>
                             <div className="bg-[#111]/50 rounded-lg px-2.5 py-2 border border-white/5">
                                 <div className="text-[9px] text-text-tertiary">Width</div>
-                                <div className="font-mono font-bold text-blue-400">$10</div>
-                                <div className="text-[9px] text-text-tertiary">Conservative (baseline)</div>
+                                <div className="font-mono font-bold text-emerald-400">$20</div>
+                                <div className="text-[9px] text-text-tertiary">Safe with dirConf gate</div>
                             </div>
                             <div className="bg-[#111]/50 rounded-lg px-2.5 py-2 border border-white/5">
-                                <div className="text-[9px] text-text-tertiary">IV Rank</div>
-                                <div className="font-mono font-bold text-blue-400">\u2265 20%</div>
-                                <div className="text-[9px] text-text-tertiary">Conservative (baseline)</div>
+                                <div className="text-[9px] text-text-tertiary">Max DD</div>
+                                <div className="font-mono font-bold text-emerald-400">0.88%</div>
+                                <div className="text-[9px] text-text-tertiary">Best of all runs</div>
+                            </div>
+                            <div className="bg-[#111]/50 rounded-lg px-2.5 py-2 border border-white/5">
+                                <div className="text-[9px] text-text-tertiary">Holdout SR</div>
+                                <div className="font-mono font-bold text-emerald-400">1.61</div>
+                                <div className="text-[9px] text-text-tertiary">Best generalization</div>
                             </div>
                         </div>
                     </div>
