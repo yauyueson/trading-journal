@@ -15,9 +15,10 @@ import {
   findStrikeByDelta,
   findSpreadStrikes,
   findContract,
+  findContractDirect,
 } from './chain-cache';
-import type { DynamicSlippageConfig, FillMode } from './types';
-import { DEFAULT_DYNAMIC_SLIPPAGE } from './types';
+import type { DynamicSlippageConfig, FillMode, DirConfTier } from './types';
+import { DEFAULT_DYNAMIC_SLIPPAGE, DIR_CONF_THRESHOLDS } from './types';
 import { applyFill } from './slippage';
 
 // ── Types ────────────────────────────────────────────────
@@ -76,6 +77,8 @@ export interface EntrySignal {
   contango?: number;     // IV60/IV30 - 1 term structure
   slope?: number;        // ORATS put skew slope
   smvVol?: number;       // ORATS smoothed vol
+  // Direction confidence (0-100) from calcDirConfidence
+  dirConfidence?: number;
 }
 
 export interface SimConfig {
@@ -114,6 +117,10 @@ export interface SimConfig {
   contangoFilter?: number;  // min contango (IV60/IV30-1) to enter; 0 or undefined = disabled
   slopeFilter?: number;     // min ORATS slope to enter; 0 or undefined = disabled
   useSmvVol?: boolean;      // use smvVol for IV source instead of midIv
+  // Direction confidence tier filter
+  dirConfTier?: DirConfTier;
+  // Use O(1) direct PK lookup instead of full chain fetch in monitoring loops
+  useDirectLookup?: boolean;
 }
 
 export type SignalPresetKey = 'ema' | 'mom' | 'em' | 'mf' | 'full' | 'mb' | 'adx' | 'vol';
@@ -386,6 +393,11 @@ export async function simulateCreditSpread(
     return null;
   }
 
+  // Direction confidence tier gate
+  if (config.dirConfTier && config.dirConfTier !== 'any' && signal.dirConfidence != null) {
+    if (signal.dirConfidence < DIR_CONF_THRESHOLDS[config.dirConfTier]) return null;
+  }
+
   // Fetch entry day chain
   const entryChain = await fetchHistoricalChain(
     token, signal.ticker, signal.date,
@@ -458,11 +470,16 @@ export async function simulateCreditSpread(
   const dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
 
   for (const checkDate of monitorDates) {
-    const chain = await fetchHistoricalChain(token, signal.ticker, checkDate, [0.01, 0.99]);
-    if (chain.length === 0) continue;
-
-    const shortLeg = findContract(chain, spread.short.row.strike, spread.short.row.expir_date, optionType);
-    const longLeg = findContract(chain, spread.long.row.strike, spread.long.row.expir_date, optionType);
+    let shortLeg, longLeg;
+    if (config.useDirectLookup) {
+      shortLeg = findContractDirect(signal.ticker, checkDate, spread.short.row.strike, spread.short.row.expir_date, optionType);
+      longLeg = findContractDirect(signal.ticker, checkDate, spread.long.row.strike, spread.long.row.expir_date, optionType);
+    } else {
+      const chain = await fetchHistoricalChain(token, signal.ticker, checkDate, [0.01, 0.99]);
+      if (chain.length === 0) continue;
+      shortLeg = findContract(chain, spread.short.row.strike, spread.short.row.expir_date, optionType);
+      longLeg = findContract(chain, spread.long.row.strike, spread.long.row.expir_date, optionType);
+    }
     if (!shortLeg || !longLeg) continue;
 
     // Apply fill model to exit monitoring
@@ -508,9 +525,15 @@ export async function simulateCreditSpread(
   // Close at last monitoring date or expiry
   const lastDate = monitorDates[monitorDates.length - 1];
   if (lastDate) {
-    const chain = await fetchHistoricalChain(token, signal.ticker, lastDate, [0.01, 0.99]);
-    const shortLeg = findContract(chain, spread.short.row.strike, spread.short.row.expir_date, optionType);
-    const longLeg = findContract(chain, spread.long.row.strike, spread.long.row.expir_date, optionType);
+    let shortLeg, longLeg;
+    if (config.useDirectLookup) {
+      shortLeg = findContractDirect(signal.ticker, lastDate, spread.short.row.strike, spread.short.row.expir_date, optionType);
+      longLeg = findContractDirect(signal.ticker, lastDate, spread.long.row.strike, spread.long.row.expir_date, optionType);
+    } else {
+      const chain = await fetchHistoricalChain(token, signal.ticker, lastDate, [0.01, 0.99]);
+      shortLeg = findContract(chain, spread.short.row.strike, spread.short.row.expir_date, optionType);
+      longLeg = findContract(chain, spread.long.row.strike, spread.long.row.expir_date, optionType);
+    }
 
     let currentSpreadCost: number;
     if (shortLeg && longLeg) {
@@ -647,11 +670,16 @@ export async function simulateCreditSpreadPhased(
   const dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
 
   for (const checkDate of monitorDates) {
-    const chain = await fetchHistoricalChain(token, signal.ticker, checkDate, [0.01, 0.99]);
-    if (chain.length === 0) continue;
-
-    const shortLeg = findContract(chain, spread.short.row.strike, spread.short.row.expir_date, optionType);
-    const longLeg = findContract(chain, spread.long.row.strike, spread.long.row.expir_date, optionType);
+    let shortLeg, longLeg;
+    if (config.useDirectLookup) {
+      shortLeg = findContractDirect(signal.ticker, checkDate, spread.short.row.strike, spread.short.row.expir_date, optionType);
+      longLeg = findContractDirect(signal.ticker, checkDate, spread.long.row.strike, spread.long.row.expir_date, optionType);
+    } else {
+      const chain = await fetchHistoricalChain(token, signal.ticker, checkDate, [0.01, 0.99]);
+      if (chain.length === 0) continue;
+      shortLeg = findContract(chain, spread.short.row.strike, spread.short.row.expir_date, optionType);
+      longLeg = findContract(chain, spread.long.row.strike, spread.long.row.expir_date, optionType);
+    }
     if (!shortLeg || !longLeg) continue;
 
     const currentSpreadCost = shortLeg.mid - longLeg.mid;
@@ -736,9 +764,15 @@ export async function simulateCreditSpreadPhased(
   // Close at last monitoring date
   const lastDate = monitorDates[monitorDates.length - 1];
   if (lastDate) {
-    const chain = await fetchHistoricalChain(token, signal.ticker, lastDate, [0.01, 0.99]);
-    const shortLeg = findContract(chain, spread.short.row.strike, spread.short.row.expir_date, optionType);
-    const longLeg = findContract(chain, spread.long.row.strike, spread.long.row.expir_date, optionType);
+    let shortLeg, longLeg;
+    if (config.useDirectLookup) {
+      shortLeg = findContractDirect(signal.ticker, lastDate, spread.short.row.strike, spread.short.row.expir_date, optionType);
+      longLeg = findContractDirect(signal.ticker, lastDate, spread.long.row.strike, spread.long.row.expir_date, optionType);
+    } else {
+      const chain = await fetchHistoricalChain(token, signal.ticker, lastDate, [0.01, 0.99]);
+      shortLeg = findContract(chain, spread.short.row.strike, spread.short.row.expir_date, optionType);
+      longLeg = findContract(chain, spread.long.row.strike, spread.long.row.expir_date, optionType);
+    }
 
     let currentSpreadCost: number;
     if (shortLeg && longLeg) {
