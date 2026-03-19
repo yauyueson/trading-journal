@@ -251,7 +251,19 @@ export interface PrecomputedSignal {
   regime?: 'trending' | 'ranging' | 'neutral';
   // Sub-scores for GA correlation penalty
   subScores?: { sc_mb: number; sc_bxs: number; sc_bxl: number; sc_ema: number; sc_mom: number };
+  // Direction confidence score (0-100) from calcDirConfidence
+  dirConfidence?: number;
 }
+
+// ── Direction Confidence Tiers ───────────────────────────
+
+export type DirConfTier = 'any' | 'medium+' | 'high';
+
+export const DIR_CONF_THRESHOLDS: Record<DirConfTier, number> = {
+  'any': 0,
+  'medium+': 50,
+  'high': 70,
+};
 
 // ── Trade ───────────────────────────────────────────────
 
@@ -573,10 +585,22 @@ export type WFASweepDimension =
   | 'maxGammaThetaRatio'
   | 'maxIVSkew'
   // Signal/indicator selection
-  | 'signalWeightPreset';
+  | 'signalWeightPreset'
+  // v2: Volatility & microstructure filters
+  | 'vrpFilter'           // IV²-RV² variance risk premium threshold
+  | 'contangoFilter'      // IV60/IV30-1 term structure threshold
+  | 'slopeFilter'         // ORATS put skew slope threshold
+  | 'useSmvVol'           // smoothed vol vs midIv for pricing
+  // v2: Exit params
+  | 'creditDeltaStop'     // delta-based early exit threshold
+  | 'creditTimeStopDTE'   // time stop DTE threshold
+  // v2: Sizing
+  | 'maxPerTicker'        // max positions per ticker
+  | 'maxPositions'        // max total positions
+  | 'dirConfTier';        // direction confidence tier filter
 
 /** Signal weight presets — zero out unused components to isolate indicators. */
-export type SignalPresetKey = 'ema' | 'mom' | 'em' | 'mf';
+export type SignalPresetKey = 'ema' | 'mom' | 'em' | 'mf' | 'full' | 'mb' | 'adx' | 'vol';
 
 export const SIGNAL_PRESETS: Record<SignalPresetKey, TechScoreOptions> = {
   /** EMA stack alignment only */
@@ -587,6 +611,14 @@ export const SIGNAL_PRESETS: Record<SignalPresetKey, TechScoreOptions> = {
   em:  { w_mb: 0, w_bxs: 0, w_bxl: 0, w_adx: 0, w_vol: 0 },
   /** Market Bias + Momentum + EMA (3-factor) */
   mf:  { w_bxs: 0, w_bxl: 0, w_adx: 0, w_vol: 0 },
+  /** Full 7-component baseline (all default weights) */
+  full: {},
+  /** Market Bias only */
+  mb:  { w_bxs: 0, w_bxl: 0, w_ema: 0, w_mom: 0, w_adx: 0, w_vol: 0 },
+  /** ADX-weighted (ADX + EMA for trend confirmation) */
+  adx: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_mom: 0, w_vol: 0 },
+  /** RVOL-weighted (RVOL + Momentum for volume-confirmed moves) */
+  vol: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 0, w_adx: 0 },
 };
 
 // ── Correlation Stress Testing ──────────────────────────

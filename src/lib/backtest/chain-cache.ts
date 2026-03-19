@@ -146,6 +146,25 @@ export function initDB(dbPath?: string): Database.Database {
     );
   `);
 
+  // v2: ORATS cores cache for VRP, contango, slope, smvVol
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS orats_cores_cache (
+      ticker TEXT NOT NULL,
+      trade_date TEXT NOT NULL,
+      iv30 REAL,
+      rv30 REAL,
+      iv60 REAL,
+      slope REAL,
+      deriv REAL,
+      smv_vol REAL,
+      or_fcst_20d REAL,
+      fcst_r2 REAL,
+      contango REAL,
+      vrp REAL,
+      PRIMARY KEY (ticker, trade_date)
+    );
+  `);
+
   return _db;
 }
 
@@ -596,4 +615,156 @@ export function findContractDirect(
     volume: isCall ? row.call_volume : row.put_volume,
     oi: isCall ? row.call_oi : row.put_oi,
   };
+}
+
+// ── ORATS Cores Cache (v2) ──────────────────────────────
+
+export interface ORATSCoresRow {
+  ticker: string;
+  trade_date: string;
+  iv30: number;
+  rv30: number;
+  iv60: number;
+  slope: number;
+  deriv: number;
+  smv_vol: number;
+  or_fcst_20d: number;
+  fcst_r2: number;
+  contango: number;
+  vrp: number;
+}
+
+const ORATS_CORES_FIELDS = [
+  'ticker', 'tradeDate',
+  'iv30d', 'orHv30d', 'iv60d',
+  'slope', 'deriv', 'smvVol',
+  'orFcst20d', 'fcstR2',
+].join(',');
+
+function isCoresCached(ticker: string, date: string): boolean {
+  const db = initDB();
+  const row = db.prepare('SELECT 1 FROM orats_cores_cache WHERE ticker = ? AND trade_date = ?').get(ticker, date);
+  return !!row;
+}
+
+function mapORATSCoresRow(row: any): ORATSCoresRow {
+  const iv30 = row.iv30d ?? 0;
+  const rv30 = row.orHv30d ?? 0;
+  const iv60 = row.iv60d ?? 0;
+  return {
+    ticker: row.ticker,
+    trade_date: row.tradeDate,
+    iv30,
+    rv30,
+    iv60,
+    slope: row.slope ?? 0,
+    deriv: row.deriv ?? 0,
+    smv_vol: row.smvVol ?? 0,
+    or_fcst_20d: row.orFcst20d ?? 0,
+    fcst_r2: row.fcstR2 ?? 0,
+    contango: iv30 > 0 ? (iv60 / iv30) - 1 : 0,
+    vrp: (iv30 * iv30) - (rv30 * rv30),
+  };
+}
+
+/**
+ * Fetch ORATS cores data for a ticker on a date.
+ * Returns cached data if available, otherwise fetches from ORATS /hist/cores.
+ */
+export async function fetchHistoricalCores(
+  token: string,
+  ticker: string,
+  date: string,
+): Promise<ORATSCoresRow | null> {
+  if (isCoresCached(ticker, date)) {
+    return getCachedCores(ticker, date);
+  }
+
+  const params = new URLSearchParams({
+    token,
+    ticker: ticker.toUpperCase(),
+    tradeDate: date,
+    fields: ORATS_CORES_FIELDS,
+  });
+
+  const url = `${ORATS_BASE}/hist/cores?${params}`;
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+
+  if (!res.ok) {
+    return null;
+  }
+
+  _apiCallCount++;
+  const json = await res.json();
+  const data = json.data || [];
+  if (data.length === 0) return null;
+
+  const coresRow = mapORATSCoresRow(data[0]);
+  insertCoresRow(coresRow);
+  return coresRow;
+}
+
+function insertCoresRow(row: ORATSCoresRow): void {
+  const db = initDB();
+  db.prepare(`
+    INSERT OR REPLACE INTO orats_cores_cache
+    (ticker, trade_date, iv30, rv30, iv60, slope, deriv, smv_vol, or_fcst_20d, fcst_r2, contango, vrp)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    row.ticker, row.trade_date, row.iv30, row.rv30, row.iv60,
+    row.slope, row.deriv, row.smv_vol, row.or_fcst_20d, row.fcst_r2,
+    row.contango, row.vrp,
+  );
+}
+
+/**
+ * Get cached cores data (no API call).
+ */
+export function getCachedCores(ticker: string, date: string): ORATSCoresRow | null {
+  const db = initDB();
+  const row = db.prepare(
+    'SELECT * FROM orats_cores_cache WHERE ticker = ? AND trade_date = ?'
+  ).get(ticker, date) as ORATSCoresRow | undefined;
+  return row ?? null;
+}
+
+/**
+ * Get all cached cores for a ticker in a date range.
+ */
+export function getCachedCoresRange(
+  ticker: string,
+  startDate: string,
+  endDate: string,
+): ORATSCoresRow[] {
+  const db = initDB();
+  return db.prepare(
+    'SELECT * FROM orats_cores_cache WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+  ).all(ticker, startDate, endDate) as ORATSCoresRow[];
+}
+
+/**
+ * Batch prefetch cores for multiple tickers across a date range.
+ */
+export async function prefetchCoresAll(
+  token: string,
+  tickers: string[],
+  dates: string[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<number> {
+  let fetched = 0;
+  const total = tickers.length * dates.length;
+  let done = 0;
+
+  for (const ticker of tickers) {
+    for (const date of dates) {
+      if (!isCoresCached(ticker, date)) {
+        await fetchHistoricalCores(token, ticker, date);
+        fetched++;
+        if (fetched % 50 === 0) await new Promise(r => setTimeout(r, 1000));
+      }
+      done++;
+      onProgress?.(done, total);
+    }
+  }
+  return fetched;
 }

@@ -201,6 +201,7 @@ export function precomputeSignalsDaily(candles: BacktestCandle[], indicatorOptio
         sc_ema: result.components.sc_ema,
         sc_mom: result.components.sc_mom,
       } : undefined,
+      dirConfidence: result.dirConfidence,
     });
   }
 
