@@ -997,7 +997,7 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2, is
                         <p className="text-[11px] text-text-tertiary mb-3">
                             {isShort
                                 ? 'Best configuration for weekly credit spreads. High Sharpe from near-zero variance, but small absolute returns ($21/trade avg).'
-                                : 'Best configuration chosen from the no-ADX experiment — VOL signal with conservative $10 width and IV Rank \u2265 20 from baseline. Currently deployed to live signals.'
+                                : `Best configuration from latest WFA v2 run — ${(bc.signalWeightPreset ?? 'VOL').toUpperCase()} signal, $${bc.creditSpreadWidth ?? 20} width, dirConfTier=${bc.dirConfTier ?? 'high'}. Currently deployed to live signals.`
                             }
                         </p>
                         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 text-xs">
@@ -1009,7 +1009,7 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2, is
                             <ConfigItem label="IV Rank Min" value={`\u2265 ${bc.minIVRank ?? '—'}%`} hint="Only enter when implied volatility is relatively high (premiums are rich). Higher = pickier but better premiums" />
                             <ConfigItem label="Time Stop" value={`${bc.creditTimeStopDTE ?? '—'}d before exp.`} hint="Close the trade this many days before expiration regardless of profit. Avoids gamma risk near expiry" />
                             <ConfigItem label="Stop Loss" value={bc.creditStopLossMultiple >= 100 ? 'None' : `${bc.creditStopLossMultiple}x`} hint="No stop loss needed — your max loss is already capped by the spread width (defined risk). Adding stops actually hurts returns" />
-                            {!isShort && <ConfigItem label="ADX Gate" value="Disabled" hint="ADX measures trend strength. Removing this filter lets the strategy trade in ranging markets too — VOL signal provides quality control instead" />}
+                            {!isShort && bc.dirConfTier && bc.dirConfTier !== 'any' && <ConfigItem label="Dir. Confidence" value={bc.dirConfTier} hint="Only enter trades when direction confidence meets this threshold. 'high' = strongest filter, avoids false-direction signals" />}
                             <ConfigItem label="Max Positions" value={`${(bc as any).maxPositions ?? 5}`} hint="Maximum simultaneous open trades. Limits how much capital is at risk at any time" />
                         </div>
                     </div>
@@ -1266,7 +1266,7 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2, is
                                     <th className="text-left pb-2 pr-3 font-medium">Metric</th>
                                     <th className="text-right pb-2 pr-3 font-medium">
                                         <span className="text-emerald-400">Baseline</span>
-                                        <div className="text-[9px] normal-case font-normal">ADX \u2265 15, MOM signal</div>
+                                        <div className="text-[9px] normal-case font-normal">{v2.bestConfig?.signalWeightPreset ? `${(v2.bestConfig as any).signalWeightPreset.toUpperCase()} signal` : 'Baseline'}</div>
                                     </th>
                                     <th className="text-right pb-2 pr-3 font-medium">
                                         <span className="text-blue-400">No-ADX</span>
@@ -1288,7 +1288,7 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2, is
                                     { label: 'WF Efficiency', baseline: v2.wfa.wfEfficiency, noAdx: noAdx.wfa.wfEfficiency, seed43: seed43.wfa.wfEfficiency, fmt: (v: number) => v.toFixed(2), colorFn: (v: number) => v >= 1 ? 'text-emerald-400' : 'text-yellow-400' },
                                     { label: 'Holdout Sharpe', baseline: v2.holdout.sharpe, noAdx: noAdx.holdout.sharpe, seed43: seed43.holdout.sharpe, fmt: (v: number) => v.toFixed(2), colorFn: sharpeColor },
                                     { label: 'Holdout Degrad.', baseline: v2.holdout.degradation, noAdx: noAdx.holdout.degradation, seed43: seed43.holdout.degradation, fmt: (v: number) => `${(v * 100).toFixed(0)}%`, colorFn: (v: number) => v <= 0.5 ? 'text-emerald-400' : v <= 0.7 ? 'text-yellow-400' : 'text-red-400' },
-                                    { label: 'Best Signal', baseline: 0, noAdx: 0, seed43: 0, fmt: (_: number, key: string) => key === 'baseline' ? 'MOM' : 'VOL', colorFn: () => 'text-white' },
+                                    { label: 'Best Signal', baseline: 0, noAdx: 0, seed43: 0, fmt: (_: number, key: string) => key === 'baseline' ? ((v2.bestConfig as any)?.signalWeightPreset ?? 'VOL').toUpperCase() : 'VOL', colorFn: () => 'text-white' },
                                 ].map(row => (
                                     <tr key={row.label} className="border-t border-[#222]">
                                         <td className="py-2 pr-3 text-text-tertiary font-sans">{row.label}</td>
