@@ -7,31 +7,8 @@
 import fs from 'fs';
 import path from 'path';
 import { getAppSettings } from './_shared/getAppSettings.js';
-import { loadStrategyConfig } from '../lib/_shared/strategyConfig.js';
-
-// ── Inline BSM helper (no external dep) ──────────────────────────────────────
-// Normal CDF approximation (Abramowitz & Stegun, max error 7.5e-8)
-function _normCDF(x) {
-    if (x < -8) return 0;
-    if (x > 8) return 1;
-    const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
-    const sign = x < 0 ? -1 : 1;
-    const t = 1.0 / (1.0 + p * Math.abs(x));
-    const poly = t * (a1 + t * (a2 + t * (a3 + t * (a4 + t * a5))));
-    const cdf = 1.0 - poly * Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI);
-    return 0.5 * (1.0 + sign * (2 * cdf - 1));
-}
-/**
- * BSM N(d2): risk-neutral probability a call expires ITM.
- * For puts: P(ITM) = 1 - bsmN2(S, K, T, sigma)
- * d2 = (ln(S/K) - 0.5*σ²*T) / (σ*√T)  [r≈0]
- */
-/** BSM P(S > K at expiry). Uses risk-free rate for accurate POP at longer DTE. */
-function _bsmN2(S, K, T, sigma, r = 0.045) {
-    if (T <= 0 || sigma <= 0 || S <= 0 || K <= 0) return 0.5;
-    const d2 = (Math.log(S / K) + (r - 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
-    return _normCDF(d2);
-}
+import { loadStrategyConfigFromDB } from '../lib/_shared/strategyConfig.js';
+import { bsmN2 as _bsmN2 } from '../lib/_shared/bsm-util.js';
 // ─────────────────────────────────────────────────────────────────────────────
 
 // #region agent log
@@ -323,8 +300,8 @@ async function fetchEarnings(ticker) {
 const DEFAULT_ENTRY_PROFILE = { dtePeak: 55, deltaRange: [0.30, 0.45], allowChase: false };
 
 // Strategy defaults loaded from data/strategy-config.json at request time
-function _loadStrategyDefaults() {
-    const config = loadStrategyConfig();
+async function _loadStrategyDefaults() {
+    const config = await loadStrategyConfigFromDB();
     return {
         swing: {
             dtePeak: config.profiles.swing.dtePeak,
@@ -345,8 +322,8 @@ function _loadStrategyDefaults() {
     };
 }
 
-function getEntryProfile(strategy) {
-    const STRATEGY_DEFAULTS = _loadStrategyDefaults();
+async function getEntryProfile(strategy) {
+    const STRATEGY_DEFAULTS = await _loadStrategyDefaults();
     const defaults = STRATEGY_DEFAULTS[strategy] || STRATEGY_DEFAULTS.swing;
     return { ...DEFAULT_ENTRY_PROFILE, dtePeak: defaults.dtePeak, deltaRange: defaults.deltaRange || DEFAULT_ENTRY_PROFILE.deltaRange };
 }
@@ -1125,7 +1102,7 @@ export default async function handler(req, res) {
 
     const { ticker, direction = 'BULL', targetDte, spreadWidth, targetStrategy, setup, entryContext, entryQuality, strategy: strategyParam, minOI: minOIParam } = req.query;
     const activeStrategy = (strategyParam === 'shortTerm') ? 'shortTerm' : 'swing';
-    const STRATEGY_DEFAULTS = _loadStrategyDefaults();
+    const STRATEGY_DEFAULTS = await _loadStrategyDefaults();
     const strategyDefaults = STRATEGY_DEFAULTS[activeStrategy];
 
     if (!ticker) {
@@ -1540,7 +1517,7 @@ export default async function handler(req, res) {
         const decodedStrategy = targetStrategy ? decodeURIComponent(targetStrategy) : (isBull ? 'Credit Put Spread' : 'Credit Call Spread');
 
         // --- Entry Profile: convert setup name → concrete builder params ---
-        const entryProfile = getEntryProfile(activeStrategy);
+        const entryProfile = await getEntryProfile(activeStrategy);
         let { dtePeak, deltaRange, allowChase } = entryProfile;
 
         // v4 Entry Context overrides: adjust DTE peak and delta range based on entry quality
@@ -1998,8 +1975,7 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
-        const errMsg = error && typeof error.message === 'string' ? error.message : String(error);
-        console.error('Strategy API Error:', errMsg);
-        return res.status(500).json({ error: 'Internal Server Error', message: errMsg });
+        console.error('[strategy-recommend]', error);
+        return res.status(500).json({ error: 'Internal server error' });
     }
 }

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { BuyModal } from '../components/BuyModal';
 import { useMoveToActive } from '../hooks/usePositionMutations';
 import type { Position } from '../lib/types';
@@ -22,8 +22,10 @@ export const BuyModalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setBuyingItem(null);
   }, []);
 
+  const value = useMemo(() => ({ openBuyModal, closeBuyModal }), [openBuyModal, closeBuyModal]);
+
   return (
-    <BuyModalContext.Provider value={{ openBuyModal, closeBuyModal }}>
+    <BuyModalContext.Provider value={value}>
       {children}
       {buyingItem && (
         <BuyModal

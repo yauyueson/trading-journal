@@ -368,7 +368,7 @@ export default async function handler(req, res) {
                 });
         }
     } catch (err) {
-        console.error(`[Analytics/${type}] Error:`, err.message);
-        return res.status(500).json({ error: 'Internal Server Error', message: err.message });
+        console.error(`[Analytics/${type}]`, err);
+        return res.status(500).json({ error: 'Internal server error' });
     }
 }

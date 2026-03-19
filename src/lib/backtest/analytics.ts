@@ -141,10 +141,10 @@ export function computeAnalytics(
   const rawReturns = trades.map(t => t.rawReturn);
   const thetaReturns = trades.map(t => t.thetaAdjReturn);
 
-  // Profit factor
+  // Profit factor (cap at 999 to avoid Infinity propagation downstream)
   const grossWins = rawReturns.filter(r => r > 0).reduce((s, r) => s + r, 0);
   const grossLosses = Math.abs(rawReturns.filter(r => r < 0).reduce((s, r) => s + r, 0));
-  const profitFactor = grossLosses > 0 ? grossWins / grossLosses : grossWins > 0 ? Infinity : 0;
+  const profitFactor = grossLosses > 0 ? grossWins / grossLosses : grossWins > 0 ? 999 : 0;
 
   // Avg win/loss
   const winReturns = rawReturns.filter(r => r > 0);
@@ -207,14 +207,15 @@ export function computeAnalytics(
   }
 
   // Annualized Sharpe (assuming ~252 trading days)
-  const avgHoldDaysVal = avg(trades.map(t => t.holdDays));
-  const sharpe = rawReturns.length > 1
-    ? (avg(rawReturns) / std(rawReturns)) * Math.sqrt(252 / avgHoldDaysVal)
+  const avgHoldDaysVal = Math.max(avg(trades.map(t => t.holdDays)), 1);
+  const stdVal = std(rawReturns);
+  const sharpe = rawReturns.length > 1 && stdVal > 1e-10
+    ? (avg(rawReturns) / stdVal) * Math.sqrt(252 / avgHoldDaysVal)
     : 0;
 
   // Sortino: like Sharpe but uses downside deviation only
   const dd = downsideDev(rawReturns);
-  const sortino = (rawReturns.length > 1 && dd > 0)
+  const sortino = (rawReturns.length > 1 && dd > 1e-10)
     ? (avg(rawReturns) / dd) * Math.sqrt(252 / avgHoldDaysVal)
     : 0;
 
@@ -240,12 +241,12 @@ export function computeAnalytics(
     const optLossesArr = optReturns.filter(r => r < 0);
     const optGrossWins = optWinsArr.reduce((s, r) => s + r, 0);
     const optGrossLosses = Math.abs(optLossesArr.reduce((s, r) => s + r, 0));
-    const optPF = optGrossLosses > 0 ? optGrossWins / optGrossLosses : optGrossWins > 0 ? Infinity : 0;
+    const optPF = optGrossLosses > 0 ? optGrossWins / optGrossLosses : optGrossWins > 0 ? 999 : 0;
 
     const optStdVal = std(optReturns);
     const optDownDev = downsideDev(optReturns);
-    const optSharpe = optStdVal > 0 ? (avg(optReturns) / optStdVal) * Math.sqrt(252 / avgHoldDaysVal) : 0;
-    const optSortino = optDownDev > 0 ? (avg(optReturns) / optDownDev) * Math.sqrt(252 / avgHoldDaysVal) : 0;
+    const optSharpe = optStdVal > 1e-10 ? (avg(optReturns) / optStdVal) * Math.sqrt(252 / avgHoldDaysVal) : 0;
+    const optSortino = optDownDev > 1e-10 ? (avg(optReturns) / optDownDev) * Math.sqrt(252 / avgHoldDaysVal) : 0;
 
     const optWR = optReturns.length > 0 ? (optWinsArr.length / optReturns.length) * 100 : 0;
     const optWRFrac = optWR / 100;

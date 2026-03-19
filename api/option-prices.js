@@ -3,32 +3,7 @@
 // Supports GET (query params) for single leg and POST (body) for bulk.
 
 import { generateOCCSymbol, normalizeExpiration } from '../lib/_shared/utils.js';
-
-// ── Inline BSM Greeks validator ───────────────────────────────────────────────
-// Validates market-provided Greeks against Black-Scholes theory.
-// Flags suspicious data (delta=0 on ATM option, gamma=0) caused by stale feeds.
-
-function _normCDF(x) {
-    if (x < -8) return 0;
-    if (x > 8) return 1;
-    const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
-    const sign = x < 0 ? -1 : 1;
-    const t = 1.0 / (1.0 + p * Math.abs(x));
-    const poly = t * (a1 + t * (a2 + t * (a3 + t * (a4 + t * a5))));
-    const cdf = 1.0 - poly * Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI);
-    return 0.5 * (1.0 + sign * (2 * cdf - 1));
-}
-
-/**
- * Compute BSM delta for validation.
- * Call delta = N(d1); Put delta = N(d1) - 1
- * d1 = (ln(S/K) + 0.5*σ²*T) / (σ*√T)
- */
-function _bsmDelta(S, K, T, sigma, isCall) {
-    if (T <= 0 || sigma <= 0 || S <= 0 || K <= 0) return isCall ? 0.5 : -0.5;
-    const d1 = (Math.log(S / K) + 0.5 * sigma * sigma * T) / (sigma * Math.sqrt(T));
-    return isCall ? _normCDF(d1) : _normCDF(d1) - 1;
-}
+import { bsmDelta as _bsmDelta } from '../lib/_shared/bsm-util.js';
 
 /**
  * Validate market Greeks against BSM. Returns a (possibly corrected) Greeks object.
@@ -225,7 +200,8 @@ async function handleORATS(legs, res) {
         }
         return res.status(200).json({ success: true, results, timestamp: Date.now() });
     } catch (error) {
-        return res.status(500).json({ error: error.message });
+        console.error('[option-prices]', error);
+        return res.status(500).json({ error: 'Internal server error' });
     }
 }
 

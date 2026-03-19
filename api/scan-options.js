@@ -67,13 +67,14 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing ticker parameter' });
     }
 
-    const dteMinNum = parseInt(dteMin);
-    const dteMaxNum = parseInt(dteMax);
-    const strikeRangeNum = parseFloat(strikeRange);
-    const minVolumeNum = parseInt(minVolume);
-    const maxSpreadPctNum = parseFloat(maxSpreadPct);
-    const minDeltaNum = parseFloat(minDelta);
-    const maxDeltaNum = parseFloat(maxDelta);
+    const { clampNum } = await import('../lib/_shared/validate.js');
+    const dteMinNum = clampNum(dteMin, 0, 1000, parseInt(dteDefaults.min));
+    const dteMaxNum = clampNum(dteMax, 0, 1000, parseInt(dteDefaults.max));
+    const strikeRangeNum = clampNum(strikeRange, 0.01, 2.0, 0.25);
+    const minVolumeNum = clampNum(minVolume, 0, 100000, 50);
+    const maxSpreadPctNum = clampNum(maxSpreadPct, 0, 1.0, 0.10);
+    const minDeltaNum = clampNum(minDelta, 0, 1, parseFloat(deltaDefaults.min));
+    const maxDeltaNum = clampNum(maxDelta, 0, 1, parseFloat(deltaDefaults.max));
     const isDayTradeMode = dayTrade === 'true';
 
     try {
@@ -406,7 +407,7 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
-        console.error('Scan API Error:', error.message);
-        return res.status(500).json({ error: 'Internal Server Error', message: error.message });
+        console.error('[scan-options]', error);
+        return res.status(500).json({ error: 'Internal server error' });
     }
 }

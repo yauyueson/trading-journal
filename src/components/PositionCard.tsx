@@ -18,17 +18,7 @@ import {
     useUpdateOwner,
     useDeletePosition,
 } from '../hooks/usePositionMutations';
-
-const TV_GRADES = ['S', 'A', 'B', 'C', 'D'] as const;
-const TV_GRADE_TO_SCORE: Record<string, number> = { S: 95, A: 80, B: 60, C: 40, D: 20 };
-const SCORE_TO_TV_GRADE = (score: number | undefined | null): string => {
-    if (score == null) return '';
-    if (score >= 88) return 'S';
-    if (score >= 70) return 'A';
-    if (score >= 50) return 'B';
-    if (score >= 30) return 'C';
-    return 'D';
-};
+import { TV_GRADES, TV_GRADE_TO_SCORE, scoreToTVGrade } from '../lib/tvGrades';
 
 /** Normalize expiration to YYYY-MM-DD for option-price API (avoids wrong contract match). */
 function normalizeExpiration(exp: string): string {
@@ -65,7 +55,7 @@ interface PositionCardProps {
     fetchEarningsForTicker?: (ticker: string) => Promise<{ daysUntil: number | null; date: string | null }>;
 }
 
-export const PositionCard: React.FC<PositionCardProps> = (props) => {
+const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const { position, transactions, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick, portfolioTotal: portfolioTotalProp, initialData, fetchEarningsForTicker } = props;
 
     // Mutation hooks as fallbacks when callback props not provided
@@ -786,7 +776,7 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
                         ) : (
                             <div className="flex items-center gap-1.5">
                                 {(() => {
-                                    const grade = SCORE_TO_TV_GRADE(effectiveScore);
+                                    const grade = scoreToTVGrade(effectiveScore);
                                     const colors: Record<string, string> = {
                                         S: 'text-yellow-400', A: 'text-emerald-400', B: 'text-blue-400',
                                         C: 'text-orange-400', D: 'text-red-400'
@@ -798,7 +788,7 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
                                     );
                                 })()}
                                 <button
-                                    onClick={() => { setIsEditingScore(true); setScoreInput(SCORE_TO_TV_GRADE(effectiveScore)); }}
+                                    onClick={() => { setIsEditingScore(true); setScoreInput(scoreToTVGrade(effectiveScore)); }}
                                     className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
                                     aria-label="Edit TV grade"
                                 >
@@ -997,3 +987,12 @@ export const PositionCard: React.FC<PositionCardProps> = (props) => {
         </div>
     );
 };
+
+export const PositionCard = React.memo(PositionCardInner, (prev, next) => {
+    return prev.position.id === next.position.id
+        && prev.position.current_score === next.position.current_score
+        && prev.position.status === next.position.status
+        && prev.refreshTrigger === next.refreshTrigger
+        && prev.initialData === next.initialData
+        && prev.portfolioTotal === next.portfolioTotal;
+});

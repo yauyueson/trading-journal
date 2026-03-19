@@ -1,5 +1,5 @@
 // src/context/AppSettingsContext.tsx
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { AppSettings, DEFAULT_APP_SETTINGS } from '../lib/types/settings';
 import type { StrategyType } from '../lib/strategyProfiles';
@@ -91,6 +91,10 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
               periods: { ...DEFAULT_APP_SETTINGS.techScore.periods, ...data.settings.techScore?.periods },
             },
             strategy: { ...DEFAULT_APP_SETTINGS.strategy, ...data.settings.strategy },
+            creditSpread: data.settings.creditSpread ? {
+              swing: { ...DEFAULT_APP_SETTINGS.creditSpread!.swing, ...data.settings.creditSpread.swing },
+              shortTerm: { ...DEFAULT_APP_SETTINGS.creditSpread!.shortTerm, ...data.settings.creditSpread.shortTerm },
+            } : DEFAULT_APP_SETTINGS.creditSpread,
           };
           setSettings(merged);
           saveToStorage(merged);
@@ -109,6 +113,10 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         periods: { ...settings.techScore.periods, ...(patch.techScore?.periods ?? {}) },
       },
       strategy: { ...settings.strategy, ...(patch.strategy ?? {}) },
+      creditSpread: patch.creditSpread ? {
+        swing: { ...(settings.creditSpread ?? DEFAULT_APP_SETTINGS.creditSpread!).swing, ...patch.creditSpread.swing },
+        shortTerm: { ...(settings.creditSpread ?? DEFAULT_APP_SETTINGS.creditSpread!).shortTerm, ...patch.creditSpread.shortTerm },
+      } : settings.creditSpread,
     };
     setSettings(next);
     saveToStorage(next);
@@ -120,8 +128,12 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const maxRiskPerTrade = (settings.portfolio.accountSize * settings.portfolio.riskPct) / 100;
   const stopOutFraction = settings.portfolio.stopOutPct / 100;
 
+  const value = useMemo(() => ({
+    settings, updateSettings, isLoading, maxRiskPerTrade, stopOutFraction, activeStrategy, setActiveStrategy,
+  }), [settings, updateSettings, isLoading, maxRiskPerTrade, stopOutFraction, activeStrategy, setActiveStrategy]);
+
   return (
-    <AppSettingsContext.Provider value={{ settings, updateSettings, isLoading, maxRiskPerTrade, stopOutFraction, activeStrategy, setActiveStrategy }}>
+    <AppSettingsContext.Provider value={value}>
       {children}
     </AppSettingsContext.Provider>
   );

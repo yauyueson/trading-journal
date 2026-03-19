@@ -14,7 +14,7 @@ const { calculateTechScore } = require('../lib/_shared/tech-analysis.cjs');
 // ── Config ──────────────────────────────────────────────────────────────────────
 
 import { SCAN_TICKERS } from '../lib/_shared/config.js';
-import { loadStrategyConfig } from '../lib/_shared/strategyConfig.js';
+import { loadStrategyConfigFromDB } from '../lib/_shared/strategyConfig.js';
 
 // Signal preset weight maps — must match src/lib/backtest/types.ts SIGNAL_PRESETS
 const SIGNAL_PRESETS = {
@@ -131,14 +131,14 @@ async function sendDiscord(signals, totalScanned, date) {
 
 export default async function handler(req, res) {
     // Auth
-    const secret = req.query.secret || req.headers['authorization']?.replace('Bearer ', '');
+    const secret = req.headers['authorization']?.replace('Bearer ', '');
     const expectedSecret = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
     if (!expectedSecret || secret !== expectedSecret) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const today = new Date().toISOString().split('T')[0];
-    const config = loadStrategyConfig();
+    const config = await loadStrategyConfigFromDB();
     const activeProfile = 'swing';
     const profile = config.profiles[activeProfile] || config.profiles.swing;
     const presetWeights = SIGNAL_PRESETS[profile.signalPreset] || {};
