@@ -944,7 +944,7 @@ const SENSITIVITY_PARAMS = [
 ] as const;
 
 const ParameterSensitivity: React.FC<{ v2: V2Data }> = ({ v2 }) => {
-    const [selectedParam, setSelectedParam] = useState(SENSITIVITY_PARAMS[0].key);
+    const [selectedParam, setSelectedParam] = useState<string>(SENSITIVITY_PARAMS[0].key);
     const paramDef = SENSITIVITY_PARAMS.find(p => p.key === selectedParam) ?? SENSITIVITY_PARAMS[0];
 
     // Combine ranking + pareto for max coverage
