@@ -129,6 +129,8 @@ interface V2Data {
     holdout: V2Holdout;
     bestConfig: Record<string, unknown>;
     v1Comparison?: Record<string, unknown>;
+    ranking?: Record<string, unknown>[];
+    paretoFrontier?: Record<string, unknown>[];
     totalEvaluations: number;
     elapsedMs: number;
 }
@@ -194,6 +196,8 @@ function normalizeV2(raw: any): V2Data {
         holdout: raw.holdout ?? { sharpe: 0, winRate: 0, maxDD: 0, totalPnl: 0, tradeCount: 0, degradation: 0 },
         bestConfig: raw.bestConfig ?? {},
         v1Comparison: raw.v1Comparison,
+        ranking: raw.ranking,
+        paretoFrontier: raw.paretoFrontier,
         totalEvaluations: raw.totalEvaluations ?? 0,
         elapsedMs: raw.elapsedMs ?? 0,
     };
@@ -926,6 +930,164 @@ export const BacktestPage: React.FC = () => {
     );
 };
 
+// ── Parameter Sensitivity ────────────────────────────────────────────────────
+
+const SENSITIVITY_PARAMS = [
+    { key: 'minIVRank', label: 'IV Rank', format: (v: number | string | boolean) => `≥ ${v}%` },
+    { key: 'creditShortDelta', label: 'Short Delta', format: (v: number | string | boolean) => (v as number).toFixed(2) },
+    { key: 'creditSpreadWidth', label: 'Spread Width', format: (v: number | string | boolean) => `$${v}` },
+    { key: 'dirConfTier', label: 'Dir. Confidence', format: (v: number | string | boolean) => String(v) },
+    { key: 'creditProfitTarget', label: 'Profit Target', format: (v: number | string | boolean) => `${((v as number) * 100).toFixed(0)}%` },
+    { key: 'signalWeightPreset', label: 'Signal Type', format: (v: number | string | boolean) => String(v).toUpperCase() },
+    { key: 'maxPositions', label: 'Max Positions', format: (v: number | string | boolean) => String(v) },
+    { key: 'maxPerTicker', label: 'Max Per Ticker', format: (v: number | string | boolean) => String(v) },
+] as const;
+
+const ParameterSensitivity: React.FC<{ v2: V2Data }> = ({ v2 }) => {
+    const [selectedParam, setSelectedParam] = useState(SENSITIVITY_PARAMS[0].key);
+    const paramDef = SENSITIVITY_PARAMS.find(p => p.key === selectedParam) ?? SENSITIVITY_PARAMS[0];
+
+    // Combine ranking + pareto for max coverage
+    const allConfigs = useMemo(() => {
+        const map = new Map<string, { params: Record<string, unknown>; sharpe: number; winRate: number; maxDD: number; wfe: number; tradeCount: number; totalPnl: number; compositeScore: number }>();
+        for (const src of [v2.ranking ?? [], v2.paretoFrontier ?? []]) {
+            for (const r of src as Array<Record<string, unknown>>) {
+                if (r.params && !map.has(r.configId as string)) {
+                    map.set(r.configId as string, {
+                        params: r.params as Record<string, unknown>,
+                        sharpe: r.sharpe as number,
+                        winRate: r.winRate as number,
+                        maxDD: r.maxDD as number,
+                        wfe: r.wfe as number,
+                        tradeCount: r.tradeCount as number,
+                        totalPnl: r.totalPnl as number,
+                        compositeScore: r.compositeScore as number,
+                    });
+                }
+            }
+        }
+        return [...map.values()];
+    }, [v2.ranking, v2.paretoFrontier]);
+
+    // Group by selected parameter
+    const groups = useMemo(() => {
+        const grouped = new Map<string, typeof allConfigs>();
+        for (const cfg of allConfigs) {
+            const val = String(cfg.params[selectedParam] ?? '—');
+            if (!grouped.has(val)) grouped.set(val, []);
+            grouped.get(val)!.push(cfg);
+        }
+        // Sort: numeric values numerically, strings alphabetically
+        const entries = [...grouped.entries()].sort((a, b) => {
+            const na = parseFloat(a[0]), nb = parseFloat(b[0]);
+            if (!isNaN(na) && !isNaN(nb)) return na - nb;
+            return a[0].localeCompare(b[0]);
+        });
+        return entries.map(([val, cfgs]) => {
+            const n = cfgs.length;
+            const avgSharpe = cfgs.reduce((s, c) => s + c.sharpe, 0) / n;
+            const avgWR = cfgs.reduce((s, c) => s + c.winRate, 0) / n;
+            const avgDD = cfgs.reduce((s, c) => s + c.maxDD, 0) / n;
+            const avgWFE = cfgs.reduce((s, c) => s + c.wfe, 0) / n;
+            const bestSharpe = Math.max(...cfgs.map(c => c.sharpe));
+            const avgTrades = Math.round(cfgs.reduce((s, c) => s + c.tradeCount, 0) / n);
+            return { val, n, avgSharpe, avgWR, avgDD, avgWFE, bestSharpe, avgTrades };
+        });
+    }, [allConfigs, selectedParam]);
+
+    const bestGroup = groups.reduce((best, g) => g.avgSharpe > best.avgSharpe ? g : best, groups[0]);
+
+    // Available params (only show those with 2+ distinct values)
+    const availableParams = SENSITIVITY_PARAMS.filter(p => {
+        const vals = new Set(allConfigs.map(c => String(c.params[p.key])));
+        return vals.size >= 2;
+    });
+
+    if (allConfigs.length === 0) return null;
+
+    return (
+        <div className="bg-[#1A1A1A] rounded-xl border border-white/5 p-4">
+            <div className="flex items-center justify-between mb-3">
+                <div>
+                    <div className="text-sm font-semibold">Parameter Sensitivity</div>
+                    <div className="text-[10px] text-text-tertiary">How each parameter value affects performance across {allConfigs.length} tested configurations</div>
+                </div>
+            </div>
+
+            {/* Parameter Toggle */}
+            <div className="flex flex-wrap gap-1.5 mb-4">
+                {availableParams.map(p => (
+                    <button
+                        key={p.key}
+                        onClick={() => setSelectedParam(p.key)}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                            selectedParam === p.key
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                : 'bg-[#111] text-text-tertiary border border-white/5 hover:text-white hover:border-white/15'
+                        }`}
+                    >
+                        {p.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* Results Table */}
+            <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                    <thead>
+                        <tr className="text-text-tertiary uppercase tracking-wider text-[10px]">
+                            <th className="text-left pb-2 pr-3 font-medium">{paramDef.label}</th>
+                            <th className="text-right pb-2 pr-3 font-medium">Configs</th>
+                            <th className="text-right pb-2 pr-3 font-medium">Avg Sharpe</th>
+                            <th className="text-right pb-2 pr-3 font-medium">Best Sharpe</th>
+                            <th className="text-right pb-2 pr-3 font-medium">Avg Win Rate</th>
+                            <th className="text-right pb-2 pr-3 font-medium">Avg Max DD</th>
+                            <th className="text-right pb-2 pr-3 font-medium">Avg WFE</th>
+                            <th className="text-right pb-2 font-medium">Avg Trades</th>
+                        </tr>
+                    </thead>
+                    <tbody className="font-mono">
+                        {groups.map(g => {
+                            const isBest = g === bestGroup;
+                            const prodVal = String((v2.bestConfig as Record<string, unknown>)?.[selectedParam] ?? '');
+                            const isProd = g.val === prodVal;
+                            return (
+                                <tr key={g.val} className={`border-t border-[#222] ${isBest ? 'bg-amber-500/5' : ''}`}>
+                                    <td className="py-2.5 pr-3 font-sans">
+                                        <span className={`font-medium ${isBest ? 'text-amber-400' : 'text-white'}`}>
+                                            {paramDef.format(selectedParam === 'dirConfTier' || selectedParam === 'signalWeightPreset' ? g.val : parseFloat(g.val))}
+                                        </span>
+                                        {isProd && <span className="ml-1.5 text-[9px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400">PROD</span>}
+                                        {isBest && !isProd && <span className="ml-1.5 text-[9px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-400">BEST</span>}
+                                    </td>
+                                    <td className="py-2.5 pr-3 text-right text-text-tertiary">{g.n}</td>
+                                    <td className={`py-2.5 pr-3 text-right font-bold ${g.avgSharpe >= 2 ? 'text-emerald-400' : g.avgSharpe >= 1 ? 'text-yellow-400' : 'text-red-400'}`}>{g.avgSharpe.toFixed(2)}</td>
+                                    <td className={`py-2.5 pr-3 text-right ${g.bestSharpe >= 2 ? 'text-emerald-400' : 'text-yellow-400'}`}>{g.bestSharpe.toFixed(2)}</td>
+                                    <td className={`py-2.5 pr-3 text-right ${g.avgWR >= 93 ? 'text-emerald-400' : 'text-yellow-400'}`}>{g.avgWR.toFixed(1)}%</td>
+                                    <td className={`py-2.5 pr-3 text-right ${g.avgDD < 1.5 ? 'text-emerald-400' : g.avgDD < 3 ? 'text-yellow-400' : 'text-red-400'}`}>{g.avgDD.toFixed(2)}%</td>
+                                    <td className={`py-2.5 pr-3 text-right ${g.avgWFE >= 1.5 ? 'text-emerald-400' : 'text-yellow-400'}`}>{g.avgWFE.toFixed(2)}</td>
+                                    <td className="py-2.5 text-right text-text-secondary">{g.avgTrades}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Insight */}
+            {bestGroup && (
+                <div className="mt-3 text-[10px] text-text-tertiary bg-[#111] rounded-lg px-3 py-2 border border-white/5">
+                    <strong className="text-amber-400">{paramDef.label} = {paramDef.format(selectedParam === 'dirConfTier' || selectedParam === 'signalWeightPreset' ? bestGroup.val : parseFloat(bestGroup.val))}</strong> has the highest average Sharpe ({bestGroup.avgSharpe.toFixed(2)}) across {bestGroup.n} config{bestGroup.n > 1 ? 's' : ''}.
+                    {bestGroup.val === String((v2.bestConfig as Record<string, unknown>)?.[selectedParam] ?? '')
+                        ? ' This matches the production config.'
+                        : ` Production uses ${paramDef.format((v2.bestConfig as Record<string, unknown>)?.[selectedParam] as number)} — optimized for composite fitness (Sharpe × WFE × trade count × DD), not just Sharpe alone.`
+                    }
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ── v2 Validation Panels ─────────────────────────────────────────────────────
 
 const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2, isShort }) => {
@@ -1362,6 +1524,9 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2, is
             {/* ══════════════════════════════════════════════════════════════════════ */}
             {analysisTab === 'deep' && (
                 <div className="space-y-4">
+                    {/* Parameter Sensitivity */}
+                    {!isShort && <ParameterSensitivity v2={v2} />}
+
                     {/* v2 vs v1 */}
                     <div className="bg-[#1A1A1A] rounded-xl border border-white/5 p-4">
                         <div className="text-sm font-semibold mb-1">v2 vs v1: What Changed</div>
@@ -1420,8 +1585,8 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2, is
                                     <p>Capturing 30% of max profit and moving on outperforms 50% TP, which outperforms holding to expiration. The risk/reward of staying in diminishes rapidly after 30% — you're risking a reversal for small incremental gain.</p>
                                 </div>
                                 <div>
-                                    <div className="font-medium text-emerald-400 mb-1">IV filtering adds edge</div>
-                                    <p>Only entering when IV Rank \u2265 20% ensures you're selling premium when it's rich. At IVR 0 (no filter), the strategy still works but with lower Sharpe. IVR 20 hits the sweet spot — selective enough for quality, permissive enough for opportunity.</p>
+                                    <div className="font-medium text-emerald-400 mb-1">Direction confidence replaces IV rank</div>
+                                    <p>With <code className="text-amber-400">dirConfTier=high</code>, the optimizer dropped IV rank entirely (≥ 0%). High direction confidence provides a stronger quality gate — it filters on signal agreement rather than volatility level, producing the best holdout generalization.</p>
                                 </div>
                             </div>
                         </div>
