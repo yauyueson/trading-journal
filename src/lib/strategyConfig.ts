@@ -1,9 +1,10 @@
 // src/lib/strategyConfig.ts
-// Frontend config hook — fetches from /api/strategy-config endpoint.
-// Caches in React Query (staleTime 5min). Falls back to STRATEGY_PROFILES defaults.
+// Frontend config — imports strategy-config.json at build time.
+// To update: edit data/strategy-config.json and redeploy.
+// Falls back to STRATEGY_PROFILES defaults if import fails.
 
-import { useQuery } from '@tanstack/react-query';
 import { STRATEGY_PROFILES, type StrategyType } from './strategyProfiles';
+import configJson from '../../data/strategy-config.json';
 
 export interface StrategyConfigProfile {
   signalPreset: string;
@@ -28,17 +29,11 @@ export interface StrategyConfig {
   profiles: Record<string, StrategyConfigProfile>;
 }
 
-/** Fetch strategy config from API, cache for 5 min */
+const _config = configJson as unknown as StrategyConfig;
+
+/** Return strategy config (build-time import, no network call) */
 export function useStrategyConfig() {
-  return useQuery<StrategyConfig>({
-    queryKey: ['strategy-config'],
-    queryFn: async () => {
-      const res = await fetch('/api/strategy-config');
-      if (!res.ok) throw new Error('Failed to fetch strategy config');
-      return res.json();
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+  return { data: _config };
 }
 
 /** Get a profile from config, falling back to STRATEGY_PROFILES */
