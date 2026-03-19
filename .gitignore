@@ -14,5 +14,8 @@ data/*.json
 !data/wfa-v2-results-short.json
 !data/viewer-signals.json
 !data/viewer-configs.json
+!data/strategy-config.json
+!data/wfa-v2-results-swing-noadx.json
+!data/wfa-v2-results-swing-seed43.json
 data/cache/
 .worktrees/

@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { AppSettings, DEFAULT_APP_SETTINGS, PORTFOLIO_BOUNDS } from '../lib/types/settings';
 import { formatCurrency } from '../lib/utils';
-import { STRATEGY_PROFILES } from '../lib/strategyProfiles';
+import { useStrategyConfig, getConfigProfile } from '../lib/strategyConfig';
 
 const { MIN_RISK_PCT, MAX_RISK_PCT, MIN_STOP_OUT_PCT, MAX_STOP_OUT_PCT } = PORTFOLIO_BOUNDS;
 
@@ -190,38 +190,7 @@ export const AppSettingsPage: React.FC = () => {
         </div>
       </section>
       {/* Credit Spread Strategy — WFA-Validated Info Card */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Credit Spread Strategy (WFA-Validated)</h2>
-          <p className="text-xs text-gray-500 mt-1">Parameters locked to WFA-validated values. Not user-configurable.</p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {(['swing', 'shortTerm'] as const).map((key) => {
-            const p = STRATEGY_PROFILES[key];
-            const sharpe = key === 'swing' ? '2.14' : '4.77';
-            return (
-              <div key={key} className="bg-[#111] border border-[#333] rounded-lg p-4 space-y-2">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-semibold text-white">{p.label}</span>
-                  <span className="text-xs text-gray-500 font-mono">Sharpe {sharpe}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  <div className="text-gray-400">DTE Range</div>
-                  <div className="text-gray-200 font-mono">{p.dteMin}–{p.dteMax}d (peak {p.dtePeak})</div>
-                  <div className="text-gray-400">Delta</div>
-                  <div className="text-gray-200 font-mono">{p.defaultDelta}</div>
-                  <div className="text-gray-400">Width</div>
-                  <div className="text-gray-200 font-mono">${p.defaultWidth}</div>
-                  <div className="text-gray-400">Take Profit</div>
-                  <div className="text-gray-200 font-mono">{(p.profitTarget * 100).toFixed(0)}%</div>
-                  <div className="text-gray-400">IV Rank Min</div>
-                  <div className="text-gray-200 font-mono">{p.ivRankMin}%</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+      <StrategyConfigSection />
       {/* Save Button */}
       <div className="sticky bottom-20 sm:bottom-0 sm:static pt-4 bg-bg-primary sm:bg-transparent">
         <button
@@ -240,5 +209,55 @@ export const AppSettingsPage: React.FC = () => {
         </button>
       </div>
     </div>
+  );
+};
+
+const StrategyConfigSection: React.FC = () => {
+  const { data: stratConfig } = useStrategyConfig();
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Credit Spread Strategy (WFA-Validated)</h2>
+        <p className="text-xs text-gray-500 mt-1">
+          Parameters loaded from runtime config.
+          {stratConfig && (
+            <> Source: <span className="text-gray-400 font-mono">{stratConfig.source}</span> (v{stratConfig.version})</>
+          )}
+        </p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {(['swing', 'shortTerm'] as const).map((key) => {
+          const p = getConfigProfile(stratConfig, key);
+          const label = key === 'swing' ? 'Swing (45-65 DTE)' : 'Short DTE (7-21 DTE)';
+          return (
+            <div key={key} className="bg-[#111] border border-[#333] rounded-lg p-4 space-y-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-semibold text-white">{label}</span>
+                <span className="text-xs text-gray-500 font-mono">{p.signalPreset.toUpperCase()}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                <div className="text-gray-400">DTE Range</div>
+                <div className="text-gray-200 font-mono">{p.dteMin}–{p.dteMax}d (peak {p.dtePeak})</div>
+                <div className="text-gray-400">Delta</div>
+                <div className="text-gray-200 font-mono">{p.defaultDelta}</div>
+                <div className="text-gray-400">Width</div>
+                <div className="text-gray-200 font-mono">${p.defaultWidth}</div>
+                <div className="text-gray-400">Take Profit</div>
+                <div className="text-gray-200 font-mono">{(p.profitTarget * 100).toFixed(0)}%</div>
+                <div className="text-gray-400">IV Rank Min</div>
+                <div className="text-gray-200 font-mono">{p.ivRankMin}%</div>
+                <div className="text-gray-400">ADX Gate</div>
+                <div className="text-gray-200 font-mono">{p.adxGate != null ? `\u2265 ${p.adxGate}` : 'Disabled'}</div>
+                <div className="text-gray-400">RVOL Gate</div>
+                <div className="text-gray-200 font-mono">{`\u2265 ${p.rvolGate}`}</div>
+                <div className="text-gray-400">Max Positions</div>
+                <div className="text-gray-200 font-mono">{p.maxPositions}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 };

@@ -26,6 +26,10 @@ export interface StrategyProfile {
   subtitle: string;
   signalPreset: string;
   maxPerTicker: number;
+  maxPositions: number;
+  adxGate: number | null;
+  rvolGate: number;
+  minScore: number;
 }
 
 export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
@@ -55,8 +59,12 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
       { label: '$15', val: 15 },
     ],
     subtitle: 'Delta 0.35 \u2022 DTE 45-65 \u2022 $10 width \u2022 TP 30% \u2022 No SL',
-    signalPreset: 'mom',
+    signalPreset: 'vol',
     maxPerTicker: 3,
+    maxPositions: 5,
+    adxGate: null,
+    rvolGate: 0.5,
+    minScore: 70,
   },
   shortTerm: {
     label: 'Short DTE (7-21 DTE)',
@@ -86,6 +94,10 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     subtitle: 'Delta 0.35 \u2022 DTE 7-21 \u2022 $1 width \u2022 TP 35% \u2022 No SL',
     signalPreset: 'em',
     maxPerTicker: 5,
+    maxPositions: 5,
+    adxGate: 15,
+    rvolGate: 0.5,
+    minScore: 70,
   },
 };
 

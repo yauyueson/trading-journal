@@ -7,6 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getAppSettings } from './_shared/getAppSettings.js';
+import { loadStrategyConfig } from '../lib/_shared/strategyConfig.js';
 
 // ── Inline BSM helper (no external dep) ──────────────────────────────────────
 // Normal CDF approximation (Abramowitz & Stegun, max error 7.5e-8)
@@ -321,19 +322,31 @@ async function fetchEarnings(ticker) {
 // Credit spread strategy: DTE 45-65 optimal, delta 0.30-0.45, no setup dependency
 const DEFAULT_ENTRY_PROFILE = { dtePeak: 55, deltaRange: [0.30, 0.45], allowChase: false };
 
-const STRATEGY_DEFAULTS = {
-    swing: {
-        dtePeak: 55, dteSigma: 15, deltaRange: [0.28, 0.42],
-        defaultWidth: 15, profitTarget: 0.30, ivRankMin: 30,
-    },
-    shortTerm: {
-        dtePeak: 10, dteSigma: 5, deltaRange: [0.20, 0.40],
-        defaultWidth: 2.5, profitTarget: 0.40, ivRankMin: 40,
-    },
-};
-// Values must match src/lib/strategyProfiles.ts STRATEGY_PROFILES
+// Strategy defaults loaded from data/strategy-config.json at request time
+function _loadStrategyDefaults() {
+    const config = loadStrategyConfig();
+    return {
+        swing: {
+            dtePeak: config.profiles.swing.dtePeak,
+            dteSigma: 15,
+            deltaRange: [0.28, 0.42],
+            defaultWidth: config.profiles.swing.defaultWidth,
+            profitTarget: config.profiles.swing.profitTarget,
+            ivRankMin: config.profiles.swing.ivRankMin,
+        },
+        shortTerm: {
+            dtePeak: config.profiles.shortTerm.dtePeak,
+            dteSigma: 5,
+            deltaRange: [0.20, 0.40],
+            defaultWidth: config.profiles.shortTerm.defaultWidth,
+            profitTarget: config.profiles.shortTerm.profitTarget,
+            ivRankMin: config.profiles.shortTerm.ivRankMin,
+        },
+    };
+}
 
 function getEntryProfile(strategy) {
+    const STRATEGY_DEFAULTS = _loadStrategyDefaults();
     const defaults = STRATEGY_DEFAULTS[strategy] || STRATEGY_DEFAULTS.swing;
     return { ...DEFAULT_ENTRY_PROFILE, dtePeak: defaults.dtePeak, deltaRange: defaults.deltaRange || DEFAULT_ENTRY_PROFILE.deltaRange };
 }
@@ -1112,6 +1125,7 @@ export default async function handler(req, res) {
 
     const { ticker, direction = 'BULL', targetDte, spreadWidth, targetStrategy, setup, entryContext, entryQuality, strategy: strategyParam, minOI: minOIParam } = req.query;
     const activeStrategy = (strategyParam === 'shortTerm') ? 'shortTerm' : 'swing';
+    const STRATEGY_DEFAULTS = _loadStrategyDefaults();
     const strategyDefaults = STRATEGY_DEFAULTS[activeStrategy];
 
     if (!ticker) {

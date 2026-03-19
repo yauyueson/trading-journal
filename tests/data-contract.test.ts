@@ -131,27 +131,26 @@ const scanOptionsSrc = readFileSync(
   'utf-8'
 );
 
-describe('STRAT-01 — strategy-recommend.js STRATEGY_DEFAULTS enrichment', () => {
-  it('STRATEGY_DEFAULTS should contain profitTarget for both profiles', () => {
-    // Find STRATEGY_DEFAULTS block
-    const defaultsStart = stratRecommendSrc.indexOf('const STRATEGY_DEFAULTS');
-    expect(defaultsStart).toBeGreaterThan(-1);
-    const defaultsBlock = stratRecommendSrc.slice(defaultsStart, stratRecommendSrc.indexOf('\n};', defaultsStart) + 3);
-    expect(defaultsBlock).toContain('profitTarget');
+describe('STRAT-01 — strategy-recommend.js strategy defaults enrichment', () => {
+  it('_loadStrategyDefaults should produce profitTarget for both profiles', () => {
+    const fnStart = stratRecommendSrc.indexOf('function _loadStrategyDefaults');
+    expect(fnStart).toBeGreaterThan(-1);
+    const fnBlock = stratRecommendSrc.slice(fnStart, stratRecommendSrc.indexOf('\n}', fnStart + 50) + 2);
+    expect(fnBlock).toContain('profitTarget');
   });
 
-  it('STRATEGY_DEFAULTS should contain ivRankMin for both profiles', () => {
-    const defaultsStart = stratRecommendSrc.indexOf('const STRATEGY_DEFAULTS');
-    expect(defaultsStart).toBeGreaterThan(-1);
-    const defaultsBlock = stratRecommendSrc.slice(defaultsStart, stratRecommendSrc.indexOf('\n};', defaultsStart) + 3);
-    expect(defaultsBlock).toContain('ivRankMin');
+  it('_loadStrategyDefaults should produce ivRankMin for both profiles', () => {
+    const fnStart = stratRecommendSrc.indexOf('function _loadStrategyDefaults');
+    expect(fnStart).toBeGreaterThan(-1);
+    const fnBlock = stratRecommendSrc.slice(fnStart, stratRecommendSrc.indexOf('\n}', fnStart + 50) + 2);
+    expect(fnBlock).toContain('ivRankMin');
   });
 
-  it('STRATEGY_DEFAULTS should contain defaultWidth for both profiles', () => {
-    const defaultsStart = stratRecommendSrc.indexOf('const STRATEGY_DEFAULTS');
-    expect(defaultsStart).toBeGreaterThan(-1);
-    const defaultsBlock = stratRecommendSrc.slice(defaultsStart, stratRecommendSrc.indexOf('\n};', defaultsStart) + 3);
-    expect(defaultsBlock).toContain('defaultWidth');
+  it('_loadStrategyDefaults should produce defaultWidth for both profiles', () => {
+    const fnStart = stratRecommendSrc.indexOf('function _loadStrategyDefaults');
+    expect(fnStart).toBeGreaterThan(-1);
+    const fnBlock = stratRecommendSrc.slice(fnStart, stratRecommendSrc.indexOf('\n}', fnStart + 50) + 2);
+    expect(fnBlock).toContain('defaultWidth');
   });
 
   it('Response JSON should include strategyProfile object', () => {

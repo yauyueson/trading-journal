@@ -7,14 +7,17 @@ import { useSignalHistory, type SignalHistoryRow } from '../hooks/useSignalHisto
 import { usePositions } from '../hooks/usePositions';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { STRATEGY_PROFILES } from '../lib/strategyProfiles';
+import { useStrategyConfig, getConfigProfile } from '../lib/strategyConfig';
 import { supabase } from '../lib/supabase';
 import type { TechScoreOptions } from '../lib/tech-analysis';
 
-// ── Strategy criteria (from backtest: mom iv20plus std30 mpt5, S-tier) ──
-const MIN_SCORE = 90;  // S-tier (score >= 90) — best IS→OOS transfer
-const MIN_IV = 0.20;     // IV >= 20% structural filter
-const MIN_ADX = 15;      // Trend strength gate
-const MIN_RVOL = 0.5;    // Volume participation gate
+// Signal preset weight maps — must match src/lib/backtest/types.ts SIGNAL_PRESETS
+const SIGNAL_PRESETS: Record<string, TechScoreOptions> = {
+  vol: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 0, w_adx: 0 },
+  mom: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 0, w_adx: 0, w_vol: 0 },
+  em:  { w_mb: 0, w_bxs: 0, w_bxl: 0, w_adx: 0, w_vol: 0 },
+  ema: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_mom: 0, w_adx: 0, w_vol: 0 },
+};
 
 // ── Watchlist (same as cron scanner) ──────────────────────
 const WATCHLIST = [
@@ -85,11 +88,11 @@ function ivColor(iv: number | null): string {
   return 'text-red-400';
 }
 
-function computeStatus(score: number, dir: string, iv: number | null, adx: number, rvol: number): SignalStatus {
-  if (score < MIN_SCORE || dir === 'NEUTRAL') return 'INACTIVE';
-  if (adx < MIN_ADX) return 'WEAK_TREND';
-  if (rvol < MIN_RVOL) return 'LOW_VOL';
-  if (iv != null && iv < MIN_IV) return 'LOW_IV';
+function computeStatus(score: number, dir: string, iv: number | null, adx: number, rvol: number, minScore: number, adxGate: number | null, minRvol: number, minIV: number): SignalStatus {
+  if (score < minScore || dir === 'NEUTRAL') return 'INACTIVE';
+  if (adxGate != null && adx < adxGate) return 'WEAK_TREND';
+  if (rvol < minRvol) return 'LOW_VOL';
+  if (iv != null && iv < minIV) return 'LOW_IV';
   return 'GO';
 }
 
@@ -143,9 +146,9 @@ function useLivePrices(tickers: string[]) {
 
 interface StreakInfo { days: number; direction: string; firstDate: string }
 
-function useSignalStreaks(tickers: string[]) {
+function useSignalStreaks(tickers: string[], minScore = 70) {
   return useQuery({
-    queryKey: ['signal-streaks', tickers],
+    queryKey: ['signal-streaks', tickers, minScore],
     queryFn: async () => {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
       const { data, error } = await supabase
@@ -153,7 +156,7 @@ function useSignalStreaks(tickers: string[]) {
         .select('ticker,date,direction,score')
         .in('ticker', tickers)
         .gte('date', thirtyDaysAgo)
-        .gte('score', MIN_SCORE)
+        .gte('score', minScore)
         .order('date', { ascending: false });
       if (error) throw error;
 
@@ -195,6 +198,7 @@ function useSignalStreaks(tickers: string[]) {
 
 export const SignalsPage: React.FC = () => {
   const { settings } = useAppSettings();
+  const { data: stratConfig } = useStrategyConfig();
   const scanner = useSignalScanner();
   const { data: positions } = usePositions();
   const [dirFilter, setDirFilter] = useState<'ALL' | 'CALL' | 'PUT'>('ALL');
@@ -205,10 +209,18 @@ export const SignalsPage: React.FC = () => {
   const [tab, setTab] = useState<'dashboard' | 'history'>('dashboard');
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  // MOM signal — best IS→OOS transfer per WFA (ema/mom tied, using MOM for scanner)
+  // Dynamic config — falls back to STRATEGY_PROFILES defaults
+  const swingConfig = getConfigProfile(stratConfig, 'swing');
+  const MIN_SCORE = swingConfig.minScore;
+  const MIN_IV = swingConfig.ivRankMin / 100;   // config is percentage (20), display needs decimal (0.20)
+  const ADX_GATE = swingConfig.adxGate;          // null = disabled
+  const MIN_RVOL = swingConfig.rvolGate;
+
+  // Signal preset weights from config
+  const presetKey = swingConfig.signalPreset;
   const techOptions: TechScoreOptions = {
     ...settings.techScore.periods,
-    w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 0, w_mom: 25, w_adx: 0, w_vol: 0,
+    ...(SIGNAL_PRESETS[presetKey] || SIGNAL_PRESETS.vol),
   };
 
   // Seed scanner with full watchlist on mount
@@ -241,7 +253,7 @@ export const SignalsPage: React.FC = () => {
 
   // Fetch enrichment data
   const { data: ivMap } = useWatchlistIV(scanner.tickers);
-  const { data: streakMap } = useSignalStreaks(scanner.tickers);
+  const { data: streakMap } = useSignalStreaks(scanner.tickers, MIN_SCORE);
   const { data: livePrices } = useLivePrices(scanner.tickers);
 
   // Build dashboard rows
@@ -277,7 +289,7 @@ export const SignalsPage: React.FC = () => {
       const adx = (sig.result.debug?.adx as number) ?? 0;
       const rvol = (sig.result.debug?.rvol as number) ?? 0;
       const emaScore = sig.result.components?.sc_mom ?? 50;
-      const status = computeStatus(emaScore, sig.result.type, iv, adx, rvol);
+      const status = computeStatus(emaScore, sig.result.type, iv, adx, rvol, MIN_SCORE, ADX_GATE, MIN_RVOL, MIN_IV);
 
       return {
         ticker,
@@ -344,7 +356,9 @@ export const SignalsPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-semibold">Signal Dashboard</h1>
             <p className="text-xs text-text-tertiary">
-              MOM signal {'\u2022'} IV {'\u2265'} 20% {'\u2022'} ADX {'\u2265'} 15 {'\u2022'} RVOL {'\u2265'} 0.5
+              {presetKey.toUpperCase()} signal {'\u2022'} IV {'\u2265'} {swingConfig.ivRankMin}%
+              {ADX_GATE != null ? ` \u2022 ADX \u2265 ${ADX_GATE}` : ''}
+              {' \u2022'} RVOL {'\u2265'} {MIN_RVOL}
             </p>
           </div>
         </div>
@@ -457,7 +471,7 @@ export const SignalsPage: React.FC = () => {
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Ticker</th>
                 <th className="px-3 py-2 font-medium">Dir</th>
-                <th className="px-3 py-2 font-medium text-right">MOM</th>
+                <th className="px-3 py-2 font-medium text-right">{presetKey.toUpperCase()}</th>
                 <th className="px-3 py-2 font-medium text-right">IV</th>
                 <th className="px-3 py-2 font-medium text-right">ADX</th>
                 <th className="px-3 py-2 font-medium text-right">RVOL</th>
@@ -482,11 +496,13 @@ export const SignalsPage: React.FC = () => {
                       isExpanded={isExpanded}
                       onToggle={() => setExpanded(isExpanded ? null : row.ticker)}
                       livePrice={livePrices?.[row.ticker]}
+                      adxGate={ADX_GATE}
+                      minRvol={MIN_RVOL}
                     />
                     {isExpanded && (
                       <tr className="border-b border-white/5">
                         <td colSpan={10} className="px-4 py-3 bg-white/[0.02]">
-                          <DashboardDetailPanel row={row} />
+                          <DashboardDetailPanel row={row} minScore={MIN_SCORE} minIV={MIN_IV} adxGate={ADX_GATE} minRvol={MIN_RVOL} signalLabel={presetKey.toUpperCase()} />
                         </td>
                       </tr>
                     )}
@@ -562,7 +578,9 @@ const DashboardRowView: React.FC<{
   isExpanded: boolean;
   onToggle: () => void;
   livePrice?: number;
-}> = ({ row, isExpanded, onToggle, livePrice }) => {
+  adxGate: number | null;
+  minRvol: number;
+}> = ({ row, isExpanded, onToggle, livePrice, adxGate, minRvol }) => {
   const dir = dirBadge(row.direction);
   const status = statusBadge(row.status);
   const isInactive = row.status === 'INACTIVE';
@@ -596,10 +614,10 @@ const DashboardRowView: React.FC<{
       <td className={`px-3 py-2 text-right font-mono ${ivColor(row.iv30)}`}>
         {row.iv30 != null ? `${(row.iv30 * 100).toFixed(0)}%` : '\u2014'}
       </td>
-      <td className={`px-3 py-2 text-right font-mono ${row.adx >= MIN_ADX ? 'text-text-secondary' : 'text-red-400/60'}`}>
+      <td className={`px-3 py-2 text-right font-mono ${adxGate == null || row.adx >= adxGate ? 'text-text-secondary' : 'text-red-400/60'}`}>
         {row.adx > 0 ? row.adx.toFixed(0) : '\u2014'}
       </td>
-      <td className={`px-3 py-2 text-right font-mono ${row.rvol >= MIN_RVOL ? 'text-text-secondary' : 'text-red-400/60'}`}>
+      <td className={`px-3 py-2 text-right font-mono ${row.rvol >= minRvol ? 'text-text-secondary' : 'text-red-400/60'}`}>
         {row.rvol > 0 ? row.rvol.toFixed(1) : '\u2014'}
       </td>
       <td className="px-3 py-2 text-center">
@@ -632,7 +650,7 @@ const DashboardRowView: React.FC<{
 
 // ── Dashboard Detail Panel ────────────────────────────────
 
-const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
+const DashboardDetailPanel: React.FC<{ row: DashboardRow; minScore: number; minIV: number; adxGate: number | null; minRvol: number; signalLabel: string }> = ({ row, minScore, minIV, adxGate, minRvol, signalLabel }) => {
   const navigate = useNavigate();
   const swing = STRATEGY_PROFILES.swing;
   const shortTerm = STRATEGY_PROFILES.shortTerm;
@@ -646,10 +664,12 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
       <div>
         <h4 className="text-xs font-medium text-text-secondary mb-2">Entry Criteria</h4>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <CriteriaCheck label="MOM ≥ 90" value={row.score} pass={row.score >= MIN_SCORE} fmt={v => v.toFixed(0)} />
-          <CriteriaCheck label="IV ≥ 20%" value={row.iv30} pass={row.iv30 != null && row.iv30 >= MIN_IV} fmt={v => v != null ? `${(v * 100).toFixed(0)}%` : 'n/a'} />
-          <CriteriaCheck label="ADX ≥ 15" value={row.adx} pass={row.adx >= MIN_ADX} fmt={v => v.toFixed(1)} />
-          <CriteriaCheck label="RVOL ≥ 0.5" value={row.rvol} pass={row.rvol >= MIN_RVOL} fmt={v => v.toFixed(2)} />
+          <CriteriaCheck label={`${signalLabel} \u2265 ${minScore}`} value={row.score} pass={row.score >= minScore} fmt={v => v.toFixed(0)} />
+          <CriteriaCheck label={`IV \u2265 ${(minIV * 100).toFixed(0)}%`} value={row.iv30} pass={row.iv30 != null && row.iv30 >= minIV} fmt={v => v != null ? `${(v * 100).toFixed(0)}%` : 'n/a'} />
+          {adxGate != null && (
+            <CriteriaCheck label={`ADX \u2265 ${adxGate}`} value={row.adx} pass={row.adx >= adxGate} fmt={v => v.toFixed(1)} />
+          )}
+          <CriteriaCheck label={`RVOL \u2265 ${minRvol}`} value={row.rvol} pass={row.rvol >= minRvol} fmt={v => v.toFixed(2)} />
         </div>
       </div>
 
@@ -710,7 +730,7 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow }> = ({ row }) => {
                 strategy: strategyParam,
                 score: String(Math.round(row.score)),
                 streak: String(row.streak),
-                signalType: 'MOM',
+                signalType: signalLabel,
                 adx: String(row.adx.toFixed(1)),
                 rvol: String(row.rvol.toFixed(2)),
               });

@@ -1,0 +1,38 @@
+{
+  "version": "2026-03-18",
+  "source": "WFA v2 no-ADX hybrid",
+  "profiles": {
+    "swing": {
+      "signalPreset": "vol",
+      "defaultDelta": 0.35,
+      "defaultWidth": 10,
+      "dteMin": 45,
+      "dteMax": 65,
+      "dtePeak": 55,
+      "profitTarget": 0.30,
+      "ivRankMin": 20,
+      "timeStopDTE": 5,
+      "maxPositions": 5,
+      "maxPerTicker": 3,
+      "adxGate": null,
+      "rvolGate": 0.5,
+      "minScore": 70
+    },
+    "shortTerm": {
+      "signalPreset": "em",
+      "defaultDelta": 0.35,
+      "defaultWidth": 1,
+      "dteMin": 7,
+      "dteMax": 21,
+      "dtePeak": 14,
+      "profitTarget": 0.35,
+      "ivRankMin": 50,
+      "timeStopDTE": 1,
+      "maxPositions": 5,
+      "maxPerTicker": 5,
+      "adxGate": 15,
+      "rvolGate": 0.5,
+      "minScore": 70
+    }
+  }
+}

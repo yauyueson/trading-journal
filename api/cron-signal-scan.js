@@ -14,11 +14,17 @@ const { calculateTechScore } = require('../lib/_shared/tech-analysis.cjs');
 // ── Config ──────────────────────────────────────────────────────────────────────
 
 import { SCAN_TICKERS } from '../lib/_shared/config.js';
+import { loadStrategyConfig } from '../lib/_shared/strategyConfig.js';
+
+// Signal preset weight maps — must match src/lib/backtest/types.ts SIGNAL_PRESETS
+const SIGNAL_PRESETS = {
+    vol: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 0, w_adx: 0 },  // RVOL + Momentum
+    mom: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 0, w_adx: 0, w_vol: 0 },  // Momentum only
+    em:  { w_mb: 0, w_bxs: 0, w_bxl: 0, w_adx: 0, w_vol: 0 },  // EMA + Momentum
+    ema: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_mom: 0, w_adx: 0, w_vol: 0 },  // EMA only
+};
 
 const MIN_CANDLES = 200;        // Need ~200 for stable tech analysis
-const MIN_SCORE = 70;           // Only alert on actionable signals
-const MIN_ADX = 15;             // Quality gate: trend strength
-const MIN_RVOL = 0.5;           // Quality gate: volume participation
 const DELAY_MS = 300;           // Between tickers (rate limit courtesy)
 
 // ── Supabase helpers ────────────────────────────────────────────────────────────
@@ -132,7 +138,16 @@ export default async function handler(req, res) {
     }
 
     const today = new Date().toISOString().split('T')[0];
-    console.log(`[signal-scan] Starting daily scan for ${SCAN_TICKERS.length} tickers — ${today}`);
+    const config = loadStrategyConfig();
+    const activeProfile = 'swing';
+    const profile = config.profiles[activeProfile] || config.profiles.swing;
+    const presetWeights = SIGNAL_PRESETS[profile.signalPreset] || {};
+    const MIN_SCORE = profile.minScore || 70;
+    const MIN_RVOL = profile.rvolGate || 0.5;
+    const ADX_GATE = profile.adxGate;  // null = disabled
+    const IVR_MIN = profile.ivRankMin || 20;
+
+    console.log(`[signal-scan] Starting daily scan for ${SCAN_TICKERS.length} tickers — ${today} (signal: ${profile.signalPreset}, adxGate: ${ADX_GATE ?? 'disabled'}, ivrMin: ${IVR_MIN})`);
 
     const signals = [];
     const errors = [];
@@ -163,26 +178,32 @@ export default async function handler(req, res) {
                 continue;
             }
 
-            // 3. Run tech analysis
-            const result = calculateTechScore(candles);
+            // 3. Run tech analysis with signal preset weights
+            const result = calculateTechScore(candles, presetWeights);
             scanned++;
 
             // 4. Quality gate filters
             const adx = result.debug?.adx ?? 20;
             const rvol = result.debug?.rvol ?? 1;
 
-            if (adx < MIN_ADX) continue;
+            // ADX gate: skip if adxGate is null (disabled)
+            if (ADX_GATE != null && adx < ADX_GATE) continue;
             if (rvol < MIN_RVOL) continue;
             if (result.type === 'NEUTRAL') continue;
             if (result.techScore < MIN_SCORE) continue;
 
-            // Fetch latest IV for premium adequacy context
+            // Fetch latest IV for premium adequacy + IVR filter
             let iv30 = null;
+            let ivRank = null;
             try {
                 const ivRows = await supabaseGet('orats_iv_cache',
                     `select=iv30d&ticker=eq.${ticker}&order=date.desc&limit=1`);
                 if (ivRows && ivRows.length > 0) iv30 = ivRows[0].iv30d;
             } catch (_) {}
+
+            // IVR filter: skip if IV rank below threshold
+            // iv30 from orats_iv_cache is percentage (e.g. 24.3 = 24.3%); ivRankMin is also percentage
+            if (iv30 != null && iv30 < IVR_MIN) continue;
 
             const signal = {
                 ticker,
@@ -197,7 +218,7 @@ export default async function handler(req, res) {
                 rvol,
                 close: result.debug?.close ?? 0,
                 iv30,
-                ivAdequate: iv30 == null || iv30 >= 0.20,  // WFA v2: IV >= 20% structural filter
+                ivAdequate: iv30 == null || iv30 >= IVR_MIN,
             };
             signals.push(signal);
 
