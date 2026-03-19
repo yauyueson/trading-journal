@@ -16,7 +16,8 @@
       "maxPerTicker": 3,
       "adxGate": null,
       "rvolGate": 0.5,
-      "minScore": 70
+      "minScore": 70,
+      "minDirConfidence": 50
     },
     "shortTerm": {
       "signalPreset": "em",
@@ -32,7 +33,8 @@
       "maxPerTicker": 5,
       "adxGate": 15,
       "rvolGate": 0.5,
-      "minScore": 70
+      "minScore": 70,
+      "minDirConfidence": 40
     }
   }
 }

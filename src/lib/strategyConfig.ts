@@ -21,6 +21,7 @@ export interface StrategyConfigProfile {
   adxGate: number | null;
   rvolGate: number;
   minScore: number;
+  minDirConfidence: number;
 }
 
 export interface StrategyConfig {
@@ -61,5 +62,6 @@ export function getConfigProfile(
     adxGate: p.adxGate ?? null,
     rvolGate: p.rvolGate ?? 0.5,
     minScore: p.minScore ?? 70,
+    minDirConfidence: p.minDirConfidence ?? 50,
   };
 }

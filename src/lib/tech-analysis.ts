@@ -3,6 +3,7 @@ import { emaFullSeries, rsi, t3_smooth, heikinAshiPine, calcATR, calcADX, calcRV
 
 export interface TechScoreResult {
     techScore: number;
+    dirConfidence: number;
     type: 'CALL' | 'PUT' | 'NEUTRAL';
     signal: string;
     setup: string;
@@ -50,6 +51,50 @@ export interface TechScoreOptions {
     sc_bx_l2?: number;
 }
 
+/**
+ * Direction Confidence Score (0-100).
+ * Measures structural reliability of the direction signal using EMA alignment,
+ * momentum agreement, and ADX trend strength. Used as a GO filter for credit spreads.
+ */
+export function calcDirConfidence(
+    dir: number, d8: number, d21: number,
+    b_stack: boolean, br_stack: boolean,
+    ch3: number, ch10: number, adx: number
+): number {
+    if (dir === 0) return 0;
+
+    // EMA Alignment (55% weight)
+    let emaScore: number;
+    const fullStack = dir > 0 ? b_stack : br_stack;
+    const d8Aligned = d8 * dir > 0;
+    const d21Aligned = d21 * dir > 0;
+    if (fullStack && Math.abs(d21) > 1) emaScore = 95;
+    else if (fullStack) emaScore = 85;
+    else if (d8Aligned && d21Aligned) emaScore = 70;
+    else if (d8Aligned) emaScore = 40;
+    else emaScore = 15;
+
+    // Momentum Agreement (30% weight)
+    const ch3Dir = ch3 * dir;
+    const ch10Dir = ch10 * dir;
+    let momScore: number;
+    if (ch3Dir > 0.5 && ch10Dir > 0) momScore = 90;
+    else if (ch3Dir > 0 && ch10Dir > 0) momScore = 75;
+    else if (ch3Dir > 0) momScore = 55;
+    else if (ch3Dir > -0.5) momScore = 35;
+    else momScore = 15;
+
+    // ADX Trend Strength (15% weight)
+    let adxScore: number;
+    if (adx > 30) adxScore = 90;
+    else if (adx > 25) adxScore = 70;
+    else if (adx > 20) adxScore = 55;
+    else if (adx > 15) adxScore = 35;
+    else adxScore = 20;
+
+    return Math.round(emaScore * 0.55 + momScore * 0.30 + adxScore * 0.15);
+}
+
 // Aligned with Pine Script v3.2 "Scanner: Scoring" defaults (7 components)
 const DEFAULT_OPTIONS: Required<TechScoreOptions> = {
     w_mb: 25,
@@ -93,6 +138,7 @@ export function calculateTechScore(
     if (len < 50) {
         return {
             techScore: 50,
+            dirConfidence: 0,
             type: 'NEUTRAL',
             signal: '⚪ WATCH',
             setup: 'Insufficient Data',
@@ -246,6 +292,9 @@ export function calculateTechScore(
     // Direction from identified signal (Pine: st = 1 for CALL, -1 for PUT)
     const dir = type === 'CALL' ? 1 : type === 'PUT' ? -1 : 0;
 
+    // Direction confidence — structural reliability of the direction signal
+    const dirConfidence = calcDirConfidence(dir, d8, d21, b_stack, br_stack, ch3, ch10, adx_v);
+
     // =====================================================================
     // PHASE 3: Direction-aware component scoring (Pine v3.2 aligned)
     // =====================================================================
@@ -375,6 +424,7 @@ export function calculateTechScore(
 
     return {
         techScore: Math.round(comp),
+        dirConfidence,
         type,
         signal: sig,
         setup: name,
@@ -408,6 +458,7 @@ export function calculateTechScore(
 
 export interface TechScoreV4Result {
     techScore: number;
+    dirConfidence: number;
     type: 'CALL' | 'PUT' | 'NEUTRAL';
     signal: string;
     setup: string;
@@ -559,7 +610,7 @@ export function calculateTechScoreV4(
     sl_atr = 1.0
 ): TechScoreV4Result {
     const neutral: TechScoreV4Result = {
-        techScore: 50, type: 'NEUTRAL', signal: '👀 WATCH', setup: 'Insufficient Data',
+        techScore: 50, dirConfidence: 0, type: 'NEUTRAL', signal: '👀 WATCH', setup: 'Insufficient Data',
         confidence: 0, entryContext: 'MARGINAL',
         factors: { trend: 50, structure: 50, entryQuality: 50, volume: 50 },
         mtf: { weeklyScore: 50, weeklyDir: 0, modifier: 1.0 },
@@ -651,6 +702,13 @@ export function calculateTechScoreV4(
 
     // ── Direction from MB + BXS ───────────────────────────────────────────────
     const dir = isb && bxs > 0 ? 1 : (!isb && bxs < 0 ? -1 : 0);
+
+    // ── Direction Confidence ──────────────────────────────────────────────────
+    const prevClose3_v4 = closes[last - 3] ?? currClose;
+    const prevClose10_v4 = closes[last - 10] ?? currClose;
+    const ch3_v4 = prevClose3_v4 > 0 ? (currClose - prevClose3_v4) / prevClose3_v4 * 100 : 0;
+    const ch10_v4 = prevClose10_v4 > 0 ? (currClose - prevClose10_v4) / prevClose10_v4 * 100 : 0;
+    const dirConfidence = calcDirConfidence(dir, d1, d2, bstk, brstk, ch3_v4, ch10_v4, adxV);
 
     // ── V4 Factors ────────────────────────────────────────────────────────────
     const fTrend     = calcTrendFactor(dir, mb, iss, bxs, bxl);
@@ -749,6 +807,7 @@ export function calculateTechScoreV4(
 
     return {
         techScore: Math.round(comp),
+        dirConfidence,
         type: st,
         signal: sig,
         setup: setupName,

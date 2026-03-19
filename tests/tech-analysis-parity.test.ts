@@ -5,11 +5,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { calculateTechScore as calculateTechScoreTS } from '../src/lib/tech-analysis';
+import { calculateTechScore as calculateTechScoreTS, calcDirConfidence as calcDirConfidenceTS } from '../src/lib/tech-analysis';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { calculateTechScore: calculateTechScoreCJS } = require('../lib/_shared/tech-analysis.cjs');
+const { calculateTechScore: calculateTechScoreCJS, calcDirConfidence: calcDirConfidenceCJS } = require('../lib/_shared/tech-analysis.cjs');
 
 // ── Test data generators ────────────────────────────────────────────────────────
 
@@ -141,6 +141,101 @@ describe('Tech Analysis CJS ↔ TS Parity', () => {
                 expect(v as number).toBeGreaterThanOrEqual(0);
                 expect(v as number).toBeLessThanOrEqual(100);
             }
+        }
+    });
+
+    // ── dirConfidence parity ──────────────────────────────────────────────────
+
+    it('uptrend: dirConfidence matches between TS and CJS', () => {
+        const ts = calculateTechScoreTS(uptrend);
+        const cjs = calculateTechScoreCJS(uptrend);
+        expect(cjs.dirConfidence).toBe(ts.dirConfidence);
+    });
+
+    it('downtrend: dirConfidence matches between TS and CJS', () => {
+        const ts = calculateTechScoreTS(downtrend);
+        const cjs = calculateTechScoreCJS(downtrend);
+        expect(cjs.dirConfidence).toBe(ts.dirConfidence);
+    });
+
+    it('flat market: dirConfidence matches between TS and CJS', () => {
+        const ts = calculateTechScoreTS(flat);
+        const cjs = calculateTechScoreCJS(flat);
+        expect(cjs.dirConfidence).toBe(ts.dirConfidence);
+    });
+
+    it('insufficient data: dirConfidence is 0', () => {
+        const ts = calculateTechScoreTS(shortData);
+        const cjs = calculateTechScoreCJS(shortData);
+        expect(ts.dirConfidence).toBe(0);
+        expect(cjs.dirConfidence).toBe(0);
+    });
+});
+
+// ── calcDirConfidence unit tests ──────────────────────────────────────────────
+
+describe('calcDirConfidence', () => {
+    it('NEUTRAL direction returns 0', () => {
+        expect(calcDirConfidenceTS(0, 1.5, 2.0, true, false, 1.0, 2.0, 30)).toBe(0);
+        expect(calcDirConfidenceCJS(0, 1.5, 2.0, true, false, 1.0, 2.0, 30)).toBe(0);
+    });
+
+    it('full bullish stack with strong momentum and high ADX → high confidence', () => {
+        // CALL: b_stack=true, d8>0, d21>1, ch3>0.5, ch10>0, adx>30
+        const ts = calcDirConfidenceTS(1, 2.0, 3.0, true, false, 1.5, 2.0, 35);
+        const cjs = calcDirConfidenceCJS(1, 2.0, 3.0, true, false, 1.5, 2.0, 35);
+        expect(ts).toBe(cjs);
+        expect(ts).toBeGreaterThanOrEqual(70);
+        // 95*0.55 + 90*0.30 + 90*0.15 = 52.25+27+13.5 = 92.75 → 93
+        expect(ts).toBe(93);
+    });
+
+    it('dead cat bounce (below EMAs, CALL direction) → low confidence', () => {
+        // CALL but d8<0, d21<0, no b_stack, small bounce ch3>0
+        const ts = calcDirConfidenceTS(1, -1.5, -3.0, false, false, 0.3, -2.0, 22);
+        const cjs = calcDirConfidenceCJS(1, -1.5, -3.0, false, false, 0.3, -2.0, 22);
+        expect(ts).toBe(cjs);
+        expect(ts).toBeLessThan(50);
+        // ema=15, mom=55 (ch3>0 only), adx=55 → 15*0.55+55*0.30+55*0.15 = 8.25+16.5+8.25 = 33
+        expect(ts).toBe(33);
+    });
+
+    it('full bearish stack with opposing momentum → moderate', () => {
+        // PUT: br_stack=true, d8<0, d21<-1, but ch3>0 (bounce), adx=18
+        const ts = calcDirConfidenceTS(-1, -2.0, -3.0, false, true, 0.5, 1.0, 18);
+        const cjs = calcDirConfidenceCJS(-1, -2.0, -3.0, false, true, 0.5, 1.0, 18);
+        expect(ts).toBe(cjs);
+        // ema=95 (br_stack, |d21|>1), mom=35 (ch3Dir=-0.5*-1=0.5>0.5? no, =0.5 → not >0.5; ch3Dir>0 && ch10Dir<0 → ch3>0 only → 55)
+        // Wait: dir=-1, ch3=0.5, ch10=1.0. ch3Dir = 0.5 * -1 = -0.5. ch10Dir = 1.0 * -1 = -1.0
+        // ch3Dir = -0.5 → not > -0.5 (it's equal) → momScore = 35? No: > -0.5 is false when exactly -0.5
+        // ch3Dir = -0.5, check: ch3Dir > -0.5 is false → momScore = 15
+        // adx=18: > 15 → adxScore = 35
+        // 95*0.55 + 15*0.30 + 35*0.15 = 52.25+4.5+5.25 = 62
+        expect(ts).toBe(62);
+    });
+
+    it('partial stack CALL with moderate momentum', () => {
+        // d8>0, d21>0 but not b_stack → emaScore=70
+        const ts = calcDirConfidenceTS(1, 0.5, 0.3, false, false, 0.2, 0.5, 22);
+        expect(ts).toBeGreaterThanOrEqual(40);
+        expect(ts).toBeLessThanOrEqual(70);
+    });
+
+    it('CJS and TS produce identical results for all input combos', () => {
+        const cases = [
+            [1, 2.0, 3.0, true, false, 1.5, 2.0, 35],
+            [-1, -2.0, -3.0, false, true, -1.5, -2.0, 28],
+            [1, -0.5, -1.0, false, false, 0.3, -0.5, 12],
+            [-1, 1.0, 2.0, true, false, -0.8, 1.0, 22],
+            [1, 0.5, 0.5, false, false, 0.1, 0.1, 20],
+        ] as const;
+
+        for (const args of cases) {
+            const ts = calcDirConfidenceTS(...args);
+            const cjs = calcDirConfidenceCJS(...args);
+            expect(cjs).toBe(ts);
+            expect(ts).toBeGreaterThanOrEqual(0);
+            expect(ts).toBeLessThanOrEqual(100);
         }
     });
 });

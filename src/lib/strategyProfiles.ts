@@ -30,6 +30,7 @@ export interface StrategyProfile {
   adxGate: number | null;
   rvolGate: number;
   minScore: number;
+  minDirConfidence: number;
 }
 
 export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
@@ -65,6 +66,7 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     adxGate: null,
     rvolGate: 0.5,
     minScore: 70,
+    minDirConfidence: 50,
   },
   shortTerm: {
     label: 'Short DTE (7-21 DTE)',
@@ -98,6 +100,7 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     adxGate: 15,
     rvolGate: 0.5,
     minScore: 70,
+    minDirConfidence: 40,
   },
 };
 

@@ -28,7 +28,7 @@ const WATCHLIST = [
 ];
 
 // ── Status types ──────────────────────────────────────────
-type SignalStatus = 'GO' | 'LOW_IV' | 'WEAK_TREND' | 'LOW_VOL' | 'INACTIVE';
+type SignalStatus = 'GO' | 'LOW_IV' | 'WEAK_TREND' | 'LOW_VOL' | 'WEAK_DIR' | 'INACTIVE';
 
 interface DashboardRow {
   ticker: string;
@@ -36,6 +36,7 @@ interface DashboardRow {
   direction: 'CALL' | 'PUT' | 'NEUTRAL';
   confidence: number;
   close: number;
+  dirConfidence: number;
   adx: number;
   rvol: number;
   iv30: number | null;
@@ -76,6 +77,7 @@ function statusBadge(status: SignalStatus): { label: string; cls: string } {
     case 'LOW_IV': return { label: 'LOW IV', cls: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' };
     case 'WEAK_TREND': return { label: 'WEAK ADX', cls: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' };
     case 'LOW_VOL': return { label: 'LOW VOL', cls: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' };
+    case 'WEAK_DIR': return { label: 'WEAK DIR', cls: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' };
     case 'INACTIVE': return { label: '\u2014', cls: 'text-[#555]' };
   }
 }
@@ -88,8 +90,9 @@ function ivColor(iv: number | null): string {
   return 'text-red-400';
 }
 
-function computeStatus(score: number, dir: string, iv: number | null, adx: number, rvol: number, minScore: number, adxGate: number | null, minRvol: number, minIV: number): SignalStatus {
+function computeStatus(score: number, dir: string, iv: number | null, adx: number, rvol: number, dirConfidence: number, minScore: number, adxGate: number | null, minRvol: number, minIV: number, minDirConf: number): SignalStatus {
   if (score < minScore || dir === 'NEUTRAL') return 'INACTIVE';
+  if (dirConfidence < minDirConf) return 'WEAK_DIR';
   if (adxGate != null && adx < adxGate) return 'WEAK_TREND';
   if (rvol < minRvol) return 'LOW_VOL';
   if (iv != null && iv < minIV) return 'LOW_IV';
@@ -215,6 +218,7 @@ export const SignalsPage: React.FC = () => {
   const MIN_IV = swingConfig.ivRankMin / 100;   // config is percentage (20), display needs decimal (0.20)
   const ADX_GATE = swingConfig.adxGate;          // null = disabled
   const MIN_RVOL = swingConfig.rvolGate;
+  const MIN_DIR_CONF = swingConfig.minDirConfidence;
 
   // Signal preset weights from config
   const presetKey = swingConfig.signalPreset;
@@ -273,6 +277,7 @@ export const SignalsPage: React.FC = () => {
           direction: 'NEUTRAL' as const,
           confidence: 0,
           close: 0,
+          dirConfidence: 0,
           adx: 0,
           rvol: 0,
           iv30: iv,
@@ -288,8 +293,9 @@ export const SignalsPage: React.FC = () => {
 
       const adx = (sig.result.debug?.adx as number) ?? 0;
       const rvol = (sig.result.debug?.rvol as number) ?? 0;
+      const dirConf = sig.result.dirConfidence ?? 0;
       const emaScore = sig.result.components?.sc_mom ?? 50;
-      const status = computeStatus(emaScore, sig.result.type, iv, adx, rvol, MIN_SCORE, ADX_GATE, MIN_RVOL, MIN_IV);
+      const status = computeStatus(emaScore, sig.result.type, iv, adx, rvol, dirConf, MIN_SCORE, ADX_GATE, MIN_RVOL, MIN_IV, MIN_DIR_CONF);
 
       return {
         ticker,
@@ -297,6 +303,7 @@ export const SignalsPage: React.FC = () => {
         direction: sig.result.type,
         confidence: sig.result.confidence,
         close: sig.lastClose,
+        dirConfidence: dirConf,
         adx,
         rvol,
         iv30: iv,
@@ -319,7 +326,7 @@ export const SignalsPage: React.FC = () => {
     if (showFilter === 'ACTIVE') rows = rows.filter(r => r.status !== 'INACTIVE');
 
     // Sort: GO first, then active (LOW_IV etc), then inactive. Within group, by score desc.
-    const statusOrder: Record<SignalStatus, number> = { GO: 0, LOW_IV: 1, WEAK_TREND: 1, LOW_VOL: 1, INACTIVE: 2 };
+    const statusOrder: Record<SignalStatus, number> = { GO: 0, LOW_IV: 1, WEAK_TREND: 1, LOW_VOL: 1, WEAK_DIR: 1, INACTIVE: 2 };
     return rows.sort((a, b) => {
       const oa = statusOrder[a.status], ob = statusOrder[b.status];
       if (oa !== ob) return oa - ob;
@@ -471,6 +478,7 @@ export const SignalsPage: React.FC = () => {
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Ticker</th>
                 <th className="px-3 py-2 font-medium">Dir</th>
+                <th className="px-3 py-2 font-medium text-right">Dir Conf</th>
                 <th className="px-3 py-2 font-medium text-right">{presetKey.toUpperCase()}</th>
                 <th className="px-3 py-2 font-medium text-right">IV</th>
                 <th className="px-3 py-2 font-medium text-right">ADX</th>
@@ -482,7 +490,7 @@ export const SignalsPage: React.FC = () => {
             <tbody>
               {filtered.length === 0 && !scanner.loading && (
                 <tr>
-                  <td colSpan={10} className="px-3 py-8 text-center text-text-tertiary text-xs">
+                  <td colSpan={11} className="px-3 py-8 text-center text-text-tertiary text-xs">
                     {scanner.signals.length === 0 ? 'Scanning...' : 'No signals match filters.'}
                   </td>
                 </tr>
@@ -501,8 +509,8 @@ export const SignalsPage: React.FC = () => {
                     />
                     {isExpanded && (
                       <tr className="border-b border-white/5">
-                        <td colSpan={10} className="px-4 py-3 bg-white/[0.02]">
-                          <DashboardDetailPanel row={row} minScore={MIN_SCORE} minIV={MIN_IV} adxGate={ADX_GATE} minRvol={MIN_RVOL} signalLabel={presetKey.toUpperCase()} />
+                        <td colSpan={11} className="px-4 py-3 bg-white/[0.02]">
+                          <DashboardDetailPanel row={row} minScore={MIN_SCORE} minIV={MIN_IV} adxGate={ADX_GATE} minRvol={MIN_RVOL} minDirConf={MIN_DIR_CONF} signalLabel={presetKey.toUpperCase()} />
                         </td>
                       </tr>
                     )}
@@ -606,6 +614,11 @@ const DashboardRowView: React.FC<{
           {dir.label}
         </span>
       </td>
+      <td className={`px-3 py-2 text-right font-mono font-semibold ${
+        row.dirConfidence >= 70 ? 'text-green-400' : row.dirConfidence >= 50 ? 'text-yellow-400' : 'text-red-400'
+      }`}>
+        {row.dirConfidence > 0 ? row.dirConfidence : '\u2014'}
+      </td>
       <td className={`px-3 py-2 text-right font-mono font-semibold ${scoreColor(row.score)}`}>
         <span className={`inline-block px-1.5 py-0.5 rounded ${scoreBg(row.score)}`}>
           {row.score > 0 ? row.score.toFixed(0) : '\u2014'}
@@ -650,7 +663,7 @@ const DashboardRowView: React.FC<{
 
 // ── Dashboard Detail Panel ────────────────────────────────
 
-const DashboardDetailPanel: React.FC<{ row: DashboardRow; minScore: number; minIV: number; adxGate: number | null; minRvol: number; signalLabel: string }> = ({ row, minScore, minIV, adxGate, minRvol, signalLabel }) => {
+const DashboardDetailPanel: React.FC<{ row: DashboardRow; minScore: number; minIV: number; adxGate: number | null; minRvol: number; minDirConf: number; signalLabel: string }> = ({ row, minScore, minIV, adxGate, minRvol, minDirConf, signalLabel }) => {
   const navigate = useNavigate();
   const swing = STRATEGY_PROFILES.swing;
   const shortTerm = STRATEGY_PROFILES.shortTerm;
@@ -670,6 +683,7 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow; minScore: number; minI
             <CriteriaCheck label={`ADX \u2265 ${adxGate}`} value={row.adx} pass={row.adx >= adxGate} fmt={v => v.toFixed(1)} />
           )}
           <CriteriaCheck label={`RVOL \u2265 ${minRvol}`} value={row.rvol} pass={row.rvol >= minRvol} fmt={v => v.toFixed(2)} />
+          <CriteriaCheck label={`Dir Conf \u2265 ${minDirConf}`} value={row.dirConfidence} pass={row.dirConfidence >= minDirConf} fmt={v => String(v)} />
         </div>
       </div>
 

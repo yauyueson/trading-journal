@@ -146,6 +146,7 @@ export default async function handler(req, res) {
     const MIN_RVOL = profile.rvolGate || 0.5;
     const ADX_GATE = profile.adxGate;  // null = disabled
     const IVR_MIN = profile.ivRankMin || 20;
+    const MIN_DIR_CONF = profile.minDirConfidence || 50;
 
     console.log(`[signal-scan] Starting daily scan for ${SCAN_TICKERS.length} tickers — ${today} (signal: ${profile.signalPreset}, adxGate: ${ADX_GATE ?? 'disabled'}, ivrMin: ${IVR_MIN})`);
 
@@ -191,6 +192,7 @@ export default async function handler(req, res) {
             if (rvol < MIN_RVOL) continue;
             if (result.type === 'NEUTRAL') continue;
             if (result.techScore < MIN_SCORE) continue;
+            if (result.dirConfidence < MIN_DIR_CONF) continue;
 
             // Fetch latest IV for premium adequacy + IVR filter
             let iv30 = null;
@@ -209,6 +211,7 @@ export default async function handler(req, res) {
                 ticker,
                 date: today,
                 score: result.techScore,
+                dirConfidence: result.dirConfidence,
                 direction: result.type,
                 setup: result.setup,
                 confidence: result.confidence,
@@ -227,6 +230,7 @@ export default async function handler(req, res) {
                 ticker,
                 date: today,
                 score: result.techScore,
+                dir_confidence: result.dirConfidence,
                 direction: result.type,
                 setup: result.setup,
                 confidence: result.confidence,
