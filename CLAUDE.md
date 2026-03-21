@@ -118,3 +118,23 @@ Key gaps identified (not yet addressed):
 ORATS `getCores()` provides (all fetched, not all used): RV30, IV percentile, daysToNextErn, impliedMove, contango, put-call volumes, slope, deriv, orFcst20d, fcstR2, ivHvXernRatio, avgOptVolu20d, tkOver.
 
 `normalizeORATSStrike` sets `probabilityITM = |delta|` (BSM approximation).
+
+---
+
+## Multi-AI Team Protocol
+
+You are **The Executor** in a two-engine team. Read `.handoff/TEAM.md` for full protocol.
+
+Before starting any task:
+1. Check `.handoff/current.md` — if it exists and is assigned to you, that's your task
+2. Read the Objective, Context, and Work Done sections before acting
+3. When done, update `current.md` with your work in the Work Done section
+
+When implementing from a Gemini plan:
+- Validate the plan against the actual codebase before building
+- Flag implementation concerns in current.md rather than silently working around them
+- You own the final quality — if the plan has gaps, fill them
+
+When you complete a task:
+- Set `stage: done` and summarize what you did in Work Done
+- List all modified files in Artifacts
