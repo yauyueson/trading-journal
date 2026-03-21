@@ -40,11 +40,44 @@ For full project context (key files, database tables, testing, architecture), re
 | `src/lib/oss-core.ts` | TypeScript scoring source (frontend) |
 | `lib/_shared/scoring.cjs` | CJS mirror of oss-core.ts (API) — MUST stay in sync |
 | `src/router.tsx` | React Router route config |
+| `src/layouts/AppLayout.tsx` | Shell (Header + TabNav + Outlet) |
+| `src/hooks/usePositionMutations.ts` | 11 mutation hooks |
+| `lib/orats-client.js` | ORATS options data client |
+| `lib/tiingo-client.js` | Tiingo stock candle client |
+| `api/strategy-recommend.js` | Main strategy recommendation API |
+| `api/scan-options.js` | Options scanner API |
+| `api/cron-signal-scan.js` | Daily signal scanner cron (21:00 UTC weekdays) |
+| `api/cron-trade-outcomes.js` | Daily MFE/MAE computation cron (21:35 UTC weekdays) |
+| `api/backtest-data.js` | Unified backtest endpoint (?type=candles or ?type=iv) |
 | `src/lib/backtest/engine.ts` | Core simulation + V4 quality gates |
-| `src/lib/backtest/option-sim.ts` | Credit spread simulator |
+| `src/lib/backtest/option-sim.ts` | Credit spread simulator (BSM on ORATS chains) |
+| `src/lib/backtest/chain-cache.ts` | SQLite cache for ORATS chain data |
+| `src/lib/backtest/bsm-pricing.ts` | BSM pricing, delta, O-U IV evolution, rolling HV |
 | `src/lib/backtest/wfa-options.ts` | Rolling WFA loop engine |
 | `src/lib/riskSizing.ts` | Risk sizing + portfolio Greeks |
+| `src/lib/types.ts` | Shared TypeScript interfaces |
+
+### Critical Rules
+
+- `src/lib/oss-core.ts` and `lib/_shared/scoring.cjs` **MUST stay in sync** — 307 parity tests enforce this
+- `api/strategy-recommend.js` uses raw `fetch()` for Supabase REST (no JS client)
+- All 488+ existing tests must keep passing after any change
+- Crons: triggered externally via cronjobs.org (NOT Vercel)
+
+### Database Tables
+
+- `positions`, `transactions`, `position_greeks_history`, `ticker_iv_snapshots`, `app_settings`
+- `candidate_snapshots`, `stock_candles`, `signal_history`, `orats_iv_cache`
+- `score_history`, `trade_outcomes`
+
+### Env Vars
+
+`ORATS_API_TOKEN`, `TIINGO_API_TOKEN`, `DATA_SOURCE=ORATS`, `DISCORD_WEBHOOK_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`
+
+### Ticker Watchlist
+
+SPY, QQQ, GOOG, JPM, META, TSLA, MSFT, NFLX, AAPL, NVDA, AMD, COST, IREN, BA, AMZN, HOOD, CRWV, COIN, MSTR, PLTR, AVGO, LULU, UBER, GS, UNH, IWM, GLD
 
 ### Testing
 
-488+ Vitest tests. CI: GitHub Actions lint -> build -> test.
+488+ Vitest tests (307 parity + 48 oss-core + 19 riskSizing + 10 tech-parity + 33 backtest + 32 bsm + others). CI: GitHub Actions lint -> build -> test.
