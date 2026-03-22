@@ -12,7 +12,7 @@ import { useStrategyConfig, getConfigProfile } from '../lib/strategyConfig';
 import { supabase } from '../lib/supabase';
 import type { TechScoreOptions } from '../lib/tech-analysis';
 
-// Signal preset weight maps — must match src/lib/backtest/types.ts SIGNAL_PRESETS
+// Signal preset weight maps — production subset of src/lib/backtest/types.ts SIGNAL_PRESETS
 const SIGNAL_PRESETS: Record<string, TechScoreOptions> = {
   vol: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 0, w_adx: 0 },
   mom: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 0, w_adx: 0, w_vol: 0 },
@@ -23,7 +23,7 @@ const SIGNAL_PRESETS: Record<string, TechScoreOptions> = {
 // ── Watchlist (same as cron scanner) ──────────────────────
 const WATCHLIST = [
   'SPY', 'QQQ', 'GOOG', 'JPM', 'META', 'TSLA', 'MSFT', 'NFLX',
-  'AAPL', 'NVDA', 'AMD', 'IREN', 'BA', 'AMZN', 'HOOD',
+  'AAPL', 'NVDA', 'AMD', 'COST', 'IREN', 'BA', 'AMZN', 'HOOD',
   'CRWV', 'COIN', 'MSTR', 'PLTR', 'AVGO', 'LULU', 'UBER', 'GS',
   'UNH', 'IWM', 'GLD',
 ];

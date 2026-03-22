@@ -17,7 +17,8 @@ import {
   findContract,
   findContractDirect,
 } from './chain-cache';
-import type { DynamicSlippageConfig, FillMode, DirConfTier } from './types';
+import type { DynamicSlippageConfig, FillMode, DirConfTier, SignalPresetKey } from './types';
+export type { SignalPresetKey };
 import { DEFAULT_DYNAMIC_SLIPPAGE, DIR_CONF_THRESHOLDS } from './types';
 import { applyFill, applySpreadFill } from './slippage';
 
@@ -144,8 +145,6 @@ export interface SimConfig {
   dailyCalibration?: boolean;
   ivThetaSource?: 'entry_iv' | 'hv60' | 'orats_iv60';
 }
-
-export type SignalPresetKey = 'ema' | 'mom' | 'em' | 'mf' | 'full' | 'mb' | 'adx' | 'vol';
 
 export const DEFAULT_LEAP_CONFIG: SimConfig = {
   mode: 'LEAP',

@@ -16,7 +16,7 @@ const { calculateTechScore } = require('../lib/_shared/tech-analysis.cjs');
 import { SCAN_TICKERS } from '../lib/_shared/config.js';
 import { loadStrategyConfigFromDB } from '../lib/_shared/strategyConfig.js';
 
-// Signal preset weight maps — must match src/lib/backtest/types.ts SIGNAL_PRESETS
+// Signal preset weight maps — production subset of src/lib/backtest/types.ts SIGNAL_PRESETS
 const SIGNAL_PRESETS = {
     vol: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 0, w_adx: 0 },  // RVOL + Momentum
     mom: { w_mb: 0, w_bxs: 0, w_bxl: 0, w_ema: 0, w_adx: 0, w_vol: 0 },  // Momentum only
@@ -201,7 +201,7 @@ export default async function handler(req, res) {
     const MIN_RVOL = profile.rvolGate || 0.5;
     const ADX_GATE = profile.adxGate;  // null = disabled
     const IVR_MIN = 0;  // WFA v3 lock: IV rank filter disabled (reduces over-filtering)
-    const MIN_DIR_CONF = Math.max(70, profile.minDirConfidence || 70);  // WFA v3 lock: dirConfTier=high
+    const MIN_DIR_CONF = profile.minDirConfidence ?? 70;  // WFA v3 lock: use profile value (swing=70, shortTerm=0)
 
     // WFA v3: halt scan if portfolio at maxPositions capacity
     const MAX_POSITIONS = profile.maxPositions || 5;
