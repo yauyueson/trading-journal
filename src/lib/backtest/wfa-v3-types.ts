@@ -141,7 +141,7 @@ export const DEFAULT_WFA_V3_CONFIG: WFAv3Config = {
   holdoutDays: 63,
   tickers: [
     'SPY', 'QQQ', 'AMD', 'IWM', 'TSLA', 'AAPL', 'JPM', 'NVDA',
-    'AMZN', 'MSFT', 'META', 'NFLX', 'GOOG', 'GS', 'COST',
+    'AMZN', 'MSFT', 'META', 'NFLX', 'GOOGL', 'GS', 'COST',
   ],
   startingCapital: 100_000,
   optimizerMode: 'ga',

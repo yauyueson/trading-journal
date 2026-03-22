@@ -82,7 +82,7 @@ const DATA_END   = '2026-02-28';
 const ALL_TICKERS = [
   'SPY', 'QQQ', 'AMD', 'IWM', 'TSLA',
   'AAPL', 'JPM', 'NVDA', 'AMZN', 'MSFT',
-  'META', 'NFLX', 'GOOG', 'GS',
+  'META', 'NFLX', 'GOOGL', 'GS',
   // COST removed: only net-losing ticker (-$26,619 over 432 trades, 79.6% WR across full sample)
 ];
 

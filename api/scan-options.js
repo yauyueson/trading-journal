@@ -3,6 +3,7 @@
 // Uses shared scoring module (Single Source of Truth)
 
 import { createRequire } from 'module';
+import { DATA_SOURCE } from '../lib/_shared/config.js';
 const require = createRequire(import.meta.url);
 
 const {
@@ -81,7 +82,7 @@ export default async function handler(req, res) {
         const upperTicker = ticker.toUpperCase();
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
-        const dataSource = (process.env.DATA_SOURCE || 'CBOE').trim().toUpperCase();
+        const dataSource = DATA_SOURCE;
         let options = [];
         let currentPrice = 0;
         let cboeTimestamp = null;

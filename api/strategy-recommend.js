@@ -9,6 +9,7 @@ import path from 'path';
 import { getAppSettings } from './_shared/getAppSettings.js';
 import { loadStrategyConfigFromDB } from '../lib/_shared/strategyConfig.js';
 import { bsmN2 as _bsmN2 } from '../lib/_shared/bsm-util.js';
+import { DATA_SOURCE } from '../lib/_shared/config.js';
 // ─────────────────────────────────────────────────────────────────────────────
 
 // #region agent log
@@ -1147,7 +1148,7 @@ export default async function handler(req, res) {
 
         const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
 
-        const dataSource = (process.env.DATA_SOURCE || 'CBOE').trim().toUpperCase();
+        const dataSource = DATA_SOURCE;
         // Track which source was actually used (may differ from configured if fallback occurs)
         let actualDataSource = dataSource;
         let allOptions = [];

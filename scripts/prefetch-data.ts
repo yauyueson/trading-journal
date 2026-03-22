@@ -16,7 +16,7 @@
  *
  * Ticker notes:
  *   - META was "FB" on Tiingo before Oct 2022. Tiingo handles this under META.
- *   - GOOG: ORATS uses GOOGL for options. Mapped automatically.
+ *   - GOOGL: Standardized to GOOGL (Alphabet Class A) across all data sources.
  */
 import fs from 'fs';
 import path from 'path';
@@ -48,11 +48,11 @@ const ORATS_TOKEN = process.env.ORATS_API_TOKEN || '';
 const ALL_TICKERS = [
   'SPY', 'QQQ', 'AMD', 'IWM', 'TSLA',
   'AAPL', 'JPM', 'NVDA', 'AMZN', 'MSFT',
-  'META', 'NFLX', 'GOOG', 'GS', 'COST',
+  'META', 'NFLX', 'GOOGL', 'GS', 'COST',
 ];
 
-// ORATS uses GOOGL for Google options
-const ORATS_TICKER_MAP: Record<string, string> = { GOOG: 'GOOGL' };
+// No mapping needed — all tickers already use ORATS-compatible symbols
+const ORATS_TICKER_MAP: Record<string, string> = {};
 function oratsTickerFor(ticker: string): string {
   return ORATS_TICKER_MAP[ticker] || ticker;
 }

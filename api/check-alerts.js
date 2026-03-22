@@ -9,6 +9,7 @@
  */
 
 import { generateOCCSymbol, findOptionMid } from '../lib/_shared/utils.js';
+import { DATA_SOURCE } from '../lib/_shared/config.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -98,7 +99,7 @@ export default async function handler(req, res) {
 
     // Fetch option chains once per unique ticker
     const uniqueTickers = [...new Set(positions.map(p => (p.ticker || '').toUpperCase()).filter(Boolean))];
-    const dataSource = (process.env.DATA_SOURCE || 'CBOE').trim().toUpperCase();
+    const dataSource = DATA_SOURCE;
     const optionChains = {};
 
     if (dataSource === 'POLYGON' || dataSource === 'ORATS') {

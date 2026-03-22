@@ -404,6 +404,7 @@ export const BacktestPage: React.FC = () => {
     }, []);
 
     const { oosSharpe, oosWinRate, oosMaxDD, oosTotalPnl, wfEfficiency, allOOSTrades, config } = activeData;
+    const dataAsOf = config.endDate;
     const roc = oosTotalPnl / config.startingCapital * 100;
     const exitBreakdown = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -433,6 +434,7 @@ export const BacktestPage: React.FC = () => {
                 <div className="text-right text-[11px] text-text-tertiary font-mono space-y-0.5">
                     <div>Train {config.trainWindowDays}d · OOS {config.forwardStepDays}d · Purge {config.purgeGapDays}d</div>
                     <div>{activeData.windows.length} windows · $100K start{isV2 ? ` · ${activeV2.totalEvaluations} GA trials` : ''}</div>
+                    <div>Static analysis · Data as of {dataAsOf}</div>
                 </div>
             </div>
 

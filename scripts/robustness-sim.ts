@@ -56,7 +56,7 @@ const DATA_END   = '2026-02-28';
 const ALL_TICKERS = [
   'SPY', 'QQQ', 'AMD', 'IWM', 'TSLA',
   'AAPL', 'JPM', 'NVDA', 'AMZN', 'MSFT',
-  'META', 'NFLX', 'GOOG', 'GS', 'COST',
+  'META', 'NFLX', 'GOOGL', 'GS', 'COST',
 ];
 
 const NUM_WORKERS = Math.min(os.cpus().length - 2, 20);

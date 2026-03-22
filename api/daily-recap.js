@@ -8,6 +8,8 @@
  *   CRON_SECRET, DISCORD_WEBHOOK_URL, SUPABASE_URL, SUPABASE_ANON_KEY
  */
 
+import { DATA_SOURCE } from '../lib/_shared/config.js';
+
 function sendJson(res, status, obj) {
   try {
     const body = JSON.stringify(obj);
@@ -94,7 +96,7 @@ export default async function handler(req, res) {
 
     // --- Fetch option chains once per unique ticker ---
     const uniqueTickers = [...new Set(positions.map(function (p) { return (p.ticker || '').toUpperCase(); }).filter(Boolean))];
-    const dataSource = (process.env.DATA_SOURCE || 'CBOE').trim().toUpperCase();
+    const dataSource = DATA_SOURCE;
     const optionChains = {};
 
     if (dataSource === 'POLYGON' || dataSource === 'ORATS') {

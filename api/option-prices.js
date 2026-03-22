@@ -4,6 +4,7 @@
 
 import { generateOCCSymbol, normalizeExpiration } from '../lib/_shared/utils.js';
 import { bsmDelta as _bsmDelta } from '../lib/_shared/bsm-util.js';
+import { DATA_SOURCE } from '../lib/_shared/config.js';
 
 /**
  * Validate market Greeks against BSM. Returns a (possibly corrected) Greeks object.
@@ -87,7 +88,7 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const dataSource = (process.env.DATA_SOURCE || 'CBOE').trim().toUpperCase();
+    const dataSource = DATA_SOURCE;
 
     // 1. Determine Legs (Single vs Bulk)
     let legs = [];

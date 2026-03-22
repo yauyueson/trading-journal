@@ -81,7 +81,7 @@ export default async function handler(req, res) {
                     `select=date,open,high,low,close,volume&ticker=eq.${pos.ticker}&timeframe=eq.1D&date=gte.${entryDate}&date=lte.${exitDate}&order=date.asc`
                 );
                 if (!candles || candles.length < 2) {
-                    console.warn(`[trade-outcomes] ${pos.ticker}: insufficient candles (${candles?.length || 0})`);
+                    console.warn(`[trade-outcomes] ${pos.ticker}: insufficient candles (${candles?.length || 0}) for ${entryDate}→${exitDate} — ensure cron-signal-scan has populated stock_candles`);
                     continue;
                 }
 
@@ -119,8 +119,9 @@ export default async function handler(req, res) {
             await supabaseUpsert('trade_outcomes', results, 'position_id');
         }
 
-        console.log(`[trade-outcomes] Computed ${results.length} trade outcomes`);
-        return res.status(200).json({ computed: results.length });
+        const skipped = needsCompute.length - results.length;
+        console.log(`[trade-outcomes] Computed ${results.length} trade outcomes${skipped > 0 ? `, skipped ${skipped} (missing candles)` : ''}`);
+        return res.status(200).json({ computed: results.length, skipped: skipped > 0 ? skipped : undefined });
     } catch (err) {
         console.error('[trade-outcomes] Error:', err.message);
         return res.status(500).json({ error: err.message });

@@ -375,7 +375,7 @@ export const DEFAULT_WFA_V2_CONFIG: WFAv2Config = {
   endDate: '2026-02-28',
   holdoutDays: 126,
   tickers: [
-    'SPY', 'QQQ', 'GOOG', 'JPM', 'META', 'TSLA', 'MSFT', 'NFLX',
+    'SPY', 'QQQ', 'GOOGL', 'JPM', 'META', 'TSLA', 'MSFT', 'NFLX',
     'AAPL', 'NVDA', 'AMD', 'COST', 'AMZN', 'AVGO',
   ],
   startingCapital: 100_000,

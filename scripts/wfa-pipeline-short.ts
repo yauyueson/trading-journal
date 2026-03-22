@@ -84,7 +84,7 @@ export const SHORT_DEFAULTS = {
   tickers: [
     'SPY', 'QQQ', 'AMD', 'IWM', 'TSLA',
     'AAPL', 'JPM', 'NVDA', 'AMZN', 'MSFT',
-    'META', 'NFLX', 'GOOG', 'GS', 'COST',
+    'META', 'NFLX', 'GOOGL', 'GS', 'COST',
   ],
   dataStart: '2023-01-01',
   startDate: '2024-03-01',

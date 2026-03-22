@@ -77,7 +77,7 @@ export const SWING_DEFAULTS = {
   tickers: [
     'SPY', 'QQQ', 'AMD', 'IWM', 'TSLA',
     'AAPL', 'JPM', 'NVDA', 'AMZN', 'MSFT',
-    'META', 'NFLX', 'GOOG', 'GS',
+    'META', 'NFLX', 'GOOGL', 'GS',
   ],
   dataStart: '2017-01-01',
   startDate: '2018-01-01',

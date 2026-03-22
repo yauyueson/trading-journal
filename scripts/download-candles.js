@@ -17,7 +17,7 @@ import { createClient } from '@supabase/supabase-js';
 // ── Config ──────────────────────────────────────────────────────────────────────
 
 const DEFAULT_TICKERS = [
-    'SPY', 'QQQ', 'GOOG', 'JPM', 'META', 'TSLA', 'MSFT', 'NFLX',
+    'SPY', 'QQQ', 'GOOGL', 'JPM', 'META', 'TSLA', 'MSFT', 'NFLX',
     'AAPL', 'NVDA', 'AMD', 'COST', 'IREN', 'BA', 'AMZN', 'HOOD',
     'CRWV', 'COIN', 'MSTR', 'PLTR', 'AVGO', 'LULU', 'UBER', 'GS',
     'UNH', 'IWM', 'GLD',

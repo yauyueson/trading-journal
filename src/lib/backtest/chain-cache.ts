@@ -65,7 +65,7 @@ const ORATS_FIELDS = [
   'ticker', 'tradeDate', 'expirDate', 'dte', 'strike', 'stockPrice',
   'callBidPrice', 'callValue', 'callAskPrice',
   'putBidPrice', 'putValue', 'putAskPrice',
-  'callMidIv', 'putMidIv',
+  'callMidIv', 'putMidIv', 'callSmvVol', 'putSmvVol',
   'callVolume', 'putVolume', 'callOpenInterest', 'putOpenInterest',
   'delta', 'gamma', 'theta', 'vega',
 ].join(',');
@@ -222,13 +222,13 @@ function mapORATSRow(row: any): ChainRow {
     call_bid: row.callBidPrice ?? 0,
     call_mid: row.callValue ?? 0,
     call_ask: row.callAskPrice ?? 0,
-    call_iv: row.callMidIv ?? 0,
+    call_iv: row.callSmvVol ?? row.callMidIv ?? 0,  // prefer smoothed vol
     call_volume: row.callVolume ?? 0,
     call_oi: row.callOpenInterest ?? 0,
     put_bid: row.putBidPrice ?? 0,
     put_mid: row.putValue ?? 0,
     put_ask: row.putAskPrice ?? 0,
-    put_iv: row.putMidIv ?? 0,
+    put_iv: row.putSmvVol ?? row.putMidIv ?? 0,  // prefer smoothed vol
     put_volume: row.putVolume ?? 0,
     put_oi: row.putOpenInterest ?? 0,
     delta: row.delta ?? 0,

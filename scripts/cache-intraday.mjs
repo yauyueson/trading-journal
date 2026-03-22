@@ -23,7 +23,7 @@ import { getAggregates } from '../lib/polygon-client.js';
 
 const WFA_TICKERS = [
   'SPY', 'QQQ', 'AMD', 'IWM', 'TSLA', 'AAPL', 'JPM', 'NVDA',
-  'AMZN', 'MSFT', 'META', 'NFLX', 'GOOG', 'GS', 'COST',
+  'AMZN', 'MSFT', 'META', 'NFLX', 'GOOGL', 'GS', 'COST',
 ];
 
 function parseArgs() {
