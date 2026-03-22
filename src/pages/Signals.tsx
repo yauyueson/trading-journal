@@ -229,8 +229,9 @@ export const SignalsPage: React.FC = () => {
     ...settings.techScore.periods,
     ...(SIGNAL_PRESETS[presetKey] || SIGNAL_PRESETS.vol),
   };
+  const SHORT_TERM_PERIOD_MULT = 1.5;  // WFA v3 locked: pm1.5
   const techOptions: TechScoreOptions = activeBoard === 'shortTerm'
-    ? scaleIndicatorPeriods(1.5, baseTechOptions)
+    ? scaleIndicatorPeriods(SHORT_TERM_PERIOD_MULT, baseTechOptions)
     : baseTechOptions;
 
   // Seed scanner with full watchlist on mount
@@ -420,7 +421,7 @@ export const SignalsPage: React.FC = () => {
             Auto 5m
           </label>
           <button
-            onClick={() => { scanner.clearCache(); scanner.scan(techOptions); }}
+            onClick={() => { scanner.clearCache(); scanner.scan(techOptions, undefined, timeframe); }}
             disabled={scanner.loading}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded bg-accent-green/20 text-accent-green hover:bg-accent-green/30 disabled:opacity-50 transition-colors"
           >

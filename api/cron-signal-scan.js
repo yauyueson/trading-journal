@@ -85,8 +85,8 @@ async function topUpCandles(ticker, lastCachedDate) {
 // Runs here (not in cron-trade-outcomes) so alerts fire during market hours,
 // giving the user time to exit before the closing bell.
 
-async function checkTimeStopBreaches() {
-    const TIME_STOP_DTE = 3;  // WFA v3 lock
+async function checkTimeStopBreaches(timeStopDTE = 3) {
+    const TIME_STOP_DTE = timeStopDTE;
     const today = new Date().toISOString().split('T')[0];
 
     const active = await supabaseGet('positions',
@@ -325,7 +325,7 @@ export default async function handler(req, res) {
 
     // Time stop monitoring (WFA v3) — fires during market hours so user can act
     try {
-        const breached = await checkTimeStopBreaches();
+        const breached = await checkTimeStopBreaches(profile.timeStopDTE || 3);
         if (breached.length > 0) {
             console.log(`[signal-scan] ${breached.length} position(s) breached time stop (\u22643 DTE)`);
             await sendTimeStopAlert(breached);

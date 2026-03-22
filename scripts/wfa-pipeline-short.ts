@@ -677,6 +677,7 @@ export interface ShortPipelineResult {
 let intradayDb: any = null;
 
 export async function runShortPipeline(config: ShortPipelineConfig): Promise<ShortPipelineResult> {
+  const pipelineT0 = Date.now();
   console.log('WFA Unified — Short-Term Credit Spread Pipeline (4H)');
   console.log('─'.repeat(60));
 
@@ -823,7 +824,7 @@ export async function runShortPipeline(config: ShortPipelineConfig): Promise<Sho
           oosMaxDD: allPortfolioMetrics.maxDrawdownPct,
           oosTotalPnl: allOOSTrades.reduce((s, t) => s + t.pnl, 0),
           wfEfficiency: best.avgTrainSharpe >= 0.1 ? allPortfolioMetrics.sharpe / best.avgTrainSharpe : 0,
-          elapsedMs: Date.now(),
+          elapsedMs: Date.now() - pipelineT0,
         };
       } finally {
         await terminateWorkerPool(workers);
