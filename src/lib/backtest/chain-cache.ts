@@ -53,6 +53,7 @@ export interface SpreadMatch {
   short: StrikeMatch;
   long: StrikeMatch;
   netCredit: number;
+  requestedSpreadWidth?: number;
   spreadWidth: number;
   maxLoss: number;
 }
@@ -416,6 +417,7 @@ export function findSpreadStrikes(
     short: shortLeg,
     long: longMatch,
     netCredit,
+    requestedSpreadWidth: width,
     spreadWidth: actualWidth,
     maxLoss: actualWidth - netCredit,
   };

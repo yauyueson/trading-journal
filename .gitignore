@@ -18,4 +18,6 @@ data/*.json
 !data/wfa-v2-results-swing-noadx.json
 !data/wfa-v2-results-swing-seed43.json
 data/cache/
+data/runs/
+scripts/.*.mjs
 .worktrees/

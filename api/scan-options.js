@@ -48,7 +48,7 @@ export default async function handler(req, res) {
     const dteDefaults = activeProfile === 'shortTerm' ? { min: '5', max: '21' } : { min: '45', max: '65' };
     const deltaDefaults = activeProfile === 'shortTerm'
         ? { min: '0.25', max: '0.45' }
-        : { min: '0.28', max: '0.42' };
+        : { min: '0.30', max: '0.40' };  // WFA v3 lock: centered on 0.35
     const {
         ticker,
         strategy = 'long',

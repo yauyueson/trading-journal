@@ -1,0 +1,13 @@
+{
+  "name": "strict-execution-ensemble",
+  "description": "Top-3 ensemble with realistic execution: bidask fills, IV rank gate, moderate position limits",
+  "presets": ["ema", "mom", "em", "mf", "vol", "full", "mb", "adx"],
+  "sweepOverrides": {
+    "presets": ["ema", "mom", "em", "mf", "vol", "full", "mb", "adx"],
+    "profitTargets": [0.30, 0.40, 0.50],
+    "spreadWidths": [5, 15],
+    "ivRankMins": [30],
+    "deltaStops": [0.75, 0.80, 999999],
+    "timeStopDTEs": [7, 14]
+  }
+}

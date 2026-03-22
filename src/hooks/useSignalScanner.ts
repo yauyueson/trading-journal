@@ -22,6 +22,8 @@ interface CandleData {
   close: number;
 }
 
+export type ScanTimeframe = '1D' | '4H';
+
 export function useSignalScanner() {
   const [tickers, setTickers] = useState<string[]>(DEFAULT_TICKERS);
   const [signals, setSignals] = useState<SignalRow[]>([]);
@@ -32,24 +34,27 @@ export function useSignalScanner() {
   const candlesCacheRef = useRef<Map<string, CandleData[]>>(new Map());
   const abortRef = useRef(false);
 
-  const fetchCandles = useCallback(async (ticker: string): Promise<CandleData[]> => {
-    const cached = candlesCacheRef.current.get(ticker);
+  const fetchCandles = useCallback(async (ticker: string, timeframe: ScanTimeframe = '1D'): Promise<CandleData[]> => {
+    const cacheKey = `${ticker}:${timeframe}`;
+    const cached = candlesCacheRef.current.get(cacheKey);
     if (cached) return cached;
 
     const to = new Date().toISOString().slice(0, 10);
-    const from = new Date(Date.now() - 600 * 86400000).toISOString().slice(0, 10); // ~600 days back
-    const res = await fetch(`/api/backtest-data?type=candles&ticker=${encodeURIComponent(ticker)}&from=${from}&to=${to}&timeframe=1D`);
+    // 4H bars are denser (~2 per trading day), so fewer calendar days needed
+    const lookbackDays = timeframe === '4H' ? 300 : 600;
+    const from = new Date(Date.now() - lookbackDays * 86400000).toISOString().slice(0, 10);
+    const res = await fetch(`/api/backtest-data?type=candles&ticker=${encodeURIComponent(ticker)}&from=${from}&to=${to}&timeframe=${timeframe}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `HTTP ${res.status} for ${ticker}`);
     }
     const data = await res.json();
     const candles = data.candles as CandleData[];
-    candlesCacheRef.current.set(ticker, candles);
+    candlesCacheRef.current.set(cacheKey, candles);
     return candles;
   }, []);
 
-  const scanList = useCallback(async (tickerList: string[], options: TechScoreOptions | undefined, merge: boolean) => {
+  const scanList = useCallback(async (tickerList: string[], options: TechScoreOptions | undefined, merge: boolean, timeframe: ScanTimeframe = '1D') => {
     if (!tickerList.length) return;
     setLoading(true);
     setProgress(0);
@@ -68,7 +73,7 @@ export function useSignalScanner() {
       const ticker = tickerList[i];
       setProgress(Math.round((i / tickerList.length) * 100));
       try {
-        const candles = await fetchCandles(ticker);
+        const candles = await fetchCandles(ticker, timeframe);
         if (candles.length < 50) {
           failures.push({ ticker, reason: `Only ${candles.length} candles (need 50+)` });
           continue;
@@ -117,12 +122,12 @@ export function useSignalScanner() {
   }, [fetchCandles]);
 
   /** Scan all tickers. Pass explicit list to override current state (avoids stale closure). */
-  const scan = useCallback(async (options?: TechScoreOptions, tickerOverride?: string[]) => {
-    await scanList(tickerOverride ?? tickers, options, false);
+  const scan = useCallback(async (options?: TechScoreOptions, tickerOverride?: string[], timeframe: ScanTimeframe = '1D') => {
+    await scanList(tickerOverride ?? tickers, options, false, timeframe);
   }, [tickers, scanList]);
 
-  const scanAdditional = useCallback(async (newTickers: string[], options?: TechScoreOptions) => {
-    await scanList(newTickers, options, true);
+  const scanAdditional = useCallback(async (newTickers: string[], options?: TechScoreOptions, timeframe: ScanTimeframe = '1D') => {
+    await scanList(newTickers, options, true, timeframe);
   }, [scanList]);
 
   const stop = useCallback(() => {

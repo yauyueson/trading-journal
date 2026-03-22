@@ -266,6 +266,8 @@ export function runWFAv2(
       totalPnl: bestTrial.oosTotalPnl,
       wfEfficiency: bestTrial.wfEfficiency,
       equityCurve,
+      metricBasis: bestTrial.oosTrades.some(t => t.dailyMtM && t.dailyMtM.length > 0)
+        ? 'daily_portfolio' : 'trade_hold_legacy',
     },
     holdout,
     stats,
@@ -388,7 +390,7 @@ function evaluateAllWindows(
     oosMaxDD: oosAllAnalytics.maxDrawdown,
     oosTotalPnl: allOOSTrades.reduce((s, t) => s + t.pnl, 0),
     avgTrainSharpe,
-    wfEfficiency: avgTrainSharpe > 0 ? oosAllAnalytics.sharpe / avgTrainSharpe : 0,
+    wfEfficiency: avgTrainSharpe >= 0.1 ? oosAllAnalytics.sharpe / avgTrainSharpe : 0,
   };
 }
 

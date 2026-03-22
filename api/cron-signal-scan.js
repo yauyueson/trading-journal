@@ -81,6 +81,61 @@ async function topUpCandles(ticker, lastCachedDate) {
     }
 }
 
+// ── Time Stop Monitor (WFA v3) ──────────────────────────────────────────────────
+// Runs here (not in cron-trade-outcomes) so alerts fire during market hours,
+// giving the user time to exit before the closing bell.
+
+async function checkTimeStopBreaches() {
+    const TIME_STOP_DTE = 3;  // WFA v3 lock
+    const today = new Date().toISOString().split('T')[0];
+
+    const active = await supabaseGet('positions',
+        'select=id,ticker,expiration,type&status=eq.active&type=in.(Credit Put Spread,Credit Call Spread)');
+    if (!active || active.length === 0) return [];
+
+    const breached = [];
+    for (const pos of active) {
+        if (!pos.expiration) continue;
+        const expDate = new Date(pos.expiration + 'T16:00:00Z');
+        const todayDate = new Date(today + 'T16:00:00Z');
+        const daysToExp = Math.round((expDate - todayDate) / (1000 * 60 * 60 * 24));
+        if (daysToExp <= TIME_STOP_DTE) {
+            breached.push({ ...pos, daysToExp });
+        }
+    }
+    return breached;
+}
+
+async function sendTimeStopAlert(breached) {
+    const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+    if (!webhookUrl || breached.length === 0) return;
+
+    const fields = breached.map(p => ({
+        name: `${p.ticker} \u2014 ${p.daysToExp} DTE`,
+        value: `${p.type} exp ${p.expiration} \u2014 **close now** (time stop = 3 DTE)`,
+        inline: false,
+    }));
+
+    try {
+        await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                embeds: [{
+                    title: `\u23F0 Time Stop Alert \u2014 ${breached.length} position(s) at \u22643 DTE`,
+                    color: 0xff6600,
+                    fields,
+                    footer: { text: 'Trading Journal \u00b7 WFA v3 time stop monitor' },
+                    timestamp: new Date().toISOString(),
+                }]
+            }),
+            signal: AbortSignal.timeout(5000),
+        });
+    } catch (err) {
+        console.warn('[signal-scan] Time stop Discord failed:', err.message);
+    }
+}
+
 // ── Discord ─────────────────────────────────────────────────────────────────────
 
 async function sendDiscord(signals, totalScanned, date) {
@@ -116,7 +171,7 @@ async function sendDiscord(signals, totalScanned, date) {
                     title: `📡 Daily Signal Scan — ${date}`,
                     color: signals.length > 0 ? 0x3399ff : 0xaaaaaa,
                     fields,
-                    footer: { text: `Trading Journal · ${totalScanned} tickers scanned · ${signals.length} signals` },
+                    footer: { text: `Trading Journal · ${totalScanned} tickers scanned · ${signals.length} signals · slots open: check /portfolio` },
                     timestamp: new Date().toISOString(),
                 }]
             }),
@@ -145,10 +200,25 @@ export default async function handler(req, res) {
     const MIN_SCORE = profile.minScore || 70;
     const MIN_RVOL = profile.rvolGate || 0.5;
     const ADX_GATE = profile.adxGate;  // null = disabled
-    const IVR_MIN = profile.ivRankMin || 20;
-    const MIN_DIR_CONF = profile.minDirConfidence || 50;
+    const IVR_MIN = 0;  // WFA v3 lock: IV rank filter disabled (reduces over-filtering)
+    const MIN_DIR_CONF = Math.max(70, profile.minDirConfidence || 70);  // WFA v3 lock: dirConfTier=high
 
-    console.log(`[signal-scan] Starting daily scan for ${SCAN_TICKERS.length} tickers — ${today} (signal: ${profile.signalPreset}, adxGate: ${ADX_GATE ?? 'disabled'}, ivrMin: ${IVR_MIN})`);
+    // WFA v3: halt scan if portfolio at maxPositions capacity
+    const MAX_POSITIONS = profile.maxPositions || 5;
+    let activeCount = 0;
+    try {
+        const active = await supabaseGet('positions',
+            'select=id&status=eq.active&type=in.(Credit Put Spread,Credit Call Spread)');
+        activeCount = active?.length || 0;
+    } catch (_) {}
+
+    if (activeCount >= MAX_POSITIONS) {
+        console.log(`[signal-scan] Portfolio at capacity (${activeCount}/${MAX_POSITIONS}) — skipping scan`);
+        await sendDiscord([], 0, today);
+        return res.status(200).json({ ok: true, date: today, scanned: 0, signals: [], skipped: 'at_capacity' });
+    }
+
+    console.log(`[signal-scan] Starting daily scan for ${SCAN_TICKERS.length} tickers — ${today} (signal: ${profile.signalPreset}, adxGate: ${ADX_GATE ?? 'disabled'}, ivrMin: ${IVR_MIN}, slots: ${MAX_POSITIONS - activeCount}/${MAX_POSITIONS})`);
 
     const signals = [];
     const errors = [];
@@ -252,6 +322,17 @@ export default async function handler(req, res) {
 
     // Send Discord
     await sendDiscord(signals, scanned, today);
+
+    // Time stop monitoring (WFA v3) — fires during market hours so user can act
+    try {
+        const breached = await checkTimeStopBreaches();
+        if (breached.length > 0) {
+            console.log(`[signal-scan] ${breached.length} position(s) breached time stop (\u22643 DTE)`);
+            await sendTimeStopAlert(breached);
+        }
+    } catch (tsErr) {
+        console.warn('[signal-scan] Time stop check failed:', tsErr.message);
+    }
 
     console.log(`[signal-scan] Done: ${scanned} scanned, ${signals.length} signals, ${errors.length} errors`);
 

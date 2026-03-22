@@ -15,12 +15,12 @@ import { DEFAULT_APP_SETTINGS } from '../src/lib/types/settings';
 // PRE-01: ivRankMin values
 // ---------------------------------------------------------------------------
 describe('PRE-01 — strategyProfiles ivRankMin', () => {
-  it('shortTerm.ivRankMin should be 50 (WFA v2 validated)', () => {
-    expect(STRATEGY_PROFILES.shortTerm.ivRankMin).toBe(50);
+  it('shortTerm.ivRankMin should be 0 (WFA v3 locked — IV rank filter disabled)', () => {
+    expect(STRATEGY_PROFILES.shortTerm.ivRankMin).toBe(0);
   });
 
-  it('swing.ivRankMin should be 20 (WFA v2 validated)', () => {
-    expect(STRATEGY_PROFILES.swing.ivRankMin).toBe(20);
+  it('swing.ivRankMin should be 0 (WFA v3 locked — IV rank filter disabled)', () => {
+    expect(STRATEGY_PROFILES.swing.ivRankMin).toBe(0);
   });
 
   it('STRATEGY_PROFILES.swing has all expected StrategyProfile fields', () => {
@@ -63,16 +63,24 @@ describe('PRE-02 — API param naming', () => {
 });
 
 // ---------------------------------------------------------------------------
-// PRE-03: creditSpread removed from AppSettings type and DEFAULT_APP_SETTINGS
+// PRE-03: creditSpread present in AppSettings type and DEFAULT_APP_SETTINGS
 // ---------------------------------------------------------------------------
-describe('PRE-03 — creditSpread removed from settings', () => {
-  it('DEFAULT_APP_SETTINGS should NOT have a creditSpread property', () => {
-    expect(DEFAULT_APP_SETTINGS).not.toHaveProperty('creditSpread');
+describe('PRE-03 — creditSpread in settings', () => {
+  it('DEFAULT_APP_SETTINGS should have a creditSpread property with swing and shortTerm', () => {
+    expect(DEFAULT_APP_SETTINGS).toHaveProperty('creditSpread');
+    expect(DEFAULT_APP_SETTINGS.creditSpread).toHaveProperty('swing');
+    expect(DEFAULT_APP_SETTINGS.creditSpread).toHaveProperty('shortTerm');
   });
 
-  it('DEFAULT_APP_SETTINGS has expected top-level keys (portfolio, techScore, strategy)', () => {
+  it('creditSpread.swing.defaultWidth is 20 and ivRankMin is 0 (WFA v3 locked)', () => {
+    expect(DEFAULT_APP_SETTINGS.creditSpread!.swing.defaultWidth).toBe(20);
+    expect(DEFAULT_APP_SETTINGS.creditSpread!.swing.ivRankMin).toBe(0);
+  });
+
+  it('DEFAULT_APP_SETTINGS has expected top-level keys', () => {
     expect(DEFAULT_APP_SETTINGS).toHaveProperty('portfolio');
     expect(DEFAULT_APP_SETTINGS).toHaveProperty('techScore');
     expect(DEFAULT_APP_SETTINGS).toHaveProperty('strategy');
+    expect(DEFAULT_APP_SETTINGS).toHaveProperty('creditSpread');
   });
 });

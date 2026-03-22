@@ -38,6 +38,7 @@ const mockSpread: SpreadMatch = {
     type: 'Put', bid: 1.35, ask: 1.65, mid: 1.50, iv: 0.20, delta: -0.20, volume: 200, oi: 1500,
   },
   netCredit: 1.00,       // mid - mid
+  requestedSpreadWidth: 10,
   spreadWidth: 10,
   maxLoss: 9.00,
 };
@@ -45,9 +46,9 @@ const mockSpread: SpreadMatch = {
 describe('Credit Spread Bid/Ask Entry', () => {
   function computeRealisticCredit(spread: SpreadMatch, cfg: typeof DEFAULT_DYNAMIC_SLIPPAGE): number {
     const shortFill = applyFill('bidask', spread.short.mid, spread.short.bid,
-      spread.short.ask, 'sell', cfg, spread.short.oi, spread.short.row.dte);
+      spread.short.ask, 'sell', { ...cfg, executionStyle: 'legged' }, spread.short.oi, spread.short.row.dte);
     const longFill = applyFill('bidask', spread.long.mid, spread.long.bid,
-      spread.long.ask, 'buy', cfg, spread.long.oi, spread.long.row.dte);
+      spread.long.ask, 'buy', { ...cfg, executionStyle: 'legged' }, spread.long.oi, spread.long.row.dte);
     return shortFill.fillPrice - longFill.fillPrice;
   }
 
@@ -70,6 +71,11 @@ describe('Credit Spread Bid/Ask Entry', () => {
     const naturalCredit = mockSpread.short.bid - mockSpread.long.ask;
     expect(naturalCredit).toBeCloseTo(0.70, 2);
     expect(mockSpread.netCredit - naturalCredit).toBeCloseTo(0.30, 2);
+  });
+
+  it('requested spread width is preserved alongside realized width', () => {
+    expect(mockSpread.requestedSpreadWidth).toBe(10);
+    expect(mockSpread.spreadWidth).toBe(10);
   });
 });
 

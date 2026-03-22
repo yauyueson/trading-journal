@@ -33,6 +33,24 @@ export interface TechScoreSettings {
   periods: TechScorePeriods;
 }
 
+export interface CreditSpreadConfig {
+  signalPreset: string;
+  defaultDelta: number;
+  defaultWidth: number;
+  dteMin: number;
+  dteMax: number;
+  dtePeak: number;
+  profitTarget: number;
+  ivRankMin: number;
+  timeStopDTE: number;
+  maxPositions: number;
+  maxPerTicker: number;
+  adxGate: number | null;
+  rvolGate: number;
+  minScore: number;
+  minDirConfidence: number;
+}
+
 export interface StrategySettings {
   tpAtr: number;
   slAtr: number;
@@ -46,6 +64,10 @@ export interface AppSettings {
   portfolio: PortfolioSettings;
   techScore: TechScoreSettings;
   strategy: StrategySettings;
+  creditSpread?: {
+    swing: CreditSpreadConfig;
+    shortTerm: CreditSpreadConfig;
+  };
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -75,6 +97,42 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     thetaDecayRate: 0.03,
     deployedAt: '',
     source: 'manual',
+  },
+  creditSpread: {
+    swing: {
+      signalPreset: 'vol',
+      defaultDelta: 0.35,
+      defaultWidth: 20,
+      dteMin: 45,
+      dteMax: 65,
+      dtePeak: 55,
+      profitTarget: 0.40,
+      ivRankMin: 0,
+      timeStopDTE: 3,
+      maxPositions: 5,
+      maxPerTicker: 3,
+      adxGate: null,
+      rvolGate: 0.5,
+      minScore: 70,
+      minDirConfidence: 70,
+    },
+    shortTerm: {
+      signalPreset: 'vol',
+      defaultDelta: 0.35,
+      defaultWidth: 5,
+      dteMin: 7,
+      dteMax: 21,
+      dtePeak: 14,
+      profitTarget: 0.30,
+      ivRankMin: 0,
+      timeStopDTE: 1,
+      maxPositions: 5,
+      maxPerTicker: 2,
+      adxGate: null,
+      rvolGate: 0.5,
+      minScore: 70,
+      minDirConfidence: 0,
+    },
   },
 };
 

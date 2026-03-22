@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Radio, RefreshCw, X, Clock, ChevronDown, ChevronRight, Flame, TrendingUp } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { useSignalScanner } from '../hooks/useSignalScanner';
+import { useSignalScanner, type ScanTimeframe } from '../hooks/useSignalScanner';
 import { useSignalHistory, type SignalHistoryRow } from '../hooks/useSignalHistory';
+import { scaleIndicatorPeriods } from '../lib/backtest/intraday-signals';
 import { usePositions } from '../hooks/usePositions';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { STRATEGY_PROFILES } from '../lib/strategyProfiles';
@@ -211,21 +212,26 @@ export const SignalsPage: React.FC = () => {
   const hasSeededWatchlist = useRef(false);
   const [tab, setTab] = useState<'dashboard' | 'history'>('dashboard');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [activeBoard, setActiveBoard] = useState<'swing' | 'shortTerm'>('swing');
 
-  // Dynamic config — falls back to STRATEGY_PROFILES defaults
-  const swingConfig = getConfigProfile(stratConfig, 'swing');
-  const MIN_SCORE = swingConfig.minScore;
-  const MIN_IV = swingConfig.ivRankMin / 100;   // config is percentage (20), display needs decimal (0.20)
-  const ADX_GATE = swingConfig.adxGate;          // null = disabled
-  const MIN_RVOL = swingConfig.rvolGate;
-  const MIN_DIR_CONF = swingConfig.minDirConfidence;
+  // Dynamic config — reads from active board's profile
+  const activeConfig = getConfigProfile(stratConfig, activeBoard);
+  const MIN_SCORE = activeConfig.minScore;
+  const MIN_IV = activeConfig.ivRankMin / 100;   // config is percentage (20), display needs decimal (0.20)
+  const ADX_GATE = activeConfig.adxGate;          // null = disabled
+  const MIN_RVOL = activeConfig.rvolGate;
+  const MIN_DIR_CONF = activeConfig.minDirConfidence;
 
-  // Signal preset weights from config
-  const presetKey = swingConfig.signalPreset;
-  const techOptions: TechScoreOptions = {
+  // Signal preset weights from active config, with period scaling for 4H
+  const presetKey = activeConfig.signalPreset;
+  const timeframe: ScanTimeframe = activeBoard === 'shortTerm' ? '4H' : '1D';
+  const baseTechOptions: TechScoreOptions = {
     ...settings.techScore.periods,
     ...(SIGNAL_PRESETS[presetKey] || SIGNAL_PRESETS.vol),
   };
+  const techOptions: TechScoreOptions = activeBoard === 'shortTerm'
+    ? scaleIndicatorPeriods(1.5, baseTechOptions)
+    : baseTechOptions;
 
   // Seed scanner with full watchlist on mount
   useEffect(() => {
@@ -240,7 +246,7 @@ export const SignalsPage: React.FC = () => {
     )];
     const merged = [...new Set([...WATCHLIST, ...watchlistTickers])];
     scanner.setTickers(merged);
-    scanner.scan(techOptions, merged);
+    scanner.scan(techOptions, merged, timeframe);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [positions]);
 
@@ -249,11 +255,19 @@ export const SignalsPage: React.FC = () => {
     if (!autoRefresh) return;
     const id = setInterval(() => {
       scanner.clearCache();
-      scanner.scan(techOptions);
+      scanner.scan(techOptions, undefined, timeframe);
     }, 5 * 60 * 1000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefresh]);
+  }, [autoRefresh, timeframe]);
+
+  // Re-scan when board changes
+  useEffect(() => {
+    if (!hasSeededWatchlist.current) return; // don't scan before initial seed
+    scanner.clearCache();
+    scanner.scan(techOptions, undefined, timeframe);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBoard]);
 
   // Fetch enrichment data
   const { data: ivMap } = useWatchlistIV(scanner.tickers);
@@ -345,7 +359,7 @@ export const SignalsPage: React.FC = () => {
       .filter(t => t && !scanner.tickers.includes(t));
     if (newTickers.length) {
       scanner.setTickers([...scanner.tickers, ...newTickers]);
-      scanner.scanAdditional(newTickers, techOptions);
+      scanner.scanAdditional(newTickers, techOptions, timeframe);
     }
     setTickerInput('');
   };
@@ -356,14 +370,39 @@ export const SignalsPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 pb-24 sm:pb-6">
+      {/* Board Toggle */}
+      <div className="flex items-center gap-1 mb-4 bg-[#111] border border-[#333] rounded-lg p-1 w-fit">
+        <button
+          onClick={() => setActiveBoard('swing')}
+          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+            activeBoard === 'swing'
+              ? 'bg-green-500/20 text-green-400'
+              : 'text-text-tertiary hover:text-text-secondary'
+          }`}
+        >
+          Swing (1D)
+        </button>
+        <button
+          onClick={() => setActiveBoard('shortTerm')}
+          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+            activeBoard === 'shortTerm'
+              ? 'bg-blue-500/20 text-blue-400'
+              : 'text-text-tertiary hover:text-text-secondary'
+          }`}
+        >
+          Short-Term (4H)
+        </button>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <Radio size={24} className="text-accent-green" />
+          <Radio size={24} className={activeBoard === 'swing' ? 'text-accent-green' : 'text-blue-400'} />
           <div>
             <h1 className="text-xl font-semibold">Signal Dashboard</h1>
             <p className="text-xs text-text-tertiary">
-              {presetKey.toUpperCase()} signal {'\u2022'} IV {'\u2265'} {swingConfig.ivRankMin}%
+              {presetKey.toUpperCase()} signal {activeBoard === 'shortTerm' ? '(4H \u00d7 1.5)' : '(1D)'}
+              {' \u2022'} IV {'\u2265'} {activeConfig.ivRankMin}%
               {ADX_GATE != null ? ` \u2022 ADX \u2265 ${ADX_GATE}` : ''}
               {' \u2022'} RVOL {'\u2265'} {MIN_RVOL}
             </p>
@@ -510,7 +549,7 @@ export const SignalsPage: React.FC = () => {
                     {isExpanded && (
                       <tr className="border-b border-white/5">
                         <td colSpan={11} className="px-4 py-3 bg-white/[0.02]">
-                          <DashboardDetailPanel row={row} minScore={MIN_SCORE} minIV={MIN_IV} adxGate={ADX_GATE} minRvol={MIN_RVOL} minDirConf={MIN_DIR_CONF} signalLabel={presetKey.toUpperCase()} />
+                          <DashboardDetailPanel row={row} minScore={MIN_SCORE} minIV={MIN_IV} adxGate={ADX_GATE} minRvol={MIN_RVOL} minDirConf={MIN_DIR_CONF} signalLabel={presetKey.toUpperCase()} activeBoard={activeBoard} />
                         </td>
                       </tr>
                     )}
@@ -663,10 +702,9 @@ const DashboardRowView: React.FC<{
 
 // ── Dashboard Detail Panel ────────────────────────────────
 
-const DashboardDetailPanel: React.FC<{ row: DashboardRow; minScore: number; minIV: number; adxGate: number | null; minRvol: number; minDirConf: number; signalLabel: string }> = ({ row, minScore, minIV, adxGate, minRvol, minDirConf, signalLabel }) => {
+const DashboardDetailPanel: React.FC<{ row: DashboardRow; minScore: number; minIV: number; adxGate: number | null; minRvol: number; minDirConf: number; signalLabel: string; activeBoard: 'swing' | 'shortTerm' }> = ({ row, minScore, minIV, adxGate, minRvol, minDirConf, signalLabel, activeBoard }) => {
   const navigate = useNavigate();
-  const swing = STRATEGY_PROFILES.swing;
-  const shortTerm = STRATEGY_PROFILES.shortTerm;
+  const profile = STRATEGY_PROFILES[activeBoard];
   const isGo = row.status === 'GO';
   const dir = row.direction === 'CALL' ? 'BULL' : 'BEAR';
   const spreadType = row.direction === 'CALL' ? 'Bull Put Spread' : 'Bear Call Spread';
@@ -687,31 +725,19 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow; minScore: number; minI
         </div>
       </div>
 
-      {/* Dual-strategy GO cards */}
+      {/* Strategy GO card */}
       {isGo && row.streak > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Swing card */}
-          <div className="bg-green-500/5 border border-green-500/20 rounded-lg px-4 py-3">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-green-400 font-semibold text-sm">{spreadType}</span>
-              <span className="inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded bg-green-500/15 text-green-400">Swing</span>
-            </div>
-            <div className="text-xs text-text-secondary mb-2">{swing.subtitle}</div>
-            <span className="text-[10px] text-text-tertiary">
-              Signal active {row.streak}d (since {row.firstFired})
+        <div className={`${activeBoard === 'swing' ? 'bg-green-500/5 border-green-500/20' : 'bg-blue-500/5 border-blue-500/20'} border rounded-lg px-4 py-3`}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`${activeBoard === 'swing' ? 'text-green-400' : 'text-blue-400'} font-semibold text-sm`}>{spreadType}</span>
+            <span className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded ${activeBoard === 'swing' ? 'bg-green-500/15 text-green-400' : 'bg-blue-500/15 text-blue-400'}`}>
+              {activeBoard === 'swing' ? 'Swing' : 'ST'}
             </span>
           </div>
-          {/* Short-Term card */}
-          <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg px-4 py-3">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-blue-400 font-semibold text-sm">{spreadType}</span>
-              <span className="inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-500/15 text-blue-400">ST</span>
-            </div>
-            <div className="text-xs text-text-secondary mb-2">{shortTerm.subtitle}</div>
-            <span className="text-[10px] text-text-tertiary">
-              Signal active {row.streak}d (since {row.firstFired})
-            </span>
-          </div>
+          <div className="text-xs text-text-secondary mb-2">{profile.subtitle}</div>
+          <span className="text-[10px] text-text-tertiary">
+            Signal active {row.streak}d (since {row.firstFired})
+          </span>
         </div>
       )}
 
@@ -733,39 +759,33 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow; minScore: number; minI
         </div>
       )}
 
-      {/* Dual Build Spread CTAs */}
+      {/* Build Spread CTA */}
       {row.status === 'GO' && (
-        <div className="mt-3 pt-3 border-t border-white/10 flex flex-col sm:flex-row gap-2">
+        <div className="mt-3 pt-3 border-t border-white/10">
           {(() => {
-            const buildParams = (strategyParam: string) => {
-              const p = new URLSearchParams({
-                ticker: row.ticker,
-                direction: dir,
-                strategy: strategyParam,
-                score: String(Math.round(row.score)),
-                streak: String(row.streak),
-                signalType: signalLabel,
-                adx: String(row.adx.toFixed(1)),
-                rvol: String(row.rvol.toFixed(2)),
-              });
-              if (row.iv30 != null) p.set('iv30d', String(row.iv30.toFixed(4)));
-              return p.toString();
-            };
+            const p = new URLSearchParams({
+              ticker: row.ticker,
+              direction: dir,
+              strategy: activeBoard,
+              score: String(Math.round(row.score)),
+              streak: String(row.streak),
+              signalType: signalLabel,
+              adx: String(row.adx.toFixed(1)),
+              rvol: String(row.rvol.toFixed(2)),
+            });
+            if (row.iv30 != null) p.set('iv30d', String(row.iv30.toFixed(4)));
+            const isSwing = activeBoard === 'swing';
             return (
-              <>
-                <button
-                  onClick={e => { e.stopPropagation(); navigate(`/selector?${buildParams('swing')}`); }}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors"
-                >
-                  Build Swing Spread →
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); navigate(`/selector?${buildParams('shortTerm')}`); }}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors"
-                >
-                  Build Short-Term Spread →
-                </button>
-              </>
+              <button
+                onClick={e => { e.stopPropagation(); navigate(`/selector?${p.toString()}`); }}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                  isSwing
+                    ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                    : 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                }`}
+              >
+                Build {isSwing ? 'Swing' : 'Short-Term'} Spread →
+              </button>
             );
           })()}
         </div>

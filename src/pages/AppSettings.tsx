@@ -3,7 +3,8 @@ import React, { useState } from 'react';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { AppSettings, DEFAULT_APP_SETTINGS, PORTFOLIO_BOUNDS } from '../lib/types/settings';
 import { formatCurrency } from '../lib/utils';
-import { useStrategyConfig, getConfigProfile } from '../lib/strategyConfig';
+import { getDefaultCreditSpreadConfig } from '../lib/strategyConfig';
+import type { CreditSpreadConfig } from '../lib/types/settings';
 
 const { MIN_RISK_PCT, MAX_RISK_PCT, MIN_STOP_OUT_PCT, MAX_STOP_OUT_PCT } = PORTFOLIO_BOUNDS;
 
@@ -189,8 +190,8 @@ export const AppSettingsPage: React.FC = () => {
           </div>
         </div>
       </section>
-      {/* Credit Spread Strategy — WFA-Validated Info Card */}
-      <StrategyConfigSection />
+      {/* Credit Spread Strategy — Editable */}
+      <CreditSpreadSection draft={draft} setDraft={setDraft} />
       {/* Save Button */}
       <div className="sticky bottom-20 sm:bottom-0 sm:static pt-4 bg-bg-primary sm:bg-transparent">
         <button
@@ -212,47 +213,185 @@ export const AppSettingsPage: React.FC = () => {
   );
 };
 
-const StrategyConfigSection: React.FC = () => {
-  const { data: stratConfig } = useStrategyConfig();
+const SIGNAL_OPTIONS = ['vol', 'ema', 'mom', 'em'] as const;
+
+const CreditSpreadSection: React.FC<{
+  draft: AppSettings;
+  setDraft: React.Dispatch<React.SetStateAction<AppSettings>>;
+}> = ({ draft, setDraft }) => {
+  const cs = draft.creditSpread ?? DEFAULT_APP_SETTINGS.creditSpread!;
+
+  const setProfile = (key: 'swing' | 'shortTerm', patch: Partial<CreditSpreadConfig>) =>
+    setDraft(d => ({
+      ...d,
+      creditSpread: {
+        ...(d.creditSpread ?? DEFAULT_APP_SETTINGS.creditSpread!),
+        [key]: { ...(d.creditSpread ?? DEFAULT_APP_SETTINGS.creditSpread!)[key], ...patch },
+      },
+    }));
+
+  const resetProfile = (key: 'swing' | 'shortTerm') =>
+    setDraft(d => ({
+      ...d,
+      creditSpread: {
+        ...(d.creditSpread ?? DEFAULT_APP_SETTINGS.creditSpread!),
+        [key]: getDefaultCreditSpreadConfig()[key],
+      },
+    }));
+
+  const inputCls = 'w-full px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green';
 
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Credit Spread Strategy (WFA-Validated)</h2>
-        <p className="text-xs text-gray-500 mt-1">
-          Parameters loaded from runtime config.
-          {stratConfig && (
-            <> Source: <span className="text-gray-400 font-mono">{stratConfig.source}</span> (v{stratConfig.version})</>
-          )}
-        </p>
+        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Credit Spread Strategy</h2>
+        <p className="text-xs text-gray-500 mt-1">WFA-validated parameters. Changes persist to Supabase and take effect immediately.</p>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {(['swing', 'shortTerm'] as const).map((key) => {
-          const p = getConfigProfile(stratConfig, key);
-          const label = key === 'swing' ? 'Swing (45-65 DTE)' : 'Short DTE (7-21 DTE)';
+          const p = cs[key];
+          const label = key === 'swing' ? 'Swing' : 'Short DTE';
+          const isLocked = true;  // WFA v3: both swing and short-term params are locked
+          const lockCls = isLocked ? ' opacity-60 cursor-not-allowed' : '';
           return (
-            <div key={key} className="bg-[#111] border border-[#333] rounded-lg p-4 space-y-2">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-semibold text-white">{label}</span>
-                <span className="text-xs text-gray-500 font-mono">{p.signalPreset.toUpperCase()}</span>
+            <div key={key} className="bg-[#111] border border-[#333] rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-white">{label}{isLocked && <span className="ml-2 text-xs text-amber-500 font-normal">WFA v3 locked</span>}</span>
+                <button
+                  onClick={() => resetProfile(key)}
+                  className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  Reset WFA defaults
+                </button>
               </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                <div className="text-gray-400">DTE Range</div>
-                <div className="text-gray-200 font-mono">{p.dteMin}–{p.dteMax}d (peak {p.dtePeak})</div>
-                <div className="text-gray-400">Delta</div>
-                <div className="text-gray-200 font-mono">{p.defaultDelta}</div>
-                <div className="text-gray-400">Width</div>
-                <div className="text-gray-200 font-mono">${p.defaultWidth}</div>
-                <div className="text-gray-400">Take Profit</div>
-                <div className="text-gray-200 font-mono">{(p.profitTarget * 100).toFixed(0)}%</div>
-                <div className="text-gray-400">IV Rank Min</div>
-                <div className="text-gray-200 font-mono">{p.ivRankMin}%</div>
-                <div className="text-gray-400">ADX Gate</div>
-                <div className="text-gray-200 font-mono">{p.adxGate != null ? `\u2265 ${p.adxGate}` : 'Disabled'}</div>
-                <div className="text-gray-400">RVOL Gate</div>
-                <div className="text-gray-200 font-mono">{`\u2265 ${p.rvolGate}`}</div>
-                <div className="text-gray-400">Max Positions</div>
-                <div className="text-gray-200 font-mono">{p.maxPositions}</div>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                {/* Signal Preset */}
+                <div className="col-span-2">
+                  <label className="text-gray-500 mb-1 block">Signal Preset</label>
+                  <select
+                    value={p.signalPreset}
+                    onChange={e => setProfile(key, { signalPreset: e.target.value })}
+                    className={inputCls}
+                  >
+                    {SIGNAL_OPTIONS.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+                  </select>
+                </div>
+                {/* Delta */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">Delta</label>
+                  <input type="number" min={0.1} max={0.5} step={0.01} value={p.defaultDelta}
+                    onChange={e => setProfile(key, { defaultDelta: parseFloat(e.target.value) || 0.35 })}
+                    disabled={isLocked}
+                    className={inputCls + lockCls} />
+                </div>
+                {/* Width */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">Width ($)</label>
+                  <input type="number" min={1} max={50} step={1} value={p.defaultWidth}
+                    onChange={e => setProfile(key, { defaultWidth: parseFloat(e.target.value) || 1 })}
+                    disabled={isLocked}
+                    className={inputCls + lockCls} />
+                </div>
+                {/* DTE Min */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">DTE Min</label>
+                  <input type="number" min={1} max={120} step={1} value={p.dteMin}
+                    onChange={e => setProfile(key, { dteMin: parseInt(e.target.value) || 1 })}
+                    className={inputCls} />
+                </div>
+                {/* DTE Max */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">DTE Max</label>
+                  <input type="number" min={1} max={180} step={1} value={p.dteMax}
+                    onChange={e => setProfile(key, { dteMax: parseInt(e.target.value) || 1 })}
+                    className={inputCls} />
+                </div>
+                {/* DTE Peak */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">DTE Peak</label>
+                  <input type="number" min={1} max={120} step={1} value={p.dtePeak}
+                    onChange={e => setProfile(key, { dtePeak: parseInt(e.target.value) || 1 })}
+                    className={inputCls} />
+                </div>
+                {/* Take Profit */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">Take Profit (%)</label>
+                  <input type="number" min={5} max={90} step={5}
+                    value={Math.round(p.profitTarget * 100)}
+                    onChange={e => setProfile(key, { profitTarget: (parseInt(e.target.value) || 30) / 100 })}
+                    disabled={isLocked}
+                    className={inputCls + lockCls} />
+                </div>
+                {/* IV Rank Min */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">IV Rank Min (%)</label>
+                  <input type="number" min={0} max={100} step={5} value={p.ivRankMin}
+                    onChange={e => setProfile(key, { ivRankMin: parseInt(e.target.value) || 0 })}
+                    disabled={isLocked}
+                    className={inputCls + lockCls} />
+                </div>
+                {/* RVOL Gate */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">RVOL Gate</label>
+                  <input type="number" min={0} max={5} step={0.1} value={p.rvolGate}
+                    onChange={e => setProfile(key, { rvolGate: parseFloat(e.target.value) || 0 })}
+                    className={inputCls} />
+                </div>
+                {/* Min Score */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">Min Score</label>
+                  <input type="number" min={0} max={100} step={5} value={p.minScore}
+                    onChange={e => setProfile(key, { minScore: parseInt(e.target.value) || 0 })}
+                    className={inputCls} />
+                </div>
+                {/* Dir Confidence */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">Dir Confidence</label>
+                  <input type="number" min={0} max={100} step={5} value={p.minDirConfidence}
+                    onChange={e => setProfile(key, { minDirConfidence: parseInt(e.target.value) || 0 })}
+                    disabled={isLocked}
+                    className={inputCls + lockCls} />
+                </div>
+                {/* Time Stop DTE */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">Time Stop (DTE)</label>
+                  <input type="number" min={0} max={30} step={1} value={p.timeStopDTE}
+                    onChange={e => setProfile(key, { timeStopDTE: parseInt(e.target.value) || 0 })}
+                    disabled={isLocked}
+                    className={inputCls + lockCls} />
+                </div>
+                {/* Max Positions */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">Max Positions</label>
+                  <input type="number" min={1} max={20} step={1} value={p.maxPositions}
+                    onChange={e => setProfile(key, { maxPositions: parseInt(e.target.value) || 1 })}
+                    className={inputCls} />
+                </div>
+                {/* Max Per Ticker */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">Max / Ticker</label>
+                  <input type="number" min={1} max={10} step={1} value={p.maxPerTicker}
+                    onChange={e => setProfile(key, { maxPerTicker: parseInt(e.target.value) || 1 })}
+                    className={inputCls} />
+                </div>
+                {/* ADX Gate */}
+                <div>
+                  <label className="text-gray-500 mb-1 block">ADX Gate</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={p.adxGate != null}
+                      onChange={e => setProfile(key, { adxGate: e.target.checked ? 15 : null })}
+                      className="accent-accent-green"
+                    />
+                    {p.adxGate != null && (
+                      <input type="number" min={5} max={50} step={1} value={p.adxGate}
+                        onChange={e => setProfile(key, { adxGate: parseInt(e.target.value) || 15 })}
+                        className={inputCls + ' flex-1'} />
+                    )}
+                    {p.adxGate == null && <span className="text-gray-500">Disabled</span>}
+                  </div>
+                </div>
               </div>
             </div>
           );

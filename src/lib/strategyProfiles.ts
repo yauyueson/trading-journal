@@ -46,9 +46,9 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     defaultDelta: 0.35,
     spreadWidths: [5, 10, 15, 20],
     defaultWidth: 20,
-    profitTarget: 0.30,
-    ivRankMin: 20,
-    timeStopDTE: 5,
+    profitTarget: 0.40,
+    ivRankMin: 0,
+    timeStopDTE: 3,
     dteOptions: [
       { label: 'Short', val: 37, text: '30-45d' },
       { label: 'Optimal', val: 55, text: '45-65d' },
@@ -60,14 +60,14 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
       { label: '$15', val: 15 },
       { label: '$20', val: 20 },
     ],
-    subtitle: 'Delta 0.35 \u2022 DTE 45-65 \u2022 $20 width \u2022 TP 30% \u2022 No SL',
+    subtitle: 'Delta 0.35 \u2022 DTE 45-65 \u2022 $20 width \u2022 TP 40% \u2022 No SL',
     signalPreset: 'vol',
     maxPerTicker: 3,
     maxPositions: 5,
     adxGate: null,
     rvolGate: 0.5,
     minScore: 70,
-    minDirConfidence: 50,
+    minDirConfidence: 70,
   },
   shortTerm: {
     label: 'Short DTE (7-21 DTE)',
@@ -79,10 +79,10 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     deltaMin: 0.25,
     deltaMax: 0.40,
     defaultDelta: 0.35,
-    spreadWidths: [1, 2.5, 5],
-    defaultWidth: 1,
-    profitTarget: 0.35,
-    ivRankMin: 50,
+    spreadWidths: [2.5, 5, 7.5],
+    defaultWidth: 5,
+    profitTarget: 0.30,
+    ivRankMin: 0,
     timeStopDTE: 1,
     dteOptions: [
       { label: 'Weekly', val: 7, text: '5-10d' },
@@ -90,23 +90,33 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
       { label: 'Extended', val: 21, text: '14-28d' },
     ],
     widthOptions: [
-      { label: '$1', val: 1 },
       { label: '$2.5', val: 2.5 },
       { label: '$5', val: 5 },
+      { label: '$7.5', val: 7.5 },
     ],
-    subtitle: 'Delta 0.35 \u2022 DTE 7-21 \u2022 $1 width \u2022 TP 35% \u2022 No SL',
-    signalPreset: 'em',
-    maxPerTicker: 5,
+    subtitle: 'Delta 0.35 \u2022 DTE 7-21 \u2022 $5 width \u2022 TP 30% \u2022 No SL',
+    signalPreset: 'vol',
+    maxPerTicker: 2,
     maxPositions: 5,
-    adxGate: 15,
+    adxGate: null,
     rvolGate: 0.5,
     minScore: 70,
-    minDirConfidence: 40,
+    minDirConfidence: 0,
   },
 };
 
 export function getProfile(strategy: StrategyType): StrategyProfile {
   return STRATEGY_PROFILES[strategy];
+}
+
+/** Merge live config values (from Supabase) with UI metadata from STRATEGY_PROFILES */
+export function getMergedProfile(
+  strategy: StrategyType,
+  liveConfig?: { swing: Partial<StrategyProfile>; shortTerm: Partial<StrategyProfile> }
+): StrategyProfile {
+  const base = STRATEGY_PROFILES[strategy];
+  if (!liveConfig) return base;
+  return { ...base, ...liveConfig[strategy] };
 }
 
 /** Derive the strategy type from a selected DTE value */

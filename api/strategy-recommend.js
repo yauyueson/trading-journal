@@ -306,7 +306,7 @@ async function _loadStrategyDefaults() {
         swing: {
             dtePeak: config.profiles.swing.dtePeak,
             dteSigma: 15,
-            deltaRange: [0.28, 0.42],
+            deltaRange: [0.30, 0.40],  // WFA v3 lock: centered on 0.35
             defaultWidth: config.profiles.swing.defaultWidth,
             profitTarget: config.profiles.swing.profitTarget,
             ivRankMin: config.profiles.swing.ivRankMin,
@@ -1127,7 +1127,9 @@ export default async function handler(req, res) {
     const dteTarget = parseInt(targetDteStr) || 55;
 
     const widthStr = spreadWidth ? String(spreadWidth).replace(/[^0-9.]/g, '') : null;
-    const widthParam = widthStr ? parseFloat(widthStr) : strategyDefaults.defaultWidth;
+    const widthParamRaw = widthStr ? parseFloat(widthStr) : strategyDefaults.defaultWidth;
+    // WFA v3 lock: swing strategy always uses $20 width
+    const widthParam = activeStrategy === 'shortTerm' ? widthParamRaw : 20;
 
     try {
         await ensureScoring();
@@ -1526,21 +1528,25 @@ export default async function handler(req, res) {
         // Clamps are strategy-relative: shortTerm has smaller absolute values than swing.
         const baseDteMin = strategyDefaults.dtePeak * 0.5; // floor = half of strategy's peak
         const baseDteMax = strategyDefaults.dtePeak * 2;   // ceiling = 2x strategy's peak
-        if (entryCtx === 'OPTIMAL') {
-            dtePeak = Math.max(Math.round(baseDteMin), Math.round(dtePeak * 0.75));
-            deltaRange = [
-                Math.min(parseFloat((deltaRange[0] + 0.05).toFixed(2)), 0.65),
-                Math.min(parseFloat((deltaRange[1] + 0.05).toFixed(2)), 0.80)
-            ];
-            console.log(`[EntryContext] ${entryCtx}: dtePeak→${dtePeak}, deltaRange→[${deltaRange}]`);
-        } else if (entryCtx === 'CHASING') {
-            dtePeak = Math.min(Math.round(baseDteMax), Math.round(dtePeak * 1.25));
-            deltaRange = [
-                Math.max(parseFloat((deltaRange[0] - 0.05).toFixed(2)), deltaRange[0] * 0.6),
-                Math.max(parseFloat((deltaRange[1] - 0.10).toFixed(2)), deltaRange[1] * 0.7)
-            ];
-            console.log(`[EntryContext] ${entryCtx}: dtePeak→${dtePeak}, deltaRange→[${deltaRange}]`);
+        if (activeStrategy === 'shortTerm') {
+            // Entry context delta/DTE adjustments only for short-term strategy
+            if (entryCtx === 'OPTIMAL') {
+                dtePeak = Math.max(Math.round(baseDteMin), Math.round(dtePeak * 0.75));
+                deltaRange = [
+                    Math.min(parseFloat((deltaRange[0] + 0.05).toFixed(2)), 0.65),
+                    Math.min(parseFloat((deltaRange[1] + 0.05).toFixed(2)), 0.80)
+                ];
+                console.log(`[EntryContext] ${entryCtx}: dtePeak→${dtePeak}, deltaRange→[${deltaRange}]`);
+            } else if (entryCtx === 'CHASING') {
+                dtePeak = Math.min(Math.round(baseDteMax), Math.round(dtePeak * 1.25));
+                deltaRange = [
+                    Math.max(parseFloat((deltaRange[0] - 0.05).toFixed(2)), deltaRange[0] * 0.6),
+                    Math.max(parseFloat((deltaRange[1] - 0.10).toFixed(2)), deltaRange[1] * 0.7)
+                ];
+                console.log(`[EntryContext] ${entryCtx}: dtePeak→${dtePeak}, deltaRange→[${deltaRange}]`);
+            }
         }
+        // WFA v3 lock: swing delta range [0.30, 0.40] is never adjusted by entry context
 
         // Auto-detect overextended from d8:
         //   If d8 > 1.5% for BULL (price is >1.5% above EMA-8) it's a chase entry.

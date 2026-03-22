@@ -1,0 +1,17 @@
+{
+  "name": "production-sensitivity",
+  "description": "Sensitivity analysis around v2 optimal: width, delta, TP, timeStop variations with bidask fills",
+  "maxPositions": 5,
+  "maxPerTicker": 3,
+  "fillMode": "bidask",
+  "sweepOverrides": {
+    "presets": ["vol"],
+    "profitTargets": [0.30, 0.35, 0.40],
+    "spreadWidths": [5, 10, 15, 20],
+    "ivRankMins": [0],
+    "deltaStops": [999999],
+    "timeStopDTEs": [3, 5, 7],
+    "dirConfTiers": ["high"],
+    "creditShortDeltas": [0.30, 0.35]
+  }
+}

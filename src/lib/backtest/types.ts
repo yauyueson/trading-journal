@@ -79,10 +79,12 @@ export const DEFAULT_SLIPPAGE: SlippageConfig = {
 
 /** Dynamic slippage model — scales with spread width, OI, and DTE */
 export type FillMode = 'mid' | 'bidask';
+export type SpreadExecutionStyle = 'legged' | 'combo';
 
 export interface DynamicSlippageConfig {
   enabled: boolean;
   fillMode: FillMode;
+  executionStyle?: SpreadExecutionStyle;
   /**
    * Additional adverse fill beyond natural bid/ask.
    * Scales with: spread width (wider = more slippage),
@@ -90,6 +92,7 @@ export interface DynamicSlippageConfig {
    */
   baseImpactBps: number;       // minimum adverse impact in bps (default 2)
   oiHalfLife: number;          // OI at which impact doubles (default 500)
+  maxOiFactor?: number;        // cap on OI multiplier (default 6)
   dteAccelDays: number;        // DTE below which impact accelerates (default 7)
   dteAccelMultiplier: number;  // multiplier at DTE=0 (default 3.0)
 }
@@ -97,8 +100,10 @@ export interface DynamicSlippageConfig {
 export const DEFAULT_DYNAMIC_SLIPPAGE: DynamicSlippageConfig = {
   enabled: true,
   fillMode: 'bidask',
+  executionStyle: 'combo',
   baseImpactBps: 2,
   oiHalfLife: 500,
+  maxOiFactor: 6,
   dteAccelDays: 7,
   dteAccelMultiplier: 3.0,
 };
@@ -372,8 +377,15 @@ export interface BacktestAnalytics {
   avgMae: Record<number, number>;
   // Equity curve
   equityCurve: { date: string; cumReturn: number }[];
+  // Deprecated transitional field: legacy trade-hold Sharpe.
+  // Prefer `dailyPortfolioSharpe` when available, otherwise `tradeSharpeLegacy`.
   sharpe: number;
   maxDrawdown: number;
+  tradeSharpeLegacy: number;
+  dailyPortfolioSharpe?: number;
+  realizedExitDrawdownPct: number;
+  dailyMtMDrawdownPct?: number;
+  metricBasis: 'trade_hold_legacy' | 'daily_portfolio';
   // Extended metrics
   sortino: number;              // Sharpe using downside deviation only
   calmar: number;               // Annualized return / max drawdown

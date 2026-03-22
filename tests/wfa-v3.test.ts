@@ -93,7 +93,7 @@ describe('Intraday Signals', () => {
 
 // ── 3. BSM Repricing Tests ──────────────────────────────
 
-import { bsmRepriceSpread } from '../src/lib/backtest/intraday-monitor';
+import { bsmRepriceSpread, evaluateCreditSpread4H } from '../src/lib/backtest/intraday-monitor';
 
 describe('BSM Repricing', () => {
   test('bsmRepriceSpread returns positive spread cost for put credit spread', () => {
@@ -152,6 +152,103 @@ describe('BSM Repricing', () => {
     // Slow kappa = IV stays near 0.40 → higher spread cost
     expect(fastRevert.spreadCost).toBeLessThan(slowRevert.spreadCost);
   });
+
+  test('evaluateCreditSpread4H exits earlier with 4H monitoring than end-of-day-only observation in a gamma spike', () => {
+    const signal = {
+      ticker: 'SPY',
+      date: '2024-01-02',
+      direction: 'CALL' as const,
+      score: 82,
+      hv60: 0.20,
+    };
+    const config = {
+      mode: 'CREDIT_SPREAD' as const,
+      leapDeltaRange: [0.65, 0.8] as [number, number],
+      leapDTERange: [180, 365] as [number, number],
+      leapProfitTarget: 0.5,
+      leapStopLoss: 0.3,
+      leapTimeStopDTE: 90,
+      creditShortDelta: 0.30,
+      creditSpreadWidth: 5,
+      creditDTERange: [7, 14] as [number, number],
+      creditProfitTarget: 0.99,
+      creditStopLossMultiple: 100,
+      creditTimeStopDTE: 1,
+      monitoringIntervalDays: 1,
+      minIVRank: 0,
+      creditDeltaStop: 0.45,
+      fillMode: 'mid' as const,
+      slippage: { enabled: false, fillMode: 'bidask' as const, baseImpactBps: 2, oiHalfLife: 500, dteAccelDays: 7, dteAccelMultiplier: 3 },
+      dailyCalibration: false,
+      bsmKappa: 4.0,
+      bsmRiskFreeRate: 0.04,
+      ivThetaSource: 'hv60' as const,
+    };
+
+    const chainAccess = {
+      getChain: () => [{ ok: true }],
+      findSpread: () => ({
+        short: {
+          row: { strike: 460, expir_date: '2024-01-10', dte: 8, stock_price: 470 },
+          type: 'Put',
+          bid: 1.10,
+          ask: 1.30,
+          mid: 1.20,
+          iv: 0.25,
+          delta: -0.25,
+          oi: 2000,
+        },
+        long: {
+          row: { strike: 455, expir_date: '2024-01-10', dte: 8, stock_price: 470 },
+          type: 'Put',
+          bid: 0.60,
+          ask: 0.80,
+          mid: 0.70,
+          iv: 0.24,
+          delta: -0.15,
+          oi: 1800,
+        },
+        netCredit: 0.50,
+        requestedSpreadWidth: 5,
+        spreadWidth: 5,
+        maxLoss: 4.50,
+      }),
+      findContract: () => null,
+      applyFillFn: () => ({ fillPrice: 0, slippage: 0 }),
+    };
+
+    const intradayCandles: IntradayCandle[] = [
+      { ticker: 'SPY', timestamp: new Date('2024-01-03T10:00:00Z').getTime(), datetime: '2024-01-03 10:00:00', date: '2024-01-03', open: 470, high: 470, low: 455, close: 456, volume: 1_000_000 },
+      { ticker: 'SPY', timestamp: new Date('2024-01-03T16:00:00Z').getTime(), datetime: '2024-01-03 16:00:00', date: '2024-01-03', open: 456, high: 470, low: 455, close: 469, volume: 900_000 },
+      { ticker: 'SPY', timestamp: new Date('2024-01-04T16:00:00Z').getTime(), datetime: '2024-01-04 16:00:00', date: '2024-01-04', open: 469, high: 472, low: 468, close: 471, volume: 850_000 },
+    ];
+    const endOfDayOnly: IntradayCandle[] = [
+      intradayCandles[1],
+      intradayCandles[2],
+    ];
+
+    const intradayTrade = evaluateCreditSpread4H(
+      signal,
+      config,
+      intradayCandles,
+      ['2024-01-02', '2024-01-03', '2024-01-04'],
+      '2024-01-04',
+      chainAccess,
+    );
+    const endOfDayTrade = evaluateCreditSpread4H(
+      signal,
+      config,
+      endOfDayOnly,
+      ['2024-01-02', '2024-01-03', '2024-01-04'],
+      '2024-01-04',
+      chainAccess,
+    );
+
+    expect(intradayTrade).not.toBeNull();
+    expect(endOfDayTrade).not.toBeNull();
+    expect(intradayTrade!.exitType).toBe('DELTA_STOP');
+    expect(endOfDayTrade!.exitDate > intradayTrade!.exitDate).toBe(true);
+  });
 });
 
 // ── 4. v3 Optimizer Tests ───────────────────────────────
@@ -164,7 +261,7 @@ describe('v3 Optimizer', () => {
 
     const periodMult = space.categorical.find(p => p.name === 'indicatorPeriodMultiplier');
     expect(periodMult).toBeDefined();
-    expect(periodMult!.choices).toEqual([1.5, 2.0, 2.5, 3.0]);
+    expect(periodMult!.choices).toEqual(['1.5', '2', '2.5', '3']);
   });
 
   test('buildV3ParameterSpace has no monitoringIntervalDays', () => {
@@ -213,14 +310,21 @@ describe('v3 Optimizer', () => {
   test('extractPeriodMultiplier returns correct value', () => {
     expect(extractPeriodMultiplier({ indicatorPeriodMultiplier: 1.5 })).toBe(1.5);
     expect(extractPeriodMultiplier({ indicatorPeriodMultiplier: 3.0 })).toBe(3.0);
-    expect(extractPeriodMultiplier({})).toBe(1.0); // default
-    expect(extractPeriodMultiplier({ indicatorPeriodMultiplier: 'invalid' })).toBe(1.0);
+    expect(extractPeriodMultiplier({})).toBe(2.0); // default
+    expect(extractPeriodMultiplier({ indicatorPeriodMultiplier: 'invalid' })).toBe(2.0);
   });
 });
 
 // ── 5. v3 Types Tests ───────────────────────────────────
 
 import { V3_PROFILE_BOUNDS, V3_SHORT_GRID, DEFAULT_WFA_V3_CONFIG } from '../src/lib/backtest/wfa-v3-types';
+import {
+  buildV3SweepCandidates,
+  DEFAULT_SHORT_HOLDOUT_DAYS,
+  DEFAULT_SHORT_TICKERS,
+  SHORT_DTE_ENTRY_RANGE,
+  SHORT_IV_RANK_MINS,
+} from '../scripts/wfa-run-short';
 
 describe('v3 Types', () => {
   test('V3_PROFILE_BOUNDS has short DTE range', () => {
@@ -242,10 +346,30 @@ describe('v3 Types', () => {
     expect(DEFAULT_WFA_V3_CONFIG.holdoutDays).toBe(63);
   });
 
+  test('short wrapper defaults align with shared v3 universe and holdout', () => {
+    expect(DEFAULT_SHORT_HOLDOUT_DAYS).toBe(DEFAULT_WFA_V3_CONFIG.holdoutDays);
+    expect(DEFAULT_SHORT_TICKERS).toEqual(DEFAULT_WFA_V3_CONFIG.tickers);
+    expect(DEFAULT_SHORT_TICKERS).toContain('COST');
+    expect(DEFAULT_SHORT_TICKERS).toHaveLength(15);
+  });
+
   test('DEFAULT_WFA_V3_CONFIG has BSM parameters', () => {
     expect(DEFAULT_WFA_V3_CONFIG.bsmKappa).toBe(4.0);
     expect(DEFAULT_WFA_V3_CONFIG.bsmRiskFreeRate).toBe(0.04);
+    expect(DEFAULT_WFA_V3_CONFIG.ivThetaSource).toBe('hv60');
     expect(DEFAULT_WFA_V3_CONFIG.dailyCalibration).toBe(true);
+  });
+
+  test('short wrapper exposes expanded DTE range and tighter IV floors', () => {
+    expect(SHORT_DTE_ENTRY_RANGE).toEqual([7, 21]);
+    expect([...SHORT_IV_RANK_MINS]).toEqual([20, 30]);
+
+    const candidates = buildV3SweepCandidates('mid');
+    const ivRankMins = [...new Set(candidates.map(c => Number(c.minIVRank)))].sort((a, b) => a - b);
+
+    expect(candidates.length).toBeGreaterThan(0);
+    expect(ivRankMins).toEqual([20, 30]);
+    expect(candidates.every(c => c.fillMode === 'mid')).toBe(true);
   });
 });
 

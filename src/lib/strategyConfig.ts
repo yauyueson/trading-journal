@@ -1,9 +1,10 @@
 // src/lib/strategyConfig.ts
-// Frontend config — imports strategy-config.json at build time.
-// To update: edit data/strategy-config.json and redeploy.
-// Falls back to STRATEGY_PROFILES defaults if import fails.
+// Frontend config — reads from AppSettings context (Supabase-backed).
+// Falls back to build-time JSON import if context value is not yet available.
 
 import { STRATEGY_PROFILES, type StrategyType } from './strategyProfiles';
+import { useAppSettings } from '../context/AppSettingsContext';
+import { DEFAULT_APP_SETTINGS } from './types/settings';
 import configJson from '../../data/strategy-config.json';
 
 export interface StrategyConfigProfile {
@@ -30,11 +31,36 @@ export interface StrategyConfig {
   profiles: Record<string, StrategyConfigProfile>;
 }
 
-const _config = configJson as unknown as StrategyConfig;
+const _buildTimeConfig = configJson as unknown as StrategyConfig;
 
-/** Return strategy config (build-time import, no network call) */
+/** Return strategy config — prefers Supabase-backed AppSettings, falls back to build-time JSON */
 export function useStrategyConfig() {
-  return { data: _config };
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { settings } = useAppSettings();
+    if (settings.creditSpread) {
+      return {
+        data: {
+          version: 'live',
+          source: 'supabase',
+          profiles: settings.creditSpread as Record<string, StrategyConfigProfile>,
+        } as StrategyConfig,
+      };
+    }
+  } catch {
+    // Outside provider — use build-time config
+  }
+  return { data: _buildTimeConfig };
+}
+
+/** Non-hook version for use outside React components */
+export function getBuildTimeConfig(): StrategyConfig {
+  return _buildTimeConfig;
+}
+
+/** Get default credit spread config (for reset buttons) */
+export function getDefaultCreditSpreadConfig() {
+  return DEFAULT_APP_SETTINGS.creditSpread!;
 }
 
 /** Get a profile from config, falling back to STRATEGY_PROFILES */

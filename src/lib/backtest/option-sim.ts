@@ -19,7 +19,7 @@ import {
 } from './chain-cache';
 import type { DynamicSlippageConfig, FillMode, DirConfTier } from './types';
 import { DEFAULT_DYNAMIC_SLIPPAGE, DIR_CONF_THRESHOLDS } from './types';
-import { applyFill } from './slippage';
+import { applyFill, applySpreadFill } from './slippage';
 
 // ── Types ────────────────────────────────────────────────
 
@@ -43,6 +43,7 @@ export interface OptionTrade {
   // Spread-specific
   longStrike?: number;
   longEntryPrice?: number;
+  requestedSpreadWidth?: number;
   spreadWidth?: number;
   maxProfit?: number;         // = net credit for spread
   maxLoss?: number;           // = width - credit for spread
@@ -64,6 +65,8 @@ export interface OptionTrade {
   fillMode?: FillMode;      // which fill model was used
   // Daily mark-to-market P&L (unrealized, captured during monitoring loop)
   dailyMtM?: { date: string; spreadMid: number; unrealizedPnl: number }[];
+  // Effective position size multiplier (1 = default 1 contract notionals)
+  positionSize?: number;
 }
 
 export interface EntrySignal {
@@ -72,9 +75,13 @@ export interface EntrySignal {
   direction: 'CALL' | 'PUT';
   score: number;
   ivRank?: number;
+  hv60?: number;
+  oratsIV60?: number;
   // v2: ORATS cores enrichment for volatility filters
   vrp?: number;          // IV²-RV² variance risk premium
   contango?: number;     // IV60/IV30 - 1 term structure
+  vrpPct?: number;       // rolling percentile rank (0-100)
+  contangoPct?: number;  // rolling percentile rank (0-100)
   slope?: number;        // ORATS put skew slope
   smvVol?: number;       // ORATS smoothed vol
   // Direction confidence (0-100) from calcDirConfidence
@@ -115,12 +122,27 @@ export interface SimConfig {
   // v2: Volatility & microstructure filters (from ORATS cores)
   vrpFilter?: number;       // min VRP (IV²-RV²) to enter; 0 or undefined = disabled
   contangoFilter?: number;  // min contango (IV60/IV30-1) to enter; 0 or undefined = disabled
+  vrpPctFilter?: number;       // min rolling VRP percentile rank (0-100)
+  contangoPctFilter?: number;  // min rolling contango percentile rank (0-100)
   slopeFilter?: number;     // min ORATS slope to enter; 0 or undefined = disabled
+  // Regime-based position sizing (optional). If configured, this scales
+  // trade notionals by contango bucket instead of hard filtering.
+  contangoSizeLow?: number;            // size when contango < contangoSizeMidThreshold
+  contangoSizeMid?: number;            // size when midThreshold <= contango < highThreshold
+  contangoSizeHigh?: number;           // size when contango >= contangoSizeHighThreshold
+  contangoSizeMidThreshold?: number;   // e.g. 0.03
+  contangoSizeHighThreshold?: number;  // e.g. 0.06
   useSmvVol?: boolean;      // use smvVol for IV source instead of midIv
   // Direction confidence tier filter
   dirConfTier?: DirConfTier;
   // Use O(1) direct PK lookup instead of full chain fetch in monitoring loops
   useDirectLookup?: boolean;
+  // v3 intraday settings
+  indicatorPeriodMultiplier?: number;
+  bsmKappa?: number;
+  bsmRiskFreeRate?: number;
+  dailyCalibration?: boolean;
+  ivThetaSource?: 'entry_iv' | 'hv60' | 'orats_iv60';
 }
 
 export type SignalPresetKey = 'ema' | 'mom' | 'em' | 'mf' | 'full' | 'mb' | 'adx' | 'vol';
@@ -389,6 +411,12 @@ export async function simulateCreditSpread(
   if (config.contangoFilter && config.contangoFilter > 0 && (signal.contango == null || signal.contango < config.contangoFilter)) {
     return null;
   }
+  if (config.vrpPctFilter && config.vrpPctFilter > 0 && (signal.vrpPct == null || signal.vrpPct < config.vrpPctFilter)) {
+    return null;
+  }
+  if (config.contangoPctFilter && config.contangoPctFilter > 0 && (signal.contangoPct == null || signal.contangoPct < config.contangoPctFilter)) {
+    return null;
+  }
   if (config.slopeFilter && config.slopeFilter > 0 && (signal.slope == null || signal.slope < config.slopeFilter)) {
     return null;
   }
@@ -446,12 +474,24 @@ export async function simulateCreditSpread(
   let entrySlippage = 0;
 
   if (config.fillMode === 'bidask' && config.slippage.enabled) {
-    const shortFill = applyFill('bidask', spread.short.mid, spread.short.bid,
-      spread.short.ask, 'sell', config.slippage, spread.short.oi, spread.short.row.dte);
-    const longFill = applyFill('bidask', spread.long.mid, spread.long.bid,
-      spread.long.ask, 'buy', config.slippage, spread.long.oi, spread.long.row.dte);
-    entryCredit = shortFill.fillPrice - longFill.fillPrice;
-    entrySlippage = shortFill.slippage + longFill.slippage;
+    if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
+      const spreadFill = applySpreadFill(
+        'bidask',
+        { ...spread.short, dte: spread.short.row.dte },
+        { ...spread.long, dte: spread.long.row.dte },
+        'open',
+        config.slippage,
+      );
+      entryCredit = spreadFill.fillPrice;
+      entrySlippage = spreadFill.slippage;
+    } else {
+      const shortFill = applyFill('bidask', spread.short.mid, spread.short.bid,
+        spread.short.ask, 'sell', config.slippage, spread.short.oi, spread.short.row.dte);
+      const longFill = applyFill('bidask', spread.long.mid, spread.long.bid,
+        spread.long.ask, 'buy', config.slippage, spread.long.oi, spread.long.row.dte);
+      entryCredit = shortFill.fillPrice - longFill.fillPrice;
+      entrySlippage = shortFill.slippage + longFill.slippage;
+    }
     if (entryCredit <= 0) return null; // no credit after slippage → skip
   } else {
     entryCredit = spread.netCredit;
@@ -486,13 +526,25 @@ export async function simulateCreditSpread(
     let currentSpreadCost: number;
     let exitSlippageAmount = 0;
     if (config.fillMode === 'bidask' && config.slippage.enabled) {
-      // To close: buy back short (pay ask), sell long (receive bid)
-      const shortClose = applyFill('bidask', shortLeg.mid, shortLeg.bid,
-        shortLeg.ask, 'buy', config.slippage, shortLeg.oi, shortLeg.row.dte);
-      const longClose = applyFill('bidask', longLeg.mid, longLeg.bid,
-        longLeg.ask, 'sell', config.slippage, longLeg.oi, longLeg.row.dte);
-      currentSpreadCost = shortClose.fillPrice - longClose.fillPrice;
-      exitSlippageAmount = shortClose.slippage + longClose.slippage;
+      if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
+        const spreadFill = applySpreadFill(
+          'bidask',
+          { ...shortLeg, dte: shortLeg.row.dte },
+          { ...longLeg, dte: longLeg.row.dte },
+          'close',
+          config.slippage,
+        );
+        currentSpreadCost = spreadFill.fillPrice;
+        exitSlippageAmount = spreadFill.slippage;
+      } else {
+        // To close: buy back short (pay ask), sell long (receive bid)
+        const shortClose = applyFill('bidask', shortLeg.mid, shortLeg.bid,
+          shortLeg.ask, 'buy', config.slippage, shortLeg.oi, shortLeg.row.dte);
+        const longClose = applyFill('bidask', longLeg.mid, longLeg.bid,
+          longLeg.ask, 'sell', config.slippage, longLeg.oi, longLeg.row.dte);
+        currentSpreadCost = shortClose.fillPrice - longClose.fillPrice;
+        exitSlippageAmount = shortClose.slippage + longClose.slippage;
+      }
     } else {
       currentSpreadCost = shortLeg.mid - longLeg.mid;
     }
@@ -511,6 +563,13 @@ export async function simulateCreditSpread(
       exitType = 'PROFIT_TARGET';
     } else if (currentSpreadCost >= slCost) {
       exitType = 'STOP_LOSS';
+    } else if (
+      config.creditDeltaStop != null &&
+      Number.isFinite(config.creditDeltaStop) &&
+      config.creditDeltaStop > 0 &&
+      Math.abs(shortLeg.delta) >= config.creditDeltaStop
+    ) {
+      exitType = 'DELTA_STOP';
     } else if (currentDTE <= config.creditTimeStopDTE) {
       exitType = 'TIME_STOP';
     }
@@ -594,6 +653,7 @@ function buildCreditResult(
     entryStockPrice: spread.short.row.stock_price,
     longStrike: spread.long.row.strike,
     longEntryPrice: spread.long.mid,
+    requestedSpreadWidth: spread.requestedSpreadWidth,
     spreadWidth: spread.spreadWidth,
     maxProfit: entryCredit,
     maxLoss: spread.maxLoss,
@@ -822,7 +882,14 @@ export interface OptionSimAnalytics {
   totalCapitalDeployed: number; // sum of capital at risk per trade
   returnOnCapital: number;    // totalPnl / totalCapitalDeployed × 100
   profitFactor: number;
+  tradeSharpeLegacy: number;
+  dailyPortfolioSharpe?: number;
+  // Deprecated transitional field: legacy trade-hold Sharpe.
+  // Prefer `dailyPortfolioSharpe` when available, otherwise `tradeSharpeLegacy`.
   sharpe: number;
+  realizedExitDrawdownPct: number;
+  dailyMtMDrawdownPct?: number;
+  metricBasis: 'trade_hold_legacy' | 'daily_portfolio';
   maxDrawdown: number;
   avgHoldDays: number;
   avgEntryDelta: number;
@@ -836,7 +903,9 @@ export function computeOptionAnalytics(trades: OptionTrade[]): OptionSimAnalytic
     return {
       mode: 'LEAP', totalTrades: 0, winners: 0, losers: 0, winRate: 0,
       avgPnlPct: 0, totalPnl: 0, totalCapitalDeployed: 0, returnOnCapital: 0,
-      profitFactor: 0, sharpe: 0, maxDrawdown: 0,
+      profitFactor: 0, tradeSharpeLegacy: 0, dailyPortfolioSharpe: undefined,
+      sharpe: 0, realizedExitDrawdownPct: 0, dailyMtMDrawdownPct: undefined,
+      metricBasis: 'trade_hold_legacy', maxDrawdown: 0,
       avgHoldDays: 0, avgEntryDelta: 0, avgEntryDTE: 0, avgCapitalPerTrade: 0, byExit: {},
     };
   }
@@ -857,7 +926,7 @@ export function computeOptionAnalytics(trades: OptionTrade[]): OptionSimAnalytic
   // Sharpe: annualize assuming ~20 trades/year avg holding
   const avgHoldDays = trades.reduce((s, t) => s + t.holdDays, 0) / trades.length;
   const tradesPerYear = 252 / Math.max(1, avgHoldDays);
-  const sharpe = std > 0 ? (avgReturn / std) * Math.sqrt(tradesPerYear) : 0;
+  const tradeSharpeLegacy = std > 0 ? (avgReturn / std) * Math.sqrt(tradesPerYear) : 0;
 
   // Max drawdown — sort by exit date so the equity curve reflects chronological PnL realization
   const STARTING_CAPITAL = 100_000;
@@ -884,6 +953,62 @@ export function computeOptionAnalytics(trades: OptionTrade[]): OptionSimAnalytic
   });
   const totalCapitalDeployed = capitalPerTrade.reduce((s, c) => s + c, 0);
   const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
+  const dailyDates = [...new Set(
+    trades.flatMap(t => [
+      ...(t.dailyMtM?.map(m => m.date.slice(0, 10)) ?? []),
+      t.exitDate.slice(0, 10),
+    ]),
+  )].sort();
+
+  let dailyPortfolioSharpe: number | undefined;
+  let dailyMtMDrawdownPct: number | undefined;
+  if (dailyDates.length > 0 && trades.some(t => (t.dailyMtM?.length ?? 0) > 0)) {
+    const dateIdx = new Map<string, number>(dailyDates.map((d, i) => [d, i]));
+    const dailyPnl = new Array<number>(dailyDates.length).fill(0);
+
+    for (const trade of trades) {
+      let contributed = 0;
+      let prevUnrealized = 0;
+      for (const mtm of trade.dailyMtM ?? []) {
+        const day = mtm.date.slice(0, 10);
+        const idx = dateIdx.get(day);
+        const change = mtm.unrealizedPnl - prevUnrealized;
+        if (idx !== undefined) {
+          dailyPnl[idx] += change;
+          contributed += change;
+        }
+        prevUnrealized = mtm.unrealizedPnl;
+      }
+
+      const residual = trade.pnl - contributed;
+      const exitIdx = dateIdx.get(trade.exitDate.slice(0, 10));
+      if (exitIdx !== undefined) dailyPnl[exitIdx] += residual;
+    }
+
+    let equityDaily = STARTING_CAPITAL;
+    let peakDaily = STARTING_CAPITAL;
+    let maxDailyDD = 0;
+    const returnsDaily: number[] = [];
+    for (const pnl of dailyPnl) {
+      const prevEquity = equityDaily;
+      equityDaily += pnl;
+      returnsDaily.push(prevEquity > 0 ? pnl / prevEquity : 0);
+      peakDaily = Math.max(peakDaily, equityDaily);
+      if (peakDaily > 0) maxDailyDD = Math.max(maxDailyDD, (peakDaily - equityDaily) / peakDaily);
+    }
+
+    const avgDaily = returnsDaily.length > 0
+      ? returnsDaily.reduce((s, r) => s + r, 0) / returnsDaily.length
+      : 0;
+    const stdDaily = returnsDaily.length > 1
+      ? Math.sqrt(
+        returnsDaily.reduce((s, r) => s + (r - avgDaily) ** 2, 0) /
+        Math.max(1, returnsDaily.length - 1),
+      )
+      : 0;
+    dailyPortfolioSharpe = stdDaily > 0 ? (avgDaily / stdDaily) * Math.sqrt(252) : 0;
+    dailyMtMDrawdownPct = maxDailyDD * 100;
+  }
 
   return {
     mode,
@@ -896,7 +1021,14 @@ export function computeOptionAnalytics(trades: OptionTrade[]): OptionSimAnalytic
     totalCapitalDeployed,
     returnOnCapital: totalCapitalDeployed > 0 ? (totalPnl / totalCapitalDeployed) * 100 : 0,
     profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0,
-    sharpe,
+    tradeSharpeLegacy: tradeSharpeLegacy,
+    dailyPortfolioSharpe: dailyPortfolioSharpe != null && isFinite(dailyPortfolioSharpe) ? dailyPortfolioSharpe : undefined,
+    sharpe: dailyPortfolioSharpe != null && isFinite(dailyPortfolioSharpe)
+      ? dailyPortfolioSharpe
+      : tradeSharpeLegacy,
+    realizedExitDrawdownPct: maxDD * 100,
+    dailyMtMDrawdownPct: dailyMtMDrawdownPct != null && isFinite(dailyMtMDrawdownPct) ? dailyMtMDrawdownPct : undefined,
+    metricBasis: dailyPortfolioSharpe != null ? 'daily_portfolio' : 'trade_hold_legacy',
     maxDrawdown: maxDD * 100,
     avgHoldDays,
     avgEntryDelta: trades.reduce((s, t) => s + Math.abs(t.entryDelta), 0) / trades.length,

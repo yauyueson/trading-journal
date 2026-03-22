@@ -3,14 +3,17 @@ import { describe, it, expect } from 'vitest';
 import {
   computeSlippage,
   applyFill,
+  applySpreadFill,
 } from '../src/lib/backtest/slippage';
 import type { DynamicSlippageConfig } from '../src/lib/backtest/types';
 
 const DEFAULT_CFG: DynamicSlippageConfig = {
   enabled: true,
   fillMode: 'bidask',
+  executionStyle: 'combo',
   baseImpactBps: 2,
   oiHalfLife: 500,
+  maxOiFactor: 6,
   dteAccelDays: 7,
   dteAccelMultiplier: 3.0,
 };
@@ -51,6 +54,13 @@ describe('computeSlippage', () => {
     const slip = computeSlippage(DEFAULT_CFG, 0.10, 0, 30, 2.50);
     expect(slip).toBeGreaterThan(0);
     expect(Number.isFinite(slip)).toBe(true);
+  });
+
+  it('low OI amplification is capped by maxOiFactor', () => {
+    const slipNearZero = computeSlippage(DEFAULT_CFG, 0.10, 1, 30, 2.50);
+    const slipAtTen = computeSlippage(DEFAULT_CFG, 0.10, 10, 30, 2.50);
+    expect(slipNearZero).toBeGreaterThanOrEqual(slipAtTen);
+    expect(Number.isFinite(slipNearZero)).toBe(true);
   });
 
   it('zero spread → only base impact', () => {
@@ -97,5 +107,24 @@ describe('applyFill', () => {
     const naturalSpread = 2.60 - 2.40;
     // Round trip cost should be >= natural spread
     expect(roundTrip).toBeGreaterThanOrEqual(naturalSpread - 0.001);
+  });
+});
+
+describe('applySpreadFill', () => {
+  const shortLeg = { mid: 2.50, bid: 2.40, ask: 2.60, oi: 3000, dte: 30 };
+  const longLeg = { mid: 1.50, bid: 1.40, ask: 1.60, oi: 2500, dte: 30 };
+
+  it('mid mode returns net mid', () => {
+    const result = applySpreadFill('mid', shortLeg, longLeg, 'open', DEFAULT_CFG);
+    expect(result.fillPrice).toBe(1.00);
+    expect(result.slippage).toBe(0);
+  });
+
+  it('combo entry is less punitive than legging the same spread', () => {
+    const combo = applySpreadFill('bidask', shortLeg, longLeg, 'open', DEFAULT_CFG);
+    const leggedSell = applyFill('bidask', shortLeg.mid, shortLeg.bid, shortLeg.ask, 'sell', DEFAULT_CFG, shortLeg.oi, shortLeg.dte);
+    const leggedBuy = applyFill('bidask', longLeg.mid, longLeg.bid, longLeg.ask, 'buy', DEFAULT_CFG, longLeg.oi, longLeg.dte);
+    const leggedCredit = leggedSell.fillPrice - leggedBuy.fillPrice;
+    expect(combo.fillPrice).toBeGreaterThan(leggedCredit);
   });
 });

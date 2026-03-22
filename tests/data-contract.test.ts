@@ -108,12 +108,13 @@ describe('SIG-01 — Signals page navigate() URL params', () => {
     expect(signalsSrc).toContain('row.iv30');
   });
 
-  it('src/pages/Signals.tsx swing button uses buildParams helper with "swing"', () => {
-    expect(signalsSrc).toContain("buildParams('swing')");
+  it('src/pages/Signals.tsx passes activeBoard strategy to spread builder', () => {
+    expect(signalsSrc).toContain('strategy: activeBoard');
   });
 
-  it('src/pages/Signals.tsx shortTerm button uses buildParams helper with "shortTerm"', () => {
-    expect(signalsSrc).toContain("buildParams('shortTerm')");
+  it('src/pages/Signals.tsx has board toggle for swing and shortTerm', () => {
+    expect(signalsSrc).toContain("setActiveBoard('swing')");
+    expect(signalsSrc).toContain("setActiveBoard('shortTerm')");
   });
 });
 
@@ -193,8 +194,8 @@ describe('STRAT-02 — scan-options.js profile-specific delta defaults', () => {
     expect(scanOptionsSrc).toContain("'0.25'");
   });
 
-  it('scan-options.js deltaDefaults should include swing min 0.28', () => {
-    expect(scanOptionsSrc).toContain("'0.28'");
+  it('scan-options.js deltaDefaults should include swing min 0.30', () => {
+    expect(scanOptionsSrc).toContain("'0.30'");
   });
 
   it('scan-options.js minDelta destructuring should use deltaDefaults.min', () => {

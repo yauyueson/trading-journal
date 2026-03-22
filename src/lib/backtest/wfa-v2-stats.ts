@@ -199,7 +199,9 @@ export function computePBO(
   nBlocks: number = 16,
   maxCombinations: number = 5000,
   seed: number = 42,
+  avgHoldDays: number = 13,  // average trade hold days for annualization
 ): PBOResult {
+  const tradesPerYear = 252 / Math.max(1, avgHoldDays);
   // Flatten all returns into one sequence, then split into nBlocks
   const allReturns = tradeReturns.flat();
   const n = allReturns.length;
@@ -239,8 +241,8 @@ export function computePBO(
     // Half B (OOS): returns from complement blocks
     const oosReturns = complement.flatMap(i => blocks[i]);
 
-    const isSharpe = computeSharpe(isReturns, 20); // rough trades per year
-    const oosSharpe = computeSharpe(oosReturns, 20);
+    const isSharpe = computeSharpe(isReturns, tradesPerYear);
+    const oosSharpe = computeSharpe(oosReturns, tradesPerYear);
 
     // Check if IS-optimal underperforms OOS median (simplified: OOS Sharpe < 0)
     if (isSharpe > 0 && oosSharpe < 0) {
@@ -410,10 +412,103 @@ function percentiles(values: number[]): BootstrapCI {
 // ── 4. Permutation Test ─────────────────────────────────
 
 /**
- * Trade-order permutation test.
- * Shuffles trade sequence to test if ordering matters.
+ * Sharpe-based permutation test.
+ *
+ * Tests whether trade *timing* matters by shuffling P&L values across
+ * the observed entry dates.  Each permutation keeps the same set of
+ * entry dates and the same set of P&L values but randomly reassigns
+ * which P&L lands on which date.  A portfolio equity curve is built
+ * from the shuffled (date, pnl) pairs and Sharpe is computed.
+ *
+ * p-value = fraction of shuffled Sharpes >= observed Sharpe.
+ * Low p-value means the strategy's timing adds real alpha.
+ *
+ * The old DD-based test is preserved as `permutationTestLegacy`.
  */
 export function permutationTest(
+  trades: OptionTrade[],
+  nPermutations: number = 5_000,
+  startingCapital: number = 100_000,
+  seed: number = 42,
+): PermutationTestResult {
+  if (trades.length < 5) {
+    return { observedValue: 0, pValue: 1, nullMean: 0, nullStd: 0 };
+  }
+
+  // Compute observed Sharpe from daily P&L attribution
+  const sorted = [...trades].sort((a, b) => a.exitDate.localeCompare(b.exitDate));
+  const observedSharpe = computeDailySharpe(sorted, startingCapital);
+
+  const rng = createRng(seed);
+  const pnls = sorted.map(t => t.pnl);
+  const shuffledSharpes: number[] = [];
+
+  for (let i = 0; i < nPermutations; i++) {
+    // Fisher-Yates shuffle of P&L values (dates stay fixed)
+    const shuffledPnl = [...pnls];
+    for (let j = shuffledPnl.length - 1; j > 0; j--) {
+      const k = Math.floor(rng() * (j + 1));
+      [shuffledPnl[j], shuffledPnl[k]] = [shuffledPnl[k], shuffledPnl[j]];
+    }
+
+    // Build pseudo-trades with shuffled P&L but original exit dates
+    const pseudoTrades = sorted.map((t, idx) => ({
+      ...t,
+      pnl: shuffledPnl[idx],
+    }));
+
+    shuffledSharpes.push(computeDailySharpe(pseudoTrades, startingCapital));
+  }
+
+  // p-value: fraction of shuffled Sharpes >= observed
+  const betterCount = shuffledSharpes.filter(s => s >= observedSharpe).length;
+  const pValue = (betterCount + 1) / (nPermutations + 1); // +1 for continuity correction
+
+  const nullMean = shuffledSharpes.reduce((s, v) => s + v, 0) / shuffledSharpes.length;
+  const nullStd = Math.sqrt(
+    shuffledSharpes.reduce((s, v) => s + (v - nullMean) ** 2, 0) / shuffledSharpes.length
+  );
+
+  return {
+    observedValue: observedSharpe,
+    pValue,
+    nullMean,
+    nullStd,
+  };
+}
+
+/** Daily Sharpe from trade-level exit P&L (no dailyMtM needed). */
+function computeDailySharpe(sortedTrades: OptionTrade[], startingCapital: number): number {
+  // Bucket P&L by exit date → daily returns
+  const dailyPnl = new Map<string, number>();
+  for (const t of sortedTrades) {
+    dailyPnl.set(t.exitDate, (dailyPnl.get(t.exitDate) ?? 0) + t.pnl);
+  }
+
+  const dates = [...dailyPnl.keys()].sort();
+  if (dates.length < 2) return 0;
+
+  let equity = startingCapital;
+  const returns: number[] = [];
+  for (const date of dates) {
+    const pnl = dailyPnl.get(date) ?? 0;
+    if (equity > 0) returns.push(pnl / equity);
+    equity += pnl;
+  }
+
+  if (returns.length < 2) return 0;
+  const mean = returns.reduce((s, r) => s + r, 0) / returns.length;
+  const std = Math.sqrt(
+    returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length - 1)
+  );
+  return std > 0 ? (mean / std) * Math.sqrt(252) : 0;
+}
+
+/**
+ * Legacy trade-order permutation test (DD-based).
+ * @deprecated Use permutationTest() which tests Sharpe significance.
+ */
+export function permutationTestLegacy(
   trades: OptionTrade[],
   nPermutations: number = 10_000,
   startingCapital: number = 100_000,
@@ -424,7 +519,6 @@ export function permutationTest(
   const shuffledDDs: number[] = [];
 
   for (let i = 0; i < nPermutations; i++) {
-    // Fisher-Yates shuffle
     const shuffled = [...trades];
     for (let j = shuffled.length - 1; j > 0; j--) {
       const k = Math.floor(rng() * (j + 1));
@@ -433,21 +527,14 @@ export function permutationTest(
     shuffledDDs.push(computeMaxDD(shuffled, startingCapital));
   }
 
-  // p-value: fraction of permuted DDs worse (higher) than observed
   const worseCount = shuffledDDs.filter(dd => dd >= observedDD).length;
   const pValue = worseCount / nPermutations;
-
   const nullMean = shuffledDDs.reduce((s, d) => s + d, 0) / shuffledDDs.length;
   const nullStd = Math.sqrt(
     shuffledDDs.reduce((s, d) => s + (d - nullMean) ** 2, 0) / shuffledDDs.length
   );
 
-  return {
-    observedValue: observedDD,
-    pValue,
-    nullMean,
-    nullStd,
-  };
+  return { observedValue: observedDD, pValue, nullMean, nullStd };
 }
 
 // ── 5. Benjamini-Hochberg Correction ────────────────────

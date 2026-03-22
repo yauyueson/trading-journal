@@ -1,5 +1,7 @@
 /**
- * Walk-Forward Analysis Runner
+ * Walk-Forward Analysis Runner (Swing)
+ *
+ * @deprecated Use `scripts/wfa-run-unified.ts --profile swing` instead.
  *
  * Runs the full WFA engine on cached option chain data with
  * configurable sweep dimensions. Uses sync cache-only evaluator
@@ -11,10 +13,17 @@
  *   npx tsx scripts/wfa-run.ts --ticker SPY
  *   npx tsx scripts/wfa-run.ts --train 504 --step 126 --purge 65
  *   npx tsx scripts/wfa-run.ts --fill bidask     # realistic fills (default: mid)
+ *   npx tsx scripts/wfa-run.ts --workers 8       # train-eval worker threads
+ *   npx tsx scripts/wfa-run.ts --regime-study    # runs baseline vs regime-gated arms
+ *   npx tsx scripts/wfa-run.ts --regime-study --regime-arm baseline
+ *   npx tsx scripts/wfa-run.ts --regime-study --regime-out wfa-regime-study.json
  */
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
+import { Worker } from 'node:worker_threads';
+import { execSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,17 +57,22 @@ import {
   type SignalPresetKey,
 } from '../src/lib/backtest/option-sim';
 import type { FillMode } from '../src/lib/backtest/types';
-import { applyFill } from '../src/lib/backtest/slippage';
+import { applyFill, applySpreadFill } from '../src/lib/backtest/slippage';
 import {
+  buildConfiguredSignalsForWindow,
   buildWFAWindows,
+  computePortfolioDailyMetrics,
+  evaluateConfiguredSignalsWithConstraints,
   runWFAOptions,
-  type TradeEvaluator, type WFAResult,
+  selectConfigsForOOS,
+  type PortfolioExecutionConfig,
+  type TradeEvaluator, type WFAResult, type WFAWindow, type WFAOptionsConfig,
 } from '../src/lib/backtest/wfa-options';
 
 // ── Config ──────────────────────────────────────────────
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || '';
-const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
 const DATA_START = '2017-01-01';   // candle warmup (1yr for tech indicators)
 const WFA_START  = '2018-01-01';   // WFA date range start
@@ -88,6 +102,13 @@ const MAX_POSITIONS = parseInt(getArg('--max-pos') || '50');
 const MAX_PER_TICKER = parseInt(getArg('--max-ticker') || '5');
 const STARTING_CAPITAL = parseInt(getArg('--capital') || '100000');
 const FILL_MODE = (getArg('--fill') || 'mid') as FillMode;
+const NUM_WORKERS = Math.max(1, Math.min(
+  parseInt(getArg('--workers') || String(Math.min(4, Math.max(1, os.cpus().length - 2)))),
+  Math.max(1, os.cpus().length),
+));
+const REGIME_STUDY = args.includes('--regime-study');
+const REGIME_OUT = getArg('--regime-out') || 'wfa-regime-study.json';
+const REGIME_ARM = getArg('--regime-arm');
 
 const tickers = SINGLE_TICKER ? [SINGLE_TICKER.toUpperCase()] : ALL_TICKERS;
 
@@ -121,6 +142,13 @@ interface TickerData {
   candles: BacktestCandle[];
   ivRanks: (number | null)[];
   dateToIdx: Map<string, number>;
+  regimeByDate: Map<string, {
+    vrp?: number;
+    contango?: number;
+    slope?: number;
+    vrpPct?: number;
+    contangoPct?: number;
+  }>;
 }
 
 const candleCache = new Map<string, TickerData>();
@@ -136,14 +164,69 @@ async function fetchTickerData(ticker: string): Promise<TickerData> {
   }));
 
   const ivData = await supabaseGet('orats_iv_cache',
-    `select=date,iv30d&ticker=eq.${ticker}&date=gte.${DATA_START}&date=lte.${DATA_END}&order=date.asc&limit=5000`);
+    `select=date,iv30d,iv60d,hv30d&ticker=eq.${ticker}&date=gte.${DATA_START}&date=lte.${DATA_END}&order=date.asc&limit=5000`);
+  let coresData: { trade_date: string; slope: number | null }[] = [];
+  try {
+    coresData = await supabaseGet('orats_cores_cache',
+      `select=trade_date,slope&ticker=eq.${ticker}&trade_date=gte.${DATA_START}&trade_date=lte.${DATA_END}&order=trade_date.asc&limit=5000`);
+  } catch {
+    // Optional data source; keep slope undefined when not available.
+  }
 
-  const ivByDate = new Map(ivData.map((r: any) => [r.date, r.iv30d]));
+  const ivByDate = new Map(ivData.map((r: any) => [r.date, Number(r.iv30d)]));
+  const regimeByDate = new Map<string, {
+    vrp?: number;
+    contango?: number;
+    slope?: number;
+    vrpPct?: number;
+    contangoPct?: number;
+  }>();
+  const slopeByDate = new Map<string, number>();
+  const contangoByDate = new Map<string, number>();
+  const vrpByDate = new Map<string, number>();
+  for (const row of coresData) {
+    if (row?.slope != null && Number.isFinite(row.slope)) slopeByDate.set(row.trade_date, Number(row.slope));
+  }
+  for (const r of ivData as any[]) {
+    const iv30 = Number(r.iv30d);
+    const iv60 = Number(r.iv60d);
+    const hv30 = Number(r.hv30d);
+    const contango = Number.isFinite(iv30) && iv30 > 0 && Number.isFinite(iv60)
+      ? (iv60 / iv30) - 1
+      : undefined;
+    const vrp = Number.isFinite(iv30) && Number.isFinite(hv30)
+      ? (iv30 * iv30) - (hv30 * hv30)
+      : undefined;
+    if (contango != null) contangoByDate.set(r.date, contango);
+    if (vrp != null) vrpByDate.set(r.date, vrp);
+  }
+  const orderedDates = candles.map(c => c.date);
+  const contangoSeries = orderedDates.map(d => contangoByDate.get(d));
+  const vrpSeries = orderedDates.map(d => vrpByDate.get(d));
+  const contangoPctSeries = computeRollingPercentile(contangoSeries);
+  const vrpPctSeries = computeRollingPercentile(vrpSeries);
+  const contangoPctByDate = new Map<string, number>();
+  const vrpPctByDate = new Map<string, number>();
+  for (let i = 0; i < orderedDates.length; i++) {
+    const cPct = contangoPctSeries[i];
+    const vPct = vrpPctSeries[i];
+    if (cPct != null) contangoPctByDate.set(orderedDates[i], cPct);
+    if (vPct != null) vrpPctByDate.set(orderedDates[i], vPct);
+  }
+  for (const r of ivData as any[]) {
+    regimeByDate.set(r.date, {
+      vrp: vrpByDate.get(r.date),
+      contango: contangoByDate.get(r.date),
+      slope: slopeByDate.get(r.date),
+      vrpPct: vrpPctByDate.get(r.date),
+      contangoPct: contangoPctByDate.get(r.date),
+    });
+  }
   const ivSeries = candles.map(c => ivByDate.get(c.date) ?? null);
   const ivRanks = computeIVRank(ivSeries);
   const dateToIdx = new Map(candles.map((c, i) => [c.date, i]));
 
-  const data = { ticker, candles, ivRanks, dateToIdx };
+  const data = { ticker, candles, ivRanks, dateToIdx, regimeByDate };
   candleCache.set(ticker, data);
   return data;
 }
@@ -161,14 +244,23 @@ function generateSignalsForPreset(
   for (const sig of signals) {
     if (sig.date < periodStart || sig.date > periodEnd) continue;
     if (sig.type === 'NEUTRAL' || sig.score < 70) continue;
+    
+    // Phase 6 improvement: ADX >= 10 (relaxed from 15) to capture setups in ranging markets
+    if (sig.adx === undefined || sig.adx < 10) continue;
 
     const idx = td.dateToIdx.get(sig.date);
+    const regime = td.regimeByDate.get(sig.date);
     entries.push({
       ticker: td.ticker,
       date: sig.date,
       direction: sig.type as 'CALL' | 'PUT',
       score: sig.score,
       ivRank: idx != null ? (td.ivRanks[idx] ?? undefined) : undefined,
+      vrp: regime?.vrp,
+      contango: regime?.contango,
+      vrpPct: regime?.vrpPct,
+      contangoPct: regime?.contangoPct,
+      slope: regime?.slope,
     });
   }
 
@@ -246,6 +338,49 @@ function getMonitoringDates(
   return dates;
 }
 
+function resolveContangoSizeMultiplier(signal: EntrySignal, config: SimConfig): number {
+  const low = config.contangoSizeLow;
+  const mid = config.contangoSizeMid;
+  const high = config.contangoSizeHigh;
+  const midTh = config.contangoSizeMidThreshold;
+  const highTh = config.contangoSizeHighThreshold;
+  const sizingEnabled = [low, mid, high, midTh, highTh].every(v => v != null && Number.isFinite(v));
+  if (!sizingEnabled) return 1;
+
+  const lowV = Number(low);
+  const midV = Number(mid);
+  const highV = Number(high);
+  const midThV = Number(midTh);
+  const highThV = Number(highTh);
+  if (highThV < midThV) return 1;
+
+  const c = signal.contango;
+  if (c == null || !Number.isFinite(c)) return midV;
+  if (c >= highThV) return highV;
+  if (c >= midThV) return midV;
+  return lowV;
+}
+
+function scaleTradeByMultiplier(trade: OptionTrade, multiplier: number): OptionTrade | null {
+  if (!Number.isFinite(multiplier) || multiplier <= 0) return null;
+  if (Math.abs(multiplier - 1) < 1e-9) {
+    return { ...trade, positionSize: trade.positionSize ?? 1 };
+  }
+  return {
+    ...trade,
+    pnl: trade.pnl * multiplier,
+    maxProfit: trade.maxProfit != null ? trade.maxProfit * multiplier : trade.maxProfit,
+    maxLoss: trade.maxLoss != null ? trade.maxLoss * multiplier : trade.maxLoss,
+    entrySlippage: trade.entrySlippage != null ? trade.entrySlippage * multiplier : trade.entrySlippage,
+    exitSlippage: trade.exitSlippage != null ? trade.exitSlippage * multiplier : trade.exitSlippage,
+    dailyMtM: trade.dailyMtM?.map(m => ({
+      ...m,
+      unrealizedPnl: m.unrealizedPnl * multiplier,
+    })),
+    positionSize: (trade.positionSize ?? 1) * multiplier,
+  };
+}
+
 /**
  * Sync credit spread evaluator using cached chain data only.
  * Mirrors simulateCreditSpread logic but uses getCachedChain (sync SQLite reads).
@@ -256,6 +391,23 @@ function makeCachedEvaluator(fillMode: FillMode): TradeEvaluator {
     if (config.minIVRank > 0 && (signal.ivRank == null || signal.ivRank < config.minIVRank)) {
       return null;
     }
+    if (config.vrpFilter && config.vrpFilter > 0 && (signal.vrp == null || signal.vrp < config.vrpFilter)) {
+      return null;
+    }
+    if (config.contangoFilter && config.contangoFilter > 0 && (signal.contango == null || signal.contango < config.contangoFilter)) {
+      return null;
+    }
+    if (config.vrpPctFilter && config.vrpPctFilter > 0 && (signal.vrpPct == null || signal.vrpPct < config.vrpPctFilter)) {
+      return null;
+    }
+    if (config.contangoPctFilter && config.contangoPctFilter > 0 && (signal.contangoPct == null || signal.contangoPct < config.contangoPctFilter)) {
+      return null;
+    }
+    if (config.slopeFilter && config.slopeFilter > 0 && (signal.slope == null || signal.slope < config.slopeFilter)) {
+      return null;
+    }
+    const sizeMultiplier = resolveContangoSizeMultiplier(signal, config);
+    if (sizeMultiplier <= 0) return null;
 
     // Get cached chain (sync)
     const entryChain = getCachedChainMemo(signal.ticker, signal.date);
@@ -298,8 +450,14 @@ function makeCachedEvaluator(fillMode: FillMode): TradeEvaluator {
         spread.short.ask, 'sell', config.slippage, spread.short.oi, spread.short.row.dte);
       const longFill = applyFill('bidask', spread.long.mid, spread.long.bid,
         spread.long.ask, 'buy', config.slippage, spread.long.oi, spread.long.row.dte);
-      entryCredit = shortFill.fillPrice - longFill.fillPrice;
-      entrySlippage = shortFill.slippage + longFill.slippage;
+      if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
+        const spreadFill = applySpreadFill('bidask', spread.short, spread.long, 'open', config.slippage);
+        entryCredit = spreadFill.fillPrice;
+        entrySlippage = spreadFill.slippage;
+      } else {
+        entryCredit = shortFill.fillPrice - longFill.fillPrice;
+        entrySlippage = shortFill.slippage + longFill.slippage;
+      }
       if (entryCredit <= 0) return null;
     } else {
       entryCredit = spread.netCredit;
@@ -323,12 +481,18 @@ function makeCachedEvaluator(fillMode: FillMode): TradeEvaluator {
       let currentSpreadCost: number;
       let exitSlippageAmount = 0;
       if (fillMode === 'bidask' && config.slippage.enabled) {
-        const shortClose = applyFill('bidask', shortLeg.mid, shortLeg.bid,
-          shortLeg.ask, 'buy', config.slippage, shortLeg.oi, shortLeg.row.dte);
-        const longClose = applyFill('bidask', longLeg.mid, longLeg.bid,
-          longLeg.ask, 'sell', config.slippage, longLeg.oi, longLeg.row.dte);
-        currentSpreadCost = shortClose.fillPrice - longClose.fillPrice;
-        exitSlippageAmount = shortClose.slippage + longClose.slippage;
+        if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
+          const spreadFill = applySpreadFill('bidask', shortLeg, longLeg, 'close', config.slippage);
+          currentSpreadCost = spreadFill.fillPrice;
+          exitSlippageAmount = spreadFill.slippage;
+        } else {
+          const shortClose = applyFill('bidask', shortLeg.mid, shortLeg.bid,
+            shortLeg.ask, 'buy', config.slippage, shortLeg.oi, shortLeg.row.dte);
+          const longClose = applyFill('bidask', longLeg.mid, longLeg.bid,
+            longLeg.ask, 'sell', config.slippage, longLeg.oi, longLeg.row.dte);
+          currentSpreadCost = shortClose.fillPrice - longClose.fillPrice;
+          exitSlippageAmount = shortClose.slippage + longClose.slippage;
+        }
       } else {
         currentSpreadCost = shortLeg.mid - longLeg.mid;
       }
@@ -348,9 +512,10 @@ function makeCachedEvaluator(fillMode: FillMode): TradeEvaluator {
       else if (currentDTE <= config.creditTimeStopDTE) exitType = 'TIME_STOP';
 
       if (exitType) {
-        return buildResult(signal, spread, entryCredit, checkDate, currentSpreadCost,
+        const trade = buildResult(signal, spread, entryCredit, checkDate, currentSpreadCost,
           currentDTE, shortLeg.row.stock_price, exitType, dailyMtM,
           entrySlippage, exitSlippageAmount, fillMode);
+        return scaleTradeByMultiplier(trade, sizeMultiplier);
       }
     }
 
@@ -374,9 +539,10 @@ function makeCachedEvaluator(fillMode: FillMode): TradeEvaluator {
         currentSpreadCost = shortIntrinsic - longIntrinsic;
       }
 
-      return buildResult(signal, spread, entryCredit, lastDate, currentSpreadCost,
+      const trade = buildResult(signal, spread, entryCredit, lastDate, currentSpreadCost,
         shortLeg?.row.dte ?? 0, shortLeg?.row.stock_price ?? spread.short.row.stock_price,
         'EXPIRATION', dailyMtM, entrySlippage, 0, fillMode);
+      return scaleTradeByMultiplier(trade, sizeMultiplier);
     }
 
     return null;
@@ -411,6 +577,7 @@ function buildResult(
     entryStockPrice: spread.short.row.stock_price,
     longStrike: spread.long.row.strike,
     longEntryPrice: spread.long.mid,
+    requestedSpreadWidth: spread.requestedSpreadWidth,
     spreadWidth: spread.spreadWidth,
     maxProfit: entryCredit,
     maxLoss: spread.maxLoss,
@@ -427,15 +594,29 @@ function buildResult(
     exitSlippage: exitSlippage > 0 ? exitSlippage : undefined,
     fillMode,
     dailyMtM,
+    positionSize: 1,
   };
 }
 
 // ── Sweep Grid ──────────────────────────────────────────
 
-function buildSweepCandidates(): SimConfig[] {
+interface RegimeOverrides {
+  vrpFilter?: number;
+  contangoFilter?: number;
+  vrpPctFilter?: number;
+  contangoPctFilter?: number;
+  slopeFilter?: number;
+  contangoSizeLow?: number;
+  contangoSizeMid?: number;
+  contangoSizeHigh?: number;
+  contangoSizeMidThreshold?: number;
+  contangoSizeHighThreshold?: number;
+}
+
+function buildSweepCandidates(regimeOverrides: RegimeOverrides = {}): SimConfig[] {
   const candidates: SimConfig[] = [];
 
-  const presets: SignalPresetKey[] = ['ema', 'mom', 'em', 'mf'];
+  const presets: SignalPresetKey[] = ['ema', 'mom', 'em', 'mf', 'vol'];
   const profitTargets = [0.30, 0.50];          // 0.40 validated in prev run (extreme IV only); keep ends
   const spreadWidths = [5, 15];               // 10 never selected; 5 wins low-IV, 15 wins otherwise
   const ivRankMins = [0, 30];                  // 0 = high-IV regime, 30 = structural filter
@@ -461,6 +642,16 @@ function buildSweepCandidates(): SimConfig[] {
                   ? { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: true }
                   : { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: false },
                 signalWeightPreset: preset,
+                vrpFilter: regimeOverrides.vrpFilter,
+                contangoFilter: regimeOverrides.contangoFilter,
+                vrpPctFilter: regimeOverrides.vrpPctFilter,
+                contangoPctFilter: regimeOverrides.contangoPctFilter,
+                slopeFilter: regimeOverrides.slopeFilter,
+                contangoSizeLow: regimeOverrides.contangoSizeLow,
+                contangoSizeMid: regimeOverrides.contangoSizeMid,
+                contangoSizeHigh: regimeOverrides.contangoSizeHigh,
+                contangoSizeMidThreshold: regimeOverrides.contangoSizeMidThreshold,
+                contangoSizeHighThreshold: regimeOverrides.contangoSizeHighThreshold,
               });
             }
           }
@@ -563,17 +754,414 @@ function printReport(result: WFAResult) {
   console.log('\n' + '═'.repeat(80) + '\n');
 }
 
+interface RegimeStudyArm {
+  name: string;
+  label: string;
+  overrides: RegimeOverrides;
+}
+
+interface RegimeStudySummary {
+  arm: string;
+  label: string;
+  overrides: RegimeOverrides;
+  oosSharpe: number;
+  oosWinRate: number;
+  oosMaxDD: number;
+  oosTotalPnl: number;
+  wfEfficiency: number;
+  trades: number;
+  elapsedMs: number;
+}
+
+function buildRegimeStudyArms(): RegimeStudyArm[] {
+  return [
+    { name: 'baseline', label: 'Baseline (no regime gate)', overrides: {} },
+    { name: 'contango_3', label: 'Contango >= 3%', overrides: { contangoFilter: 0.03 } },
+    { name: 'contango_6', label: 'Contango >= 6%', overrides: { contangoFilter: 0.06 } },
+    {
+      name: 'contango_pct60',
+      label: 'Contango Percentile >= 60',
+      overrides: { contangoPctFilter: 60 },
+    },
+    {
+      name: 'contango_pct75',
+      label: 'Contango Percentile >= 75',
+      overrides: { contangoPctFilter: 75 },
+    },
+    { name: 'vrp_005', label: 'VRP >= 0.005', overrides: { vrpFilter: 0.005 } },
+    { name: 'vrp_010', label: 'VRP >= 0.010', overrides: { vrpFilter: 0.01 } },
+    { name: 'vrp_pct60', label: 'VRP Percentile >= 60', overrides: { vrpPctFilter: 60 } },
+    { name: 'vrp_pct50', label: 'VRP Percentile >= 50', overrides: { vrpPctFilter: 50 } },
+    { name: 'vrp_pct40', label: 'VRP Percentile >= 40', overrides: { vrpPctFilter: 40 } },
+    {
+      name: 'hybrid_c3_v005',
+      label: 'Contango >= 3% + VRP >= 0.005',
+      overrides: { contangoFilter: 0.03, vrpFilter: 0.005 },
+    },
+    {
+      name: 'hybrid_c6_v010',
+      label: 'Contango >= 6% + VRP >= 0.010',
+      overrides: { contangoFilter: 0.06, vrpFilter: 0.01 },
+    },
+    {
+      name: 'size_c3_c6_balanced',
+      label: 'Sizing: 0.5/1.0/1.25 by contango (<3%, 3-6%, >=6%)',
+      overrides: {
+        contangoSizeLow: 0.5,
+        contangoSizeMid: 1.0,
+        contangoSizeHigh: 1.25,
+        contangoSizeMidThreshold: 0.03,
+        contangoSizeHighThreshold: 0.06,
+      },
+    },
+    {
+      name: 'size_c3_c6_conservative',
+      label: 'Sizing: 0.35/0.8/1.1 by contango (<3%, 3-6%, >=6%)',
+      overrides: {
+        contangoSizeLow: 0.35,
+        contangoSizeMid: 0.8,
+        contangoSizeHigh: 1.1,
+        contangoSizeMidThreshold: 0.03,
+        contangoSizeHighThreshold: 0.06,
+      },
+    },
+    {
+      name: 'size_c3_c6_derisk',
+      label: 'Sizing: 0.2/0.5/0.9 by contango (<3%, 3-6%, >=6%)',
+      overrides: {
+        contangoSizeLow: 0.2,
+        contangoSizeMid: 0.5,
+        contangoSizeHigh: 0.9,
+        contangoSizeMidThreshold: 0.03,
+        contangoSizeHighThreshold: 0.06,
+      },
+    },
+  ];
+}
+
+function summarizeRegimeResult(arm: RegimeStudyArm, result: WFAResult): RegimeStudySummary {
+  return {
+    arm: arm.name,
+    label: arm.label,
+    overrides: arm.overrides,
+    oosSharpe: result.oosSharpe,
+    oosWinRate: result.oosWinRate,
+    oosMaxDD: result.oosMaxDD,
+    oosTotalPnl: result.oosTotalPnl,
+    wfEfficiency: result.wfEfficiency,
+    trades: result.allOOSTrades.length,
+    elapsedMs: result.elapsedMs,
+  };
+}
+
+function printRegimeStudyTable(rows: RegimeStudySummary[]) {
+  if (rows.length === 0) return;
+  const baseline = rows.find(r => r.arm === 'baseline') ?? rows[0];
+  const ranked = [...rows].sort((a, b) => b.oosSharpe - a.oosSharpe);
+
+  console.log('\n' + '═'.repeat(96));
+  console.log('  REGIME STUDY — OOS SUMMARY');
+  console.log('═'.repeat(96));
+  console.log('  Arm                      Sharpe   ΔSharpe    WFE   MaxDD   Trades      PnL');
+  console.log('  ' + '·'.repeat(94));
+  for (const r of ranked) {
+    const dSharpe = r.oosSharpe - baseline.oosSharpe;
+    const dSharpeStr = `${dSharpe >= 0 ? '+' : ''}${dSharpe.toFixed(2)}`;
+    const pnlStr = `$${r.oosTotalPnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    console.log(
+      `  ${r.arm.padEnd(22)} ${r.oosSharpe.toFixed(2).padStart(7)} ${dSharpeStr.padStart(9)} ` +
+      `${r.wfEfficiency.toFixed(2).padStart(6)} ${formatPct(r.oosMaxDD).padStart(7)} ` +
+      `${String(r.trades).padStart(7)} ${pnlStr.padStart(9)}`,
+    );
+  }
+  console.log('═'.repeat(96) + '\n');
+}
+
+// ── Parallel Train Eval (worker_threads) ───────────────
+
+interface TrainWorkItem {
+  id: number;
+  configIdx: number;
+  config: SimConfig;
+  trainStart: string;
+  trainEnd: string;
+  nTrials: number;
+}
+
+interface TrainWorkResult {
+  type: 'result';
+  id: number;
+  configIdx: number;
+  sharpe: number;
+  trades: number;
+  dsr: number;
+  robustScore: number;
+  error?: string;
+}
+
+async function createTrainWorkerPool(
+  signalsByPreset: Map<SignalPresetKey, EntrySignal[]>,
+  allTradingDates: string[],
+  executionConfig: PortfolioExecutionConfig,
+): Promise<Worker[]> {
+  const workerSrc = path.resolve(__dirname, 'wfa-train-worker.ts');
+  const workerBundle = path.resolve(__dirname, '.wfa-train-worker.mjs');
+  execSync(
+    `npx esbuild ${workerSrc} --bundle --platform=node --format=esm --outfile=${workerBundle} --external:better-sqlite3 --packages=external`,
+    { cwd: path.resolve(__dirname, '..'), stdio: 'pipe' },
+  );
+
+  const payload: Record<string, EntrySignal[]> = {};
+  for (const [k, v] of signalsByPreset) payload[k] = v;
+
+  const workers = await Promise.all(
+    Array.from({ length: NUM_WORKERS }, () =>
+      new Promise<Worker>((resolve, reject) => {
+        const w = new Worker(workerBundle, {
+          workerData: {
+            signalsByPreset: payload,
+            allTradingDates,
+            fillMode: FILL_MODE,
+            executionConfig,
+          },
+        });
+        w.once('message', (msg) => {
+          if (msg?.type === 'ready') resolve(w);
+          else reject(new Error('Worker failed to initialize'));
+        });
+        w.once('error', reject);
+      }),
+    ),
+  );
+  return workers;
+}
+
+async function terminateTrainWorkerPool(workers: Worker[]) {
+  for (const w of workers) w.postMessage({ type: 'exit' });
+  await new Promise(r => setTimeout(r, 100));
+  await Promise.all(workers.map(w => w.terminate()));
+}
+
+async function runParallelTrainWork(
+  workers: Worker[],
+  workItems: TrainWorkItem[],
+  label: string,
+): Promise<TrainWorkResult[]> {
+  const results: TrainWorkResult[] = new Array(workItems.length);
+  let nextIdx = 0;
+  let completed = 0;
+  let lastPrinted = 0;
+  const printStep = Math.max(1, Math.floor(workItems.length / 20));
+
+  return new Promise((resolve, reject) => {
+    const handlers = new Map<Worker, (msg: TrainWorkResult) => void>();
+    const errorHandlers = new Map<Worker, (err: Error) => void>();
+
+    const onMessage = (worker: Worker) => (msg: TrainWorkResult) => {
+      if (!msg || msg.type !== 'result') return;
+      results[msg.id] = msg;
+      completed++;
+      if (completed === workItems.length || completed - lastPrinted >= printStep) {
+        process.stdout.write(`\r  ${label}: ${completed}/${workItems.length} configs...`);
+        lastPrinted = completed;
+      }
+      if (completed === workItems.length) {
+        process.stdout.write('\n');
+        for (const w of workers) {
+          const h = handlers.get(w);
+          const eh = errorHandlers.get(w);
+          if (h) w.off('message', h);
+          if (eh) w.off('error', eh);
+        }
+        resolve(results);
+        return;
+      }
+      const next = workItems[nextIdx++];
+      if (next) worker.postMessage(next);
+    };
+
+    const onError = (err: Error) => {
+      for (const w of workers) {
+        const h = handlers.get(w);
+        const eh = errorHandlers.get(w);
+        if (h) w.off('message', h);
+        if (eh) w.off('error', eh);
+      }
+      reject(err);
+    };
+
+    for (const worker of workers) {
+      const h = onMessage(worker);
+      const eh = (err: Error) => onError(err);
+      handlers.set(worker, h);
+      errorHandlers.set(worker, eh);
+      worker.on('message', h);
+      worker.on('error', eh);
+    }
+
+    for (const worker of workers) {
+      const next = workItems[nextIdx++];
+      if (!next) break;
+      worker.postMessage(next);
+    }
+  });
+}
+
+function computeRollingPercentile(values: (number | undefined)[], window = 252): (number | undefined)[] {
+  return values.map((v, i) => {
+    if (v == null || !Number.isFinite(v)) return undefined;
+    const start = Math.max(0, i - window);
+    const w = values.slice(start, i + 1).filter((x): x is number => x != null && Number.isFinite(x));
+    if (w.length < 60) return undefined;
+    const le = w.filter(x => x <= v).length;
+    return (le / w.length) * 100;
+  });
+}
+
+async function runWFAOptionsParallelTrain(
+  config: WFAOptionsConfig,
+  signalsByPreset: Map<SignalPresetKey, EntrySignal[]>,
+  allTradingDates: string[],
+  sweepCandidates: SimConfig[],
+  evaluator: TradeEvaluator,
+  workers: Worker[],
+  onProgress?: (windowIdx: number, totalWindows: number) => void,
+): Promise<WFAResult> {
+  const t0 = Date.now();
+  const windowMetricsMode = config.windowMetricsMode ?? 'strict';
+  const selectionMode = config.selectionMode ?? 'ensemble_top_k';
+  const ensembleSize = Math.max(1, config.ensembleSize ?? 3);
+  const ensembleMinVotes = Math.max(1, config.ensembleMinVotes ?? 2);
+  const windows = buildWFAWindows(allTradingDates, {
+    trainWindowDays: config.trainWindowDays,
+    forwardStepDays: config.forwardStepDays,
+    purgeGapDays: config.purgeGapDays,
+    mode: config.mode,
+    startDate: config.startDate,
+    endDate: config.endDate,
+  });
+
+  const executionConfig: PortfolioExecutionConfig = {
+    maxPositions: config.maxPositions,
+    maxPerTicker: config.maxPerTicker,
+    startingCapital: config.startingCapital,
+  };
+
+  const allOOSTrades: OptionTrade[] = [];
+  const wfaWindows: WFAWindow[] = [];
+
+  for (let i = 0; i < windows.length; i++) {
+    const w = windows[i];
+    onProgress?.(i, windows.length);
+
+    const trainItems: TrainWorkItem[] = sweepCandidates.map((candidate, idx) => ({
+      id: idx,
+      configIdx: idx,
+      config: candidate,
+      trainStart: w.trainStart,
+      trainEnd: w.trainEnd,
+      nTrials: sweepCandidates.length,
+    }));
+
+    const trainResults = await runParallelTrainWork(
+      workers,
+      trainItems,
+      `${i + 1}/${windows.length}`,
+    );
+    const rankedTrainResults = trainResults
+      .filter(r => Number.isFinite(r.sharpe))
+      .map(r => ({
+        config: sweepCandidates[r.configIdx] ?? sweepCandidates[0],
+        sharpe: r.sharpe,
+        trades: r.trades,
+        dsr: r.dsr,
+        robustScore: r.robustScore,
+      }))
+      .sort((a, b) => b.sharpe - a.sharpe);
+
+    const selectedResults = selectConfigsForOOS(
+      rankedTrainResults,
+      config.selectionGuard,
+      selectionMode,
+      ensembleSize,
+    );
+    const configuredSignals = buildConfiguredSignalsForWindow(
+      selectedResults,
+      signalsByPreset,
+      w.oosStart,
+      w.oosEnd,
+      selectionMode === 'single' ? 1 : ensembleMinVotes,
+    );
+    const oosTrades = evaluateConfiguredSignalsWithConstraints(
+      configuredSignals,
+      executionConfig,
+      allTradingDates,
+      config.endDate,
+      evaluator,
+    );
+    const oosAnalytics = computeOptionAnalytics(oosTrades);
+    const windowMetricsEnd = windowMetricsMode === 'strict' ? w.oosEnd : config.endDate;
+    const windowMetrics = computePortfolioDailyMetrics(
+      oosTrades,
+      allTradingDates,
+      w.oosStart,
+      windowMetricsEnd,
+      config.startingCapital,
+    );
+
+    wfaWindows.push({
+      windowIndex: i,
+      trainStart: w.trainStart,
+      trainEnd: w.trainEnd,
+      oosStart: w.oosStart,
+      oosEnd: w.oosEnd,
+      bestConfig: selectedResults[0]?.config ?? rankedTrainResults[0]?.config ?? sweepCandidates[0],
+      selectedConfigs: selectedResults.map(r => r.config),
+      bestTrainSharpe: selectedResults[0]?.sharpe ?? rankedTrainResults[0]?.sharpe ?? 0,
+      oosTrades,
+      oosSharpe: windowMetrics.sharpe,
+      oosWinRate: oosAnalytics.winRate,
+      oosMaxDD: windowMetrics.maxDrawdownPct,
+    });
+    allOOSTrades.push(...oosTrades);
+  }
+
+  const allPortfolioMetrics = computePortfolioDailyMetrics(
+    allOOSTrades,
+    allTradingDates,
+    config.startDate,
+    config.endDate,
+    config.startingCapital,
+  );
+  const oosAllAnalytics = computeOptionAnalytics(allOOSTrades);
+  const avgTrainSharpe = wfaWindows.length > 0
+    ? wfaWindows.reduce((s, w) => s + w.bestTrainSharpe, 0) / wfaWindows.length
+    : 0;
+
+  return {
+    config,
+    windows: wfaWindows,
+    allOOSTrades,
+    oosEquityCurve: allPortfolioMetrics.equityCurve,
+    oosSharpe: allPortfolioMetrics.sharpe,
+    oosWinRate: oosAllAnalytics.winRate,
+    oosMaxDD: allPortfolioMetrics.maxDrawdownPct,
+    oosTotalPnl: allOOSTrades.reduce((s, t) => s + t.pnl, 0),
+    wfEfficiency: avgTrainSharpe >= 0.1 ? allPortfolioMetrics.sharpe / avgTrainSharpe : 0,
+    elapsedMs: Date.now() - t0,
+  };
+}
+
 // ── Main ────────────────────────────────────────────────
 
 async function main() {
   console.log('WFA Engine — Walk-Forward Analysis for Credit Spreads');
   console.log('─'.repeat(60));
 
-  // 1. Initialize chain cache
+  // 1. Initialize chain cache (workers will open their own connections)
+  // Skipped getCacheStats because it takes too long on large tables
   initDB();
-  const stats = getCacheStats();
-  console.log(`Chain cache: ${stats.totalRows.toLocaleString()} rows, ${stats.totalDates} dates, ${stats.tickers.length} tickers`);
-
+  closeDB();
   // 2. Fetch candle data for all tickers
   console.log(`\nFetching candle data for ${tickers.length} tickers...`);
   const tickerDataMap = new Map<string, TickerData>();
@@ -598,7 +1186,7 @@ async function main() {
   // 4. Pre-compute signals for each preset across all tickers
   console.log('\nGenerating signals per preset...');
   const signalsByPreset = new Map<SignalPresetKey, EntrySignal[]>();
-  const presetKeys: SignalPresetKey[] = ['ema', 'mom', 'em', 'mf'];
+  const presetKeys: SignalPresetKey[] = ['ema', 'mom', 'em', 'mf', 'vol'];
 
   for (const preset of presetKeys) {
     const allSignals: EntrySignal[] = [];
@@ -611,17 +1199,7 @@ async function main() {
     console.log(`  ${preset}: ${allSignals.length} signals`);
   }
 
-  // 5. Build sweep candidates
-  const candidates = buildSweepCandidates();
-  console.log(`\nSweep candidates: ${candidates.length} configs`);
-  console.log(`  Presets: ${presetKeys.join(', ')}`);
-  console.log(`  TP: 30%, 50%`);
-  console.log(`  Spread widths: $5, $15`);
-  console.log(`  IV rank min: 0, 30`);
-  console.log(`  Delta stop: 0.75, 0.80, off`);
-  console.log(`  Time stop DTE: 7, 14`);
-
-  // 6. Preview windows
+  // 5. Preview windows
   const windowDefs = buildWFAWindows(allTradingDates, {
     trainWindowDays: TRAIN_DAYS,
     forwardStepDays: STEP_DAYS,
@@ -635,67 +1213,246 @@ async function main() {
     console.log(`  Train ${w.trainStart}→${w.trainEnd} | OOS ${w.oosStart}→${w.oosEnd}`);
   }
 
-  // 7. Run WFA
-  console.log(`\nRunning WFA (${candidates.length} configs × ${windowDefs.length} windows)...`);
   const evaluator = makeCachedEvaluator(FILL_MODE);
-
-  const result = runWFAOptions(
-    {
-      tickers,
-      startDate: WFA_START,
-      endDate: WFA_END,
-      trainWindowDays: TRAIN_DAYS,
-      forwardStepDays: STEP_DAYS,
-      purgeGapDays: PURGE_DAYS,
-      mode: WFA_MODE,
-      maxPositions: MAX_POSITIONS,
-      maxPerTicker: MAX_PER_TICKER,
-      startingCapital: STARTING_CAPITAL,
-    },
-    signalsByPreset,
-    allTradingDates,
-    candidates,
-    evaluator,
-    (windowIdx, totalWindows) => {
-      process.stdout.write(`\r  Window ${windowIdx + 1}/${totalWindows}...`);
-    },
-  );
-  console.log(`\r  ${result.windows.length} windows complete. (${(result.elapsedMs / 1000).toFixed(1)}s)`);
-  const hitRate = (_chainHits + _chainMisses) > 0 ? (_chainHits / (_chainHits + _chainMisses) * 100).toFixed(1) : '0';
-  console.log(`  Chain LRU: ${_chainHits.toLocaleString()} hits, ${_chainMisses.toLocaleString()} misses (${hitRate}% hit rate)`);
-
-  // 8. Print report
-  printReport(result);
-
-  // 9. Save JSON
   const outDir = path.resolve(__dirname, '../data');
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-
-  // Strip heavy trade arrays for JSON export (keep summaries only)
-  const exportResult = {
-    ...result,
-    windows: result.windows.map(w => ({
-      ...w,
-      oosTrades: w.oosTrades.map(t => ({
-        ticker: t.ticker, entryDate: t.entryDate, exitDate: t.exitDate,
-        pnl: t.pnl, pnlPct: t.pnlPct, holdDays: t.holdDays,
-        exitType: t.exitType, direction: t.direction,
-        entryDelta: t.entryDelta, entryDTE: t.entryDTE,
-        strike: t.strike, spreadWidth: t.spreadWidth,
-      })),
-    })),
-    allOOSTrades: result.allOOSTrades.map(t => ({
-      ticker: t.ticker, entryDate: t.entryDate, exitDate: t.exitDate,
-      pnl: t.pnl, pnlPct: t.pnlPct, holdDays: t.holdDays,
-      exitType: t.exitType, direction: t.direction,
-      entryDelta: t.entryDelta, entryDTE: t.entryDTE,
-      strike: t.strike, spreadWidth: t.spreadWidth,
-    })),
+  const executionConfig: PortfolioExecutionConfig = {
+    maxPositions: MAX_POSITIONS,
+    maxPerTicker: MAX_PER_TICKER,
+    startingCapital: STARTING_CAPITAL,
   };
 
-  const outPath = path.resolve(outDir, 'wfa-results.json');
-  fs.writeFileSync(outPath, JSON.stringify(exportResult, null, 2));
-  console.log(`Results saved to ${outPath}`);
+  let trainWorkers: Worker[] = [];
+  if (NUM_WORKERS > 1) {
+    console.log(`\nInitializing ${NUM_WORKERS} train workers (${os.cpus().length} CPU cores)...`);
+    trainWorkers = await createTrainWorkerPool(signalsByPreset, allTradingDates, executionConfig);
+    console.log('Train workers ready.');
+  } else {
+    console.log('\nTrain workers disabled (`--workers 1`), using single-thread optimizer.');
+  }
+
+  try {
+    if (REGIME_STUDY) {
+      const allArms = buildRegimeStudyArms();
+      const arms = REGIME_ARM
+        ? allArms.filter(a => a.name === REGIME_ARM)
+        : allArms;
+      if (REGIME_ARM && arms.length === 0) {
+        throw new Error(`Unknown --regime-arm "${REGIME_ARM}". Valid: ${allArms.map(a => a.name).join(', ')}`);
+      }
+      console.log(`\nRegime study mode: ${arms.length} arms`);
+      const summaries: RegimeStudySummary[] = [];
+      const armResults: Record<string, {
+        summary: RegimeStudySummary;
+        windows: {
+          windowIndex: number;
+          trainStart: string;
+          trainEnd: string;
+          oosStart: string;
+          oosEnd: string;
+          bestTrainSharpe: number;
+          oosSharpe: number;
+          oosWinRate: number;
+          oosMaxDD: number;
+          tradeCount: number;
+          bestConfig: {
+            signalWeightPreset?: string;
+            creditProfitTarget: number;
+            creditSpreadWidth: number;
+            minIVRank: number;
+            contangoFilter?: number;
+            vrpFilter?: number;
+            contangoPctFilter?: number;
+            vrpPctFilter?: number;
+            slopeFilter?: number;
+            contangoSizeLow?: number;
+            contangoSizeMid?: number;
+            contangoSizeHigh?: number;
+            contangoSizeMidThreshold?: number;
+            contangoSizeHighThreshold?: number;
+          };
+        }[];
+      }> = {};
+
+      for (const arm of arms) {
+        const candidates = buildSweepCandidates(arm.overrides);
+        console.log(`\nRunning arm: ${arm.label}`);
+        console.log(`  configs: ${candidates.length} × windows: ${windowDefs.length}`);
+        const runConfig: WFAOptionsConfig = {
+          tickers,
+          startDate: WFA_START,
+          endDate: WFA_END,
+          trainWindowDays: TRAIN_DAYS,
+          forwardStepDays: STEP_DAYS,
+          purgeGapDays: PURGE_DAYS,
+          mode: WFA_MODE,
+          maxPositions: MAX_POSITIONS,
+          maxPerTicker: MAX_PER_TICKER,
+          startingCapital: STARTING_CAPITAL,
+        };
+
+        const result = trainWorkers.length > 0
+          ? await runWFAOptionsParallelTrain(
+            runConfig,
+            signalsByPreset,
+            allTradingDates,
+            candidates,
+            evaluator,
+            trainWorkers,
+            (windowIdx, totalWindows) => {
+              process.stdout.write(`\r  ${arm.name}: window ${windowIdx + 1}/${totalWindows}...`);
+            },
+          )
+          : runWFAOptions(
+            runConfig,
+            signalsByPreset,
+            allTradingDates,
+            candidates,
+            evaluator,
+            (windowIdx, totalWindows) => {
+              process.stdout.write(`\r  ${arm.name}: window ${windowIdx + 1}/${totalWindows}...`);
+            },
+          );
+
+        console.log(`\r  ${arm.name}: ${result.windows.length} windows complete. (${(result.elapsedMs / 1000).toFixed(1)}s)`);
+        const summary = summarizeRegimeResult(arm, result);
+        summaries.push(summary);
+        armResults[arm.name] = {
+          summary,
+          windows: result.windows.map(w => ({
+            windowIndex: w.windowIndex,
+            trainStart: w.trainStart,
+            trainEnd: w.trainEnd,
+            oosStart: w.oosStart,
+            oosEnd: w.oosEnd,
+            bestTrainSharpe: w.bestTrainSharpe,
+            oosSharpe: w.oosSharpe,
+            oosWinRate: w.oosWinRate,
+            oosMaxDD: w.oosMaxDD,
+            tradeCount: w.oosTrades.length,
+            bestConfig: {
+              signalWeightPreset: w.bestConfig.signalWeightPreset,
+              creditProfitTarget: w.bestConfig.creditProfitTarget,
+              creditSpreadWidth: w.bestConfig.creditSpreadWidth,
+              minIVRank: w.bestConfig.minIVRank,
+              contangoFilter: w.bestConfig.contangoFilter,
+              vrpFilter: w.bestConfig.vrpFilter,
+              contangoPctFilter: w.bestConfig.contangoPctFilter,
+              vrpPctFilter: w.bestConfig.vrpPctFilter,
+              slopeFilter: w.bestConfig.slopeFilter,
+              contangoSizeLow: w.bestConfig.contangoSizeLow,
+              contangoSizeMid: w.bestConfig.contangoSizeMid,
+              contangoSizeHigh: w.bestConfig.contangoSizeHigh,
+              contangoSizeMidThreshold: w.bestConfig.contangoSizeMidThreshold,
+              contangoSizeHighThreshold: w.bestConfig.contangoSizeHighThreshold,
+            },
+          })),
+        };
+      }
+
+      printRegimeStudyTable(summaries);
+      const outPath = path.resolve(outDir, REGIME_OUT);
+      fs.writeFileSync(outPath, JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        mode: WFA_MODE,
+        period: { start: WFA_START, end: WFA_END },
+        params: {
+          trainDays: TRAIN_DAYS,
+          stepDays: STEP_DAYS,
+          purgeDays: PURGE_DAYS,
+          maxPositions: MAX_POSITIONS,
+          maxPerTicker: MAX_PER_TICKER,
+          startingCapital: STARTING_CAPITAL,
+          fillMode: FILL_MODE,
+          workers: trainWorkers.length > 0 ? NUM_WORKERS : 1,
+        },
+        summaries,
+        armResults,
+      }, null, 2));
+      console.log(`Regime study results saved to ${outPath}`);
+    } else {
+      const candidates = buildSweepCandidates();
+      console.log(`\nSweep candidates: ${candidates.length} configs`);
+      console.log(`  Presets: ${presetKeys.join(', ')}`);
+      console.log(`  TP: 30%, 50%`);
+      console.log(`  Spread widths: $5, $15`);
+      console.log(`  IV rank min: 0, 30`);
+      console.log(`  Delta stop: 0.75, 0.80, off`);
+      console.log(`  Time stop DTE: 7, 14`);
+
+      console.log(`\nRunning WFA (${candidates.length} configs × ${windowDefs.length} windows)...`);
+      const runConfig: WFAOptionsConfig = {
+        tickers,
+        startDate: WFA_START,
+        endDate: WFA_END,
+        trainWindowDays: TRAIN_DAYS,
+        forwardStepDays: STEP_DAYS,
+        purgeGapDays: PURGE_DAYS,
+        mode: WFA_MODE,
+        maxPositions: MAX_POSITIONS,
+        maxPerTicker: MAX_PER_TICKER,
+        startingCapital: STARTING_CAPITAL,
+      };
+      const result = trainWorkers.length > 0
+        ? await runWFAOptionsParallelTrain(
+          runConfig,
+          signalsByPreset,
+          allTradingDates,
+          candidates,
+          evaluator,
+          trainWorkers,
+          (windowIdx, totalWindows) => {
+            process.stdout.write(`\r  Window ${windowIdx + 1}/${totalWindows}...`);
+          },
+        )
+        : runWFAOptions(
+          runConfig,
+          signalsByPreset,
+          allTradingDates,
+          candidates,
+          evaluator,
+          (windowIdx, totalWindows) => {
+            process.stdout.write(`\r  Window ${windowIdx + 1}/${totalWindows}...`);
+          },
+        );
+
+      console.log(`\r  ${result.windows.length} windows complete. (${(result.elapsedMs / 1000).toFixed(1)}s)`);
+      printReport(result);
+
+      const exportResult = {
+        ...result,
+        windows: result.windows.map(w => ({
+          ...w,
+          oosTrades: w.oosTrades.map(t => ({
+            ticker: t.ticker, entryDate: t.entryDate, exitDate: t.exitDate,
+            pnl: t.pnl, pnlPct: t.pnlPct, holdDays: t.holdDays,
+            exitType: t.exitType, direction: t.direction,
+            entryDelta: t.entryDelta, entryDTE: t.entryDTE,
+            strike: t.strike, spreadWidth: t.spreadWidth,
+          })),
+        })),
+        allOOSTrades: result.allOOSTrades.map(t => ({
+          ticker: t.ticker, entryDate: t.entryDate, exitDate: t.exitDate,
+          pnl: t.pnl, pnlPct: t.pnlPct, holdDays: t.holdDays,
+          exitType: t.exitType, direction: t.direction,
+          entryDelta: t.entryDelta, entryDTE: t.entryDTE,
+          strike: t.strike, spreadWidth: t.spreadWidth,
+        })),
+      };
+
+      const outPath = path.resolve(outDir, 'wfa-results.json');
+      fs.writeFileSync(outPath, JSON.stringify(exportResult, null, 2));
+      console.log(`Results saved to ${outPath}`);
+    }
+  } finally {
+    if (trainWorkers.length > 0) {
+      await terminateTrainWorkerPool(trainWorkers);
+      console.log('Train workers closed.');
+    }
+  }
+
+  const hitRate = (_chainHits + _chainMisses) > 0 ? (_chainHits / (_chainHits + _chainMisses) * 100).toFixed(1) : '0';
+  console.log(`  Chain LRU: ${_chainHits.toLocaleString()} hits, ${_chainMisses.toLocaleString()} misses (${hitRate}% hit rate)`);
 
   closeDB();
 }

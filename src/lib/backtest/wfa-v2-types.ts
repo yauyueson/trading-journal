@@ -304,6 +304,7 @@ export interface WFAv2Result {
     totalPnl: number;
     wfEfficiency: number;
     equityCurve: { date: string; equity: number }[];
+    metricBasis?: 'daily_portfolio' | 'trade_hold_legacy';
   };
 
   // Layer 3: Holdout validation

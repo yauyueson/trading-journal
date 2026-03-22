@@ -1,0 +1,15 @@
+{
+  "name": "exp2-baseline",
+  "description": "Exp2 baseline — unanimous grid winner (vol/d0.35/tp30/w5/dsOff/pm1.5/dcAny/ts1)",
+  "sweepOverrides": {
+    "presets": ["vol"],
+    "profitTargets": [0.30],
+    "spreadWidths": [5],
+    "ivRankMins": [0],
+    "deltaStops": [999999],
+    "timeStopDTEs": [1],
+    "dirConfTiers": ["any"],
+    "creditShortDeltas": [0.35],
+    "periodMultipliers": [1.5]
+  }
+}

@@ -15,7 +15,7 @@ import {
   type SignalPresetKey,
 } from '../src/lib/backtest/option-sim.ts';
 import type { FillMode } from '../src/lib/backtest/types.ts';
-import { applyFill } from '../src/lib/backtest/slippage.ts';
+import { applyFill, applySpreadFill } from '../src/lib/backtest/slippage.ts';
 
 // ── Types ────────────────────────────────────────────────
 
@@ -58,6 +58,7 @@ interface TradeExport {
   entryDelta: number;
   entryDTE: number;
   strike: number;
+  requestedSpreadWidth?: number;
   spreadWidth?: number;
   ivRank?: number;
 }
@@ -177,12 +178,18 @@ function evaluateSignal(
   let entrySlippage = 0;
 
   if (fillMode === 'bidask' && config.slippage.enabled) {
-    const shortFill = applyFill('bidask', spread.short.mid, spread.short.bid,
-      spread.short.ask, 'sell', config.slippage, spread.short.oi, spread.short.row.dte);
-    const longFill = applyFill('bidask', spread.long.mid, spread.long.bid,
-      spread.long.ask, 'buy', config.slippage, spread.long.oi, spread.long.row.dte);
-    entryCredit = shortFill.fillPrice - longFill.fillPrice;
-    entrySlippage = shortFill.slippage + longFill.slippage;
+    if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
+      const spreadFill = applySpreadFill('bidask', spread.short, spread.long, 'open', config.slippage);
+      entryCredit = spreadFill.fillPrice;
+      entrySlippage = spreadFill.slippage;
+    } else {
+      const shortFill = applyFill('bidask', spread.short.mid, spread.short.bid,
+        spread.short.ask, 'sell', config.slippage, spread.short.oi, spread.short.row.dte);
+      const longFill = applyFill('bidask', spread.long.mid, spread.long.bid,
+        spread.long.ask, 'buy', config.slippage, spread.long.oi, spread.long.row.dte);
+      entryCredit = shortFill.fillPrice - longFill.fillPrice;
+      entrySlippage = shortFill.slippage + longFill.slippage;
+    }
     if (entryCredit <= 0) return null;
   } else {
     entryCredit = spread.netCredit;
@@ -193,6 +200,7 @@ function evaluateSignal(
 
   const monitorEnd = spread.short.row.expir_date < maxDate ? spread.short.row.expir_date : maxDate;
   const monitorDates = getMonitoringDates(signal.date, config.monitoringIntervalDays, monitorEnd);
+  const dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
 
   for (const checkDate of monitorDates) {
     const shortLeg = findContractCached(signal.ticker, checkDate, spread.short.row.strike, spread.short.row.expir_date, optionType);
@@ -201,15 +209,26 @@ function evaluateSignal(
 
     let currentSpreadCost: number;
     if (fillMode === 'bidask' && config.slippage.enabled) {
-      const shortClose = applyFill('bidask', shortLeg.mid, shortLeg.bid,
-        shortLeg.ask, 'buy', config.slippage, shortLeg.oi, shortLeg.row.dte);
-      const longClose = applyFill('bidask', longLeg.mid, longLeg.bid,
-        longLeg.ask, 'sell', config.slippage, longLeg.oi, longLeg.row.dte);
-      currentSpreadCost = shortClose.fillPrice - longClose.fillPrice;
+      if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
+        const spreadFill = applySpreadFill('bidask', shortLeg, longLeg, 'close', config.slippage);
+        currentSpreadCost = spreadFill.fillPrice;
+      } else {
+        const shortClose = applyFill('bidask', shortLeg.mid, shortLeg.bid,
+          shortLeg.ask, 'buy', config.slippage, shortLeg.oi, shortLeg.row.dte);
+        const longClose = applyFill('bidask', longLeg.mid, longLeg.bid,
+          longLeg.ask, 'sell', config.slippage, longLeg.oi, longLeg.row.dte);
+        currentSpreadCost = shortClose.fillPrice - longClose.fillPrice;
+      }
     } else {
       currentSpreadCost = shortLeg.mid - longLeg.mid;
     }
     const currentDTE = shortLeg.row.dte;
+
+    dailyMtM.push({
+      date: checkDate,
+      spreadMid: currentSpreadCost,
+      unrealizedPnl: (entryCredit - currentSpreadCost) * 100,
+    });
 
     let exitType: OptionExitType | null = null;
     if (currentSpreadCost <= tpCost) exitType = 'PROFIT_TARGET';
@@ -220,7 +239,7 @@ function evaluateSignal(
 
     if (exitType) {
       return buildTrade(signal, spread, entryCredit, checkDate, currentSpreadCost,
-        currentDTE, shortLeg.row.stock_price, exitType, entrySlippage);
+        currentDTE, shortLeg.row.stock_price, exitType, entrySlippage, dailyMtM);
     }
   }
 
@@ -246,7 +265,7 @@ function evaluateSignal(
 
     return buildTrade(signal, spread, entryCredit, lastDate, currentSpreadCost,
       shortLeg?.row.dte ?? 0, shortLeg?.row.stock_price ?? spread.short.row.stock_price,
-      'EXPIRATION', entrySlippage);
+      'EXPIRATION', entrySlippage, dailyMtM);
   }
 
   return null;
@@ -256,6 +275,7 @@ function buildTrade(
   signal: EntrySignal, spread: any, entryCredit: number,
   exitDate: string, exitSpreadCost: number, exitDTE: number,
   exitStockPrice: number, exitType: OptionExitType, entrySlippage: number,
+  dailyMtM?: { date: string; spreadMid: number; unrealizedPnl: number }[],
 ): OptionTrade {
   const pnl = (entryCredit - exitSpreadCost) * 100;
   const pnlPct = spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0;
@@ -278,6 +298,7 @@ function buildTrade(
     entryStockPrice: spread.short.row.stock_price,
     longStrike: spread.long.row.strike,
     longEntryPrice: spread.long.mid,
+    requestedSpreadWidth: spread.requestedSpreadWidth,
     spreadWidth: spread.spreadWidth,
     maxProfit: entryCredit,
     maxLoss: spread.maxLoss,
@@ -292,6 +313,7 @@ function buildTrade(
     ivRank: signal.ivRank,
     entrySlippage: entrySlippage > 0 ? entrySlippage : undefined,
     fillMode,
+    dailyMtM,
   };
 }
 
@@ -324,17 +346,17 @@ parentPort!.on('message', (msg: WorkItem | { type: 'exit' }) => {
     type: 'result',
     id: item.id,
     configIdx: item.configIdx,
-    sharpe: analytics.sharpe,
+    sharpe: analytics.dailyPortfolioSharpe ?? analytics.tradeSharpeLegacy,
     trades: analytics.totalTrades,
     winRate: analytics.winRate,
     totalPnl: analytics.totalPnl,
-    maxDD: analytics.maxDrawdown,
+    maxDD: analytics.dailyMtMDrawdownPct ?? analytics.realizedExitDrawdownPct,
     tradeData: item.maxDate > item.trainEnd ? trades.map(t => ({
       ticker: t.ticker, entryDate: t.entryDate, exitDate: t.exitDate,
       pnl: t.pnl, pnlPct: t.pnlPct, holdDays: t.holdDays,
       exitType: t.exitType, direction: t.direction,
       entryDelta: t.entryDelta, entryDTE: t.entryDTE,
-      strike: t.strike, spreadWidth: t.spreadWidth,
+      strike: t.strike, requestedSpreadWidth: t.requestedSpreadWidth, spreadWidth: t.spreadWidth,
       ivRank: t.ivRank,
     })) : undefined,
   };

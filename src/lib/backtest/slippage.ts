@@ -24,6 +24,14 @@ export interface FillResult {
   slippage: number;    // absolute $ adverse impact vs mid
 }
 
+export interface SpreadFillLeg {
+  mid: number;
+  bid: number;
+  ask: number;
+  oi: number;
+  dte: number;
+}
+
 /**
  * Compute the adverse slippage amount in dollars for a single leg.
  *
@@ -50,7 +58,8 @@ export function computeSlippage(
 
   // OI factor: hyperbolic decay — low OI amplifies impact
   const effectiveOI = Math.max(oi, 1);
-  const oiFactor = 1 + cfg.oiHalfLife / effectiveOI;
+  const uncappedOiFactor = 1 + cfg.oiHalfLife / effectiveOI;
+  const oiFactor = Math.min(uncappedOiFactor, cfg.maxOiFactor ?? Number.POSITIVE_INFINITY);
 
   // DTE acceleration: linear ramp inside accelDays window
   let dteFactor = 1;
@@ -101,4 +110,36 @@ export function applyFill(
     const fillPrice = ask + (impact - spread / 2);
     return { fillPrice, slippage: fillPrice - mid };
   }
+}
+
+export function applySpreadFill(
+  fillMode: FillMode,
+  shortLeg: SpreadFillLeg,
+  longLeg: SpreadFillLeg,
+  side: 'open' | 'close',
+  cfg: DynamicSlippageConfig,
+): FillResult {
+  if (fillMode === 'mid' || !cfg.enabled) {
+    return {
+      fillPrice: shortLeg.mid - longLeg.mid,
+      slippage: 0,
+    };
+  }
+
+  const netMid = shortLeg.mid - longLeg.mid;
+  const netBid = shortLeg.bid - longLeg.ask;
+  const netAsk = shortLeg.ask - longLeg.bid;
+  const spread = Math.max(0, netAsk - netBid);
+  const effectiveOI = Math.min(shortLeg.oi, longLeg.oi);
+  const effectiveDTE = Math.min(shortLeg.dte, longLeg.dte);
+  const impact = computeSlippage(cfg, spread, effectiveOI, effectiveDTE, netMid);
+  const halfSpread = spread / 2;
+
+  if (side === 'open') {
+    const fillPrice = Math.max(0, netBid - (impact - halfSpread));
+    return { fillPrice, slippage: Math.max(0, netMid - fillPrice) };
+  }
+
+  const fillPrice = netAsk + (impact - halfSpread);
+  return { fillPrice, slippage: Math.max(0, fillPrice - netMid) };
 }

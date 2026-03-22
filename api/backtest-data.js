@@ -3,8 +3,49 @@
 // ?type=candles — fetch extended candle history (Supabase cache → Tiingo)
 // ?type=iv      — fetch ORATS historical IV data (Supabase cache → ORATS)
 
-import { getCandles } from '../lib/tiingo-client.js';
+import { getCandles, getIntradayCandles } from '../lib/tiingo-client.js';
 import { getHistoricalCores } from '../lib/orats-client.js';
+
+// ── 4H Aggregator ────────────────────────────────────────────────────────────
+// Mirrors the `candles_4h` SQLite view: group 1H bars by (date, hour/4) into
+// two blocks per day:
+//   Block 2: hours 9-11 (morning session, ~09:30–13:30 ET)
+//   Block 3: hours 12-15 (afternoon session, ~13:30–16:00 ET)
+
+function aggregate1HTo4H(hourlyCandles) {
+    if (!hourlyCandles || hourlyCandles.length === 0) return [];
+
+    // Group by (date, block)
+    const groups = new Map();
+    for (const c of hourlyCandles) {
+        const block = Math.floor(c.hour / 4);
+        const key = `${c.date}|${block}`;
+        if (!groups.has(key)) {
+            groups.set(key, { date: c.date, block, candles: [] });
+        }
+        groups.get(key).candles.push(c);
+    }
+
+    // Reduce each group to a single 4H bar
+    const bars = [];
+    for (const [, group] of groups) {
+        const sorted = group.candles.sort((a, b) => a.timestamp - b.timestamp);
+        if (sorted.length === 0) continue;
+        bars.push({
+            timestamp: sorted[0].timestamp,
+            datetime: sorted[0].datetime,
+            date: group.date,
+            block: group.block,
+            open: sorted[0].open,
+            high: Math.max(...sorted.map(c => c.high)),
+            low: Math.min(...sorted.map(c => c.low)),
+            close: sorted[sorted.length - 1].close,
+            volume: sorted.reduce((sum, c) => sum + c.volume, 0),
+        });
+    }
+
+    return bars.sort((a, b) => a.timestamp - b.timestamp);
+}
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
@@ -79,10 +120,16 @@ async function handleCandles(req, res) {
     }
 
     if (!candles || candles.length === 0) {
-        const timespan = tf === '4H' ? 'hour' : 'day';
-        const multiplier = tf === '4H' ? 4 : 1;
-        candles = await getCandles(ticker.toUpperCase(), startDate, endDate, timespan, multiplier);
-        source = 'tiingo';
+        if (tf === '4H') {
+            // Fetch 1H bars from Tiingo IEX, aggregate to 4H blocks
+            const hourly = await getIntradayCandles(ticker.toUpperCase(), startDate, endDate);
+            candles = aggregate1HTo4H(hourly);
+            source = 'tiingo-iex-4h';
+            console.log(`[backtest-data/candles] ${ticker}: ${hourly.length} 1H bars → ${candles.length} 4H bars`);
+        } else {
+            candles = await getCandles(ticker.toUpperCase(), startDate, endDate, 'day', 1);
+            source = 'tiingo';
+        }
     }
 
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=7200');
