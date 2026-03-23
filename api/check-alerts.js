@@ -170,8 +170,9 @@ export default async function handler(req, res) {
         const chain = optionChains[ticker] || [];
 
         // Determine short leg (sold) and long leg (bought)
-        const shortLegDef = legs.find(l => (l.quantity || 0) < 0) || legs[0];
-        const longLegDef = legs.find(l => (l.quantity || 0) > 0) || legs[1];
+        // Legs store side: "short"/"long", not quantity
+        const shortLegDef = legs.find(l => l.side === 'short') || legs.find(l => (l.quantity || 0) < 0) || legs[0];
+        const longLegDef = legs.find(l => l.side === 'long') || legs.find(l => (l.quantity || 0) > 0) || legs[1];
 
         const shortMid = findOptionMid(chain, ticker,
           (shortLegDef.expiration || '').slice(0, 10), shortLegDef.strike, shortLegDef.type || 'Put');
@@ -180,10 +181,9 @@ export default async function handler(req, res) {
 
         if (shortMid == null || longMid == null) continue;
 
-        // Determine strategy direction from transaction price
-        // Credit received → netTxn.price < 0 (credit) or strategy type
-        const strategyType = (pos.strategy_type || pos.type || '').toLowerCase();
-        const isCreditSpread = strategyType.includes('credit') || (netTxn && netTxn.price < 0);
+        // Determine strategy direction from position type (not strategy_type which is swing/shortTerm)
+        const posType = (pos.type || '').toLowerCase();
+        const isCreditSpread = posType.includes('credit') || (netTxn && netTxn.price < 0);
 
         let spreadTriggered = null;
         let spreadDesc = '';
