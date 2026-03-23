@@ -22,7 +22,7 @@ interface CandleData {
   close: number;
 }
 
-export type ScanTimeframe = '1D' | '4H';
+export type ScanTimeframe = '1D' | '4H' | '130M';
 
 export function useSignalScanner() {
   const [tickers, setTickers] = useState<string[]>(DEFAULT_TICKERS);
@@ -40,8 +40,9 @@ export function useSignalScanner() {
     if (cached) return cached;
 
     const to = new Date().toISOString().slice(0, 10);
-    // 4H bars are denser (~2 per trading day), so fewer calendar days needed
-    const lookbackDays = timeframe === '4H' ? 300 : 600;
+    // Intraday bars are denser, so fewer calendar days needed
+    // 130M: pm2.25 scales longest indicator to 225 bars; 225/3 bars per day = 75 trading days ≈ 120 cal days
+    const lookbackDays = timeframe === '130M' ? 120 : timeframe === '4H' ? 300 : 600;
     const from = new Date(Date.now() - lookbackDays * 86400000).toISOString().slice(0, 10);
     const res = await fetch(`/api/backtest-data?type=candles&ticker=${encodeURIComponent(ticker)}&from=${from}&to=${to}&timeframe=${timeframe}`);
     if (!res.ok) {

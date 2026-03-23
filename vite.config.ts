@@ -765,8 +765,8 @@ function localApiPlugin(): Plugin {
         }
       });
 
-      // Handle /api/backtest-candles — thin shim → calls the REAL api/backtest-candles.js handler.
-      server.middlewares.use('/api/backtest-candles', async (req, res) => {
+      // Handle /api/live-prices — thin shim → calls the REAL api/live-prices.js handler.
+      server.middlewares.use('/api/live-prices', async (req, res) => {
         const url = new URL(req.url || '', `http://${req.headers.host}`);
 
         res.setHeader('Content-Type', 'application/json');
@@ -774,7 +774,7 @@ function localApiPlugin(): Plugin {
 
         try {
           const dynamicImport = new Function('path', 'return import(path)') as (p: string) => Promise<any>;
-          const handlerPath = new URL('./api/backtest-candles.js', import.meta.url).href;
+          const handlerPath = new URL('./api/live-prices.js', import.meta.url).href;
           const mod = await dynamicImport(`${handlerPath}?_t=${Date.now()}`).catch(
             () => dynamicImport(handlerPath)
           );
@@ -805,12 +805,57 @@ function localApiPlugin(): Plugin {
 
           await handler(mockReq, mockRes);
         } catch (error: any) {
-          console.error('[vite-shim] /api/backtest-candles error:', error.message);
+          console.error('[vite-shim] /api/live-prices error:', error.message);
           res.statusCode = 500;
           res.end(JSON.stringify({ error: 'Internal Server Error', message: error.message }));
         }
       });
 
+      // Handle /api/backtest-data — thin shim → calls the REAL api/backtest-data.js handler.
+      server.middlewares.use('/api/backtest-data', async (req, res) => {
+        const url = new URL(req.url || '', `http://${req.headers.host}`);
+
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        try {
+          const dynamicImport = new Function('path', 'return import(path)') as (p: string) => Promise<any>;
+          const handlerPath = new URL('./api/backtest-data.js', import.meta.url).href;
+          const mod = await dynamicImport(`${handlerPath}?_t=${Date.now()}`).catch(
+            () => dynamicImport(handlerPath)
+          );
+          const handler = (mod as any).default ?? mod;
+
+          const mockReq: any = {
+            method: req.method || 'GET',
+            query: Object.fromEntries(url.searchParams.entries()),
+            headers: req.headers,
+          };
+
+          let statusCode = 200;
+          const mockRes: any = {
+            setHeader: () => { },
+            status(code: number) { statusCode = code; return mockRes; },
+            json(body: unknown) {
+              res.statusCode = statusCode;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(body));
+              return mockRes;
+            },
+            end(body?: string) {
+              res.statusCode = statusCode;
+              if (body) res.end(body); else res.end();
+              return mockRes;
+            },
+          };
+
+          await handler(mockReq, mockRes);
+        } catch (error: any) {
+          console.error('[vite-shim] /api/backtest-data error:', error.message);
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: 'Internal Server Error', message: error.message }));
+        }
+      });
       // Handle /api/backtest-iv — thin shim → calls the REAL api/backtest-iv.js handler.
       server.middlewares.use('/api/backtest-iv', async (req, res) => {
         const url = new URL(req.url || '', `http://${req.headers.host}`);

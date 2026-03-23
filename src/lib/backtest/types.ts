@@ -12,7 +12,7 @@ export type { TechScoreOptions };
 
 // ── Config ──────────────────────────────────────────────
 
-export type Timeframe = '1D';
+export type Timeframe = '1D' | '4H' | '130M';
 
 /** Quality gates — fixed thresholds, NOT optimizable */
 export interface QualityGates {

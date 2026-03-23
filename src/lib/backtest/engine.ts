@@ -267,7 +267,7 @@ export function precomputeSignals4H(
 
 export function precomputeSignals(
   candles: BacktestCandle[],
-  timeframe: '1D' | '4H',
+  timeframe: '1D' | '4H' | '130M',
   indicatorOptions?: TechScoreOptions,
   ivData?: IVDataRow[],
 ): { signals: PrecomputedSignal[]; simCandles: BacktestCandle[] } {
@@ -319,10 +319,10 @@ interface OpenTrade {
 }
 
 /** Convert bar delta to calendar days */
-function barsToDays(bars: number, timeframe: '1D' | '4H'): number {
+function barsToDays(bars: number, timeframe: '1D' | '4H' | '130M'): number {
   if (timeframe === '1D') return bars;
-  // 4H: ~2 bars per trading day (6.5 market hours, using 4H bars)
-  return Math.round(bars / 2);
+  if (timeframe === '130M') return Math.round(bars / 3); // 3 bars per trading day
+  return Math.round(bars / 2); // 4H: ~2 bars per trading day
 }
 
 /**

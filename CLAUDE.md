@@ -19,6 +19,7 @@ Options trading journal with React 18 + Vite 5 + React Router v6 + React Query v
 - `api/strategy-recommend.js` uses raw `fetch()` for Supabase REST (no JS client), env vars: `SUPABASE_URL`/`SUPABASE_ANON_KEY`
 - `api/cron-iv.js` uses `@supabase/supabase-js` createClient
 - All 488 existing tests must keep passing after any change.
+- **Backtesting results & reports** must go in `backtesting history/credit-spread/reports/` — one subfolder per study (e.g., `130m-vs-4h-study/`). Each study folder should contain a `README.md` summarizing findings plus any JSON/data outputs. Never scatter result files across `data/`, `scripts/`, or project root.
 
 ## Key Files
 
@@ -61,6 +62,8 @@ SPY, QQQ, GOOGL, JPM, META, TSLA, MSFT, NFLX, AAPL, NVDA, AMD, COST, IREN, BA, A
 
 ## Credit Spread Strategy (Production Config)
 
+### Swing (1D, 45-65 DTE)
+
 Validated via 4-phase backtest (~7,000 portfolio replays). Full report: `optimization report/credit-spread-optimization-report.md`
 
 | Setting | Value | Reason |
@@ -73,11 +76,28 @@ Validated via 4-phase backtest (~7,000 portfolio replays). Full report: `optimiz
 | Stop Loss | **None** | Defined risk makes stops unnecessary; SL 2× destroys returns |
 | Max positions | **5–10** | 5-pos has best Sharpe, 10-pos more diversification |
 
+### Short-Term (130M, 7-21 DTE)
+
+Validated via comprehensive 130M vs 4H WFA study (648 configs/arm, 15 tickers, 7 rolling windows). Full report: `backtesting history/credit-spread/reports/130m-vs-4h-study/README.md`
+
+| Setting | Value | Reason |
+|---------|-------|--------|
+| Timeframe | **130M** (3 bars/day) | 2× Sharpe edge over 4H; exact regular session (390min) |
+| Signal | **EM** (EMA + Momentum) | Grade A generalization, best OOS stability |
+| DTE | **7–21d** (target 14d) | Short-term sweet spot |
+| Spread width | **$10** | Best Sharpe/trade from WFA study |
+| IV Rank filter | **≥ 20%** | Improves generalization (Grade A vs B) |
+| Take Profit | **50%** | Validated edge over 30% for 130M |
+| Delta Stop | **Off** | No early exit on delta |
+| Period multiplier | **2.25** | Calendar-day equivalent of 4H×1.5 |
+| Stop Loss | **None** | Defined risk |
+
+Best config: `em|tp50|w10|iv20|dsoff|pm2.25` → OOS Sharpe 2.22, WR 84.6%, Max DD 12.9%, 6/6 windows positive
+
 Key findings:
 - SL 2× is broken (0.04 avg Sharpe) — tight stops on credit spreads destroy profitability
 - Score-based exits hurt — high win rate means "score drops" recover; se50/se60 go negative OOS
 - OI filters hurt — over-filter kills diversification
-- Best WFA config: `ema iv30plus std30 mpt5` → OOS Sharpe 2.14, WR 88%, DD 4.9%
 
 ## WFA Results Viewer
 

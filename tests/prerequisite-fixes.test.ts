@@ -15,8 +15,8 @@ import { DEFAULT_APP_SETTINGS } from '../src/lib/types/settings';
 // PRE-01: ivRankMin values
 // ---------------------------------------------------------------------------
 describe('PRE-01 — strategyProfiles ivRankMin', () => {
-  it('shortTerm.ivRankMin should be 0 (WFA v3 locked — IV rank filter disabled)', () => {
-    expect(STRATEGY_PROFILES.shortTerm.ivRankMin).toBe(0);
+  it('shortTerm.ivRankMin should be 20 (130M migration — IV rank filter at 20)', () => {
+    expect(STRATEGY_PROFILES.shortTerm.ivRankMin).toBe(20);
   });
 
   it('swing.ivRankMin should be 0 (WFA v3 locked — IV rank filter disabled)', () => {

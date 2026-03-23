@@ -1,11 +1,12 @@
 /**
- * 4H Signal Generator for WFA v3
+ * Intraday Signal Generator for WFA v3
  *
- * Generates PrecomputedSignal[] from 4H candles by calling the existing
- * calculateTechScore() with period-scaled TechScoreOptions.
+ * Generates PrecomputedSignal[] from intraday candles (4H or 130M) by calling
+ * the existing calculateTechScore() with period-scaled TechScoreOptions.
  *
- * Period scaling: daily EMA(8) → 4H EMA(round(8 × mult)) where mult ∈ [1.5, 2.0, 2.5, 3.0].
- * Signal fires at close of every 4H bar (up to 2 entries/day vs 1 for daily).
+ * 4H period scaling: daily EMA(8) → 4H EMA(round(8 × mult)) where mult ∈ [1.5, 2.0, 2.5, 3.0].
+ * 130M period scaling: daily EMA(8) → 130M EMA(round(8 × mult)) where mult ∈ [2.0, 3.0, 4.0, 4.5].
+ * Signal fires at close of every intraday bar (up to 2-3 entries/day vs 1 for daily).
  */
 
 import type { IntradayCandle } from './intraday-cache';
@@ -16,9 +17,14 @@ import { computeRollingHV } from './bsm-pricing';
 
 // ── Period Scaling ───────────────────────────────────────
 
-/** Valid indicator period multipliers for 4H signals */
+/** Valid indicator period multipliers for 4H signals (2 bars/day) */
 export const PERIOD_MULTIPLIERS = [1.5, 2.0, 2.5, 3.0] as const;
 export type PeriodMultiplier = (typeof PERIOD_MULTIPLIERS)[number];
+
+/** Valid indicator period multipliers for 130M signals (3 bars/day).
+ *  Equivalent to 4H [1.5, 2.0, 2.5] via Y = 1.5X (same calendar-day lookback). */
+export const PERIOD_MULTIPLIERS_130M = [2.25, 3.0, 3.75] as const;
+export type PeriodMultiplier130M = (typeof PERIOD_MULTIPLIERS_130M)[number];
 
 /**
  * Scale all indicator periods by a multiplier.

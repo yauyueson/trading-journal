@@ -88,11 +88,13 @@ function initDB() {
     CREATE INDEX IF NOT EXISTS idx_1h_ticker_date ON candles_1h(ticker, date);
   `);
 
-  // 4H candles: aggregate 1H bars into 4H sessions.
-  // Regular trading hours: 09:30–16:00 ET → two 4H blocks:
-  //   Block 1: 09:30–13:30 (bars at 09:00, 10:00, 11:00, 12:00 in UTC-adjusted)
-  //   Block 2: 13:30–16:00 (bars at 13:00, 14:00, 15:00)
-  // We group by (ticker, date, hour/4) for simplicity — each day gets ~2 blocks.
+  // 4H candles: aggregate 1H bars into 2 blocks per trading day.
+  // 1H datetimes are stored in UTC. Regular trading hours in UTC:
+  //   EDT (Mar–Nov): 13:30–20:00 → bars at hours 13–19
+  //   EST (Nov–Mar): 14:30–21:00 → bars at hours 14–20
+  // Filter to UTC hours 13–20 to cover both DST regimes.
+  // Block 0: hours 13–16 (first ~4 bars), Block 1: hours 17–20 (last ~3-4 bars).
+  db.exec(`DROP VIEW IF EXISTS candles_4h`);
   db.exec(`
     CREATE VIEW IF NOT EXISTS candles_4h AS
     SELECT
@@ -100,20 +102,45 @@ function initDB() {
       MIN(timestamp) AS timestamp,
       MIN(datetime)  AS datetime,
       date,
-      CAST(SUBSTR(datetime, 12, 2) AS INTEGER) / 4 AS block,
+      CASE WHEN CAST(SUBSTR(datetime, 12, 2) AS INTEGER) < 17 THEN 0 ELSE 1 END AS block,
       (SELECT c2.open FROM candles_1h c2
        WHERE c2.ticker = c1.ticker AND c2.date = c1.date
-         AND CAST(SUBSTR(c2.datetime, 12, 2) AS INTEGER) / 4 = CAST(SUBSTR(c1.datetime, 12, 2) AS INTEGER) / 4
+         AND CAST(SUBSTR(c2.datetime, 12, 2) AS INTEGER) BETWEEN 13 AND 20
+         AND (CASE WHEN CAST(SUBSTR(c2.datetime, 12, 2) AS INTEGER) < 17 THEN 0 ELSE 1 END) =
+             (CASE WHEN CAST(SUBSTR(c1.datetime, 12, 2) AS INTEGER) < 17 THEN 0 ELSE 1 END)
        ORDER BY c2.timestamp ASC LIMIT 1) AS open,
       MAX(high) AS high,
       MIN(low)  AS low,
       (SELECT c3.close FROM candles_1h c3
        WHERE c3.ticker = c1.ticker AND c3.date = c1.date
-         AND CAST(SUBSTR(c3.datetime, 12, 2) AS INTEGER) / 4 = CAST(SUBSTR(c1.datetime, 12, 2) AS INTEGER) / 4
+         AND CAST(SUBSTR(c3.datetime, 12, 2) AS INTEGER) BETWEEN 13 AND 20
+         AND (CASE WHEN CAST(SUBSTR(c3.datetime, 12, 2) AS INTEGER) < 17 THEN 0 ELSE 1 END) =
+             (CASE WHEN CAST(SUBSTR(c1.datetime, 12, 2) AS INTEGER) < 17 THEN 0 ELSE 1 END)
        ORDER BY c3.timestamp DESC LIMIT 1) AS close,
       SUM(volume) AS volume
     FROM candles_1h c1
-    GROUP BY ticker, date, CAST(SUBSTR(datetime, 12, 2) AS INTEGER) / 4;
+    WHERE CAST(SUBSTR(datetime, 12, 2) AS INTEGER) BETWEEN 13 AND 20
+    GROUP BY ticker, date, CASE WHEN CAST(SUBSTR(datetime, 12, 2) AS INTEGER) < 17 THEN 0 ELSE 1 END;
+  `);
+
+  // 130M candles: native Polygon 130-minute bars (3 per trading day).
+  // Fetched directly from Polygon getAggregates(ticker, 130, 'minute').
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS candles_130m_raw (
+      ticker    TEXT    NOT NULL,
+      timestamp INTEGER NOT NULL,
+      datetime  TEXT    NOT NULL,
+      date      TEXT    NOT NULL,
+      block     INTEGER NOT NULL,  -- 0, 1, or 2 within a day
+      open      REAL    NOT NULL,
+      high      REAL    NOT NULL,
+      low       REAL    NOT NULL,
+      close     REAL    NOT NULL,
+      volume    REAL    NOT NULL,
+      PRIMARY KEY (ticker, timestamp)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_130m_ticker_date ON candles_130m_raw(ticker, date);
   `);
 
   return db;
@@ -171,20 +198,102 @@ async function main() {
     }
   }
 
+  // ── 130M native candles from Polygon ─────────────────────────────────────────
+  console.log(`\n=== Fetching 130M candles ===\n`);
+
+  const insert130mStmt = db.prepare(`
+    INSERT OR IGNORE INTO candles_130m_raw (ticker, timestamp, datetime, date, block, open, high, low, close, volume)
+    VALUES (@ticker, @timestamp, @datetime, @date, @block, @open, @high, @low, @close, @volume)
+  `);
+
+  const count130mStmt = db.prepare('SELECT COUNT(*) AS cnt FROM candles_130m_raw WHERE ticker = ?');
+  const insert130mMany = db.transaction((rows) => {
+    for (const row of rows) insert130mStmt.run(row);
+  });
+
+  let total130mInserted = 0;
+
+  for (const ticker of opts.tickers) {
+    const before = count130mStmt.get(ticker).cnt;
+
+    console.log(`[${ticker}] Fetching 130M candles ${opts.from} → ${opts.to} ...`);
+    try {
+      const candles = await getAggregates(ticker, 130, 'minute', opts.from, opts.to);
+
+      if (candles.length === 0) {
+        console.log(`[${ticker}] No 130M data returned`);
+        continue;
+      }
+
+      // Convert UTC timestamps to ET and assign block (0, 1, 2) per day
+      const rows = [];
+      const dayBlocks = new Map(); // date → counter for block assignment
+      for (const c of candles) {
+        const dt = new Date(c.timestamp);
+        // Convert to ET
+        const etStr = dt.toLocaleString('en-US', { timeZone: 'America/New_York' });
+        const etDate = new Date(etStr);
+        const hour = etDate.getHours();
+        const minute = etDate.getMinutes();
+        const minutesSince930 = (hour * 60 + minute) - 570;
+
+        // Skip pre/post market bars (regular hours: 9:30–16:00 ET)
+        if (minutesSince930 < 0 || minutesSince930 >= 390) continue;
+
+        const y = etDate.getFullYear();
+        const m = String(etDate.getMonth() + 1).padStart(2, '0');
+        const d = String(etDate.getDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${d}`;
+        const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+
+        // Assign block based on minutes since 9:30
+        const block = Math.min(2, Math.max(0, Math.floor(minutesSince930 / 130)));
+
+        rows.push({
+          ticker,
+          timestamp: c.timestamp,
+          datetime: `${dateStr} ${timeStr}`,
+          date: dateStr,
+          block,
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+          volume: c.volume,
+        });
+      }
+
+      if (rows.length > 0) {
+        insert130mMany(rows);
+        const after = count130mStmt.get(ticker).cnt;
+        const inserted = after - before;
+        total130mInserted += inserted;
+        console.log(`[${ticker}] ${candles.length} bars fetched → ${rows.length} trading hours, ${inserted} new`);
+        console.log(`  Date range: ${rows[0].date} → ${rows[rows.length - 1].date}`);
+      }
+    } catch (err) {
+      console.error(`[${ticker}] 130M ERROR: ${err.message}`);
+    }
+  }
+
   // Summary
   const totalRows = db.prepare('SELECT COUNT(*) AS cnt FROM candles_1h').get().cnt;
   const tickerCount = db.prepare('SELECT COUNT(DISTINCT ticker) AS cnt FROM candles_1h').get().cnt;
   const dateRange = db.prepare('SELECT MIN(date) AS minD, MAX(date) AS maxD FROM candles_1h').get();
 
-  console.log(`\n=== Done ===`);
-  console.log(`New rows:    ${totalInserted}`);
-  console.log(`Duplicates:  ${totalSkipped}`);
-  console.log(`Total rows:  ${totalRows} (${tickerCount} tickers)`);
-  console.log(`Date range:  ${dateRange.minD} → ${dateRange.maxD}`);
+  const total130mRows = db.prepare('SELECT COUNT(*) AS cnt FROM candles_130m_raw').get().cnt;
+  const ticker130mCount = db.prepare('SELECT COUNT(DISTINCT ticker) AS cnt FROM candles_130m_raw').get().cnt;
+  const dateRange130m = db.prepare('SELECT MIN(date) AS minD, MAX(date) AS maxD FROM candles_130m_raw').get();
 
-  // Check 4H view
+  console.log(`\n=== Done ===`);
+  console.log(`1H new rows:     ${totalInserted}`);
+  console.log(`1H total rows:   ${totalRows} (${tickerCount} tickers, ${dateRange.minD} → ${dateRange.maxD})`);
+
   const sample4h = db.prepare('SELECT COUNT(*) AS cnt FROM candles_4h').get().cnt;
-  console.log(`4H bars:     ${sample4h} (aggregated via view)`);
+  console.log(`4H bars:         ${sample4h} (aggregated via view)`);
+
+  console.log(`130M new rows:   ${total130mInserted}`);
+  console.log(`130M total rows: ${total130mRows} (${ticker130mCount} tickers, ${dateRange130m.minD || 'N/A'} → ${dateRange130m.maxD || 'N/A'})`);
 
   db.close();
 }

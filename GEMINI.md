@@ -63,6 +63,7 @@ For full project context (key files, database tables, testing, architecture), re
 - `api/strategy-recommend.js` uses raw `fetch()` for Supabase REST (no JS client)
 - All 488+ existing tests must keep passing after any change
 - Crons: triggered externally via cronjobs.org (NOT Vercel)
+- **Backtesting results & reports** must go in `backtesting history/credit-spread/reports/` — one subfolder per study with a `README.md` + data files. Never scatter results across `data/`, `scripts/`, or root.
 
 ### Database Tables
 

@@ -1,9 +1,9 @@
 /**
- * Short-Term Credit Spread Pipeline (7-21 DTE, 4H monitoring)
+ * Short-Term Credit Spread Pipeline (7-21 DTE, 130M monitoring)
  *
  * Mirrors wfa-pipeline-swing.ts architecture but uses:
- *  - Intraday 4H candles + BSM repricing (via evaluateCreditSpread4H)
- *  - Period multiplier sweep (1.5, 2.0, 2.5)
+ *  - Intraday 130M candles + BSM repricing (via evaluateCreditSpread4H)
+ *  - Period multiplier sweep (2.25, 3.0, 3.75)
  *  - Signal keying by multiplier|preset
  *
  * Called from wfa-run-unified.ts --profile short.
@@ -26,12 +26,12 @@ import {
   findSpreadStrikes,
   findContractDirect,
 } from '../src/lib/backtest/chain-cache';
-import { initIntradayDB, get4HCandles, aggregateToDaily, type IntradayCandle } from '../src/lib/backtest/intraday-cache';
+import { initIntradayDB, get130MCandles, aggregateToDaily, type IntradayCandle } from '../src/lib/backtest/intraday-cache';
 import {
   precomputeSignals4H,
   type IVDataRow,
   type PeriodMultiplier,
-  PERIOD_MULTIPLIERS,
+  PERIOD_MULTIPLIERS_130M,
 } from '../src/lib/backtest/intraday-signals';
 import {
   DEFAULT_SHORT_CREDIT_CONFIG,
@@ -98,16 +98,16 @@ export const SHORT_DEFAULTS = {
   startingCapital: 100_000,
   fillMode: 'mid' as FillMode,
   presets: ['ema', 'mom', 'em', 'vol'] as SignalPresetKey[],
-  periodMultipliers: [1.5, 2.0, 2.5] as PeriodMultiplier[],
+  periodMultipliers: [2.25, 3.0, 3.75] as PeriodMultiplier[],
 };
 
 export const SHORT_SWEEP_DEFAULTS: ShortSweepDimensions = {
   profitTargets: [0.30, 0.50],
-  spreadWidths: [2.5, 5, 7.5],
+  spreadWidths: [2.5, 5, 10],
   ivRankMins: [20, 30],
   deltaStops: [0.65, Infinity],  // Infinity = deltaStop off
   timeStopDTEs: [1],
-  periodMultipliers: [1.5, 2.0, 2.5],
+  periodMultipliers: [2.25, 3.0, 3.75],
 };
 
 // ── Supabase Helper ────────────────────────────────────
@@ -127,7 +127,7 @@ async function supabaseGet(table: string, query: string): Promise<any[]> {
 
 interface TickerData {
   ticker: string;
-  candles4h: IntradayCandle[];
+  candles130m: IntradayCandle[];
   dailyCandles: IntradayCandle[];
   ivData: IVDataRow[];
   ivRanks: (number | null)[];
@@ -148,8 +148,8 @@ function computeIVRank(ivSeries: (number | null)[]): (number | null)[] {
 }
 
 export async function fetchTickerData(ticker: string, dataStart: string, dataEnd: string, intradayDb: any): Promise<TickerData> {
-  const candles4h = get4HCandles(intradayDb, ticker, dataStart, dataEnd);
-  const dailyCandles = aggregateToDaily(candles4h);
+  const candles130m = get130MCandles(intradayDb, ticker, dataStart, dataEnd);
+  const dailyCandles = aggregateToDaily(candles130m);
 
   const ivDbRows = await supabaseGet(
     'orats_iv_cache',
@@ -169,7 +169,7 @@ export async function fetchTickerData(ticker: string, dataStart: string, dataEnd
   const ivRanks = computeIVRank(ivSeries);
   const dateToIdx = new Map(dailyCandles.map((c, i) => [c.date, i]));
 
-  return { ticker, candles4h, dailyCandles, ivData, ivRanks, dateToIdx };
+  return { ticker, candles130m, dailyCandles, ivData, ivRanks, dateToIdx };
 }
 
 // ── Signal Generation ────────────────────────────────────
@@ -182,7 +182,7 @@ function generateSignalsForPreset(
   periodEnd: string,
 ): EntrySignal[] {
   const techOptions = SIGNAL_PRESETS[presetKey];
-  const signals = precomputeSignals4H(td.candles4h, td.ivData, periodMultiplier, techOptions);
+  const signals = precomputeSignals4H(td.candles130m, td.ivData, periodMultiplier, techOptions);
   const entries: EntrySignal[] = [];
 
   for (const sig of signals) {
@@ -230,7 +230,7 @@ export function buildSweepCandidates(
   const presets = dims.presets ?? ['ema', 'mom', 'em', 'vol'];
   const dirConfTiers: (DirConfTier | undefined)[] = dims.dirConfTiers ?? [undefined];
   const shortDeltas: (number | undefined)[] = dims.creditShortDeltas ?? [undefined];
-  const periodMults: PeriodMultiplier[] = dims.periodMultipliers ?? [1.5, 2.0, 2.5];
+  const periodMults: PeriodMultiplier[] = dims.periodMultipliers ?? [2.25, 3.0, 3.75];
 
   for (const preset of presets) {
     for (const width of dims.spreadWidths) {
@@ -295,7 +295,7 @@ function makeEvaluator(
     return evaluateCreditSpread4H(
       signal,
       config,
-      td.candles4h,
+      td.candles130m,
       tradingDates,
       maxDate,
       {
@@ -693,7 +693,7 @@ export async function runShortPipeline(config: ShortPipelineConfig): Promise<Sho
     for (const ticker of config.tickers) {
       const td = await fetchTickerData(ticker, config.dataStart, config.endDate, intradayDb);
       tickerDataMap.set(ticker, td);
-      process.stdout.write(` ${ticker}(${td.candles4h.length})`);
+      process.stdout.write(` ${ticker}(${td.candles130m.length})`);
     }
     console.log(' done.');
 
@@ -757,7 +757,7 @@ export async function runShortPipeline(config: ShortPipelineConfig): Promise<Sho
 
       const signalsPayload = Object.fromEntries(signalsByMultPreset.entries());
       const tickerCandles4h = Object.fromEntries(
-        [...tickerDataMap.entries()].map(([ticker, td]) => [ticker, td.candles4h]),
+        [...tickerDataMap.entries()].map(([ticker, td]) => [ticker, td.candles130m]),
       );
 
       const workers = await createWorkerPool({

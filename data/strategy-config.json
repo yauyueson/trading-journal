@@ -1,6 +1,6 @@
 {
-  "version": "2026-03-22",
-  "source": "WFA v3 final-lock (swing tp40/ts3 + short vol/w5/tp30/ts1)",
+  "version": "2026-03-22b",
+  "source": "WFA v3 lock (swing tp40/ts3) + 130M migration (short em/w10/tp50/iv20/pm2.25)",
   "profiles": {
     "swing": {
       "signalPreset": "vol",
@@ -20,14 +20,14 @@
       "minDirConfidence": 70
     },
     "shortTerm": {
-      "signalPreset": "vol",
+      "signalPreset": "em",
       "defaultDelta": 0.35,
-      "defaultWidth": 5,
+      "defaultWidth": 10,
       "dteMin": 7,
       "dteMax": 21,
       "dtePeak": 14,
-      "profitTarget": 0.30,
-      "ivRankMin": 0,
+      "profitTarget": 0.50,
+      "ivRankMin": 20,
       "timeStopDTE": 1,
       "maxPositions": 5,
       "maxPerTicker": 2,

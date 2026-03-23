@@ -224,12 +224,12 @@ export const SignalsPage: React.FC = () => {
 
   // Signal preset weights from active config, with period scaling for 4H
   const presetKey = activeConfig.signalPreset;
-  const timeframe: ScanTimeframe = activeBoard === 'shortTerm' ? '4H' : '1D';
+  const timeframe: ScanTimeframe = activeBoard === 'shortTerm' ? '130M' : '1D';
   const baseTechOptions: TechScoreOptions = {
     ...settings.techScore.periods,
     ...(SIGNAL_PRESETS[presetKey] || SIGNAL_PRESETS.vol),
   };
-  const SHORT_TERM_PERIOD_MULT = 1.5;  // WFA v3 locked: pm1.5
+  const SHORT_TERM_PERIOD_MULT = 2.25;  // WFA locked: pm2.25 (130M)
   const techOptions: TechScoreOptions = activeBoard === 'shortTerm'
     ? scaleIndicatorPeriods(SHORT_TERM_PERIOD_MULT, baseTechOptions)
     : baseTechOptions;
@@ -391,7 +391,7 @@ export const SignalsPage: React.FC = () => {
               : 'text-text-tertiary hover:text-text-secondary'
           }`}
         >
-          Short-Term (4H)
+          Short-Term (130M)
         </button>
       </div>
 
@@ -402,7 +402,7 @@ export const SignalsPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-semibold">Signal Dashboard</h1>
             <p className="text-xs text-text-tertiary">
-              {presetKey.toUpperCase()} signal {activeBoard === 'shortTerm' ? '(4H \u00d7 1.5)' : '(1D)'}
+              {presetKey.toUpperCase()} signal {activeBoard === 'shortTerm' ? '(130M \u00d7 2.25)' : '(1D)'}
               {' \u2022'} IV {'\u2265'} {activeConfig.ivRankMin}%
               {ADX_GATE != null ? ` \u2022 ADX \u2265 ${ADX_GATE}` : ''}
               {' \u2022'} RVOL {'\u2265'} {MIN_RVOL}

@@ -1,8 +1,9 @@
 /**
- * Intraday Cache — Read-only SQLite interface to 1H/4H candles
+ * Intraday Cache — Read-only SQLite interface to 1H/4H/130M candles
  *
  * Reads from data/intraday-candles.sqlite (populated by scripts/cache-intraday.mjs).
  * 4H candles come from the `candles_4h` view (aggregated from 1H at query time).
+ * 130M candles come from the `candles_130m` view (3 bars/day, aggregated from 1H).
  */
 
 import Database from 'better-sqlite3';
@@ -53,6 +54,46 @@ export function get4HCandles(
   const stmt = db.prepare(
     `SELECT ticker, timestamp, datetime, date, block, open, high, low, close, volume
      FROM candles_4h
+     WHERE ticker = ? AND date >= ? AND date <= ?
+     ORDER BY timestamp ASC`,
+  );
+  return stmt.all(ticker, startDate, endDate) as IntradayCandle[];
+}
+
+/**
+ * Get 130M candles for a ticker in a date range (inclusive).
+ * Uses `candles_130m` view (1H→130M aggregation) which has full date coverage.
+ * For native Polygon 130-min bars, use get130MRawCandles() instead.
+ */
+export function get130MCandles(
+  db: DatabaseType,
+  ticker: string,
+  startDate: string,
+  endDate: string,
+): IntradayCandle[] {
+  const stmt = db.prepare(
+    `SELECT ticker, timestamp, datetime, date, block, open, high, low, close, volume
+     FROM candles_130m
+     WHERE ticker = ? AND date >= ? AND date <= ?
+     ORDER BY timestamp ASC`,
+  );
+  return stmt.all(ticker, startDate, endDate) as IntradayCandle[];
+}
+
+/**
+ * Get native Polygon 130M candles for a ticker in a date range (inclusive).
+ * Reads from the `candles_130m_raw` table (directly fetched from Polygon, not aggregated).
+ * Provides exact 130-min OHLCV with 3 bars per trading day.
+ */
+export function get130MRawCandles(
+  db: DatabaseType,
+  ticker: string,
+  startDate: string,
+  endDate: string,
+): IntradayCandle[] {
+  const stmt = db.prepare(
+    `SELECT ticker, timestamp, datetime, date, block, open, high, low, close, volume
+     FROM candles_130m_raw
      WHERE ticker = ? AND date >= ? AND date <= ?
      ORDER BY timestamp ASC`,
   );
