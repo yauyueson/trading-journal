@@ -1,5 +1,5 @@
 {
-  "date": "2026-03-23T22:40:34.800Z",
+  "date": "2026-03-23T23:14:33.433Z",
   "tickers": [
     "SPY",
     "QQQ",
@@ -16,78 +16,42 @@
     "GOOG",
     "GS"
   ],
-  "swingBest": [
-    {
-      "label": "tl75-25",
-      "mechanism": "trailing_lock",
-      "oosSharpe": 1.5326666776251143,
-      "holdoutSharpe": 0.4051313709379534,
-      "grade": "A"
-    },
-    {
-      "label": "tl50-25",
-      "mechanism": "trailing_lock",
-      "oosSharpe": 1.5030338946985573,
-      "holdoutSharpe": 0.7139228114086035,
-      "grade": "A"
-    },
-    {
-      "label": "tl75-50",
-      "mechanism": "trailing_lock",
-      "oosSharpe": 1.502866802846674,
-      "holdoutSharpe": 0.4037203845713212,
-      "grade": "A"
-    },
+  "swingBest": [],
+  "shortBest": [
     {
       "label": "baseline",
       "mechanism": "baseline",
-      "oosSharpe": 1.4216619958756525,
-      "holdoutSharpe": 0.24953988448226985,
-      "grade": "B"
+      "oosSharpe": 0.44898139503026907,
+      "holdoutSharpe": 0.3250347438890657,
+      "grade": "C"
+    },
+    {
+      "label": "sl15x",
+      "mechanism": "credit_multiple",
+      "oosSharpe": 0.44898139503026907,
+      "holdoutSharpe": 0.3250347438890657,
+      "grade": "C"
     },
     {
       "label": "sl10x",
       "mechanism": "credit_multiple",
-      "oosSharpe": 1.4216619958756525,
-      "holdoutSharpe": 0.24953988448226985,
-      "grade": "B"
-    }
-  ],
-  "shortBest": [
-    {
-      "label": "ds70",
-      "mechanism": "delta_stop",
-      "oosSharpe": 1.176690160628267,
-      "holdoutSharpe": 0.6410579568238621,
-      "grade": "B"
+      "oosSharpe": 0.4126405334758931,
+      "holdoutSharpe": 0.3250347438890657,
+      "grade": "D"
     },
     {
-      "label": "baseline",
-      "mechanism": "baseline",
-      "oosSharpe": 0.9706946485339578,
-      "holdoutSharpe": 0.8554992462789497,
-      "grade": "C"
+      "label": "sl7x",
+      "mechanism": "credit_multiple",
+      "oosSharpe": 0.10190126607941918,
+      "holdoutSharpe": 0.3250347438890657,
+      "grade": "F"
     },
     {
-      "label": "ds75",
-      "mechanism": "delta_stop",
-      "oosSharpe": 0.942003857723177,
-      "holdoutSharpe": 0.7020436614075347,
-      "grade": "B"
-    },
-    {
-      "label": "ds80",
-      "mechanism": "delta_stop",
-      "oosSharpe": 0.7013231604638059,
-      "holdoutSharpe": 0.6816891709886514,
-      "grade": "B"
-    },
-    {
-      "label": "tl75-50",
-      "mechanism": "trailing_lock",
-      "oosSharpe": 0.6493449767304842,
-      "holdoutSharpe": 0.7543678374075918,
-      "grade": "B"
+      "label": "sl5x",
+      "mechanism": "credit_multiple",
+      "oosSharpe": -0.5807016714523376,
+      "holdoutSharpe": -0.12851095594615192,
+      "grade": "F"
     }
   ]
 }
