@@ -11,7 +11,7 @@
     "oosMaxDD": 3.9328452363555115,
     "oosTotalPnl": 194419.0103202263,
     "wfEfficiency": 1.1212419801700957,
-    "grade": "C",
+    "grade": "B",
     "tradeCount": 296,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 209,
@@ -229,7 +229,7 @@
     "oosMaxDD": 21.834332085739643,
     "oosTotalPnl": 54046.21092333827,
     "wfEfficiency": 0.8847364336032658,
-    "grade": "D",
+    "grade": "C",
     "tradeCount": 341,
     "exitTypeBreakdown": {
       "STOP_LOSS": 108,
@@ -375,7 +375,7 @@
     "oosMaxDD": 5.434748101942954,
     "oosTotalPnl": 182443.17276042604,
     "wfEfficiency": 1.0960042562732808,
-    "grade": "C",
+    "grade": "B",
     "tradeCount": 299,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 204,
@@ -448,7 +448,7 @@
     "oosMaxDD": 3.9328452363555115,
     "oosTotalPnl": 193448.01094631688,
     "wfEfficiency": 1.1178862104976337,
-    "grade": "C",
+    "grade": "B",
     "tradeCount": 296,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 208,
@@ -521,7 +521,7 @@
     "oosMaxDD": 3.9328452363555115,
     "oosTotalPnl": 194419.0103202263,
     "wfEfficiency": 1.1212419801700957,
-    "grade": "C",
+    "grade": "B",
     "tradeCount": 296,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 209,
@@ -1397,7 +1397,7 @@
     "oosMaxDD": 6.461074432279101,
     "oosTotalPnl": 158270.32598928094,
     "wfEfficiency": 0.998981872658992,
-    "grade": "C",
+    "grade": "B",
     "tradeCount": 349,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 153,
@@ -1471,7 +1471,7 @@
     "oosMaxDD": 6.460524119967985,
     "oosTotalPnl": 159044.33812586323,
     "wfEfficiency": 1.0018546875754528,
-    "grade": "C",
+    "grade": "B",
     "tradeCount": 349,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 153,
@@ -1545,7 +1545,7 @@
     "oosMaxDD": 6.777720367910252,
     "oosTotalPnl": 154355.34125537353,
     "wfEfficiency": 1.0167838181476632,
-    "grade": "C",
+    "grade": "B",
     "tradeCount": 319,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 166,
@@ -1619,7 +1619,7 @@
     "oosMaxDD": 6.777074789073219,
     "oosTotalPnl": 154373.0885649475,
     "wfEfficiency": 1.0167499795781287,
-    "grade": "C",
+    "grade": "B",
     "tradeCount": 319,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 166,

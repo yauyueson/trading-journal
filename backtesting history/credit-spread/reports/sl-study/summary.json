@@ -1,5 +1,5 @@
 {
-  "date": "2026-03-23T23:19:14.818Z",
+  "date": "2026-03-23T23:21:56.799Z",
   "tickers": [
     "SPY",
     "QQQ",
@@ -23,35 +23,35 @@
       "mechanism": "baseline",
       "oosSharpe": 2.233113515241244,
       "holdoutSharpe": 1.8464971210273267,
-      "grade": "C"
+      "grade": "B"
     },
     {
       "label": "sl15x",
       "mechanism": "credit_multiple",
       "oosSharpe": 2.233113515241244,
       "holdoutSharpe": 1.8464971210273267,
-      "grade": "C"
+      "grade": "B"
     },
     {
       "label": "sl10x",
       "mechanism": "credit_multiple",
       "oosSharpe": 2.226430020739482,
       "holdoutSharpe": 1.8464971210273267,
-      "grade": "C"
+      "grade": "B"
     },
     {
       "label": "sl7x",
       "mechanism": "credit_multiple",
       "oosSharpe": 2.10936623028941,
       "holdoutSharpe": 1.8464971210273267,
-      "grade": "C"
+      "grade": "B"
     },
     {
       "label": "tl75-50",
       "mechanism": "trailing_lock",
       "oosSharpe": 1.7847147019712903,
       "holdoutSharpe": 1.6352618001104189,
-      "grade": "C"
+      "grade": "B"
     }
   ]
 }

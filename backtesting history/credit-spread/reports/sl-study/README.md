@@ -8,29 +8,29 @@ This study evaluates 4 stop-loss mechanisms across Swing (45-65 DTE) and Short-T
 Methodology: Rolling WFA with IS/OOS selection windows + holdout validation.
 
 ### Baseline (No SL)
-- **short**: OOS Sharpe 2.23, Holdout 1.85, WR 76.4%, Grade C
+- **short**: OOS Sharpe 2.23, Holdout 1.85, WR 76.4%, Grade B
 
 ### Best SL Config: `sl15x` (short)
 - Mechanism: credit_multiple
 - OOS Sharpe: 2.23, Holdout: 1.85
 - WR: 76.4%, MaxDD: 3.9%
-- Grade: C
+- Grade: B
 
 ## Short-Term Results
 
 | Label | Mechanism | IS Sharpe | OOS Sharpe | Holdout | WR% | MaxDD | Trades | WFE | Grade |
 |-------|-----------|-----------|------------|---------|-----|-------|--------|-----|-------|
-| baseline | baseline | 1.99 | 2.23 | 1.85 | 76.4% | 3.9% | 296 | 1.12 | C |
-| sl15x | credit_multiple | 1.99 | 2.23 | 1.85 | 76.4% | 3.9% | 296 | 1.12 | C |
-| sl10x | credit_multiple | 1.99 | 2.23 | 1.85 | 76.0% | 3.9% | 296 | 1.12 | C |
-| sl7x | credit_multiple | 1.92 | 2.11 | 1.85 | 73.9% | 5.4% | 299 | 1.10 | C |
-| tl75-50 | trailing_lock | 1.76 | 1.78 | 1.64 | 56.1% | 6.8% | 319 | 1.02 | C |
-| tl75-25 | trailing_lock | 1.76 | 1.78 | 1.64 | 56.1% | 6.8% | 319 | 1.02 | C |
+| baseline | baseline | 1.99 | 2.23 | 1.85 | 76.4% | 3.9% | 296 | 1.12 | B |
+| sl15x | credit_multiple | 1.99 | 2.23 | 1.85 | 76.4% | 3.9% | 296 | 1.12 | B |
+| sl10x | credit_multiple | 1.99 | 2.23 | 1.85 | 76.0% | 3.9% | 296 | 1.12 | B |
+| sl7x | credit_multiple | 1.92 | 2.11 | 1.85 | 73.9% | 5.4% | 299 | 1.10 | B |
+| tl75-50 | trailing_lock | 1.76 | 1.78 | 1.64 | 56.1% | 6.8% | 319 | 1.02 | B |
+| tl75-25 | trailing_lock | 1.76 | 1.78 | 1.64 | 56.1% | 6.8% | 319 | 1.02 | B |
 | sl5x | credit_multiple | 1.61 | 1.76 | 1.54 | 70.1% | 8.2% | 314 | 1.09 | C |
-| tl50-50 | trailing_lock | 1.67 | 1.67 | 1.50 | 47.3% | 6.5% | 349 | 1.00 | C |
-| tl50-25 | trailing_lock | 1.67 | 1.67 | 1.50 | 47.0% | 6.5% | 349 | 1.00 | C |
+| tl50-50 | trailing_lock | 1.67 | 1.67 | 1.50 | 47.3% | 6.5% | 349 | 1.00 | B |
+| tl50-25 | trailing_lock | 1.67 | 1.67 | 1.50 | 47.0% | 6.5% | 349 | 1.00 | B |
 | ds80 | delta_stop | 0.76 | 1.15 | 1.53 | 65.5% | 12.1% | 313 | 1.52 | C |
-| sl4x | credit_multiple | 1.06 | 0.94 | 1.35 | 55.4% | 21.8% | 341 | 0.88 | D |
+| sl4x | credit_multiple | 1.06 | 0.94 | 1.35 | 55.4% | 21.8% | 341 | 0.88 | C |
 | ds75 | delta_stop | 0.26 | 0.80 | 1.43 | 64.2% | 21.9% | 318 | 3.05 | C |
 | ds70 | delta_stop | -0.20 | 0.50 | 1.35 | 60.9% | 25.2% | 327 | 0.00 | F |
 | ds65 | delta_stop | -0.93 | -0.03 | 0.27 | 56.5% | 34.9% | 336 | 0.00 | F |

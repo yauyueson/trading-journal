@@ -602,13 +602,18 @@ function computeGrade(
   windowResults: WindowEvalResult[],
   minTrades: number,
 ): { grade: string; passCount: number; checks: boolean[] } {
-  const avgISS = windowResults.reduce((s, w) => s + w.trainSharpe, 0) / windowResults.length;
-  const avgOOSS = windowResults.reduce((s, w) => s + w.oosSharpe, 0) / windowResults.length;
+  // Skip empty windows (no trades) — can happen when data doesn't cover early windows
+  const activeWindows = windowResults.filter(w => w.oosTradeCount > 0);
+  if (activeWindows.length === 0) {
+    return { grade: 'F', passCount: 0, checks: [false, false, false, false, false, false] };
+  }
+  const avgISS = activeWindows.reduce((s, w) => s + w.trainSharpe, 0) / activeWindows.length;
+  const avgOOSS = activeWindows.reduce((s, w) => s + w.oosSharpe, 0) / activeWindows.length;
   const oosStdDev = Math.sqrt(
-    windowResults.reduce((s, w) => s + (w.oosSharpe - avgOOSS) ** 2, 0) / windowResults.length,
+    activeWindows.reduce((s, w) => s + (w.oosSharpe - avgOOSS) ** 2, 0) / activeWindows.length,
   );
-  const totalTrades = windowResults.reduce((s, w) => s + w.oosTradeCount, 0);
-  const allPositive = windowResults.every(w => w.oosSharpe > 0);
+  const totalTrades = activeWindows.reduce((s, w) => s + w.oosTradeCount, 0);
+  const allPositive = activeWindows.every(w => w.oosSharpe > 0);
 
   // Aggregate OOS Sharpe from all OOS trades
   // (simplified: use average of window Sharpes as proxy)
