@@ -88,6 +88,53 @@ function aggregate5MinTo130M(bars5min) {
     return bars.sort((a, b) => a.timestamp - b.timestamp);
 }
 
+// ── 1H → 130M Aggregator ─────────────────────────────────────────────────────
+// Aggregate 1H bars into 3 × 130-minute blocks per day using ET hours.
+// Less precise than 5min→130M (1H boundaries don't align exactly to 130-min blocks)
+// but works within Tiingo's 2000-tick limit in a single API call.
+// Block assignment based on ET hour:
+//   Block 0: hours 9-10 (09:30–11:40 ET)
+//   Block 1: hours 11-13 (11:40–13:50 ET)
+//   Block 2: hours 14-15 (13:50–16:00 ET)
+
+function aggregate1HTo130M(hourlyCandles) {
+    if (!hourlyCandles || hourlyCandles.length === 0) return [];
+
+    const groups = new Map();
+    for (const c of hourlyCandles) {
+        const h = c.hour;
+        let block;
+        if (h >= 9 && h <= 10) block = 0;
+        else if (h >= 11 && h <= 13) block = 1;
+        else if (h >= 14 && h <= 15) block = 2;
+        else continue; // outside regular hours
+        const key = `${c.date}|${block}`;
+        if (!groups.has(key)) {
+            groups.set(key, { date: c.date, block, candles: [] });
+        }
+        groups.get(key).candles.push(c);
+    }
+
+    const bars = [];
+    for (const [, group] of groups) {
+        const sorted = group.candles.sort((a, b) => a.timestamp - b.timestamp);
+        if (sorted.length === 0) continue;
+        bars.push({
+            timestamp: sorted[0].timestamp,
+            datetime: sorted[0].datetime,
+            date: group.date,
+            block: group.block,
+            open: sorted[0].open,
+            high: Math.max(...sorted.map(c => c.high)),
+            low: Math.min(...sorted.map(c => c.low)),
+            close: sorted[sorted.length - 1].close,
+            volume: sorted.reduce((sum, c) => sum + c.volume, 0),
+        });
+    }
+
+    return bars.sort((a, b) => a.timestamp - b.timestamp);
+}
+
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -267,9 +314,9 @@ async function handleCandles(req, res) {
                 const d = new Date(lastCachedDate + 'T12:00:00Z');
                 d.setUTCDate(d.getUTCDate() + 1);
                 const topUpFrom = d.toISOString().split('T')[0];
-                const newBars5m = await getIntraday5MinCandles(ticker.toUpperCase(), topUpFrom, endDate);
-                if (newBars5m.length > 0) {
-                    const newBars130m = aggregate5MinTo130M(newBars5m);
+                const newHourly = await getIntradayCandles(ticker.toUpperCase(), topUpFrom, endDate);
+                if (newHourly.length > 0) {
+                    const newBars130m = aggregate1HTo130M(newHourly);
                     candles = [...candles, ...newBars130m];
                     cache130MCandles(ticker, newBars130m).catch(e => console.warn('[backtest-data/130M] top-up cache write failed:', e.message));
                     console.log(`[backtest-data/130M] ${ticker}: topped up ${newBars130m.length} bars (${topUpFrom} → ${endDate})`);
@@ -278,11 +325,12 @@ async function handleCandles(req, res) {
             source = 'cache';
             console.log(`[backtest-data/130M] ${ticker}: ${candles.length} 130M bars from cache`);
         } else {
-            // Cold cache: paginated backfill from Tiingo IEX 5-min
-            const allBars5m = await fetchPaginated5Min(ticker, startDate, endDate);
-            candles = aggregate5MinTo130M(allBars5m);
+            // Cold cache: fetch 1H bars (single Tiingo call, always under 2000 ticks)
+            // and aggregate to 130M. Less precise than 5-min→130M but avoids Vercel timeout.
+            const hourly = await getIntradayCandles(ticker.toUpperCase(), startDate, endDate);
+            candles = aggregate1HTo130M(hourly);
             source = 'tiingo-iex-130m';
-            console.log(`[backtest-data/130M] ${ticker}: ${allBars5m.length} 5min bars → ${candles.length} 130M bars (cold backfill)`);
+            console.log(`[backtest-data/130M] ${ticker}: ${hourly.length} 1H bars → ${candles.length} 130M bars (1H aggregation)`);
             // Cache for next time (fire-and-forget)
             if (candles.length > 0) cache130MCandles(ticker, candles).catch(e => console.warn('[backtest-data/130M] cold-fill cache write failed:', e.message));
         }
