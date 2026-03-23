@@ -4,13 +4,13 @@
     "mechanism": "baseline",
     "configLabel": "baseline",
     "params": {},
-    "isSharpe": 0.3870497241370743,
-    "oosSharpe": 0.44898139503026907,
-    "holdoutSharpe": 0.3250347438890657,
+    "isSharpe": 1.9916427985531489,
+    "oosSharpe": 2.233113515241244,
+    "holdoutSharpe": 1.8464971210273267,
     "oosWinRate": 76.35135135135135,
-    "oosMaxDD": 9.347152283103117,
-    "oosTotalPnl": 9936.771434683193,
-    "wfEfficiency": 1.1600095983307344,
+    "oosMaxDD": 3.9328452363555115,
+    "oosTotalPnl": 194419.0103202263,
+    "wfEfficiency": 1.1212419801700957,
     "grade": "C",
     "tradeCount": 296,
     "exitTypeBreakdown": {
@@ -30,41 +30,41 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": 1.6380040313073891,
+        "oosSharpe": 5.774779457321206,
         "oosWR": 76.92307692307693,
-        "oosMaxDD": 3.7671853932611703,
+        "oosMaxDD": 2.597642658082042,
         "oosTradeCount": 78
       },
       {
         "windowIdx": 2,
-        "trainSharpe": 0.5323647439023298,
-        "oosSharpe": -1.2905614059113428,
+        "trainSharpe": 2.2183444126412852,
+        "oosSharpe": 3.0178678606889036,
         "oosWR": 66.0377358490566,
-        "oosMaxDD": 9.716528762031567,
+        "oosMaxDD": 7.524081330111916,
         "oosTradeCount": 53
       },
       {
         "windowIdx": 3,
-        "trainSharpe": 0.6303503240316856,
-        "oosSharpe": 0.6499845513400024,
+        "trainSharpe": 2.931547564763418,
+        "oosSharpe": 2.7102061131322333,
         "oosWR": 75.55555555555556,
         "oosMaxDD": 5.074851990270195,
         "oosTradeCount": 45
       },
       {
         "windowIdx": 4,
-        "trainSharpe": 0.3997064792597069,
-        "oosSharpe": 1.7650109764508835,
+        "trainSharpe": 3.225426917380741,
+        "oosSharpe": 3.062685602561004,
         "oosWR": 82.27848101265823,
         "oosMaxDD": 3.267073118147746,
         "oosTradeCount": 79
       },
       {
         "windowIdx": 5,
-        "trainSharpe": 0.7598767976287234,
-        "oosSharpe": 0.44168861891798694,
+        "trainSharpe": 3.574537896533449,
+        "oosSharpe": 3.9948287923614965,
         "oosWR": 78.04878048780488,
-        "oosMaxDD": 4.633139457905305,
+        "oosMaxDD": 4.24207455866604,
         "oosTradeCount": 41
       }
     ]
@@ -76,12 +76,12 @@
     "params": {
       "creditStopLossMultiple": 2
     },
-    "isSharpe": -3.891440434930336,
-    "oosSharpe": -1.239248089471073,
-    "holdoutSharpe": -3.176895604304858,
+    "isSharpe": -2.8695107889533134,
+    "oosSharpe": -1.633869939606585,
+    "holdoutSharpe": -0.9502490010276827,
     "oosWinRate": 24.489795918367346,
-    "oosMaxDD": 136.49715368236218,
-    "oosTotalPnl": -136280.79587765658,
+    "oosMaxDD": 113.13408154784842,
+    "oosTotalPnl": -112917.72374314285,
     "wfEfficiency": 0,
     "grade": "F",
     "tradeCount": 392,
@@ -103,14 +103,14 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -12.291678598572101,
+        "oosSharpe": -4.988201789571135,
         "oosWR": 29.75206611570248,
-        "oosMaxDD": 39.31209667818034,
+        "oosMaxDD": 29.42663637627676,
         "oosTradeCount": 121
       },
       {
         "windowIdx": 2,
-        "trainSharpe": -3.609894078847006,
+        "trainSharpe": -1.2666144403025315,
         "oosSharpe": -11.769167154554378,
         "oosWR": 18.64406779661017,
         "oosMaxDD": 26.250210832130787,
@@ -118,7 +118,7 @@
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -6.0380451897495275,
+        "trainSharpe": -3.5185519428781054,
         "oosSharpe": -12.809465574804259,
         "oosWR": 22.950819672131146,
         "oosMaxDD": 18.96836173656353,
@@ -126,15 +126,15 @@
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -9.11905129183088,
-        "oosSharpe": -16.43069818526803,
+        "trainSharpe": -6.685414755016908,
+        "oosSharpe": -2.8967120924883356,
         "oosWR": 22.93577981651376,
-        "oosMaxDD": 37.87548585560037,
+        "oosMaxDD": 32.0264826102239,
         "oosTradeCount": 109
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -4.581652049154598,
+        "trainSharpe": -5.746483595522335,
         "oosSharpe": -12.201687992434666,
         "oosWR": 23.809523809523807,
         "oosMaxDD": 14.317706373842242,
@@ -149,12 +149,12 @@
     "params": {
       "creditStopLossMultiple": 3
     },
-    "isSharpe": -3.127198498241635,
-    "oosSharpe": -1.2956015211290042,
-    "holdoutSharpe": -2.900803013233406,
+    "isSharpe": -0.8668850733872246,
+    "oosSharpe": -1.9899624163331924,
+    "holdoutSharpe": -0.24743988049685378,
     "oosWinRate": 38.97849462365591,
-    "oosMaxDD": 132.4237422777514,
-    "oosTotalPnl": -131409.84181619057,
+    "oosMaxDD": 81.46853643191571,
+    "oosTotalPnl": -78846.21689142128,
     "wfEfficiency": 0,
     "grade": "F",
     "tradeCount": 372,
@@ -176,38 +176,38 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -10.010211521678531,
+        "oosSharpe": -1.221727933750338,
         "oosWR": 38.05309734513274,
-        "oosMaxDD": 40.27470287220142,
+        "oosMaxDD": 19.755188876501123,
         "oosTradeCount": 113
       },
       {
         "windowIdx": 2,
-        "trainSharpe": -3.215890910342716,
-        "oosSharpe": -11.07475998332436,
+        "trainSharpe": 0.08841704594439344,
+        "oosSharpe": -4.922175993310634,
         "oosWR": 27.11864406779661,
-        "oosMaxDD": 27.836057688848392,
+        "oosMaxDD": 25.907474463710884,
         "oosTradeCount": 59
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -5.528113818376938,
-        "oosSharpe": -9.290646778158495,
+        "trainSharpe": -1.5894820162166607,
+        "oosSharpe": -2.3857326186776087,
         "oosWR": 40.98360655737705,
-        "oosMaxDD": 19.91994031765964,
+        "oosMaxDD": 13.354874203236978,
         "oosTradeCount": 61
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -7.224320035105621,
-        "oosSharpe": -9.97789042601969,
+        "trainSharpe": -1.9958690000892514,
+        "oosSharpe": -2.5834978035900793,
         "oosWR": 47.42268041237113,
-        "oosMaxDD": 28.276261133415158,
+        "oosMaxDD": 17.04530941045018,
         "oosTradeCount": 97
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -2.794866225624534,
+        "trainSharpe": -1.7043764699618293,
         "oosSharpe": -9.375695423220117,
         "oosWR": 35.714285714285715,
         "oosMaxDD": 17.157129772890315,
@@ -222,14 +222,14 @@
     "params": {
       "creditStopLossMultiple": 4
     },
-    "isSharpe": -1.977701090552227,
-    "oosSharpe": -2.783777437475859,
-    "holdoutSharpe": -0.8759754248729257,
+    "isSharpe": 1.0634294603398675,
+    "oosSharpe": 0.94085478812974,
+    "holdoutSharpe": 1.3476266545251494,
     "oosWinRate": 55.42521994134897,
-    "oosMaxDD": 70.83521494152825,
-    "oosTotalPnl": -68940.41627104524,
-    "wfEfficiency": 0,
-    "grade": "F",
+    "oosMaxDD": 21.834332085739643,
+    "oosTotalPnl": 54046.21092333827,
+    "wfEfficiency": 0.8847364336032658,
+    "grade": "D",
     "tradeCount": 341,
     "exitTypeBreakdown": {
       "STOP_LOSS": 108,
@@ -249,41 +249,41 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -3.619241564181115,
+        "oosSharpe": 3.905209386266463,
         "oosWR": 58.76288659793815,
-        "oosMaxDD": 15.200722644297407,
+        "oosMaxDD": 5.069638095929899,
         "oosTradeCount": 97
       },
       {
         "windowIdx": 2,
-        "trainSharpe": -1.8014757682994589,
-        "oosSharpe": -6.726847057776211,
+        "trainSharpe": 1.4647241576934635,
+        "oosSharpe": -1.9447840199066277,
         "oosWR": 44.827586206896555,
-        "oosMaxDD": 21.492086664152403,
+        "oosMaxDD": 18.313681000180658,
         "oosTradeCount": 58
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -2.633340426872658,
-        "oosSharpe": -4.518762208807713,
+        "trainSharpe": 1.8058737287730893,
+        "oosSharpe": -2.245802466656021,
         "oosWR": 50,
-        "oosMaxDD": 14.20824439796414,
+        "oosMaxDD": 11.524015288742419,
         "oosTradeCount": 52
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -3.60822706234394,
-        "oosSharpe": -3.715896847185389,
+        "trainSharpe": 1.5108273728183808,
+        "oosSharpe": 1.125800250061313,
         "oosWR": 64.51612903225806,
-        "oosMaxDD": 15.866117444087374,
+        "oosMaxDD": 11.760261510663069,
         "oosTradeCount": 93
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -3.8231632857973055,
-        "oosSharpe": -5.070856645698476,
+        "trainSharpe": 1.5991515027542706,
+        "oosSharpe": 1.8940848627979865,
         "oosWR": 48.78048780487805,
-        "oosMaxDD": 11.54716467842138,
+        "oosMaxDD": 7.327712427159949,
         "oosTradeCount": 41
       }
     ]
@@ -295,14 +295,14 @@
     "params": {
       "creditStopLossMultiple": 5
     },
-    "isSharpe": -0.5140061429421064,
-    "oosSharpe": -0.5807016714523376,
-    "holdoutSharpe": -0.12851095594615192,
+    "isSharpe": 1.609475667008029,
+    "oosSharpe": 1.7580415381231398,
+    "holdoutSharpe": 1.5389201563683883,
     "oosWinRate": 70.06369426751591,
-    "oosMaxDD": 24.131808194644236,
-    "oosTotalPnl": -17437.901165464235,
-    "wfEfficiency": 0,
-    "grade": "F",
+    "oosMaxDD": 8.239857141198364,
+    "oosTotalPnl": 160321.0418374313,
+    "wfEfficiency": 1.0923070004477238,
+    "grade": "C",
     "tradeCount": 314,
     "exitTypeBreakdown": {
       "STOP_LOSS": 46,
@@ -322,41 +322,41 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -0.3639592052665861,
+        "oosSharpe": 4.849956454484851,
         "oosWR": 67.85714285714286,
-        "oosMaxDD": 5.243968334571211,
+        "oosMaxDD": 5.069638095929899,
         "oosTradeCount": 84
       },
       {
         "windowIdx": 2,
-        "trainSharpe": 0.037512783166204704,
-        "oosSharpe": -3.9093281455286646,
+        "trainSharpe": 1.9596541795583728,
+        "oosSharpe": -0.4735760487518252,
         "oosWR": 56.14035087719298,
-        "oosMaxDD": 17.396575284704436,
+        "oosMaxDD": 14.833382003872462,
         "oosTradeCount": 57
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -1.0455754695198378,
-        "oosSharpe": -0.8267929415409296,
+        "trainSharpe": 2.361780985757607,
+        "oosSharpe": 1.6947991670328968,
         "oosWR": 72,
         "oosMaxDD": 8.080175708868264,
         "oosTradeCount": 50
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -1.2113470503354768,
-        "oosSharpe": 0.940047608273267,
+        "trainSharpe": 2.500085463032375,
+        "oosSharpe": 2.7265497516261346,
         "oosWR": 81.70731707317073,
         "oosMaxDD": 5.711333808070922,
         "oosTradeCount": 82
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -0.864627120963529,
-        "oosSharpe": -1.0475024093251464,
+        "trainSharpe": 2.8353333736998207,
+        "oosSharpe": 3.404499952585118,
         "oosWR": 68.29268292682927,
-        "oosMaxDD": 7.578022676511373,
+        "oosMaxDD": 4.763281883359487,
         "oosTradeCount": 41
       }
     ]
@@ -368,14 +368,14 @@
     "params": {
       "creditStopLossMultiple": 7
     },
-    "isSharpe": 0.19172981608026785,
-    "oosSharpe": 0.10190126607941918,
-    "holdoutSharpe": 0.3250347438890657,
+    "isSharpe": 1.9245967506201493,
+    "oosSharpe": 2.10936623028941,
+    "holdoutSharpe": 1.8464971210273267,
     "oosWinRate": 73.91304347826086,
-    "oosMaxDD": 12.803553184089756,
-    "oosTotalPnl": 937.9511298581276,
-    "wfEfficiency": 0.53148366885596,
-    "grade": "F",
+    "oosMaxDD": 5.434748101942954,
+    "oosTotalPnl": 182443.17276042604,
+    "wfEfficiency": 1.0960042562732808,
+    "grade": "C",
     "tradeCount": 299,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 204,
@@ -395,41 +395,41 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": 1.3992104196494084,
+        "oosSharpe": 5.6284753353680905,
         "oosWR": 75.64102564102564,
-        "oosMaxDD": 4.460929203195032,
+        "oosMaxDD": 2.7948042540298266,
         "oosTradeCount": 78
       },
       {
         "windowIdx": 2,
-        "trainSharpe": 0.4038118317368432,
-        "oosSharpe": -2.5195958185926264,
+        "trainSharpe": 2.1614463909428188,
+        "oosSharpe": 1.71143314078314,
         "oosWR": 61.81818181818181,
-        "oosMaxDD": 13.280138596432181,
+        "oosMaxDD": 10.544842622111569,
         "oosTradeCount": 55
       },
       {
         "windowIdx": 3,
-        "trainSharpe": 0.14109890410856968,
-        "oosSharpe": 0.6824956973064938,
+        "trainSharpe": 2.80123776778891,
+        "oosSharpe": 2.7300652557013585,
         "oosWR": 76.08695652173914,
         "oosMaxDD": 5.074851990270195,
         "oosTradeCount": 46
       },
       {
         "windowIdx": 4,
-        "trainSharpe": 0.13098490056367704,
-        "oosSharpe": 1.570149930471344,
+        "trainSharpe": 3.119096892887534,
+        "oosSharpe": 3.016900988981616,
         "oosWR": 82.27848101265823,
         "oosMaxDD": 3.384615859173966,
         "oosTradeCount": 79
       },
       {
         "windowIdx": 5,
-        "trainSharpe": 0.4744832600725173,
-        "oosSharpe": -1.0475024093251464,
+        "trainSharpe": 3.465799452101633,
+        "oosSharpe": 3.404499952585118,
         "oosWR": 68.29268292682927,
-        "oosMaxDD": 7.578022676511373,
+        "oosMaxDD": 4.763281883359487,
         "oosTradeCount": 41
       }
     ]
@@ -441,14 +441,14 @@
     "params": {
       "creditStopLossMultiple": 10
     },
-    "isSharpe": 0.3870497241370743,
-    "oosSharpe": 0.4126405334758931,
-    "holdoutSharpe": 0.3250347438890657,
+    "isSharpe": 1.9916427985531489,
+    "oosSharpe": 2.226430020739482,
+    "holdoutSharpe": 1.8464971210273267,
     "oosWinRate": 76.01351351351352,
-    "oosMaxDD": 9.347152283103117,
-    "oosTotalPnl": 8965.772060773752,
-    "wfEfficiency": 1.0661176271236814,
-    "grade": "D",
+    "oosMaxDD": 3.9328452363555115,
+    "oosTotalPnl": 193448.01094631688,
+    "wfEfficiency": 1.1178862104976337,
+    "grade": "C",
     "tradeCount": 296,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 208,
@@ -468,41 +468,41 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": 1.6380040313073891,
+        "oosSharpe": 5.774779457321206,
         "oosWR": 76.92307692307693,
-        "oosMaxDD": 3.7671853932611703,
+        "oosMaxDD": 2.597642658082042,
         "oosTradeCount": 78
       },
       {
         "windowIdx": 2,
-        "trainSharpe": 0.5323647439023298,
-        "oosSharpe": -1.2905614059113428,
+        "trainSharpe": 2.2183444126412852,
+        "oosSharpe": 3.0178678606889036,
         "oosWR": 66.0377358490566,
-        "oosMaxDD": 9.716528762031567,
+        "oosMaxDD": 7.524081330111916,
         "oosTradeCount": 53
       },
       {
         "windowIdx": 3,
-        "trainSharpe": 0.6303503240316856,
-        "oosSharpe": 0.6499845513400024,
+        "trainSharpe": 2.931547564763418,
+        "oosSharpe": 2.7102061131322333,
         "oosWR": 75.55555555555556,
         "oosMaxDD": 5.074851990270195,
         "oosTradeCount": 45
       },
       {
         "windowIdx": 4,
-        "trainSharpe": 0.3997064792597069,
-        "oosSharpe": 1.7650109764508835,
+        "trainSharpe": 3.225426917380741,
+        "oosSharpe": 3.062685602561004,
         "oosWR": 82.27848101265823,
         "oosMaxDD": 3.267073118147746,
         "oosTradeCount": 79
       },
       {
         "windowIdx": 5,
-        "trainSharpe": 0.7598767976287234,
-        "oosSharpe": 0.0951423364777013,
+        "trainSharpe": 3.574537896533449,
+        "oosSharpe": 3.836113066301448,
         "oosWR": 75.60975609756098,
-        "oosMaxDD": 5.204186872178453,
+        "oosMaxDD": 4.763281883359487,
         "oosTradeCount": 41
       }
     ]
@@ -514,13 +514,13 @@
     "params": {
       "creditStopLossMultiple": 15
     },
-    "isSharpe": 0.3870497241370743,
-    "oosSharpe": 0.44898139503026907,
-    "holdoutSharpe": 0.3250347438890657,
+    "isSharpe": 1.9916427985531489,
+    "oosSharpe": 2.233113515241244,
+    "holdoutSharpe": 1.8464971210273267,
     "oosWinRate": 76.35135135135135,
-    "oosMaxDD": 9.347152283103117,
-    "oosTotalPnl": 9936.771434683193,
-    "wfEfficiency": 1.1600095983307344,
+    "oosMaxDD": 3.9328452363555115,
+    "oosTotalPnl": 194419.0103202263,
+    "wfEfficiency": 1.1212419801700957,
     "grade": "C",
     "tradeCount": 296,
     "exitTypeBreakdown": {
@@ -540,41 +540,41 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": 1.6380040313073891,
+        "oosSharpe": 5.774779457321206,
         "oosWR": 76.92307692307693,
-        "oosMaxDD": 3.7671853932611703,
+        "oosMaxDD": 2.597642658082042,
         "oosTradeCount": 78
       },
       {
         "windowIdx": 2,
-        "trainSharpe": 0.5323647439023298,
-        "oosSharpe": -1.2905614059113428,
+        "trainSharpe": 2.2183444126412852,
+        "oosSharpe": 3.0178678606889036,
         "oosWR": 66.0377358490566,
-        "oosMaxDD": 9.716528762031567,
+        "oosMaxDD": 7.524081330111916,
         "oosTradeCount": 53
       },
       {
         "windowIdx": 3,
-        "trainSharpe": 0.6303503240316856,
-        "oosSharpe": 0.6499845513400024,
+        "trainSharpe": 2.931547564763418,
+        "oosSharpe": 2.7102061131322333,
         "oosWR": 75.55555555555556,
         "oosMaxDD": 5.074851990270195,
         "oosTradeCount": 45
       },
       {
         "windowIdx": 4,
-        "trainSharpe": 0.3997064792597069,
-        "oosSharpe": 1.7650109764508835,
+        "trainSharpe": 3.225426917380741,
+        "oosSharpe": 3.062685602561004,
         "oosWR": 82.27848101265823,
         "oosMaxDD": 3.267073118147746,
         "oosTradeCount": 79
       },
       {
         "windowIdx": 5,
-        "trainSharpe": 0.7598767976287234,
-        "oosSharpe": 0.44168861891798694,
+        "trainSharpe": 3.574537896533449,
+        "oosSharpe": 3.9948287923614965,
         "oosWR": 78.04878048780488,
-        "oosMaxDD": 4.633139457905305,
+        "oosMaxDD": 4.24207455866604,
         "oosTradeCount": 41
       }
     ]
@@ -732,12 +732,12 @@
     "params": {
       "creditDeltaStop": 0.6
     },
-    "isSharpe": -2.6431513468320453,
-    "oosSharpe": -1.73448913376713,
+    "isSharpe": -2.3883605625845994,
+    "oosSharpe": -1.0881508928042887,
     "holdoutSharpe": -1.0967281410512193,
     "oosWinRate": 50.847457627118644,
-    "oosMaxDD": 66.97876968142306,
-    "oosTotalPnl": -63995.557511639425,
+    "oosMaxDD": 64.84871098379705,
+    "oosTotalPnl": -54155.67899706313,
     "wfEfficiency": 0,
     "grade": "F",
     "tradeCount": 354,
@@ -783,14 +783,14 @@
       {
         "windowIdx": 4,
         "trainSharpe": -3.6338914311999924,
-        "oosSharpe": 0.6687199811425832,
+        "oosSharpe": 2.209602879973384,
         "oosWR": 73.03370786516854,
-        "oosMaxDD": 7.582960204780623,
+        "oosMaxDD": 6.712154831280367,
         "oosTradeCount": 89
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -3.3408187996325367,
+        "trainSharpe": -1.8120740941478606,
         "oosSharpe": -2.8837040134354517,
         "oosWR": 51.21951219512195,
         "oosMaxDD": 8.083371695144844,
@@ -805,12 +805,12 @@
     "params": {
       "creditDeltaStop": 0.65
     },
-    "isSharpe": -1.5461187803846634,
-    "oosSharpe": -1.133244796674664,
-    "holdoutSharpe": -0.39672883136488035,
+    "isSharpe": -0.9329143768297806,
+    "oosSharpe": -0.03453708311008356,
+    "holdoutSharpe": 0.2656475507713442,
     "oosWinRate": 56.547619047619044,
-    "oosMaxDD": 40.93278700483398,
-    "oosTotalPnl": -34510.71543803681,
+    "oosMaxDD": 34.9031254736888,
+    "oosTotalPnl": -7126.81575517448,
     "wfEfficiency": 0,
     "grade": "F",
     "tradeCount": 336,
@@ -832,14 +832,14 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -4.91778750856325,
+        "oosSharpe": -3.143551759988331,
         "oosWR": 41.904761904761905,
-        "oosMaxDD": 21.691686740587627,
+        "oosMaxDD": 17.479996963205792,
         "oosTradeCount": 105
       },
       {
         "windowIdx": 2,
-        "trainSharpe": -1.4970492311373897,
+        "trainSharpe": -0.8059646307990018,
         "oosSharpe": -3.898264600992443,
         "oosWR": 46.42857142857143,
         "oosMaxDD": 15.149889417576096,
@@ -847,7 +847,7 @@
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -2.711426245684365,
+        "trainSharpe": -1.9928671585993525,
         "oosSharpe": -0.50315225406564,
         "oosWR": 65.95744680851064,
         "oosMaxDD": 7.110402828455261,
@@ -855,16 +855,16 @@
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -2.639611428059303,
-        "oosSharpe": 0.7698586090882374,
+        "trainSharpe": -2.175022564449965,
+        "oosSharpe": 2.3348653784807367,
         "oosWR": 74.71264367816092,
-        "oosMaxDD": 7.289646209244655,
+        "oosMaxDD": 6.413679388725481,
         "oosTradeCount": 87
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -2.4286257774269213,
-        "oosSharpe": -1.1647646413393964,
+        "trainSharpe": -0.6236319071303649,
+        "oosSharpe": 1.2665669306901564,
         "oosWR": 58.536585365853654,
         "oosMaxDD": 6.224061832779771,
         "oosTradeCount": 41
@@ -878,12 +878,12 @@
     "params": {
       "creditDeltaStop": 0.7
     },
-    "isSharpe": -1.1751852697233893,
-    "oosSharpe": -0.7433930142663078,
-    "holdoutSharpe": -0.1594618199274846,
+    "isSharpe": -0.1972975998609855,
+    "oosSharpe": 0.4977323891072265,
+    "holdoutSharpe": 1.3485608661764503,
     "oosWinRate": 60.85626911314985,
-    "oosMaxDD": 32.86849108624988,
-    "oosTotalPnl": -23693.22427455251,
+    "oosMaxDD": 25.23263011176301,
+    "oosTotalPnl": 20231.575288992863,
     "wfEfficiency": 0,
     "grade": "F",
     "tradeCount": 327,
@@ -905,14 +905,14 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -3.6125528064693353,
+        "oosSharpe": -0.3930154787107908,
         "oosWR": 45.91836734693878,
-        "oosMaxDD": 15.950944288851243,
+        "oosMaxDD": 10.724237295288637,
         "oosTradeCount": 98
       },
       {
         "windowIdx": 2,
-        "trainSharpe": -0.9513609802730963,
+        "trainSharpe": 0.3134308077381474,
         "oosSharpe": -3.5192019328313324,
         "oosWR": 50,
         "oosMaxDD": 15.299586317986307,
@@ -920,7 +920,7 @@
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -2.2047712144551546,
+        "trainSharpe": -0.7227564514691177,
         "oosSharpe": 0.16717436794152252,
         "oosWR": 68.88888888888889,
         "oosMaxDD": 5.074851990270195,
@@ -928,18 +928,18 @@
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -2.044147981076613,
-        "oosSharpe": 0.8853298299630432,
+        "trainSharpe": -0.9599092329973109,
+        "oosSharpe": 2.4017762270490226,
         "oosWR": 75.86206896551724,
-        "oosMaxDD": 7.2577794523243835,
+        "oosMaxDD": 6.181638603636266,
         "oosTradeCount": 87
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -1.8508314425354728,
-        "oosSharpe": -0.04588931449020679,
+        "trainSharpe": 0.18544927756236823,
+        "oosSharpe": 2.5098181011626695,
         "oosWR": 70.73170731707317,
-        "oosMaxDD": 4.602400307730351,
+        "oosMaxDD": 4.378333501299963,
         "oosTradeCount": 41
       }
     ]
@@ -951,14 +951,14 @@
     "params": {
       "creditDeltaStop": 0.75
     },
-    "isSharpe": -1.1066233133014975,
-    "oosSharpe": -0.6472402149224685,
-    "holdoutSharpe": 0.025483414999046654,
+    "isSharpe": 0.262785748362848,
+    "oosSharpe": 0.8016794343232274,
+    "holdoutSharpe": 1.4291273848558712,
     "oosWinRate": 64.15094339622641,
-    "oosMaxDD": 29.0380276693723,
-    "oosTotalPnl": -20076.530022411098,
-    "wfEfficiency": 0,
-    "grade": "F",
+    "oosMaxDD": 21.899609554282307,
+    "oosTotalPnl": 38797.73109131343,
+    "wfEfficiency": 3.0506960111713837,
+    "grade": "C",
     "tradeCount": 318,
     "exitTypeBreakdown": {
       "DELTA_STOP": 79,
@@ -978,14 +978,14 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -3.676582859390466,
+        "oosSharpe": 0.9703142517387284,
         "oosWR": 50,
-        "oosMaxDD": 13.892583666844379,
+        "oosMaxDD": 9.305831580236175,
         "oosTradeCount": 92
       },
       {
         "windowIdx": 2,
-        "trainSharpe": -0.8709701524888971,
+        "trainSharpe": 0.9458374423455896,
         "oosSharpe": -3.0802770383053377,
         "oosWR": 52.83018867924528,
         "oosMaxDD": 14.315307042445799,
@@ -993,26 +993,26 @@
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -2.0432705535045104,
-        "oosSharpe": 0.20152569724499936,
+        "trainSharpe": 0.011935781348398889,
+        "oosSharpe": 1.2079201912718007,
         "oosWR": 71.11111111111111,
         "oosMaxDD": 5.074851990270195,
         "oosTradeCount": 45
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -1.9943598501448316,
-        "oosSharpe": 1.061995599629096,
+        "trainSharpe": -0.14279263690352362,
+        "oosSharpe": 2.450720884122442,
         "oosWR": 78.16091954022988,
-        "oosMaxDD": 6.797470521507649,
+        "oosMaxDD": 5.609075756485896,
         "oosTradeCount": 87
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -1.7311393236707457,
-        "oosSharpe": -0.12393933533491501,
+        "trainSharpe": 0.7617339033866234,
+        "oosSharpe": 2.472874147399719,
         "oosWR": 73.17073170731707,
-        "oosMaxDD": 5.273356104731185,
+        "oosMaxDD": 5.017800994078049,
         "oosTradeCount": 41
       }
     ]
@@ -1024,14 +1024,14 @@
     "params": {
       "creditDeltaStop": 0.8
     },
-    "isSharpe": -1.070701744615442,
-    "oosSharpe": -0.639452424798673,
-    "holdoutSharpe": 0.04544971946168145,
+    "isSharpe": 0.7581432387917063,
+    "oosSharpe": 1.1534252444944657,
+    "holdoutSharpe": 1.5260863345796745,
     "oosWinRate": 65.49520766773162,
-    "oosMaxDD": 27.99218959289948,
-    "oosTotalPnl": -19881.2146571373,
-    "wfEfficiency": 0,
-    "grade": "F",
+    "oosMaxDD": 12.13097878539761,
+    "oosTotalPnl": 72579.46294809962,
+    "wfEfficiency": 1.5213816934287268,
+    "grade": "C",
     "tradeCount": 313,
     "exitTypeBreakdown": {
       "DELTA_STOP": 65,
@@ -1051,41 +1051,41 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -3.3519151236860303,
+        "oosSharpe": 2.932243943945753,
         "oosWR": 51.724137931034484,
-        "oosMaxDD": 13.183037776215336,
+        "oosMaxDD": 8.809145829970833,
         "oosTradeCount": 87
       },
       {
         "windowIdx": 2,
-        "trainSharpe": -0.7763429455476539,
-        "oosSharpe": -3.1735859774853896,
+        "trainSharpe": 1.0457816181134147,
+        "oosSharpe": -2.1180614369509074,
         "oosWR": 54.71698113207547,
-        "oosMaxDD": 14.442057138652103,
+        "oosMaxDD": 11.234301421503988,
         "oosTradeCount": 53
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -2.016091824787806,
-        "oosSharpe": 0.20152569724499936,
+        "trainSharpe": 1.0280980134987523,
+        "oosSharpe": 1.2079201912718007,
         "oosWR": 71.11111111111111,
         "oosMaxDD": 5.074851990270195,
         "oosTradeCount": 45
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -1.9721358490543863,
-        "oosSharpe": 1.1694655664200897,
+        "trainSharpe": 0.9812628127544306,
+        "oosSharpe": 2.4535220216674656,
         "oosWR": 79.3103448275862,
-        "oosMaxDD": 6.80502748289131,
+        "oosMaxDD": 5.197686589541157,
         "oosTradeCount": 87
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -1.659639848302806,
-        "oosSharpe": -0.43698858680410657,
+        "trainSharpe": 1.4937169883836403,
+        "oosSharpe": 2.3286076870055537,
         "oosWR": 73.17073170731707,
-        "oosMaxDD": 5.880565746631891,
+        "oosMaxDD": 5.59490980316804,
         "oosTradeCount": 41
       }
     ]
@@ -1170,12 +1170,12 @@
     "params": {
       "creditMaxLossStopPct": 0.5
     },
-    "isSharpe": -3.016737779275156,
-    "oosSharpe": -2.2962755250210405,
-    "holdoutSharpe": -2.919266451636223,
+    "isSharpe": -2.8180166400101894,
+    "oosSharpe": -1.481585132235351,
+    "holdoutSharpe": -0.24424423828639297,
     "oosWinRate": 35.41666666666667,
-    "oosMaxDD": 151.41252181058385,
-    "oosTotalPnl": -150396.98994974216,
+    "oosMaxDD": 118.45131727158325,
+    "oosTotalPnl": -117435.78541074148,
     "wfEfficiency": 0,
     "grade": "F",
     "tradeCount": 384,
@@ -1197,14 +1197,14 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -12.695129038315162,
+        "oosSharpe": -9.485021036931467,
         "oosWR": 34.21052631578947,
-        "oosMaxDD": 45.28629137097578,
+        "oosMaxDD": 41.090728345811655,
         "oosTradeCount": 114
       },
       {
         "windowIdx": 2,
-        "trainSharpe": -3.6942968981244073,
+        "trainSharpe": -2.738009038002383,
         "oosSharpe": -12.727359325019094,
         "oosWR": 25.423728813559322,
         "oosMaxDD": 29.47266281258884,
@@ -1212,23 +1212,23 @@
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -6.221009415230634,
-        "oosSharpe": -10.632108680838613,
+        "trainSharpe": -5.436834729561713,
+        "oosSharpe": -5.940181240752647,
         "oosWR": 39.34426229508197,
-        "oosMaxDD": 22.262204686484953,
+        "oosMaxDD": 18.462817713102226,
         "oosTradeCount": 61
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -6.748417831455891,
-        "oosSharpe": -14.187507456063885,
+        "trainSharpe": -4.839270459442225,
+        "oosSharpe": -0.9388346157698875,
         "oosWR": 39.81481481481482,
-        "oosMaxDD": 36.120256132106775,
+        "oosMaxDD": 20.195471260747947,
         "oosTradeCount": 108
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -1.4367025308400017,
+        "trainSharpe": -3.893985613054816,
         "oosSharpe": -9.551698699200825,
         "oosWR": 35.714285714285715,
         "oosMaxDD": 18.51544827118606,
@@ -1243,12 +1243,12 @@
     "params": {
       "creditMaxLossStopPct": 0.75
     },
-    "isSharpe": -3.122779814980856,
-    "oosSharpe": -1.707233652498838,
-    "holdoutSharpe": -2.8524446128306082,
+    "isSharpe": -1.4255224550680516,
+    "oosSharpe": -1.9002640123737813,
+    "holdoutSharpe": -0.22178269103220366,
     "oosWinRate": 37.79527559055118,
-    "oosMaxDD": 148.85997119691595,
-    "oosTotalPnl": -147846.07073535523,
+    "oosMaxDD": 107.56081249545804,
+    "oosTotalPnl": -106682.89140244266,
     "wfEfficiency": 0,
     "grade": "F",
     "tradeCount": 381,
@@ -1270,38 +1270,38 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -13.132954833848444,
+        "oosSharpe": -4.468465468398661,
         "oosWR": 33.92857142857143,
-        "oosMaxDD": 45.55470343303849,
+        "oosMaxDD": 28.69668411269047,
         "oosTradeCount": 112
       },
       {
         "windowIdx": 2,
-        "trainSharpe": -3.8145115611362237,
-        "oosSharpe": -10.924926240562758,
+        "trainSharpe": -0.9868196796937576,
+        "oosSharpe": -8.351299987131206,
         "oosWR": 30.508474576271187,
-        "oosMaxDD": 29.45305764231368,
+        "oosMaxDD": 27.858218746209502,
         "oosTradeCount": 59
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -6.344721183614144,
-        "oosSharpe": -9.68114087691627,
+        "trainSharpe": -3.0183504753604233,
+        "oosSharpe": -2.726006967481904,
         "oosWR": 42.62295081967213,
-        "oosMaxDD": 21.822198179631812,
+        "oosMaxDD": 14.796090852110327,
         "oosTradeCount": 61
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -6.546943718867695,
-        "oosSharpe": -13.464585375770193,
+        "trainSharpe": -3.0099246312626238,
+        "oosSharpe": -3.8639438951777767,
         "oosWR": 42.99065420560748,
-        "oosMaxDD": 35.59530512532982,
+        "oosMaxDD": 24.10666241748622,
         "oosTradeCount": 107
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -2.030502426267073,
+        "trainSharpe": -1.5380399440915045,
         "oosSharpe": -9.219913779745998,
         "oosWR": 38.095238095238095,
         "oosMaxDD": 18.316278168850868,
@@ -1316,12 +1316,12 @@
     "params": {
       "creditMaxLossStopPct": 0.9
     },
-    "isSharpe": -3.2126644378128266,
-    "oosSharpe": -2.330510889354475,
-    "holdoutSharpe": -2.8524446128306082,
+    "isSharpe": -1.1080863575649387,
+    "oosSharpe": -2.3400520801664615,
+    "holdoutSharpe": -0.22178269103220366,
     "oosWinRate": 38.7434554973822,
-    "oosMaxDD": 146.47995663920557,
-    "oosTotalPnl": -145466.0561776449,
+    "oosMaxDD": 96.66033188021402,
+    "oosTotalPnl": -95520.86272437322,
     "wfEfficiency": 0,
     "grade": "F",
     "tradeCount": 382,
@@ -1343,38 +1343,38 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -13.015732062345672,
+        "oosSharpe": -3.3051953351476713,
         "oosWR": 36.283185840707965,
-        "oosMaxDD": 44.06231354697916,
+        "oosMaxDD": 23.987427927540995,
         "oosTradeCount": 113
       },
       {
         "windowIdx": 2,
-        "trainSharpe": -3.775501604533179,
-        "oosSharpe": -10.975287295005634,
+        "trainSharpe": -0.4902157475124327,
+        "oosSharpe": -8.341613823914114,
         "oosWR": 30.508474576271187,
-        "oosMaxDD": 29.131581490757934,
+        "oosMaxDD": 27.546530419796195,
         "oosTradeCount": 59
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -6.240955448256363,
-        "oosSharpe": -9.234248319433783,
+        "trainSharpe": -1.9999051688411396,
+        "oosSharpe": -1.5760728325613886,
         "oosWR": 44.26229508196721,
-        "oosMaxDD": 21.173931153150843,
+        "oosMaxDD": 14.796090852110327,
         "oosTradeCount": 61
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -6.827015185653959,
-        "oosSharpe": -13.413508193860702,
+        "trainSharpe": -2.2474425117273866,
+        "oosSharpe": -3.874594660182752,
         "oosWR": 42.99065420560748,
-        "oosMaxDD": 35.67742363171546,
+        "oosMaxDD": 24.18878092387186,
         "oosTradeCount": 107
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -2.432514388433457,
+        "trainSharpe": -1.9109547173086727,
         "oosSharpe": -9.219913779745998,
         "oosWR": 38.095238095238095,
         "oosMaxDD": 18.316278168850868,
@@ -1390,14 +1390,14 @@
       "trailingActivatePct": 0.5,
       "trailingFloorPct": 0.25
     },
-    "isSharpe": -1.053301569241887,
-    "oosSharpe": -1.8967320623268753,
-    "holdoutSharpe": -0.48454398434253726,
+    "isSharpe": 1.671270237280343,
+    "oosSharpe": 1.6695686713575548,
+    "holdoutSharpe": 1.4967576716204074,
     "oosWinRate": 46.99140401146132,
-    "oosMaxDD": 52.07163279249176,
-    "oosTotalPnl": -49213.43545047315,
-    "wfEfficiency": 0,
-    "grade": "F",
+    "oosMaxDD": 6.461074432279101,
+    "oosTotalPnl": 158270.32598928094,
+    "wfEfficiency": 0.998981872658992,
+    "grade": "C",
     "tradeCount": 349,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 153,
@@ -1417,41 +1417,41 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -2.30103898956674,
+        "oosSharpe": 4.722315817005617,
         "oosWR": 49.504950495049506,
-        "oosMaxDD": 10.68277330800319,
+        "oosMaxDD": 3.2077154537669754,
         "oosTradeCount": 101
       },
       {
         "windowIdx": 2,
-        "trainSharpe": -0.6769321547189403,
-        "oosSharpe": -4.525487774258303,
+        "trainSharpe": 2.0959785914656788,
+        "oosSharpe": 1.484936322961813,
         "oosWR": 43.103448275862064,
-        "oosMaxDD": 15.68266872850558,
+        "oosMaxDD": 11.887802920293575,
         "oosTradeCount": 58
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -1.323938158709629,
-        "oosSharpe": -1.9342777879343604,
+        "trainSharpe": 2.461260380233388,
+        "oosSharpe": 1.553288782229277,
         "oosWR": 44.230769230769226,
         "oosMaxDD": 8.06742936872803,
         "oosTradeCount": 52
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -1.9261401274637413,
-        "oosSharpe": -4.024440276923407,
+        "trainSharpe": 2.6314564414523907,
+        "oosSharpe": 1.9750184736691496,
         "oosWR": 45.83333333333333,
-        "oosMaxDD": 17.15392071055653,
+        "oosMaxDD": 10.983832455736803,
         "oosTradeCount": 96
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -2.392798974559012,
-        "oosSharpe": -2.365564072328003,
+        "trainSharpe": 2.8389260105306007,
+        "oosSharpe": 3.01792641962869,
         "oosWR": 52.38095238095239,
-        "oosMaxDD": 8.62176241089211,
+        "oosMaxDD": 5.636018974020197,
         "oosTradeCount": 42
       }
     ]
@@ -1464,14 +1464,14 @@
       "trailingActivatePct": 0.5,
       "trailingFloorPct": 0.5
     },
-    "isSharpe": -1.0523622391894332,
-    "oosSharpe": -1.8611099099867854,
-    "holdoutSharpe": -0.48454398434253726,
+    "isSharpe": 1.6715856084057077,
+    "oosSharpe": 1.6746858774649236,
+    "holdoutSharpe": 1.4967576716204074,
     "oosWinRate": 47.277936962750715,
-    "oosMaxDD": 51.29762065590948,
-    "oosTotalPnl": -48439.42331389087,
-    "wfEfficiency": 0,
-    "grade": "F",
+    "oosMaxDD": 6.460524119967985,
+    "oosTotalPnl": 159044.33812586323,
+    "wfEfficiency": 1.0018546875754528,
+    "grade": "C",
     "tradeCount": 349,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 153,
@@ -1491,41 +1491,41 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -2.297256920667222,
+        "oosSharpe": 4.7234589717402855,
         "oosWR": 49.504950495049506,
-        "oosMaxDD": 10.665025998429206,
+        "oosMaxDD": 3.207413819378177,
         "oosTradeCount": 101
       },
       {
         "windowIdx": 2,
-        "trainSharpe": -0.674890945892605,
-        "oosSharpe": -4.525487774258303,
+        "trainSharpe": 2.0964749623020924,
+        "oosSharpe": 1.484936322961813,
         "oosWR": 43.103448275862064,
-        "oosMaxDD": 15.68266872850558,
+        "oosMaxDD": 11.887802920293575,
         "oosTradeCount": 58
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -1.3224136474899344,
-        "oosSharpe": -1.9342777879343604,
+        "trainSharpe": 2.4617439096209095,
+        "oosSharpe": 1.553288782229277,
         "oosWR": 44.230769230769226,
         "oosMaxDD": 8.06742936872803,
         "oosTradeCount": 52
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -1.9250337836858038,
-        "oosSharpe": -4.024440276923407,
+        "trainSharpe": 2.6319348457770197,
+        "oosSharpe": 1.9750184736691496,
         "oosWR": 45.83333333333333,
-        "oosMaxDD": 17.15392071055653,
+        "oosMaxDD": 10.983832455736803,
         "oosTradeCount": 96
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -2.3918350580682555,
-        "oosSharpe": -2.0648977216898254,
+        "trainSharpe": 2.8393599327342263,
+        "oosSharpe": 3.144370081697695,
         "oosWR": 54.761904761904766,
-        "oosMaxDD": 7.975469280957004,
+        "oosMaxDD": 5.048124336126734,
         "oosTradeCount": 42
       }
     ]
@@ -1538,14 +1538,14 @@
       "trailingActivatePct": 0.75,
       "trailingFloorPct": 0.25
     },
-    "isSharpe": -0.4585474703927468,
-    "oosSharpe": -1.1017508433409988,
-    "holdoutSharpe": 0.04141731069332953,
+    "isSharpe": 1.7550433636950815,
+    "oosSharpe": 1.7844996923526029,
+    "holdoutSharpe": 1.6352618001104189,
     "oosWinRate": 56.112852664576806,
-    "oosMaxDD": 33.52048530241453,
-    "oosTotalPnl": -29015.333639272754,
-    "wfEfficiency": 0,
-    "grade": "F",
+    "oosMaxDD": 6.777720367910252,
+    "oosTotalPnl": 154355.34125537353,
+    "wfEfficiency": 1.0167838181476632,
+    "grade": "C",
     "tradeCount": 319,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 166,
@@ -1565,41 +1565,41 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -0.2249840760600345,
+        "oosSharpe": 4.977417424685224,
         "oosWR": 62.06896551724138,
-        "oosMaxDD": 4.817990741222749,
+        "oosMaxDD": 3.2692982355022284,
         "oosTradeCount": 87
       },
       {
         "windowIdx": 2,
-        "trainSharpe": 0.06792535954435912,
-        "oosSharpe": -4.109995374745702,
+        "trainSharpe": 2.13376794897903,
+        "oosSharpe": 1.531291215825314,
         "oosWR": 46.55172413793103,
-        "oosMaxDD": 15.319348255709638,
+        "oosMaxDD": 11.788258162196442,
         "oosTradeCount": 58
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -0.5488302542503979,
-        "oosSharpe": -1.3830026786406306,
+        "trainSharpe": 2.596504195935192,
+        "oosSharpe": 1.4621007795688454,
         "oosWR": 52.083333333333336,
         "oosMaxDD": 7.2164967490803535,
         "oosTradeCount": 48
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -1.1673892816494118,
-        "oosSharpe": -1.4337537885722014,
+        "trainSharpe": 2.773259706267512,
+        "oosSharpe": 2.381497779483588,
         "oosWR": 59.523809523809526,
-        "oosMaxDD": 7.065256185748948,
+        "oosMaxDD": 5.114918599955505,
         "oosTradeCount": 84
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -1.1029906460010304,
-        "oosSharpe": -2.0562394301778926,
+        "trainSharpe": 3.0267283309887545,
+        "oosSharpe": 3.0323209500061323,
         "oosWR": 54.761904761904766,
-        "oosMaxDD": 8.347297223166914,
+        "oosMaxDD": 5.3850114069248995,
         "oosTradeCount": 42
       }
     ]
@@ -1612,14 +1612,14 @@
       "trailingActivatePct": 0.75,
       "trailingFloorPct": 0.5
     },
-    "isSharpe": -0.4574788496650332,
-    "oosSharpe": -1.1011321411714097,
-    "holdoutSharpe": 0.04141731069332953,
+    "isSharpe": 1.7553132410308052,
+    "oosSharpe": 1.7847147019712903,
+    "holdoutSharpe": 1.6352618001104189,
     "oosWinRate": 56.112852664576806,
-    "oosMaxDD": 33.514681139725255,
-    "oosTotalPnl": -28997.58632969877,
-    "wfEfficiency": 0,
-    "grade": "F",
+    "oosMaxDD": 6.777074789073219,
+    "oosTotalPnl": 154373.0885649475,
+    "wfEfficiency": 1.0167499795781287,
+    "grade": "C",
     "tradeCount": 319,
     "exitTypeBreakdown": {
       "PROFIT_TARGET": 166,
@@ -1639,41 +1639,41 @@
       {
         "windowIdx": 1,
         "trainSharpe": 0,
-        "oosSharpe": -0.22086987770017302,
+        "oosSharpe": 4.978452011648727,
         "oosWR": 62.06896551724138,
-        "oosMaxDD": 4.817156493095219,
+        "oosMaxDD": 3.2692982355022284,
         "oosTradeCount": 87
       },
       {
         "windowIdx": 2,
-        "trainSharpe": 0.0702322155879512,
-        "oosSharpe": -4.109995374745702,
+        "trainSharpe": 2.1342229600586182,
+        "oosSharpe": 1.531291215825314,
         "oosWR": 46.55172413793103,
-        "oosMaxDD": 15.319348255709638,
+        "oosMaxDD": 11.788258162196442,
         "oosTradeCount": 58
       },
       {
         "windowIdx": 3,
-        "trainSharpe": -0.5471151236467187,
-        "oosSharpe": -1.3830026786406306,
+        "trainSharpe": 2.596915474216317,
+        "oosSharpe": 1.4621007795688454,
         "oosWR": 52.083333333333336,
         "oosMaxDD": 7.2164967490803535,
         "oosTradeCount": 48
       },
       {
         "windowIdx": 4,
-        "trainSharpe": -1.1661173840548,
-        "oosSharpe": -1.4337537885722014,
+        "trainSharpe": 2.7736582206269302,
+        "oosSharpe": 2.381497779483588,
         "oosWR": 59.523809523809526,
-        "oosMaxDD": 7.065256185748948,
+        "oosMaxDD": 5.114918599955505,
         "oosTradeCount": 84
       },
       {
         "windowIdx": 5,
-        "trainSharpe": -1.101872805876632,
-        "oosSharpe": -2.0562394301778926,
+        "trainSharpe": 3.027082791282965,
+        "oosSharpe": 3.0323209500061323,
         "oosWR": 54.761904761904766,
-        "oosMaxDD": 8.347297223166914,
+        "oosMaxDD": 5.3850114069248995,
         "oosTradeCount": 42
       }
     ]

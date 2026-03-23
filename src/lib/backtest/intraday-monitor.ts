@@ -225,9 +225,9 @@ export function evaluateCreditSpread4H(
     let currentShortDelta = bsm.shortDelta;
     let exitSlippage = 0;
 
-    // BSM can overshoot spread width for deep-ITM options — cap at defined-risk bounds
+    // BSM can overshoot spread width for deep-ITM options — cap at defined-risk max
     const absSpreadWidth = Math.abs(spread.short.row.strike - spread.long.row.strike);
-    currentSpreadCost = Math.max(0, Math.min(currentSpreadCost, absSpreadWidth));
+    currentSpreadCost = Math.min(currentSpreadCost, absSpreadWidth);
 
     // Daily calibration: on last bar of each day, try to snap to real chain
     const barDate = candle.date;
@@ -276,8 +276,8 @@ export function evaluateCreditSpread4H(
           currentSpreadCost = shortLeg.mid - longLeg.mid;
         }
         currentShortDelta = shortLeg.delta;
-        // Cap chain-derived cost at spread width bounds
-        currentSpreadCost = Math.max(0, Math.min(currentSpreadCost, absSpreadWidth));
+        // Cap chain-derived cost at spread width max
+        currentSpreadCost = Math.min(currentSpreadCost, absSpreadWidth);
       }
       lastCalibratedDate = barDate;
     }

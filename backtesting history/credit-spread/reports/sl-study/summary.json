@@ -1,5 +1,5 @@
 {
-  "date": "2026-03-23T23:14:33.433Z",
+  "date": "2026-03-23T23:19:14.818Z",
   "tickers": [
     "SPY",
     "QQQ",
@@ -21,37 +21,37 @@
     {
       "label": "baseline",
       "mechanism": "baseline",
-      "oosSharpe": 0.44898139503026907,
-      "holdoutSharpe": 0.3250347438890657,
+      "oosSharpe": 2.233113515241244,
+      "holdoutSharpe": 1.8464971210273267,
       "grade": "C"
     },
     {
       "label": "sl15x",
       "mechanism": "credit_multiple",
-      "oosSharpe": 0.44898139503026907,
-      "holdoutSharpe": 0.3250347438890657,
+      "oosSharpe": 2.233113515241244,
+      "holdoutSharpe": 1.8464971210273267,
       "grade": "C"
     },
     {
       "label": "sl10x",
       "mechanism": "credit_multiple",
-      "oosSharpe": 0.4126405334758931,
-      "holdoutSharpe": 0.3250347438890657,
-      "grade": "D"
+      "oosSharpe": 2.226430020739482,
+      "holdoutSharpe": 1.8464971210273267,
+      "grade": "C"
     },
     {
       "label": "sl7x",
       "mechanism": "credit_multiple",
-      "oosSharpe": 0.10190126607941918,
-      "holdoutSharpe": 0.3250347438890657,
-      "grade": "F"
+      "oosSharpe": 2.10936623028941,
+      "holdoutSharpe": 1.8464971210273267,
+      "grade": "C"
     },
     {
-      "label": "sl5x",
-      "mechanism": "credit_multiple",
-      "oosSharpe": -0.5807016714523376,
-      "holdoutSharpe": -0.12851095594615192,
-      "grade": "F"
+      "label": "tl75-50",
+      "mechanism": "trailing_lock",
+      "oosSharpe": 1.7847147019712903,
+      "holdoutSharpe": 1.6352618001104189,
+      "grade": "C"
     }
   ]
 }
