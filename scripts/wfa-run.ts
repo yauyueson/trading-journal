@@ -103,7 +103,7 @@ const MAX_PER_TICKER = parseInt(getArg('--max-ticker') || '5');
 const STARTING_CAPITAL = parseInt(getArg('--capital') || '100000');
 const FILL_MODE = (getArg('--fill') || 'mid') as FillMode;
 const NUM_WORKERS = Math.max(1, Math.min(
-  parseInt(getArg('--workers') || String(Math.min(4, Math.max(1, os.cpus().length - 2)))),
+  parseInt(getArg('--workers') || String(Math.max(1, os.cpus().length - 2))),
   Math.max(1, os.cpus().length),
 ));
 const REGIME_STUDY = args.includes('--regime-study');

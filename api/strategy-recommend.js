@@ -744,12 +744,22 @@ function buildCreditSpreads(chain, type, currentPrice, ivRvRatio, daysUntilEarni
 
             let finalScore = (0.20 * scoreEV) + (0.20 * scoreROI) + (0.20 * scorePOP) + (0.15 * scoreDistance) + (0.25 * scoreDTE) + skewBonus + gammaPenalty + relativeIVBonus;
             finalScore += ivRankAdj * 2 + volFcstAdj * 8;
+
+            // VRP bonus/penalty for credit spreads:
+            // Positive VRP (IV > RV in variance): premium is rich → bonus for sellers
+            // Negative VRP: premium is cheap → penalty (sellers have no edge)
+            // Scale: vrpVariance in decimal², ×10000 → basis points, capped ±10 score points
+            const vrpAdj = oratsOpts.vrpVariance != null
+                ? Math.max(-10, Math.min(10, oratsOpts.vrpVariance * 10000 / 10))
+                : 0;
+            finalScore += vrpAdj;
+
             if (includesEarnings) finalScore -= 25 * earningsScale;
             if (anomaly && dte <= 35) finalScore -= 30;
             // Takeover target penalty: pin risk makes credit spreads dangerous
-            if (oratsOpts.tkOver === 1) finalScore -= 20; // Anomaly IV (e.g. Earnings) → Penalize short-dated short sellers
+            if (oratsOpts.tkOver === 1) finalScore -= 20;
 
-            if (effectiveROI < 10) { _diag.lowROI++; continue; } // Lowered ROI floor because we are using net effective ROI now
+            if (effectiveROI < 10) { _diag.lowROI++; continue; }
 
             const whyThisParts = [];
             if (ev > 0) whyThisParts.push(`+EV $${ev.toFixed(2)}`);
@@ -938,6 +948,15 @@ function buildDebitSpreads(chain, type, currentPrice, ivRvRatio, customWidth, iv
             let finalScore = (0.25 * lambdaScore) + (0.25 * rrScore) + (0.15 * deltaScore) +
                 (0.20 * evScore) + (0.10 * (50 + bePenalty * 12.5)) - (0.05 * thetaPenalty) + (0.05 * scoreDTEDebit);
             finalScore += ivRankAdj * 2 + volFcstAdj * 8;
+
+            // VRP adjustment for debit spreads (inverted from credit):
+            // Positive VRP = expensive vol → penalty for buyers
+            // Negative VRP = cheap vol → bonus for buyers
+            const vrpAdjDS = oratsOpts.vrpVariance != null
+                ? Math.max(-10, Math.min(10, -oratsOpts.vrpVariance * 10000 / 10))
+                : 0;
+            finalScore += vrpAdjDS;
+
             if (includesEarningsDS) finalScore -= 15 * earningsScaleDS; // Earnings → IV crush risk for debit buyers
             if (anomaly && (longLeg.dte || 30) <= 35) finalScore -= 20; // Anomaly IV → Penalize buyers due to IV crush risk
 
@@ -1575,6 +1594,7 @@ export default async function handler(req, res) {
             impErnMv: oratsCores?.impErnMv ?? null,
             tkOver: oratsEnrich.tkOver ?? 0,
             avgOptVolu20d: oratsEnrich.avgOptVolu20d ?? null,
+            vrpVariance: regime.vrpVariance ?? null,  // IV² - RV² for credit spread VRP bonus
         };
 
         // Collect rejection diagnostics from spread builders

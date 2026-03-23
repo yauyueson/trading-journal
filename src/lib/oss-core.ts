@@ -455,7 +455,10 @@ export function getVolForecastAdjustment(
     if (orFcst20d == null || iv30 == null || iv30 <= 0) return 0;
     const quality = Math.max(0, Math.min(1, fcstR2 ?? 0));
     if (quality < 0.1) return 0; // forecast too unreliable
-    const diff = Math.max(-0.8, Math.min(0.8, (orFcst20d / iv30) - 1));
+    // Clamp divergence to ±2.0 (was ±0.8 — too conservative, muted signal)
+    // A 20% forecast divergence with R²=0.5 now yields ±0.1 raw (×8 in builder = ±0.8pt)
+    // A 50% divergence with R²=0.8 yields ±0.4 raw (×8 = ±3.2pt) — meaningful
+    const diff = Math.max(-2.0, Math.min(2.0, (orFcst20d / iv30) - 1));
     // Long benefits from rising vol forecast, short from falling
     const raw = strategy === 'long' ? diff : -diff;
     return raw * quality;

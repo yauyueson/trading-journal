@@ -154,7 +154,7 @@ async function main() {
 
   const fillMode = (getArg('--fill') || defaults.fillMode) as FillMode;
   const numWorkers = Math.max(1, Math.min(
-    parseInt(getArg('--workers') || String(Math.min(4, Math.max(1, os.cpus().length - 2)))),
+    parseInt(getArg('--workers') || String(Math.max(1, os.cpus().length - 2))),
     Math.max(1, os.cpus().length),
   ));
   const mode = (getArg('--mode') || defaults.mode) as 'rolling' | 'anchored';
