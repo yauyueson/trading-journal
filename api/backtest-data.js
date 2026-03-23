@@ -314,9 +314,9 @@ async function handleCandles(req, res) {
                 const d = new Date(lastCachedDate + 'T12:00:00Z');
                 d.setUTCDate(d.getUTCDate() + 1);
                 const topUpFrom = d.toISOString().split('T')[0];
-                const newHourly = await getIntradayCandles(ticker.toUpperCase(), topUpFrom, endDate);
-                if (newHourly.length > 0) {
-                    const newBars130m = aggregate1HTo130M(newHourly);
+                const newBars5m = await getIntraday5MinCandles(ticker.toUpperCase(), topUpFrom, endDate);
+                if (newBars5m.length > 0) {
+                    const newBars130m = aggregate5MinTo130M(newBars5m);
                     candles = [...candles, ...newBars130m];
                     cache130MCandles(ticker, newBars130m).catch(e => console.warn('[backtest-data/130M] top-up cache write failed:', e.message));
                     console.log(`[backtest-data/130M] ${ticker}: topped up ${newBars130m.length} bars (${topUpFrom} → ${endDate})`);
@@ -325,12 +325,13 @@ async function handleCandles(req, res) {
             source = 'cache';
             console.log(`[backtest-data/130M] ${ticker}: ${candles.length} 130M bars from cache`);
         } else {
-            // Cold cache: fetch 1H bars (single Tiingo call, always under 2000 ticks)
-            // and aggregate to 130M. Less precise than 5-min→130M but avoids Vercel timeout.
+            // Cold cache: 1H→130M fallback (single Tiingo call, avoids Vercel 10s timeout).
+            // Less precise than 5-min→130M — bar boundaries approximate.
+            // Pre-populate cache via scripts/prefetch-130m.mjs for 5-min precision.
             const hourly = await getIntradayCandles(ticker.toUpperCase(), startDate, endDate);
             candles = aggregate1HTo130M(hourly);
-            source = 'tiingo-iex-130m';
-            console.log(`[backtest-data/130M] ${ticker}: ${hourly.length} 1H bars → ${candles.length} 130M bars (1H aggregation)`);
+            source = 'tiingo-iex-130m-approx';
+            console.log(`[backtest-data/130M] ${ticker}: ${hourly.length} 1H bars → ${candles.length} 130M bars (1H fallback — run prefetch script for 5-min precision)`);
             // Cache for next time (fire-and-forget)
             if (candles.length > 0) cache130MCandles(ticker, candles).catch(e => console.warn('[backtest-data/130M] cold-fill cache write failed:', e.message));
         }

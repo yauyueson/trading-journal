@@ -13,6 +13,9 @@ export interface FailedTicker {
   reason: string;
 }
 
+/** Tickers where 130M data was approximated from 1H bars (no pre-populated cache) */
+export type ApproxTickers = string[];
+
 const DEFAULT_TICKERS = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'AMZN', 'META', 'GOOGL', 'TSLA', 'AMD'];
 
 interface CandleData {
@@ -31,13 +34,14 @@ export function useSignalScanner() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [failed, setFailed] = useState<FailedTicker[]>([]);
+  const [approxTickers, setApproxTickers] = useState<string[]>([]);
   const candlesCacheRef = useRef<Map<string, CandleData[]>>(new Map());
   const abortRef = useRef(false);
 
-  const fetchCandles = useCallback(async (ticker: string, timeframe: ScanTimeframe = '1D'): Promise<CandleData[]> => {
+  const fetchCandles = useCallback(async (ticker: string, timeframe: ScanTimeframe = '1D'): Promise<{ candles: CandleData[]; source: string }> => {
     const cacheKey = `${ticker}:${timeframe}`;
     const cached = candlesCacheRef.current.get(cacheKey);
-    if (cached) return cached;
+    if (cached) return { candles: cached, source: 'client-cache' };
 
     const to = new Date().toISOString().slice(0, 10);
     // Intraday bars are denser, so fewer calendar days needed
@@ -52,7 +56,7 @@ export function useSignalScanner() {
     const data = await res.json();
     const candles = data.candles as CandleData[];
     candlesCacheRef.current.set(cacheKey, candles);
-    return candles;
+    return { candles, source: data.source || 'unknown' };
   }, []);
 
   const scanList = useCallback(async (tickerList: string[], options: TechScoreOptions | undefined, merge: boolean, timeframe: ScanTimeframe = '1D') => {
@@ -63,18 +67,21 @@ export function useSignalScanner() {
     if (!merge) {
       setSignals([]);
       setFailed([]);
+      setApproxTickers([]);
     }
     abortRef.current = false;
 
     const results: SignalRow[] = [];
     const failures: FailedTicker[] = [];
+    const approx: string[] = [];
 
     for (let i = 0; i < tickerList.length; i++) {
       if (abortRef.current) break;
       const ticker = tickerList[i];
       setProgress(Math.round((i / tickerList.length) * 100));
       try {
-        const candles = await fetchCandles(ticker, timeframe);
+        const { candles, source } = await fetchCandles(ticker, timeframe);
+        if (source.includes('approx')) approx.push(ticker);
         if (candles.length < 50) {
           failures.push({ ticker, reason: `Only ${candles.length} candles (need 50+)` });
           continue;
@@ -114,6 +121,10 @@ export function useSignalScanner() {
       setFailed(failures);
     }
 
+    if (approx.length > 0) {
+      setApproxTickers(merge ? prev => [...new Set([...prev, ...approx])] : approx);
+    }
+
     if (failures.length > 0) {
       setError(`${failures.length} ticker${failures.length > 1 ? 's' : ''} failed — see details below`);
     }
@@ -139,5 +150,5 @@ export function useSignalScanner() {
     candlesCacheRef.current.clear();
   }, []);
 
-  return { signals, loading, progress, error, failed, tickers, setTickers, scan, scanAdditional, stop, clearCache };
+  return { signals, loading, progress, error, failed, approxTickers, tickers, setTickers, scan, scanAdditional, stop, clearCache };
 }

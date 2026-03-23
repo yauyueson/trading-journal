@@ -451,6 +451,15 @@ export const SignalsPage: React.FC = () => {
         </button>
       </div>
 
+      {/* 130M approximation warning */}
+      {scanner.approxTickers.length > 0 && activeBoard === 'shortTerm' && (
+        <div className="mb-3 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-400">
+          <span className="font-medium">130M data approximated from 1H bars:</span>{' '}
+          {scanner.approxTickers.join(', ')}.
+          {' '}Run the prefetch script to cache precise 5-min data.
+        </div>
+      )}
+
       {tab === 'history' && <SignalHistoryTab />}
 
       {tab === 'dashboard' && <>
