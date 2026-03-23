@@ -3,7 +3,7 @@
 // ?type=candles — fetch extended candle history (Supabase cache → Tiingo)
 // ?type=iv      — fetch ORATS historical IV data (Supabase cache → ORATS)
 
-import { getCandles, getIntradayCandles, getIntraday5MinCandles } from '../lib/tiingo-client.js';
+import { getCandles, getIntradayCandles, getIntraday5MinCandles, getIntradayNMinCandles } from '../lib/tiingo-client.js';
 import { getHistoricalCores } from '../lib/orats-client.js';
 
 // ── 4H Aggregator ────────────────────────────────────────────────────────────
@@ -314,9 +314,10 @@ async function handleCandles(req, res) {
                 const d = new Date(lastCachedDate + 'T12:00:00Z');
                 d.setUTCDate(d.getUTCDate() + 1);
                 const topUpFrom = d.toISOString().split('T')[0];
-                const newBars5m = await getIntraday5MinCandles(ticker.toUpperCase(), topUpFrom, endDate);
-                if (newBars5m.length > 0) {
-                    const newBars130m = aggregate5MinTo130M(newBars5m);
+                // 10-min bars: 39/day, perfect 130M alignment (13 bars per block)
+                const newBars10m = await getIntradayNMinCandles(ticker.toUpperCase(), topUpFrom, endDate, 10);
+                if (newBars10m.length > 0) {
+                    const newBars130m = aggregate5MinTo130M(newBars10m); // works for any minute-level bars
                     candles = [...candles, ...newBars130m];
                     cache130MCandles(ticker, newBars130m).catch(e => console.warn('[backtest-data/130M] top-up cache write failed:', e.message));
                     console.log(`[backtest-data/130M] ${ticker}: topped up ${newBars130m.length} bars (${topUpFrom} → ${endDate})`);
@@ -325,13 +326,32 @@ async function handleCandles(req, res) {
             source = 'cache';
             console.log(`[backtest-data/130M] ${ticker}: ${candles.length} 130M bars from cache`);
         } else {
-            // Cold cache: 1H→130M fallback (single Tiingo call, avoids Vercel 10s timeout).
-            // Less precise than 5-min→130M — bar boundaries approximate.
-            // Pre-populate cache via scripts/prefetch-130m.mjs for 5-min precision.
-            const hourly = await getIntradayCandles(ticker.toUpperCase(), startDate, endDate);
-            candles = aggregate1HTo130M(hourly);
-            source = 'tiingo-iex-130m-approx';
-            console.log(`[backtest-data/130M] ${ticker}: ${hourly.length} 1H bars → ${candles.length} 130M bars (1H fallback — run prefetch script for 5-min precision)`);
+            // Cold cache: try 10-min bars first (perfect 130M alignment, 2 chunks max)
+            // 10-min: 39 bars/day × 85 trading days = ~3,315 bars → 2 chunks of 60 days
+            // Falls back to 1H→130M (approximate) if 10-min also fails (e.g., timeout)
+            const CHUNK_DAYS_10M = 60; // ~2,340 bars per chunk, under 2000-tick limit
+            const allBars10m = [];
+            let cs10 = new Date(startDate + 'T12:00:00Z');
+            const end10 = new Date(endDate + 'T12:00:00Z');
+            while (cs10 <= end10) {
+                const ce10 = new Date(Math.min(cs10.getTime() + (CHUNK_DAYS_10M - 1) * 86400000, end10.getTime()));
+                const bars = await getIntradayNMinCandles(ticker.toUpperCase(),
+                    cs10.toISOString().slice(0, 10), ce10.toISOString().slice(0, 10), 10);
+                allBars10m.push(...bars);
+                cs10 = new Date(ce10.getTime() + 86400000);
+            }
+
+            if (allBars10m.length > 0) {
+                candles = aggregate5MinTo130M(allBars10m); // works for any minute-level bars
+                source = 'tiingo-iex-130m';
+                console.log(`[backtest-data/130M] ${ticker}: ${allBars10m.length} 10min bars → ${candles.length} 130M bars`);
+            } else {
+                // Final fallback: 1H→130M (approximate bar boundaries)
+                const hourly = await getIntradayCandles(ticker.toUpperCase(), startDate, endDate);
+                candles = aggregate1HTo130M(hourly);
+                source = 'tiingo-iex-130m-approx';
+                console.log(`[backtest-data/130M] ${ticker}: ${hourly.length} 1H bars → ${candles.length} 130M bars (1H fallback)`);
+            }
             // Cache for next time (fire-and-forget)
             if (candles.length > 0) cache130MCandles(ticker, candles).catch(e => console.warn('[backtest-data/130M] cold-fill cache write failed:', e.message));
         }

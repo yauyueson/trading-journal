@@ -13,7 +13,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 dotenv.config();
 
-import { getIntraday5MinCandles } from '../lib/tiingo-client.js';
+import { getIntradayNMinCandles } from '../lib/tiingo-client.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
@@ -71,10 +71,12 @@ function aggregate5MinTo130M(bars5min) {
   return bars.sort((a, b) => a.timestamp - b.timestamp);
 }
 
-// ── Paginated 5-min fetch (30-day chunks, under Tiingo 2000-tick limit) ─────
+// ── Paginated 10-min fetch (60-day chunks, under Tiingo 2000-tick limit) ─────
+// 10-min: 39 bars/day, perfect 130M alignment (13 bars per 130M block)
+// 60-day chunk ≈ 42 trading days × 39 = ~1,638 bars per chunk (under 2000)
 
-async function fetchPaginated5Min(ticker, startDate, endDate) {
-  const CHUNK_DAYS = 30;
+async function fetchPaginated10Min(ticker, startDate, endDate) {
+  const CHUNK_DAYS = 60;
   const allBars = [];
   let cs = new Date(startDate + 'T12:00:00Z');
   const end = new Date(endDate + 'T12:00:00Z');
@@ -84,7 +86,7 @@ async function fetchPaginated5Min(ticker, startDate, endDate) {
     const ce = new Date(Math.min(cs.getTime() + (CHUNK_DAYS - 1) * 86400000, end.getTime()));
     const from = cs.toISOString().slice(0, 10);
     const to = ce.toISOString().slice(0, 10);
-    const bars = await getIntraday5MinCandles(ticker, from, to);
+    const bars = await getIntradayNMinCandles(ticker, from, to, 10);
     allBars.push(...bars);
     process.stdout.write(`  chunk ${chunkNum} (${from}→${to}): ${bars.length} bars\n`);
     cs = new Date(ce.getTime() + 86400000);
@@ -152,17 +154,17 @@ async function main() {
     console.log(`[${i + 1}/${targetTickers.length}] ${ticker}:`);
 
     try {
-      // Fetch 5-min bars (paginated)
-      const bars5m = await fetchPaginated5Min(ticker, startDate, endDate);
-      if (bars5m.length === 0) {
-        console.log(`  SKIP — no 5-min data from Tiingo IEX\n`);
+      // Fetch 10-min bars (paginated, 2 chunks for 120 days)
+      const bars10m = await fetchPaginated10Min(ticker, startDate, endDate);
+      if (bars10m.length === 0) {
+        console.log(`  SKIP — no 10-min data from Tiingo IEX\n`);
         results.push({ ticker, status: 'no-data', bars: 0 });
         continue;
       }
 
-      // Aggregate to 130M
-      const bars130m = aggregate5MinTo130M(bars5m);
-      console.log(`  ${bars5m.length} 5min bars → ${bars130m.length} 130M bars`);
+      // Aggregate to 130M (13 ten-min bars per 130M block — perfect alignment)
+      const bars130m = aggregate5MinTo130M(bars10m); // works for any minute-level bars
+      console.log(`  ${bars10m.length} 10min bars → ${bars130m.length} 130M bars`);
 
       // Upsert to Supabase
       const upserted = await upsertBars(ticker, bars130m);
