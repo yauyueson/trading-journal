@@ -6,7 +6,6 @@ import { queryClient } from './lib/queryClient'
 import { router } from './router'
 import { AppSettingsProvider } from './context/AppSettingsContext'
 import { AuthProvider } from './context/AuthContext'
-import { BuyModalProvider } from './context/BuyModalContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoadingSpinner } from './components/LoadingSpinner'
 import './index.css'
@@ -16,13 +15,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <QueryClientProvider client={queryClient}>
             <AppSettingsProvider>
                 <AuthProvider>
-                    <BuyModalProvider>
-                        <ErrorBoundary>
-                            <Suspense fallback={<LoadingSpinner />}>
-                                <RouterProvider router={router} />
-                            </Suspense>
-                        </ErrorBoundary>
-                    </BuyModalProvider>
+                    <ErrorBoundary>
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <RouterProvider router={router} />
+                        </Suspense>
+                    </ErrorBoundary>
                 </AuthProvider>
             </AppSettingsProvider>
         </QueryClientProvider>

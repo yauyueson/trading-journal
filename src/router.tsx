@@ -35,10 +35,6 @@ export const router = createBrowserRouter([
         lazy: () => import('./pages/Portfolio').then(m => ({ Component: m.PortfolioPage })),
       },
       {
-        path: '/scanner',
-        element: <Navigate to="/portfolio" replace />,
-      },
-      {
         path: '/selector',
         lazy: () => import('./pages/StrategyRecommender').then(m => ({ Component: m.OptionSelector })),
       },

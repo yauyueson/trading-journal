@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Search, Info, Brain, Zap, Clock, Shield, BarChart2, TrendingUp, AlertTriangle, Layers, Percent, Divide, Activity } from 'lucide-react';
+import { BookOpen, Search, Info, Brain, Zap, Clock, Shield, BarChart2, TrendingUp, AlertTriangle, Layers, Percent, Divide, Activity, Target, Timer, Lock, Radio, FlaskConical, Trophy } from 'lucide-react';
 
 interface GlossaryItem {
     id: string;
@@ -20,33 +20,6 @@ const GLOSSARY: GlossaryItem[] = [
         icon: Brain,
         explanation: '这是平台的核心大脑，一套专有的多因子量化评分模型。它不仅仅是一个简单的“强弱”指标，而是模仿了顶尖交易员的思维过程。OSS 会根据你选择的策略类型（是做多还是做空，是单腿还是价差）自动调整其评分逻辑。\n\n它综合考量了四个维度的平衡：\n1. 胜率 (Probability of Profit)：这笔交易有多大概率赚钱？\n2. 赔率 (Risk/Reward)：赚一次够亏几次？\n3. 杠杆效率 (Leverage/Lambda)：占用资金的效率如何？\n4. 市场环境 (Regime)：现在是恐慌还是贪婪？\n\n最终得出一个 0-100 的分数。>80分通常意味着这是一个“胖点球”机会——胜率高、赔率好、且顺应市场趋势。',
         whyItMatters: '让你一眼看出这个期权合约在当前市场环境下是否“值得一做”。100分意味着在所有维度上都达到了最佳平衡点。'
-    },
-    {
-        id: 'lambda',
-        term: 'Lambda (Λ) - 真杠杆率',
-        category: 'Metric',
-        icon: Zap,
-        formula: 'Lambda = |Delta| × (Stock Price ÷ Option Price)',
-        explanation: '很多人误以为期权的杠杆就是“便宜”。错！真正的杠杆率是 Lambda。它精确描述了你的期权价格相对于正股价格的“弹性”。\n\n想象一下：如果 Lambda 是 15，意味着当标的股票上涨 1% 时，你的期权价格理论上会上涨 15%。这是期权作为“财富放大器”的数学本质。\n\n但是，杠杆是把双刃剑。Lambda 越高，意味着你离实值 (ITM) 越远，或者是期权越快到期。高 Lambda 通常伴随着低胜率（OTM）或高时间损耗（Theta Burn）。专业的买方策略（Debit Buyer）通常寻找 Lambda 在 8-15 之间的“甜蜜点”——既有足够的爆发力，又不会因为太虚值而变成废纸。',
-        whyItMatters: '高 Lambda 意味着资金效率极高，但也意味着价格波动极剧烈。买家通常寻找高 Lambda (8-15) 以获取爆发力。'
-    },
-    {
-        id: 'gamma-eff',
-        term: 'Gamma Efficiency - 爆发效率',
-        category: 'Metric',
-        icon: TrendingUp,
-        formula: 'Γeff = Gamma ÷ Option Price',
-        explanation: '如果你是买方，你不仅希望方向做对，还希望利润能“指数级爆炸”。Gamma 就是这个爆炸的引信。\n\nDelta 决定了你现在赚多少，而 Gamma 决定了你“越赚越快”的能力。Gamma Efficiency (Γeff) 是从成本角度考量这个能力：你每投入 $1 的权利金，能买到多少“爆炸潜力”？\n\n比如说，两张 Call 都有同样的 Delta，但一张极其便宜且 Gamma 很高（通常是短期的 OTM），它的 Γeff 就会非常高。一旦正股发生剧烈运动，这就好比你用自行车的价格买了一辆法拉利的加速度。这通常是“末日轮”或“财报赌博”选筹的核心指标。',
-        whyItMatters: '对于寻找快速翻倍机会的交易者来说，这是寻找“快马”的核心指标。'
-    },
-    {
-        id: 'theta-burn',
-        term: 'Theta Burn - 时间损耗率',
-        category: 'Metric',
-        icon: Clock,
-        formula: 'TB = |Theta| ÷ Option Price',
-        explanation: '这是期权买家的“止血带”指标。Theta (时间价值损耗) 是一个绝对数值，比如 -$0.05，意味着每天掉 5 美分。但这对不同价格的期权意义完全不同。\n\n对于一个价值 $5.00 的期权，掉 5 分钱无关痛痒（1%）；但对于一个价值 $0.10 的期权，掉 5 分钱意味着你一天就亏掉了 50% 的本金！\n\nTheta Burn 就是把这个损耗标准化为百分比。它告诉你：如果股价明天横盘不动，你的账户净值会缩水百分之几。如果 TB > 5%，你的头寸就像一块放在烈日下的冰块，必须速战速决。',
-        whyItMatters: '如果你是买家，TB 高于 5% 意味着你每天在亏掉 5% 的本金，必须尽快平仓。如果你是卖家，TB 是你的利润来源。'
     },
     {
         id: 'iv-rv',
@@ -161,15 +134,6 @@ const GLOSSARY: GlossaryItem[] = [
         whyItMatters: '高胜率策略。你的盈利不依赖股价大涨，只要股价“不跌破”或“不涨破”某个点位，你就能赢。利用时间 (Theta) 和波动率下降 (Vega) 获利。'
     },
     {
-        id: 'debit-spread',
-        term: 'Debit Spread - 借方价差',
-        category: 'Strategy',
-        icon: Layers,
-        formula: 'Max Profit = Width - Debit',
-        explanation: '这是单腿买入 (Long Call/Put) 的进化版。买期权最大的痛点是什么？太贵以至于 Theta 损耗太快。\n\nDebit Spread 通过“卖出一个更虚值的期权”来回血，抵消掉一部分成本。虽然这限制了你的最大潜在利润（因为卖出的那一腿封顶了收益），但它有两个巨大的好处：\n1. 极大降低了成本（Debit），从而提高了杠杆。\n2. 极大降低了盈亏平衡点（Breakeven）。\n\n相比于单纯买 Call 彩票，Debit Spread 是一种更理性的、带有方向性判断的投机策略。',
-        whyItMatters: '比单纯买 Call/Put 更稳健。虽然限制了最大利润，但大幅降低了成本和盈亏平衡点，提高了胜率。'
-    },
-    {
         id: 'kelly',
         term: 'Kelly Criterion - 凯利公式',
         category: 'Strategy',
@@ -179,13 +143,104 @@ const GLOSSARY: GlossaryItem[] = [
         whyItMatters: '很多交易员死于重仓。凯利公式告诉你：即使你有 99% 的胜率，如果在这一次梭哈，你最终破产的概率也是 100%。通常使用 "Half-Kelly" 来控制风险。'
     },
 
+    // --- CREDIT SPREAD STRATEGY ---
+    {
+        id: 'spread-width',
+        term: 'Spread Width - 价差宽度',
+        category: 'Strategy',
+        icon: Layers,
+        formula: 'Width = |Short Strike - Long Strike|',
+        explanation: '价差宽度决定了你的风险/收益比例和资金效率。以 Bull Put Spread 为例：\n\n$5 宽度：每手最大风险 $500，权利金收入约 $50-80。资金需求小，但每手利润也小。\n$10 宽度：每手最大风险 $1000，权利金收入约 $100-160。中等规模，适合短线策略。\n$15 宽度：每手最大风险 $1500，权利金收入约 $150-250。WFA 验证显示资金利用率 64%，线性扩展效果最佳。\n\n关键洞察：宽度越大，权利金收入几乎按比例增长（线性），但胜率基本不变（因为卖出腿相同）。所以在资金允许的情况下，适当加宽价差可以提高绝对收益而不显著增加风险概率。\n\n我们的验证结论：Swing 用 $15 宽度，Short-Term 用 $10 宽度。',
+        whyItMatters: 'Swing 策略验证最优宽度 $15（资金利用率 64%），Short-Term 最优 $10。宽度决定了每手的绝对收益和风险。'
+    },
+    {
+        id: 'dte-sweet-spot',
+        term: 'DTE Sweet Spot - 最佳到期窗口',
+        category: 'Strategy',
+        icon: Target,
+        formula: 'Swing: 45-65 DTE | Short-Term: 7-21 DTE',
+        explanation: 'DTE (Days To Expiration) 的选择是 Credit Spread 策略的核心参数之一。\n\n45-65 DTE（Swing）：这是 Theta 衰减曲线的"甜蜜区"。在这个窗口，时间价值的衰减速度开始明显加速，但你还有足够的时间让不利走势自行修正。过早入场（>70 DTE），Theta 衰减太慢，占用资金时间过长；过晚入场（<30 DTE），Gamma 风险急剧上升，股价小幅波动就可能吃掉你所有利润。\n\n7-21 DTE（Short-Term / 130M）：短线策略利用的是 Theta 的"末日加速"效应。在最后 2-3 周，时间价值衰减呈指数级加速。配合 130M（3 bars/day）的信号系统，可以精确捕捉短期趋势。但风险也更高——Gamma 在这个阶段非常敏感，需要更严格的信号过滤。\n\nWFA 研究覆盖了 648 种配置，确认这两个窗口是最优的。',
+        whyItMatters: 'Theta 衰减在 45-65 天开始加速（Swing），7-21 天达到峰值（Short-Term）。偏离这些窗口会降低策略效率。'
+    },
+    {
+        id: 'take-profit',
+        term: 'Take Profit Rules - 止盈规则',
+        category: 'Strategy',
+        icon: Trophy,
+        formula: 'Swing: 30% of max profit | Short-Term: 50% of max profit',
+        explanation: '为什么不等到 100% 利润？因为 Theta 衰减的边际收益递减。\n\n假设你卖出了一个 Credit Spread，收到 $1.50 的权利金（最大利润）。在头 2-3 周，价差可能已经从 $1.50 缩到了 $1.05（30% 利润）。但要把剩余的 $1.05 也赚到，你可能需要再等 3-4 周，承担股价反转的全部风险。\n\n数学上，前 30% 的利润可能在 40% 的持仓时间内完成；而最后 30% 的利润却需要占用 60% 的时间。这就是"边际递减"。\n\nSwing 30%：较早止盈，释放资金投入新交易，提高资金周转率。WFA 验证略优于 50%。\nShort-Term 50%：短线到期快，Theta 加速更猛，可以贪心一点。WFA 验证 50% 优于 30%。\n\n关键：止盈后不要回头看。如果你发现自己经常在想"早知道不止盈了"，那说明你的止盈规则正在保护你——因为你只记得那些继续赚钱的案例，却忘记了止盈后反转的情况。',
+        whyItMatters: 'WFA 验证：Swing 在 30% 止盈效率最高，Short-Term 在 50%。边际 Theta 衰减递减，早止盈提高资金周转。'
+    },
+    {
+        id: 'time-stop',
+        term: 'Time Stop - 时间止损',
+        category: 'Risk',
+        icon: Timer,
+        formula: 'Swing: DTE ≤ 3 close | Short-Term: DTE ≤ 1 close',
+        explanation: '为什么需要时间止损？因为越接近到期，Gamma 风险呈指数级增长。\n\n在到期前 3 天（Swing）或 1 天（Short-Term），即使你的价差还在赚钱，也应该主动平仓。原因：\n\n1. Gamma 爆炸：股价微小的波动就能让你从盈利变成最大亏损。你的命运完全取决于到期日的收盘价，而不是你的分析。\n2. Pin Risk：如果股价恰好"钉"在你的卖出行权价附近，你可能面临被行权的风险，需要处理底层股票头寸。\n3. 流动性枯竭：临近到期的期权买卖价差会显著扩大，平仓成本上升。\n\n时间止损是一条铁律。不论盈亏，到了 DTE 阈值就平仓。这不是"认输"——这是专业的风险管理。',
+        whyItMatters: 'Gamma 在到期前呈指数级增长。DTE ≤ 3（Swing）或 DTE ≤ 1（Short-Term）必须平仓，无论盈亏。'
+    },
+    {
+        id: 'defined-risk',
+        term: 'Defined Risk - 有限风险',
+        category: 'Risk',
+        icon: Lock,
+        formula: 'Max Loss = (Width - Credit) × 100 × Contracts',
+        explanation: 'Credit Spread 最优美的特性：你的最大亏损在建仓时就已经锁定，永远不会超过这个数字。\n\n这是因为你同时买入了一个保护腿（Long Leg）。不管标的股票暴跌 50% 还是 80%，你的亏损上限就是 (宽度 - 收到的权利金) × 合约乘数。\n\n这就是为什么我们的策略不需要传统的价格止损 (Stop Loss)：\n1. WFA 回测 7000+ 组合验证：设置 2× 止损反而摧毁收益（OOS Sharpe 从 1.3 降到 0.04）。\n2. 原因：Credit Spread 的盈亏曲线是非线性的。价差在到期前的波动远大于最终结果。在中途触发止损，你会在最终本可以赢的交易上锁定亏损。\n3. 定义好风险（Width × Contracts），让概率去工作。大数定律会保护你。',
+        whyItMatters: 'Credit Spread 的风险在建仓时锁定。WFA 验证：Stop Loss 2× 会摧毁收益（Sharpe 0.04）。不需要止损，让定义好的风险自然运作。'
+    },
+    {
+        id: 'iv-regime',
+        term: 'IV Regime - 波动率环境',
+        category: 'Concept',
+        icon: BarChart2,
+        formula: 'CREDIT: IV30/IV90 > 1.05 | DEBIT: < 0.95 | NEUTRAL: 0.95-1.05',
+        explanation: '市场的波动率不是一个静态数字，它有自己的"情绪周期"——我们称之为 IV Regime（波动率环境）。\n\nCREDIT Regime（卖方环境）：当 IV 的期限结构倒挂（IV30 > IV90，即近期波动率高于远期），说明市场正在恐慌。这时候卖出期权（Credit Spread）胜率极高，因为你在高位卖出了"恐惧溢价"，IV 均值回归会帮你赚钱。\n\nDEBIT Regime（买方环境）：当 IV 正向（IV30 < IV90），说明市场平静到极点。期权便宜，买入看涨/看跌期权（Debit Spread）的成本低，一旦波动爆发，收益巨大。\n\nNEUTRAL：市场正常状态，IV 期限结构平坦。此时 Credit 和 Debit 都没有明显的结构性优势。\n\n我们的系统会自动检测当前 IV Regime，只在 CREDIT Regime 下推荐 Credit Spread 策略。',
+        whyItMatters: '只在 CREDIT Regime 下做 Credit Spread。IV 期限结构倒挂意味着市场恐慌，卖出期权胜率最高。'
+    },
+    {
+        id: 'wfa',
+        term: 'WFA (Walk-Forward Analysis)',
+        category: 'Concept',
+        icon: FlaskConical,
+        explanation: 'Walk-Forward Analysis 是我们验证策略参数的核心方法论。它解决了回测中最致命的问题：过拟合。\n\n传统回测的陷阱：你用 5 年数据找到"完美参数"（胜率 95%！），但这些参数只是完美地拟合了历史噪音，对未来毫无预测力。\n\nWFA 的做法：\n1. 将历史数据切成 12 个滚动窗口（如 6 个月训练 + 2 个月测试）\n2. 在每个训练窗口中独立寻找最优参数\n3. 用这些参数在对应的测试窗口（OOS = Out-of-Sample）上验证\n4. 统计所有 OOS 窗口的综合表现\n\n如果一个策略在 12 个独立的 OOS 测试中都保持正收益，那它的稳健性远高于传统回测。\n\n我们的 WFA 结果：Swing 策略 OOS Sharpe 1.275，胜率 89.52%。Short-Term 130M 策略 OOS Sharpe 2.22，胜率 84.6%。这些数字来自 5556+ 条 OOS 交易，横跨 15 只股票和 7-12 个独立时间窗口。',
+        whyItMatters: 'WFA 防止过拟合。我们的策略经过 5556+ 条 OOS 交易验证，不是简单的历史回测结果。'
+    },
+    {
+        id: 'signal-system',
+        term: 'Signal System (EMA/MOM/EM)',
+        category: 'Concept',
+        icon: Radio,
+        formula: 'EMA = Trend Following | MOM = Momentum Burst | EM = Combined',
+        explanation: '我们的信号系统使用三种预设模式来检测入场时机：\n\nEMA（趋势跟踪）：基于多层指数移动平均线 (EMA Stack) 的方向判断。当短期 EMA > 中期 EMA > 长期 EMA 时，确认上升趋势（BULL）；反之确认下降趋势（BEAR）。优点：稳定可靠，假信号少。缺点：响应慢，可能错过快速反转。\n\nMOM（动量爆发）：基于价格动量和市场偏差 (Market Bias) 的短期强度指标。捕捉的是"价格正在加速运动"的时刻。优点：响应快，抓得住急涨急跌。缺点：在震荡行情中假信号多。\n\nEM（EMA + Momentum 组合）：将趋势方向（EMA）和动量强度（MOM）结合。只有两者同时确认时才发出信号。这是 Short-Term 130M 策略的默认模式。WFA 研究显示 EM 的泛化评级最高（Grade A），因为它同时过滤了趋势假信号和动量噪音。',
+        whyItMatters: 'Swing 使用 EMA 或 MOM，Short-Term 使用 EM（Grade A 泛化评级）。信号决定入场时机，WFA 验证了各预设的最优适用场景。'
+    },
+    {
+        id: 'max-drawdown',
+        term: 'Max Drawdown - 最大回撤',
+        category: 'Risk',
+        icon: AlertTriangle,
+        formula: 'Max DD = (Peak - Trough) ÷ Peak × 100%',
+        explanation: '最大回撤衡量的是从资产净值最高点到最低点之间的最大跌幅。它是风险管理中最重要的生存指标。\n\n为什么它比胜率更重要？因为回撤直接影响你的心理和资金生存：\n- 10% 回撤：需要 11% 的回报才能回本。可以接受。\n- 25% 回撤：需要 33% 的回报才能回本。开始痛苦。\n- 50% 回撤：需要 100% 的回报才能回本。几乎不可能恢复。\n\n这就是为什么我们将最大回撤控制在 15% 以内（WFA 实际：Swing 4.64%，Short-Term 12.9%）。\n\n一个胜率 90% 但最大回撤 50% 的策略，远不如一个胜率 85% 但最大回撤 10% 的策略。因为前者只需要一次极端事件就能毁掉你的账户，而后者你可以安心地睡觉。',
+        whyItMatters: '回撤 >25% 几乎不可能恢复。我们的策略目标 Max DD <15%（WFA 实际：Swing 4.64%，Short-Term 12.9%）。'
+    },
+    {
+        id: 'winrate-vs-ev',
+        term: 'Win Rate vs Expectancy',
+        category: 'Concept',
+        icon: Trophy,
+        formula: 'Expectancy = (WR × Avg Win) - ((1-WR) × Avg Loss)',
+        explanation: '在 Credit Spread 策略中，高胜率不是虚荣指标——它是策略的核心引擎。\n\n为什么高 WR 对 Credit Spread 特别重要：\n1. 心理稳定性：85%+ 的胜率意味着每 20 笔交易只有 2-3 笔亏损。这让你有信心持续执行系统，不会因为连续亏损而放弃策略。\n2. 复利效应：小额高频盈利比低频大额盈利更利于复利。每笔赚 $150（30% TP），20 笔中 17 笔赢 = +$2550，3 笔输 $1350（假设 Max Loss $450/笔） = 净利 +$1200。\n3. 有界亏损：Credit Spread 的最大亏损被 Width 锁定。所以即使那 15% 的亏损交易触发 Max Loss，你的亏损也是已知的、有限的。这和低胜率策略（30% WR, 大赢小亏）本质不同——低胜率策略的连续亏损可能击穿心理防线。\n\nExpectancy（期望值）结合了胜率和盈亏比。我们的 WFA 验证：Swing Expectancy +$35/trade，Short-Term +$48/trade。',
+        whyItMatters: '85%+ 胜率不是虚荣指标。Credit Spread 的有界亏损 + 高胜率 = 稳定复利。WFA 验证期望值为正。'
+    },
+
 ];
 
 export const Academy: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-    const categories = ['Metric', 'Greek', 'Strategy', 'Concept', 'Structure'];
+    const categories = ['Metric', 'Greek', 'Strategy', 'Risk', 'Concept', 'Structure'];
 
     const filteredGlossary = GLOSSARY.filter(item => {
         const matchesSearch = item.term.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -202,7 +257,7 @@ export const Academy: React.FC = () => {
                     <BookOpen className="text-accent-green w-7 h-7 sm:w-8 sm:h-8" />
                 </div>
                 <h1 className="text-2xl sm:text-4xl font-extrabold text-white mb-2 tracking-tight">Trading Academy</h1>
-                <p className="text-gray-400 text-sm sm:text-lg">Master the OSS algorithms and trade like a professional.</p>
+                <p className="text-gray-400 text-sm sm:text-lg">Credit Spread strategy concepts, risk management, and WFA-validated rules.</p>
             </div>
 
             {/* Search and Filters */}
@@ -254,8 +309,9 @@ export const Academy: React.FC = () => {
                                         <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded border ${item.category === 'Metric' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
                                             item.category === 'Greek' ? 'bg-pink-500/10 text-pink-400 border-pink-500/30' :
                                                 item.category === 'Strategy' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
-                                                    item.category === 'Concept' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
-                                                        'bg-orange-500/10 text-orange-400 border-orange-500/30'
+                                                    item.category === 'Risk' ? 'bg-red-500/10 text-red-400 border-red-500/30' :
+                                                        item.category === 'Concept' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
+                                                            'bg-orange-500/10 text-orange-400 border-orange-500/30'
                                             }`}>
                                             {item.category}
                                         </span>

@@ -319,8 +319,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             entry_price: parseFloat(openPosPrice) || 0,
             legs,
             owner: openPosOwner,
-            tech_score: undefined,
-            tech_score_source: 'manual',
+            tech_score: urlScore ? parseInt(urlScore) : undefined,
+            tech_score_source: urlScore ? 'auto' : 'manual',
             direction,
             trade_profile: entryTradeProfile,
             iv_rank_entry: result.regime.ivRank != null ? result.regime.ivRank : undefined,
@@ -1021,6 +1021,18 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                     <span className="text-[10px] text-gray-500 uppercase font-bold">Max Risk</span>
                                                                     <span className="text-red-400 font-mono font-bold">${rec.maxRisk}</span>
                                                                 </div>
+                                                                {rec.maxRisk > 0 && (() => {
+                                                                    const maxRiskPerTrade = portfolioTotal * riskPct / 100;
+                                                                    const suggestedQty = Math.max(1, Math.floor(maxRiskPerTrade / (rec.maxRisk * 100)));
+                                                                    const totalRisk = suggestedQty * rec.maxRisk * 100;
+                                                                    return (
+                                                                        <div className="flex flex-col">
+                                                                            <span className="text-[10px] text-gray-500 uppercase font-bold">Size</span>
+                                                                            <span className="text-white font-mono font-bold">{suggestedQty}x</span>
+                                                                            <span className="text-[9px] text-gray-500 font-mono">${totalRisk.toFixed(0)} risk</span>
+                                                                        </div>
+                                                                    );
+                                                                })()}
                                                             </>
                                                         ) : (
                                                             <>

@@ -1,6 +1,5 @@
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LoginPage } from '../pages/Login';
 import { TabNav } from '../components/TabNav';
 import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation';
 import { Settings, LogOut } from 'lucide-react';
@@ -21,7 +20,11 @@ export function AppLayout() {
     );
   }
 
-  if (!isAuthenticated) return <LoginPage onLogin={() => {}} />;
+  if (!isAuthenticated) return (
+    <div className="min-h-screen flex items-center justify-center bg-bg-primary">
+      <p className="text-text-secondary">Please log in to continue.</p>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-bg-primary">

@@ -6,19 +6,17 @@ import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER } from '../lib/utils';
 import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQWithFactors } from '../lib/scoring';
-import { ScoreFactorsView } from './ScoreFactorsView';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
 import { useAppSettings } from '../context/AppSettingsContext';
 import {
     usePositionAction,
-    useUpdateScore,
     useUpdatePrice,
     useUpdateTarget,
     useUpdateStop,
     useUpdateOwner,
+    useUpdateNotes,
     useDeletePosition,
 } from '../hooks/usePositionMutations';
-import { TV_GRADES, TV_GRADE_TO_SCORE, scoreToTVGrade } from '../lib/tvGrades';
 
 /** Normalize expiration to YYYY-MM-DD for option-price API (avoids wrong contract match). */
 function normalizeExpiration(exp: string): string {
@@ -60,15 +58,14 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
 
     // Mutation hooks as fallbacks when callback props not provided
     const positionActionMut = usePositionAction();
-    const updateScoreMut = useUpdateScore();
     const updatePriceMut = useUpdatePrice();
     const updateTargetMut = useUpdateTarget();
     const updateStopMut = useUpdateStop();
     const updateOwnerMut = useUpdateOwner();
+    const updateNotesMut = useUpdateNotes();
     const deletePositionMut = useDeletePosition();
 
     const onAction = props.onAction ?? (async (id: string, action: PositionAction, exitType?: Position['exit_type']) => { positionActionMut.mutate({ id, action, exitType }); });
-    const onUpdateScore = props.onUpdateScore ?? (async (id: string, score: number) => { updateScoreMut.mutate({ id, score }); });
     const onUpdatePrice = props.onUpdatePrice ?? (async (id: string, price: number) => { updatePriceMut.mutate({ id, price }); });
     const onUpdateTarget = props.onUpdateTarget ?? (async (id: string, target: number) => { updateTargetMut.mutate({ id, target }); });
     const onUpdateStop = props.onUpdateStop ?? (async (id: string, stopPrice: number) => { updateStopMut.mutate({ id, stopPrice }); });
@@ -87,13 +84,13 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const [actionQty, setActionQty] = useState(1);
     const [actionPrice, setActionPrice] = useState('');
     const [closeExitType, setCloseExitType] = useState<'TP' | 'SL' | 'TIME' | 'MANUAL'>('MANUAL');
-    const [isEditingScore, setIsEditingScore] = useState(false);
-    const [scoreInput, setScoreInput] = useState('');
     const [isEditingTarget, setIsEditingTarget] = useState(false);
     const [targetInput, setTargetInput] = useState('');
     const [isEditingStop, setIsEditingStop] = useState(false);
     const [stopInput, setStopInput] = useState('');
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isEditingNotes, setIsEditingNotes] = useState(false);
+    const [notesInput, setNotesInput] = useState('');
     const [historyData, setHistoryData] = useState<GreeksHistory[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
 
@@ -412,11 +409,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const firstBuy = positionTxns.find(t => t.quantity > 0);
     const entryPrice = firstBuy ? Math.abs(firstBuy.price) : 0;
 
-    const hasTakenProfit = positionTxns.some(t => t.type === 'Take Profit');
-    const calculatedStopLoss = isCreditStrategy
-        ? entryPrice * 1.5
-        : (hasTakenProfit ? entryPrice * 0.75 : entryPrice * 0.5);
-    const currentStopLoss = position.stop_price ?? calculatedStopLoss;
+    const currentStopLoss = position.stop_price ?? null;
 
     const currentPrice = liveData.price !== undefined ? liveData.price : (position.current_price || 0);
 
@@ -435,7 +428,12 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
         }
     }
 
-    const calculatedTarget = isCreditStrategy ? entryPrice * 0.5 : entryPrice * 1.25;
+    const tpFraction = isCreditStrategy
+        ? (position.strategy_type === 'shortTerm' ? 0.50 : 0.30)
+        : 0.25; // debit: 25% gain
+    const calculatedTarget = isCreditStrategy
+        ? entryPrice * (1 - tpFraction) // credit: close at (1-TP%) of entry credit
+        : entryPrice * (1 + tpFraction);
     const targetPrice = position.target_price || calculatedTarget;
 
     let realizedPnL = 0;
@@ -452,27 +450,41 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     });
 
     const daysToExp = daysUntil(position.expiration);
-    // const currentScore = position.current_score || position.entry_score; // Old logic
-    const effectiveScore = position.tech_score ?? (position.current_score || position.entry_score);
+
+    // TP Progress (0-100%+)
+    const tpProgress = (isCreditStrategy && entryPrice > 0 && currentPrice != null)
+        ? Math.max(0, ((entryPrice - currentPrice) / (entryPrice * tpFraction)) * 100)
+        : (!isCreditStrategy && entryPrice > 0 && currentPrice != null)
+            ? Math.max(0, ((currentPrice - entryPrice) / (entryPrice * tpFraction)) * 100)
+            : null;
+    const tpReady = tpProgress != null && tpProgress >= 100;
+
+    // Time Stop thresholds
+    const timeStopDTE = position.strategy_type === 'shortTerm' ? 1 : 3;
+    const isTimeStop = daysToExp <= timeStopDTE && daysToExp >= 0;
 
     const positionRiskAtStopOutDollars = getPositionRiskAtStopOutDollars(position, Math.max(0, totalQty), entryPrice, stopOutFraction);
     const singleTradeRiskPct = portfolioTotal && portfolioTotal > 0
         ? (positionRiskAtStopOutDollars / portfolioTotal) * 100
         : null;
 
-    let alertLevel: 'none' | 'danger' | 'warning' = 'none';
+    let alertLevel: 'none' | 'danger' | 'warning' | 'success' = 'none';
     const alerts: string[] = [];
-    if (effectiveScore < 60) { alerts.push('Low Score'); alertLevel = 'danger'; }
-    if (isCreditStrategy) {
-        if (currentPrice && currentPrice >= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
-    } else {
-        if (currentPrice && currentPrice <= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
-    }
 
+    // TP Ready — actionable
+    if (tpReady) { alerts.push('TP Ready'); alertLevel = 'success'; }
+    // Time Stop — must close
+    if (isTimeStop) { alerts.push(`TIME STOP (DTE ${daysToExp})`); alertLevel = 'danger'; }
+    // User-set stop loss hit
+    if (currentStopLoss != null && currentPrice) {
+        if (isCreditStrategy && currentPrice >= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
+        if (!isCreditStrategy && currentPrice <= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
+    }
+    // Heavy loss warning
     if (unrealizedPnLPct <= -50) { alerts.push('Heavy Loss'); alertLevel = 'danger'; }
-    if (alertLevel !== 'danger') {
-        if (effectiveScore < 70) { alerts.push('Score Warning'); alertLevel = 'warning'; }
-        if (daysToExp <= 7 && daysToExp > 0) { alerts.push(`${daysToExp}d left`); alertLevel = 'warning'; }
+    // DTE warning (approaching but not yet time stop)
+    if (alertLevel === 'none' && daysToExp <= 7 && daysToExp > timeStopDTE) {
+        alerts.push(`${daysToExp}d left`); alertLevel = 'warning';
     }
 
     const earningsWarning = earnings.days !== null && earnings.days >= 0 && earnings.days <= 7;
@@ -482,6 +494,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     if (alertLevel === 'danger') cardClass = 'card-danger';
     else if (earningsImminent) cardClass = 'card-earnings';
     else if (alertLevel === 'warning') cardClass = 'card-warning';
+    else if (alertLevel === 'success') cardClass = 'card border-accent-green/30';
     else if (earningsWarning) cardClass = 'card-earnings-soon';
 
     const pnlColor = unrealizedPnL >= 0 ? 'text-accent-green' : 'text-accent-red';
@@ -502,14 +515,6 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
         setCloseExitType('MANUAL');
     };
 
-    const handleScoreSave = async (grade: string) => {
-        const newScore = TV_GRADE_TO_SCORE[grade];
-        if (newScore != null) {
-            await onUpdateScore(position.id, newScore);
-            setScoreInput(grade);
-            setIsEditingScore(false);
-        }
-    };
 
     const handleTargetSave = async () => {
         const newTarget = parseFloat(targetInput);
@@ -644,7 +649,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
             {alerts.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
                     {alerts.map((a, i) => (
-                        <span key={i} className={`badge ${alertLevel === 'danger' ? 'badge-red' : 'badge-yellow'}`}>
+                        <span key={i} className={`badge ${alertLevel === 'danger' ? 'badge-red' : alertLevel === 'success' ? 'badge-green' : 'badge-yellow'}`}>
                             {a}
                         </span>
                     ))}
@@ -709,19 +714,17 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         </div>
                         <div className="metric-value text-text-primary">{currentPrice ? formatPrice(currentPrice) : '—'}</div>
                     </div>
-                    {/* Stop */}
+                    {/* Stop (only if user-set) */}
                     <div>
                         <div className="mb-1 flex items-center gap-1 h-5">
-                            <Tooltip label="Stop" explanation="Stop loss price. Click to edit." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
-                            {(
-                                <button
-                                    onClick={() => { setIsEditingStop(true); setStopInput(currentStopLoss.toString()); }}
-                                    className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
-                                    aria-label="Edit stop"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-                                </button>
-                            )}
+                            <Tooltip label="Stop" explanation="Optional stop price. Credit spreads have defined risk — no stop needed." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                            <button
+                                onClick={() => { setIsEditingStop(true); setStopInput((currentStopLoss ?? '').toString()); }}
+                                className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+                                aria-label="Edit stop"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                            </button>
                         </div>
                         {isEditingStop ? (
                             <div className="flex items-center gap-1">
@@ -741,67 +744,29 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                 </button>
                             </div>
                         ) : (
-                            <div className="metric-value text-accent-red">{formatPrice(currentStopLoss)}</div>
+                            <div className={`metric-value ${currentStopLoss != null ? 'text-accent-red' : 'text-text-tertiary'}`}>
+                                {currentStopLoss != null ? formatPrice(currentStopLoss) : '—'}
+                            </div>
                         )}
                     </div>
-                    {/* TV Grade */}
+                    {/* DTE */}
                     <div>
-                        <div className="mb-1 flex items-center gap-1 h-5">
-                            <Tooltip label="TV Grade" explanation="TradingView Technical Grade (S/A/B/C/D). Click a grade to set." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        <div className="mb-1 flex items-center h-5">
+                            <Tooltip label="DTE" explanation="Days to expiration." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
-                        {isEditingScore ? (
-                            <div className="flex items-center gap-1">
-                                {TV_GRADES.map(grade => {
-                                    const colors: Record<string, string> = {
-                                        S: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40',
-                                        A: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
-                                        B: 'bg-blue-500/20 text-blue-400 border-blue-500/40',
-                                        C: 'bg-orange-500/20 text-orange-400 border-orange-500/40',
-                                        D: 'bg-red-500/20 text-red-400 border-red-500/40',
-                                    };
-                                    return (
-                                        <button
-                                            key={grade}
-                                            onClick={() => handleScoreSave(grade)}
-                                            className={`px-2 py-1 rounded text-xs font-bold border transition-all cursor-pointer ${scoreInput === grade ? colors[grade] : 'bg-bg-secondary/30 text-text-tertiary border-border-default/50 hover:text-text-secondary'}`}
-                                        >
-                                            {grade}
-                                        </button>
-                                    );
-                                })}
-                                <button onClick={() => setIsEditingScore(false)} className="text-text-tertiary hover:text-text-primary ml-1 p-0.5 rounded cursor-pointer">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-1.5">
-                                {(() => {
-                                    const grade = scoreToTVGrade(effectiveScore);
-                                    const colors: Record<string, string> = {
-                                        S: 'text-yellow-400', A: 'text-emerald-400', B: 'text-blue-400',
-                                        C: 'text-orange-400', D: 'text-red-400'
-                                    };
-                                    return grade ? (
-                                        <span className={`metric-value font-bold ${colors[grade] || 'text-text-primary'}`}>{grade}</span>
-                                    ) : (
-                                        <span className="metric-value text-text-tertiary">—</span>
-                                    );
-                                })()}
-                                <button
-                                    onClick={() => { setIsEditingScore(true); setScoreInput(scoreToTVGrade(effectiveScore)); }}
-                                    className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
-                                    aria-label="Edit TV grade"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-                                </button>
-                            </div>
-                        )}
+                        <div className={`metric-value font-bold ${
+                            daysToExp <= 7 ? 'text-accent-red' :
+                            daysToExp <= 14 ? 'text-accent-yellow' :
+                            'text-accent-green'
+                        }`}>
+                            {daysToExp}d
+                        </div>
                     </div>
                 </div>
 
 
 
-                {/* Row 3: Mechanics & Option Score */}
+                {/* Row 3: Greeks & IV Rank */}
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 sm:gap-4 pt-4 border-t border-border-light/50">
                     <div>
                         <div className="mb-1">
@@ -843,56 +808,81 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                             {liveData.iv !== undefined ? (liveData.iv * 100).toFixed(1) + '%' : '—'}
                         </div>
                     </div>
-                                    <div>
-                                        <div className="mb-1">
-                                            <Tooltip label="Opt Score" explanation="Calculated Option Quality." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <div className={`metric-value font-bold ${liveData.score === undefined ? 'text-text-tertiary' :
-                                                liveData.score >= 70 ? 'text-accent-green' :
-                                                    liveData.score >= 50 ? 'text-accent-yellow' : 'text-accent-red'
-                                                }`}>
-                                                {liveData.score !== undefined ? liveData.score : '—'}
-                                            </div>
-                                            {liveData.factors && liveData.factors.length > 0 && (
-                                                <div className="text-[10px] text-text-tertiary mt-0.5 group/opt relative cursor-help">
-                                                    <span className="border-b border-dotted border-text-tertiary/50">Breakdown</span>
-                                                    <div className="absolute bottom-full left-0 mb-2 w-52 p-2 bg-bg-elevated border border-border-default rounded shadow-xl opacity-0 group-hover/opt:opacity-100 transition-opacity pointer-events-none z-50">
-                                                        <ScoreFactorsView factors={liveData.factors} compact />
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {Boolean(liveData.isDayTrade) && (
-                                                <span className="mt-0.5 px-1 pb-0.5 text-[8px] font-bold uppercase tracking-wider text-purple-300 bg-purple-500/10 rounded w-fit">
-                                                    Day Trade
-                                                </span>
-                                            )}
-                                            {liveData.score !== undefined && (() => {
-                                                const entryScore = position.entry_score || 0;
-                                                const scoreDrop = entryScore - liveData.score!;
-                                                const isLowScore = liveData.score! < 40;
-                                                const isLargeDrop = scoreDrop >= 20;
-                                                if (!isLowScore && !isLargeDrop) return null;
-                                                return (
-                                                    <span className="mt-1 px-1.5 pb-0.5 text-[8px] font-bold uppercase tracking-wider text-red-300 bg-red-500/15 border border-red-500/30 rounded w-fit animate-pulse">
-                                                        {isLargeDrop ? `↓${scoreDrop} EXIT?` : 'EXIT?'}
-                                                    </span>
-                                                );
-                                            })()}
-                                        </div>
-                                    </div>
+                    <div>
+                        <div className="mb-1">
+                            <Tooltip label="IV Rank" explanation="IV percentile at entry. Swing target: ≥30%, Short-term: ≥20%." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
+                        </div>
+                        <div className={`metric-value font-bold ${
+                            position.iv_rank_entry == null ? 'text-text-tertiary' :
+                            position.iv_rank_entry >= 30 ? 'text-accent-green' :
+                            position.iv_rank_entry >= 20 ? 'text-accent-yellow' : 'text-accent-red'
+                        }`}>
+                            {position.iv_rank_entry != null ? `${Math.round(position.iv_rank_entry)}%` : '—'}
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Exit condition */}
-            {position.stop_reason && (
-                <div className="text-xs sm:text-sm text-text-secondary mb-4 flex flex-wrap gap-x-2 gap-y-1">
-                    <span className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-text-tertiary shrink-0">Exit if:</span>
-                        <span className="truncate max-w-[160px] sm:max-w-[300px]" title={position.stop_reason}>{position.stop_reason}</span>
-                    </span>
+            {/* TP Progress Bar */}
+            {tpProgress != null && entryPrice > 0 && (
+                <div className="mb-4">
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="text-text-tertiary uppercase tracking-wider font-medium">
+                            TP Progress ({Math.round(tpFraction * 100)}%)
+                        </span>
+                        <span className={`font-mono font-semibold ${tpReady ? 'text-accent-green' : 'text-text-secondary'}`}>
+                            {Math.min(tpProgress, 999).toFixed(0)}%
+                        </span>
+                    </div>
+                    <div className="h-1.5 bg-bg-secondary rounded-full overflow-hidden">
+                        <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                                tpReady ? 'bg-accent-green' :
+                                tpProgress >= 70 ? 'bg-accent-yellow' :
+                                'bg-text-tertiary'
+                            }`}
+                            style={{ width: `${Math.min(tpProgress, 100)}%` }}
+                        />
+                    </div>
                 </div>
             )}
+
+            {/* Notes */}
+            <div className="mb-4">
+                {isEditingNotes ? (
+                    <div className="space-y-2">
+                        <textarea
+                            value={notesInput}
+                            onChange={e => setNotesInput(e.target.value)}
+                            placeholder="Trade notes — why you entered, adjustments, review..."
+                            className="w-full px-3 py-2 text-sm bg-bg-secondary rounded-lg border border-border-default text-text-primary resize-none"
+                            rows={3}
+                            autoFocus
+                        />
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => { updateNotesMut.mutate({ id: position.id, notes: notesInput }); setIsEditingNotes(false); }}
+                                className="text-xs px-3 py-1.5 bg-accent-green/20 text-accent-green rounded-lg font-medium"
+                            >Save</button>
+                            <button onClick={() => setIsEditingNotes(false)} className="text-xs px-3 py-1.5 text-text-tertiary hover:text-text-primary">Cancel</button>
+                        </div>
+                    </div>
+                ) : (
+                    <button
+                        onClick={() => { setIsEditingNotes(true); setNotesInput(position.notes || position.stop_reason || ''); }}
+                        className="text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                        {position.notes || position.stop_reason ? (
+                            <span className="text-text-secondary truncate max-w-[300px]" title={position.notes || position.stop_reason || ''}>
+                                {position.notes || position.stop_reason}
+                            </span>
+                        ) : (
+                            <span>+ Add notes</span>
+                        )}
+                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                    </button>
+                )}
+            </div>
 
             {/* Expandable Greeks History */}
             <div className="mb-4">

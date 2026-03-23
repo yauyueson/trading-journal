@@ -11,7 +11,7 @@ import { PortfolioGreeksWidget } from '../components/PortfolioGreeksWidget';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { getProfile } from '../lib/strategyProfiles';
 import { getPositionRiskAtStopOutDollars, aggregatePortfolioGreeks } from '../lib/riskSizing';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, daysUntil } from '../lib/utils';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 import {
@@ -335,6 +335,44 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
 
             {/* Portfolio Greeks Aggregation Widget */}
             {portfolioGreeks && <PortfolioGreeksWidget greeks={portfolioGreeks} />}
+
+            {/* Summary Strip */}
+            {activePositions.length > 0 && (() => {
+                const swingCount = activePositions.filter(p => p.strategy_type === 'swing').length;
+                const stCount = activePositions.filter(p => p.strategy_type === 'shortTerm').length;
+                const untaggedCount = activePositions.length - swingCount - stCount;
+                const dailyTheta = portfolioGreeks?.netTheta ?? 0;
+
+                // Find nearest expiring position
+                const nearest = [...activePositions].sort((a, b) =>
+                    daysUntil(a.expiration) - daysUntil(b.expiration)
+                )[0];
+                const nearestDTE = nearest ? daysUntil(nearest.expiration) : null;
+                const timeStopThreshold = nearest?.strategy_type === 'shortTerm' ? 1 : 3;
+                const nearestUrgent = nearestDTE != null && nearestDTE <= timeStopThreshold;
+
+                return (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5 rounded-xl bg-bg-secondary/40 border border-border-default/30 text-xs font-mono mb-4">
+                        <span className="text-text-tertiary">
+                            {swingCount > 0 && <span className="text-green-400">{swingCount} Swing</span>}
+                            {swingCount > 0 && stCount > 0 && <span className="text-text-tertiary"> / </span>}
+                            {stCount > 0 && <span className="text-blue-400">{stCount} ST</span>}
+                            {untaggedCount > 0 && <span className="text-text-tertiary"> + {untaggedCount}</span>}
+                        </span>
+                        {dailyTheta !== 0 && (
+                            <span className="text-text-secondary">
+                                <span className="text-accent-green font-semibold">${(dailyTheta * 100).toFixed(0)}</span>/day theta
+                            </span>
+                        )}
+                        {nearest && nearestDTE != null && (
+                            <span className={nearestUrgent ? 'text-accent-red font-semibold' : 'text-text-secondary'}>
+                                Next: {nearest.ticker} {nearestDTE}d
+                                {nearestUrgent && ' — close now'}
+                            </span>
+                        )}
+                    </div>
+                );
+            })()}
 
             {/* Quick Add Form */}
             {showForm && (

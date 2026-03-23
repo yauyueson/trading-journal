@@ -83,6 +83,16 @@ export function useUpdateStop() {
   });
 }
 
+export function useUpdateNotes() {
+  const invalidate = useInvalidatePositionsAndTransactions();
+  return useMutation({
+    mutationFn: async ({ id, notes }: { id: string; notes: string }) => {
+      await supabase.from('positions').update({ notes }).eq('id', id);
+    },
+    onSuccess: invalidate,
+  });
+}
+
 export function useUpdateOwner() {
   const invalidate = useInvalidatePositionsAndTransactions();
   return useMutation({

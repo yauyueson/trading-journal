@@ -2,7 +2,6 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { RefreshCw, ChevronDown } from 'lucide-react';
 import type { DirectAddItem, PositionLeg } from '../lib/types';
 import type { StrategyProfile, StrategyType } from '../lib/strategyProfiles';
-import { TV_GRADES, TV_GRADE_TO_SCORE } from '../lib/tvGrades';
 
 interface Props {
     onAddDirect: (item: DirectAddItem) => Promise<void>;
@@ -91,7 +90,7 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
         setSubmitting(true);
 
         const strategy = deriveStrategy(positionType, form.type);
-        const techScoreNum = form.tech_score ? TV_GRADE_TO_SCORE[form.tech_score] : undefined;
+        const techScoreNum = form.tech_score ? Number(form.tech_score) : undefined;
 
         if (positionType === 'single') {
             await onAddDirect({
@@ -293,27 +292,14 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
                     <button type="button" onClick={() => setShowAdvanced(!showAdvanced)}
                         className="text-xs font-medium text-text-tertiary hover:text-text-secondary transition-colors flex items-center gap-1.5">
                         <ChevronDown size={14} className={`transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
-                        More details (TV grade, trade notes, market state, IV regime)
+                        More details (tech score, trade notes, market state, IV regime)
                     </button>
                     {showAdvanced && (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mt-4 pt-4 border-t border-border-default/30">
                             <div className="space-y-1.5">
-                                <label htmlFor="tech_score">TV Grade</label>
-                                <div className="flex gap-1.5">
-                                    {TV_GRADES.map(grade => (
-                                        <button key={grade} type="button"
-                                            onClick={() => setForm({ ...form, tech_score: form.tech_score === grade ? '' : grade })}
-                                            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${form.tech_score === grade
-                                                ? grade === 'S' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40'
-                                                : grade === 'A' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                                : grade === 'B' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                                : grade === 'C' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40'
-                                                : 'bg-red-500/20 text-red-400 border border-red-500/40'
-                                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                                            }`}
-                                        >{grade}</button>
-                                    ))}
-                                </div>
+                                <label htmlFor="tech_score">Tech Score</label>
+                                <input id="tech_score" type="number" min="0" max="100" placeholder="0-100" className="input-field"
+                                    value={form.tech_score} onChange={e => setForm({ ...form, tech_score: e.target.value })} />
                             </div>
                             <div className="space-y-1.5">
                                 <label htmlFor="stop_reason">Trade Notes</label>
