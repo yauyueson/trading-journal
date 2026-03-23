@@ -1,12 +1,13 @@
 // api/cron-signal-scan.js
 // Daily signal scanner — triggered externally via cronjobs.org (21:00 UTC / 4:00 PM ET weekdays).
 // 1. Tops up stock_candles cache with latest day's data from Tiingo
-// 2. Runs calculateTechScore on each ticker
-// 3. Upserts actionable signals to signal_history table
-// 4. Sends Discord embed with all signals
+// 2. Tops up 130M candle cache (10-min bars → 130M aggregation)
+// 3. Runs calculateTechScore on each ticker
+// 4. Upserts actionable signals to signal_history table
+// 5. Sends Discord embed with all signals
 
 import { createRequire } from 'node:module';
-import { getCandles } from '../lib/tiingo-client.js';
+import { getCandles, getIntradayNMinCandles } from '../lib/tiingo-client.js';
 
 const require = createRequire(import.meta.url);
 const { calculateTechScore } = require('../lib/_shared/tech-analysis.cjs');
@@ -134,6 +135,82 @@ async function sendTimeStopAlert(breached) {
     } catch (err) {
         console.warn('[signal-scan] Time stop Discord failed:', err.message);
     }
+}
+
+// ── 130M Candle Top-Up ──────────────────────────────────────────────────────────
+// Fetches today's 10-min bars from Tiingo IEX, aggregates to 130M, upserts to cache.
+// 10-min bars divide perfectly into 130M blocks (13 bars per block).
+
+function aggregateMinuteTo130M(bars) {
+    if (!bars || bars.length === 0) return [];
+    const groups = new Map();
+    for (const c of bars) {
+        const minutesSince930 = (c.hour * 60 + c.minute) - 570;
+        if (minutesSince930 < 0) continue;
+        const block = Math.min(Math.floor(minutesSince930 / 130), 2);
+        const key = `${c.date}|${block}`;
+        if (!groups.has(key)) groups.set(key, { date: c.date, block, candles: [] });
+        groups.get(key).candles.push(c);
+    }
+    const result = [];
+    for (const [, group] of groups) {
+        const sorted = group.candles.sort((a, b) => a.timestamp - b.timestamp);
+        if (sorted.length === 0) continue;
+        result.push({
+            timestamp: sorted[0].timestamp, date: group.date, block: group.block,
+            open: sorted[0].open, high: Math.max(...sorted.map(c => c.high)),
+            low: Math.min(...sorted.map(c => c.low)), close: sorted[sorted.length - 1].close,
+            volume: sorted.reduce((sum, c) => sum + c.volume, 0),
+        });
+    }
+    return result.sort((a, b) => a.timestamp - b.timestamp);
+}
+
+async function topUp130MCandles(today) {
+    console.log(`[signal-scan/130M] Starting 130M top-up for ${SCAN_TICKERS.length} tickers`);
+    let topped = 0, skipped = 0, failed = 0;
+
+    // Get last cached date per ticker
+    const lastDates = new Map();
+    try {
+        const rows = await supabaseGet('stock_candles',
+            `select=ticker,date&timeframe=eq.130M_2&order=date.desc&limit=${SCAN_TICKERS.length}`);
+        if (rows) for (const r of rows) if (!lastDates.has(r.ticker)) lastDates.set(r.ticker, r.date);
+    } catch (err) {
+        console.warn('[signal-scan/130M] Could not fetch last cached dates:', err.message);
+        return { topped: 0, skipped: 0, failed: 0 };
+    }
+
+    for (const ticker of SCAN_TICKERS) {
+        try {
+            const lastDate = lastDates.get(ticker);
+            if (!lastDate || lastDate >= today) { skipped++; continue; }
+
+            const d = new Date(lastDate + 'T12:00:00Z');
+            d.setUTCDate(d.getUTCDate() + 1);
+            const fromDate = d.toISOString().slice(0, 10);
+
+            const bars10m = await getIntradayNMinCandles(ticker, fromDate, today, 10);
+            if (bars10m.length === 0) { skipped++; continue; }
+
+            const bars130m = aggregateMinuteTo130M(bars10m);
+            if (bars130m.length === 0) { skipped++; continue; }
+
+            const rows = bars130m.map(b => ({
+                ticker, date: b.date, open: b.open, high: b.high, low: b.low,
+                close: b.close, volume: Math.round(b.volume), timeframe: `130M_${b.block}`,
+            }));
+            await supabaseUpsert('stock_candles', rows);
+            topped++;
+            console.log(`[signal-scan/130M] ${ticker}: +${bars130m.length} bars (${fromDate} → ${today})`);
+        } catch (err) {
+            failed++;
+            console.warn(`[signal-scan/130M] ${ticker}: failed — ${err.message}`);
+        }
+    }
+
+    console.log(`[signal-scan/130M] Done: ${topped} topped, ${skipped} skipped, ${failed} failed`);
+    return { topped, skipped, failed };
 }
 
 // ── Discord ─────────────────────────────────────────────────────────────────────
@@ -320,6 +397,14 @@ export default async function handler(req, res) {
     // Sort signals by score descending
     signals.sort((a, b) => b.score - a.score);
 
+    // 130M candle cache top-up (keeps short-term signal board warm)
+    let topUp130M = { topped: 0, skipped: 0, failed: 0 };
+    try {
+        topUp130M = await topUp130MCandles(today);
+    } catch (err) {
+        console.warn('[signal-scan/130M] Top-up failed:', err.message);
+    }
+
     // Send Discord
     await sendDiscord(signals, scanned, today);
 
@@ -342,5 +427,6 @@ export default async function handler(req, res) {
         scanned,
         signals: signals.map(s => ({ ticker: s.ticker, score: s.score, direction: s.direction, setup: s.setup, confidence: s.confidence })),
         errors: errors.length > 0 ? errors : undefined,
+        topUp130M,
     });
 }
