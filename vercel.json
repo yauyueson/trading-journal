@@ -26,7 +26,8 @@
     "api/cron-signal-scan.js": { "maxDuration": 60 },
     "api/backtest-data.js": { "maxDuration": 15 },
     "api/cron-trade-outcomes.js": { "maxDuration": 30 },
-    "api/cron-iv.js": { "maxDuration": 120 }
+    "api/cron-iv.js": { "maxDuration": 120 },
+    "api/cron-130m-topup.js": { "maxDuration": 60 }
   },
   "crons": [
     {
