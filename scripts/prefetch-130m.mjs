@@ -36,6 +36,9 @@ function getArg(flag) {
 const tickers = (getArg('--tickers') || '').split(',').filter(Boolean);
 const targetTickers = tickers.length > 0 ? tickers.map(t => t.toUpperCase()) : WATCHLIST;
 const lookbackDays = parseInt(getArg('--days') || '120', 10);
+const delayBetweenTickers = parseInt(getArg('--delay') || '15', 10); // seconds between tickers
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── 5-min → 130M aggregation ────────────────────────────────────────────────
 
@@ -139,7 +142,8 @@ async function main() {
   console.log(`\n=== Prefetch 130M Cache ===`);
   console.log(`Tickers: ${targetTickers.join(', ')}`);
   console.log(`Range: ${startDate} → ${endDate} (${lookbackDays} days)`);
-  console.log(`Supabase: ${SUPABASE_URL}\n`);
+  console.log(`Supabase: ${SUPABASE_URL}`);
+  console.log(`Delay: ${delayBetweenTickers}s between tickers (Tiingo free: 50 req/hr)\n`);
 
   const results = [];
 
@@ -167,6 +171,12 @@ async function main() {
     } catch (err) {
       console.error(`  ERROR: ${err.message}\n`);
       results.push({ ticker, status: 'error', bars: 0, error: err.message });
+    }
+
+    // Pace requests to stay within Tiingo 50 req/hr limit
+    if (i < targetTickers.length - 1) {
+      console.log(`  Waiting ${delayBetweenTickers}s before next ticker...\n`);
+      await sleep(delayBetweenTickers * 1000);
     }
   }
 
