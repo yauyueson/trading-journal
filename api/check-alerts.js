@@ -347,6 +347,51 @@ export default async function handler(req, res) {
       }
     }
 
+    // ── Time Stop Alerts ───────────────────────────────────────────
+    // Alert when DTE <= threshold (3 for swing, 1 for shortTerm).
+    // Uses DB expiration + strategy_type, no API call needed.
+    for (const pos of positions) {
+      const expiration = pos.expiration;
+      if (!expiration) continue;
+
+      const expDate = new Date(typeof expiration === 'string' ? expiration.slice(0, 10) + 'T16:00:00-04:00' : expiration);
+      const now = new Date();
+      const dte = Math.round((expDate.getTime() - now.getTime()) / 86400000);
+
+      const stratType = pos.strategy_type || '';
+      const threshold = stratType === 'shortTerm' ? 1 : 3;
+      if (dte > threshold || dte < 0) continue;
+
+      const ticker = (pos.ticker || '').toUpperCase();
+      const legs = pos.legs || [];
+      const spreadDesc = legs.length === 2
+        ? `$${legs.find(l => l.side === 'short')?.strike || ''}/$${legs.find(l => l.side === 'long')?.strike || ''}${legs[0]?.type?.charAt(0) || 'P'}`
+        : `${pos.strike || ''} ${pos.type || ''}`;
+
+      const body = {
+        content: null,
+        embeds: [{
+          title: '⏰ Time Stop',
+          description: `**${ticker}** ${spreadDesc} — **DTE ${dte}**\nClose per ${stratType === 'shortTerm' ? 'short-term' : 'swing'} rules (threshold: DTE ≤ ${threshold}).`,
+          color: 0xef4444, // red
+          footer: { text: 'Trading Journal · Time Stop' },
+          timestamp: new Date().toISOString(),
+        }],
+      };
+
+      try {
+        const discordRes = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (discordRes.ok) sent++;
+        else console.warn('Discord time-stop alert failed', discordRes.status);
+      } catch (e) {
+        console.warn('Discord time-stop alert error:', e.message);
+      }
+    }
+
     return res.status(200).json({ ok: true, checked: positions.length, sent });
   } catch (err) {
     console.error('check-alerts error:', err);

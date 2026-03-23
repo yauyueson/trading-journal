@@ -82,7 +82,35 @@ export const DisciplineCard: React.FC<DisciplineCardProps> = ({ closedPositions,
                 totalPnl: byType[k].totalPnl,
             }));
 
-        return { byType, tpSlWinRate, disciplineRate, expectancy, barData, withExitType, total: closedPositions.length };
+        // Rule adherence
+        let entryCompliant = 0, entryTotal = 0;
+        let exitCompliant = 0, exitTotal = 0;
+        closedPositions.forEach(p => {
+            const isSwing = p.strategy_type === 'swing';
+            const isST = p.strategy_type === 'shortTerm';
+            if (!isSwing && !isST) return; // skip untagged
+
+            // Entry compliance: IV Rank >= threshold
+            entryTotal++;
+            const ivThreshold = isSwing ? 30 : 20;
+            const ivOk = p.iv_rank_entry != null && p.iv_rank_entry >= ivThreshold;
+            // Width compliance
+            const expectedWidth = isSwing ? 15 : 10;
+            const widthOk = p.spread_width == null || Math.abs(p.spread_width - expectedWidth) <= 2.5;
+            if (ivOk && widthOk) entryCompliant++;
+
+            // Exit compliance
+            if (p.exit_type) {
+                exitTotal++;
+                const isTP = p.exit_type === 'TP';
+                const isTime = p.exit_type === 'TIME';
+                if (isTP || isTime) exitCompliant++;
+            }
+        });
+        const entryCompliancePct = entryTotal > 0 ? (entryCompliant / entryTotal) * 100 : null;
+        const exitCompliancePct = exitTotal > 0 ? (exitCompliant / exitTotal) * 100 : null;
+
+        return { byType, tpSlWinRate, disciplineRate, expectancy, barData, withExitType, total: closedPositions.length, entryCompliancePct, exitCompliancePct, entryCompliant, entryTotal, exitCompliant, exitTotal };
     }, [closedPositions, transactions]);
 
     if (metrics.withExitType === 0) {
@@ -174,6 +202,28 @@ export const DisciplineCard: React.FC<DisciplineCardProps> = ({ closedPositions,
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {/* Rule Adherence */}
+            {(metrics.entryTotal > 0 || metrics.exitTotal > 0) && (
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="card p-4">
+                        <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Entry Rules</div>
+                        <div className={`text-xl font-bold ${metrics.entryCompliancePct != null && metrics.entryCompliancePct >= 80 ? 'text-accent-green' : metrics.entryCompliancePct != null && metrics.entryCompliancePct >= 60 ? 'text-accent-yellow' : 'text-accent-red'}`}>
+                            {metrics.entryCompliancePct != null ? `${metrics.entryCompliancePct.toFixed(0)}%` : '—'}
+                        </div>
+                        <div className="text-[11px] text-text-tertiary mt-0.5">{metrics.entryCompliant}/{metrics.entryTotal} compliant</div>
+                        <div className="text-[10px] text-text-tertiary/60 mt-1">IV Rank + Width check</div>
+                    </div>
+                    <div className="card p-4">
+                        <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Exit Rules</div>
+                        <div className={`text-xl font-bold ${metrics.exitCompliancePct != null && metrics.exitCompliancePct >= 80 ? 'text-accent-green' : metrics.exitCompliancePct != null && metrics.exitCompliancePct >= 60 ? 'text-accent-yellow' : 'text-accent-red'}`}>
+                            {metrics.exitCompliancePct != null ? `${metrics.exitCompliancePct.toFixed(0)}%` : '—'}
+                        </div>
+                        <div className="text-[11px] text-text-tertiary mt-0.5">{metrics.exitCompliant}/{metrics.exitTotal} TP/TIME</div>
+                        <div className="text-[10px] text-text-tertiary/60 mt-1">vs MANUAL/SL exits</div>
                     </div>
                 </div>
             )}

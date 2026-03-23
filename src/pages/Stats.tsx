@@ -110,11 +110,15 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
     const loading = loadingProp ?? (positionsLoading || transactionsLoading);
     const { activeStrategy } = useAppSettings();
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
+    const [strategyFilter, setStrategyFilter] = useState<'All' | 'swing' | 'shortTerm'>('All');
     const [statsTab, setStatsTab] = useState<StatsTab>('overview');
     const allClosedPositions = positions.filter(p => p.status === 'closed');
-    const closedPositions = ownerFilter === 'All'
+    const ownerFiltered = ownerFilter === 'All'
         ? allClosedPositions
         : allClosedPositions.filter(p => p.owner === ownerFilter);
+    const closedPositions = strategyFilter === 'All'
+        ? ownerFiltered
+        : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
 
     const stats = useMemo(() => {
         let totalPnL = 0, wins = 0, losses = 0, totalWinPnL = 0, totalLossPnL = 0;
@@ -242,25 +246,48 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
         <div className="fade-in pb-24 sm:pb-0">
             <h2 className="text-2xl font-bold mb-4">Performance Stats</h2>
 
-            {/* Owner Filter */}
-            <div className="flex items-center gap-1.5 mb-4">
-                {(['All', 'Yuchen', 'Annie'] as const).map(value => (
-                    <button
-                        key={value}
-                        type="button"
-                        onClick={() => setOwnerFilter(value)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${ownerFilter === value
-                            ? value === 'Yuchen'
-                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                : value === 'Annie'
-                                    ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
-                                    : 'bg-white/10 text-text-primary border border-white/20'
-                            : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                            }`}
-                    >
-                        {value}
-                    </button>
-                ))}
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-4 mb-4">
+                {/* Owner Filter */}
+                <div className="flex items-center gap-1.5">
+                    {(['All', 'Yuchen', 'Annie'] as const).map(value => (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => setOwnerFilter(value)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${ownerFilter === value
+                                ? value === 'Yuchen'
+                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                    : value === 'Annie'
+                                        ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
+                                        : 'bg-white/10 text-text-primary border border-white/20'
+                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                }`}
+                        >
+                            {value}
+                        </button>
+                    ))}
+                </div>
+                {/* Strategy Filter */}
+                <div className="flex items-center gap-1.5">
+                    {([['All', 'All'], ['swing', 'Swing'], ['shortTerm', 'ST']] as const).map(([value, label]) => (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => setStrategyFilter(value as typeof strategyFilter)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${strategyFilter === value
+                                ? value === 'swing'
+                                    ? 'bg-green-500/20 text-green-400 border border-green-500/40'
+                                    : value === 'shortTerm'
+                                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                        : 'bg-white/10 text-text-primary border border-white/20'
+                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                }`}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {closedPositions.length === 0 ? (
