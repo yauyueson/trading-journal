@@ -25,7 +25,7 @@ import { applyFill, applySpreadFill } from './slippage';
 // ── Types ────────────────────────────────────────────────
 
 export type OptionMode = 'LEAP' | 'CREDIT_SPREAD';
-export type OptionExitType = 'PROFIT_TARGET' | 'STOP_LOSS' | 'TIME_STOP' | 'SIGNAL_REVERSAL' | 'EXPIRATION' | 'NO_CHAIN' | 'PROFIT_TARGET_2' | 'SL_BREAKEVEN' | 'DELTA_STOP';
+export type OptionExitType = 'PROFIT_TARGET' | 'STOP_LOSS' | 'TIME_STOP' | 'SIGNAL_REVERSAL' | 'EXPIRATION' | 'NO_CHAIN' | 'PROFIT_TARGET_2' | 'SL_BREAKEVEN' | 'DELTA_STOP' | 'MAX_LOSS_STOP' | 'TRAILING_LOCK';
 
 export interface OptionTrade {
   ticker: string;
@@ -110,6 +110,11 @@ export interface SimConfig {
   minIVRank: number;                    // 30 = require IV Rank > 30 for credit entries
   // Delta-based early exit (optional)
   creditDeltaStop?: number;             // exit if |short delta| exceeds this (e.g. 0.65 = 65%)
+  // % of Max Loss stop — close when unrealized loss >= X% of max possible loss
+  creditMaxLossStopPct?: number;        // 0.50 = close at 50% of max loss; undefined = off
+  // Trailing Profit Lock — once profit hits activation %, set floor; close if retraces below
+  trailingActivatePct?: number;         // 0.50 = activate at 50% of TP target profit
+  trailingFloorPct?: number;            // 0.25 = floor at 25% of TP target profit
   // Execution model
   fillMode: FillMode;                       // 'mid' (legacy) or 'bidask' (realistic)
   slippage: DynamicSlippageConfig;          // dynamic slippage config
@@ -499,6 +504,17 @@ export async function simulateCreditSpread(
   const tpCost = entryCredit * (1 - config.creditProfitTarget); // close when spread costs this much
   const slCost = entryCredit * config.creditStopLossMultiple;    // close when spread costs this much
 
+  // Max loss stop threshold (in spread cost terms)
+  const maxLoss = config.creditSpreadWidth - entryCredit;  // max possible loss per $1
+  const maxLossStopCost = (config.creditMaxLossStopPct != null && config.creditMaxLossStopPct < 1.0)
+    ? entryCredit + (config.creditMaxLossStopPct * maxLoss)
+    : Infinity;
+
+  // Trailing profit lock state
+  let trailingFloorActive = false;
+  let trailingFloorCost = Infinity;
+  const tpProfit = entryCredit * config.creditProfitTarget;  // profit amount at TP
+
   // Cap monitoring at the option's expiry date
   const monitorEnd = spread.short.row.expir_date < maxDate ? spread.short.row.expir_date : maxDate;
 
@@ -558,10 +574,22 @@ export async function simulateCreditSpread(
 
     let exitType: OptionExitType | null = null;
 
+    // Update trailing lock state (must happen before exit checks)
+    if (config.trailingActivatePct != null && config.trailingFloorPct != null) {
+      const unrealizedProfit = entryCredit - currentSpreadCost;
+      const activationProfit = config.trailingActivatePct * tpProfit;
+      if (!trailingFloorActive && unrealizedProfit >= activationProfit) {
+        trailingFloorActive = true;
+        trailingFloorCost = entryCredit - (config.trailingFloorPct * tpProfit);
+      }
+    }
+
     if (currentSpreadCost <= tpCost) {
       exitType = 'PROFIT_TARGET';
     } else if (currentSpreadCost >= slCost) {
       exitType = 'STOP_LOSS';
+    } else if (currentSpreadCost >= maxLossStopCost) {
+      exitType = 'MAX_LOSS_STOP';
     } else if (
       config.creditDeltaStop != null &&
       Number.isFinite(config.creditDeltaStop) &&
@@ -569,6 +597,8 @@ export async function simulateCreditSpread(
       Math.abs(shortLeg.delta) >= config.creditDeltaStop
     ) {
       exitType = 'DELTA_STOP';
+    } else if (trailingFloorActive && currentSpreadCost > trailingFloorCost) {
+      exitType = 'TRAILING_LOCK';
     } else if (currentDTE <= config.creditTimeStopDTE) {
       exitType = 'TIME_STOP';
     }

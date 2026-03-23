@@ -172,6 +172,17 @@ export function evaluateCreditSpread4H(
   const tpCost = entryCredit * (1 - config.creditProfitTarget);
   const slCost = entryCredit * config.creditStopLossMultiple;
 
+  // Max loss stop threshold (in spread cost terms)
+  const maxLoss = config.creditSpreadWidth - entryCredit;
+  const maxLossStopCost = (config.creditMaxLossStopPct != null && config.creditMaxLossStopPct < 1.0)
+    ? entryCredit + (config.creditMaxLossStopPct * maxLoss)
+    : Infinity;
+
+  // Trailing profit lock state
+  let trailingFloorActive = false;
+  let trailingFloorCost = Infinity;
+  const tpProfit = entryCredit * config.creditProfitTarget;
+
   // Entry IV and HV theta for O-U evolution
   const entryIV = spread.short.iv > 0 ? spread.short.iv : 0.30; // fallback
   const thetaSource = config.ivThetaSource ?? 'hv60';
@@ -278,13 +289,27 @@ export function evaluateCreditSpread4H(
     // Check exit conditions
     let exitType: string | null = null;
 
+    // Update trailing lock state (must happen before exit checks)
+    if (config.trailingActivatePct != null && config.trailingFloorPct != null) {
+      const unrealizedProfit = entryCredit - currentSpreadCost;
+      const activationProfit = config.trailingActivatePct * tpProfit;
+      if (!trailingFloorActive && unrealizedProfit >= activationProfit) {
+        trailingFloorActive = true;
+        trailingFloorCost = entryCredit - (config.trailingFloorPct * tpProfit);
+      }
+    }
+
     if (currentSpreadCost <= tpCost) {
       exitType = 'PROFIT_TARGET';
     } else if (currentSpreadCost >= slCost) {
       exitType = 'STOP_LOSS';
+    } else if (currentSpreadCost >= maxLossStopCost) {
+      exitType = 'MAX_LOSS_STOP';
     } else if (config.creditDeltaStop && isFinite(config.creditDeltaStop) &&
                Math.abs(currentShortDelta) >= config.creditDeltaStop) {
       exitType = 'DELTA_STOP';
+    } else if (trailingFloorActive && currentSpreadCost > trailingFloorCost) {
+      exitType = 'TRAILING_LOCK';
     } else if (currentDTE <= (config.creditTimeStopDTE || 1)) {
       exitType = 'TIME_STOP';
     }
