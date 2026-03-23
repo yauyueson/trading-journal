@@ -50,7 +50,7 @@
 - **CBOE API** - 备用数据源（15 分钟延迟，免费）
 
 ### 测试与 CI
-- **Vitest** - 316 项自动化测试（评分对等 + 单元 + 风控 + BSM）
+- **Vitest** - 683 项自动化测试（评分对等 + 单元 + 风控 + BSM + 130M migration）
 - **GitHub Actions** - CI 流水线（lint → build → test）
 - **ESLint 9** - 代码质量检查
 
@@ -141,7 +141,7 @@ vercel --prod
 
 ## 🧪 测试
 
-### 自动化测试（316 项）
+### 自动化测试（683 项）
 ```bash
 npm run test        # 运行全部测试
 npm run test:watch  # 开发时实时监听
@@ -214,20 +214,22 @@ trading-journal/
 ### 已完成 ✅
 - [x] ORATS + Tiingo 数据源集成（替换 Polygon.io）
 - [x] IV Term Structure + IV Rank
-- [x] Skew 精准化
-- [x] Regime Detection 增强
+- [x] Skew 精准化 + Regime Detection 增强
 - [x] 实时 Greeks 和报价（ORATS）
 - [x] React Router v6 + React Query v5 架构重构
-- [x] 316 项自动化测试 + GitHub Actions CI
 - [x] 懒加载路由（包大小 983KB → 430KB）
-
-### 进行中 🔄
-- [ ] 前端 IV 曲线可视化
+- [x] WFA backtesting engine（rolling window, portfolio stress, slippage, BSM pricing）
+- [x] WFA-Driven Workflow Integration（signal context, IV gate, TP auto-fill, strategy toggle）
+- [x] 130M 短线策略迁移（替代 4H, OOS Sharpe 2.22, WR 84.6%）
+- [x] Scoring overhaul Phase 1（VRP ±10pt, orFcst20d ±2.0）
+- [x] Multicore WFA（worker cap removed, full CPU utilization）
+- [x] WFA Results Viewer（`/backtest` tab, 5556 OOS trades）
+- [x] 683 项自动化测试 + GitHub Actions CI
+- [x] Multi-AI team protocol（Claude + Gemini handoff system）
 
 ### 计划中 📋
-- [ ] 服务端预过滤优化
-- [ ] 历史 IV 数据回测
-- [ ] 多数据源聚合
+- [ ] Scoring overhaul Phase 2（smvVol live path, exitMultiplier validation）
+- [ ] Unified score dimension preservation（8→4 reduction fix）
 
 ---
 
@@ -251,4 +253,4 @@ MIT License
 
 ---
 
-*最后更新: 2026年3月7日*
+*最后更新: 2026年3月23日*

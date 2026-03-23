@@ -4,6 +4,56 @@
 
 ---
 
+## [4.0.0] - 2026-03-23
+
+### 130M Migration + Scoring Overhaul
+
+#### 130M 短线策略迁移（替代 4H）
+- ✅ **130M timeframe**: 3×130min bars = 精确 390min regular session，替代 4H 作为短线策略
+- ✅ **Production config**: `em|tp50|w10|iv20|dsoff|pm2.25` → OOS Sharpe 2.22, WR 84.6%
+- ✅ **数据管线**: Tiingo IEX 10-min bars → 130M aggregation, Supabase `stock_candles` block-encoded cache (`130M_0/1/2`)
+- ✅ **Cache-first pattern**: Supabase cache → 10-min top-up → 1H fallback (approximate, UI warning)
+- ✅ **Daily top-up**: 合并进 `cron-signal-scan.js`（21:00 UTC weekdays），不需独立 cron
+- ✅ **130M vs 4H study**: 648 configs/arm, 15 tickers, 7 rolling windows → 130M has 2× Sharpe edge
+
+#### Scoring 系统改进 Phase 1
+- ✅ **VRP (IV²-RV²)**: ±10pt adjustment in credit/debit builder scoring (`strategy-recommend.js`)
+- ✅ **orFcst20d**: clamp widened ±0.8 → ±2.0 (×8 multiplier → max ±16pt impact, modulated by R²)
+
+#### Multicore WFA
+- ✅ **Worker cap removed**: `Math.min(4, cpus-2)` → `Math.max(1, cpus-2)` in `wfa-run.ts`, `wfa-run-unified.ts`
+
+#### 新增文件
+- `scripts/prefetch-130m.mjs` — 130M candle prefetch for all 27 watchlist tickers
+- `tests/migration-130m.test.ts` — 38 migration validation tests (config, data path, aggregation, pipeline)
+- `src/hooks/useSignalScanner.ts` — Signal scanner hook with 130M + approxTickers tracking
+
+#### WFA Results Viewer
+- ✅ **Live at `/backtest`**: loads from `data/wfa-results.json` (5556 OOS trades, 12 windows, 14 tickers)
+- Overall WFA metrics: OOS Sharpe 1.275, WR 89.52%, Max DD 4.64%
+
+#### 测试
+- Tests: 520 → 683 (across 18 files)
+
+---
+
+## [3.1.0] - 2026-03-14
+
+### WFA-Driven Workflow Integration
+
+5-phase milestone operationalizing WFA-validated trading edge into daily execution flow.
+
+- ✅ **Phase 1**: Prerequisite fixes — ivRankMin, activeProfile param naming, WFA info card
+- ✅ **Phase 2**: Data contract + API foundation — target_price, strategy-aware defaults, signal URL params
+- ✅ **Phase 3**: Spread builder integration — signal context banner, IV rank gate, TP auto-fill
+- ✅ **Phase 4**: Global strategy toggle — AppLayout header toggle, strategy-aware defaults across pages
+- ✅ **Phase 5**: Scanner removal + MOM signal — Scanner page removed, `deriveSignalType` for EMA/MOM
+
+#### 测试
+- Tests: 241 → 520 (307 parity + 48 oss-core + 19 riskSizing + 10 tech-parity + 33 backtest + 32 bsm + others)
+
+---
+
 ## [3.0.0] - 2026-03-05
 
 ### 🏗️ 架构重构: React Router + React Query + 自动化测试
@@ -318,4 +368,4 @@
 
 ---
 
-*最后更新: 2026年2月12日*
+*最后更新: 2026年3月23日*

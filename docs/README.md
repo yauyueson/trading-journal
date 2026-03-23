@@ -1,6 +1,6 @@
 # Trading Journal - 文档总览
 
-> 最后更新: 2026年3月13日
+> 最后更新: 2026年3月23日
 
 欢迎来到Trading Journal项目文档中心！这里包含了项目的完整技术文档和使用指南。
 
@@ -45,7 +45,7 @@
 - 数据流设计（React Query 缓存 + Supabase 实时失效）
 - API集成方案
 - 状态管理策略（Context + React Query，无 prop drilling）
-- 测试体系（488 项 Vitest 测试 + GitHub Actions CI）
+- 测试体系（683 项 Vitest 测试 + GitHub Actions CI）
 - 性能优化技巧（懒加载路由、代码分割）
 
 **阅读时间**: 25分钟
@@ -172,8 +172,15 @@ docs/
 ├── 06_用户工作流.md             # 使用指南和最佳实践
 ├── 07_止损与目标价短信提醒方案.md  # Discord 提醒实现方案
 ├── 算法改进总览_OSS_v2.7.md     # OSS v2.7/v2.8 改进记录（当前版本）
-└── AUDIT_10D_v1.md              # 10 维度独立审计报告
+├── AUDIT_10D_v1.md              # 10 维度独立审计报告
+└── wfa/                         # WFA analysis docs
 ```
+
+### Backtesting & WFA Reports
+- [130M vs 4H Study](../backtesting%20history/credit-spread/reports/130m-vs-4h-study/README.md) — 648 configs, 15 tickers, 7 windows; 130M wins with 2× Sharpe edge
+- [Swing Strategy Sign-Off](./wfa/FINAL-SIGN-OFF.md) — Production validation for swing (1D, 45-65 DTE)
+- [Short-Term Results](./wfa/SHORT-TERM-RESULTS.md) — Short-term WFA validation results
+- [WFA Journey Summary](./wfa/WFA-JOURNEY-SUMMARY.md) — Historical record of the WFA investigation
 
 ---
 
@@ -231,6 +238,19 @@ docs/
 ---
 
 ## 🔄 文档更新日志
+
+### 2026-03-23（130M Migration + Scoring Overhaul + Documentation Refresh）
+- ✅ **130M 短线策略迁移**: 4H → 130M (3×130min = exact 390min session), production config `em|tp50|w10|iv20|dsoff|pm2.25`
+- ✅ **数据管线**: Tiingo IEX 10-min → 130M aggregation, Supabase `stock_candles` block-encoded cache, cache-first pattern
+- ✅ **Scoring Phase 1**: VRP (IV²-RV²) ±10pt, orFcst20d clamp ±0.8→±2.0
+- ✅ **Multicore WFA**: worker cap removed (`Math.min(4,cpus-2)` → `Math.max(1,cpus-2)`)
+- ✅ **WFA Results Viewer**: live at `/backtest` (5556 OOS trades)
+- ✅ **测试**: 520→683 (38 migration-130m tests + others)
+- ✅ **文档刷新**: CLAUDE.md, GEMINI.md, TEAM.md, CHANGELOG, STATE, ROADMAP, INTEGRATIONS, TESTING, README 全面更新
+
+### 2026-03-14（WFA-Driven Workflow Integration — v3.1.0）
+- ✅ **5 phases complete**: prerequisite fixes, data contract, spread builder integration, global strategy toggle, scanner removal + MOM signal
+- ✅ **测试**: 488→520
 
 ### 2026-03-12（数据源迁移 + 文档清理）
 - ✅ **数据源更新**: 全项目文档统一为 **ORATS（期权数据）+ Tiingo（股票K线）**；移除所有 Polygon.io 引用
@@ -341,4 +361,4 @@ docs/
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年3月13日*
+*最后更新: 2026年3月23日*

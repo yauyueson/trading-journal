@@ -9,7 +9,7 @@ Options trading journal with React 18 + Vite 5 + React Router v6 + React Query v
 - **Mutations**: `src/hooks/usePositionMutations.ts` — 11 mutation hooks, auto-invalidate on success
 - **Realtime**: Supabase channels → `useRealtimeInvalidation` → `queryClient.invalidateQueries`
 - **Contexts**: AuthContext, BuyModalContext, AppSettingsContext
-- **Crons**: Triggered externally via cronjobs.org (NOT Vercel). `vercel.json` has no `crons` array.
+- **Crons**: Most crons triggered externally via cronjobs.org. Exception: `cron-iv` uses Vercel cron (`vercel.json` `crons` array, 22:00 UTC weekdays).
 - **Data providers**: ORATS (options chains/Greeks/IV/cores/earnings/impliedMove) + Tiingo (stock candles)
 - **Env vars**: `ORATS_API_TOKEN`, `TIINGO_API_TOKEN`, `DATA_SOURCE=ORATS`, `DISCORD_WEBHOOK_URL`
 
@@ -18,7 +18,7 @@ Options trading journal with React 18 + Vite 5 + React Router v6 + React Query v
 - `src/lib/oss-core.ts` and `lib/_shared/scoring.cjs` **MUST stay in sync** — 307 parity tests enforce this. Any scoring change requires updating both files.
 - `api/strategy-recommend.js` uses raw `fetch()` for Supabase REST (no JS client), env vars: `SUPABASE_URL`/`SUPABASE_ANON_KEY`
 - `api/cron-iv.js` uses `@supabase/supabase-js` createClient
-- All 488 existing tests must keep passing after any change.
+- All 683 existing tests must keep passing after any change.
 - **Backtesting results & reports** must go in `backtesting history/credit-spread/reports/` — one subfolder per study (e.g., `130m-vs-4h-study/`). Each study folder should contain a `README.md` summarizing findings plus any JSON/data outputs. Never scatter result files across `data/`, `scripts/`, or project root.
 
 ## Key Files
@@ -43,10 +43,14 @@ Options trading journal with React 18 + Vite 5 + React Router v6 + React Query v
 | `src/lib/backtest/bsm-pricing.ts` | BSM pricing, delta, O-U IV evolution, rolling HV |
 | `src/lib/riskSizing.ts` | Risk sizing + portfolio Greeks utility |
 | `src/lib/types.ts` | Shared TypeScript interfaces |
+| `src/hooks/useSignalScanner.ts` | Signal scanner hook (130M + approxTickers) |
+| `scripts/prefetch-130m.mjs` | 130M candle prefetch for Supabase stock_candles |
+| `scripts/wfa-pipeline-short.ts` | Short-term 130M WFA pipeline (worker threads) |
+| `tests/migration-130m.test.ts` | 130M migration validation (38 tests) |
 
 ## Testing
 
-488 Vitest tests (307 parity + 48 oss-core + 19 riskSizing + 10 tech-parity + 33 backtest + 32 bsm + others). CI: GitHub Actions lint→build→test.
+683 Vitest tests across 18 files (307 parity + 48 oss-core + 19 riskSizing + 10 tech-parity + 33 backtest + 32 bsm + 38 migration-130m + others). CI: GitHub Actions lint→build→test.
 
 ## Database Tables
 
@@ -118,6 +122,9 @@ All phases implemented and tested:
 - `findContractDirect()` in chain-cache.ts — O(1) PK index lookup
 - `DELTA_STOP` exit type + `creditDeltaStop` config param in option-sim.ts
 - Max DD sort fix in `computeOptionAnalytics`
+- **130M Migration** (2026-03-23): Tiingo IEX 10-min bars → 130M aggregation (3 bars/day = 390min session), Supabase `stock_candles` cache with block-encoded timeframe (`130M_0/1/2`), cache-first pattern with 1H fallback (approx, UI warning), `cron-signal-scan.js` handles daily 130M top-up
+- **Multicore WFA** (2026-03-23): Worker cap changed from `Math.min(4, cpus-2)` to `Math.max(1, cpus-2)` in wfa-run.ts and wfa-run-unified.ts
+- **Scoring Phase 1** (2026-03-23): VRP (IV²-RV²) ±10pt adjustment in strategy-recommend.js credit/debit builders, `orFcst20d` clamp widened ±0.8→±2.0 in oss-core.ts and scoring.cjs
 
 Uncommitted worker scripts in `scripts/`: `.credit-worker.mjs`, `.eval-worker.mjs`, `.experiment-worker.mjs`, `.portfolio-sim.mjs`, `.portfolio-worker.mjs`
 
@@ -127,13 +134,19 @@ Uncommitted worker scripts in `scripts/`: `.credit-worker.mjs`, `.eval-worker.mj
 
 Full research: `memory/scoring-overhaul-research.md` (in Claude memory dir, not repo).
 
-Key gaps identified (not yet addressed):
+### Fixed (Scoring Overhaul Phase 1, 2026-03-23)
+- VRP now uses variance form (IV²-RV²) and feeds ±10pt into credit/debit builder scoring in `strategy-recommend.js`
+- `orFcst20d` clamp widened from ±0.8 to ±2.0 (with ×8 builder multiplier → max ±16pt impact). Modulated by R² quality.
+- `smvVol` already fetched and used in chain-cache.ts (line 225: `iv: callSmvVol || row.callMidIv`)
+- `riskFreeRate` already set to 0.04 in types.ts and intraday-monitor.ts
+- IV-normalized distance (sigma-unit) already used in both builder and standalone scoring paths
+
+### Remaining Gaps
 - ~50% of fetched ORATS data is display-only (never affects score)
-- No vol edge detection — `orFcst20d` used as minor ±0.3 adjustment, should be primary signal
-- Using noisy `midIv` instead of ORATS `smvVol` (smoothed vol) everywhere
-- VRP measured as ratio (`iv/rv`) not variance (`IV² - RV²`)
+- `smvVol` used in backtest path but live API path (`strategy-recommend.js`) still uses `midIv`
 - CSQ framework is dead code — credit spreads use inline scoring
-- `riskFreeRate` unused in BSM (material for DTE > 60)
+- exitMultiplier=0.92 unvalidated against `trade_outcomes` table
+- Unified score overwrites LOQ z-scores (8→4 dimension reduction)
 
 ORATS `getCores()` provides (all fetched, not all used): RV30, IV percentile, daysToNextErn, impliedMove, contango, put-call volumes, slope, deriv, orFcst20d, fcstR2, ivHvXernRatio, avgOptVolu20d, tkOver.
 

@@ -1,3 +1,5 @@
+> **Historical Note (2026-03-23):** This plan was written for the 4H timeframe. The short-term strategy has since migrated to 130M (3×130-min bars). See `backtesting history/credit-spread/reports/130m-vs-4h-study/README.md` for the 130M vs 4H study and final configuration (`em|tp50|w10|iv20|dsoff|pm2.25`). The core architecture described here (pipeline, worker, sweep dimensions) remains valid; only the timeframe changed.
+
 # Short-Term WFA Engine Rebuild Plan
 
 ## Goal Description

@@ -1,13 +1,15 @@
 # Roadmap: WFA-Driven Workflow Integration
 
+> **Status: COMPLETE (2026-03-14).** All 5 phases and 7 plans executed. Subsequent work (130M migration, scoring overhaul, multicore WFA) tracked in `CHANGELOG.md` under v4.0.0.
+
 ## Overview
 
 This milestone operationalizes the WFA-validated trading edge by wiring the validated rules directly into the execution flow. Four phases close the gap in dependency order: first, fix pre-existing config bugs that would corrupt every feature downstream; second, establish the data contract and API param foundation; third, integrate all consumer-side behaviors in the spread builder (signal context, IV gate, TP auto-fill); fourth, surface the global strategy toggle everywhere so the active strategy is never ambiguous.
 
 ## Phases
 
-- [ ] **Phase 1: Prerequisite Fixes** - Correct pre-existing bugs that corrupt strategy-specific parameters before any feature work
-- [ ] **Phase 2: Data Contract + API Foundation** - Establish type contract for TP, wire API params, propagate signal context from signals page
+- [x] **Phase 1: Prerequisite Fixes** - Correct pre-existing bugs that corrupt strategy-specific parameters before any feature work (completed 2026-03-14)
+- [x] **Phase 2: Data Contract + API Foundation** - Establish type contract for TP, wire API params, propagate signal context from signals page (completed 2026-03-14)
 - [x] **Phase 3: Spread Builder Integration** - Connect signal banner, IV rank gate, and TP auto-fill in StrategyRecommender (completed 2026-03-14)
 - [x] **Phase 4: Global Strategy Toggle** - Surface active strategy indicator in AppLayout and propagate strategy-aware defaults across all pages (completed 2026-03-14)
 
@@ -25,7 +27,7 @@ This milestone operationalizes the WFA-validated trading edge by wiring the vali
 **Plans:** 1 plan
 
 Plans:
-- [ ] 01-01-PLAN.md — Fix ivRankMin, standardize API param naming, replace credit spread settings with WFA info card
+- [x] 01-01-PLAN.md — Fix ivRankMin, standardize API param naming, replace credit spread settings with WFA info card
 
 ### Phase 2: Data Contract + API Foundation
 **Goal**: The type contract for profit target is in place, API routes are strategy-aware, and signal context is emitted from the signals page into the URL
@@ -39,8 +41,8 @@ Plans:
 **Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 02-01-PLAN.md — Add target_price type contract, mutation write path, and signal URL param encoding
-- [ ] 02-02-PLAN.md — Enrich strategy-recommend.js and scan-options.js with strategy-aware defaults and response data
+- [x] 02-01-PLAN.md — Add target_price type contract, mutation write path, and signal URL param encoding
+- [x] 02-02-PLAN.md — Enrich strategy-recommend.js and scan-options.js with strategy-aware defaults and response data
 
 ### Phase 3: Spread Builder Integration
 **Goal**: The spread builder enforces WFA-validated rules automatically — signal context is visible, IV rank gates candidates, and profit target is pre-filled at entry
@@ -55,8 +57,8 @@ Plans:
 **Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 03-01-PLAN.md — Signal context banner and IV rank gate overlay in StrategyRecommender
-- [ ] 03-02-PLAN.md — Reactive take-profit auto-fill in open-position form
+- [x] 03-01-PLAN.md — Signal context banner and IV rank gate overlay in StrategyRecommender
+- [x] 03-02-PLAN.md — Reactive take-profit auto-fill in open-position form
 
 ### Phase 4: Global Strategy Toggle
 **Goal**: The active strategy is always visible and switchable from any page, and all pages reflect strategy-specific parameter defaults
@@ -69,7 +71,7 @@ Plans:
 **Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 04-01-PLAN.md — Wire Backtest.tsx and Stats.tsx to global activeStrategy (STRAT-03 already done, STRAT-04 cleanup)
+- [x] 04-01-PLAN.md — Wire Backtest.tsx and Stats.tsx to global activeStrategy (STRAT-03 already done, STRAT-04 cleanup)
 
 ## Progress
 
@@ -78,11 +80,11 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Prerequisite Fixes | 0/1 | Planning complete | - |
-| 2. Data Contract + API Foundation | 1/2 | In Progress|  |
-| 3. Spread Builder Integration | 2/2 | Complete   | 2026-03-14 |
-| 4. Global Strategy Toggle | 1/1 | Complete   | 2026-03-14 |
-| 5. Scanner Removal + MOM Signal | 0/1 | Planning complete | - |
+| 1. Prerequisite Fixes | 1/1 | Complete | 2026-03-14 |
+| 2. Data Contract + API Foundation | 2/2 | Complete | 2026-03-14 |
+| 3. Spread Builder Integration | 2/2 | Complete | 2026-03-14 |
+| 4. Global Strategy Toggle | 1/1 | Complete | 2026-03-14 |
+| 5. Scanner Removal + MOM Signal | 1/1 | Complete | 2026-03-14 |
 
 ### Phase 5: Scanner Removal + MOM Signal Support
 **Goal**: Remove the Scanner page (not part of WFA workflow) and extend signal type detection to support MOM signals alongside EMA
@@ -97,4 +99,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 **Plans:** 1 plan
 
 Plans:
-- [ ] 05-01-PLAN.md — Remove Scanner page/route/tab and derive signal type from components data
+- [x] 05-01-PLAN.md — Remove Scanner page/route/tab and derive signal type from components data

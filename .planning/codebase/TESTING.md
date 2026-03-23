@@ -1,6 +1,6 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-03-14
+**Analysis Date:** 2026-03-23
 
 ## Test Framework
 
@@ -35,12 +35,19 @@ No coverage command configured in package.json.
 tests/
   backtest-audit.test.ts       # Red-team audit — slippage, purge gap, Monte Carlo, O-U IV
   bsm-pricing.test.ts          # BSM price/delta/HV unit tests
+  data-contract.test.ts        # Data contract regression tests
+  migration-130m.test.ts       # 130M migration validation (38 tests across 9 groups)
+  option-sim-analytics.test.ts # Option sim analytics tests
+  option-sim-delta-stop.test.ts # Delta stop exit tests
   option-sim-fills.test.ts     # Bid/ask fills, ORATS filter tests
   portfolio-stress.test.ts     # Correlation stress, daily P&L matrix
+  prerequisite-fixes.test.ts   # Prerequisite fix validation
   scoring-parity.test.ts       # ESM oss-core.ts ↔ CJS scoring.cjs parity (307 tests)
   slippage.test.ts             # Dynamic slippage model
   tech-analysis-parity.test.ts # Technical analysis indicator parity
   wfa-options.test.ts          # WFA rolling window engine
+  wfa-v2.test.ts               # WFA v2 type tests
+  wfa-v3.test.ts               # WFA v3 type tests
 
 src/lib/__tests__/
   oss-core.test.ts             # Unit tests for individual scoring functions (48 tests)
@@ -145,7 +152,7 @@ function generateTradingDates(startYear: number, years: number): string[] { ... 
 npx vitest run --coverage
 ```
 
-**Current test count:** 488 tests total across 10 files.
+**Current test count:** 683 tests total across 18 files.
 
 ## Test Types
 
@@ -231,10 +238,10 @@ it('returns null for zero loss', () => {
 **Steps (sequential):**
 1. `npm run lint` — ESLint with max 20 warnings
 2. `npm run build` — TypeScript compile + Vite build
-3. `npm run test` — Vitest run (all 488 tests must pass)
+3. `npm run test` — Vitest run (all 683 tests must pass)
 
 **Trigger:** All pushes and pull requests to any branch.
 
 ---
 
-*Testing analysis: 2026-03-14*
+*Testing analysis: 2026-03-23*

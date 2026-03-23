@@ -1,6 +1,6 @@
 # External Integrations
 
-**Analysis Date:** 2026-03-14
+**Analysis Date:** 2026-03-23
 
 ## APIs & External Services
 
@@ -14,13 +14,16 @@
   - Endpoints used: `/strikes` (chains), `/hist/strikes` (historical), `/cores` (summary metrics)
 
 **Stock Candle Data:**
-- Tiingo API — OHLCV daily candles for backtesting and technical analysis
+- Tiingo API — OHLCV daily candles + IEX intraday candles
   - SDK/Client: `lib/tiingo-client.js` (custom ESM client, no SDK)
-  - Base URL: `https://api.tiingo.com`
+  - Base URL: `https://api.tiingo.com` (daily), `https://api.tiingo.com/iex` (intraday)
   - Auth: `TIINGO_API_TOKEN` bearer header
   - Rate limit: 50 RPM free tier (configurable via `TIINGO_RATE_LIMIT_RPM`)
-  - Free tier limits: 50 req/hr, 1000/day, 500 unique symbols/month
+  - Free tier limits: 50 req/hr, 1000/day, 500 unique symbols/month, **2000 ticks/request** (intraday)
   - Features: in-flight dedup, rate limiter
+  - Functions: `getDailyCandles()`, `get5MinCandles()`, `getIntradayNMinCandles()` (10/15/30-min bars)
+  - **130M aggregation**: 10-min IEX bars aggregated to 3×130-minute blocks per session via `aggregate5MinTo130M()` / `aggregateMinuteTo130M()` in `api/backtest-data.js` and `api/cron-signal-scan.js`
+  - **Supabase cache**: 130M candles cached in `stock_candles` table with block-encoded timeframe (`130M_0`, `130M_1`, `130M_2`). Cache-first pattern: check Supabase → 10-min top-up if stale → 1H fallback (approximate, `source: 'tiingo-iex-130m-approx'`)
 
 **Options Quotes (Dev/Fallback):**
 - CBOE Delayed Quotes — used in Vite dev server shims and `api/check-alerts.js`, `api/daily-recap.js`
@@ -130,4 +133,4 @@
 
 ---
 
-*Integration audit: 2026-03-14*
+*Integration audit: 2026-03-23*

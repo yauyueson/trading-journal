@@ -88,6 +88,7 @@ Options trading journal: React 18 + Vite 5 + React Router v6 + React Query v5 fr
 
 Critical rules:
 - `src/lib/oss-core.ts` and `lib/_shared/scoring.cjs` MUST stay in sync (307 parity tests)
-- All 488+ existing tests must keep passing after any change
-- Data providers: ORATS (options) + Tiingo (stock candles)
-- Crons: triggered externally via cronjobs.org (NOT Vercel)
+- All 683 existing tests must keep passing after any change
+- Data providers: ORATS (options) + Tiingo (stock candles + IEX intraday for 130M)
+- Crons: most triggered via cronjobs.org. Exception: `cron-iv` uses Vercel cron (22:00 UTC weekdays)
+- Short-term strategy uses 130M timeframe (not 4H). Scoring overhaul phase 1 complete (VRP, orFcst20d).
