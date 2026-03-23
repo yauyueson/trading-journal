@@ -814,10 +814,10 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         </div>
                         <div className={`metric-value font-bold ${
                             position.iv_rank_entry == null ? 'text-text-tertiary' :
-                            position.iv_rank_entry >= 30 ? 'text-accent-green' :
-                            position.iv_rank_entry >= 20 ? 'text-accent-yellow' : 'text-accent-red'
+                            (position.iv_rank_entry <= 1 ? position.iv_rank_entry * 100 : position.iv_rank_entry) >= 30 ? 'text-accent-green' :
+                            (position.iv_rank_entry <= 1 ? position.iv_rank_entry * 100 : position.iv_rank_entry) >= 20 ? 'text-accent-yellow' : 'text-accent-red'
                         }`}>
-                            {position.iv_rank_entry != null ? `${Math.round(position.iv_rank_entry)}%` : '—'}
+                            {position.iv_rank_entry != null ? `${Math.round(position.iv_rank_entry <= 1 ? position.iv_rank_entry * 100 : position.iv_rank_entry)}%` : '—'}
                         </div>
                     </div>
                 </div>
