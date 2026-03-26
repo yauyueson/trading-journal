@@ -12,16 +12,19 @@ vi.mock('../src/lib/backtest/chain-cache', () => ({
 import {
   DEFAULT_CREDIT_CONFIG,
   simulateCreditSpread,
+  simulateCreditSpreadPhased,
   type EntrySignal,
 } from '../src/lib/backtest/option-sim';
 import {
   fetchHistoricalChain,
   findSpreadStrikes,
+  findContract,
   findContractDirect,
 } from '../src/lib/backtest/chain-cache';
 
 const fetchHistoricalChainMock = vi.mocked(fetchHistoricalChain);
 const findSpreadStrikesMock = vi.mocked(findSpreadStrikes);
+const findContractMock = vi.mocked(findContract);
 const findContractDirectMock = vi.mocked(findContractDirect);
 
 function makeRow(tradeDate: string, dte: number): ChainRow {
@@ -53,17 +56,19 @@ function makeLeg(date: string, dte: number, strike: number, mid: number, delta: 
 }
 
 // Entry: short 100 at 2.0, long 95 at 1.0 → credit=1.0, width=5, maxLoss=4
-function setupEntrySpread(): SpreadMatch {
+function setupEntrySpread(requestedSpreadWidth = 5): SpreadMatch {
   return {
     short: makeLeg('2024-01-02', 10, 100, 2.0, -0.35),
     long: makeLeg('2024-01-02', 10, 95, 1.0, -0.15),
     netCredit: 1.0,
+    requestedSpreadWidth,
     spreadWidth: 5,
     maxLoss: 4,
   };
 }
 
 const allTradingDates = ['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05'];
+const extendedTradingDates = ['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05', '2024-01-08', '2024-01-09'];
 const signal: EntrySignal = {
   ticker: 'SPY',
   date: '2024-01-02',
@@ -77,6 +82,7 @@ describe('simulateCreditSpread MAX_LOSS_STOP', () => {
     vi.clearAllMocks();
     fetchHistoricalChainMock.mockResolvedValue([makeRow('2024-01-02', 10)]);
     findSpreadStrikesMock.mockReturnValue(setupEntrySpread());
+    findContractMock.mockReturnValue(null);
   });
 
   it('exits with MAX_LOSS_STOP when loss exceeds % of max loss', async () => {
@@ -114,6 +120,9 @@ describe('simulateCreditSpread MAX_LOSS_STOP', () => {
     expect(trade).not.toBeNull();
     expect(trade?.exitType).toBe('MAX_LOSS_STOP');
     expect(trade?.exitDate).toBe('2024-01-04');
+    expect(trade?.exitPrice).toBeCloseTo(3.0, 6);
+    expect(trade?.pnl).toBeCloseTo(-200, 6);
+    expect(trade?.pnlPct).toBeCloseTo(-0.5, 6);
   });
 
   it('does not trigger MAX_LOSS_STOP when disabled (undefined)', async () => {
@@ -146,6 +155,37 @@ describe('simulateCreditSpread MAX_LOSS_STOP', () => {
 
     expect(trade).not.toBeNull();
     expect(trade?.exitType).toBe('EXPIRATION');
+  });
+
+  it('uses actual matched width instead of requested width for MAX_LOSS_STOP', async () => {
+    findSpreadStrikesMock.mockReturnValue(setupEntrySpread(10));
+    findContractDirectMock.mockImplementation((_ticker, date, strike) => {
+      if (date === '2024-01-03') {
+        return strike === 100
+          ? makeLeg(date, 9, 100, 3.75, -0.60)
+          : makeLeg(date, 9, 95, 0.25, -0.08); // spread cost = 3.5
+      }
+      return null;
+    });
+
+    const trade = await simulateCreditSpread(
+      'token', signal,
+      {
+        ...DEFAULT_CREDIT_CONFIG,
+        useDirectLookup: true,
+        creditSpreadWidth: 10,
+        creditMaxLossStopPct: 0.50,
+        creditStopLossMultiple: 100,
+        creditTimeStopDTE: 0,
+      },
+      allTradingDates, '2024-01-05',
+    );
+
+    expect(trade?.exitType).toBe('MAX_LOSS_STOP');
+    expect(trade?.exitPrice).toBeCloseTo(3.0, 6);
+    expect(trade?.spreadWidth).toBe(5);
+    expect(trade?.maxLoss).toBeCloseTo(4, 6);
+    expect(trade?.pnlPct).toBeCloseTo(-0.5, 6);
   });
 });
 
@@ -193,6 +233,7 @@ describe('simulateCreditSpread TRAILING_LOCK', () => {
     expect(trade).not.toBeNull();
     expect(trade?.exitType).toBe('TRAILING_LOCK');
     expect(trade?.exitDate).toBe('2024-01-04');
+    expect(trade?.exitPrice).toBeCloseTo(0.925, 6);
   });
 
   it('does not trigger trailing lock if profit never reaches activation', async () => {
@@ -263,5 +304,143 @@ describe('simulateCreditSpread TRAILING_LOCK', () => {
 
     expect(trade).not.toBeNull();
     expect(trade?.exitType).toBe('PROFIT_TARGET');
+  });
+});
+
+describe('simulateCreditSpreadPhased threshold pricing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fetchHistoricalChainMock.mockResolvedValue([makeRow('2024-01-02', 10)]);
+    findSpreadStrikesMock.mockReturnValue(setupEntrySpread());
+    findContractMock.mockReturnValue(null);
+  });
+
+  it('uses TP1 and post-TP stop thresholds instead of raw mark overshoots', async () => {
+    findContractDirectMock.mockImplementation((_ticker, date, strike) => {
+      if (date === '2024-01-03') {
+        return strike === 100
+          ? makeLeg(date, 9, 100, 0.90, -0.15)
+          : makeLeg(date, 9, 95, 0.30, -0.08); // spread cost = 0.60, TP1 threshold = 0.70
+      }
+      if (date === '2024-01-04') {
+        return strike === 100
+          ? makeLeg(date, 8, 100, 1.45, -0.35)
+          : makeLeg(date, 8, 95, 0.40, -0.08); // spread cost = 1.05, breakeven threshold = 1.00
+      }
+      return null;
+    });
+
+    const trade = await simulateCreditSpreadPhased(
+      'token',
+      signal,
+      {
+        ...DEFAULT_CREDIT_CONFIG,
+        useDirectLookup: true,
+        creditStopLossMultiple: 100,
+        creditTimeStopDTE: 0,
+      },
+      { tp1: 0.30, tp2: 0.50, afterTP1SL: 0 },
+      allTradingDates,
+      '2024-01-05',
+    );
+
+    expect(trade).not.toBeNull();
+    expect(trade?.exitType).toBe('SL_BREAKEVEN');
+    expect(trade?.exitPrice).toBeCloseTo(1.0, 6);
+    expect(trade?.pnl).toBeCloseTo(15, 6);
+    expect(trade?.pnlPct).toBeCloseTo(15 / 400, 6);
+  });
+});
+
+describe('simulateCreditSpread expiration fallback and missing chains', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    findSpreadStrikesMock.mockReturnValue(setupEntrySpread());
+    findContractMock.mockReturnValue(null);
+  });
+
+  it('prices expiration from same-day intrinsic when legs are missing', async () => {
+    const expiryOnlyDates = ['2024-01-02', '2024-01-05'];
+    fetchHistoricalChainMock.mockImplementation(async (_token, _ticker, date) => {
+      if (date === '2024-01-02') return [makeRow('2024-01-02', 10)];
+      if (date === '2024-01-05') {
+        return [{ ...makeRow('2024-01-05', 0), stock_price: 92 }];
+      }
+      return [];
+    });
+
+    const trade = await simulateCreditSpread(
+      'token',
+      signal,
+      {
+        ...DEFAULT_CREDIT_CONFIG,
+        useDirectLookup: false,
+        creditStopLossMultiple: 100,
+        creditTimeStopDTE: 0,
+      },
+      expiryOnlyDates,
+      '2024-01-05',
+    );
+
+    expect(trade).not.toBeNull();
+    expect(trade?.exitType).toBe('EXPIRATION');
+    expect(trade?.exitPrice).toBeCloseTo(5, 6);
+    expect(trade?.exitStockPrice).toBe(92);
+    expect(trade?.pnl).toBeCloseTo(-400, 6);
+    expect(trade?.pnlPct).toBeCloseTo(-1, 6);
+  });
+
+  it('exits NO_CHAIN after three consecutive missing monitoring days', async () => {
+    fetchHistoricalChainMock.mockResolvedValue([makeRow('2024-01-02', 10)]);
+    findContractDirectMock.mockReturnValue(null);
+
+    const trade = await simulateCreditSpread(
+      'token',
+      signal,
+      {
+        ...DEFAULT_CREDIT_CONFIG,
+        useDirectLookup: true,
+        creditStopLossMultiple: 100,
+        creditTimeStopDTE: 0,
+        missingChainExitAfterDays: 3,
+      },
+      extendedTradingDates,
+      '2024-01-09',
+    );
+
+    expect(trade).not.toBeNull();
+    expect(trade?.exitType).toBe('NO_CHAIN');
+    expect(trade?.exitDate).toBe('2024-01-05');
+    expect(trade?.exitPrice).toBeCloseTo(1.0, 6);
+  });
+
+  it('resets the NO_CHAIN counter after a valid monitoring day', async () => {
+    fetchHistoricalChainMock.mockResolvedValue([makeRow('2024-01-02', 10)]);
+    findContractDirectMock.mockImplementation((_ticker, date, strike) => {
+      if (date === '2024-01-05') {
+        return strike === 100
+          ? makeLeg(date, 7, 100, 1.2, -0.25)
+          : makeLeg(date, 7, 95, 0.4, -0.10); // valid day resets the counter
+      }
+      return null;
+    });
+
+    const trade = await simulateCreditSpread(
+      'token',
+      signal,
+      {
+        ...DEFAULT_CREDIT_CONFIG,
+        useDirectLookup: true,
+        creditStopLossMultiple: 100,
+        creditTimeStopDTE: 0,
+        missingChainExitAfterDays: 3,
+      },
+      extendedTradingDates,
+      '2024-01-09',
+    );
+
+    expect(trade).not.toBeNull();
+    expect(trade?.exitType).not.toBe('NO_CHAIN');
+    expect(trade?.exitType).toBe('EXPIRATION');
   });
 });

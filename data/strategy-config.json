@@ -21,7 +21,7 @@
     },
     "shortTerm": {
       "signalPreset": "em",
-      "defaultDelta": 0.35,
+      "defaultDelta": 0.45,
       "defaultWidth": 10,
       "dteMin": 7,
       "dteMax": 21,

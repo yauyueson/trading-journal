@@ -1,0 +1,2911 @@
+[
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+baseline",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "baseline",
+    "isSharpe": 3.2490934521281827,
+    "oosSharpe": 2.4581837048149056,
+    "holdoutSharpe": 0.10640402706308234,
+    "oosWinRate": 81.67202572347267,
+    "oosMaxDD": 1.7372995037727275,
+    "oosTotalPnl": 71104.95665692307,
+    "grade": "C",
+    "tradeCount": 2177,
+    "exitTypes": {
+      "EXPIRATION": 801,
+      "PROFIT_TARGET": 1189,
+      "TIME_STOP": 187
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl75-25",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25",
+    "isSharpe": 3.4385769588344686,
+    "oosSharpe": 2.57511621379898,
+    "holdoutSharpe": 0.1984456613217047,
+    "oosWinRate": 83.55321020228672,
+    "oosMaxDD": 1.5684152222201537,
+    "oosTotalPnl": 72674.11515132921,
+    "grade": "C",
+    "tradeCount": 2274,
+    "exitTypes": {
+      "EXPIRATION": 758,
+      "PROFIT_TARGET": 1195,
+      "TIME_STOP": 175,
+      "TRAILING_LOCK": 146
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl50-50",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50",
+    "isSharpe": 3.8138128992538562,
+    "oosSharpe": 2.8792969569360647,
+    "holdoutSharpe": 0.23085775295173877,
+    "oosWinRate": 85.91895210806385,
+    "oosMaxDD": 1.5827490769666577,
+    "oosTotalPnl": 79033.0611446396,
+    "grade": "C",
+    "tradeCount": 2443,
+    "exitTypes": {
+      "EXPIRATION": 702,
+      "PROFIT_TARGET": 1167,
+      "TIME_STOP": 152,
+      "TRAILING_LOCK": 422
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+ml75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "ml75",
+    "isSharpe": 1.9422865493893517,
+    "oosSharpe": 1.2228673308988869,
+    "holdoutSharpe": -0.2276928812705364,
+    "oosWinRate": 67.88118811881189,
+    "oosMaxDD": 2.3384509373574733,
+    "oosTotalPnl": 25465.28302443788,
+    "grade": "C",
+    "tradeCount": 2525,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 611,
+      "PROFIT_TARGET": 1337,
+      "EXPIRATION": 543,
+      "TIME_STOP": 34
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+ml90",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "ml90",
+    "isSharpe": 2.284179977461234,
+    "oosSharpe": 1.5795951811545434,
+    "holdoutSharpe": -0.26682402301691405,
+    "oosWinRate": 71.9298245614035,
+    "oosMaxDD": 1.9420606594039498,
+    "oosTotalPnl": 35735.875405938525,
+    "grade": "C",
+    "tradeCount": 2394,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 436,
+      "EXPIRATION": 641,
+      "TIME_STOP": 47,
+      "PROFIT_TARGET": 1270
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl75-25+ml75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml75",
+    "isSharpe": 2.1582740941964884,
+    "oosSharpe": 1.3597859082238042,
+    "holdoutSharpe": -0.12461278730772848,
+    "oosWinRate": 69.79763268423062,
+    "oosMaxDD": 2.170088515464814,
+    "oosTotalPnl": 27409.861848077762,
+    "grade": "C",
+    "tradeCount": 2619,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 600,
+      "PROFIT_TARGET": 1320,
+      "EXPIRATION": 516,
+      "TRAILING_LOCK": 153,
+      "TIME_STOP": 30
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl75-25+ml90",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml90",
+    "isSharpe": 2.514928462024247,
+    "oosSharpe": 1.7550136636924636,
+    "holdoutSharpe": -0.19659211626313342,
+    "oosWinRate": 73.83627608346708,
+    "oosMaxDD": 1.793316777683312,
+    "oosTotalPnl": 38066.67599396059,
+    "grade": "C",
+    "tradeCount": 2492,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 432,
+      "EXPIRATION": 605,
+      "TIME_STOP": 41,
+      "PROFIT_TARGET": 1264,
+      "TRAILING_LOCK": 150
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl50-50+ml75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml75",
+    "isSharpe": 2.665821120406997,
+    "oosSharpe": 1.8366046456927478,
+    "holdoutSharpe": -0.06884410649797934,
+    "oosWinRate": 72.77263007840342,
+    "oosMaxDD": 2.061802162647439,
+    "oosTotalPnl": 34563.77207813189,
+    "grade": "C",
+    "tradeCount": 2806,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 593,
+      "PROFIT_TARGET": 1282,
+      "TRAILING_LOCK": 449,
+      "EXPIRATION": 459,
+      "TIME_STOP": 23
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl50-50+ml90",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml90",
+    "isSharpe": 2.9214410928797965,
+    "oosSharpe": 2.150963802410977,
+    "holdoutSharpe": -0.0684931605380328,
+    "oosWinRate": 76.43998513563731,
+    "oosMaxDD": 1.73826626816708,
+    "oosTotalPnl": 44435.90893142913,
+    "grade": "C",
+    "tradeCount": 2691,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 437,
+      "EXPIRATION": 541,
+      "TIME_STOP": 32,
+      "PROFIT_TARGET": 1242,
+      "TRAILING_LOCK": 439
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl75-25+ds70",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ds70",
+    "isSharpe": -0.024971282978945377,
+    "oosSharpe": -0.457992121458169,
+    "holdoutSharpe": -0.8239019175247521,
+    "oosWinRate": 61.03851444291609,
+    "oosMaxDD": 10.632846280750048,
+    "oosTotalPnl": -9427.369474411043,
+    "grade": "F",
+    "tradeCount": 2908,
+    "exitTypes": {
+      "DELTA_STOP": 1033,
+      "TRAILING_LOCK": 150,
+      "PROFIT_TARGET": 1418,
+      "EXPIRATION": 307
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl75-25+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ds75",
+    "isSharpe": 0.2126777088157295,
+    "oosSharpe": -0.3082103174458365,
+    "holdoutSharpe": -0.5317298423111778,
+    "oosWinRate": 63.85281385281385,
+    "oosMaxDD": 8.147181827247966,
+    "oosTotalPnl": -6639.00623289214,
+    "grade": "F",
+    "tradeCount": 2772,
+    "exitTypes": {
+      "DELTA_STOP": 888,
+      "PROFIT_TARGET": 1393,
+      "TRAILING_LOCK": 145,
+      "EXPIRATION": 343,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl75-25+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ds80",
+    "isSharpe": 0.39843795488140044,
+    "oosSharpe": -0.20697708109674207,
+    "holdoutSharpe": -0.38972477649692044,
+    "oosWinRate": 65.91506952273582,
+    "oosMaxDD": 7.395144507969266,
+    "oosTotalPnl": -4545.508373351333,
+    "grade": "F",
+    "tradeCount": 2661,
+    "exitTypes": {
+      "DELTA_STOP": 777,
+      "PROFIT_TARGET": 1351,
+      "EXPIRATION": 376,
+      "TRAILING_LOCK": 152,
+      "TIME_STOP": 5
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl50-50+ds70",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ds70",
+    "isSharpe": 0.5353069640836047,
+    "oosSharpe": 0.05749132306273854,
+    "holdoutSharpe": -0.5878383861148063,
+    "oosWinRate": 65.26791478373144,
+    "oosMaxDD": 5.9788617142626626,
+    "oosTotalPnl": 802.2139279970305,
+    "grade": "F",
+    "tradeCount": 3098,
+    "exitTypes": {
+      "DELTA_STOP": 987,
+      "TRAILING_LOCK": 466,
+      "PROFIT_TARGET": 1369,
+      "EXPIRATION": 275,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl50-50+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ds75",
+    "isSharpe": 0.6773777053515909,
+    "oosSharpe": 0.10117136659782348,
+    "holdoutSharpe": -0.33590198461632903,
+    "oosWinRate": 67.76159837453437,
+    "oosMaxDD": 5.961694256377576,
+    "oosTotalPnl": 1654.7216349579815,
+    "grade": "F",
+    "tradeCount": 2953,
+    "exitTypes": {
+      "DELTA_STOP": 850,
+      "PROFIT_TARGET": 1336,
+      "TRAILING_LOCK": 460,
+      "EXPIRATION": 306,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl50-50+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ds80",
+    "isSharpe": 0.759716751719025,
+    "oosSharpe": 0.1646097392395269,
+    "holdoutSharpe": -0.2499428003568456,
+    "oosWinRate": 69.76416754663852,
+    "oosMaxDD": 6.294624451179671,
+    "oosTotalPnl": 2899.754601914796,
+    "grade": "F",
+    "tradeCount": 2841,
+    "exitTypes": {
+      "DELTA_STOP": 751,
+      "PROFIT_TARGET": 1306,
+      "EXPIRATION": 326,
+      "TRAILING_LOCK": 457,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+ml75+ds70",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "ml75+ds70",
+    "isSharpe": 0.38781233743171656,
+    "oosSharpe": -0.17658101284969857,
+    "holdoutSharpe": -0.7586287417464977,
+    "oosWinRate": 57.31497418244407,
+    "oosMaxDD": 6.764822178470924,
+    "oosTotalPnl": -3531.613986408767,
+    "grade": "F",
+    "tradeCount": 2905,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 339,
+      "DELTA_STOP": 798,
+      "PROFIT_TARGET": 1444,
+      "EXPIRATION": 323,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+ml75+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "ml75+ds75",
+    "isSharpe": 0.6616059836673845,
+    "oosSharpe": 0.028680776571674386,
+    "holdoutSharpe": -0.4875451536113643,
+    "oosWinRate": 59.78417266187051,
+    "oosMaxDD": 6.189658282782131,
+    "oosTotalPnl": 258.92142439030675,
+    "grade": "F",
+    "tradeCount": 2780,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 387,
+      "DELTA_STOP": 616,
+      "PROFIT_TARGET": 1413,
+      "EXPIRATION": 361,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+ml75+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "ml75+ds80",
+    "isSharpe": 0.7640352103290959,
+    "oosSharpe": 0.11255571772224458,
+    "holdoutSharpe": -0.4256075830156741,
+    "oosWinRate": 61.51560178306092,
+    "oosMaxDD": 5.175493244369475,
+    "oosTotalPnl": 1859.5814859465686,
+    "grade": "F",
+    "tradeCount": 2692,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 481,
+      "DELTA_STOP": 429,
+      "PROFIT_TARGET": 1393,
+      "EXPIRATION": 384,
+      "TIME_STOP": 5
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+ml90+ds70",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "ml90+ds70",
+    "isSharpe": 0.20838883794378665,
+    "oosSharpe": -0.32437744956995784,
+    "holdoutSharpe": -0.8001455727854637,
+    "oosWinRate": 57.46294381247845,
+    "oosMaxDD": 7.6202201152958535,
+    "oosTotalPnl": -6376.750047302773,
+    "grade": "F",
+    "tradeCount": 2901,
+    "exitTypes": {
+      "DELTA_STOP": 921,
+      "MAX_LOSS_STOP": 209,
+      "PROFIT_TARGET": 1447,
+      "EXPIRATION": 323,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+ml90+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "ml90+ds75",
+    "isSharpe": 0.4293632654305805,
+    "oosSharpe": -0.1618026146104196,
+    "holdoutSharpe": -0.5338862604785372,
+    "oosWinRate": 59.978386167146965,
+    "oosMaxDD": 6.963160425176236,
+    "oosTotalPnl": -3375.412609532087,
+    "grade": "F",
+    "tradeCount": 2776,
+    "exitTypes": {
+      "DELTA_STOP": 763,
+      "MAX_LOSS_STOP": 233,
+      "PROFIT_TARGET": 1415,
+      "EXPIRATION": 362,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+ml90+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "ml90+ds80",
+    "isSharpe": 0.45497310408232694,
+    "oosSharpe": -0.1724817296384877,
+    "holdoutSharpe": -0.5313769516357891,
+    "oosWinRate": 61.45522388059701,
+    "oosMaxDD": 6.273526651492285,
+    "oosTotalPnl": -3678.9277495252045,
+    "grade": "F",
+    "tradeCount": 2680,
+    "exitTypes": {
+      "DELTA_STOP": 626,
+      "MAX_LOSS_STOP": 278,
+      "PROFIT_TARGET": 1386,
+      "EXPIRATION": 385,
+      "TIME_STOP": 5
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl75-25+ml75+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml75+ds75",
+    "isSharpe": 0.7862726206782684,
+    "oosSharpe": 0.13177385476008938,
+    "holdoutSharpe": -0.4447562648723256,
+    "oosWinRate": 61.86974789915966,
+    "oosMaxDD": 5.5831202197222884,
+    "oosTotalPnl": 2150.92080479534,
+    "grade": "F",
+    "tradeCount": 2856,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 378,
+      "DELTA_STOP": 605,
+      "PROFIT_TARGET": 1390,
+      "TRAILING_LOCK": 147,
+      "EXPIRATION": 334,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl75-25+ml75+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml75+ds80",
+    "isSharpe": 0.9553486840538971,
+    "oosSharpe": 0.26455615083140477,
+    "holdoutSharpe": -0.3309485771572591,
+    "oosWinRate": 63.781238681637085,
+    "oosMaxDD": 4.684551960628626,
+    "oosTotalPnl": 4555.407718363119,
+    "grade": "F",
+    "tradeCount": 2761,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 468,
+      "DELTA_STOP": 416,
+      "PROFIT_TARGET": 1357,
+      "TRAILING_LOCK": 154,
+      "EXPIRATION": 362,
+      "TIME_STOP": 4
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl75-25+ml90+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml90+ds75",
+    "isSharpe": 0.5590179518547927,
+    "oosSharpe": -0.0692198769407313,
+    "holdoutSharpe": -0.4948146469340078,
+    "oosWinRate": 61.986661986661986,
+    "oosMaxDD": 6.260688878109241,
+    "oosTotalPnl": -1573.4620621321756,
+    "grade": "F",
+    "tradeCount": 2849,
+    "exitTypes": {
+      "DELTA_STOP": 748,
+      "MAX_LOSS_STOP": 228,
+      "PROFIT_TARGET": 1389,
+      "TRAILING_LOCK": 147,
+      "EXPIRATION": 335,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl75-25+ml90+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml90+ds80",
+    "isSharpe": 0.6284509404197213,
+    "oosSharpe": -0.044921025993875624,
+    "holdoutSharpe": -0.435066896742826,
+    "oosWinRate": 63.6098981077147,
+    "oosMaxDD": 5.668913344970145,
+    "oosTotalPnl": -1121.180045096301,
+    "grade": "F",
+    "tradeCount": 2748,
+    "exitTypes": {
+      "DELTA_STOP": 607,
+      "MAX_LOSS_STOP": 274,
+      "PROFIT_TARGET": 1350,
+      "TRAILING_LOCK": 150,
+      "EXPIRATION": 363,
+      "TIME_STOP": 4
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl50-50+ml75+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml75+ds75",
+    "isSharpe": 1.4631973888640464,
+    "oosSharpe": 0.7176282587878009,
+    "holdoutSharpe": -0.2660054123485799,
+    "oosWinRate": 65.88892540256326,
+    "oosMaxDD": 3.595356563116756,
+    "oosTotalPnl": 12013.512957688243,
+    "grade": "C",
+    "tradeCount": 3043,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 374,
+      "DELTA_STOP": 572,
+      "TRAILING_LOCK": 453,
+      "PROFIT_TARGET": 1347,
+      "EXPIRATION": 296,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl50-50+ml75+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml75+ds80",
+    "isSharpe": 1.6037528130329481,
+    "oosSharpe": 0.8588301584109295,
+    "holdoutSharpe": -0.25042723944351647,
+    "oosWinRate": 67.65205572545023,
+    "oosMaxDD": 3.1061114077997605,
+    "oosTotalPnl": 14399.341372444691,
+    "grade": "C",
+    "tradeCount": 2943,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 462,
+      "DELTA_STOP": 392,
+      "TRAILING_LOCK": 458,
+      "PROFIT_TARGET": 1317,
+      "EXPIRATION": 312,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl50-50+ml90+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml90+ds75",
+    "isSharpe": 1.2191122515473145,
+    "oosSharpe": 0.5094400093089929,
+    "holdoutSharpe": -0.3124100240141551,
+    "oosWinRate": 66.03028308097433,
+    "oosMaxDD": 4.208429266008202,
+    "oosTotalPnl": 8623.464364420764,
+    "grade": "C",
+    "tradeCount": 3038,
+    "exitTypes": {
+      "DELTA_STOP": 715,
+      "MAX_LOSS_STOP": 224,
+      "TRAILING_LOCK": 454,
+      "PROFIT_TARGET": 1347,
+      "EXPIRATION": 297,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm3+tl50-50+ml90+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml90+ds80",
+    "isSharpe": 1.2860469457365142,
+    "oosSharpe": 0.5475617448312065,
+    "holdoutSharpe": -0.34391199460443383,
+    "oosWinRate": 67.74523160762944,
+    "oosMaxDD": 3.804133581350145,
+    "oosTotalPnl": 9345.864304767938,
+    "grade": "C",
+    "tradeCount": 2936,
+    "exitTypes": {
+      "DELTA_STOP": 577,
+      "MAX_LOSS_STOP": 270,
+      "TRAILING_LOCK": 455,
+      "PROFIT_TARGET": 1319,
+      "EXPIRATION": 313,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+baseline",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "baseline",
+    "isSharpe": 3.181180300468923,
+    "oosSharpe": 2.4554339690369518,
+    "holdoutSharpe": -0.08189691248439293,
+    "oosWinRate": 81.88183807439825,
+    "oosMaxDD": 1.7127472936977004,
+    "oosTotalPnl": 76240.7951791534,
+    "grade": "C",
+    "tradeCount": 2285,
+    "exitTypes": {
+      "EXPIRATION": 840,
+      "PROFIT_TARGET": 1261,
+      "TIME_STOP": 184
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl75-25",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl75-25",
+    "isSharpe": 3.3456874916270483,
+    "oosSharpe": 2.55645093044071,
+    "holdoutSharpe": -0.018055694091383825,
+    "oosWinRate": 83.68200836820083,
+    "oosMaxDD": 1.6430855221940348,
+    "oosTotalPnl": 77312.5657512843,
+    "grade": "C",
+    "tradeCount": 2390,
+    "exitTypes": {
+      "EXPIRATION": 814,
+      "PROFIT_TARGET": 1250,
+      "TIME_STOP": 165,
+      "TRAILING_LOCK": 161
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl50-50",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl50-50",
+    "isSharpe": 3.7543948792442414,
+    "oosSharpe": 2.889588902982398,
+    "holdoutSharpe": 0.06634180661573293,
+    "oosWinRate": 85.89793533307363,
+    "oosMaxDD": 1.4099428029354946,
+    "oosTotalPnl": 84370.80533224737,
+    "grade": "B",
+    "tradeCount": 2567,
+    "exitTypes": {
+      "EXPIRATION": 751,
+      "PROFIT_TARGET": 1208,
+      "TIME_STOP": 155,
+      "TRAILING_LOCK": 453
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+ml75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "ml75",
+    "isSharpe": 2.105310422715374,
+    "oosSharpe": 1.412855447369205,
+    "holdoutSharpe": -0.4511063532030997,
+    "oosWinRate": 67.73353181987346,
+    "oosMaxDD": 2.141859859322112,
+    "oosTotalPnl": 30582.134699252623,
+    "grade": "C",
+    "tradeCount": 2687,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 648,
+      "PROFIT_TARGET": 1429,
+      "EXPIRATION": 579,
+      "TIME_STOP": 31
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+ml90",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "ml90",
+    "isSharpe": 2.36238101021956,
+    "oosSharpe": 1.6330830126293834,
+    "holdoutSharpe": -0.37416499626452754,
+    "oosWinRate": 71.19968737788199,
+    "oosMaxDD": 2.108664740597227,
+    "oosTotalPnl": 38589.648923023444,
+    "grade": "C",
+    "tradeCount": 2559,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 484,
+      "EXPIRATION": 670,
+      "PROFIT_TARGET": 1365,
+      "TIME_STOP": 40
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl75-25+ml75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl75-25+ml75",
+    "isSharpe": 2.323554982602431,
+    "oosSharpe": 1.601128025785966,
+    "holdoutSharpe": -0.4342716040360708,
+    "oosWinRate": 70,
+    "oosMaxDD": 2.570510146523258,
+    "oosTotalPnl": 33710.26906025624,
+    "grade": "C",
+    "tradeCount": 2820,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 639,
+      "PROFIT_TARGET": 1420,
+      "EXPIRATION": 562,
+      "TRAILING_LOCK": 176,
+      "TIME_STOP": 23
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl75-25+ml90",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl75-25+ml90",
+    "isSharpe": 2.5599273886459475,
+    "oosSharpe": 1.863260720843308,
+    "holdoutSharpe": -0.3358542195422704,
+    "oosWinRate": 73.55679702048417,
+    "oosMaxDD": 1.8262612267757554,
+    "oosTotalPnl": 42232.24861887072,
+    "grade": "C",
+    "tradeCount": 2685,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 476,
+      "EXPIRATION": 649,
+      "PROFIT_TARGET": 1356,
+      "TRAILING_LOCK": 171,
+      "TIME_STOP": 33
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl50-50+ml75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl50-50+ml75",
+    "isSharpe": 2.804486897308691,
+    "oosSharpe": 1.9806955900102121,
+    "holdoutSharpe": -0.32342127359193795,
+    "oosWinRate": 72.76652274991697,
+    "oosMaxDD": 2.4328888305020904,
+    "oosTotalPnl": 40242.91329317513,
+    "grade": "C",
+    "tradeCount": 3011,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 628,
+      "PROFIT_TARGET": 1364,
+      "EXPIRATION": 515,
+      "TRAILING_LOCK": 485,
+      "TIME_STOP": 19
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl50-50+ml90",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl50-50+ml90",
+    "isSharpe": 2.8841336330817886,
+    "oosSharpe": 2.1791138531684897,
+    "holdoutSharpe": -0.1725829806650477,
+    "oosWinRate": 75.84289190128605,
+    "oosMaxDD": 1.681475092784656,
+    "oosTotalPnl": 47451.12282700684,
+    "grade": "C",
+    "tradeCount": 2877,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 472,
+      "EXPIRATION": 581,
+      "PROFIT_TARGET": 1313,
+      "TRAILING_LOCK": 480,
+      "TIME_STOP": 31
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl75-25+ds70",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl75-25+ds70",
+    "isSharpe": -0.25317512613775933,
+    "oosSharpe": -0.5971696417510051,
+    "holdoutSharpe": -1.004233712853907,
+    "oosWinRate": 60.54443053817271,
+    "oosMaxDD": 16.153054577295887,
+    "oosTotalPnl": -13438.694627806028,
+    "grade": "F",
+    "tradeCount": 3196,
+    "exitTypes": {
+      "DELTA_STOP": 1154,
+      "EXPIRATION": 332,
+      "PROFIT_TARGET": 1542,
+      "TRAILING_LOCK": 167,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl75-25+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl75-25+ds75",
+    "isSharpe": 0.0274747779390337,
+    "oosSharpe": -0.32255344701014166,
+    "holdoutSharpe": -0.9290461396684735,
+    "oosWinRate": 63.93280632411067,
+    "oosMaxDD": 12.040792386801284,
+    "oosTotalPnl": -7804.410138521908,
+    "grade": "F",
+    "tradeCount": 3036,
+    "exitTypes": {
+      "DELTA_STOP": 968,
+      "PROFIT_TARGET": 1529,
+      "TRAILING_LOCK": 174,
+      "EXPIRATION": 362,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl75-25+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl75-25+ds80",
+    "isSharpe": 0.25596467091170894,
+    "oosSharpe": -0.018877956418630416,
+    "holdoutSharpe": -0.6581772540937688,
+    "oosWinRate": 67.03524533517623,
+    "oosMaxDD": 9.53663302108415,
+    "oosTotalPnl": -829.5591700290147,
+    "grade": "F",
+    "tradeCount": 2894,
+    "exitTypes": {
+      "DELTA_STOP": 817,
+      "PROFIT_TARGET": 1491,
+      "EXPIRATION": 400,
+      "TRAILING_LOCK": 179,
+      "TIME_STOP": 7
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl50-50+ds70",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl50-50+ds70",
+    "isSharpe": 0.3032048411657463,
+    "oosSharpe": -0.11920171701983989,
+    "holdoutSharpe": -0.984824241010343,
+    "oosWinRate": 64.47560619339761,
+    "oosMaxDD": 9.542224069256017,
+    "oosTotalPnl": -2799.950618864078,
+    "grade": "F",
+    "tradeCount": 3423,
+    "exitTypes": {
+      "DELTA_STOP": 1115,
+      "TRAILING_LOCK": 530,
+      "PROFIT_TARGET": 1473,
+      "EXPIRATION": 304,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl50-50+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl50-50+ds75",
+    "isSharpe": 0.47018193587682405,
+    "oosSharpe": 0.06312403658830182,
+    "holdoutSharpe": -0.915122991990567,
+    "oosWinRate": 67.57752533005834,
+    "oosMaxDD": 9.783836319957704,
+    "oosTotalPnl": 990.5739475022958,
+    "grade": "F",
+    "tradeCount": 3257,
+    "exitTypes": {
+      "DELTA_STOP": 943,
+      "PROFIT_TARGET": 1468,
+      "TRAILING_LOCK": 519,
+      "EXPIRATION": 325,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl50-50+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl50-50+ds80",
+    "isSharpe": 0.7056968535317175,
+    "oosSharpe": 0.2502516221238096,
+    "holdoutSharpe": -0.5956442831755772,
+    "oosWinRate": 69.84229159961377,
+    "oosMaxDD": 9.07260674079042,
+    "oosTotalPnl": 5046.493814567005,
+    "grade": "D",
+    "tradeCount": 3107,
+    "exitTypes": {
+      "DELTA_STOP": 814,
+      "PROFIT_TARGET": 1434,
+      "TRAILING_LOCK": 508,
+      "EXPIRATION": 348,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+ml75+ds70",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "ml75+ds70",
+    "isSharpe": 0.39446487095417404,
+    "oosSharpe": -0.08135857887400916,
+    "holdoutSharpe": -0.8873639588138863,
+    "oosWinRate": 56.986558299468584,
+    "oosMaxDD": 7.644240901943125,
+    "oosTotalPnl": -1918.6686511605612,
+    "grade": "F",
+    "tradeCount": 3199,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 378,
+      "DELTA_STOP": 890,
+      "PROFIT_TARGET": 1589,
+      "EXPIRATION": 341,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+ml75+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "ml75+ds75",
+    "isSharpe": 0.4872482375717319,
+    "oosSharpe": 0.11967350559916118,
+    "holdoutSharpe": -0.7598725786839656,
+    "oosWinRate": 59.495743287491806,
+    "oosMaxDD": 7.2591675462529235,
+    "oosTotalPnl": 2091.15897015401,
+    "grade": "F",
+    "tradeCount": 3054,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 447,
+      "DELTA_STOP": 662,
+      "PROFIT_TARGET": 1572,
+      "EXPIRATION": 370,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+ml75+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "ml75+ds80",
+    "isSharpe": 0.75593178380421,
+    "oosSharpe": 0.3308036789059383,
+    "holdoutSharpe": -0.4740091857964125,
+    "oosWinRate": 61.59346271705822,
+    "oosMaxDD": 4.904461613549809,
+    "oosTotalPnl": 6377.3609722940355,
+    "grade": "D",
+    "tradeCount": 2937,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 526,
+      "DELTA_STOP": 460,
+      "PROFIT_TARGET": 1545,
+      "EXPIRATION": 398,
+      "TIME_STOP": 8
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+ml90+ds70",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "ml90+ds70",
+    "isSharpe": 0.17798177419320702,
+    "oosSharpe": -0.2354234079015694,
+    "holdoutSharpe": -0.9252268363757483,
+    "oosWinRate": 57.12496085186345,
+    "oosMaxDD": 9.115902728766342,
+    "oosTotalPnl": -5059.564312745854,
+    "grade": "F",
+    "tradeCount": 3193,
+    "exitTypes": {
+      "DELTA_STOP": 1016,
+      "MAX_LOSS_STOP": 244,
+      "PROFIT_TARGET": 1589,
+      "EXPIRATION": 343,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+ml90+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "ml90+ds75",
+    "isSharpe": 0.19561641062803145,
+    "oosSharpe": -0.11382206638876491,
+    "holdoutSharpe": -0.8268411979526327,
+    "oosWinRate": 59.46123521681997,
+    "oosMaxDD": 8.468688637816548,
+    "oosTotalPnl": -2695.711485564632,
+    "grade": "F",
+    "tradeCount": 3044,
+    "exitTypes": {
+      "DELTA_STOP": 831,
+      "MAX_LOSS_STOP": 274,
+      "PROFIT_TARGET": 1566,
+      "EXPIRATION": 370,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+ml90+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "ml90+ds80",
+    "isSharpe": 0.42842295437216643,
+    "oosSharpe": 0.059858317830593595,
+    "holdoutSharpe": -0.5757984881507214,
+    "oosWinRate": 61.691884456671254,
+    "oosMaxDD": 6.549241040499662,
+    "oosTotalPnl": 898.4899271759057,
+    "grade": "F",
+    "tradeCount": 2908,
+    "exitTypes": {
+      "DELTA_STOP": 657,
+      "MAX_LOSS_STOP": 312,
+      "PROFIT_TARGET": 1531,
+      "EXPIRATION": 400,
+      "TIME_STOP": 8
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl75-25+ml75+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl75-25+ml75+ds75",
+    "isSharpe": 0.7840447315438621,
+    "oosSharpe": 0.30169553324002524,
+    "holdoutSharpe": -0.7810875017020409,
+    "oosWinRate": 61.97718631178707,
+    "oosMaxDD": 6.937683819349824,
+    "oosTotalPnl": 5630.01671019699,
+    "grade": "D",
+    "tradeCount": 3156,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 435,
+      "DELTA_STOP": 647,
+      "PROFIT_TARGET": 1549,
+      "TRAILING_LOCK": 171,
+      "EXPIRATION": 352,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl75-25+ml75+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl75-25+ml75+ds80",
+    "isSharpe": 1.0073685579288314,
+    "oosSharpe": 0.5808074061721623,
+    "holdoutSharpe": -0.4371581103275945,
+    "oosWinRate": 64.58401841499507,
+    "oosMaxDD": 5.026295753233365,
+    "oosTotalPnl": 11041.623175556908,
+    "grade": "C",
+    "tradeCount": 3041,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 513,
+      "DELTA_STOP": 437,
+      "PROFIT_TARGET": 1520,
+      "TRAILING_LOCK": 183,
+      "EXPIRATION": 382,
+      "TIME_STOP": 6
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl75-25+ml90+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl75-25+ml90+ds75",
+    "isSharpe": 0.5165341997053055,
+    "oosSharpe": 0.09692367252951326,
+    "holdoutSharpe": -0.8426793832225881,
+    "oosWinRate": 62.09856915739269,
+    "oosMaxDD": 8.050479500340893,
+    "oosTotalPnl": 1631.855553949259,
+    "grade": "F",
+    "tradeCount": 3145,
+    "exitTypes": {
+      "DELTA_STOP": 804,
+      "MAX_LOSS_STOP": 269,
+      "PROFIT_TARGET": 1543,
+      "TRAILING_LOCK": 173,
+      "EXPIRATION": 354,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl75-25+ml90+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl75-25+ml90+ds80",
+    "isSharpe": 0.628049670653832,
+    "oosSharpe": 0.2799628002067706,
+    "holdoutSharpe": -0.5141976970482409,
+    "oosWinRate": 64.62201591511936,
+    "oosMaxDD": 6.429919542263472,
+    "oosTotalPnl": 5283.912715135874,
+    "grade": "D",
+    "tradeCount": 3016,
+    "exitTypes": {
+      "DELTA_STOP": 635,
+      "MAX_LOSS_STOP": 303,
+      "PROFIT_TARGET": 1502,
+      "TRAILING_LOCK": 187,
+      "EXPIRATION": 383,
+      "TIME_STOP": 6
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl50-50+ml75+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl50-50+ml75+ds75",
+    "isSharpe": 1.2878033172210965,
+    "oosSharpe": 0.7407893448412489,
+    "holdoutSharpe": -0.6748009838744558,
+    "oosWinRate": 65.4357459379616,
+    "oosMaxDD": 4.889740449115582,
+    "oosTotalPnl": 13369.28312888448,
+    "grade": "C",
+    "tradeCount": 3385,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 444,
+      "DELTA_STOP": 626,
+      "PROFIT_TARGET": 1475,
+      "TRAILING_LOCK": 529,
+      "EXPIRATION": 309,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl50-50+ml75+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl50-50+ml75+ds80",
+    "isSharpe": 1.5742699842461616,
+    "oosSharpe": 0.9898072938809167,
+    "holdoutSharpe": -0.3978423747911952,
+    "oosWinRate": 67.54682222904513,
+    "oosMaxDD": 4.1042463928628745,
+    "oosTotalPnl": 18138.704938230345,
+    "grade": "C",
+    "tradeCount": 3257,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 517,
+      "DELTA_STOP": 430,
+      "PROFIT_TARGET": 1457,
+      "TRAILING_LOCK": 519,
+      "EXPIRATION": 331,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl50-50+ml90+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl50-50+ml90+ds75",
+    "isSharpe": 0.9958018416699955,
+    "oosSharpe": 0.47893768661441644,
+    "holdoutSharpe": -0.7130366029202512,
+    "oosWinRate": 65.49066113252297,
+    "oosMaxDD": 6.220374067714321,
+    "oosTotalPnl": 8750.070321897612,
+    "grade": "C",
+    "tradeCount": 3373,
+    "exitTypes": {
+      "DELTA_STOP": 788,
+      "MAX_LOSS_STOP": 275,
+      "PROFIT_TARGET": 1469,
+      "TRAILING_LOCK": 529,
+      "EXPIRATION": 310,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3.75+tl50-50+ml90+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3.75",
+    "slVariant": "tl50-50+ml90+ds80",
+    "isSharpe": 1.1973189351941367,
+    "oosSharpe": 0.6510976608397604,
+    "holdoutSharpe": -0.5007970883792027,
+    "oosWinRate": 67.5240161140378,
+    "oosMaxDD": 5.431154925820357,
+    "oosTotalPnl": 12114.5445055488,
+    "grade": "C",
+    "tradeCount": 3227,
+    "exitTypes": {
+      "DELTA_STOP": 629,
+      "MAX_LOSS_STOP": 306,
+      "PROFIT_TARGET": 1440,
+      "TRAILING_LOCK": 518,
+      "EXPIRATION": 331,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+baseline",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "baseline",
+    "isSharpe": 3.2851445260413397,
+    "oosSharpe": 2.4370909066796074,
+    "holdoutSharpe": 0.08616981233567847,
+    "oosWinRate": 81.72429277054333,
+    "oosMaxDD": 1.8289709822920546,
+    "oosTotalPnl": 70858.22160552148,
+    "grade": "C",
+    "tradeCount": 2227,
+    "exitTypes": {
+      "EXPIRATION": 791,
+      "PROFIT_TARGET": 1251,
+      "TIME_STOP": 185
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl75-25",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl75-25",
+    "isSharpe": 3.4959712961235954,
+    "oosSharpe": 2.6039167504194753,
+    "holdoutSharpe": 0.16109652320345957,
+    "oosWinRate": 83.18853171155517,
+    "oosMaxDD": 1.7460703550846401,
+    "oosTotalPnl": 71785.36675695804,
+    "grade": "C",
+    "tradeCount": 2302,
+    "exitTypes": {
+      "EXPIRATION": 761,
+      "PROFIT_TARGET": 1234,
+      "TIME_STOP": 169,
+      "TRAILING_LOCK": 138
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl50-50",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl50-50",
+    "isSharpe": 3.979837745641307,
+    "oosSharpe": 3.0788488006129517,
+    "holdoutSharpe": 0.23261712391909087,
+    "oosWinRate": 85.98317981577893,
+    "oosMaxDD": 1.6923822375669357,
+    "oosTotalPnl": 80667.05186122777,
+    "grade": "C",
+    "tradeCount": 2497,
+    "exitTypes": {
+      "EXPIRATION": 705,
+      "PROFIT_TARGET": 1223,
+      "TIME_STOP": 141,
+      "TRAILING_LOCK": 428
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+ml75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "ml75",
+    "isSharpe": 2.1840847608097533,
+    "oosSharpe": 1.4372369920241537,
+    "holdoutSharpe": -0.40151232140663246,
+    "oosWinRate": 68.84796238244513,
+    "oosMaxDD": 2.967145345316697,
+    "oosTotalPnl": 29462.540157960728,
+    "grade": "C",
+    "tradeCount": 2552,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 583,
+      "PROFIT_TARGET": 1370,
+      "TIME_STOP": 41,
+      "EXPIRATION": 558
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+ml90",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "ml90",
+    "isSharpe": 2.495780964391482,
+    "oosSharpe": 1.854795066894822,
+    "holdoutSharpe": -0.36000483299544866,
+    "oosWinRate": 73.0816077953715,
+    "oosMaxDD": 2.4006155730171277,
+    "oosTotalPnl": 40980.16532790424,
+    "grade": "C",
+    "tradeCount": 2463,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 418,
+      "EXPIRATION": 636,
+      "TIME_STOP": 55,
+      "PROFIT_TARGET": 1354
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl75-25+ml75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl75-25+ml75",
+    "isSharpe": 2.378574583054604,
+    "oosSharpe": 1.566135033296289,
+    "holdoutSharpe": -0.3836726421955856,
+    "oosWinRate": 70.58823529411765,
+    "oosMaxDD": 2.942834438379462,
+    "oosTotalPnl": 30415.45747027952,
+    "grade": "C",
+    "tradeCount": 2635,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 569,
+      "PROFIT_TARGET": 1361,
+      "TRAILING_LOCK": 146,
+      "EXPIRATION": 524,
+      "TIME_STOP": 35
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl75-25+ml90",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl75-25+ml90",
+    "isSharpe": 2.6398831034020525,
+    "oosSharpe": 2.0015596465665393,
+    "holdoutSharpe": -0.28680411581476245,
+    "oosWinRate": 74.70588235294117,
+    "oosMaxDD": 2.3221902928849856,
+    "oosTotalPnl": 42097.208589380265,
+    "grade": "C",
+    "tradeCount": 2550,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 411,
+      "EXPIRATION": 604,
+      "TIME_STOP": 46,
+      "PROFIT_TARGET": 1343,
+      "TRAILING_LOCK": 146
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl50-50+ml75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl50-50+ml75",
+    "isSharpe": 2.96235106418387,
+    "oosSharpe": 2.0657422621625985,
+    "holdoutSharpe": -0.18442079937065955,
+    "oosWinRate": 73.61356411162133,
+    "oosMaxDD": 2.556788662721994,
+    "oosTotalPnl": 37712.3165132798,
+    "grade": "C",
+    "tradeCount": 2831,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 561,
+      "PROFIT_TARGET": 1326,
+      "TRAILING_LOCK": 452,
+      "EXPIRATION": 462,
+      "TIME_STOP": 30
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl50-50+ml90",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl50-50+ml90",
+    "isSharpe": 3.186202556791597,
+    "oosSharpe": 2.3884794802140386,
+    "holdoutSharpe": -0.07956398172768747,
+    "oosWinRate": 77.28764126868393,
+    "oosMaxDD": 2.0958872406439624,
+    "oosTotalPnl": 47622.95722347546,
+    "grade": "C",
+    "tradeCount": 2743,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 413,
+      "EXPIRATION": 539,
+      "TIME_STOP": 38,
+      "PROFIT_TARGET": 1305,
+      "TRAILING_LOCK": 448
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl75-25+ds70",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl75-25+ds70",
+    "isSharpe": 0.0632793181595592,
+    "oosSharpe": -0.3569695630403261,
+    "holdoutSharpe": -0.7531752680897424,
+    "oosWinRate": 61.39755766621439,
+    "oosMaxDD": 8.447520793766932,
+    "oosTotalPnl": -7320.439748469174,
+    "grade": "F",
+    "tradeCount": 2948,
+    "exitTypes": {
+      "DELTA_STOP": 1034,
+      "TRAILING_LOCK": 139,
+      "PROFIT_TARGET": 1457,
+      "EXPIRATION": 317,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl75-25+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl75-25+ds75",
+    "isSharpe": 0.3512911933317228,
+    "oosSharpe": -0.1829639469751058,
+    "holdoutSharpe": -0.5907936275444992,
+    "oosWinRate": 64.20978029766124,
+    "oosMaxDD": 8.380573038729132,
+    "oosTotalPnl": -4022.690273316364,
+    "grade": "F",
+    "tradeCount": 2822,
+    "exitTypes": {
+      "DELTA_STOP": 891,
+      "PROFIT_TARGET": 1442,
+      "TRAILING_LOCK": 140,
+      "EXPIRATION": 346,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl75-25+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl75-25+ds80",
+    "isSharpe": 0.47371267379030424,
+    "oosSharpe": -0.05414447391633464,
+    "holdoutSharpe": -0.726464891137568,
+    "oosWinRate": 66.49427410417437,
+    "oosMaxDD": 7.438438131461036,
+    "oosTotalPnl": -1426.5998613584609,
+    "grade": "F",
+    "tradeCount": 2707,
+    "exitTypes": {
+      "DELTA_STOP": 774,
+      "PROFIT_TARGET": 1407,
+      "TRAILING_LOCK": 149,
+      "EXPIRATION": 372,
+      "TIME_STOP": 5
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl50-50+ds70",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl50-50+ds70",
+    "isSharpe": 0.6594003461514177,
+    "oosSharpe": 0.14667772168762622,
+    "holdoutSharpe": -0.5110899633687063,
+    "oosWinRate": 65.51065860642699,
+    "oosMaxDD": 4.751639867814771,
+    "oosTotalPnl": 2455.964765898959,
+    "grade": "F",
+    "tradeCount": 3143,
+    "exitTypes": {
+      "DELTA_STOP": 990,
+      "TRAILING_LOCK": 458,
+      "PROFIT_TARGET": 1410,
+      "EXPIRATION": 284,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl50-50+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl50-50+ds75",
+    "isSharpe": 0.9267501167567535,
+    "oosSharpe": 0.3165756866846688,
+    "holdoutSharpe": -0.4510105744565828,
+    "oosWinRate": 68.21059646784406,
+    "oosMaxDD": 5.324306135234068,
+    "oosTotalPnl": 5714.746592810941,
+    "grade": "F",
+    "tradeCount": 3001,
+    "exitTypes": {
+      "DELTA_STOP": 844,
+      "PROFIT_TARGET": 1390,
+      "TRAILING_LOCK": 457,
+      "EXPIRATION": 308,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl50-50+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl50-50+ds80",
+    "isSharpe": 1.047100812214999,
+    "oosSharpe": 0.431334442873207,
+    "holdoutSharpe": -0.6063043935779986,
+    "oosWinRate": 70.24508111839835,
+    "oosMaxDD": 5.424216998549869,
+    "oosTotalPnl": 7896.228916566147,
+    "grade": "D",
+    "tradeCount": 2897,
+    "exitTypes": {
+      "DELTA_STOP": 739,
+      "PROFIT_TARGET": 1371,
+      "TRAILING_LOCK": 460,
+      "EXPIRATION": 324,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+ml75+ds70",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "ml75+ds70",
+    "isSharpe": 0.3864433455496547,
+    "oosSharpe": -0.06095307365370481,
+    "holdoutSharpe": -0.7203415355206643,
+    "oosWinRate": 57.664974619289346,
+    "oosMaxDD": 7.0508074119888935,
+    "oosTotalPnl": -1377.4931414875252,
+    "grade": "F",
+    "tradeCount": 2955,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 325,
+      "DELTA_STOP": 828,
+      "PROFIT_TARGET": 1470,
+      "EXPIRATION": 329,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+ml75+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "ml75+ds75",
+    "isSharpe": 0.6752285800893201,
+    "oosSharpe": 0.05650500760882586,
+    "holdoutSharpe": -0.6075830042149923,
+    "oosWinRate": 60.02834868887314,
+    "oosMaxDD": 7.454056526613526,
+    "oosTotalPnl": 778.972605905659,
+    "grade": "F",
+    "tradeCount": 2822,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 378,
+      "DELTA_STOP": 636,
+      "PROFIT_TARGET": 1442,
+      "EXPIRATION": 362,
+      "TIME_STOP": 4
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+ml75+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "ml75+ds80",
+    "isSharpe": 0.8498514426055218,
+    "oosSharpe": 0.29961046344878495,
+    "holdoutSharpe": -0.6618241757454897,
+    "oosWinRate": 62.41709653647752,
+    "oosMaxDD": 5.9511768511083245,
+    "oosTotalPnl": 5382.193578107843,
+    "grade": "D",
+    "tradeCount": 2714,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 456,
+      "DELTA_STOP": 436,
+      "PROFIT_TARGET": 1430,
+      "EXPIRATION": 385,
+      "TIME_STOP": 7
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+ml90+ds70",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "ml90+ds70",
+    "isSharpe": 0.24064154700726623,
+    "oosSharpe": -0.19873415520561363,
+    "holdoutSharpe": -0.7993051344288523,
+    "oosWinRate": 57.84479837343274,
+    "oosMaxDD": 7.658624181653181,
+    "oosTotalPnl": -3965.9089399264144,
+    "grade": "F",
+    "tradeCount": 2951,
+    "exitTypes": {
+      "DELTA_STOP": 953,
+      "MAX_LOSS_STOP": 192,
+      "PROFIT_TARGET": 1474,
+      "EXPIRATION": 329,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+ml90+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "ml90+ds75",
+    "isSharpe": 0.4634422195787603,
+    "oosSharpe": -0.1255783428155105,
+    "holdoutSharpe": -0.6622662866796926,
+    "oosWinRate": 60.177304964539005,
+    "oosMaxDD": 8.224738721322693,
+    "oosTotalPnl": -2686.038662543551,
+    "grade": "F",
+    "tradeCount": 2820,
+    "exitTypes": {
+      "DELTA_STOP": 795,
+      "MAX_LOSS_STOP": 213,
+      "PROFIT_TARGET": 1446,
+      "EXPIRATION": 362,
+      "TIME_STOP": 4
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+ml90+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "ml90+ds80",
+    "isSharpe": 0.5721209250978129,
+    "oosSharpe": 0.03451704958323964,
+    "holdoutSharpe": -0.7734494000079696,
+    "oosWinRate": 62.518463810930584,
+    "oosMaxDD": 7.149554810570061,
+    "oosTotalPnl": 371.18505484801176,
+    "grade": "F",
+    "tradeCount": 2708,
+    "exitTypes": {
+      "DELTA_STOP": 629,
+      "MAX_LOSS_STOP": 255,
+      "PROFIT_TARGET": 1431,
+      "EXPIRATION": 386,
+      "TIME_STOP": 7
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl75-25+ml75+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl75-25+ml75+ds75",
+    "isSharpe": 0.8848234756668693,
+    "oosSharpe": 0.22836474156003292,
+    "holdoutSharpe": -0.5057632945361836,
+    "oosWinRate": 62.387853692201524,
+    "oosMaxDD": 6.639369562892183,
+    "oosTotalPnl": 3861.8271050801645,
+    "grade": "F",
+    "tradeCount": 2898,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 367,
+      "DELTA_STOP": 613,
+      "PROFIT_TARGET": 1438,
+      "TRAILING_LOCK": 139,
+      "EXPIRATION": 339,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl75-25+ml75+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl75-25+ml75+ds80",
+    "isSharpe": 1.0139320267647565,
+    "oosSharpe": 0.4091908651937714,
+    "holdoutSharpe": -0.5598889906274422,
+    "oosWinRate": 64.37814521926671,
+    "oosMaxDD": 5.6206098693516,
+    "oosTotalPnl": 7125.141552896132,
+    "grade": "D",
+    "tradeCount": 2782,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 441,
+      "DELTA_STOP": 424,
+      "PROFIT_TARGET": 1405,
+      "TRAILING_LOCK": 145,
+      "EXPIRATION": 362,
+      "TIME_STOP": 5
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl75-25+ml90+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl75-25+ml90+ds75",
+    "isSharpe": 0.6900660504569888,
+    "oosSharpe": 0.05307825191436941,
+    "holdoutSharpe": -0.5588980303237951,
+    "oosWinRate": 62.564811614241265,
+    "oosMaxDD": 7.2983291358060685,
+    "oosTotalPnl": 708.856901699692,
+    "grade": "F",
+    "tradeCount": 2893,
+    "exitTypes": {
+      "DELTA_STOP": 767,
+      "MAX_LOSS_STOP": 205,
+      "PROFIT_TARGET": 1440,
+      "TRAILING_LOCK": 140,
+      "EXPIRATION": 339,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl75-25+ml90+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl75-25+ml90+ds80",
+    "isSharpe": 0.7463604358115351,
+    "oosSharpe": 0.15946610857082477,
+    "holdoutSharpe": -0.6705972929028682,
+    "oosWinRate": 64.48126801152738,
+    "oosMaxDD": 6.600151854457,
+    "oosTotalPnl": 2679.0693031621167,
+    "grade": "F",
+    "tradeCount": 2776,
+    "exitTypes": {
+      "DELTA_STOP": 609,
+      "MAX_LOSS_STOP": 248,
+      "PROFIT_TARGET": 1404,
+      "TRAILING_LOCK": 147,
+      "EXPIRATION": 363,
+      "TIME_STOP": 5
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl50-50+ml75+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl50-50+ml75+ds75",
+    "isSharpe": 1.6051514873794739,
+    "oosSharpe": 0.8378313380575414,
+    "holdoutSharpe": -0.3865141925764497,
+    "oosWinRate": 66.48244473342002,
+    "oosMaxDD": 3.472270935638836,
+    "oosTotalPnl": 13819.195996746701,
+    "grade": "C",
+    "tradeCount": 3076,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 363,
+      "DELTA_STOP": 569,
+      "TRAILING_LOCK": 457,
+      "PROFIT_TARGET": 1386,
+      "EXPIRATION": 299,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl50-50+ml75+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl50-50+ml75+ds80",
+    "isSharpe": 1.7489922535695073,
+    "oosSharpe": 0.9441387247706494,
+    "holdoutSharpe": -0.4140660586468387,
+    "oosWinRate": 68.10084033613445,
+    "oosMaxDD": 3.2868404365597326,
+    "oosTotalPnl": 15770.607017781223,
+    "grade": "C",
+    "tradeCount": 2975,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 436,
+      "DELTA_STOP": 402,
+      "TRAILING_LOCK": 460,
+      "PROFIT_TARGET": 1361,
+      "EXPIRATION": 312,
+      "TIME_STOP": 4
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl50-50+ml90+ds75",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl50-50+ml90+ds75",
+    "isSharpe": 1.3977952390677775,
+    "oosSharpe": 0.6340221024906803,
+    "holdoutSharpe": -0.43347436940019685,
+    "oosWinRate": 66.61248374512354,
+    "oosMaxDD": 4.1387678507592565,
+    "oosTotalPnl": 10625.827024963526,
+    "grade": "C",
+    "tradeCount": 3076,
+    "exitTypes": {
+      "DELTA_STOP": 722,
+      "MAX_LOSS_STOP": 205,
+      "TRAILING_LOCK": 457,
+      "PROFIT_TARGET": 1391,
+      "EXPIRATION": 299,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "vol|tp50|w2.5|d45|pm2.25+tl50-50+ml90+ds80",
+    "baseConfig": "vol|tp50|w2.5|d45|pm2.25",
+    "slVariant": "tl50-50+ml90+ds80",
+    "isSharpe": 1.4805894664568313,
+    "oosSharpe": 0.6856986883257485,
+    "holdoutSharpe": -0.5304309039204604,
+    "oosWinRate": 68.31649831649833,
+    "oosMaxDD": 3.9706217125246184,
+    "oosTotalPnl": 11639.008948423287,
+    "grade": "C",
+    "tradeCount": 2970,
+    "exitTypes": {
+      "DELTA_STOP": 583,
+      "MAX_LOSS_STOP": 245,
+      "TRAILING_LOCK": 461,
+      "PROFIT_TARGET": 1365,
+      "EXPIRATION": 312,
+      "TIME_STOP": 4
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+baseline",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "baseline",
+    "isSharpe": 3.2679329889932007,
+    "oosSharpe": 2.4269568889036655,
+    "holdoutSharpe": -0.00042427724056110015,
+    "oosWinRate": 82.21739130434783,
+    "oosMaxDD": 1.5979247294794507,
+    "oosTotalPnl": 76780.38848928962,
+    "grade": "B",
+    "tradeCount": 2300,
+    "exitTypes": {
+      "EXPIRATION": 837,
+      "PROFIT_TARGET": 1279,
+      "TIME_STOP": 184
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl75-25",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25",
+    "isSharpe": 3.487110586135974,
+    "oosSharpe": 2.5533735114605154,
+    "holdoutSharpe": 0.05403896710185208,
+    "oosWinRate": 83.8789888106092,
+    "oosMaxDD": 1.5372638541033017,
+    "oosTotalPnl": 76648.47450151862,
+    "grade": "B",
+    "tradeCount": 2413,
+    "exitTypes": {
+      "EXPIRATION": 791,
+      "PROFIT_TARGET": 1285,
+      "TIME_STOP": 167,
+      "TRAILING_LOCK": 170
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl50-50",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50",
+    "isSharpe": 3.8368051020891807,
+    "oosSharpe": 2.989001414145313,
+    "holdoutSharpe": 0.24604563547543015,
+    "oosWinRate": 86.44716692189893,
+    "oosMaxDD": 1.4319674647643028,
+    "oosTotalPnl": 85576.79028748382,
+    "grade": "B",
+    "tradeCount": 2612,
+    "exitTypes": {
+      "EXPIRATION": 730,
+      "PROFIT_TARGET": 1277,
+      "TIME_STOP": 150,
+      "TRAILING_LOCK": 455
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+ml75",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "ml75",
+    "isSharpe": 2.383821676837603,
+    "oosSharpe": 1.6046075858120499,
+    "holdoutSharpe": -0.4379969923386643,
+    "oosWinRate": 69.4260485651214,
+    "oosMaxDD": 2.8117575098341407,
+    "oosTotalPnl": 35528.556950111975,
+    "grade": "C",
+    "tradeCount": 2718,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 610,
+      "PROFIT_TARGET": 1483,
+      "EXPIRATION": 592,
+      "TIME_STOP": 33
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+ml90",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "ml90",
+    "isSharpe": 2.6641758097342065,
+    "oosSharpe": 1.8583736062081635,
+    "holdoutSharpe": -0.40808200863208594,
+    "oosWinRate": 72.87480680061825,
+    "oosMaxDD": 2.059937670829713,
+    "oosTotalPnl": 44049.67581961163,
+    "grade": "C",
+    "tradeCount": 2588,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 443,
+      "EXPIRATION": 679,
+      "PROFIT_TARGET": 1416,
+      "TIME_STOP": 50
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl75-25+ml75",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml75",
+    "isSharpe": 2.625701195110905,
+    "oosSharpe": 1.77372213787403,
+    "holdoutSharpe": -0.34881356983909284,
+    "oosWinRate": 71.57558552164656,
+    "oosMaxDD": 2.7119147974514193,
+    "oosTotalPnl": 37442.5950693558,
+    "grade": "C",
+    "tradeCount": 2818,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 594,
+      "PROFIT_TARGET": 1462,
+      "EXPIRATION": 563,
+      "TRAILING_LOCK": 174,
+      "TIME_STOP": 25
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl75-25+ml90",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml90",
+    "isSharpe": 2.9523276819388435,
+    "oosSharpe": 2.0511587401859965,
+    "holdoutSharpe": -0.3216361874407223,
+    "oosWinRate": 74.99070977331847,
+    "oosMaxDD": 1.9916165461137523,
+    "oosTotalPnl": 46336.86488193251,
+    "grade": "C",
+    "tradeCount": 2691,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 434,
+      "EXPIRATION": 637,
+      "PROFIT_TARGET": 1413,
+      "TRAILING_LOCK": 169,
+      "TIME_STOP": 38
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl50-50+ml75",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml75",
+    "isSharpe": 3.0495564896832827,
+    "oosSharpe": 2.19563038418479,
+    "holdoutSharpe": -0.27850026618226725,
+    "oosWinRate": 74.000660720185,
+    "oosMaxDD": 2.5794023021313564,
+    "oosTotalPnl": 44163.111704146555,
+    "grade": "C",
+    "tradeCount": 3027,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 595,
+      "TRAILING_LOCK": 483,
+      "PROFIT_TARGET": 1420,
+      "EXPIRATION": 508,
+      "TIME_STOP": 21
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl50-50+ml90",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml90",
+    "isSharpe": 3.31141157422415,
+    "oosSharpe": 2.4390797389607664,
+    "holdoutSharpe": -0.1944666173153089,
+    "oosWinRate": 77.3453787352328,
+    "oosMaxDD": 1.8905988873802615,
+    "oosTotalPnl": 52289.37984403683,
+    "grade": "C",
+    "tradeCount": 2878,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 433,
+      "EXPIRATION": 584,
+      "PROFIT_TARGET": 1367,
+      "TRAILING_LOCK": 461,
+      "TIME_STOP": 33
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl75-25+ds70",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ds70",
+    "isSharpe": 0.22130163165481925,
+    "oosSharpe": -0.32482074910356307,
+    "holdoutSharpe": -0.9643070423591249,
+    "oosWinRate": 61.86176836861769,
+    "oosMaxDD": 10.895577251642349,
+    "oosTotalPnl": -7336.414458352872,
+    "grade": "F",
+    "tradeCount": 3212,
+    "exitTypes": {
+      "DELTA_STOP": 1117,
+      "EXPIRATION": 314,
+      "PROFIT_TARGET": 1612,
+      "TRAILING_LOCK": 168,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl75-25+ds75",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ds75",
+    "isSharpe": 0.37161093691841124,
+    "oosSharpe": -0.18220745853239798,
+    "holdoutSharpe": -0.5911997816328592,
+    "oosWinRate": 64.93078444297956,
+    "oosMaxDD": 10.550505177646478,
+    "oosTotalPnl": -4344.492331575288,
+    "grade": "F",
+    "tradeCount": 3034,
+    "exitTypes": {
+      "DELTA_STOP": 935,
+      "PROFIT_TARGET": 1566,
+      "TRAILING_LOCK": 170,
+      "EXPIRATION": 360,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl75-25+ds80",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ds80",
+    "isSharpe": 0.6555313371264614,
+    "oosSharpe": 0.07851695778837921,
+    "holdoutSharpe": -0.5728235557879511,
+    "oosWinRate": 67.62266758811334,
+    "oosMaxDD": 9.089832030635678,
+    "oosTotalPnl": 1355.1786934203856,
+    "grade": "F",
+    "tradeCount": 2894,
+    "exitTypes": {
+      "DELTA_STOP": 795,
+      "PROFIT_TARGET": 1519,
+      "EXPIRATION": 397,
+      "TRAILING_LOCK": 177,
+      "TIME_STOP": 6
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl50-50+ds70",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ds70",
+    "isSharpe": 0.7926651805127933,
+    "oosSharpe": 0.23637219877747773,
+    "holdoutSharpe": -0.8675277187040172,
+    "oosWinRate": 65.96429616622768,
+    "oosMaxDD": 8.322482851649966,
+    "oosTotalPnl": 4528.086058939901,
+    "grade": "F",
+    "tradeCount": 3417,
+    "exitTypes": {
+      "DELTA_STOP": 1063,
+      "TRAILING_LOCK": 511,
+      "PROFIT_TARGET": 1558,
+      "EXPIRATION": 284,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl50-50+ds75",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ds75",
+    "isSharpe": 0.9441971988789695,
+    "oosSharpe": 0.39268935737309923,
+    "holdoutSharpe": -0.6186034185713812,
+    "oosWinRate": 68.80197105020018,
+    "oosMaxDD": 8.685715918006451,
+    "oosTotalPnl": 7880.149025080743,
+    "grade": "D",
+    "tradeCount": 3247,
+    "exitTypes": {
+      "DELTA_STOP": 893,
+      "PROFIT_TARGET": 1522,
+      "TRAILING_LOCK": 503,
+      "EXPIRATION": 328,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl50-50+ds80",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ds80",
+    "isSharpe": 1.1837264643957988,
+    "oosSharpe": 0.5626353061789716,
+    "holdoutSharpe": -0.5261204898128641,
+    "oosWinRate": 71.15816490214951,
+    "oosMaxDD": 8.290720617876248,
+    "oosTotalPnl": 11615.221050359301,
+    "grade": "C",
+    "tradeCount": 3117,
+    "exitTypes": {
+      "DELTA_STOP": 770,
+      "PROFIT_TARGET": 1500,
+      "TRAILING_LOCK": 494,
+      "EXPIRATION": 352,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+ml75+ds70",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "ml75+ds70",
+    "isSharpe": 0.626333881192555,
+    "oosSharpe": 0.06942388350848959,
+    "holdoutSharpe": -0.9155861532260309,
+    "oosWinRate": 58.09464508094645,
+    "oosMaxDD": 7.70308941242581,
+    "oosTotalPnl": 1061.142987596556,
+    "grade": "F",
+    "tradeCount": 3212,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 375,
+      "DELTA_STOP": 864,
+      "PROFIT_TARGET": 1643,
+      "EXPIRATION": 327,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+ml75+ds75",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "ml75+ds75",
+    "isSharpe": 0.7773946591411734,
+    "oosSharpe": 0.1691389955892763,
+    "holdoutSharpe": -0.64844779130849,
+    "oosWinRate": 60.51332675222113,
+    "oosMaxDD": 7.638042786322578,
+    "oosTotalPnl": 3073.7395984494124,
+    "grade": "F",
+    "tradeCount": 3039,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 418,
+      "DELTA_STOP": 656,
+      "PROFIT_TARGET": 1590,
+      "EXPIRATION": 371,
+      "TIME_STOP": 4
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+ml75+ds80",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "ml75+ds80",
+    "isSharpe": 1.025373081427573,
+    "oosSharpe": 0.3891745815884753,
+    "holdoutSharpe": -0.5053765715374339,
+    "oosWinRate": 62.598290598290596,
+    "oosMaxDD": 6.20616995865833,
+    "oosTotalPnl": 7659.118600039842,
+    "grade": "F",
+    "tradeCount": 2925,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 499,
+      "DELTA_STOP": 448,
+      "PROFIT_TARGET": 1559,
+      "EXPIRATION": 410,
+      "TIME_STOP": 9
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+ml90+ds70",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "ml90+ds70",
+    "isSharpe": 0.5022063987524975,
+    "oosSharpe": -0.08329140064486207,
+    "holdoutSharpe": -0.9833277218544716,
+    "oosWinRate": 58.260598503740646,
+    "oosMaxDD": 8.544469609937929,
+    "oosTotalPnl": -1990.1780822973474,
+    "grade": "F",
+    "tradeCount": 3208,
+    "exitTypes": {
+      "DELTA_STOP": 995,
+      "MAX_LOSS_STOP": 236,
+      "PROFIT_TARGET": 1647,
+      "EXPIRATION": 327,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+ml90+ds75",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "ml90+ds75",
+    "isSharpe": 0.5718461680472705,
+    "oosSharpe": -0.011245121054074178,
+    "holdoutSharpe": -0.717045666081283,
+    "oosWinRate": 60.6989779096604,
+    "oosMaxDD": 8.579242307791775,
+    "oosTotalPnl": -562.972978968639,
+    "grade": "F",
+    "tradeCount": 3033,
+    "exitTypes": {
+      "DELTA_STOP": 817,
+      "MAX_LOSS_STOP": 248,
+      "PROFIT_TARGET": 1592,
+      "EXPIRATION": 372,
+      "TIME_STOP": 4
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+ml90+ds80",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "ml90+ds80",
+    "isSharpe": 0.8023252361463782,
+    "oosSharpe": 0.18692200824843222,
+    "holdoutSharpe": -0.6049749954444712,
+    "oosWinRate": 62.88659793814433,
+    "oosMaxDD": 6.90726308089247,
+    "oosTotalPnl": 3577.849289039896,
+    "grade": "F",
+    "tradeCount": 2910,
+    "exitTypes": {
+      "DELTA_STOP": 644,
+      "MAX_LOSS_STOP": 287,
+      "PROFIT_TARGET": 1559,
+      "EXPIRATION": 411,
+      "TIME_STOP": 9
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl75-25+ml75+ds75",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml75+ds75",
+    "isSharpe": 0.9797866791302338,
+    "oosSharpe": 0.31543655975598023,
+    "holdoutSharpe": -0.6021368800816146,
+    "oosWinRate": 62.71887933779051,
+    "oosMaxDD": 6.925700103280608,
+    "oosTotalPnl": 5860.989620289809,
+    "grade": "F",
+    "tradeCount": 3141,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 409,
+      "DELTA_STOP": 643,
+      "PROFIT_TARGET": 1574,
+      "TRAILING_LOCK": 161,
+      "EXPIRATION": 352,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl75-25+ml75+ds80",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml75+ds80",
+    "isSharpe": 1.1715275232156703,
+    "oosSharpe": 0.5359098817023661,
+    "holdoutSharpe": -0.42534394861782443,
+    "oosWinRate": 64.8478835978836,
+    "oosMaxDD": 5.9241374440763215,
+    "oosTotalPnl": 10235.354846132575,
+    "grade": "C",
+    "tradeCount": 3024,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 496,
+      "DELTA_STOP": 438,
+      "PROFIT_TARGET": 1531,
+      "TRAILING_LOCK": 175,
+      "EXPIRATION": 379,
+      "TIME_STOP": 5
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl75-25+ml90+ds75",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml90+ds75",
+    "isSharpe": 0.7670054378882079,
+    "oosSharpe": 0.1312688825175542,
+    "holdoutSharpe": -0.6717903716967686,
+    "oosWinRate": 62.91454081632652,
+    "oosMaxDD": 7.888614552415165,
+    "oosTotalPnl": 2306.2855199285837,
+    "grade": "F",
+    "tradeCount": 3136,
+    "exitTypes": {
+      "DELTA_STOP": 798,
+      "MAX_LOSS_STOP": 245,
+      "PROFIT_TARGET": 1575,
+      "TRAILING_LOCK": 163,
+      "EXPIRATION": 353,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl75-25+ml90+ds80",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml90+ds80",
+    "isSharpe": 0.9850939535616273,
+    "oosSharpe": 0.34804627445258773,
+    "holdoutSharpe": -0.5262654656009059,
+    "oosWinRate": 65.28101097439308,
+    "oosMaxDD": 6.680140795382718,
+    "oosTotalPnl": 6677.088222916194,
+    "grade": "F",
+    "tradeCount": 3007,
+    "exitTypes": {
+      "DELTA_STOP": 630,
+      "MAX_LOSS_STOP": 283,
+      "PROFIT_TARGET": 1534,
+      "TRAILING_LOCK": 174,
+      "EXPIRATION": 381,
+      "TIME_STOP": 5
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl50-50+ml75+ds75",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml75+ds75",
+    "isSharpe": 1.6299304267705401,
+    "oosSharpe": 0.9687200184251352,
+    "holdoutSharpe": -0.6143683622294116,
+    "oosWinRate": 66.7262436699434,
+    "oosMaxDD": 4.196318054583305,
+    "oosTotalPnl": 17427.4937405743,
+    "grade": "C",
+    "tradeCount": 3357,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 401,
+      "DELTA_STOP": 606,
+      "TRAILING_LOCK": 501,
+      "PROFIT_TARGET": 1536,
+      "EXPIRATION": 312,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl50-50+ml75+ds80",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml75+ds80",
+    "isSharpe": 1.8598539684618436,
+    "oosSharpe": 1.180861950256641,
+    "holdoutSharpe": -0.445714479035871,
+    "oosWinRate": 68.6576354679803,
+    "oosMaxDD": 3.693953657125295,
+    "oosTotalPnl": 21525.940875523218,
+    "grade": "C",
+    "tradeCount": 3248,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 476,
+      "DELTA_STOP": 427,
+      "TRAILING_LOCK": 503,
+      "PROFIT_TARGET": 1511,
+      "EXPIRATION": 330,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl50-50+ml90+ds75",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml90+ds75",
+    "isSharpe": 1.4109302134112103,
+    "oosSharpe": 0.761233461752217,
+    "holdoutSharpe": -0.6878110756589133,
+    "oosWinRate": 66.90518783542039,
+    "oosMaxDD": 5.0674065681477325,
+    "oosTotalPnl": 13933.907928902103,
+    "grade": "C",
+    "tradeCount": 3354,
+    "exitTypes": {
+      "DELTA_STOP": 762,
+      "MAX_LOSS_STOP": 237,
+      "TRAILING_LOCK": 504,
+      "PROFIT_TARGET": 1537,
+      "EXPIRATION": 313,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "mf|tp50|w2.5|d45|pm3+tl50-50+ml90+ds80",
+    "baseConfig": "mf|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml90+ds80",
+    "isSharpe": 1.602695035114964,
+    "oosSharpe": 0.941270176047263,
+    "holdoutSharpe": -0.5396875953495022,
+    "oosWinRate": 68.97086174829509,
+    "oosMaxDD": 4.314632883539344,
+    "oosTotalPnl": 17559.475188963657,
+    "grade": "C",
+    "tradeCount": 3226,
+    "exitTypes": {
+      "DELTA_STOP": 613,
+      "MAX_LOSS_STOP": 272,
+      "TRAILING_LOCK": 501,
+      "PROFIT_TARGET": 1507,
+      "EXPIRATION": 332,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+baseline",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "baseline",
+    "isSharpe": 3.1944341657931195,
+    "oosSharpe": 2.4248616466789246,
+    "holdoutSharpe": 0.026984208965724368,
+    "oosWinRate": 82.19713417281807,
+    "oosMaxDD": 1.5962567297126216,
+    "oosTotalPnl": 75992.33300032243,
+    "grade": "B",
+    "tradeCount": 2303,
+    "exitTypes": {
+      "EXPIRATION": 837,
+      "PROFIT_TARGET": 1282,
+      "TIME_STOP": 184
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl75-25",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25",
+    "isSharpe": 3.401154804339975,
+    "oosSharpe": 2.5795240752000295,
+    "holdoutSharpe": 0.05760913317520637,
+    "oosWinRate": 84.00165357585779,
+    "oosMaxDD": 1.5437423873324152,
+    "oosTotalPnl": 76060.04072573353,
+    "grade": "B",
+    "tradeCount": 2419,
+    "exitTypes": {
+      "EXPIRATION": 791,
+      "PROFIT_TARGET": 1295,
+      "TIME_STOP": 168,
+      "TRAILING_LOCK": 165
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl50-50",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50",
+    "isSharpe": 3.8692585018558705,
+    "oosSharpe": 3.04354844377142,
+    "holdoutSharpe": 0.15002572553003332,
+    "oosWinRate": 86.53404743687835,
+    "oosMaxDD": 1.4193848639297124,
+    "oosTotalPnl": 86531.23383528402,
+    "grade": "B",
+    "tradeCount": 2614,
+    "exitTypes": {
+      "EXPIRATION": 733,
+      "PROFIT_TARGET": 1282,
+      "TIME_STOP": 148,
+      "TRAILING_LOCK": 451
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+ml75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "ml75",
+    "isSharpe": 2.318860157819169,
+    "oosSharpe": 1.5522534187026287,
+    "holdoutSharpe": -0.37778871781242845,
+    "oosWinRate": 69.34118513065881,
+    "oosMaxDD": 2.8230454829025424,
+    "oosTotalPnl": 34758.081579062586,
+    "grade": "C",
+    "tradeCount": 2717,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 610,
+      "PROFIT_TARGET": 1479,
+      "EXPIRATION": 593,
+      "TIME_STOP": 35
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+ml90",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "ml90",
+    "isSharpe": 2.5417408855128865,
+    "oosSharpe": 1.7649239790792735,
+    "holdoutSharpe": -0.35482523963240353,
+    "oosWinRate": 72.61121856866538,
+    "oosMaxDD": 2.088933940048461,
+    "oosTotalPnl": 41971.14760817606,
+    "grade": "C",
+    "tradeCount": 2585,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 444,
+      "EXPIRATION": 680,
+      "PROFIT_TARGET": 1412,
+      "TIME_STOP": 49
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl75-25+ml75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml75",
+    "isSharpe": 2.5710987858561443,
+    "oosSharpe": 1.7317384459160448,
+    "holdoutSharpe": -0.28479618248282623,
+    "oosWinRate": 71.36782423812899,
+    "oosMaxDD": 2.715825255310391,
+    "oosTotalPnl": 36735.57822339435,
+    "grade": "C",
+    "tradeCount": 2822,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 596,
+      "PROFIT_TARGET": 1465,
+      "EXPIRATION": 566,
+      "TRAILING_LOCK": 170,
+      "TIME_STOP": 25
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl75-25+ml90",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml90",
+    "isSharpe": 2.832590139043504,
+    "oosSharpe": 2.004935974366564,
+    "holdoutSharpe": -0.26514661436802656,
+    "oosWinRate": 74.94423791821562,
+    "oosMaxDD": 2.00493570699175,
+    "oosTotalPnl": 45418.042473425565,
+    "grade": "C",
+    "tradeCount": 2690,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 428,
+      "EXPIRATION": 647,
+      "PROFIT_TARGET": 1405,
+      "TRAILING_LOCK": 171,
+      "TIME_STOP": 39
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl50-50+ml75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml75",
+    "isSharpe": 3.0315052040085915,
+    "oosSharpe": 2.2149340127787958,
+    "holdoutSharpe": -0.1585953865955305,
+    "oosWinRate": 74.12425644415069,
+    "oosMaxDD": 2.5646412527166147,
+    "oosTotalPnl": 44456.65769587613,
+    "grade": "C",
+    "tradeCount": 3026,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 588,
+      "PROFIT_TARGET": 1419,
+      "TRAILING_LOCK": 486,
+      "EXPIRATION": 511,
+      "TIME_STOP": 22
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl50-50+ml90",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml90",
+    "isSharpe": 3.177039508752074,
+    "oosSharpe": 2.3897953765421924,
+    "holdoutSharpe": -0.06204708079156345,
+    "oosWinRate": 77.09419534237053,
+    "oosMaxDD": 1.9035076788716423,
+    "oosTotalPnl": 51199.152409811664,
+    "grade": "C",
+    "tradeCount": 2877,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 435,
+      "EXPIRATION": 580,
+      "PROFIT_TARGET": 1361,
+      "TRAILING_LOCK": 467,
+      "TIME_STOP": 34
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl75-25+ds70",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ds70",
+    "isSharpe": 0.126457731700665,
+    "oosSharpe": -0.41806792058399495,
+    "holdoutSharpe": -0.9420760102845591,
+    "oosWinRate": 61.55997513983841,
+    "oosMaxDD": 12.246691666700528,
+    "oosTotalPnl": -9336.086325718623,
+    "grade": "F",
+    "tradeCount": 3218,
+    "exitTypes": {
+      "DELTA_STOP": 1128,
+      "EXPIRATION": 321,
+      "PROFIT_TARGET": 1595,
+      "TRAILING_LOCK": 173,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl75-25+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ds75",
+    "isSharpe": 0.30651021418720004,
+    "oosSharpe": -0.22728392602431619,
+    "holdoutSharpe": -0.5995962183634382,
+    "oosWinRate": 64.61285008237232,
+    "oosMaxDD": 10.432109864494379,
+    "oosTotalPnl": -5402.8594853910645,
+    "grade": "F",
+    "tradeCount": 3035,
+    "exitTypes": {
+      "DELTA_STOP": 946,
+      "PROFIT_TARGET": 1545,
+      "TRAILING_LOCK": 175,
+      "EXPIRATION": 366,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl75-25+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ds80",
+    "isSharpe": 0.5784977443375873,
+    "oosSharpe": 0.1124211949446576,
+    "holdoutSharpe": -0.5071358867166931,
+    "oosWinRate": 67.76088458880443,
+    "oosMaxDD": 8.711247289427313,
+    "oosTotalPnl": 2116.769105304268,
+    "grade": "F",
+    "tradeCount": 2894,
+    "exitTypes": {
+      "DELTA_STOP": 789,
+      "PROFIT_TARGET": 1518,
+      "EXPIRATION": 401,
+      "TRAILING_LOCK": 180,
+      "TIME_STOP": 6
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl50-50+ds70",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ds70",
+    "isSharpe": 0.590418467397484,
+    "oosSharpe": 0.07836689491517067,
+    "holdoutSharpe": -0.8072118442056267,
+    "oosWinRate": 65.39802440441603,
+    "oosMaxDD": 8.380767353088507,
+    "oosTotalPnl": 1284.638226518438,
+    "grade": "F",
+    "tradeCount": 3442,
+    "exitTypes": {
+      "DELTA_STOP": 1088,
+      "TRAILING_LOCK": 522,
+      "PROFIT_TARGET": 1541,
+      "EXPIRATION": 290,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl50-50+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ds75",
+    "isSharpe": 0.7536192738482781,
+    "oosSharpe": 0.30078156986426363,
+    "holdoutSharpe": -0.5351800766781788,
+    "oosWinRate": 68.4679152594412,
+    "oosMaxDD": 8.622495762357925,
+    "oosTotalPnl": 5946.127466218145,
+    "grade": "F",
+    "tradeCount": 3257,
+    "exitTypes": {
+      "DELTA_STOP": 906,
+      "PROFIT_TARGET": 1507,
+      "TRAILING_LOCK": 511,
+      "EXPIRATION": 332,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl50-50+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ds80",
+    "isSharpe": 1.0392827276049925,
+    "oosSharpe": 0.5101198612700761,
+    "holdoutSharpe": -0.5121779472320717,
+    "oosWinRate": 70.9470304975923,
+    "oosMaxDD": 7.800545210825112,
+    "oosTotalPnl": 10483.859347153368,
+    "grade": "C",
+    "tradeCount": 3115,
+    "exitTypes": {
+      "DELTA_STOP": 775,
+      "PROFIT_TARGET": 1489,
+      "TRAILING_LOCK": 500,
+      "EXPIRATION": 350,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+ml75+ds70",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "ml75+ds70",
+    "isSharpe": 0.5973208930827031,
+    "oosSharpe": -0.006605330863594838,
+    "holdoutSharpe": -0.8801228902400009,
+    "oosWinRate": 57.77363184079603,
+    "oosMaxDD": 7.655069265306339,
+    "oosTotalPnl": -435.95269470210224,
+    "grade": "F",
+    "tradeCount": 3216,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 380,
+      "DELTA_STOP": 869,
+      "PROFIT_TARGET": 1627,
+      "EXPIRATION": 337,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+ml75+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "ml75+ds75",
+    "isSharpe": 0.6506136784193015,
+    "oosSharpe": 0.15948386885855342,
+    "holdoutSharpe": -0.6389001663158581,
+    "oosWinRate": 60.54533508541393,
+    "oosMaxDD": 7.78676661942576,
+    "oosTotalPnl": 2899.1312472636628,
+    "grade": "F",
+    "tradeCount": 3044,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 417,
+      "DELTA_STOP": 658,
+      "PROFIT_TARGET": 1591,
+      "EXPIRATION": 374,
+      "TIME_STOP": 4
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+ml75+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "ml75+ds80",
+    "isSharpe": 0.8532812271066468,
+    "oosSharpe": 0.3806626790665457,
+    "holdoutSharpe": -0.4480083290095745,
+    "oosWinRate": 62.79782164737917,
+    "oosMaxDD": 6.255513062693001,
+    "oosTotalPnl": 7533.8661917107975,
+    "grade": "D",
+    "tradeCount": 2938,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 497,
+      "DELTA_STOP": 452,
+      "PROFIT_TARGET": 1571,
+      "EXPIRATION": 409,
+      "TIME_STOP": 9
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+ml90+ds70",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "ml90+ds70",
+    "isSharpe": 0.4236374056026526,
+    "oosSharpe": -0.18015122785016333,
+    "holdoutSharpe": -0.9473813849344167,
+    "oosWinRate": 57.89965721408539,
+    "oosMaxDD": 8.630017949841028,
+    "oosTotalPnl": -3924.400373056626,
+    "grade": "F",
+    "tradeCount": 3209,
+    "exitTypes": {
+      "DELTA_STOP": 996,
+      "MAX_LOSS_STOP": 245,
+      "PROFIT_TARGET": 1628,
+      "EXPIRATION": 337,
+      "TIME_STOP": 3
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+ml90+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "ml90+ds75",
+    "isSharpe": 0.42287005976291736,
+    "oosSharpe": -0.059976296769453236,
+    "holdoutSharpe": -0.7023815686173189,
+    "oosWinRate": 60.61305207646671,
+    "oosMaxDD": 8.775072141676901,
+    "oosTotalPnl": -1578.2748441755512,
+    "grade": "F",
+    "tradeCount": 3034,
+    "exitTypes": {
+      "DELTA_STOP": 823,
+      "MAX_LOSS_STOP": 245,
+      "PROFIT_TARGET": 1587,
+      "EXPIRATION": 375,
+      "TIME_STOP": 4
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+ml90+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "ml90+ds80",
+    "isSharpe": 0.6007426181290265,
+    "oosSharpe": 0.1375972381091907,
+    "holdoutSharpe": -0.5443791134526028,
+    "oosWinRate": 62.92365628209517,
+    "oosMaxDD": 7.0661685373996725,
+    "oosTotalPnl": 2555.9762359076394,
+    "grade": "F",
+    "tradeCount": 2921,
+    "exitTypes": {
+      "DELTA_STOP": 650,
+      "MAX_LOSS_STOP": 286,
+      "PROFIT_TARGET": 1564,
+      "EXPIRATION": 412,
+      "TIME_STOP": 9
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl75-25+ml75+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml75+ds75",
+    "isSharpe": 0.8884156478067304,
+    "oosSharpe": 0.25575527973709444,
+    "holdoutSharpe": -0.5835121128553646,
+    "oosWinRate": 62.55562619198983,
+    "oosMaxDD": 7.249894646176608,
+    "oosTotalPnl": 4700.517812968571,
+    "grade": "F",
+    "tradeCount": 3146,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 416,
+      "DELTA_STOP": 646,
+      "PROFIT_TARGET": 1557,
+      "TRAILING_LOCK": 172,
+      "EXPIRATION": 353,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl75-25+ml75+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml75+ds80",
+    "isSharpe": 1.0679571495599567,
+    "oosSharpe": 0.5606418750089537,
+    "holdoutSharpe": -0.36366711499345705,
+    "oosWinRate": 65.10244547257105,
+    "oosMaxDD": 5.848070821697799,
+    "oosTotalPnl": 10778.251305247013,
+    "grade": "C",
+    "tradeCount": 3026,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 489,
+      "DELTA_STOP": 438,
+      "PROFIT_TARGET": 1532,
+      "TRAILING_LOCK": 179,
+      "EXPIRATION": 383,
+      "TIME_STOP": 5
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl75-25+ml90+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml90+ds75",
+    "isSharpe": 0.6501475027744129,
+    "oosSharpe": 0.04703787587672133,
+    "holdoutSharpe": -0.6487312220028166,
+    "oosWinRate": 62.69891788669637,
+    "oosMaxDD": 8.261414183659728,
+    "oosTotalPnl": 623.6619821809413,
+    "grade": "F",
+    "tradeCount": 3142,
+    "exitTypes": {
+      "DELTA_STOP": 802,
+      "MAX_LOSS_STOP": 253,
+      "PROFIT_TARGET": 1558,
+      "TRAILING_LOCK": 174,
+      "EXPIRATION": 353,
+      "TIME_STOP": 2
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl75-25+ml90+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl75-25+ml90+ds80",
+    "isSharpe": 0.8391697826365124,
+    "oosSharpe": 0.3692154935492181,
+    "holdoutSharpe": -0.4606452867261761,
+    "oosWinRate": 65.48172757475082,
+    "oosMaxDD": 6.40823780847293,
+    "oosTotalPnl": 7142.226660212984,
+    "grade": "D",
+    "tradeCount": 3010,
+    "exitTypes": {
+      "DELTA_STOP": 622,
+      "MAX_LOSS_STOP": 286,
+      "PROFIT_TARGET": 1530,
+      "TRAILING_LOCK": 181,
+      "EXPIRATION": 386,
+      "TIME_STOP": 5
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl50-50+ml75+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml75+ds75",
+    "isSharpe": 1.4268826520098106,
+    "oosSharpe": 0.8640428300463409,
+    "holdoutSharpe": -0.5447541736922057,
+    "oosWinRate": 66.4381520119225,
+    "oosMaxDD": 4.924993267623904,
+    "oosTotalPnl": 15587.755328210947,
+    "grade": "C",
+    "tradeCount": 3355,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 410,
+      "DELTA_STOP": 607,
+      "PROFIT_TARGET": 1515,
+      "TRAILING_LOCK": 509,
+      "EXPIRATION": 313,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl50-50+ml75+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml75+ds80",
+    "isSharpe": 1.7711015255834037,
+    "oosSharpe": 1.1471065957530622,
+    "holdoutSharpe": -0.39533692016305955,
+    "oosWinRate": 68.61111111111111,
+    "oosMaxDD": 4.346948611922596,
+    "oosTotalPnl": 20945.20468530942,
+    "grade": "C",
+    "tradeCount": 3240,
+    "exitTypes": {
+      "MAX_LOSS_STOP": 475,
+      "DELTA_STOP": 428,
+      "PROFIT_TARGET": 1499,
+      "TRAILING_LOCK": 505,
+      "EXPIRATION": 332,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl50-50+ml90+ds75",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml90+ds75",
+    "isSharpe": 1.2063428706392545,
+    "oosSharpe": 0.6621338516649884,
+    "holdoutSharpe": -0.6160675557551087,
+    "oosWinRate": 66.69653524492234,
+    "oosMaxDD": 5.724620879852293,
+    "oosTotalPnl": 12127.797286571646,
+    "grade": "C",
+    "tradeCount": 3348,
+    "exitTypes": {
+      "DELTA_STOP": 769,
+      "MAX_LOSS_STOP": 236,
+      "PROFIT_TARGET": 1516,
+      "TRAILING_LOCK": 512,
+      "EXPIRATION": 314,
+      "TIME_STOP": 1
+    }
+  },
+  {
+    "configLabel": "full|tp50|w2.5|d45|pm3+tl50-50+ml90+ds80",
+    "baseConfig": "full|tp50|w2.5|d45|pm3",
+    "slVariant": "tl50-50+ml90+ds80",
+    "isSharpe": 1.5026864064711634,
+    "oosSharpe": 0.9285867258995787,
+    "holdoutSharpe": -0.49648286167490935,
+    "oosWinRate": 68.9398636081835,
+    "oosMaxDD": 5.07040687674612,
+    "oosTotalPnl": 17392.876515058793,
+    "grade": "C",
+    "tradeCount": 3226,
+    "exitTypes": {
+      "DELTA_STOP": 611,
+      "MAX_LOSS_STOP": 273,
+      "TRAILING_LOCK": 505,
+      "PROFIT_TARGET": 1500,
+      "EXPIRATION": 336,
+      "TIME_STOP": 1
+    }
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "maxPositions": 5,
+  "sweepOverrides": {
+    "presets": ["ema"],
+    "profitTargets": [0.30],
+    "spreadWidths": [15],
+    "ivRankMins": [30],
+    "deltaStops": [100],
+    "timeStopDTEs": [14]
+  }
+}

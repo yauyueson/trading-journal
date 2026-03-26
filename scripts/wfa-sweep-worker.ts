@@ -1,6 +1,6 @@
 /**
- * Worker thread for WFA SL Study — evaluates a single SL config across all windows.
- * Each worker initializes its own chain cache DB connection (read-only, safe to share).
+ * Worker thread for WFA Full Sweep — evaluates a single config across all windows.
+ * Supports multiple signal sets keyed by (preset, periodMultiplier).
  */
 import { parentPort, workerData } from 'node:worker_threads';
 import {
@@ -10,6 +10,7 @@ import {
 import type { SpreadMatch } from '../src/lib/backtest/chain-cache';
 import {
   computeOptionAnalytics,
+  projectTradesToGrossPnlView,
   type EntrySignal, type SimConfig, type OptionTrade, type OptionExitType,
 } from '../src/lib/backtest/option-sim';
 import {
@@ -25,7 +26,7 @@ import {
 } from '../src/lib/backtest/credit-spread-exit';
 import type { FillMode } from '../src/lib/backtest/types';
 import { DIR_CONF_THRESHOLDS } from '../src/lib/backtest/types';
-import { applyFill } from '../src/lib/backtest/slippage';
+import { applyFill, applySpreadFill } from '../src/lib/backtest/slippage';
 import {
   evaluateConfiguredSignalsWithConstraints,
   computePortfolioDailyMetrics,
@@ -33,8 +34,6 @@ import {
   type TradeEvaluator,
   type ConfiguredSignal,
 } from '../src/lib/backtest/wfa-options';
-import { evaluateCreditSpread4H } from '../src/lib/backtest/intraday-monitor';
-import type { IntradayCandle } from '../src/lib/backtest/intraday-cache';
 
 // ── Types ────────────────────────────────────────────────
 
@@ -42,19 +41,10 @@ interface WorkItem {
   type: 'eval';
   id: number;
   configLabel: string;
-  slConfig: SimConfig;
+  config: SimConfig;
+  signalKey: string;  // key into signalSets map
   selectionWindows: Array<{ trainStart: string; trainEnd: string; oosStart: string; oosEnd: string }>;
   holdoutWindows: Array<{ trainStart: string; trainEnd: string; oosStart: string; oosEnd: string }>;
-}
-
-interface WindowResult {
-  windowIdx: number;
-  trainSharpe: number;
-  oosSharpe: number;
-  oosWR: number;
-  oosMaxDD: number;
-  oosTradeCount: number;
-  oosTrades: OptionTrade[];
 }
 
 interface WorkResult {
@@ -69,41 +59,46 @@ interface WorkResult {
     oosMaxDD: number;
     oosTradeCount: number;
   }>;
-  allOOSTrades: OptionTrade[];
-  holdoutTrades: OptionTrade[];
+  // Aggregated metrics (not raw trades — avoids OOM on worker→main transfer)
+  oosSharpe: number;
+  oosGrossSharpe: number;
+  oosMaxDD: number;
+  oosWinRate: number;
+  oosTotalPnl: number;
+  oosGrossTotalPnl: number;
+  oosTradeCount: number;
+  oosExitTypes: Record<string, number>;
+  holdoutSharpe: number;
+  holdoutGrossSharpe: number;
+  holdoutMaxDD: number;
+  holdoutTotalPnl: number;
+  holdoutGrossTotalPnl: number;
+  holdoutTradeCount: number;
   error?: string;
 }
 
 // ── Worker Init ──────────────────────────────────────────
 
 const {
-  signals,
+  signalSets,        // Map<signalKey, EntrySignal[]>
   allTradingDates,
-  strategy,
   executionConfig,
   startingCapital,
   startDate,
   endDate,
-  // Short-term specific
-  tickerCandles130m,
-  tickerIvData,
 } = workerData as {
-  signals: EntrySignal[];
+  signalSets: Record<string, EntrySignal[]>;
   allTradingDates: string[];
-  strategy: 'swing' | 'short';
   executionConfig: PortfolioExecutionConfig;
   startingCapital: number;
   startDate: string;
   endDate: string;
-  tickerCandles130m?: Record<string, IntradayCandle[]>;
-  tickerIvData?: Record<string, any[]>;
 };
 
 // Init chain cache (each worker gets its own read-only connection)
 initDB();
 
-function buildSwingTrade(
-  config: SimConfig,
+function buildTrade(
   signal: EntrySignal,
   spread: SpreadMatch,
   entryCredit: number,
@@ -113,32 +108,37 @@ function buildSwingTrade(
   exitStockPrice: number,
   exitType: OptionExitType,
   dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[],
+  grossEntryCredit?: number,
+  grossExitSpreadCost?: number,
+  entrySlippage?: number,
+  exitSlippage?: number,
+  entryCommission?: number,
+  exitCommission?: number,
+  fillMode?: FillMode,
 ): OptionTrade {
-  const actualWidth = spread.spreadWidth ?? Math.abs(spread.short.row.strike - spread.long.row.strike);
-  const boundedEntryCredit = clampSpreadCloseCost(entryCredit, actualWidth);
-  const boundedExitCost = clampSpreadCloseCost(exitSpreadCost, actualWidth);
-  const { entryCommission, exitCommission } = resolveCreditSpreadCommissions(config);
   return buildCreditSpreadTrade({
     signal,
     spread,
-    entryCredit: boundedEntryCredit,
-    grossEntryCredit: boundedEntryCredit,
+    entryCredit,
+    grossEntryCredit,
     exitDate,
-    exitSpreadCost: boundedExitCost,
-    grossExitSpreadCost: boundedExitCost,
+    exitSpreadCost,
+    grossExitSpreadCost,
     exitDTE,
     exitStockPrice,
     exitType,
     dailyMtM,
+    entrySlippage,
+    exitSlippage,
     entryCommission,
     exitCommission,
-    fillMode: config.fillMode,
+    fillMode,
   });
 }
 
-// ── Evaluators ───────────────────────────────────────────
+// ── Evaluator (EOD chain-based, no BSM) ─────────────────
 
-function makeSwingEvaluator(): TradeEvaluator {
+function makeChainEvaluator(): TradeEvaluator {
   return (signal, config, allDates, maxDate) => {
     const entryChain = getCachedChain(signal.ticker, signal.date);
     if (entryChain.length === 0) return null;
@@ -154,7 +154,31 @@ function makeSwingEvaluator(): TradeEvaluator {
       if (signal.dirConfidence < DIR_CONF_THRESHOLDS[config.dirConfTier]) return null;
     }
 
-    let entryCredit = spread.netCredit;
+    const grossEntryCredit = spread.netCredit;
+    let entryCredit = grossEntryCredit;
+    let entrySlippage = 0;
+    const { entryCommission, exitCommission } = resolveCreditSpreadCommissions(config);
+    if (config.fillMode === 'bidask' && config.slippage.enabled) {
+      if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
+        const spreadFill = applySpreadFill(
+          'bidask',
+          { ...spread.short, dte: spread.short.row.dte },
+          { ...spread.long, dte: spread.long.row.dte },
+          'open',
+          config.slippage,
+        );
+        entryCredit = spreadFill.fillPrice;
+        entrySlippage = spreadFill.slippage;
+      } else {
+        const shortFill = applyFill('bidask', spread.short.mid, spread.short.bid,
+          spread.short.ask, 'sell', config.slippage, spread.short.oi, spread.short.row.dte);
+        const longFill = applyFill('bidask', spread.long.mid, spread.long.bid,
+          spread.long.ask, 'buy', config.slippage, spread.long.oi, spread.long.row.dte);
+        entryCredit = shortFill.fillPrice - longFill.fillPrice;
+        entrySlippage = shortFill.slippage + longFill.slippage;
+      }
+      if (entryCredit <= 0) return null;
+    }
     const thresholds = computeCreditSpreadThresholds(config, spread, entryCredit);
     let trailingFloorActive = false;
     let trailingFloorCost = Infinity;
@@ -198,8 +222,7 @@ function makeSwingEvaluator(): TradeEvaluator {
             ),
             thresholds,
           );
-          return buildSwingTrade(
-            config,
+          return buildTrade(
             signal,
             spread,
             entryCredit,
@@ -214,16 +237,39 @@ function makeSwingEvaluator(): TradeEvaluator {
         continue;
       }
 
-      const currentSpreadCost = clampSpreadCloseCost(
+      const grossCurrentSpreadCost = clampSpreadCloseCost(
         shortLeg.mid - longLeg.mid,
         thresholds.actualWidth,
       );
+      let currentSpreadCost = grossCurrentSpreadCost;
+      let exitSlippageAmount = 0;
+      if (config.fillMode === 'bidask' && config.slippage.enabled) {
+        if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
+          const spreadFill = applySpreadFill(
+            'bidask',
+            { ...shortLeg, dte: shortLeg.row.dte },
+            { ...longLeg, dte: longLeg.row.dte },
+            'close',
+            config.slippage,
+          );
+          currentSpreadCost = clampSpreadCloseCost(spreadFill.fillPrice, thresholds.actualWidth);
+          exitSlippageAmount = spreadFill.slippage;
+        } else {
+          const shortClose = applyFill('bidask', shortLeg.mid, shortLeg.bid,
+            shortLeg.ask, 'buy', config.slippage, shortLeg.oi, shortLeg.row.dte);
+          const longClose = applyFill('bidask', longLeg.mid, longLeg.bid,
+            longLeg.ask, 'sell', config.slippage, longLeg.oi, longLeg.row.dte);
+          currentSpreadCost = clampSpreadCloseCost(shortClose.fillPrice - longClose.fillPrice, thresholds.actualWidth);
+          exitSlippageAmount = shortClose.slippage + longClose.slippage;
+        }
+      }
       const currentDTE = shortLeg.row.dte;
       lastValidSpreadCost = currentSpreadCost;
       dailyMtM.push({ date: checkDate, spreadMid: currentSpreadCost, unrealizedPnl: (entryCredit - currentSpreadCost) * 100 });
 
+      // Trailing lock state
       if (config.trailingActivatePct != null && config.trailingFloorPct != null) {
-        const unrealizedProfit = entryCredit - currentSpreadCost;
+        const unrealizedProfit = entryCredit - grossCurrentSpreadCost;
         if (!trailingFloorActive && unrealizedProfit >= config.trailingActivatePct * thresholds.tpProfit) {
           trailingFloorActive = true;
           trailingFloorCost = clampSpreadCloseCost(
@@ -233,21 +279,22 @@ function makeSwingEvaluator(): TradeEvaluator {
         }
       }
 
+      // Exit checks
       let exitType: OptionExitType | null = null;
-      if (currentSpreadCost <= thresholds.tpCost) exitType = 'PROFIT_TARGET';
-      else if (currentSpreadCost >= thresholds.slCost) exitType = 'STOP_LOSS';
-      else if (currentSpreadCost >= thresholds.maxLossStopCost) exitType = 'MAX_LOSS_STOP';
+      if (grossCurrentSpreadCost <= thresholds.tpCost) exitType = 'PROFIT_TARGET';
+      else if (grossCurrentSpreadCost >= thresholds.slCost) exitType = 'STOP_LOSS';
+      else if (grossCurrentSpreadCost >= thresholds.maxLossStopCost) exitType = 'MAX_LOSS_STOP';
       else if (config.creditDeltaStop != null && isFinite(config.creditDeltaStop) &&
                config.creditDeltaStop > 0 && Math.abs(shortLeg.delta) >= config.creditDeltaStop) exitType = 'DELTA_STOP';
-      else if (trailingFloorActive && currentSpreadCost > trailingFloorCost) exitType = 'TRAILING_LOCK';
-      else if (currentDTE <= config.creditTimeStopDTE) exitType = 'TIME_STOP';
+      else if (trailingFloorActive && grossCurrentSpreadCost > trailingFloorCost) exitType = 'TRAILING_LOCK';
+      else if (currentDTE <= (config.creditTimeStopDTE || 1)) exitType = 'TIME_STOP';
 
       if (exitType) {
-        const exitCost = resolveTriggeredCreditExitCost(exitType, currentSpreadCost, thresholds, {
+        const grossExitCost = resolveTriggeredCreditExitCost(exitType, grossCurrentSpreadCost, thresholds, {
           trailingFloorCost,
         });
-        return buildSwingTrade(
-          config,
+        const exitCost = clampSpreadCloseCost(grossExitCost + exitSlippageAmount, thresholds.actualWidth);
+        return buildTrade(
           signal,
           spread,
           entryCredit,
@@ -257,31 +304,62 @@ function makeSwingEvaluator(): TradeEvaluator {
           shortLeg.row.stock_price,
           exitType,
           dailyMtM,
+          grossEntryCredit,
+          grossExitCost,
+          entrySlippage,
+          exitSlippageAmount,
+          entryCommission,
+          exitCommission,
+          config.fillMode,
         );
       }
     }
 
-    // Expiration
+    // Expiration fallback
     const lastDate = monitorDates[monitorDates.length - 1];
     if (!lastDate) return null;
     const shortLeg = findContractDirect(signal.ticker, lastDate, spread.short.row.strike, spread.short.row.expir_date, optionType);
     const longLeg = findContractDirect(signal.ticker, lastDate, spread.long.row.strike, spread.long.row.expir_date, optionType);
     const fallbackChain = (!shortLeg || !longLeg) ? getCachedChain(signal.ticker, lastDate) : [];
+    let grossFinalCost: number;
     let finalCost: number;
+    let exitSlippageAmount = 0;
     if (shortLeg && longLeg) {
-      finalCost = clampSpreadCloseCost(shortLeg.mid - longLeg.mid, thresholds.actualWidth);
+      grossFinalCost = clampSpreadCloseCost(shortLeg.mid - longLeg.mid, thresholds.actualWidth);
+      if (config.fillMode === 'bidask' && config.slippage.enabled) {
+        if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
+          const spreadFill = applySpreadFill(
+            'bidask',
+            { ...shortLeg, dte: shortLeg.row.dte },
+            { ...longLeg, dte: longLeg.row.dte },
+            'close',
+            config.slippage,
+          );
+          finalCost = clampSpreadCloseCost(spreadFill.fillPrice, thresholds.actualWidth);
+          exitSlippageAmount = spreadFill.slippage;
+        } else {
+          const shortClose = applyFill('bidask', shortLeg.mid, shortLeg.bid,
+            shortLeg.ask, 'buy', config.slippage, shortLeg.oi, shortLeg.row.dte);
+          const longClose = applyFill('bidask', longLeg.mid, longLeg.bid,
+            longLeg.ask, 'sell', config.slippage, longLeg.oi, longLeg.row.dte);
+          finalCost = clampSpreadCloseCost(shortClose.fillPrice - longClose.fillPrice, thresholds.actualWidth);
+          exitSlippageAmount = shortClose.slippage + longClose.slippage;
+        }
+      } else {
+        finalCost = grossFinalCost;
+      }
     } else {
       const stockPrice = shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? fallbackChain[0]?.stock_price ?? spread.short.row.stock_price;
-      finalCost = computeIntrinsicSpreadCloseCost(
+      grossFinalCost = computeIntrinsicSpreadCloseCost(
         optionType,
         spread.short.row.strike,
         spread.long.row.strike,
         stockPrice,
         thresholds.actualWidth,
       );
+      finalCost = grossFinalCost;
     }
-    return buildSwingTrade(
-      config,
+    return buildTrade(
       signal,
       spread,
       entryCredit,
@@ -291,40 +369,27 @@ function makeSwingEvaluator(): TradeEvaluator {
       shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? fallbackChain[0]?.stock_price ?? spread.short.row.stock_price,
       'EXPIRATION',
       dailyMtM,
+      grossEntryCredit,
+      grossFinalCost,
+      entrySlippage,
+      exitSlippageAmount,
+      entryCommission,
+      exitCommission,
+      config.fillMode,
     );
   };
 }
 
-function makeShortEvaluator(): TradeEvaluator {
-  return (signal, config, tradingDates, maxDate) => {
-    const candles = tickerCandles130m?.[signal.ticker];
-    if (!candles) return null;
-    if (config.minIVRank > 0 && signal.ivRank != null && signal.ivRank < config.minIVRank) return null;
-
-    return evaluateCreditSpread4H(
-      signal, config, candles, tradingDates, maxDate,
-      {
-        getChain: (ticker, date) => getCachedChain(ticker, date),
-        findSpread: (chain, shortDelta, width, type, dteRange) =>
-          findSpreadStrikes(chain, shortDelta, width, type as 'Call' | 'Put', dteRange),
-        findContract: (ticker, date, strike, expiry, type) =>
-          findContractDirect(ticker, date, strike, expiry, type as 'Call' | 'Put'),
-        applyFillFn: (mid, bid, ask, side, cfg, oi, dte) =>
-          applyFill((config.fillMode ?? 'mid') as FillMode, mid, bid, ask, side, cfg, oi, dte),
-      },
-    );
-  };
-}
-
-const evaluator = strategy === 'swing' ? makeSwingEvaluator() : makeShortEvaluator();
+const evaluator = makeChainEvaluator();
 
 // ── Evaluate Config on Windows ───────────────────────────
 
 function evaluateOnWindows(
   config: SimConfig,
+  signals: EntrySignal[],
   windows: Array<{ trainStart: string; trainEnd: string; oosStart: string; oosEnd: string }>,
-): { results: WindowResult[]; allOOSTrades: OptionTrade[] } {
-  const results: WindowResult[] = [];
+): { results: Array<{ windowIdx: number; trainSharpe: number; oosSharpe: number; oosWR: number; oosMaxDD: number; oosTradeCount: number; oosTrades: OptionTrade[] }>; allOOSTrades: OptionTrade[] } {
+  const results: any[] = [];
   const allOOSTrades: OptionTrade[] = [];
 
   for (let i = 0; i < windows.length; i++) {
@@ -373,8 +438,35 @@ parentPort!.on('message', (msg: WorkItem | { type: 'exit' }) => {
 
   if (msg.type === 'eval') {
     try {
-      const { results: selectionResults, allOOSTrades } = evaluateOnWindows(msg.slConfig, msg.selectionWindows);
-      const { allOOSTrades: holdoutTrades } = evaluateOnWindows(msg.slConfig, msg.holdoutWindows);
+      const signals = signalSets[msg.signalKey] || [];
+      const { results: selectionResults, allOOSTrades } = evaluateOnWindows(msg.config, signals, msg.selectionWindows);
+      const { allOOSTrades: holdoutTrades } = evaluateOnWindows(msg.config, signals, msg.holdoutWindows);
+      const selectionStart = msg.selectionWindows[0]?.oosStart ?? startDate;
+      const selectionEnd = msg.selectionWindows[msg.selectionWindows.length - 1]?.oosEnd ?? endDate;
+      const holdoutStart = msg.holdoutWindows[0]?.oosStart ?? startDate;
+      const holdoutEnd = msg.holdoutWindows[msg.holdoutWindows.length - 1]?.oosEnd ?? endDate;
+
+      // Compute aggregated metrics inside worker to avoid OOM on transfer
+      const oosMetrics = computePortfolioDailyMetrics(
+        allOOSTrades, allTradingDates, selectionStart, selectionEnd, startingCapital,
+      );
+      const grossOOSTrades = projectTradesToGrossPnlView(allOOSTrades);
+      const grossOOSMetrics = computePortfolioDailyMetrics(
+        grossOOSTrades, allTradingDates, selectionStart, selectionEnd, startingCapital,
+      );
+      const oosAnalytics = computeOptionAnalytics(allOOSTrades);
+      const holdoutMetrics = computePortfolioDailyMetrics(
+        holdoutTrades, allTradingDates, holdoutStart, holdoutEnd, startingCapital,
+      );
+      const grossHoldoutTrades = projectTradesToGrossPnlView(holdoutTrades);
+      const grossHoldoutMetrics = computePortfolioDailyMetrics(
+        grossHoldoutTrades, allTradingDates, holdoutStart, holdoutEnd, startingCapital,
+      );
+
+      const exitTypes: Record<string, number> = {};
+      for (const t of allOOSTrades) {
+        exitTypes[t.exitType] = (exitTypes[t.exitType] ?? 0) + 1;
+      }
 
       parentPort!.postMessage({
         type: 'result',
@@ -388,8 +480,20 @@ parentPort!.on('message', (msg: WorkItem | { type: 'exit' }) => {
           oosMaxDD: w.oosMaxDD,
           oosTradeCount: w.oosTradeCount,
         })),
-        allOOSTrades,
-        holdoutTrades,
+        oosSharpe: oosMetrics.sharpe,
+        oosGrossSharpe: grossOOSMetrics.sharpe,
+        oosMaxDD: oosMetrics.maxDrawdownPct,
+        oosWinRate: oosAnalytics.winRate,
+        oosTotalPnl: allOOSTrades.reduce((s, t) => s + t.pnl, 0),
+        oosGrossTotalPnl: grossOOSTrades.reduce((s, t) => s + t.pnl, 0),
+        oosTradeCount: allOOSTrades.length,
+        oosExitTypes: exitTypes,
+        holdoutSharpe: holdoutMetrics.sharpe,
+        holdoutGrossSharpe: grossHoldoutMetrics.sharpe,
+        holdoutMaxDD: holdoutMetrics.maxDrawdownPct,
+        holdoutTotalPnl: holdoutTrades.reduce((s, t) => s + t.pnl, 0),
+        holdoutGrossTotalPnl: grossHoldoutTrades.reduce((s, t) => s + t.pnl, 0),
+        holdoutTradeCount: holdoutTrades.length,
       } satisfies WorkResult);
     } catch (err: any) {
       parentPort!.postMessage({
@@ -397,13 +501,13 @@ parentPort!.on('message', (msg: WorkItem | { type: 'exit' }) => {
         id: msg.id,
         configLabel: msg.configLabel,
         selectionResults: [],
-        allOOSTrades: [],
-        holdoutTrades: [],
+        oosSharpe: 0, oosGrossSharpe: 0, oosMaxDD: 0, oosWinRate: 0, oosTotalPnl: 0, oosGrossTotalPnl: 0,
+        oosTradeCount: 0, oosExitTypes: {},
+        holdoutSharpe: 0, holdoutGrossSharpe: 0, holdoutMaxDD: 0, holdoutTotalPnl: 0, holdoutGrossTotalPnl: 0, holdoutTradeCount: 0,
         error: err.message,
       } satisfies WorkResult);
     }
   }
 });
 
-// Signal ready
 parentPort!.postMessage({ type: 'ready' });

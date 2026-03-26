@@ -113,6 +113,32 @@ export interface ConfiguredSignal {
   votes?: number;
 }
 
+interface OpenPositionState {
+  trade: OptionTrade;
+  riskCapital: number;
+}
+
+interface PortfolioConstraintState {
+  openPositions: OpenPositionState[];
+  openCountByTicker: Map<string, number>;
+  openRiskCapital: number;
+}
+
+export interface PreparedOOSWindowExecution {
+  windowIndex: number;
+  trainStart: string;
+  trainEnd: string;
+  oosStart: string;
+  oosEnd: string;
+  bestConfig: SimConfig;
+  selectedConfigs?: SimConfig[];
+  bestTrainSharpe: number;
+  // Each OOS signal is bound to the config selected when that trade would be entered.
+  // Later windows may choose different configs for new entries, but carried trades keep
+  // their originating config because the evaluator resolves exits at entry time.
+  configuredSignals: ConfiguredSignal[];
+}
+
 /**
  * Evaluate a single config on training signals. Returns analytics.
  * Uses the provided evaluator function (injected for testability and
@@ -155,6 +181,49 @@ function capitalAtRisk(trade: OptionTrade): number {
   return Math.max(0, trade.entryPrice * 100);
 }
 
+function directionSortValue(direction: EntrySignal['direction']): number {
+  return direction === 'CALL' ? 0 : 1;
+}
+
+function compareSignalExecutionOrder(a: EntrySignal, b: EntrySignal): number {
+  return a.date.localeCompare(b.date) ||
+    a.ticker.localeCompare(b.ticker) ||
+    directionSortValue(a.direction) - directionSortValue(b.direction);
+}
+
+function compareConfiguredSignalExecutionOrder(a: ConfiguredSignal, b: ConfiguredSignal): number {
+  return compareSignalExecutionOrder(a.signal, b.signal);
+}
+
+function createConstraintState(): PortfolioConstraintState {
+  return {
+    openPositions: [],
+    openCountByTicker: new Map(),
+    openRiskCapital: 0,
+  };
+}
+
+function cloneConstraintState(state: PortfolioConstraintState): PortfolioConstraintState {
+  return {
+    openPositions: [...state.openPositions],
+    openCountByTicker: new Map(state.openCountByTicker),
+    openRiskCapital: state.openRiskCapital,
+  };
+}
+
+function retireClosedPositions(state: PortfolioConstraintState, signalDate: string): void {
+  for (let i = state.openPositions.length - 1; i >= 0; i--) {
+    const open = state.openPositions[i];
+    if (open.trade.exitDate <= signalDate) {
+      state.openPositions.splice(i, 1);
+      state.openRiskCapital = Math.max(0, state.openRiskCapital - open.riskCapital);
+      const prev = state.openCountByTicker.get(open.trade.ticker) ?? 0;
+      if (prev <= 1) state.openCountByTicker.delete(open.trade.ticker);
+      else state.openCountByTicker.set(open.trade.ticker, prev - 1);
+    }
+  }
+}
+
 /**
  * Evaluate signals with portfolio constraints:
  * - max concurrent positions
@@ -169,46 +238,14 @@ export function evaluateSignalsWithConstraints(
   maxDate: string,
   evaluator: TradeEvaluator,
 ): OptionTrade[] {
-  const sortedSignals = [...signals].sort((a, b) => a.date.localeCompare(b.date));
-  const trades: OptionTrade[] = [];
-
-  const openPositions: { trade: OptionTrade; riskCapital: number }[] = [];
-  const openCountByTicker = new Map<string, number>();
-  let openRiskCapital = 0;
-
-  const retireClosed = (signalDate: string) => {
-    for (let i = openPositions.length - 1; i >= 0; i--) {
-      const open = openPositions[i];
-      if (open.trade.exitDate <= signalDate) {
-        openPositions.splice(i, 1);
-        openRiskCapital = Math.max(0, openRiskCapital - open.riskCapital);
-        const prev = openCountByTicker.get(open.trade.ticker) ?? 0;
-        if (prev <= 1) openCountByTicker.delete(open.trade.ticker);
-        else openCountByTicker.set(open.trade.ticker, prev - 1);
-      }
-    }
-  };
-
-  for (const signal of sortedSignals) {
-    retireClosed(signal.date);
-
-    if (openPositions.length >= executionConfig.maxPositions) continue;
-    const tickerOpenCount = openCountByTicker.get(signal.ticker) ?? 0;
-    if (tickerOpenCount >= executionConfig.maxPerTicker) continue;
-
-    const trade = evaluator(signal, simConfig, allTradingDates, maxDate);
-    if (!trade) continue;
-
-    const riskCapital = capitalAtRisk(trade);
-    if (openRiskCapital + riskCapital > executionConfig.startingCapital) continue;
-
-    trades.push(trade);
-    openPositions.push({ trade, riskCapital });
-    openRiskCapital += riskCapital;
-    openCountByTicker.set(signal.ticker, tickerOpenCount + 1);
-  }
-
-  return trades;
+  const configuredSignals = signals.map(signal => ({ signal, config: simConfig }));
+  return evaluateConfiguredSignalsWithState(
+    configuredSignals,
+    executionConfig,
+    allTradingDates,
+    maxDate,
+    evaluator,
+  ).trades;
 }
 
 export function evaluateConfiguredSignalsWithConstraints(
@@ -218,50 +255,47 @@ export function evaluateConfiguredSignalsWithConstraints(
   maxDate: string,
   evaluator: TradeEvaluator,
 ): OptionTrade[] {
-  const sortedSignals = [...configuredSignals].sort((a, b) =>
-    a.signal.date.localeCompare(b.signal.date) ||
-    a.signal.ticker.localeCompare(b.signal.ticker) ||
-    a.signal.direction.localeCompare(b.signal.direction)
-  );
+  return evaluateConfiguredSignalsWithState(
+    configuredSignals,
+    executionConfig,
+    allTradingDates,
+    maxDate,
+    evaluator,
+  ).trades;
+}
+
+export function evaluateConfiguredSignalsWithState(
+  configuredSignals: ConfiguredSignal[],
+  executionConfig: PortfolioExecutionConfig,
+  allTradingDates: string[],
+  maxDate: string,
+  evaluator: TradeEvaluator,
+  initialState?: PortfolioConstraintState,
+): { trades: OptionTrade[]; state: PortfolioConstraintState } {
+  const sortedSignals = [...configuredSignals].sort(compareConfiguredSignalExecutionOrder);
   const trades: OptionTrade[] = [];
-
-  const openPositions: { trade: OptionTrade; riskCapital: number }[] = [];
-  const openCountByTicker = new Map<string, number>();
-  let openRiskCapital = 0;
-
-  const retireClosed = (signalDate: string) => {
-    for (let i = openPositions.length - 1; i >= 0; i--) {
-      const open = openPositions[i];
-      if (open.trade.exitDate <= signalDate) {
-        openPositions.splice(i, 1);
-        openRiskCapital = Math.max(0, openRiskCapital - open.riskCapital);
-        const prev = openCountByTicker.get(open.trade.ticker) ?? 0;
-        if (prev <= 1) openCountByTicker.delete(open.trade.ticker);
-        else openCountByTicker.set(open.trade.ticker, prev - 1);
-      }
-    }
-  };
+  const state = initialState ? cloneConstraintState(initialState) : createConstraintState();
 
   for (const item of sortedSignals) {
-    retireClosed(item.signal.date);
+    retireClosedPositions(state, item.signal.date);
 
-    if (openPositions.length >= executionConfig.maxPositions) continue;
-    const tickerOpenCount = openCountByTicker.get(item.signal.ticker) ?? 0;
+    if (state.openPositions.length >= executionConfig.maxPositions) continue;
+    const tickerOpenCount = state.openCountByTicker.get(item.signal.ticker) ?? 0;
     if (tickerOpenCount >= executionConfig.maxPerTicker) continue;
 
     const trade = evaluator(item.signal, item.config, allTradingDates, maxDate);
     if (!trade) continue;
 
     const riskCapital = capitalAtRisk(trade);
-    if (openRiskCapital + riskCapital > executionConfig.startingCapital) continue;
+    if (state.openRiskCapital + riskCapital > executionConfig.startingCapital) continue;
 
     trades.push(trade);
-    openPositions.push({ trade, riskCapital });
-    openRiskCapital += riskCapital;
-    openCountByTicker.set(item.signal.ticker, tickerOpenCount + 1);
+    state.openPositions.push({ trade, riskCapital });
+    state.openRiskCapital += riskCapital;
+    state.openCountByTicker.set(item.signal.ticker, tickerOpenCount + 1);
   }
 
-  return trades;
+  return { trades, state };
 }
 
 export function computePortfolioDailyMetrics(
@@ -473,6 +507,64 @@ export interface WFAResult {
   elapsedMs: number;
 }
 
+export function executePreparedOOSWindowsWithCarry(
+  preparedWindows: PreparedOOSWindowExecution[],
+  executionConfig: PortfolioExecutionConfig,
+  allTradingDates: string[],
+  maxDate: string,
+  evaluator: TradeEvaluator,
+  windowMetricsMode: 'lifecycle' | 'strict',
+  startingCapital: number,
+): { windows: WFAWindow[]; allOOSTrades: OptionTrade[] } {
+  const state = createConstraintState();
+  const allOOSTrades: OptionTrade[] = [];
+  const wfaWindows: WFAWindow[] = [];
+
+  for (const prepared of preparedWindows) {
+    const execution = evaluateConfiguredSignalsWithState(
+      prepared.configuredSignals,
+      executionConfig,
+      allTradingDates,
+      maxDate,
+      evaluator,
+      state,
+    );
+    const windowTrades = execution.trades;
+    state.openPositions = execution.state.openPositions;
+    state.openCountByTicker = execution.state.openCountByTicker;
+    state.openRiskCapital = execution.state.openRiskCapital;
+
+    allOOSTrades.push(...windowTrades);
+
+    const oosAnalytics = computeOptionAnalytics(windowTrades);
+    const windowMetricsEnd = windowMetricsMode === 'strict' ? prepared.oosEnd : maxDate;
+    const windowMetrics = computePortfolioDailyMetrics(
+      allOOSTrades,
+      allTradingDates,
+      prepared.oosStart,
+      windowMetricsEnd,
+      startingCapital,
+    );
+
+    wfaWindows.push({
+      windowIndex: prepared.windowIndex,
+      trainStart: prepared.trainStart,
+      trainEnd: prepared.trainEnd,
+      oosStart: prepared.oosStart,
+      oosEnd: prepared.oosEnd,
+      bestConfig: prepared.bestConfig,
+      selectedConfigs: prepared.selectedConfigs,
+      bestTrainSharpe: prepared.bestTrainSharpe,
+      oosTrades: windowTrades,
+      oosSharpe: windowMetrics.sharpe,
+      oosWinRate: oosAnalytics.winRate,
+      oosMaxDD: windowMetrics.maxDrawdownPct,
+    });
+  }
+
+  return { windows: wfaWindows, allOOSTrades };
+}
+
 // ── WFA Main Loop ───────────────────────────────────────
 
 /**
@@ -507,8 +599,7 @@ export function runWFAOptions(
     endDate: config.endDate,
   });
 
-  const allOOSTrades: OptionTrade[] = [];
-  const wfaWindows: WFAWindow[] = [];
+  const preparedWindows: PreparedOOSWindowExecution[] = [];
 
   for (let i = 0; i < windows.length; i++) {
     const w = windows[i];
@@ -544,29 +635,7 @@ export function runWFAOptions(
       w.oosEnd,
       selectionMode === 'single' ? 1 : ensembleMinVotes,
     );
-    const oosTrades = evaluateConfiguredSignalsWithConstraints(
-      configuredSignals,
-      {
-        maxPositions: config.maxPositions,
-        maxPerTicker: config.maxPerTicker,
-        startingCapital: config.startingCapital,
-      },
-      allTradingDates,
-      config.endDate, // allow positions to close after window end
-      evaluator,
-    );
-
-    const oosAnalytics = computeOptionAnalytics(oosTrades);
-    const windowMetricsEnd = windowMetricsMode === 'strict' ? w.oosEnd : config.endDate;
-    const windowMetrics = computePortfolioDailyMetrics(
-      oosTrades,
-      allTradingDates,
-      w.oosStart,
-      windowMetricsEnd,
-      config.startingCapital,
-    );
-
-    wfaWindows.push({
+    preparedWindows.push({
       windowIndex: i,
       trainStart: w.trainStart,
       trainEnd: w.trainEnd,
@@ -575,14 +644,24 @@ export function runWFAOptions(
       bestConfig: selectedResults[0]?.config ?? optResult.bestConfig,
       selectedConfigs: selectedResults.map(r => r.config),
       bestTrainSharpe: selectedResults[0]?.sharpe ?? optResult.bestSharpe,
-      oosTrades,
-      oosSharpe: windowMetrics.sharpe,
-      oosWinRate: oosAnalytics.winRate,
-      oosMaxDD: windowMetrics.maxDrawdownPct,
+      configuredSignals,
     });
-
-    allOOSTrades.push(...oosTrades);
   }
+
+  const executionConfig: PortfolioExecutionConfig = {
+    maxPositions: config.maxPositions,
+    maxPerTicker: config.maxPerTicker,
+    startingCapital: config.startingCapital,
+  };
+  const { windows: wfaWindows, allOOSTrades } = executePreparedOOSWindowsWithCarry(
+    preparedWindows,
+    executionConfig,
+    allTradingDates,
+    config.endDate,
+    evaluator,
+    windowMetricsMode,
+    config.startingCapital,
+  );
 
   // 3. Build continuous daily equity curve from all OOS trades
   const allPortfolioMetrics = computePortfolioDailyMetrics(

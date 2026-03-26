@@ -1,0 +1,13 @@
+{
+  "maxPositions": 10,
+  "maxPerTicker": 3,
+  "signalDirectionFilter": "CALL",
+  "sweepOverrides": {
+    "presets": ["ema", "mom", "em", "mf"],
+    "profitTargets": [0.30, 0.50],
+    "spreadWidths": [5, 15],
+    "ivRankMins": [0, 30],
+    "deltaStops": [100],
+    "timeStopDTEs": [7, 14]
+  }
+}

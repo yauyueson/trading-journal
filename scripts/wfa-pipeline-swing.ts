@@ -26,16 +26,29 @@ import {
   type EntrySignal, type SimConfig, type OptionTrade, type OptionExitType,
   type SignalPresetKey,
 } from '../src/lib/backtest/option-sim';
+import { computeIVRankMinMax } from '../src/lib/backtest/iv-rank';
+import {
+  clampSpreadCloseCost,
+  computeCreditSpreadThresholds,
+  computeIntrinsicSpreadCloseCost,
+  createMissingChainState,
+  resolveActualSpreadWidth,
+  resolveTriggeredCreditExitCost,
+  shouldExitNoChain,
+  updateMissingChainState,
+} from '../src/lib/backtest/credit-spread-exit';
 import type { FillMode } from '../src/lib/backtest/types';
 import { applyFill, applySpreadFill } from '../src/lib/backtest/slippage';
 import {
   buildConfiguredSignalsForWindow,
   buildWFAWindows,
   computePortfolioDailyMetrics,
+  executePreparedOOSWindowsWithCarry,
   evaluateConfiguredSignalsWithConstraints,
   runWFAOptions,
   selectConfigsForOOS,
   type PortfolioExecutionConfig,
+  type PreparedOOSWindowExecution,
   type TradeEvaluator, type WFAResult, type WFAWindow, type WFAOptionsConfig,
 } from '../src/lib/backtest/wfa-options';
 
@@ -60,6 +73,8 @@ export interface SwingPipelineConfig {
   presets: SignalPresetKey[];
   /** Override sweep grid dimensions */
   sweepOverrides?: Partial<SwingSweepDimensions>;
+  /** Filter signals to a single direction: 'CALL' (bullish) or 'PUT' (bearish) */
+  signalDirectionFilter?: 'CALL' | 'PUT';
 }
 
 export interface SwingSweepDimensions {
@@ -112,19 +127,6 @@ async function supabaseGet(table: string, query: string): Promise<any[]> {
   });
   if (!res.ok) throw new Error(`${table} fetch failed: ${res.status}`);
   return res.json();
-}
-
-// ── IV Rank ─────────────────────────────────────────────
-
-function computeIVRank(ivSeries: (number | null)[]): (number | null)[] {
-  const WINDOW = 252;
-  return ivSeries.map((v, i) => {
-    if (i < WINDOW || v == null) return null;
-    const w = ivSeries.slice(i - WINDOW, i + 1).filter(x => x != null) as number[];
-    if (w.length < 100) return null;
-    const min = Math.min(...w), max = Math.max(...w), range = max - min;
-    return range > 0 ? ((v - min) / range) * 100 : 50;
-  });
 }
 
 function computeRollingPercentile(values: (number | undefined)[], window = 252): (number | undefined)[] {
@@ -214,7 +216,7 @@ export async function fetchTickerData(ticker: string, dataStart: string, dataEnd
   }
 
   const ivSeries = candles.map(c => ivByDate.get(c.date) ?? null);
-  const ivRanks = computeIVRank(ivSeries);
+  const ivRanks = computeIVRankMinMax(ivSeries);
   const dateToIdx = new Map(candles.map((c, i) => [c.date, i]));
   const data = { ticker, candles, ivRanks, dateToIdx, regimeByDate };
   candleCache.set(cacheKey, data);
@@ -372,8 +374,15 @@ function buildTradeResult(
   dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[],
   entrySlippage: number, exitSlippage: number, fillMode: FillMode,
 ): OptionTrade {
-  const pnl = (entryCredit - exitSpreadCost) * 100;
-  const pnlPct = spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0;
+  const actualWidth = resolveActualSpreadWidth(spread);
+  const boundedEntryCredit = clampSpreadCloseCost(entryCredit, actualWidth);
+  const boundedExitCost = clampSpreadCloseCost(exitSpreadCost, actualWidth);
+  const maxLoss = Math.max(0, actualWidth - boundedEntryCredit);
+  const pnl = Math.max(
+    -maxLoss * 100,
+    Math.min((boundedEntryCredit - boundedExitCost) * 100, boundedEntryCredit * 100),
+  );
+  const pnlPct = maxLoss > 0 ? pnl / (maxLoss * 100) : 0;
   const holdDays = Math.round(
     (new Date(exitDate).getTime() - new Date(signal.date).getTime()) / 86400000,
   );
@@ -394,11 +403,11 @@ function buildTradeResult(
     longStrike: spread.long.row.strike,
     longEntryPrice: spread.long.mid,
     requestedSpreadWidth: spread.requestedSpreadWidth,
-    spreadWidth: spread.spreadWidth,
-    maxProfit: entryCredit,
-    maxLoss: spread.maxLoss,
+    spreadWidth: actualWidth,
+    maxProfit: boundedEntryCredit,
+    maxLoss,
     exitDate,
-    exitPrice: exitSpreadCost,
+    exitPrice: boundedExitCost,
     exitDTE,
     exitStockPrice,
     exitType,
@@ -477,16 +486,57 @@ export function makeCachedEvaluator(fillMode: FillMode): TradeEvaluator {
       entryCredit = spread.netCredit;
     }
 
-    const tpCost = entryCredit * (1 - config.creditProfitTarget);
-    const slCost = entryCredit * config.creditStopLossMultiple;
+    const thresholds = computeCreditSpreadThresholds(config, spread, entryCredit);
     const monitorEnd = spread.short.row.expir_date < maxDate ? spread.short.row.expir_date : maxDate;
     const monitorDates = getMonitoringDates(allTradingDates, signal.date, config.monitoringIntervalDays, monitorEnd);
     const dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
+    let missingChainState = createMissingChainState();
+    let lastValidSpreadCost: number | null = null;
 
     for (const checkDate of monitorDates) {
       const shortLeg = findContractDirect(signal.ticker, checkDate, spread.short.row.strike, spread.short.row.expir_date, optionType);
       const longLeg = findContractDirect(signal.ticker, checkDate, spread.long.row.strike, spread.long.row.expir_date, optionType);
-      if (!shortLeg || !longLeg) continue;
+      const fallbackChain = (!shortLeg || !longLeg) ? getCachedChainMemo(signal.ticker, checkDate) : [];
+      const monitoringStockPrice = shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? fallbackChain[0]?.stock_price;
+      const hasValidLegs = Boolean(shortLeg && longLeg);
+      missingChainState = updateMissingChainState(missingChainState, hasValidLegs);
+      if (!hasValidLegs) {
+        if (shouldExitNoChain(config, missingChainState)) {
+          const intrinsicCost = monitoringStockPrice != null
+            ? computeIntrinsicSpreadCloseCost(
+                optionType,
+                spread.short.row.strike,
+                spread.long.row.strike,
+                monitoringStockPrice,
+                thresholds.actualWidth,
+              )
+            : null;
+          const exitCost = resolveTriggeredCreditExitCost(
+            'NO_CHAIN',
+            Math.max(
+              lastValidSpreadCost ?? thresholds.boundedEntryCredit,
+              intrinsicCost ?? thresholds.boundedEntryCredit,
+            ),
+            thresholds,
+          );
+          const trade = buildTradeResult(
+            signal,
+            spread,
+            entryCredit,
+            checkDate,
+            exitCost,
+            shortLeg?.row.dte ?? longLeg?.row.dte ?? fallbackChain[0]?.dte ?? 0,
+            monitoringStockPrice ?? spread.short.row.stock_price,
+            'NO_CHAIN',
+            dailyMtM,
+            entrySlippage,
+            0,
+            fillMode,
+          );
+          return scaleTradeByMultiplier(trade, sizeMultiplier);
+        }
+        continue;
+      }
 
       let currentSpreadCost: number;
       let exitSlippageAmount = 0;
@@ -506,7 +556,9 @@ export function makeCachedEvaluator(fillMode: FillMode): TradeEvaluator {
       } else {
         currentSpreadCost = shortLeg.mid - longLeg.mid;
       }
+      currentSpreadCost = clampSpreadCloseCost(currentSpreadCost, thresholds.actualWidth);
       const currentDTE = shortLeg.row.dte;
+      lastValidSpreadCost = currentSpreadCost;
 
       dailyMtM.push({
         date: checkDate,
@@ -515,14 +567,15 @@ export function makeCachedEvaluator(fillMode: FillMode): TradeEvaluator {
       });
 
       let exitType: OptionExitType | null = null;
-      if (currentSpreadCost <= tpCost) exitType = 'PROFIT_TARGET';
-      else if (currentSpreadCost >= slCost) exitType = 'STOP_LOSS';
+      if (currentSpreadCost <= thresholds.tpCost) exitType = 'PROFIT_TARGET';
+      else if (currentSpreadCost >= thresholds.slCost) exitType = 'STOP_LOSS';
       else if (config.creditDeltaStop != null && isFinite(config.creditDeltaStop) &&
                Math.abs(shortLeg.delta) >= config.creditDeltaStop) exitType = 'DELTA_STOP';
       else if (currentDTE <= config.creditTimeStopDTE) exitType = 'TIME_STOP';
 
       if (exitType) {
-        const trade = buildTradeResult(signal, spread, entryCredit, checkDate, currentSpreadCost,
+        const exitCost = resolveTriggeredCreditExitCost(exitType, currentSpreadCost, thresholds);
+        const trade = buildTradeResult(signal, spread, entryCredit, checkDate, exitCost,
           currentDTE, shortLeg.row.stock_price, exitType, dailyMtM,
           entrySlippage, exitSlippageAmount, fillMode);
         return scaleTradeByMultiplier(trade, sizeMultiplier);
@@ -534,21 +587,23 @@ export function makeCachedEvaluator(fillMode: FillMode): TradeEvaluator {
     if (lastDate) {
       const shortLeg = findContractDirect(signal.ticker, lastDate, spread.short.row.strike, spread.short.row.expir_date, optionType);
       const longLeg = findContractDirect(signal.ticker, lastDate, spread.long.row.strike, spread.long.row.expir_date, optionType);
+      const fallbackChain = (!shortLeg || !longLeg) ? getCachedChainMemo(signal.ticker, lastDate) : [];
       let currentSpreadCost: number;
       if (shortLeg && longLeg) {
-        currentSpreadCost = shortLeg.mid - longLeg.mid;
+        currentSpreadCost = clampSpreadCloseCost(shortLeg.mid - longLeg.mid, thresholds.actualWidth);
       } else {
-        const stockPrice = (shortLeg || longLeg)?.row.stock_price ?? spread.short.row.stock_price;
-        const shortIntrinsic = optionType === 'Put'
-          ? Math.max(0, spread.short.row.strike - stockPrice)
-          : Math.max(0, stockPrice - spread.short.row.strike);
-        const longIntrinsic = optionType === 'Put'
-          ? Math.max(0, spread.long.row.strike - stockPrice)
-          : Math.max(0, stockPrice - spread.long.row.strike);
-        currentSpreadCost = shortIntrinsic - longIntrinsic;
+        const stockPrice = shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? fallbackChain[0]?.stock_price ?? spread.short.row.stock_price;
+        currentSpreadCost = computeIntrinsicSpreadCloseCost(
+          optionType,
+          spread.short.row.strike,
+          spread.long.row.strike,
+          stockPrice,
+          thresholds.actualWidth,
+        );
       }
       const trade = buildTradeResult(signal, spread, entryCredit, lastDate, currentSpreadCost,
-        shortLeg?.row.dte ?? 0, shortLeg?.row.stock_price ?? spread.short.row.stock_price,
+        shortLeg?.row.dte ?? longLeg?.row.dte ?? fallbackChain[0]?.dte ?? 0,
+        shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? fallbackChain[0]?.stock_price ?? spread.short.row.stock_price,
         'EXPIRATION', dailyMtM, entrySlippage, 0, fillMode);
       return scaleTradeByMultiplier(trade, sizeMultiplier);
     }
@@ -765,8 +820,7 @@ export async function runWFAOptionsParallelTrain(
     startingCapital: config.startingCapital,
   };
 
-  const allOOSTrades: OptionTrade[] = [];
-  const wfaWindows: WFAWindow[] = [];
+  const preparedWindows: PreparedOOSWindowExecution[] = [];
 
   for (let i = 0; i < windows.length; i++) {
     const w = windows[i];
@@ -800,30 +854,26 @@ export async function runWFAOptionsParallelTrain(
       selectedResults, signalsByPreset, w.oosStart, w.oosEnd,
       selectionMode === 'single' ? 1 : ensembleMinVotes,
     );
-    const oosTrades = evaluateConfiguredSignalsWithConstraints(
-      configuredSignals, executionConfig, allTradingDates, config.endDate, evaluator,
-    );
-
-    const oosAnalytics = computeOptionAnalytics(oosTrades);
-    const windowMetricsEnd = windowMetricsMode === 'strict' ? w.oosEnd : config.endDate;
-    const windowMetrics = computePortfolioDailyMetrics(
-      oosTrades, allTradingDates, w.oosStart, windowMetricsEnd, config.startingCapital,
-    );
-
-    wfaWindows.push({
+    preparedWindows.push({
       windowIndex: i,
       trainStart: w.trainStart, trainEnd: w.trainEnd,
       oosStart: w.oosStart, oosEnd: w.oosEnd,
       bestConfig: selectedResults[0]?.config ?? rankedTrainResults[0]?.config ?? sweepCandidates[0],
       selectedConfigs: selectedResults.map(r => r.config),
       bestTrainSharpe: selectedResults[0]?.sharpe ?? rankedTrainResults[0]?.sharpe ?? 0,
-      oosTrades,
-      oosSharpe: windowMetrics.sharpe,
-      oosWinRate: oosAnalytics.winRate,
-      oosMaxDD: windowMetrics.maxDrawdownPct,
+      configuredSignals,
     });
-    allOOSTrades.push(...oosTrades);
   }
+
+  const { windows: wfaWindows, allOOSTrades } = executePreparedOOSWindowsWithCarry(
+    preparedWindows,
+    executionConfig,
+    allTradingDates,
+    config.endDate,
+    evaluator,
+    windowMetricsMode,
+    config.startingCapital,
+  );
 
   const allPortfolioMetrics = computePortfolioDailyMetrics(
     allOOSTrades, allTradingDates, config.startDate, config.endDate, config.startingCapital,
@@ -973,6 +1023,16 @@ export async function runSwingPipeline(config: SwingPipelineConfig): Promise<Swi
     allSignals.sort((a, b) => a.date.localeCompare(b.date));
     signalsByPreset.set(preset, allSignals);
     console.log(`  ${preset}: ${allSignals.length} signals`);
+  }
+
+  // 4b. Filter by direction if specified
+  if (config.signalDirectionFilter) {
+    console.log(`\nDirection filter: ${config.signalDirectionFilter} only`);
+    for (const [preset, signals] of signalsByPreset) {
+      const filtered = signals.filter(s => s.direction === config.signalDirectionFilter);
+      signalsByPreset.set(preset, filtered);
+      console.log(`  ${preset}: ${signals.length} → ${filtered.length} signals`);
+    }
   }
 
   // 5. Preview windows

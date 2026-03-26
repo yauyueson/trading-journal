@@ -85,13 +85,13 @@ async function topUpCandles(ticker, lastCachedDate) {
 // ── Time Stop Monitor (WFA v3) ──────────────────────────────────────────────────
 // Runs here (not in cron-trade-outcomes) so alerts fire during market hours,
 // giving the user time to exit before the closing bell.
+// Strategy-aware: shortTerm uses 1 DTE, swing/untagged uses 3 DTE.
 
-async function checkTimeStopBreaches(timeStopDTE = 3) {
-    const TIME_STOP_DTE = timeStopDTE;
+async function checkTimeStopBreaches() {
     const today = new Date().toISOString().split('T')[0];
 
     const active = await supabaseGet('positions',
-        'select=id,ticker,expiration,type&status=eq.active&type=in.(Credit Put Spread,Credit Call Spread)');
+        'select=id,ticker,expiration,type,strategy_type&status=eq.active&type=in.(Credit Put Spread,Credit Call Spread)');
     if (!active || active.length === 0) return [];
 
     const breached = [];
@@ -100,8 +100,9 @@ async function checkTimeStopBreaches(timeStopDTE = 3) {
         const expDate = new Date(pos.expiration + 'T16:00:00Z');
         const todayDate = new Date(today + 'T16:00:00Z');
         const daysToExp = Math.round((expDate - todayDate) / (1000 * 60 * 60 * 24));
-        if (daysToExp <= TIME_STOP_DTE) {
-            breached.push({ ...pos, daysToExp });
+        const threshold = pos.strategy_type === 'shortTerm' ? 1 : 3;
+        if (daysToExp <= threshold) {
+            breached.push({ ...pos, daysToExp, threshold });
         }
     }
     return breached;
@@ -113,7 +114,7 @@ async function sendTimeStopAlert(breached) {
 
     const fields = breached.map(p => ({
         name: `${p.ticker} \u2014 ${p.daysToExp} DTE`,
-        value: `${p.type} exp ${p.expiration} \u2014 **close now** (time stop = 3 DTE)`,
+        value: `${p.type} exp ${p.expiration} \u2014 **close now** (time stop = ${p.threshold} DTE)`,
         inline: false,
     }));
 
@@ -123,7 +124,7 @@ async function sendTimeStopAlert(breached) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 embeds: [{
-                    title: `\u23F0 Time Stop Alert \u2014 ${breached.length} position(s) at \u22643 DTE`,
+                    title: `\u23F0 Time Stop Alert \u2014 ${breached.length} position(s) breaching DTE threshold`,
                     color: 0xff6600,
                     fields,
                     footer: { text: 'Trading Journal \u00b7 WFA v3 time stop monitor' },
@@ -256,6 +257,165 @@ async function sendDiscord(signals, totalScanned, date) {
         });
     } catch (err) {
         console.warn('[signal-scan] Discord send failed:', err.message);
+    }
+}
+
+// ── Short-Term 130M Signal Scan ──────────────────────────────────────────────────
+
+const SHORT_TERM_PERIOD_MULT = 2.25;
+
+function scaleIndicatorPeriods(mult, base) {
+    return {
+        ...base,
+        sc_mb_len: Math.round((base.sc_mb_len ?? 100) * mult),
+        sc_osc_len: Math.round((base.sc_osc_len ?? 14) * mult),
+        sc_bx_s1: Math.round((base.sc_bx_s1 ?? 8) * mult),
+        sc_bx_s2: Math.round((base.sc_bx_s2 ?? 21) * mult),
+        sc_bx_l1: Math.round((base.sc_bx_l1 ?? 50) * mult),
+        sc_bx_l2: Math.round((base.sc_bx_l2 ?? 100) * mult),
+    };
+}
+
+async function get130MCandles(ticker, lookbackDays = 120) {
+    const to = new Date().toISOString().slice(0, 10);
+    const from = new Date(Date.now() - lookbackDays * 86400000).toISOString().slice(0, 10);
+
+    const rows = await supabaseGet('stock_candles',
+        `select=date,open,high,low,close,volume,timeframe&ticker=eq.${ticker}&timeframe=like.130M_*&date=gte.${from}&date=lte.${to}&order=date.asc,timeframe.asc&limit=1500`
+    );
+    if (!rows || rows.length === 0) return [];
+
+    return rows.map(r => ({
+        date: r.date,
+        open: Number(r.open),
+        high: Number(r.high),
+        low: Number(r.low),
+        close: Number(r.close),
+        volume: Number(r.volume),
+    }));
+}
+
+async function scanShortTermSignals(config, today) {
+    const stProfile = config.profiles.shortTerm;
+    if (!stProfile) return { signals: [], scanned: 0, errors: [] };
+
+    const presetWeights = SIGNAL_PRESETS[stProfile.signalPreset] || SIGNAL_PRESETS.em;
+    const techOptions = scaleIndicatorPeriods(SHORT_TERM_PERIOD_MULT, presetWeights);
+    const MIN_SCORE = stProfile.minScore || 70;
+    const MIN_RVOL = stProfile.rvolGate || 0.5;
+    const ADX_GATE = stProfile.adxGate;
+    const IVR_MIN = stProfile.ivRankMin || 20;
+    const MIN_DIR_CONF = stProfile.minDirConfidence ?? 0;
+
+    console.log(`[signal-scan/ST] Starting short-term 130M scan (signal: ${stProfile.signalPreset}, pm: ${SHORT_TERM_PERIOD_MULT}, ivr: ${IVR_MIN})`);
+
+    const signals = [];
+    const errors = [];
+    let scanned = 0;
+
+    for (const ticker of SCAN_TICKERS) {
+        try {
+            const candles = await get130MCandles(ticker);
+            if (!candles || candles.length < 50) continue;
+
+            const result = calculateTechScore(candles, techOptions);
+            scanned++;
+
+            const adx = result.debug?.adx ?? 20;
+            const rvol = result.debug?.rvol ?? 1;
+            if (ADX_GATE != null && adx < ADX_GATE) continue;
+            if (rvol < MIN_RVOL) continue;
+            if (result.type === 'NEUTRAL') continue;
+            if (result.techScore < MIN_SCORE) continue;
+            if (result.dirConfidence < MIN_DIR_CONF) continue;
+
+            // IV rank filter for short-term
+            let iv30 = null;
+            try {
+                const ivRows = await supabaseGet('orats_iv_cache',
+                    `select=iv30d&ticker=eq.${ticker}&order=date.desc&limit=1`);
+                if (ivRows && ivRows.length > 0) iv30 = ivRows[0].iv30d;
+            } catch (_) {}
+
+            if (IVR_MIN > 0 && iv30 != null && iv30 < IVR_MIN) continue;
+
+            signals.push({
+                ticker,
+                date: today,
+                score: result.techScore,
+                dirConfidence: result.dirConfidence,
+                direction: result.type,
+                setup: result.setup,
+                confidence: result.confidence,
+                components: result.components,
+                debug: result.debug,
+                adx,
+                rvol,
+                close: result.debug?.close ?? 0,
+                iv30,
+                ivAdequate: iv30 == null || iv30 >= IVR_MIN,
+                strategyType: 'shortTerm',
+            });
+
+            // Upsert to signal_history with short-term tag
+            supabaseUpsert('signal_history', [{
+                ticker,
+                date: today,
+                score: result.techScore,
+                dir_confidence: result.dirConfidence,
+                direction: result.type,
+                setup: `ST:${result.setup}`,
+                confidence: result.confidence,
+                components: result.components,
+                debug: result.debug,
+            }], 'ticker,date').catch(() => {});
+
+        } catch (err) {
+            errors.push({ ticker, error: err.message });
+        }
+    }
+
+    signals.sort((a, b) => b.score - a.score);
+    return { signals, scanned, errors };
+}
+
+async function sendShortTermDiscord(signals, totalScanned, date) {
+    const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+    if (!webhookUrl) return;
+
+    const fields = [];
+    if (signals.length === 0) {
+        fields.push({ name: 'No short-term signals today', value: 'All tickers below threshold or filtered by IV rank / quality gates.', inline: false });
+    } else {
+        for (const s of signals.slice(0, 25)) {
+            const emoji = s.direction === 'CALL' ? '\uD83D\uDFE2' : '\uD83D\uDD34';
+            const dirLabel = s.direction === 'CALL' ? 'BUY' : 'SELL';
+            const ivLabel = s.iv30 != null ? `IV: ${(s.iv30 * 100).toFixed(0)}%` : 'IV: n/a';
+            fields.push({
+                name: `${s.ticker} ${emoji} ${dirLabel}`,
+                value: `Score: **${s.score}** | ${s.setup} | Conf: ${s.confidence}\nADX: ${s.adx} | RVOL: ${s.rvol} | ${ivLabel} | $${s.close.toFixed(2)}`,
+                inline: false,
+            });
+        }
+    }
+
+    try {
+        await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                embeds: [{
+                    title: `\uD83D\uDCCA Short-Term Signal Scan (130M) \u2014 ${date}`,
+                    color: signals.length > 0 ? 0x22c55e : 0xaaaaaa,
+                    fields,
+                    footer: { text: `Trading Journal \u00b7 ${totalScanned} tickers \u00b7 ${signals.length} signals \u00b7 em|tp50|w10|iv20|d45|ts1|pm2.25` },
+                    timestamp: new Date().toISOString(),
+                }]
+            }),
+            signal: AbortSignal.timeout(5000),
+        });
+    } catch (err) {
+        console.warn('[signal-scan/ST] Discord send failed:', err.message);
     }
 }
 
@@ -405,27 +565,41 @@ export default async function handler(req, res) {
         console.warn('[signal-scan/130M] Top-up failed:', err.message);
     }
 
-    // Send Discord
+    // Send swing Discord
     await sendDiscord(signals, scanned, today);
 
-    // Time stop monitoring (WFA v3) — fires during market hours so user can act
+    // ── Short-Term 130M Signal Scan ──────────────────────────────────────
+    let stResult = { signals: [], scanned: 0, errors: [] };
     try {
-        const breached = await checkTimeStopBreaches(profile.timeStopDTE || 3);
+        stResult = await scanShortTermSignals(config, today);
+        console.log(`[signal-scan/ST] Done: ${stResult.scanned} scanned, ${stResult.signals.length} signals`);
+        await sendShortTermDiscord(stResult.signals, stResult.scanned, today);
+    } catch (stErr) {
+        console.warn('[signal-scan/ST] Short-term scan failed:', stErr.message);
+    }
+
+    // Time stop monitoring (strategy-aware: shortTerm=1 DTE, swing=3 DTE)
+    try {
+        const breached = await checkTimeStopBreaches();
         if (breached.length > 0) {
-            console.log(`[signal-scan] ${breached.length} position(s) breached time stop (\u22643 DTE)`);
+            console.log(`[signal-scan] ${breached.length} position(s) breached time stop`);
             await sendTimeStopAlert(breached);
         }
     } catch (tsErr) {
         console.warn('[signal-scan] Time stop check failed:', tsErr.message);
     }
 
-    console.log(`[signal-scan] Done: ${scanned} scanned, ${signals.length} signals, ${errors.length} errors`);
+    console.log(`[signal-scan] Done: swing ${scanned}/${signals.length}, ST ${stResult.scanned}/${stResult.signals.length}, errors ${errors.length}`);
 
     return res.status(200).json({
         ok: true,
         date: today,
         scanned,
         signals: signals.map(s => ({ ticker: s.ticker, score: s.score, direction: s.direction, setup: s.setup, confidence: s.confidence })),
+        shortTerm: {
+            scanned: stResult.scanned,
+            signals: stResult.signals.map(s => ({ ticker: s.ticker, score: s.score, direction: s.direction, setup: s.setup })),
+        },
         errors: errors.length > 0 ? errors : undefined,
         topUp130M,
     });

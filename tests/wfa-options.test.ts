@@ -3,6 +3,8 @@ import { describe, it, expect } from 'vitest';
 import {
   buildConfiguredSignalsForWindow,
   buildWFAWindows,
+  evaluateConfiguredSignalsWithConstraints,
+  executePreparedOOSWindowsWithCarry,
   optimizeWindow,
   runWFAOptions,
   selectConfigsForOOS,
@@ -279,22 +281,169 @@ describe('optimizeWindow', () => {
 });
 
 describe('WFA position carry', () => {
-  it('open positions carry across OOS window boundaries', () => {
-    const w1Trades: OptionTrade[] = [
+  it('carried positions continue consuming capital-at-risk in later OOS windows', () => {
+    const testDates = [
+      '2023-01-02',
+      '2023-01-03',
+      '2023-01-04',
+      '2023-01-05',
+      '2023-01-06',
+      '2023-01-09',
+    ];
+    const carryTradeEvaluator: TradeEvaluator = (signal) => ({
+      ticker: signal.ticker, mode: 'CREDIT_SPREAD', direction: signal.direction,
+      entryDate: signal.date, entrySignalScore: signal.score,
+      strike: 470, expiry: '2023-01-20', entryDTE: 10, entryPrice: signal.ticker === 'SPY' ? 1.0 : 0.5,
+      entryDelta: -0.30, entryIV: 0.20, entryStockPrice: 480,
+      spreadWidth: signal.ticker === 'SPY' ? 5 : 2.5,
+      maxProfit: signal.ticker === 'SPY' ? 1.0 : 0.5,
+      maxLoss: signal.ticker === 'SPY' ? 4.0 : 2.0,
+      exitDate: '2023-01-09', exitPrice: signal.ticker === 'SPY' ? 0.5 : 0.25, exitDTE: 1, exitStockPrice: 470,
+      exitType: 'TIME_STOP', pnl: signal.ticker === 'SPY' ? 50 : 25, pnlPct: 0.125, holdDays: 5,
+    } as OptionTrade);
+
+    const result = executePreparedOOSWindowsWithCarry(
+      [
+        {
+          windowIndex: 0,
+          trainStart: '2023-01-02',
+          trainEnd: '2023-01-03',
+          oosStart: '2023-01-04',
+          oosEnd: '2023-01-05',
+          bestConfig: DEFAULT_CREDIT_CONFIG,
+          selectedConfigs: [DEFAULT_CREDIT_CONFIG],
+          bestTrainSharpe: 1,
+          configuredSignals: [
+            { signal: { ticker: 'SPY', date: '2023-01-04', direction: 'CALL', score: 80 }, config: DEFAULT_CREDIT_CONFIG },
+          ],
+        },
+        {
+          windowIndex: 1,
+          trainStart: '2023-01-03',
+          trainEnd: '2023-01-04',
+          oosStart: '2023-01-06',
+          oosEnd: '2023-01-06',
+          bestConfig: DEFAULT_CREDIT_CONFIG,
+          selectedConfigs: [DEFAULT_CREDIT_CONFIG],
+          bestTrainSharpe: 1,
+          configuredSignals: [
+            { signal: { ticker: 'QQQ', date: '2023-01-06', direction: 'CALL', score: 82 }, config: DEFAULT_CREDIT_CONFIG },
+          ],
+        },
+      ],
+      { maxPositions: 10, maxPerTicker: 10, startingCapital: 500 },
+      testDates,
+      '2023-01-09',
+      carryTradeEvaluator,
+      'strict',
+      500,
+    );
+
+    expect(result.allOOSTrades).toHaveLength(1);
+    expect(result.windows[0].oosTrades).toHaveLength(1);
+    expect(result.windows[1].oosTrades).toHaveLength(0);
+    expect(result.windows[0].oosTrades[0].ticker).toBe('SPY');
+  });
+
+  it('carried positions block later-window entries and still affect later-window metrics', () => {
+    const testDates = [
+      '2023-01-02',
+      '2023-01-03',
+      '2023-01-04',
+      '2023-01-05',
+      '2023-01-06',
+      '2023-01-09',
+    ];
+    const carryTradeEvaluator: TradeEvaluator = (signal) => ({
+      ticker: signal.ticker, mode: 'CREDIT_SPREAD', direction: signal.direction,
+      entryDate: signal.date, entrySignalScore: signal.score,
+      strike: 470, expiry: '2023-01-20', entryDTE: 10, entryPrice: 1.0,
+      entryDelta: -0.30, entryIV: 0.20, entryStockPrice: 480,
+      spreadWidth: 5, maxProfit: 1.0, maxLoss: 4.0,
+      exitDate: '2023-01-09', exitPrice: 2.0, exitDTE: 1, exitStockPrice: 470,
+      exitType: 'STOP_LOSS', pnl: -100, pnlPct: -0.25, holdDays: 5,
+      dailyMtM: [
+        { date: signal.date, spreadMid: 0.5, unrealizedPnl: 50 },
+        { date: '2023-01-05', spreadMid: 0.5, unrealizedPnl: 50 },
+        { date: '2023-01-06', spreadMid: 2.0, unrealizedPnl: -100 },
+      ],
+    } as OptionTrade);
+
+    const prepared = [
       {
-        ticker: 'SPY', mode: 'CREDIT_SPREAD', direction: 'CALL',
-        entryDate: '2024-01-15', entrySignalScore: 80,
-        strike: 480, expiry: '2024-03-15', entryDTE: 60,
-        entryPrice: 1.00, entryDelta: -0.30, entryIV: 0.18,
-        entryStockPrice: 485, spreadWidth: 10, maxLoss: 9.00, maxProfit: 1.00,
-        exitDate: '2024-04-01', exitPrice: 0.30, exitDTE: 15,
-        exitStockPrice: 490, exitType: 'PROFIT_TARGET',
-        pnl: 70, pnlPct: 0.078, holdDays: 76,
+        windowIndex: 0,
+        trainStart: '2023-01-02',
+        trainEnd: '2023-01-03',
+        oosStart: '2023-01-04',
+        oosEnd: '2023-01-05',
+        bestConfig: DEFAULT_CREDIT_CONFIG,
+        selectedConfigs: [DEFAULT_CREDIT_CONFIG],
+        bestTrainSharpe: 1,
+        configuredSignals: [
+          { signal: { ticker: 'SPY', date: '2023-01-04', direction: 'CALL', score: 80 }, config: DEFAULT_CREDIT_CONFIG },
+        ],
+      },
+      {
+        windowIndex: 1,
+        trainStart: '2023-01-03',
+        trainEnd: '2023-01-04',
+        oosStart: '2023-01-06',
+        oosEnd: '2023-01-06',
+        bestConfig: DEFAULT_CREDIT_CONFIG,
+        selectedConfigs: [DEFAULT_CREDIT_CONFIG],
+        bestTrainSharpe: 1,
+        configuredSignals: [
+          { signal: { ticker: 'QQQ', date: '2023-01-06', direction: 'CALL', score: 82 }, config: DEFAULT_CREDIT_CONFIG },
+        ],
       },
     ];
-    expect(w1Trades[0].entryDate < '2024-03-31').toBe(true);
-    expect(w1Trades[0].exitDate >= '2024-04-01').toBe(true);
-    expect(w1Trades[0].holdDays).toBe(76);
+
+    const result = executePreparedOOSWindowsWithCarry(
+      prepared,
+      { maxPositions: 1, maxPerTicker: 1, startingCapital: 100_000 },
+      testDates,
+      '2023-01-09',
+      carryTradeEvaluator,
+      'strict',
+      100_000,
+    );
+
+    expect(result.allOOSTrades).toHaveLength(1);
+    expect(result.windows[0].oosTrades).toHaveLength(1);
+    expect(result.windows[1].oosTrades).toHaveLength(0);
+    expect(result.windows[1].oosMaxDD).toBeGreaterThan(0);
+  });
+});
+
+describe('Deterministic execution ordering', () => {
+  it('uses date, then ticker, then direction when capacity is limited', () => {
+    const constrainedEvaluator: TradeEvaluator = (signal) => ({
+      ticker: signal.ticker, mode: 'CREDIT_SPREAD', direction: signal.direction,
+      entryDate: signal.date, entrySignalScore: signal.score,
+      strike: 470, expiry: '2024-02-16', entryDTE: 45, entryPrice: 1.0,
+      entryDelta: -0.30, entryIV: 0.20, entryStockPrice: 480,
+      spreadWidth: 10, maxProfit: 1.0, maxLoss: 9.0,
+      exitDate: '2024-12-20', exitPrice: 0.30, exitDTE: 7, exitStockPrice: 485,
+      exitType: 'PROFIT_TARGET', pnl: 70, pnlPct: 0.078, holdDays: 30,
+    } as OptionTrade);
+
+    const configuredSignals = [
+      { signal: { ticker: 'SPY', date: '2023-06-01', direction: 'PUT' as const, score: 80 }, config: DEFAULT_CREDIT_CONFIG },
+      { signal: { ticker: 'QQQ', date: '2023-06-01', direction: 'CALL' as const, score: 82 }, config: DEFAULT_CREDIT_CONFIG },
+      { signal: { ticker: 'SPY', date: '2023-06-01', direction: 'CALL' as const, score: 84 }, config: DEFAULT_CREDIT_CONFIG },
+    ];
+
+    const trades = evaluateConfiguredSignalsWithConstraints(
+      configuredSignals,
+      { maxPositions: 1, maxPerTicker: 1, startingCapital: 100_000 },
+      allDates,
+      '2024-12-31',
+      constrainedEvaluator,
+    );
+
+    expect(trades).toHaveLength(1);
+    expect(trades[0].ticker).toBe('QQQ');
+    expect(trades[0].direction).toBe('CALL');
   });
 });
 

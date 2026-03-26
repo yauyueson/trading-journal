@@ -1,6 +1,6 @@
 # Stop-Loss WFA Study — Credit Spread Strategies
 
-Generated: 2026-03-23
+Generated: 2026-03-24
 
 ## Executive Summary
 
@@ -8,41 +8,41 @@ This study evaluates 4 stop-loss mechanisms across Swing (45-65 DTE) and Short-T
 Methodology: Rolling WFA with IS/OOS selection windows + holdout validation.
 
 ### Baseline (No SL)
-- **short**: OOS Sharpe 2.23, Holdout 1.85, WR 76.4%, Grade B
+- **short**: OOS Sharpe 0.90, Holdout 0.37, WR 72.0%, Grade A
 
-### Best SL Config: `sl15x` (short)
+### Best SL Config: `sl10x` (short)
 - Mechanism: credit_multiple
-- OOS Sharpe: 2.23, Holdout: 1.85
-- WR: 76.4%, MaxDD: 3.9%
-- Grade: B
+- OOS Sharpe: 0.90, Holdout: 0.37
+- WR: 71.4%, MaxDD: 39.9%
+- Grade: A
 
 ## Short-Term Results
 
 | Label | Mechanism | IS Sharpe | OOS Sharpe | Holdout | WR% | MaxDD | Trades | WFE | Grade |
 |-------|-----------|-----------|------------|---------|-----|-------|--------|-----|-------|
-| baseline | baseline | 1.99 | 2.23 | 1.85 | 76.4% | 3.9% | 296 | 1.12 | B |
-| sl15x | credit_multiple | 1.99 | 2.23 | 1.85 | 76.4% | 3.9% | 296 | 1.12 | B |
-| sl10x | credit_multiple | 1.99 | 2.23 | 1.85 | 76.0% | 3.9% | 296 | 1.12 | B |
-| sl7x | credit_multiple | 1.92 | 2.11 | 1.85 | 73.9% | 5.4% | 299 | 1.10 | B |
-| tl75-50 | trailing_lock | 1.76 | 1.78 | 1.64 | 56.1% | 6.8% | 319 | 1.02 | B |
-| tl75-25 | trailing_lock | 1.76 | 1.78 | 1.64 | 56.1% | 6.8% | 319 | 1.02 | B |
-| sl5x | credit_multiple | 1.61 | 1.76 | 1.54 | 70.1% | 8.2% | 314 | 1.09 | C |
-| tl50-50 | trailing_lock | 1.67 | 1.67 | 1.50 | 47.3% | 6.5% | 349 | 1.00 | B |
-| tl50-25 | trailing_lock | 1.67 | 1.67 | 1.50 | 47.0% | 6.5% | 349 | 1.00 | B |
-| ds80 | delta_stop | 0.76 | 1.15 | 1.53 | 65.5% | 12.1% | 313 | 1.52 | C |
-| sl4x | credit_multiple | 1.06 | 0.94 | 1.35 | 55.4% | 21.8% | 341 | 0.88 | C |
-| ds75 | delta_stop | 0.26 | 0.80 | 1.43 | 64.2% | 21.9% | 318 | 3.05 | C |
-| ds70 | delta_stop | -0.20 | 0.50 | 1.35 | 60.9% | 25.2% | 327 | 0.00 | F |
-| ds65 | delta_stop | -0.93 | -0.03 | 0.27 | 56.5% | 34.9% | 336 | 0.00 | F |
-| ds60 | delta_stop | -2.39 | -1.09 | -1.10 | 50.8% | 64.8% | 354 | 0.00 | F |
-| ml50 | max_loss_pct | -2.82 | -1.48 | -0.24 | 35.4% | 118.5% | 384 | 0.00 | F |
-| sl2x | credit_multiple | -2.87 | -1.63 | -0.95 | 24.5% | 113.1% | 392 | 0.00 | F |
-| ds50 | delta_stop | -2.53 | -1.67 | -0.92 | 49.7% | 56.8% | 358 | 0.00 | F |
-| ds55 | delta_stop | -2.63 | -1.73 | -0.99 | 50.1% | 65.0% | 355 | 0.00 | F |
-| ml75 | max_loss_pct | -1.43 | -1.90 | -0.22 | 37.8% | 107.6% | 381 | 0.00 | F |
-| sl3x | credit_multiple | -0.87 | -1.99 | -0.25 | 39.0% | 81.5% | 372 | 0.00 | F |
-| ml25 | max_loss_pct | -3.37 | -2.27 | -3.35 | 20.4% | 133.5% | 412 | 0.00 | F |
-| ml90 | max_loss_pct | -1.11 | -2.34 | -0.22 | 38.7% | 96.7% | 382 | 0.00 | F |
+| baseline | baseline | 1.58 | 0.90 | 0.37 | 72.0% | 41.7% | 2830 | 0.57 | A |
+| sl10x | credit_multiple | 1.55 | 0.90 | 0.37 | 71.4% | 39.9% | 2865 | 0.58 | A |
+| sl15x | credit_multiple | 1.57 | 0.90 | 0.37 | 72.0% | 42.8% | 2832 | 0.57 | A |
+| tl75-50 | trailing_lock | 1.59 | 0.89 | 0.31 | 54.9% | 41.7% | 3117 | 0.56 | B |
+| tl75-25 | trailing_lock | 1.59 | 0.89 | 0.31 | 54.8% | 41.7% | 3117 | 0.56 | B |
+| sl7x | credit_multiple | 1.55 | 0.89 | 0.36 | 69.2% | 43.3% | 3033 | 0.57 | A |
+| tl50-25 | trailing_lock | 1.48 | 0.85 | 0.32 | 43.3% | 50.3% | 3463 | 0.57 | C |
+| tl50-50 | trailing_lock | 1.48 | 0.83 | 0.32 | 43.4% | 59.2% | 3464 | 0.56 | C |
+| sl5x | credit_multiple | 1.40 | 0.83 | 0.29 | 59.3% | 44.1% | 3491 | 0.59 | C |
+| sl4x | credit_multiple | 1.08 | 0.78 | 0.28 | 49.6% | 62.5% | 3902 | 0.72 | C |
+| ds80 | delta_stop | 1.27 | 0.78 | 0.32 | 63.4% | 73.5% | 2970 | 0.62 | B |
+| ds70 | delta_stop | 1.26 | 0.78 | 0.30 | 59.9% | 87.8% | 3171 | 0.62 | B |
+| ds75 | delta_stop | 1.31 | 0.77 | 0.32 | 62.5% | 75.0% | 3035 | 0.59 | B |
+| sl3x | credit_multiple | 0.12 | 0.44 | -0.29 | 37.4% | 127.6% | 4433 | 3.55 | F |
+| ds65 | delta_stop | 0.66 | 0.06 | 0.18 | 54.1% | 253.7% | 3435 | 0.10 | C |
+| ml50 | max_loss_pct | -1.72 | -0.10 | -0.32 | 32.1% | 772.4% | 4506 | 0.00 | F |
+| sl2x | credit_multiple | -1.96 | -0.23 | -0.69 | 21.0% | 747.1% | 5060 | 0.00 | F |
+| ml90 | max_loss_pct | -0.13 | -0.42 | -0.31 | 39.2% | 112.2% | 4127 | 0.00 | F |
+| ds60 | delta_stop | -0.85 | -0.43 | 0.24 | 46.7% | 4362.7% | 3813 | 0.00 | F |
+| ds55 | delta_stop | -0.79 | -0.45 | 0.38 | 45.2% | 4576.5% | 3847 | 0.00 | F |
+| ds50 | delta_stop | -1.06 | -0.45 | 0.24 | 43.4% | 4228.8% | 3924 | 0.00 | F |
+| ml25 | max_loss_pct | -3.09 | -0.93 | -1.89 | 16.9% | 1752.8% | 5216 | 0.00 | F |
+| ml75 | max_loss_pct | -0.68 | -1.15 | -0.31 | 37.5% | 187.2% | 4242 | 0.00 | F |
 
 ## Methodology
 

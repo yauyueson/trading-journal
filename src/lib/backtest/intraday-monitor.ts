@@ -14,6 +14,14 @@ import type { IntradayCandle } from './intraday-cache';
 import type { OptionTrade, EntrySignal, SimConfig } from './option-sim';
 import type { DynamicSlippageConfig } from './types';
 import { bsmPrice, bsmDelta, ouIVEvolution } from './bsm-pricing';
+import {
+  buildCreditSpreadTrade,
+  clampSpreadCloseCost,
+  computeCreditSpreadThresholds,
+  computeIntrinsicSpreadCloseCost,
+  resolveCreditSpreadCommissions,
+  resolveTriggeredCreditExitCost,
+} from './credit-spread-exit';
 import { applySpreadFill } from './slippage';
 
 // ── Types ────────────────────────────────────────────────
@@ -134,6 +142,8 @@ export function evaluateCreditSpread4H(
 
   let entryCredit = spread.netCredit;
   let entrySlippage = 0;
+  const grossEntryCredit = spread.netCredit;
+  const { entryCommission, exitCommission } = resolveCreditSpreadCommissions(config);
   if (config.fillMode === 'bidask' && config.slippage.enabled) {
     if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
       const spreadFill = applySpreadFill(
@@ -169,19 +179,11 @@ export function evaluateCreditSpread4H(
     }
     if (entryCredit <= 0) return null;
   }
-  const tpCost = entryCredit * (1 - config.creditProfitTarget);
-  const slCost = entryCredit * config.creditStopLossMultiple;
-
-  // Max loss stop threshold (in spread cost terms)
-  const maxLoss = config.creditSpreadWidth - entryCredit;
-  const maxLossStopCost = (config.creditMaxLossStopPct != null && config.creditMaxLossStopPct < 1.0)
-    ? entryCredit + (config.creditMaxLossStopPct * maxLoss)
-    : Infinity;
+  const thresholds = computeCreditSpreadThresholds(config, spread, entryCredit);
 
   // Trailing profit lock state
   let trailingFloorActive = false;
   let trailingFloorCost = Infinity;
-  const tpProfit = entryCredit * config.creditProfitTarget;
 
   // Entry IV and HV theta for O-U evolution
   const entryIV = spread.short.iv > 0 ? spread.short.iv : 0.30; // fallback
@@ -221,13 +223,10 @@ export function evaluateCreditSpread4H(
       entryDTE, daysElapsed, isCall, r,
     );
 
-    let currentSpreadCost = bsm.spreadCost;
+    let grossCurrentSpreadCost = clampSpreadCloseCost(bsm.spreadCost, thresholds.actualWidth);
+    let currentSpreadCost = grossCurrentSpreadCost;
     let currentShortDelta = bsm.shortDelta;
     let exitSlippage = 0;
-
-    // BSM can overshoot spread width for deep-ITM options — cap at defined-risk max
-    const absSpreadWidth = Math.abs(spread.short.row.strike - spread.long.row.strike);
-    currentSpreadCost = Math.min(currentSpreadCost, absSpreadWidth);
 
     // Daily calibration: on last bar of each day, try to snap to real chain
     const barDate = candle.date;
@@ -276,8 +275,8 @@ export function evaluateCreditSpread4H(
           currentSpreadCost = shortLeg.mid - longLeg.mid;
         }
         currentShortDelta = shortLeg.delta;
-        // Cap chain-derived cost at spread width max
-        currentSpreadCost = Math.min(currentSpreadCost, absSpreadWidth);
+        grossCurrentSpreadCost = clampSpreadCloseCost(shortLeg.mid - longLeg.mid, thresholds.actualWidth);
+        currentSpreadCost = clampSpreadCloseCost(currentSpreadCost, thresholds.actualWidth);
       }
       lastCalibratedDate = barDate;
     }
@@ -297,34 +296,42 @@ export function evaluateCreditSpread4H(
 
     // Update trailing lock state (must happen before exit checks)
     if (config.trailingActivatePct != null && config.trailingFloorPct != null) {
-      const unrealizedProfit = entryCredit - currentSpreadCost;
-      const activationProfit = config.trailingActivatePct * tpProfit;
+      const unrealizedProfit = entryCredit - grossCurrentSpreadCost;
+      const activationProfit = config.trailingActivatePct * thresholds.tpProfit;
       if (!trailingFloorActive && unrealizedProfit >= activationProfit) {
         trailingFloorActive = true;
-        trailingFloorCost = entryCredit - (config.trailingFloorPct * tpProfit);
+        trailingFloorCost = clampSpreadCloseCost(
+          thresholds.boundedEntryCredit - (config.trailingFloorPct * thresholds.tpProfit),
+          thresholds.actualWidth,
+        );
       }
     }
 
-    if (currentSpreadCost <= tpCost) {
+    if (grossCurrentSpreadCost <= thresholds.tpCost) {
       exitType = 'PROFIT_TARGET';
-    } else if (currentSpreadCost >= slCost) {
+    } else if (grossCurrentSpreadCost >= thresholds.slCost) {
       exitType = 'STOP_LOSS';
-    } else if (currentSpreadCost >= maxLossStopCost) {
+    } else if (grossCurrentSpreadCost >= thresholds.maxLossStopCost) {
       exitType = 'MAX_LOSS_STOP';
     } else if (config.creditDeltaStop && isFinite(config.creditDeltaStop) &&
                Math.abs(currentShortDelta) >= config.creditDeltaStop) {
       exitType = 'DELTA_STOP';
-    } else if (trailingFloorActive && currentSpreadCost > trailingFloorCost) {
+    } else if (trailingFloorActive && grossCurrentSpreadCost > trailingFloorCost) {
       exitType = 'TRAILING_LOCK';
     } else if (currentDTE <= (config.creditTimeStopDTE || 1)) {
       exitType = 'TIME_STOP';
     }
 
     if (exitType) {
+      const grossExitCost = resolveTriggeredCreditExitCost(exitType as any, grossCurrentSpreadCost, thresholds, {
+        trailingFloorCost,
+      });
+      const exitCost = clampSpreadCloseCost(grossExitCost + exitSlippage, thresholds.actualWidth);
       return buildTrade(
         signal, spread, entryCredit, barDate,
-        currentSpreadCost, Math.max(0, Math.round(currentDTE)),
+        exitCost, Math.max(0, Math.round(currentDTE)),
         candle.close, exitType, dailyMtM, entrySlippage, exitSlippage,
+        grossEntryCredit, grossExitCost, entryCommission, exitCommission,
       );
     }
   }
@@ -343,9 +350,11 @@ export function evaluateCreditSpread4H(
       signal.ticker, lastDate, spread.long.row.strike, expiryDate, optionType,
     );
 
+    let grossCost: number;
     let cost: number;
     let exitSlippage = 0;
     if (shortLeg && longLeg) {
+      grossCost = clampSpreadCloseCost(shortLeg.mid - longLeg.mid, thresholds.actualWidth);
       if (config.fillMode === 'bidask' && config.slippage.enabled) {
         if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
           const spreadFill = applySpreadFill(
@@ -380,22 +389,23 @@ export function evaluateCreditSpread4H(
           exitSlippage = shortClose.slippage + longClose.slippage;
         }
       } else {
-        cost = shortLeg.mid - longLeg.mid;
+        cost = grossCost;
       }
     } else {
-      // Intrinsic value at expiration
-      const si = isCall
-        ? Math.max(0, stockPrice - spread.short.row.strike)
-        : Math.max(0, spread.short.row.strike - stockPrice);
-      const li = isCall
-        ? Math.max(0, stockPrice - spread.long.row.strike)
-        : Math.max(0, spread.long.row.strike - stockPrice);
-      cost = si - li;
+      grossCost = computeIntrinsicSpreadCloseCost(
+        isCall ? 'Call' : 'Put',
+        spread.short.row.strike,
+        spread.long.row.strike,
+        stockPrice,
+        thresholds.actualWidth,
+      );
+      cost = grossCost;
     }
 
     return buildTrade(
       signal, spread, entryCredit, lastDate, cost, 0,
       stockPrice, 'EXPIRATION', dailyMtM, entrySlippage, exitSlippage,
+      grossEntryCredit, grossCost, entryCommission, exitCommission,
     );
   }
 
@@ -416,46 +426,29 @@ function buildTrade(
   dailyMtM?: { date: string; spreadMid: number; unrealizedPnl: number }[],
   entrySlippage?: number,
   exitSlippage?: number,
+  grossEntryCredit?: number,
+  grossExitSpreadCost?: number,
+  entryCommission?: number,
+  exitCommission?: number,
 ): OptionTrade {
-  const pnl = (entryCredit - exitSpreadCost) * 100;
-  const pnlPct = spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0;
-  const holdDays = Math.round(
-    (new Date(exitDate).getTime() - new Date(signal.date).getTime()) / 86400000,
-  );
-
-  return {
-    ticker: signal.ticker,
-    mode: 'CREDIT_SPREAD',
-    direction: signal.direction,
-    entryDate: signal.date,
-    entrySignalScore: signal.score,
-    strike: spread.short.row.strike,
-    expiry: spread.short.row.expir_date,
-    entryDTE: spread.short.row.dte,
-    entryPrice: entryCredit,
-    entryDelta: spread.short.delta,
-    entryIV: spread.short.iv,
-    entryStockPrice: spread.short.row.stock_price,
-    longStrike: spread.long.row.strike,
-    longEntryPrice: spread.long.mid,
-    requestedSpreadWidth: spread.requestedSpreadWidth,
-    spreadWidth: spread.spreadWidth,
-    maxProfit: entryCredit,
-    maxLoss: spread.maxLoss,
+  return buildCreditSpreadTrade({
+    signal,
+    spread,
+    entryCredit,
+    grossEntryCredit,
     exitDate,
-    exitPrice: exitSpreadCost,
+    exitSpreadCost,
+    grossExitSpreadCost,
     exitDTE,
     exitStockPrice,
     exitType: exitType as any,
-    pnl,
-    pnlPct,
-    holdDays,
-    ivRank: signal.ivRank,
+    dailyMtM,
     entrySlippage,
     exitSlippage,
+    entryCommission,
+    exitCommission,
     fillMode: configFillMode(entrySlippage, exitSlippage),
-    dailyMtM,
-  };
+  });
 }
 
 function configFillMode(entrySlippage?: number, exitSlippage?: number): 'mid' | 'bidask' | undefined {

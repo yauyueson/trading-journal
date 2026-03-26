@@ -34,13 +34,26 @@ import {
   initDB, closeDB,
   getCachedChain, findSpreadStrikes, findContractDirect,
 } from '../src/lib/backtest/chain-cache';
+import type { SpreadMatch } from '../src/lib/backtest/chain-cache';
 import {
   DEFAULT_CREDIT_CONFIG,
   DEFAULT_SHORT_CREDIT_CONFIG,
   computeOptionAnalytics,
+  projectTradesToGrossPnlView,
   type EntrySignal, type SimConfig, type OptionTrade, type OptionExitType,
   type SignalPresetKey,
 } from '../src/lib/backtest/option-sim';
+import {
+  clampSpreadCloseCost,
+  computeCreditSpreadThresholds,
+  computeIntrinsicSpreadCloseCost,
+  createMissingChainState,
+  resolveActualSpreadWidth,
+  resolveTriggeredCreditExitCost,
+  shouldExitNoChain,
+  updateMissingChainState,
+} from '../src/lib/backtest/credit-spread-exit';
+import { computeIVRankMinMax, IV_RANK_METHOD_MIN_MAX_252D } from '../src/lib/backtest/iv-rank';
 import type { FillMode } from '../src/lib/backtest/types';
 import { applyFill, applySpreadFill } from '../src/lib/backtest/slippage';
 import {
@@ -55,6 +68,9 @@ import { evaluateCreditSpread4H } from '../src/lib/backtest/intraday-monitor';
 import { initIntradayDB, get130MCandles, aggregateToDaily, type IntradayCandle } from '../src/lib/backtest/intraday-cache';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SHORT_COMMISSION_PER_LEG = 0.65;
+const SWING_EXECUTION_LABEL = 'mid_no_explicit_costs';
+const SHORT_EXECUTION_LABEL = 'bidask_combo_plus_commission';
 
 // ── Types ────────────────────────────────────────────────
 
@@ -64,11 +80,23 @@ interface SLStudyResult {
   configLabel: string;
   params: Record<string, number>;
   isSharpe: number;
+  rankingMetric: 'net_oos_sharpe';
+  executionModel: string;
+  ivRankMethod: string;
   oosSharpe: number;
+  oosNetSharpe: number;
+  oosGrossSharpe: number;
   holdoutSharpe: number;
+  holdoutNetSharpe: number;
+  holdoutGrossSharpe: number;
   oosWinRate: number;
   oosMaxDD: number;
   oosTotalPnl: number;
+  oosNetTotalPnl: number;
+  oosGrossTotalPnl: number;
+  holdoutTotalPnl: number;
+  holdoutNetTotalPnl: number;
+  holdoutGrossTotalPnl: number;
   wfEfficiency: number;
   grade: string;
   tradeCount: number;
@@ -107,8 +135,8 @@ const SWING_PARAMS = {
 };
 
 const SHORT_PARAMS = {
-  dataStart: '2023-06-01',
-  startDate: '2024-03-01',
+  dataStart: '2017-01-01',
+  startDate: '2018-01-01',
   endDate: '2026-02-28',
   trainWindowDays: 189,
   forwardStepDays: 42,
@@ -117,7 +145,7 @@ const SHORT_PARAMS = {
   maxPositions: 10,
   maxPerTicker: 5,
   startingCapital: 100_000,
-  holdoutCount: 1,
+  holdoutCount: 2,
   preset: 'em' as SignalPresetKey,
   periodMultiplier: 2.25,
 };
@@ -203,19 +231,6 @@ async function supabaseGet(table: string, query: string): Promise<any[]> {
   return res.json();
 }
 
-// ── IV Rank ──────────────────────────────────────────────
-
-function computeIVRank(ivSeries: (number | null)[]): (number | null)[] {
-  const WINDOW = 252;
-  return ivSeries.map((v, i) => {
-    if (i < WINDOW || v == null) return null;
-    const w = ivSeries.slice(i - WINDOW, i + 1).filter(x => x != null) as number[];
-    if (w.length < 100) return null;
-    const min = Math.min(...w), max = Math.max(...w), range = max - min;
-    return range > 0 ? ((v - min) / range) * 100 : 50;
-  });
-}
-
 // ── Swing Data ───────────────────────────────────────────
 
 interface SwingTickerData {
@@ -247,7 +262,7 @@ async function fetchSwingTickerData(ticker: string, dataStart: string, dataEnd: 
   );
   const ivByDate = new Map(ivRows.map((r: any) => [r.date, r.iv30d as number | null]));
   const ivSeries = candles.map(c => ivByDate.get(c.date) ?? null);
-  const ivRanks = computeIVRank(ivSeries);
+  const ivRanks = computeIVRankMinMax(ivSeries);
   const dateToIdx = new Map(candles.map((c, i) => [c.date, i]));
 
   return { ticker, candles, ivRanks, dateToIdx };
@@ -311,7 +326,7 @@ async function fetchShortTickerData(ticker: string, dataStart: string, dataEnd: 
 
   const ivByDate = new Map(ivData.map(r => [r.date, r.iv30d]));
   const ivSeries = dailyCandles.map(c => ivByDate.get(c.date) ?? null);
-  const ivRanks = computeIVRank(ivSeries);
+  const ivRanks = computeIVRankMinMax(ivSeries);
   const dateToIdx = new Map(dailyCandles.map((c, i) => [c.date, i]));
 
   return { ticker, candles130m, dailyCandles, ivRanks, dateToIdx, ivData };
@@ -358,6 +373,59 @@ function generateShortSignals(
 
 // ── Swing Evaluator ──────────────────────────────────────
 
+function buildSwingTrade(
+  signal: EntrySignal,
+  spread: SpreadMatch,
+  entryCredit: number,
+  exitDate: string,
+  exitSpreadCost: number,
+  exitDTE: number,
+  exitStockPrice: number,
+  exitType: OptionExitType,
+  dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[],
+): OptionTrade {
+  const actualWidth = resolveActualSpreadWidth(spread);
+  const boundedEntryCredit = clampSpreadCloseCost(entryCredit, actualWidth);
+  const boundedExitCost = clampSpreadCloseCost(exitSpreadCost, actualWidth);
+  const maxLoss = Math.max(0, actualWidth - boundedEntryCredit);
+  const pnl = Math.max(
+    -maxLoss * 100,
+    Math.min((boundedEntryCredit - boundedExitCost) * 100, boundedEntryCredit * 100),
+  );
+  return {
+    ticker: signal.ticker,
+    mode: 'CREDIT_SPREAD',
+    direction: signal.direction,
+    entryDate: signal.date,
+    entrySignalScore: signal.score,
+    strike: spread.short.row.strike,
+    expiry: spread.short.row.expir_date,
+    entryDTE: spread.short.row.dte,
+    entryPrice: entryCredit,
+    entryDelta: spread.short.delta,
+    entryIV: spread.short.iv,
+    entryStockPrice: spread.short.row.stock_price,
+    longStrike: spread.long.row.strike,
+    longEntryPrice: spread.long.mid,
+    requestedSpreadWidth: spread.requestedSpreadWidth,
+    spreadWidth: actualWidth,
+    maxProfit: boundedEntryCredit,
+    maxLoss,
+    exitDate,
+    exitPrice: boundedExitCost,
+    exitDTE,
+    exitStockPrice,
+    exitType,
+    pnl,
+    pnlPct: maxLoss > 0 ? pnl / (maxLoss * 100) : 0,
+    holdDays: Math.round(
+      (new Date(exitDate).getTime() - new Date(signal.date).getTime()) / 86400000,
+    ),
+    ivRank: signal.ivRank,
+    dailyMtM,
+  };
+}
+
 function makeSwingEvaluator(fillMode: FillMode): TradeEvaluator {
   return (signal, config, allTradingDates, maxDate) => {
     const entryChain = getCachedChain(signal.ticker, signal.date);
@@ -374,19 +442,13 @@ function makeSwingEvaluator(fillMode: FillMode): TradeEvaluator {
     if (config.minIVRank > 0 && signal.ivRank != null && signal.ivRank < config.minIVRank) return null;
 
     let entryCredit = spread.netCredit;
-    const tpCost = entryCredit * (1 - config.creditProfitTarget);
-    const slCost = entryCredit * config.creditStopLossMultiple;
-
-    // Max loss stop threshold
-    const maxLoss = config.creditSpreadWidth - entryCredit;
-    const maxLossStopCost = (config.creditMaxLossStopPct != null && config.creditMaxLossStopPct < 1.0)
-      ? entryCredit + (config.creditMaxLossStopPct * maxLoss)
-      : Infinity;
+    const thresholds = computeCreditSpreadThresholds(config, spread, entryCredit);
 
     // Trailing profit lock state
     let trailingFloorActive = false;
     let trailingFloorCost = Infinity;
-    const tpProfit = entryCredit * config.creditProfitTarget;
+    let missingChainState = createMissingChainState();
+    let lastValidSpreadCost: number | null = null;
 
     const monitorEnd = spread.short.row.expir_date < maxDate ? spread.short.row.expir_date : maxDate;
 
@@ -404,10 +466,50 @@ function makeSwingEvaluator(fillMode: FillMode): TradeEvaluator {
     for (const checkDate of monitorDates) {
       const shortLeg = findContractDirect(signal.ticker, checkDate, spread.short.row.strike, spread.short.row.expir_date, optionType);
       const longLeg = findContractDirect(signal.ticker, checkDate, spread.long.row.strike, spread.long.row.expir_date, optionType);
-      if (!shortLeg || !longLeg) continue;
+      const fallbackChain = (!shortLeg || !longLeg) ? getCachedChain(signal.ticker, checkDate) : [];
+      const monitoringStockPrice = shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? fallbackChain[0]?.stock_price;
+      const hasValidLegs = Boolean(shortLeg && longLeg);
+      missingChainState = updateMissingChainState(missingChainState, hasValidLegs);
+      if (!hasValidLegs) {
+        if (shouldExitNoChain(config, missingChainState)) {
+          const intrinsicCost = monitoringStockPrice != null
+            ? computeIntrinsicSpreadCloseCost(
+                optionType,
+                spread.short.row.strike,
+                spread.long.row.strike,
+                monitoringStockPrice,
+                thresholds.actualWidth,
+              )
+            : null;
+          const exitCost = resolveTriggeredCreditExitCost(
+            'NO_CHAIN',
+            Math.max(
+              lastValidSpreadCost ?? thresholds.boundedEntryCredit,
+              intrinsicCost ?? thresholds.boundedEntryCredit,
+            ),
+            thresholds,
+          );
+          return buildSwingTrade(
+            signal,
+            spread,
+            entryCredit,
+            checkDate,
+            exitCost,
+            shortLeg?.row.dte ?? longLeg?.row.dte ?? fallbackChain[0]?.dte ?? 0,
+            monitoringStockPrice ?? spread.short.row.stock_price,
+            'NO_CHAIN',
+            dailyMtM,
+          );
+        }
+        continue;
+      }
 
-      const currentSpreadCost = shortLeg.mid - longLeg.mid;
+      const currentSpreadCost = clampSpreadCloseCost(
+        shortLeg.mid - longLeg.mid,
+        thresholds.actualWidth,
+      );
       const currentDTE = shortLeg.row.dte;
+      lastValidSpreadCost = currentSpreadCost;
 
       dailyMtM.push({
         date: checkDate,
@@ -418,45 +520,40 @@ function makeSwingEvaluator(fillMode: FillMode): TradeEvaluator {
       // Update trailing lock state
       if (config.trailingActivatePct != null && config.trailingFloorPct != null) {
         const unrealizedProfit = entryCredit - currentSpreadCost;
-        const activationProfit = config.trailingActivatePct * tpProfit;
+        const activationProfit = config.trailingActivatePct * thresholds.tpProfit;
         if (!trailingFloorActive && unrealizedProfit >= activationProfit) {
           trailingFloorActive = true;
-          trailingFloorCost = entryCredit - (config.trailingFloorPct * tpProfit);
+          trailingFloorCost = clampSpreadCloseCost(
+            thresholds.boundedEntryCredit - (config.trailingFloorPct * thresholds.tpProfit),
+            thresholds.actualWidth,
+          );
         }
       }
 
       let exitType: OptionExitType | null = null;
-      if (currentSpreadCost <= tpCost) exitType = 'PROFIT_TARGET';
-      else if (currentSpreadCost >= slCost) exitType = 'STOP_LOSS';
-      else if (currentSpreadCost >= maxLossStopCost) exitType = 'MAX_LOSS_STOP';
+      if (currentSpreadCost <= thresholds.tpCost) exitType = 'PROFIT_TARGET';
+      else if (currentSpreadCost >= thresholds.slCost) exitType = 'STOP_LOSS';
+      else if (currentSpreadCost >= thresholds.maxLossStopCost) exitType = 'MAX_LOSS_STOP';
       else if (config.creditDeltaStop != null && isFinite(config.creditDeltaStop) &&
                config.creditDeltaStop > 0 && Math.abs(shortLeg.delta) >= config.creditDeltaStop) exitType = 'DELTA_STOP';
       else if (trailingFloorActive && currentSpreadCost > trailingFloorCost) exitType = 'TRAILING_LOCK';
       else if (currentDTE <= config.creditTimeStopDTE) exitType = 'TIME_STOP';
 
       if (exitType) {
-        const pnl = (entryCredit - currentSpreadCost) * 100;
-        const maxLossAmt = spread.maxLoss * 100;
-        return {
-          ticker: signal.ticker,
-          mode: 'CREDIT_SPREAD' as const,
-          direction: signal.direction as 'CALL' | 'PUT',
-          entryDate: signal.date,
-          exitDate: checkDate,
-          entryPrice: entryCredit,
-          exitPrice: currentSpreadCost,
-          pnl,
-          pnlPct: maxLossAmt > 0 ? pnl / maxLossAmt : 0,
-          holdingDays: dailyMtM.length,
+        const exitCost = resolveTriggeredCreditExitCost(exitType, currentSpreadCost, thresholds, {
+          trailingFloorCost,
+        });
+        return buildSwingTrade(
+          signal,
+          spread,
+          entryCredit,
+          checkDate,
+          exitCost,
+          currentDTE,
+          shortLeg.row.stock_price,
           exitType,
-          entryDTE: spread.short.row.dte,
-          exitDTE: currentDTE,
-          spreadWidth: config.creditSpreadWidth,
-          maxLoss: spread.maxLoss,
-          entryStockPrice: spread.short.row.stock_price,
-          exitStockPrice: shortLeg.row.stock_price,
           dailyMtM,
-        };
+        );
       }
     }
 
@@ -465,40 +562,31 @@ function makeSwingEvaluator(fillMode: FillMode): TradeEvaluator {
     if (!lastDate) return null;
     const shortLeg = findContractDirect(signal.ticker, lastDate, spread.short.row.strike, spread.short.row.expir_date, optionType);
     const longLeg = findContractDirect(signal.ticker, lastDate, spread.long.row.strike, spread.long.row.expir_date, optionType);
+    const fallbackChain = (!shortLeg || !longLeg) ? getCachedChain(signal.ticker, lastDate) : [];
     let finalCost: number;
     if (shortLeg && longLeg) {
-      finalCost = shortLeg.mid - longLeg.mid;
+      finalCost = clampSpreadCloseCost(shortLeg.mid - longLeg.mid, thresholds.actualWidth);
     } else {
-      const stockPrice = (shortLeg || longLeg)?.row.stock_price ?? spread.short.row.stock_price;
-      const shortIntrinsic = optionType === 'Put'
-        ? Math.max(0, spread.short.row.strike - stockPrice)
-        : Math.max(0, stockPrice - spread.short.row.strike);
-      const longIntrinsic = optionType === 'Put'
-        ? Math.max(0, spread.long.row.strike - stockPrice)
-        : Math.max(0, stockPrice - spread.long.row.strike);
-      finalCost = shortIntrinsic - longIntrinsic;
+      const stockPrice = shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? fallbackChain[0]?.stock_price ?? spread.short.row.stock_price;
+      finalCost = computeIntrinsicSpreadCloseCost(
+        optionType,
+        spread.short.row.strike,
+        spread.long.row.strike,
+        stockPrice,
+        thresholds.actualWidth,
+      );
     }
-    const pnl = (entryCredit - finalCost) * 100;
-    return {
-      ticker: signal.ticker,
-      mode: 'CREDIT_SPREAD' as const,
-      direction: signal.direction as 'CALL' | 'PUT',
-      entryDate: signal.date,
-      exitDate: lastDate,
-      entryPrice: entryCredit,
-      exitPrice: finalCost,
-      pnl,
-      pnlPct: spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0,
-      holdingDays: dailyMtM.length,
-      exitType: 'EXPIRATION' as OptionExitType,
-      entryDTE: spread.short.row.dte,
-      exitDTE: 0,
-      spreadWidth: config.creditSpreadWidth,
-      maxLoss: spread.maxLoss,
-      entryStockPrice: spread.short.row.stock_price,
-      exitStockPrice: shortLeg?.row.stock_price ?? spread.short.row.stock_price,
+    return buildSwingTrade(
+      signal,
+      spread,
+      entryCredit,
+      lastDate,
+      finalCost,
+      shortLeg?.row.dte ?? longLeg?.row.dte ?? fallbackChain[0]?.dte ?? 0,
+      shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? fallbackChain[0]?.stock_price ?? spread.short.row.stock_price,
+      'EXPIRATION',
       dailyMtM,
-    };
+    );
   };
 }
 
@@ -523,7 +611,7 @@ function makeShortEvaluator(
         findContract: (ticker, date, strike, expiry, type) =>
           findContractDirect(ticker, date, strike, expiry, type as 'Call' | 'Put'),
         applyFillFn: (mid, bid, ask, side, cfg, oi, dte) =>
-          applyFill('mid' as FillMode, mid, bid, ask, side, cfg, oi, dte),
+          applyFill((config.fillMode ?? 'mid') as FillMode, mid, bid, ask, side, cfg, oi, dte),
       },
     );
   };
@@ -601,23 +689,18 @@ function evaluateConfigOnWindows(
 function computeGrade(
   windowResults: WindowEvalResult[],
   minTrades: number,
+  aggregateOOSSharpe: number,
 ): { grade: string; passCount: number; checks: boolean[] } {
-  // Skip empty windows (no trades) — can happen when data doesn't cover early windows
-  const activeWindows = windowResults.filter(w => w.oosTradeCount > 0);
-  if (activeWindows.length === 0) {
+  if (windowResults.length === 0) {
     return { grade: 'F', passCount: 0, checks: [false, false, false, false, false, false] };
   }
-  const avgISS = activeWindows.reduce((s, w) => s + w.trainSharpe, 0) / activeWindows.length;
-  const avgOOSS = activeWindows.reduce((s, w) => s + w.oosSharpe, 0) / activeWindows.length;
+  const avgISS = windowResults.reduce((s, w) => s + w.trainSharpe, 0) / windowResults.length;
+  const avgOOSS = windowResults.reduce((s, w) => s + w.oosSharpe, 0) / windowResults.length;
   const oosStdDev = Math.sqrt(
-    activeWindows.reduce((s, w) => s + (w.oosSharpe - avgOOSS) ** 2, 0) / activeWindows.length,
+    windowResults.reduce((s, w) => s + (w.oosSharpe - avgOOSS) ** 2, 0) / windowResults.length,
   );
-  const totalTrades = activeWindows.reduce((s, w) => s + w.oosTradeCount, 0);
-  const allPositive = activeWindows.every(w => w.oosSharpe > 0);
-
-  // Aggregate OOS Sharpe from all OOS trades
-  // (simplified: use average of window Sharpes as proxy)
-  const aggregateOOSSharpe = avgOOSS;
+  const totalTrades = windowResults.reduce((s, w) => s + w.oosTradeCount, 0);
+  const allPositive = windowResults.every(w => w.oosTradeCount > 0 && w.oosSharpe > 0);
 
   const checks = [
     avgISS > 0 && avgOOSS / avgISS >= 0.40,  // 1. IS→OOS retention >= 40%
@@ -804,8 +887,9 @@ async function runStrategyArm(
         bsmRiskFreeRate: 0.04,
         dailyCalibration: true,
         ivThetaSource: 'hv60' as const,
-        fillMode: 'mid' as FillMode,
-        slippage: { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: false },
+        fillMode: 'bidask' as FillMode,
+        slippage: { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: true, executionStyle: 'combo' },
+        commissionPerLeg: SHORT_COMMISSION_PER_LEG,
       };
 
   // Dispatch all configs to workers in parallel
@@ -871,6 +955,10 @@ async function runStrategyArm(
 
   // Process results
   const results: SLStudyResult[] = [];
+  const selectionStart = selectionWindows[0]?.oosStart ?? params.startDate;
+  const selectionEnd = selectionWindows[selectionWindows.length - 1]?.oosEnd ?? params.endDate;
+  const holdoutStart = holdoutWindows[0]?.oosStart ?? params.startDate;
+  const holdoutEnd = holdoutWindows[holdoutWindows.length - 1]?.oosEnd ?? params.endDate;
   for (let ci = 0; ci < slConfigs.length; ci++) {
     const slDef = slConfigs[ci];
     const wr = workerResults[ci];
@@ -881,7 +969,11 @@ async function runStrategyArm(
 
     const allOOSTrades = wr.allOOSTrades;
     const allOOSMetrics = computePortfolioDailyMetrics(
-      allOOSTrades, allTradingDates, params.startDate, params.endDate, params.startingCapital,
+      allOOSTrades, allTradingDates, selectionStart, selectionEnd, params.startingCapital,
+    );
+    const grossOOSTrades = projectTradesToGrossPnlView(allOOSTrades);
+    const grossOOSMetrics = computePortfolioDailyMetrics(
+      grossOOSTrades, allTradingDates, selectionStart, selectionEnd, params.startingCapital,
     );
     const allOOSAnalytics = computeOptionAnalytics(allOOSTrades);
     const avgTrainSharpe = wr.selectionResults.length > 0
@@ -889,12 +981,17 @@ async function runStrategyArm(
     const wfEfficiency = avgTrainSharpe >= 0.1 ? allOOSMetrics.sharpe / avgTrainSharpe : 0;
 
     const holdoutMetrics = computePortfolioDailyMetrics(
-      wr.holdoutTrades, allTradingDates, params.startDate, params.endDate, params.startingCapital,
+      wr.holdoutTrades, allTradingDates, holdoutStart, holdoutEnd, params.startingCapital,
+    );
+    const grossHoldoutTrades = projectTradesToGrossPnlView(wr.holdoutTrades);
+    const grossHoldoutMetrics = computePortfolioDailyMetrics(
+      grossHoldoutTrades, allTradingDates, holdoutStart, holdoutEnd, params.startingCapital,
     );
 
     const { grade } = computeGrade(
       wr.selectionResults.map(w => ({ ...w, oosTrades: [] as OptionTrade[] })),
       minTrades,
+      allOOSMetrics.sharpe,
     );
 
     const exitTypeBreakdown: Record<string, number> = {};
@@ -908,11 +1005,23 @@ async function runStrategyArm(
       configLabel: slDef.label,
       params: slDef.params,
       isSharpe: avgTrainSharpe,
+      rankingMetric: 'net_oos_sharpe',
+      executionModel: isSwing ? SWING_EXECUTION_LABEL : SHORT_EXECUTION_LABEL,
+      ivRankMethod: IV_RANK_METHOD_MIN_MAX_252D,
       oosSharpe: allOOSMetrics.sharpe,
+      oosNetSharpe: allOOSMetrics.sharpe,
+      oosGrossSharpe: grossOOSMetrics.sharpe,
       holdoutSharpe: holdoutMetrics.sharpe,
+      holdoutNetSharpe: holdoutMetrics.sharpe,
+      holdoutGrossSharpe: grossHoldoutMetrics.sharpe,
       oosWinRate: allOOSAnalytics.winRate,
       oosMaxDD: allOOSMetrics.maxDrawdownPct,
       oosTotalPnl: allOOSTrades.reduce((s, t) => s + t.pnl, 0),
+      oosNetTotalPnl: allOOSTrades.reduce((s, t) => s + t.pnl, 0),
+      oosGrossTotalPnl: grossOOSTrades.reduce((s, t) => s + t.pnl, 0),
+      holdoutTotalPnl: wr.holdoutTrades.reduce((s, t) => s + t.pnl, 0),
+      holdoutNetTotalPnl: wr.holdoutTrades.reduce((s, t) => s + t.pnl, 0),
+      holdoutGrossTotalPnl: grossHoldoutTrades.reduce((s, t) => s + t.pnl, 0),
       wfEfficiency,
       grade,
       tradeCount: allOOSTrades.length,
@@ -939,14 +1048,14 @@ function formatPct(v: number, decimals = 1): string {
 }
 
 function printResults(results: SLStudyResult[], strategy: string) {
-  console.log(`\n${'═'.repeat(100)}`);
+  console.log(`\n${'═'.repeat(120)}`);
   console.log(`  ${strategy.toUpperCase()} STOP-LOSS STUDY RESULTS`);
-  console.log(`${'═'.repeat(100)}`);
+  console.log(`${'═'.repeat(120)}`);
 
   console.log('\n  ' + 'Label'.padEnd(14) + 'Mechanism'.padEnd(18) +
-    'IS Sharpe'.padStart(10) + 'OOS Sharpe'.padStart(12) + 'Holdout'.padStart(10) +
+    'IS'.padStart(8) + 'OOS Net'.padStart(10) + 'OOS Gross'.padStart(11) + 'Hold Net'.padStart(10) +
     'WR%'.padStart(8) + 'MaxDD'.padStart(8) + 'Trades'.padStart(8) + 'WFE'.padStart(8) + 'Grade'.padStart(7));
-  console.log('  ' + '─'.repeat(98));
+  console.log('  ' + '─'.repeat(118));
 
   // Sort by OOS Sharpe descending
   const sorted = [...results].sort((a, b) => b.oosSharpe - a.oosSharpe);
@@ -956,9 +1065,10 @@ function printResults(results: SLStudyResult[], strategy: string) {
     console.log(
       '  ' + r.configLabel.padEnd(14) +
       r.mechanism.padEnd(18) +
-      r.isSharpe.toFixed(2).padStart(10) +
-      r.oosSharpe.toFixed(2).padStart(12) +
-      r.holdoutSharpe.toFixed(2).padStart(10) +
+      r.isSharpe.toFixed(2).padStart(8) +
+      r.oosNetSharpe.toFixed(2).padStart(10) +
+      r.oosGrossSharpe.toFixed(2).padStart(11) +
+      r.holdoutNetSharpe.toFixed(2).padStart(10) +
       formatPct(r.oosWinRate).padStart(8) +
       formatPct(r.oosMaxDD).padStart(8) +
       String(r.tradeCount).padStart(8) +
@@ -970,16 +1080,16 @@ function printResults(results: SLStudyResult[], strategy: string) {
 
   // Per-mechanism summary
   const mechanisms = ['baseline', 'credit_multiple', 'delta_stop', 'max_loss_pct', 'trailing_lock'] as const;
-  console.log(`\n${'─'.repeat(100)}`);
+  console.log(`\n${'─'.repeat(120)}`);
   console.log('  PER-MECHANISM BEST');
-  console.log(`${'─'.repeat(100)}`);
+  console.log(`${'─'.repeat(120)}`);
   for (const mech of mechanisms) {
     const mechResults = results.filter(r => r.mechanism === mech);
     if (mechResults.length === 0) continue;
     const best = mechResults.reduce((a, b) => a.oosSharpe > b.oosSharpe ? a : b);
     console.log(
       `  ${mech.padEnd(18)} Best: ${best.configLabel.padEnd(12)} ` +
-      `OOS ${best.oosSharpe.toFixed(2)} | Holdout ${best.holdoutSharpe.toFixed(2)} | ` +
+      `OOS Net ${best.oosNetSharpe.toFixed(2)} / Gross ${best.oosGrossSharpe.toFixed(2)} | Holdout Net ${best.holdoutNetSharpe.toFixed(2)} | ` +
       `WR ${formatPct(best.oosWinRate)} | Grade ${best.grade}`,
     );
   }
@@ -988,9 +1098,9 @@ function printResults(results: SLStudyResult[], strategy: string) {
   const baseline = results.find(r => r.mechanism === 'baseline');
   const bestNonBaseline = sorted.find(r => r.mechanism !== 'baseline');
   if (baseline && bestNonBaseline) {
-    console.log(`\n${'─'.repeat(100)}`);
+    console.log(`\n${'─'.repeat(120)}`);
     console.log('  EXIT TYPE COMPARISON');
-    console.log(`${'─'.repeat(100)}`);
+    console.log(`${'─'.repeat(120)}`);
     console.log(`  Baseline (${baseline.configLabel}):`);
     for (const [et, count] of Object.entries(baseline.exitTypeBreakdown).sort((a, b) => b[1] - a[1])) {
       console.log(`    ${et.padEnd(20)} ${count} (${formatPct(count / baseline.tradeCount * 100)})`);
@@ -1014,6 +1124,8 @@ function generateReport(swingResults: SLStudyResult[], shortResults: SLStudyResu
   lines.push('');
   lines.push('This study evaluates 4 stop-loss mechanisms across Swing (45-65 DTE) and Short-Term (7-21 DTE 130M) credit spread strategies.');
   lines.push('Methodology: Rolling WFA with IS/OOS selection windows + holdout validation.');
+  lines.push(`Short-term outputs are ranked on net OOS Sharpe using ${SHORT_EXECUTION_LABEL} with $${SHORT_COMMISSION_PER_LEG.toFixed(2)} per leg per side.`);
+  lines.push(`Swing outputs remain ${SWING_EXECUTION_LABEL}; gross and net are identical there until explicit costs are modeled.`);
   lines.push('');
 
   const allResults = [...swingResults, ...shortResults];
@@ -1026,7 +1138,7 @@ function generateReport(swingResults: SLStudyResult[], shortResults: SLStudyResu
   if (baselines.length > 0) {
     lines.push('### Baseline (No SL)');
     for (const b of baselines) {
-      lines.push(`- **${b.strategy}**: OOS Sharpe ${b.oosSharpe.toFixed(2)}, Holdout ${b.holdoutSharpe.toFixed(2)}, WR ${formatPct(b.oosWinRate)}, Grade ${b.grade}`);
+      lines.push(`- **${b.strategy}**: OOS Net ${b.oosNetSharpe.toFixed(2)} / Gross ${b.oosGrossSharpe.toFixed(2)}, Holdout Net ${b.holdoutNetSharpe.toFixed(2)} / Gross ${b.holdoutGrossSharpe.toFixed(2)}, WR ${formatPct(b.oosWinRate)}, Grade ${b.grade}`);
     }
     lines.push('');
   }
@@ -1034,7 +1146,8 @@ function generateReport(swingResults: SLStudyResult[], shortResults: SLStudyResu
   if (bestOverall) {
     lines.push(`### Best SL Config: \`${bestOverall.configLabel}\` (${bestOverall.strategy})`);
     lines.push(`- Mechanism: ${bestOverall.mechanism}`);
-    lines.push(`- OOS Sharpe: ${bestOverall.oosSharpe.toFixed(2)}, Holdout: ${bestOverall.holdoutSharpe.toFixed(2)}`);
+    lines.push(`- OOS Net/Gross Sharpe: ${bestOverall.oosNetSharpe.toFixed(2)} / ${bestOverall.oosGrossSharpe.toFixed(2)}`);
+    lines.push(`- Holdout Net/Gross Sharpe: ${bestOverall.holdoutNetSharpe.toFixed(2)} / ${bestOverall.holdoutGrossSharpe.toFixed(2)}`);
     lines.push(`- WR: ${formatPct(bestOverall.oosWinRate)}, MaxDD: ${formatPct(bestOverall.oosMaxDD)}`);
     lines.push(`- Grade: ${bestOverall.grade}`);
     lines.push('');
@@ -1047,13 +1160,17 @@ function generateReport(swingResults: SLStudyResult[], shortResults: SLStudyResu
 
     lines.push(`## ${strategy === 'swing' ? 'Swing' : 'Short-Term'} Results`);
     lines.push('');
-    lines.push('| Label | Mechanism | IS Sharpe | OOS Sharpe | Holdout | WR% | MaxDD | Trades | WFE | Grade |');
-    lines.push('|-------|-----------|-----------|------------|---------|-----|-------|--------|-----|-------|');
+    const executionLabel = strategy === 'swing' ? SWING_EXECUTION_LABEL : SHORT_EXECUTION_LABEL;
+    lines.push(`- Execution model: ${executionLabel}`);
+    lines.push(`- IV Rank method: ${IV_RANK_METHOD_MIN_MAX_252D}`);
+    lines.push('');
+    lines.push('| Label | Mechanism | IS Sharpe | OOS Net | OOS Gross | Holdout Net | Holdout Gross | WR% | MaxDD | Trades | WFE | Grade |');
+    lines.push('|-------|-----------|-----------|---------|-----------|-------------|---------------|-----|-------|--------|-----|-------|');
 
     const sorted = [...results].sort((a, b) => b.oosSharpe - a.oosSharpe);
     for (const r of sorted) {
       lines.push(
-        `| ${r.configLabel} | ${r.mechanism} | ${r.isSharpe.toFixed(2)} | ${r.oosSharpe.toFixed(2)} | ${r.holdoutSharpe.toFixed(2)} | ${formatPct(r.oosWinRate)} | ${formatPct(r.oosMaxDD)} | ${r.tradeCount} | ${r.wfEfficiency.toFixed(2)} | ${r.grade} |`,
+        `| ${r.configLabel} | ${r.mechanism} | ${r.isSharpe.toFixed(2)} | ${r.oosNetSharpe.toFixed(2)} | ${r.oosGrossSharpe.toFixed(2)} | ${r.holdoutNetSharpe.toFixed(2)} | ${r.holdoutGrossSharpe.toFixed(2)} | ${formatPct(r.oosWinRate)} | ${formatPct(r.oosMaxDD)} | ${r.tradeCount} | ${r.wfEfficiency.toFixed(2)} | ${r.grade} |`,
       );
     }
     lines.push('');
@@ -1067,6 +1184,13 @@ function generateReport(swingResults: SLStudyResult[], shortResults: SLStudyResu
   lines.push('2. **Delta Stop** (0.50-0.80): Close when |short delta| exceeds threshold');
   lines.push('3. **Max Loss %** (25%-90%): Close when unrealized loss reaches X% of max possible loss');
   lines.push('4. **Trailing Lock**: Once profit hits activation %, set floor; close on retrace below floor');
+  lines.push('');
+  lines.push('### Execution and Reporting');
+  lines.push(`- Swing arm: ${SWING_EXECUTION_LABEL}`);
+  lines.push(`- Short arm: ${SHORT_EXECUTION_LABEL} with $${SHORT_COMMISSION_PER_LEG.toFixed(2)} per leg per side`);
+  lines.push(`- IV Rank method: ${IV_RANK_METHOD_MIN_MAX_252D}`);
+  lines.push('- Ranking metric: Net OOS Sharpe');
+  lines.push('- Reports include both gross and net Sharpe / PnL fields');
   lines.push('');
   lines.push('### Overfitting Grade Rubric');
   lines.push('| Grade | Criteria |');
@@ -1162,14 +1286,28 @@ async function main() {
       tickers,
       swingBest: swingResults.length > 0
         ? [...swingResults].sort((a, b) => b.oosSharpe - a.oosSharpe).slice(0, 5).map(r => ({
-            label: r.configLabel, mechanism: r.mechanism, oosSharpe: r.oosSharpe,
-            holdoutSharpe: r.holdoutSharpe, grade: r.grade,
+            label: r.configLabel,
+            mechanism: r.mechanism,
+            oosNetSharpe: r.oosNetSharpe,
+            oosGrossSharpe: r.oosGrossSharpe,
+            holdoutNetSharpe: r.holdoutNetSharpe,
+            holdoutGrossSharpe: r.holdoutGrossSharpe,
+            grade: r.grade,
+            executionModel: r.executionModel,
+            ivRankMethod: r.ivRankMethod,
           }))
         : [],
       shortBest: shortResults.length > 0
         ? [...shortResults].sort((a, b) => b.oosSharpe - a.oosSharpe).slice(0, 5).map(r => ({
-            label: r.configLabel, mechanism: r.mechanism, oosSharpe: r.oosSharpe,
-            holdoutSharpe: r.holdoutSharpe, grade: r.grade,
+            label: r.configLabel,
+            mechanism: r.mechanism,
+            oosNetSharpe: r.oosNetSharpe,
+            oosGrossSharpe: r.oosGrossSharpe,
+            holdoutNetSharpe: r.holdoutNetSharpe,
+            holdoutGrossSharpe: r.holdoutGrossSharpe,
+            grade: r.grade,
+            executionModel: r.executionModel,
+            ivRankMethod: r.ivRankMethod,
           }))
         : [],
     };

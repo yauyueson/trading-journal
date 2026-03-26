@@ -41,9 +41,19 @@ import {
   type SimConfig,
   type SignalPresetKey,
 } from '../src/lib/backtest/option-sim';
+import { computeIVRankMinMax } from '../src/lib/backtest/iv-rank';
 import { evaluateCreditSpread4H } from '../src/lib/backtest/intraday-monitor';
 import { applyFill } from '../src/lib/backtest/slippage';
-import { buildWFAWindows, computePortfolioDailyMetrics, type WFAResult, type WFAWindow } from '../src/lib/backtest/wfa-options';
+import {
+  buildWFAWindows,
+  computePortfolioDailyMetrics,
+  evaluateSignalsWithConstraints,
+  executePreparedOOSWindowsWithCarry,
+  type PortfolioExecutionConfig,
+  type PreparedOOSWindowExecution,
+  type WFAResult,
+  type WFAWindow,
+} from '../src/lib/backtest/wfa-options';
 import { signalMapKey } from '../src/lib/backtest/wfa-v3-orchestrator';
 
 // ── Config Types ────────────────────────────────────────
@@ -134,19 +144,6 @@ interface TickerData {
   dateToIdx: Map<string, number>;
 }
 
-function computeIVRank(ivSeries: (number | null)[]): (number | null)[] {
-  const window = 252;
-  return ivSeries.map((v, i) => {
-    if (i < window || v == null) return null;
-    const sample = ivSeries.slice(i - window, i + 1).filter((x): x is number => x != null);
-    if (sample.length < 100) return null;
-    const min = Math.min(...sample);
-    const max = Math.max(...sample);
-    const range = max - min;
-    return range > 0 ? ((v - min) / range) * 100 : 50;
-  });
-}
-
 export async function fetchTickerData(ticker: string, dataStart: string, dataEnd: string, intradayDb: any): Promise<TickerData> {
   const candles130m = get130MCandles(intradayDb, ticker, dataStart, dataEnd);
   const dailyCandles = aggregateToDaily(candles130m);
@@ -166,7 +163,7 @@ export async function fetchTickerData(ticker: string, dataStart: string, dataEnd
 
   const ivByDate = new Map(ivData.map(r => [r.date, r.iv30d]));
   const ivSeries = dailyCandles.map(c => ivByDate.get(c.date) ?? null);
-  const ivRanks = computeIVRank(ivSeries);
+  const ivRanks = computeIVRankMinMax(ivSeries);
   const dateToIdx = new Map(dailyCandles.map((c, i) => [c.date, i]));
 
   return { ticker, candles130m, dailyCandles, ivData, ivRanks, dateToIdx };
@@ -313,41 +310,40 @@ function makeEvaluator(
 
 // ── Worker Pool ─────────────────────────────────────────
 
-interface ShortWorkerInit {
+interface ShortTrainWorkerInit {
   signalsByMultPreset: Record<string, EntrySignal[]>;
-  tickerCandles4h: Record<string, IntradayCandle[]>;
+  tickerCandles130m: Record<string, IntradayCandle[]>;
   allTradingDates: string[];
-  windowDefs: { trainStart: string; trainEnd: string; oosStart: string; oosEnd: string }[];
-  endDate: string;
   fillMode: FillMode;
+  executionConfig: PortfolioExecutionConfig;
 }
 
-interface ShortWorkItem {
+interface ShortTrainWorkItem {
   id: number;
-  params: Record<string, number | string | boolean>;
+  configIdx: number;
+  config: SimConfig;
+  trainStart: string;
+  trainEnd: string;
 }
 
-interface ShortWorkResult {
+interface ShortTrainWorkResult {
   type: 'result';
   id: number;
-  result?: {
-    trialId: number;
-    params: Record<string, number | string | boolean>;
-    windows: any[];
-    oosTrades: OptionTrade[];
-    oosSharpe: number;
-    oosWinRate: number;
-    oosMaxDD: number;
-    oosTotalPnl: number;
-    avgTrainSharpe: number;
-    wfEfficiency: number;
-  };
+  configIdx: number;
+  sharpe: number;
+  trades: number;
   error?: string;
 }
 
-function buildShortWorkerBundle(): string {
-  const workerSrc = path.resolve(__dirname, 'wfa-v3-short-worker.ts');
-  const workerBundle = path.resolve(__dirname, '.wfa-v3-short-worker.mjs');
+type ShortTrainWorkRunner = (
+  workers: Worker[],
+  workItems: ShortTrainWorkItem[],
+  label: string,
+) => Promise<ShortTrainWorkResult[]>;
+
+function buildShortTrainWorkerBundle(): string {
+  const workerSrc = path.resolve(__dirname, 'wfa-short-train-worker.ts');
+  const workerBundle = path.resolve(__dirname, '.wfa-short-train-worker.mjs');
   execSync(
     `npx esbuild ${workerSrc} --bundle --platform=node --format=esm --outfile=${workerBundle} --external:better-sqlite3 --packages=external`,
     { cwd: path.resolve(__dirname, '..'), stdio: 'pipe' },
@@ -355,8 +351,8 @@ function buildShortWorkerBundle(): string {
   return workerBundle;
 }
 
-async function createWorkerPool(init: ShortWorkerInit, numWorkers: number): Promise<Worker[]> {
-  const workerBundle = buildShortWorkerBundle();
+async function createTrainWorkerPool(init: ShortTrainWorkerInit, numWorkers: number): Promise<Worker[]> {
+  const workerBundle = buildShortTrainWorkerBundle();
   const workerCount = Math.max(1, Math.min(numWorkers, os.cpus().length));
 
   return Promise.all(
@@ -365,7 +361,7 @@ async function createWorkerPool(init: ShortWorkerInit, numWorkers: number): Prom
         const worker = new Worker(workerBundle, { workerData: init });
         worker.once('message', (msg) => {
           if (msg?.type === 'ready') resolve(worker);
-          else reject(new Error('Short worker failed to initialize'));
+          else reject(new Error('Short train worker failed to initialize'));
         });
         worker.once('error', reject);
       }),
@@ -373,22 +369,23 @@ async function createWorkerPool(init: ShortWorkerInit, numWorkers: number): Prom
   );
 }
 
-async function terminateWorkerPool(workers: Worker[]) {
+async function terminateTrainWorkerPool(workers: Worker[]) {
   for (const worker of workers) worker.postMessage({ type: 'exit' });
   await new Promise(resolve => setTimeout(resolve, 100));
   await Promise.all(workers.map(worker => worker.terminate()));
 }
 
-async function runParallelTrials(
+async function runParallelTrainWork(
   workers: Worker[],
-  workItems: ShortWorkItem[],
-): Promise<ShortWorkResult['result'][]> {
-  const results: ShortWorkResult['result'][] = new Array(workItems.length);
+  workItems: ShortTrainWorkItem[],
+  label: string,
+): Promise<ShortTrainWorkResult[]> {
+  const results: ShortTrainWorkResult[] = new Array(workItems.length);
   let nextIdx = 0;
   let completed = 0;
 
   return new Promise((resolve, reject) => {
-    const handlers = new Map<Worker, (msg: ShortWorkResult) => void>();
+    const handlers = new Map<Worker, (msg: ShortTrainWorkResult) => void>();
     const errorHandlers = new Map<Worker, (err: Error) => void>();
 
     const cleanup = () => {
@@ -406,17 +403,17 @@ async function runParallelTrials(
     };
 
     for (const worker of workers) {
-      const handler = (msg: ShortWorkResult) => {
+      const handler = (msg: ShortTrainWorkResult) => {
         if (!msg || msg.type !== 'result') return;
-        if (msg.error || !msg.result) {
+        if (msg.error || !Number.isFinite(msg.sharpe)) {
           cleanup();
-          reject(new Error(msg.error ?? `Worker ${msg.id} returned no result`));
+          reject(new Error(msg.error ?? `Worker ${msg.id} returned no train result`));
           return;
         }
-        results[msg.id] = msg.result;
+        results[msg.id] = msg;
         completed++;
         if (completed === workItems.length || completed % 25 === 0) {
-          process.stdout.write(`\r  Trials: ${completed}/${workItems.length}`);
+          process.stdout.write(`\r  Train ${label}: ${completed}/${workItems.length}`);
         }
         if (completed === workItems.length) {
           process.stdout.write('\n');
@@ -442,105 +439,55 @@ async function runParallelTrials(
   });
 }
 
-// ── WFA Core (single-threaded fallback) ──────────────────
+function resolveShortSignalKey(config: SimConfig): string {
+  const presetKey = config.signalWeightPreset ?? 'ema';
+  const periodMult = (config as any).indicatorPeriodMultiplier ?? 2.25;
+  return signalMapKey(periodMult, presetKey);
+}
 
-function runSingleThreadWFA(
-  candidates: SimConfig[],
+function buildShortConfiguredSignals(
   signalsByMultPreset: Map<string, EntrySignal[]>,
+  config: SimConfig,
+  oosStart: string,
+  oosEnd: string,
+) {
+  const signals = signalsByMultPreset.get(resolveShortSignalKey(config)) ?? [];
+  return signals
+    .filter(signal => signal.date >= oosStart && signal.date <= oosEnd)
+    .map(signal => ({ signal, config }));
+}
+
+function buildShortExecutionConfig(config: ShortPipelineConfig): PortfolioExecutionConfig {
+  return {
+    maxPositions: config.maxPositions,
+    maxPerTicker: config.maxPerTicker,
+    startingCapital: config.startingCapital,
+  };
+}
+
+function finalizeShortWFAResult(
+  preparedWindows: PreparedOOSWindowExecution[],
   allTradingDates: string[],
-  windowDefs: { trainStart: string; trainEnd: string; oosStart: string; oosEnd: string }[],
   evaluator: TradeEvaluator,
   config: ShortPipelineConfig,
+  elapsedMs: number,
 ): WFAResult {
-  const t0 = Date.now();
-  const allOOSTrades: OptionTrade[] = [];
-  const wfaWindows: WFAWindow[] = [];
-
-  for (let wi = 0; wi < windowDefs.length; wi++) {
-    const w = windowDefs[wi];
-    process.stdout.write(`\r  Window ${wi + 1}/${windowDefs.length}...`);
-
-    let bestTrainSharpe = -Infinity;
-    let bestConfig: SimConfig = candidates[0];
-    let bestOOSTrades: OptionTrade[] = [];
-    let bestOOSSharpe = 0;
-    let bestOOSWinRate = 0;
-    let bestOOSMaxDD = 0;
-    let bestTrainTradeCount = 0;
-
-    for (const candidate of candidates) {
-      const presetKey = candidate.signalWeightPreset ?? 'ema';
-      const periodMult = (candidate as any).indicatorPeriodMultiplier ?? 2.0;
-      const signals = signalsByMultPreset.get(signalMapKey(periodMult, presetKey)) ?? [];
-
-      // Train
-      const trainSignals = signals.filter(s => s.date >= w.trainStart && s.date <= w.trainEnd);
-      const trainTrades: OptionTrade[] = [];
-      for (const signal of trainSignals) {
-        const trade = evaluator(signal, candidate, allTradingDates, w.trainEnd);
-        if (trade) trainTrades.push(trade);
-      }
-      const trainAnalytics = computeOptionAnalytics(trainTrades);
-      const trainSharpe = trainAnalytics.dailyPortfolioSharpe ?? trainAnalytics.tradeSharpeLegacy;
-
-      if (trainSharpe > bestTrainSharpe) {
-        bestTrainSharpe = trainSharpe;
-        bestConfig = candidate;
-        bestTrainTradeCount = trainTrades.length;
-
-        // OOS with portfolio constraints
-        const oosSignals = signals.filter(s => s.date >= w.oosStart && s.date <= w.oosEnd);
-        const oosTrades: OptionTrade[] = [];
-        const openPositions: OptionTrade[] = [];
-
-        for (const signal of oosSignals) {
-          for (let j = openPositions.length - 1; j >= 0; j--) {
-            if (openPositions[j].exitDate <= signal.date) openPositions.splice(j, 1);
-          }
-          if (openPositions.length >= config.maxPositions) continue;
-          if (openPositions.filter(t => t.ticker === signal.ticker).length >= config.maxPerTicker) continue;
-
-          const trade = evaluator(signal, candidate, allTradingDates, config.endDate);
-          if (trade) {
-            oosTrades.push(trade);
-            openPositions.push(trade);
-          }
-        }
-
-        const oosAnalytics = computeOptionAnalytics(oosTrades);
-        bestOOSTrades = oosTrades;
-        bestOOSSharpe = oosAnalytics.dailyPortfolioSharpe ?? oosAnalytics.tradeSharpeLegacy;
-        bestOOSWinRate = oosAnalytics.winRate;
-        bestOOSMaxDD = oosAnalytics.dailyMtMDrawdownPct ?? oosAnalytics.realizedExitDrawdownPct;
-      }
-    }
-
-    process.stdout.write(`\r  ${wi + 1}/${windowDefs.length}: ${candidates.length} configs...\n`);
-
-    wfaWindows.push({
-      trainStart: w.trainStart,
-      trainEnd: w.trainEnd,
-      oosStart: w.oosStart,
-      oosEnd: w.oosEnd,
-      bestConfig: bestConfig as any,
-      bestTrainSharpe,
-      trainTradeCount: bestTrainTradeCount,
-      oosTrades: bestOOSTrades,
-      oosSharpe: bestOOSSharpe,
-      oosWinRate: bestOOSWinRate,
-      oosMaxDD: bestOOSMaxDD,
-      oosTradeCount: bestOOSTrades.length,
-    });
-
-    allOOSTrades.push(...bestOOSTrades);
-  }
-
+  const executionConfig = buildShortExecutionConfig(config);
+  const { windows, allOOSTrades } = executePreparedOOSWindowsWithCarry(
+    preparedWindows,
+    executionConfig,
+    allTradingDates,
+    config.endDate,
+    evaluator,
+    'strict',
+    config.startingCapital,
+  );
   const oosAllAnalytics = computeOptionAnalytics(allOOSTrades);
   const allPortfolioMetrics = computePortfolioDailyMetrics(
     allOOSTrades, allTradingDates, config.startDate, config.endDate, config.startingCapital,
   );
-  const avgTrainSharpe = wfaWindows.length > 0
-    ? wfaWindows.reduce((s, w) => s + w.bestTrainSharpe, 0) / wfaWindows.length
+  const avgTrainSharpe = windows.length > 0
+    ? windows.reduce((sum, window) => sum + window.bestTrainSharpe, 0) / windows.length
     : 0;
 
   return {
@@ -554,17 +501,138 @@ function runSingleThreadWFA(
       tickers: config.tickers,
       startingCapital: config.startingCapital,
     } as any,
-    windows: wfaWindows,
+    windows,
     allOOSTrades,
     oosEquityCurve: allPortfolioMetrics.equityCurve,
     oosSharpe: allPortfolioMetrics.sharpe,
     oosWinRate: oosAllAnalytics.winRate,
     oosMaxDD: allPortfolioMetrics.maxDrawdownPct,
-    oosTotalPnl: allOOSTrades.reduce((s, t) => s + t.pnl, 0),
+    oosTotalPnl: allOOSTrades.reduce((sum, trade) => sum + trade.pnl, 0),
     wfEfficiency: avgTrainSharpe >= 0.1 ? allPortfolioMetrics.sharpe / avgTrainSharpe : 0,
-    elapsedMs: Date.now() - t0,
+    elapsedMs,
   };
 }
+
+// The short pipeline currently ranks candidates by exact train-window Sharpe only.
+// This is intentional for Phase B parity with the pre-existing short methodology;
+// unlike the swing path, it does not yet apply DSR / robustness guards.
+function prepareShortWindowsSingleThread(
+  candidates: SimConfig[],
+  signalsByMultPreset: Map<string, EntrySignal[]>,
+  allTradingDates: string[],
+  windowDefs: { trainStart: string; trainEnd: string; oosStart: string; oosEnd: string }[],
+  evaluator: TradeEvaluator,
+  config: ShortPipelineConfig,
+): PreparedOOSWindowExecution[] {
+  const executionConfig = buildShortExecutionConfig(config);
+  const preparedWindows: PreparedOOSWindowExecution[] = [];
+
+  for (let wi = 0; wi < windowDefs.length; wi++) {
+    const w = windowDefs[wi];
+    process.stdout.write(`\r  Window ${wi + 1}/${windowDefs.length}...`);
+
+    let bestTrainSharpe = -Infinity;
+    let bestIdx = 0;
+    let bestConfig: SimConfig = candidates[0];
+
+    for (let ci = 0; ci < candidates.length; ci++) {
+      const candidate = candidates[ci];
+      const signals = signalsByMultPreset.get(resolveShortSignalKey(candidate)) ?? [];
+
+      const trainSignals = signals.filter(s => s.date >= w.trainStart && s.date <= w.trainEnd);
+      const trainTrades = evaluateSignalsWithConstraints(
+        trainSignals,
+        candidate,
+        executionConfig,
+        allTradingDates,
+        w.trainEnd,
+        evaluator,
+      );
+      const trainSharpe = computePortfolioDailyMetrics(
+        trainTrades,
+        allTradingDates,
+        w.trainStart,
+        w.trainEnd,
+        config.startingCapital,
+      ).sharpe;
+
+      if (trainSharpe > bestTrainSharpe || (trainSharpe === bestTrainSharpe && ci < bestIdx)) {
+        bestTrainSharpe = trainSharpe;
+        bestIdx = ci;
+        bestConfig = candidate;
+      }
+    }
+
+    process.stdout.write(`\r  ${wi + 1}/${windowDefs.length}: ${candidates.length} configs...\n`);
+
+    preparedWindows.push({
+      windowIndex: wi,
+      trainStart: w.trainStart,
+      trainEnd: w.trainEnd,
+      oosStart: w.oosStart,
+      oosEnd: w.oosEnd,
+      bestConfig: bestConfig as any,
+      selectedConfigs: [bestConfig],
+      bestTrainSharpe,
+      configuredSignals: buildShortConfiguredSignals(signalsByMultPreset, bestConfig, w.oosStart, w.oosEnd),
+    });
+  }
+
+  return preparedWindows;
+}
+
+async function prepareShortWindowsParallel(
+  workers: Worker[],
+  candidates: SimConfig[],
+  signalsByMultPreset: Map<string, EntrySignal[]>,
+  windowDefs: { trainStart: string; trainEnd: string; oosStart: string; oosEnd: string }[],
+  runTrainWork: ShortTrainWorkRunner = runParallelTrainWork,
+): Promise<PreparedOOSWindowExecution[]> {
+  const preparedWindows: PreparedOOSWindowExecution[] = [];
+
+  for (let wi = 0; wi < windowDefs.length; wi++) {
+    const w = windowDefs[wi];
+    const trainItems: ShortTrainWorkItem[] = candidates.map((config, idx) => ({
+      id: idx,
+      configIdx: idx,
+      config,
+      trainStart: w.trainStart,
+      trainEnd: w.trainEnd,
+    }));
+    const trainResults = await runTrainWork(
+      workers,
+      trainItems,
+      `${wi + 1}/${windowDefs.length}`,
+    );
+    const ranked = [...trainResults].sort((a, b) =>
+      b.sharpe - a.sharpe ||
+      a.configIdx - b.configIdx
+    );
+    const best = ranked[0];
+    const bestConfig = candidates[best?.configIdx ?? 0] ?? candidates[0];
+
+    preparedWindows.push({
+      windowIndex: wi,
+      trainStart: w.trainStart,
+      trainEnd: w.trainEnd,
+      oosStart: w.oosStart,
+      oosEnd: w.oosEnd,
+      bestConfig,
+      selectedConfigs: [bestConfig],
+      bestTrainSharpe: best?.sharpe ?? 0,
+      configuredSignals: buildShortConfiguredSignals(signalsByMultPreset, bestConfig, w.oosStart, w.oosEnd),
+    });
+  }
+
+  return preparedWindows;
+}
+
+export const __testHooks = {
+  buildShortExecutionConfig,
+  prepareShortWindowsSingleThread,
+  prepareShortWindowsParallel,
+  resolveShortSignalKey,
+};
 
 // ── Reporting ────────────────────────────────────────────
 
@@ -748,94 +816,53 @@ export async function runShortPipeline(config: ShortPipelineConfig): Promise<Sho
 
     // 7. Create evaluator
     const evaluator = makeEvaluator(tickerDataMap, config.fillMode);
+    const executionConfig = buildShortExecutionConfig(config);
 
     // 8. Run WFA
-    let wfaResult: WFAResult;
+    let preparedWindows: PreparedOOSWindowExecution[];
 
     if (config.numWorkers > 1 && candidates.length > 1) {
       console.log(`\nInitializing ${Math.min(config.numWorkers, candidates.length)} workers (${os.cpus().length} CPU cores)...`);
 
       const signalsPayload = Object.fromEntries(signalsByMultPreset.entries());
-      const tickerCandles4h = Object.fromEntries(
+      const tickerCandles130m = Object.fromEntries(
         [...tickerDataMap.entries()].map(([ticker, td]) => [ticker, td.candles130m]),
       );
 
-      const workers = await createWorkerPool({
+      const workers = await createTrainWorkerPool({
         signalsByMultPreset: signalsPayload,
-        tickerCandles4h,
+        tickerCandles130m,
         allTradingDates,
-        windowDefs: windowDefs.map(w => ({
-          trainStart: w.trainStart,
-          trainEnd: w.trainEnd,
-          oosStart: w.oosStart,
-          oosEnd: w.oosEnd,
-        })),
-        endDate: config.endDate,
         fillMode: config.fillMode,
+        executionConfig,
       }, Math.min(config.numWorkers, candidates.length));
       console.log('Workers ready.');
 
       try {
         console.log(`\nRunning WFA (${candidates.length} configs × ${windowDefs.length} windows)...`);
-
-        // Convert SimConfig[] to flat params for worker
-        const workItems: ShortWorkItem[] = candidates.map((c, id) => ({
-          id,
-          params: c as unknown as Record<string, number | string | boolean>,
-        }));
-
-        const trialResults = await runParallelTrials(workers, workItems);
-
-        // Find best trial by OOS Sharpe
-        let bestIdx = 0;
-        let bestSharpe = -Infinity;
-        for (let i = 0; i < trialResults.length; i++) {
-          const r = trialResults[i];
-          if (r && r.oosSharpe > bestSharpe) {
-            bestSharpe = r.oosSharpe;
-            bestIdx = i;
-          }
-        }
-
-        // Build WFAResult from best trial's per-window results
-        const best = trialResults[bestIdx]!;
-        const allOOSTrades = best.oosTrades;
-        const allPortfolioMetrics = computePortfolioDailyMetrics(
-          allOOSTrades, allTradingDates, config.startDate, config.endDate, config.startingCapital,
+        preparedWindows = await prepareShortWindowsParallel(
+          workers,
+          candidates,
+          signalsByMultPreset,
+          windowDefs,
         );
-        const oosAllAnalytics = computeOptionAnalytics(allOOSTrades);
-
-        wfaResult = {
-          config: {
-            trainWindowDays: config.trainWindowDays,
-            forwardStepDays: config.forwardStepDays,
-            purgeGapDays: config.purgeGapDays,
-            mode: config.mode,
-            startDate: config.startDate,
-            endDate: config.endDate,
-            tickers: config.tickers,
-            startingCapital: config.startingCapital,
-          } as any,
-          windows: best.windows,
-          allOOSTrades,
-          oosEquityCurve: allPortfolioMetrics.equityCurve,
-          oosSharpe: allPortfolioMetrics.sharpe,
-          oosWinRate: oosAllAnalytics.winRate,
-          oosMaxDD: allPortfolioMetrics.maxDrawdownPct,
-          oosTotalPnl: allOOSTrades.reduce((s, t) => s + t.pnl, 0),
-          wfEfficiency: best.avgTrainSharpe >= 0.1 ? allPortfolioMetrics.sharpe / best.avgTrainSharpe : 0,
-          elapsedMs: Date.now() - pipelineT0,
-        };
       } finally {
-        await terminateWorkerPool(workers);
+        await terminateTrainWorkerPool(workers);
       }
     } else {
       // Single-threaded fallback
       console.log(`\nRunning WFA single-threaded (${candidates.length} configs × ${windowDefs.length} windows)...`);
-      wfaResult = runSingleThreadWFA(
+      preparedWindows = prepareShortWindowsSingleThread(
         candidates, signalsByMultPreset, allTradingDates, windowDefs, evaluator, config,
       );
     }
+    const wfaResult = finalizeShortWFAResult(
+      preparedWindows,
+      allTradingDates,
+      evaluator,
+      config,
+      Date.now() - pipelineT0,
+    );
 
     // 9. Print report
     printShortReport(wfaResult, config);

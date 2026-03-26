@@ -1,3 +1,9 @@
+/**
+ * @deprecated Legacy short WFA worker retained only for `scripts/wfa-run-short.ts`
+ * compatibility. It preserves the pre-Phase-B global-config methodology and must
+ * not be used for new studies. Use `scripts/wfa-pipeline-short.ts` with
+ * `scripts/wfa-short-train-worker.ts` via `wfa-run-unified.ts --profile short`.
+ */
 import { parentPort, workerData } from 'node:worker_threads';
 
 import {

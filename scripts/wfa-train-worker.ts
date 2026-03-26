@@ -24,6 +24,16 @@ import type {
   SimConfig,
 } from '../src/lib/backtest/option-sim';
 import {
+  clampSpreadCloseCost,
+  computeCreditSpreadThresholds,
+  computeIntrinsicSpreadCloseCost,
+  createMissingChainState,
+  resolveActualSpreadWidth,
+  resolveTriggeredCreditExitCost,
+  shouldExitNoChain,
+  updateMissingChainState,
+} from '../src/lib/backtest/credit-spread-exit';
+import {
   computePortfolioDailyMetrics,
   evaluateSignalsWithConstraints,
   type PortfolioExecutionConfig,
@@ -129,8 +139,15 @@ function buildResult(
   exitSlippage: number,
   activeFillMode: FillMode,
 ): OptionTrade {
-  const pnl = (entryCredit - exitSpreadCost) * 100;
-  const pnlPct = spread.maxLoss > 0 ? pnl / (spread.maxLoss * 100) : 0;
+  const actualWidth = resolveActualSpreadWidth(spread);
+  const boundedEntryCredit = clampSpreadCloseCost(entryCredit, actualWidth);
+  const boundedExitCost = clampSpreadCloseCost(exitSpreadCost, actualWidth);
+  const maxLoss = Math.max(0, actualWidth - boundedEntryCredit);
+  const pnl = Math.max(
+    -maxLoss * 100,
+    Math.min((boundedEntryCredit - boundedExitCost) * 100, boundedEntryCredit * 100),
+  );
+  const pnlPct = maxLoss > 0 ? pnl / (maxLoss * 100) : 0;
   const holdDays = Math.round(
     (new Date(exitDate).getTime() - new Date(signal.date).getTime()) / 86400000,
   );
@@ -151,11 +168,11 @@ function buildResult(
     longStrike: spread.long.row.strike,
     longEntryPrice: spread.long.mid,
     requestedSpreadWidth: spread.requestedSpreadWidth,
-    spreadWidth: spread.spreadWidth,
-    maxProfit: entryCredit,
-    maxLoss: spread.maxLoss,
+    spreadWidth: actualWidth,
+    maxProfit: boundedEntryCredit,
+    maxLoss,
     exitDate,
-    exitPrice: exitSpreadCost,
+    exitPrice: boundedExitCost,
     exitDTE,
     exitStockPrice,
     exitType,
@@ -288,11 +305,12 @@ function makeCachedEvaluator(activeFillMode: FillMode): TradeEvaluator {
       entryCredit = spread.netCredit;
     }
 
-    const tpCost = entryCredit * (1 - config.creditProfitTarget);
-    const slCost = entryCredit * config.creditStopLossMultiple;
+    const thresholds = computeCreditSpreadThresholds(config, spread, entryCredit);
     const monitorEnd = spread.short.row.expir_date < maxDate ? spread.short.row.expir_date : maxDate;
     const monitorDates = getMonitoringDates(signal.date, config.monitoringIntervalDays, monitorEnd);
     const dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
+    let missingChainState = createMissingChainState();
+    let lastValidSpreadCost: number | null = null;
 
     for (const checkDate of monitorDates) {
       const shortLeg = findContractDirect(
@@ -301,7 +319,47 @@ function makeCachedEvaluator(activeFillMode: FillMode): TradeEvaluator {
       const longLeg = findContractDirect(
         signal.ticker, checkDate, spread.long.row.strike, spread.long.row.expir_date, optionType,
       );
-      if (!shortLeg || !longLeg) continue;
+      const fallbackChain = (!shortLeg || !longLeg) ? getCachedChainMemo(signal.ticker, checkDate) : [];
+      const monitoringStockPrice = shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? fallbackChain[0]?.stock_price;
+      const hasValidLegs = Boolean(shortLeg && longLeg);
+      missingChainState = updateMissingChainState(missingChainState, hasValidLegs);
+      if (!hasValidLegs) {
+        if (shouldExitNoChain(config, missingChainState)) {
+          const intrinsicCost = monitoringStockPrice != null
+            ? computeIntrinsicSpreadCloseCost(
+                optionType,
+                spread.short.row.strike,
+                spread.long.row.strike,
+                monitoringStockPrice,
+                thresholds.actualWidth,
+              )
+            : null;
+          const exitCost = resolveTriggeredCreditExitCost(
+            'NO_CHAIN',
+            Math.max(
+              lastValidSpreadCost ?? thresholds.boundedEntryCredit,
+              intrinsicCost ?? thresholds.boundedEntryCredit,
+            ),
+            thresholds,
+          );
+          const trade = buildResult(
+            signal,
+            spread,
+            entryCredit,
+            checkDate,
+            exitCost,
+            shortLeg?.row.dte ?? longLeg?.row.dte ?? fallbackChain[0]?.dte ?? 0,
+            monitoringStockPrice ?? spread.short.row.stock_price,
+            'NO_CHAIN',
+            dailyMtM,
+            entrySlippage,
+            0,
+            activeFillMode,
+          );
+          return scaleTradeByMultiplier(trade, sizeMultiplier);
+        }
+        continue;
+      }
 
       let currentSpreadCost: number;
       let exitSlippageAmount = 0;
@@ -325,7 +383,9 @@ function makeCachedEvaluator(activeFillMode: FillMode): TradeEvaluator {
       } else {
         currentSpreadCost = shortLeg.mid - longLeg.mid;
       }
+      currentSpreadCost = clampSpreadCloseCost(currentSpreadCost, thresholds.actualWidth);
       const currentDTE = shortLeg.row.dte;
+      lastValidSpreadCost = currentSpreadCost;
 
       dailyMtM.push({
         date: checkDate,
@@ -334,15 +394,16 @@ function makeCachedEvaluator(activeFillMode: FillMode): TradeEvaluator {
       });
 
       let exitType: OptionExitType | null = null;
-      if (currentSpreadCost <= tpCost) exitType = 'PROFIT_TARGET';
-      else if (currentSpreadCost >= slCost) exitType = 'STOP_LOSS';
+      if (currentSpreadCost <= thresholds.tpCost) exitType = 'PROFIT_TARGET';
+      else if (currentSpreadCost >= thresholds.slCost) exitType = 'STOP_LOSS';
       else if (config.creditDeltaStop != null && isFinite(config.creditDeltaStop) &&
         Math.abs(shortLeg.delta) >= config.creditDeltaStop) exitType = 'DELTA_STOP';
       else if (currentDTE <= config.creditTimeStopDTE) exitType = 'TIME_STOP';
 
       if (exitType) {
+        const exitCost = resolveTriggeredCreditExitCost(exitType, currentSpreadCost, thresholds);
         const trade = buildResult(
-          signal, spread, entryCredit, checkDate, currentSpreadCost, currentDTE, shortLeg.row.stock_price,
+          signal, spread, entryCredit, checkDate, exitCost, currentDTE, shortLeg.row.stock_price,
           exitType, dailyMtM, entrySlippage, exitSlippageAmount, activeFillMode,
         );
         return scaleTradeByMultiplier(trade, sizeMultiplier);
@@ -357,19 +418,20 @@ function makeCachedEvaluator(activeFillMode: FillMode): TradeEvaluator {
       const longLeg = findContractDirect(
         signal.ticker, lastDate, spread.long.row.strike, spread.long.row.expir_date, optionType,
       );
+      const fallbackChain = (!shortLeg || !longLeg) ? getCachedChainMemo(signal.ticker, lastDate) : [];
 
       let currentSpreadCost: number;
       if (shortLeg && longLeg) {
-        currentSpreadCost = shortLeg.mid - longLeg.mid;
+        currentSpreadCost = clampSpreadCloseCost(shortLeg.mid - longLeg.mid, thresholds.actualWidth);
       } else {
-        const stockPrice = (shortLeg || longLeg)?.row.stock_price ?? spread.short.row.stock_price;
-        const shortIntrinsic = optionType === 'Put'
-          ? Math.max(0, spread.short.row.strike - stockPrice)
-          : Math.max(0, stockPrice - spread.short.row.strike);
-        const longIntrinsic = optionType === 'Put'
-          ? Math.max(0, spread.long.row.strike - stockPrice)
-          : Math.max(0, stockPrice - spread.long.row.strike);
-        currentSpreadCost = shortIntrinsic - longIntrinsic;
+        const stockPrice = shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? fallbackChain[0]?.stock_price ?? spread.short.row.stock_price;
+        currentSpreadCost = computeIntrinsicSpreadCloseCost(
+          optionType,
+          spread.short.row.strike,
+          spread.long.row.strike,
+          stockPrice,
+          thresholds.actualWidth,
+        );
       }
 
       const trade = buildResult(
@@ -378,8 +440,8 @@ function makeCachedEvaluator(activeFillMode: FillMode): TradeEvaluator {
         entryCredit,
         lastDate,
         currentSpreadCost,
-        shortLeg?.row.dte ?? 0,
-        shortLeg?.row.stock_price ?? spread.short.row.stock_price,
+        shortLeg?.row.dte ?? longLeg?.row.dte ?? fallbackChain[0]?.dte ?? 0,
+        shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? fallbackChain[0]?.stock_price ?? spread.short.row.stock_price,
         'EXPIRATION',
         dailyMtM,
         entrySlippage,
