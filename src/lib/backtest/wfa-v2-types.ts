@@ -41,7 +41,7 @@ export const PROFILE_BOUNDS: Record<DTEProfile, ProfileBounds> = {
   short: {
     creditDTERange: [7, 21],
     creditSpreadWidth: [1, 10],
-    creditShortDelta: [0.10, 0.35],
+    creditShortDelta: [0.25, 0.50],
     creditProfitTarget: [0.30, 0.70],
     creditTimeStopDTE: [1, 3],
     monitoringIntervalDays: [1, 1],

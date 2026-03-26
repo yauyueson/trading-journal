@@ -112,7 +112,7 @@ export interface SimConfig {
   leapStopLoss: number;                 // 0.30 = 30% loss
   leapTimeStopDTE: number;              // close when DTE < this (90)
   // Credit spread params
-  creditShortDelta: number;             // 0.27 (absolute)
+  creditShortDelta: number;             // 0.45 short-term, 0.35 swing
   creditSpreadWidth: number;            // 5 (dollars)
   creditDTERange: [number, number];     // [30, 50]
   creditProfitTarget: number;           // 0.50 = close at 50% of max profit
@@ -203,14 +203,14 @@ export const DEFAULT_CREDIT_CONFIG: SimConfig = {
 export const DEFAULT_SHORT_CREDIT_CONFIG: SimConfig = {
   ...DEFAULT_LEAP_CONFIG,
   mode: 'CREDIT_SPREAD',
-  creditShortDelta: 0.35,       // Validated range for short DTE
-  creditSpreadWidth: 1,         // Tighter spreads — less premium available at short DTE
+  creditShortDelta: 0.45,       // WFA validated: d45
+  creditSpreadWidth: 10,        // WFA validated: w10
   creditDTERange: [7, 21],      // 1-3 week expiries
-  creditProfitTarget: 0.35,     // Faster theta decay → capture more
-  creditStopLossMultiple: 100,  // No SL (defined risk) — to be validated
+  creditProfitTarget: 0.50,     // WFA validated: tp50
+  creditStopLossMultiple: 100,  // No SL (defined risk)
   creditTimeStopDTE: 1,         // Close 1 day before expiry (pin risk)
   monitoringIntervalDays: 1,    // Daily monitoring (essential for short DTE)
-  minIVRank: 50,                // Require rich premium
+  minIVRank: 20,                // WFA validated: iv20
   fillMode: 'mid' as FillMode,
   slippage: { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: false },
 };
