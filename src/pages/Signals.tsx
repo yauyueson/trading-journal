@@ -234,20 +234,25 @@ export const SignalsPage: React.FC = () => {
     ? scaleIndicatorPeriods(SHORT_TERM_PERIOD_MULT, baseTechOptions)
     : baseTechOptions;
 
-  // Seed scanner with full watchlist on mount
+  // Seed scanner with full watchlist on mount (skip for DTE5 — QQQ only)
   useEffect(() => {
     if (hasSeededWatchlist.current) return;
     if (!positions) return;
     hasSeededWatchlist.current = true;
 
-    const watchlistTickers = [...new Set(
-      positions
-        .filter(p => p.status === 'watchlist')
-        .map(p => p.ticker.toUpperCase())
-    )];
-    const merged = [...new Set([...WATCHLIST, ...watchlistTickers])];
-    scanner.setTickers(merged);
-    scanner.scan(techOptions, merged, timeframe);
+    if (activeBoard === 'dte5') {
+      scanner.setTickers(['QQQ']);
+      scanner.scan(techOptions, ['QQQ'], '1D');
+    } else {
+      const watchlistTickers = [...new Set(
+        positions
+          .filter(p => p.status === 'watchlist')
+          .map(p => p.ticker.toUpperCase())
+      )];
+      const merged = [...new Set([...WATCHLIST, ...watchlistTickers])];
+      scanner.setTickers(merged);
+      scanner.scan(techOptions, merged, timeframe);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [positions]);
 
@@ -266,7 +271,12 @@ export const SignalsPage: React.FC = () => {
   useEffect(() => {
     if (!hasSeededWatchlist.current) return; // don't scan before initial seed
     scanner.clearCache();
-    scanner.scan(techOptions, undefined, timeframe);
+    if (activeBoard === 'dte5') {
+      scanner.setTickers(['QQQ']);
+      scanner.scan(techOptions, ['QQQ'], '1D');
+    } else {
+      scanner.scan(techOptions, undefined, timeframe);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeBoard]);
 
@@ -405,10 +415,90 @@ export const SignalsPage: React.FC = () => {
         </button>
       </div>
 
+      {/* DTE5 Board — simplified QQQ-only view */}
+      {activeBoard === 'dte5' && (() => {
+        const qqqRow = scanner.signals.find(s => s.ticker === 'QQQ');
+        const qqqClose = qqqRow?.lastClose ?? 0;
+        const emaScore = qqqRow?.result.components.sc_ema ?? 0;
+        const isBullish = qqqRow?.result.type === 'CALL';
+        const isNeutral = qqqRow?.result.type === 'NEUTRAL';
+        const gateStatus = isBullish ? 'BULL' : isNeutral ? 'NEUTRAL' : 'BEAR';
+        const gateColor = isBullish ? 'text-emerald-400' : isNeutral ? 'text-yellow-400' : 'text-red-400';
+        const gateBg = isBullish ? 'bg-emerald-500/10 border-emerald-500/30' : isNeutral ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-red-500/10 border-red-500/30';
+
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 mb-4">
+              <Radio size={24} className="text-amber-400" />
+              <div>
+                <h1 className="text-xl font-semibold">DTE5 Signal — QQQ Bull Put</h1>
+                <p className="text-xs text-text-tertiary">EMA34 gate check — hold-to-expiry — sp25/15 — $1K paper</p>
+              </div>
+            </div>
+
+            {/* QQQ Status Card */}
+            <div className={`rounded-xl border ${gateBg} p-6`}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <span className="text-2xl font-bold">QQQ</span>
+                  <span className="ml-3 text-lg text-text-secondary">${qqqClose.toFixed(2)}</span>
+                </div>
+                <span className={`px-4 py-2 rounded-lg text-sm font-bold ${gateBg} ${gateColor} border`}>
+                  {gateStatus}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-text-tertiary text-xs">Direction</p>
+                  <p className={`font-semibold ${gateColor}`}>{qqqRow?.result.type || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-text-tertiary text-xs">EMA Score</p>
+                  <p className="font-semibold text-text-primary">{emaScore || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-text-tertiary text-xs">Dir Confidence</p>
+                  <p className="font-semibold text-text-primary">{qqqRow?.result.dirConfidence ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="text-text-tertiary text-xs">ADX</p>
+                  <p className="font-semibold text-text-primary">{qqqRow?.result.debug?.adx?.toFixed(0) ?? '—'}</p>
+                </div>
+              </div>
+
+              {isBullish && (
+                <div className="mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                  <p className="text-emerald-400 text-sm font-semibold">Signal Active — Open /selector to get DTE5 spread recommendation</p>
+                </div>
+              )}
+              {!isBullish && (
+                <div className="mt-4 p-3 rounded-lg bg-white/5 border border-white/10">
+                  <p className="text-text-tertiary text-sm">No entry signal — QQQ not in bull regime. Wait for CALL direction.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Scan button */}
+            <button
+              onClick={() => { scanner.clearCache(); scanner.scan(techOptions, ['QQQ'], '1D'); }}
+              disabled={scanner.loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 transition-colors"
+            >
+              <RefreshCw size={13} className={scanner.loading ? 'animate-spin' : ''} />
+              {scanner.loading ? `${scanner.progress}%` : 'Rescan QQQ'}
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* Legacy boards — full scanner view */}
+      {activeBoard !== 'dte5' && <>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <Radio size={24} className={activeBoard === 'dte5' ? 'text-amber-400' : activeBoard === 'swing' ? 'text-accent-green' : 'text-blue-400'} />
+          <Radio size={24} className={activeBoard === 'swing' ? 'text-accent-green' : 'text-blue-400'} />
           <div>
             <h1 className="text-xl font-semibold">Signal Dashboard</h1>
             <p className="text-xs text-text-tertiary">
@@ -633,6 +723,8 @@ export const SignalsPage: React.FC = () => {
             ))}
           </div>
         </details>
+      </>}
+
       </>}
     </div>
   );
