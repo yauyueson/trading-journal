@@ -215,6 +215,36 @@ async function getCached130MCandles(ticker, from, to) {
     }
 }
 
+async function cache1DCandles(ticker, bars) {
+    const key = SUPABASE_SERVICE || SUPABASE_KEY;
+    if (!SUPABASE_URL || !key || bars.length === 0) return;
+    const batch = bars.map(b => ({
+        ticker: ticker.toUpperCase(),
+        date: b.date,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: Math.round(b.volume),
+        timeframe: '1D',
+    }));
+    try {
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/stock_candles`, {
+            method: 'POST',
+            headers: {
+                'apikey': key,
+                'Authorization': `Bearer ${key}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates',
+            },
+            body: JSON.stringify(batch),
+        });
+        if (!r.ok) console.warn(`[backtest-data/1D] Cache upsert failed: HTTP ${r.status}`);
+    } catch (err) {
+        console.warn('[backtest-data/1D] Cache upsert failed:', err.message);
+    }
+}
+
 async function cache130MCandles(ticker, bars) {
     const key = SUPABASE_SERVICE || SUPABASE_KEY;
     if (!SUPABASE_URL || !key || bars.length === 0) return;
@@ -292,6 +322,24 @@ async function handleCandles(req, res) {
         candles = await getCachedCandles(ticker, startDate, endDate, tf);
         if (candles && candles.length > 0) {
             if (candles.length >= minExpected) {
+                // Freshness check: top up from Tiingo if cache is stale
+                const lastCachedDate = candles[candles.length - 1].date;
+                const today = new Date().toISOString().split('T')[0];
+                if (lastCachedDate < today) {
+                    try {
+                        const d = new Date(lastCachedDate + 'T12:00:00Z');
+                        d.setUTCDate(d.getUTCDate() + 1);
+                        const topUpFrom = d.toISOString().split('T')[0];
+                        const freshBars = await getCandles(ticker.toUpperCase(), topUpFrom, today, 'day', 1);
+                        if (freshBars.length > 0) {
+                            candles = [...candles, ...freshBars];
+                            cache1DCandles(ticker, freshBars).catch(e => console.warn('[backtest-data/1D] top-up cache write failed:', e.message));
+                            console.log(`[backtest-data/candles] ${ticker}: topped up ${freshBars.length} candles (${topUpFrom} → ${today})`);
+                        }
+                    } catch (err) {
+                        console.warn(`[backtest-data/candles] ${ticker}: top-up failed — ${err.message}`);
+                    }
+                }
                 source = 'cache';
                 console.log(`[backtest-data/candles] ${ticker}: ${candles.length} candles from cache`);
             } else {
