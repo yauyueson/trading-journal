@@ -541,11 +541,18 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         <span className="text-xl sm:text-2xl font-bold">{position.ticker}</span>
                         {position.strategy_type && (
                             <span className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded ${
-                                position.strategy_type === 'swing'
-                                    ? 'bg-green-500/15 text-green-400'
-                                    : 'bg-blue-500/15 text-blue-400'
+                                position.strategy_type === 'dte5'
+                                    ? 'bg-amber-500/15 text-amber-400'
+                                    : position.strategy_type === 'swing'
+                                        ? 'bg-green-500/15 text-green-400'
+                                        : 'bg-blue-500/15 text-blue-400'
                             }`}>
-                                {position.strategy_type === 'swing' ? 'Swing' : 'ST'}
+                                {position.strategy_type === 'dte5' ? 'DTE5' : position.strategy_type === 'swing' ? 'Swing' : 'ST'}
+                            </span>
+                        )}
+                        {position.is_paper && (
+                            <span className="inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded bg-orange-500/15 text-orange-400 border border-orange-500/30 border-dashed">
+                                PAPER
                             </span>
                         )}
                         {onUpdateOwner && (
@@ -588,6 +595,16 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                     </div>
                     <div className="text-text-secondary text-xs sm:text-sm flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                         <span>{formatDate(position.expiration)}</span>
+                        {position.strategy_type === 'dte5' && position.expiration && (() => {
+                            const dte = Math.round((new Date(position.expiration + 'T16:00:00').getTime() - Date.now()) / 86400000);
+                            return (
+                                <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold rounded ${
+                                    dte <= 1 ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/15 text-amber-400'
+                                }`}>
+                                    {dte <= 0 ? 'EXPIRY' : `DTE ${dte}`}
+                                </span>
+                            );
+                        })()}
                         <span>·</span>
                         <span>{totalQty}x</span>
                         {singleTradeRiskPct != null && (

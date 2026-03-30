@@ -83,18 +83,24 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const [rollingPosition, setRollingPosition] = useState<{ position: Position, qty: number } | null>(null);
     const [sortBy] = useState('expiration');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
-    const [strategyFilter, setStrategyFilter] = useState<'All' | 'swing' | 'shortTerm' | 'untagged'>('All');
+    const [strategyFilter, setStrategyFilter] = useState<'All' | 'swing' | 'shortTerm' | 'dte5' | 'untagged'>('All');
+    const [paperFilter, setPaperFilter] = useState<'all' | 'paper' | 'live'>('all');
     const [bulkData, setBulkData] = useState<Record<string, any>>({});
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     const allActivePositions = positions.filter(p => p.status === 'active');
     const ownerFiltered = ownerFilter === 'All' ? allActivePositions : allActivePositions.filter(p => p.owner === ownerFilter);
-    const activePositions = strategyFilter === 'All'
+    const strategyFiltered = strategyFilter === 'All'
         ? ownerFiltered
         : strategyFilter === 'untagged'
             ? ownerFiltered.filter(p => !p.strategy_type)
             : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
+    const activePositions = paperFilter === 'all'
+        ? strategyFiltered
+        : paperFilter === 'paper'
+            ? strategyFiltered.filter(p => p.is_paper)
+            : strategyFiltered.filter(p => !p.is_paper);
 
     // ... (risk calc unchanged)
     const totalRiskDollars = activePositions.reduce((sum, position) => {
@@ -305,16 +311,39 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                 {/* Strategy Filter */}
                 <div className="flex items-center gap-1.5">
                     <span className="text-xs text-text-tertiary">Strategy:</span>
-                    {([['All', 'All'], ['swing', 'Swing'], ['shortTerm', 'ST'], ['untagged', '—']] as const).map(([value, label]) => (
+                    {([['All', 'All'], ['dte5', 'DTE5'], ['swing', 'Swing'], ['shortTerm', 'ST'], ['untagged', '\u2014']] as const).map(([value, label]) => (
                         <button
                             key={value}
                             type="button"
-                            onClick={() => setStrategyFilter(value as 'All' | 'swing' | 'shortTerm' | 'untagged')}
+                            onClick={() => setStrategyFilter(value as typeof strategyFilter)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${strategyFilter === value
-                                ? value === 'swing'
-                                    ? 'bg-green-500/20 text-green-400 border border-green-500/40'
-                                    : value === 'shortTerm'
-                                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                ? value === 'dte5'
+                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                                    : value === 'swing'
+                                        ? 'bg-green-500/20 text-green-400 border border-green-500/40'
+                                        : value === 'shortTerm'
+                                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                            : 'bg-white/10 text-text-primary border border-white/20'
+                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                }`}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+                {/* Paper / Live Filter */}
+                <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-text-tertiary">Mode:</span>
+                    {([['all', 'All'], ['paper', 'Paper'], ['live', 'Live']] as const).map(([value, label]) => (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => setPaperFilter(value as typeof paperFilter)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${paperFilter === value
+                                ? value === 'paper'
+                                    ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40'
+                                    : value === 'live'
+                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                                         : 'bg-white/10 text-text-primary border border-white/20'
                                 : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
                                 }`}

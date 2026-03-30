@@ -43,7 +43,9 @@ export interface Position {
     /** Spread width in dollars (e.g. 15 for a $15-wide spread). Null for single-leg positions. */
     spread_width?: number;
     /** Which strategy profile was used to open this position. */
-    strategy_type?: 'swing' | 'shortTerm' | null;
+    strategy_type?: 'swing' | 'shortTerm' | 'dte5' | null;
+    /** Paper trade (not real money). */
+    is_paper?: boolean;
 }
 
 export interface PositionLeg {
@@ -146,7 +148,9 @@ export interface DirectAddItem {
     iv_rank_entry?: number;
     spread_width?: number;
     /** Which strategy profile was used to open this position. */
-    strategy_type?: 'swing' | 'shortTerm';
+    strategy_type?: 'swing' | 'shortTerm' | 'dte5';
+    /** Paper trade (not real money). */
+    is_paper?: boolean;
     /** Take-profit target price, stored as a percentage (e.g., 0.30 = 30%). */
     target_price?: number;
 }

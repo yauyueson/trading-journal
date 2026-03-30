@@ -66,48 +66,22 @@ SPY, QQQ, GOOGL, JPM, META, TSLA, MSFT, NFLX, AAPL, NVDA, AMD, COST, IREN, BA, A
 
 ## Credit Spread Strategy (Production Config)
 
-### Swing (1D, 45-65 DTE)
+### Validated: DTE5 Bull Put Credit Spread (QQQ only)
 
-Validated via 4-phase backtest (~7,000 portfolio replays). Full report: `optimization report/credit-spread-optimization-report.md`
+**Config:** QQQ bull put spread, short delta 0.25 / long delta 0.15 (~$10 width), DTE 2-7 (target 5), EMA34 gate (close > EMA34), hold-to-expiry, $0 commissions (Robinhood).
 
-| Setting | Value | Reason |
-|---------|-------|--------|
-| Signal | **EMA** or **MOM** | Only signals that improve IS→OOS |
-| DTE | **45–65d** (target 55d) | OOS validated sweet spot |
-| Spread width | **$15** | Linear scaling, 64% capital utilization |
-| IV Rank filter | **≥ 30%** | +58% IS Sharpe, consistent across all signals |
-| Take Profit | **30%** | Slight edge over 50% |
-| Stop Loss | **None** | Defined risk makes stops unnecessary; SL 2× destroys returns |
-| Max positions | **5–10** | 5-pos has best Sharpe, 10-pos more diversification |
+**Validation:** 4-stage WFA re-examination (518 runs), hold-out validation (train 2020-2024H1, test 2024H2-2026), adversarial audit (all 11 checks PASS). WFA OOS Sharpe ~1.09, hold-out Sharpe ~1.17, 84% win rate, not correlated to buy-and-hold (R²=3.9%).
 
-### Short-Term (130M, 7-21 DTE)
+**Live config:** Paper trading at $1K capital, 1 contract per trade, max 1 concurrent position. Strategy type `'dte5'` in `src/lib/strategyProfiles.ts`. Daily signal via `cron-signal-scan.js` EMA34 gate check.
 
-Validated via comprehensive 130M vs 4H WFA study (648 configs/arm, 15 tickers, 7 rolling windows). Full report: `backtesting history/credit-spread/reports/130m-vs-4h-study/README.md`
+### Retired Strategies (kept in type system for DB compat, hidden from UI)
 
-| Setting | Value | Reason |
-|---------|-------|--------|
-| Timeframe | **130M** (3 bars/day) | 2× Sharpe edge over 4H; exact regular session (390min) |
-| Signal | **EM** (EMA + Momentum) | Grade A generalization, best OOS stability |
-| DTE | **7–21d** (target 14d) | Short-term sweet spot |
-| Spread width | **$10** | Best Sharpe/trade from WFA study |
-| IV Rank filter | **≥ 20%** | Improves generalization (Grade A vs B) |
-| Take Profit | **50%** | Validated edge over 30% for 130M |
-| Delta Stop | **Off** | No early exit on delta |
-| Period multiplier | **2.25** | Calendar-day equivalent of 4H×1.5 |
-| Stop Loss | **None** | Defined risk |
-
-Best config: `em|tp50|w10|iv20|dsoff|pm2.25` → OOS Sharpe 2.22, WR 84.6%, Max DD 12.9%, 6/6 windows positive
-
-Key findings:
-- SL 2× is broken (0.04 avg Sharpe) — tight stops on credit spreads destroy profitability
-- Score-based exits hurt — high win rate means "score drops" recover; se50/se60 go negative OOS
-- OI filters hurt — over-filter kills diversification
+**Swing (45-65 DTE):** Retired 2026-03-28 — phantom expiration profits inflated OOS Sharpe.
+**Short-Term (7-21 DTE):** Retired 2026-03-28 — Sharpe -0.96 with honest pricing.
 
 ## WFA Results Viewer
 
-Live at `/backtest` tab. Loads from `data/wfa-results.json` (5556 OOS trades, 12 windows, 14 tickers). Derived data files `data/viewer-signals.json` and `data/viewer-configs.json` built by `scripts/_build-viewer-data.cjs` from `backtesting history/credit-spread/results/`.
-
-Overall WFA metrics: OOS Sharpe 1.275, WR 89.52%, Max DD 4.64%, PnL $613,248, WF Efficiency 0.885.
+Live at `/backtest` tab. Loads from `data/wfa-results.json` — **STALE, pre-fix results, do not treat as validated.**
 
 ---
 

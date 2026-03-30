@@ -59,9 +59,9 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [activeStrategy, setActiveStrategyState] = useState<StrategyType>(() => {
     try {
       const stored = localStorage.getItem(STRATEGY_STORAGE_KEY);
-      if (stored === 'swing' || stored === 'shortTerm') return stored;
+      if (stored === 'dte5' || stored === 'swing' || stored === 'shortTerm') return stored as StrategyType;
     } catch {}
-    return 'swing';
+    return 'dte5';
   });
 
   const setActiveStrategy = useCallback((s: StrategyType) => {
@@ -92,6 +92,7 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
             },
             strategy: { ...DEFAULT_APP_SETTINGS.strategy, ...data.settings.strategy },
             creditSpread: data.settings.creditSpread ? {
+              dte5: { ...DEFAULT_APP_SETTINGS.creditSpread!.dte5, ...data.settings.creditSpread.dte5 },
               swing: { ...DEFAULT_APP_SETTINGS.creditSpread!.swing, ...data.settings.creditSpread.swing },
               shortTerm: { ...DEFAULT_APP_SETTINGS.creditSpread!.shortTerm, ...data.settings.creditSpread.shortTerm },
             } : DEFAULT_APP_SETTINGS.creditSpread,
@@ -114,6 +115,7 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       },
       strategy: { ...settings.strategy, ...(patch.strategy ?? {}) },
       creditSpread: patch.creditSpread ? {
+        dte5: { ...(settings.creditSpread ?? DEFAULT_APP_SETTINGS.creditSpread!).dte5, ...patch.creditSpread.dte5 },
         swing: { ...(settings.creditSpread ?? DEFAULT_APP_SETTINGS.creditSpread!).swing, ...patch.creditSpread.swing },
         shortTerm: { ...(settings.creditSpread ?? DEFAULT_APP_SETTINGS.creditSpread!).shortTerm, ...patch.creditSpread.shortTerm },
       } : settings.creditSpread,

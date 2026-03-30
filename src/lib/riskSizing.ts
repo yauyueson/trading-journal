@@ -317,3 +317,18 @@ export function aggregatePortfolioGreeks(
 
     return { netDelta, netGamma, netTheta, netVega, positionsWithData, largestRiskPct, largestRiskTicker, concentrationWarnings };
 }
+
+/**
+ * DTE5 strategy sizing — always 1 contract at $1K capital.
+ * Returns max contracts and risk warning if max loss exceeds 50% of capital.
+ */
+export function getDTE5Sizing(
+    capitalBase: number,
+    maxRiskPerContract: number,
+): { maxContracts: number; riskDollars: number; riskPct: number; warning: string | null } {
+    const contracts = Math.max(1, Math.floor(capitalBase / maxRiskPerContract));
+    const riskDollars = maxRiskPerContract * contracts;
+    const riskPct = capitalBase > 0 ? (riskDollars / capitalBase) * 100 : 0;
+    const warning = riskPct > 50 ? `${riskPct.toFixed(0)}% of capital at risk per trade` : null;
+    return { maxContracts: contracts, riskDollars, riskPct, warning };
+}

@@ -17,9 +17,10 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
     const [scoreFetching, setScoreFetching] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const scoreFetchRef = useRef(0);
+    const isDTE5 = activeStrategy === 'dte5';
     const [form, setForm] = useState({
-        ticker: '', strike: '', strike2: '', type: 'Put', expiration: '',
-        setup: 'Directional', strategy: '', entry_score: '', tech_score: '',
+        ticker: isDTE5 ? 'QQQ' : '', strike: '', strike2: '', type: 'Put', expiration: '',
+        setup: isDTE5 ? 'DTE5 Bull Put' : 'Directional', strategy: '', entry_score: '', tech_score: '',
         stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL' as 'BULL' | 'BEAR',
         iv_regime_entry: '', market_state: '',
     });
@@ -102,6 +103,7 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
                 iv_regime_entry: form.iv_regime_entry || undefined,
                 market_state: form.market_state || undefined,
                 owner: formOwner, strategy_type: activeStrategy,
+                is_paper: isDTE5 ? true : undefined,
             });
         } else {
             const shortStrike = parseFloat(form.strike);
@@ -125,22 +127,28 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
                 max_risk_entry: maxRiskPerContract != null && maxRiskPerContract > 0 ? maxRiskPerContract : undefined,
                 trade_profile: isCredit ? 'credit_spread' : 'debit_spread',
                 strategy_type: activeStrategy,
+                is_paper: isDTE5 ? true : undefined,
             });
         }
 
         setSubmitting(false);
-        setForm({ ticker: '', strike: '', strike2: '', type: 'Put', expiration: '', setup: 'Directional', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL', iv_regime_entry: '', market_state: '' });
+        setForm({ ticker: isDTE5 ? 'QQQ' : '', strike: '', strike2: '', type: 'Put', expiration: '', setup: isDTE5 ? 'DTE5 Bull Put' : 'Directional', strategy: '', entry_score: '', tech_score: '', stop_reason: '', quantity: '1', entry_price: '', direction: 'BULL', iv_regime_entry: '', market_state: '' });
         setPositionType('credit');
         onClose();
     };
 
     return (
         <div className="card-elevated p-8 animate-in fade-in slide-in-from-top-4 shadow-2xl relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/50" />
+            <div className={`absolute top-0 left-0 w-1 h-full ${isDTE5 ? 'bg-orange-500/50' : 'bg-emerald-500/50'}`} />
+            {isDTE5 && (
+                <div className="mb-4 px-3 py-2 rounded-lg bg-orange-500/10 border border-orange-500/30 border-dashed">
+                    <p className="text-xs font-semibold text-orange-400">PAPER TRADE — DTE5 Bull Put Spread (QQQ only, hold-to-expiry)</p>
+                </div>
+            )}
             <div className="flex justify-between items-center mb-8">
                 <div>
-                    <h3 className="text-xl font-bold text-text-primary">Quick Add Position</h3>
-                    <p className="text-sm text-text-tertiary">Enter the details of your new option position</p>
+                    <h3 className="text-xl font-bold text-text-primary">{isDTE5 ? 'Add DTE5 Paper Trade' : 'Quick Add Position'}</h3>
+                    <p className="text-sm text-text-tertiary">{isDTE5 ? 'QQQ bull put spread \u2022 Delta 25/15 \u2022 Hold to expiry' : 'Enter the details of your new option position'}</p>
                 </div>
                 <button onClick={onClose} className="p-2 hover:bg-bg-elevated rounded-lg transition-colors text-text-tertiary hover:text-text-primary">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>

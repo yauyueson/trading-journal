@@ -1,7 +1,28 @@
 {
-  "version": "2026-03-22b",
-  "source": "WFA v3 lock (swing tp40/ts3) + 130M migration (short em/w10/tp50/iv20/pm2.25)",
+  "version": "2026-03-30",
+  "source": "DTE5 validated (QQQ bull EMA34 sp25/15 hold-to-expiry, Sharpe ~1.09 WFA, all 11 audit PASS)",
   "profiles": {
+    "dte5": {
+      "signalPreset": "ema",
+      "defaultDelta": 0.25,
+      "longDelta": 0.15,
+      "defaultWidth": 10,
+      "dteMin": 2,
+      "dteMax": 7,
+      "dtePeak": 5,
+      "profitTarget": 1.0,
+      "ivRankMin": 0,
+      "timeStopDTE": 0,
+      "maxPositions": 1,
+      "maxPerTicker": 1,
+      "adxGate": null,
+      "rvolGate": 0,
+      "minScore": 0,
+      "minDirConfidence": 0,
+      "tickers": ["QQQ"],
+      "direction": "bull",
+      "trendEMA": 34
+    },
     "swing": {
       "signalPreset": "vol",
       "defaultDelta": 0.35,

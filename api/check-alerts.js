@@ -359,7 +359,8 @@ export default async function handler(req, res) {
       const dte = Math.round((expDate.getTime() - now.getTime()) / 86400000);
 
       const stratType = pos.strategy_type || '';
-      const threshold = stratType === 'shortTerm' ? 1 : 3;
+      // DTE5 = hold-to-expiry, only alert at DTE 1 as a reminder
+      const threshold = stratType === 'dte5' ? 1 : stratType === 'shortTerm' ? 1 : 3;
       if (dte > threshold || dte < 0) continue;
 
       const ticker = (pos.ticker || '').toUpperCase();
@@ -372,7 +373,9 @@ export default async function handler(req, res) {
         content: null,
         embeds: [{
           title: '⏰ Time Stop',
-          description: `**${ticker}** ${spreadDesc} — **DTE ${dte}**\nClose per ${stratType === 'shortTerm' ? 'short-term' : 'swing'} rules (threshold: DTE ≤ ${threshold}).`,
+          description: stratType === 'dte5'
+            ? `**${ticker}** ${spreadDesc} — **DTE ${dte}**\nExpiring tomorrow — hold-to-expiry, verify Robinhood settlement.`
+            : `**${ticker}** ${spreadDesc} — **DTE ${dte}**\nClose per ${stratType === 'shortTerm' ? 'short-term' : 'swing'} rules (threshold: DTE ≤ ${threshold}).`,
           color: 0xef4444, // red
           footer: { text: 'Trading Journal · Time Stop' },
           timestamp: new Date().toISOString(),

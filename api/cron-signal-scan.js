@@ -10,7 +10,7 @@ import { createRequire } from 'node:module';
 import { getCandles, getIntradayNMinCandles } from '../lib/tiingo-client.js';
 
 const require = createRequire(import.meta.url);
-const { calculateTechScore } = require('../lib/_shared/tech-analysis.cjs');
+const { calculateTechScore, emaFullSeries } = require('../lib/_shared/tech-analysis.cjs');
 
 // ── Config ──────────────────────────────────────────────────────────────────────
 
@@ -419,6 +419,85 @@ async function sendShortTermDiscord(signals, totalScanned, date) {
     }
 }
 
+// ── DTE5 Signal Check (QQQ EMA34 gate) ─────────────────────────────────────────
+
+async function checkDTE5Signal(today) {
+    const DTE5_TICKER = 'QQQ';
+    const EMA_PERIOD = 34;
+
+    try {
+        // Check if already have an active DTE5 position
+        const activeDTE5 = await supabaseGet('positions',
+            'select=id&status=eq.active&strategy_type=eq.dte5');
+        if (activeDTE5?.length > 0) {
+            console.log('[DTE5] Already have active position — skip signal');
+            return { fired: false, reason: 'active_position' };
+        }
+
+        // Get QQQ candles from cache
+        const candles = await getCachedCandles(DTE5_TICKER, 350);
+        if (!candles || candles.length < MIN_CANDLES) {
+            console.warn(`[DTE5] Not enough candles (${candles?.length || 0})`);
+            return { fired: false, reason: 'insufficient_data' };
+        }
+
+        // Compute EMA34
+        const closes = candles.map(c => c.close);
+        const ema34 = emaFullSeries(closes, EMA_PERIOD);
+        const lastClose = closes[closes.length - 1];
+        const lastEMA = ema34[ema34.length - 1];
+
+        if (lastClose <= lastEMA) {
+            console.log(`[DTE5] QQQ $${lastClose.toFixed(2)} <= EMA34 $${lastEMA.toFixed(2)} — bearish, skip`);
+            return { fired: false, reason: 'below_ema', close: lastClose, ema: lastEMA };
+        }
+
+        console.log(`[DTE5] QQQ $${lastClose.toFixed(2)} > EMA34 $${lastEMA.toFixed(2)} — SIGNAL FIRED`);
+
+        // Upsert to signal_history
+        await supabaseUpsert('signal_history', [{
+            ticker: DTE5_TICKER,
+            date: today,
+            timeframe: '1D',
+            score: 100,
+            direction: 'CALL',
+            setup: 'DTE5_BULL_PUT',
+            confidence: 100,
+            status: 'GO',
+            components: JSON.stringify({
+                strategy: 'dte5',
+                ema34: lastEMA.toFixed(2),
+                close: lastClose.toFixed(2),
+                gate: 'close > EMA34',
+            }),
+        }]);
+
+        // Send Discord alert
+        const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+        if (webhookUrl) {
+            const pctAbove = ((lastClose / lastEMA - 1) * 100).toFixed(1);
+            await fetch(webhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    embeds: [{
+                        title: `DTE5 Signal: QQQ BULL PUT`,
+                        description: `QQQ $${lastClose.toFixed(2)} > EMA34 $${lastEMA.toFixed(2)} (+${pctAbove}%)\n\nOpen /selector → DTE5 to get spread recommendation.\nsp25/15 bull put spread, hold to expiry.`,
+                        color: 0xF59E0B,  // amber
+                        footer: { text: `DTE5 Validated Strategy • ${today}` },
+                        timestamp: new Date().toISOString(),
+                    }],
+                }),
+            });
+        }
+
+        return { fired: true, close: lastClose, ema: lastEMA };
+    } catch (err) {
+        console.warn('[DTE5] Signal check failed:', err.message);
+        return { fired: false, reason: 'error', error: err.message };
+    }
+}
+
 // ── Handler ─────────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -578,7 +657,70 @@ export default async function handler(req, res) {
         console.warn('[signal-scan/ST] Short-term scan failed:', stErr.message);
     }
 
-    // Time stop monitoring (strategy-aware: shortTerm=1 DTE, swing=3 DTE)
+    // ── DTE5 Signal Check (QQQ EMA34 gate) ────────────────────────────────
+    let dte5Result = { fired: false };
+    try {
+        dte5Result = await checkDTE5Signal(today);
+        console.log(`[signal-scan/DTE5] ${dte5Result.fired ? 'SIGNAL FIRED' : `No signal (${dte5Result.reason})`}`);
+    } catch (dte5Err) {
+        console.warn('[signal-scan/DTE5] Check failed:', dte5Err.message);
+    }
+
+    // ── DTE5 Expiration Auto-Close ────────────────────────────────────────
+    try {
+        const expiredDTE5 = await supabaseGet('positions',
+            `select=id,ticker,legs,expiration&status=eq.active&strategy_type=eq.dte5&expiration=lte.${today}`);
+        if (expiredDTE5?.length > 0) {
+            for (const pos of expiredDTE5) {
+                // Close the expired position
+                const url = process.env.SUPABASE_URL;
+                const key = process.env.SUPABASE_ANON_KEY;
+                if (url && key) {
+                    await fetch(`${url}/rest/v1/positions?id=eq.${pos.id}`, {
+                        method: 'PATCH',
+                        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+                        body: JSON.stringify({ status: 'closed', closed_at: pos.expiration, exit_type: 'TIME' }),
+                    });
+                }
+
+                // Determine OTM/ITM
+                const legs = pos.legs || [];
+                const shortLeg = legs.find(l => l.side === 'short');
+                const shortStrike = shortLeg?.strike;
+                const qqqCandles = await getCachedCandles('QQQ', 5);
+                const closePrice = qqqCandles?.[qqqCandles.length - 1]?.close;
+                const itm = closePrice && shortStrike ? closePrice < shortStrike : null;
+                const spreadDesc = legs.length === 2
+                    ? `$${shortLeg?.strike || '?'}/$${legs.find(l => l.side === 'long')?.strike || '?'}P`
+                    : pos.ticker;
+
+                console.log(`[DTE5] Auto-closed expired: ${pos.ticker} ${spreadDesc} (${itm ? 'ITM' : 'OTM'})`);
+
+                // Discord alert
+                const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+                if (webhookUrl) {
+                    await fetch(webhookUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            embeds: [{
+                                title: `DTE5 Expired: ${pos.ticker} ${spreadDesc}`,
+                                description: `Position expired ${itm === true ? '**ITM** (loss)' : itm === false ? '**OTM** (full credit captured)' : '(settlement unknown)'}.\nVerify Robinhood settlement.${closePrice ? `\nQQQ close: $${closePrice.toFixed(2)}` : ''}`,
+                                color: itm ? 0xEF4444 : 0x10B981,
+                                footer: { text: `DTE5 Auto-Close \u2022 ${today}` },
+                                timestamp: new Date().toISOString(),
+                            }],
+                        }),
+                    });
+                }
+            }
+            console.log(`[DTE5] Auto-closed ${expiredDTE5.length} expired position(s)`);
+        }
+    } catch (expErr) {
+        console.warn('[DTE5] Expiration auto-close failed:', expErr.message);
+    }
+
+    // Time stop monitoring (strategy-aware: shortTerm=1 DTE, swing=3 DTE, dte5=hold-to-expiry)
     try {
         const breached = await checkTimeStopBreaches();
         if (breached.length > 0) {
@@ -589,7 +731,7 @@ export default async function handler(req, res) {
         console.warn('[signal-scan] Time stop check failed:', tsErr.message);
     }
 
-    console.log(`[signal-scan] Done: swing ${scanned}/${signals.length}, ST ${stResult.scanned}/${stResult.signals.length}, errors ${errors.length}`);
+    console.log(`[signal-scan] Done: swing ${scanned}/${signals.length}, ST ${stResult.scanned}/${stResult.signals.length}, DTE5 ${dte5Result.fired ? 'FIRED' : 'skip'}, errors ${errors.length}`);
 
     return res.status(200).json({
         ok: true,
@@ -600,6 +742,7 @@ export default async function handler(req, res) {
             scanned: stResult.scanned,
             signals: stResult.signals.map(s => ({ ticker: s.ticker, score: s.score, direction: s.direction, setup: s.setup })),
         },
+        dte5: dte5Result,
         errors: errors.length > 0 ? errors : undefined,
         topUp130M,
     });

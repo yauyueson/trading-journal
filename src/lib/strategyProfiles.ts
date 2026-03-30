@@ -4,7 +4,7 @@
  * can read the active profile instead of hardcoding values.
  */
 
-export type StrategyType = 'swing' | 'shortTerm';
+export type StrategyType = 'swing' | 'shortTerm' | 'dte5';
 
 export interface StrategyProfile {
   label: string;
@@ -33,7 +33,41 @@ export interface StrategyProfile {
   minDirConfidence: number;
 }
 
+/** Strategy types that are no longer active — kept for backward compat with DB data */
+export const RETIRED_STRATEGIES: ReadonlySet<StrategyType> = new Set(['swing', 'shortTerm']);
+
+/** Only active strategy types shown in UI */
+export const ACTIVE_STRATEGIES: readonly StrategyType[] = ['dte5'];
+
 export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
+  dte5: {
+    label: 'DTE5 Bull Put (Validated)',
+    shortLabel: 'DTE5',
+    dteMin: 2,
+    dteMax: 7,
+    dtePeak: 5,
+    dteSigma: 2,
+    deltaMin: 0.15,
+    deltaMax: 0.25,
+    defaultDelta: 0.25,       // short leg delta
+    spreadWidths: [10],
+    defaultWidth: 10,
+    profitTarget: 1.0,        // hold-to-expiry = 100% of credit
+    ivRankMin: 0,             // no IV rank filter (EMA34 gate replaces)
+    timeStopDTE: 0,           // hold-to-expiry, no time stop
+    dteOptions: [
+      { label: 'DTE5', val: 5, text: '2-7d' },
+    ],
+    widthOptions: [{ label: '$10', val: 10 }],
+    subtitle: 'QQQ Only \u2022 Bull Put \u2022 Delta 25/15 \u2022 DTE 5 \u2022 Hold-to-Expiry',
+    signalPreset: 'ema',
+    maxPerTicker: 1,
+    maxPositions: 1,
+    adxGate: null,
+    rvolGate: 0,
+    minScore: 0,              // EMA34 gate replaces tech score
+    minDirConfidence: 0,
+  },
   swing: {
     label: 'Swing (45-65 DTE)',
     shortLabel: 'Swing',
@@ -112,7 +146,7 @@ export function getProfile(strategy: StrategyType): StrategyProfile {
 /** Merge live config values (from Supabase) with UI metadata from STRATEGY_PROFILES */
 export function getMergedProfile(
   strategy: StrategyType,
-  liveConfig?: { swing: Partial<StrategyProfile>; shortTerm: Partial<StrategyProfile> }
+  liveConfig?: Partial<Record<StrategyType, Partial<StrategyProfile>>>
 ): StrategyProfile {
   const base = STRATEGY_PROFILES[strategy];
   if (!liveConfig) return base;
@@ -121,10 +155,10 @@ export function getMergedProfile(
 
 /** Derive the strategy type from a selected DTE value */
 export function deriveStrategyFromDte(dteVal: number): StrategyType {
-  // If the DTE value matches any shortTerm option, it's shortTerm
+  // DTE5 validated strategy: 2-7 DTE
+  if (dteVal <= 7) return 'dte5';
+  // Legacy: shortTerm 7-21, swing 45+
   if (STRATEGY_PROFILES.shortTerm.dteOptions.some(o => o.val === dteVal)) return 'shortTerm';
-  // If it matches any swing option, it's swing
   if (STRATEGY_PROFILES.swing.dteOptions.some(o => o.val === dteVal)) return 'swing';
-  // Fallback: below 30 = shortTerm, else swing
   return dteVal < 30 ? 'shortTerm' : 'swing';
 }

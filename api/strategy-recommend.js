@@ -304,21 +304,30 @@ const DEFAULT_ENTRY_PROFILE = { dtePeak: 55, deltaRange: [0.30, 0.45], allowChas
 async function _loadStrategyDefaults() {
     const config = await loadStrategyConfigFromDB();
     return {
+        dte5: {
+            dtePeak: 5,
+            dteSigma: 2,
+            deltaRange: [0.20, 0.30],  // Short leg ~25-delta
+            longDelta: 0.15,           // Long leg ~15-delta (sp25/15)
+            defaultWidth: 10,
+            profitTarget: 1.0,         // Hold-to-expiry
+            ivRankMin: 0,
+        },
         swing: {
-            dtePeak: config.profiles.swing.dtePeak,
+            dtePeak: config.profiles.swing?.dtePeak ?? 55,
             dteSigma: 15,
             deltaRange: [0.30, 0.40],  // WFA v3 lock: centered on 0.35
-            defaultWidth: config.profiles.swing.defaultWidth,
-            profitTarget: config.profiles.swing.profitTarget,
-            ivRankMin: config.profiles.swing.ivRankMin,
+            defaultWidth: config.profiles.swing?.defaultWidth ?? 20,
+            profitTarget: config.profiles.swing?.profitTarget ?? 0.40,
+            ivRankMin: config.profiles.swing?.ivRankMin ?? 0,
         },
         shortTerm: {
-            dtePeak: config.profiles.shortTerm.dtePeak,
+            dtePeak: config.profiles.shortTerm?.dtePeak ?? 14,
             dteSigma: 5,
             deltaRange: [0.20, 0.40],
-            defaultWidth: config.profiles.shortTerm.defaultWidth,
-            profitTarget: config.profiles.shortTerm.profitTarget,
-            ivRankMin: config.profiles.shortTerm.ivRankMin,
+            defaultWidth: config.profiles.shortTerm?.defaultWidth ?? 10,
+            profitTarget: config.profiles.shortTerm?.profitTarget ?? 0.50,
+            ivRankMin: config.profiles.shortTerm?.ivRankMin ?? 20,
         },
     };
 }
@@ -1121,7 +1130,7 @@ export default async function handler(req, res) {
     }
 
     const { ticker, direction = 'BULL', targetDte, spreadWidth, targetStrategy, setup, entryContext, entryQuality, strategy: strategyParam, minOI: minOIParam } = req.query;
-    const activeStrategy = (strategyParam === 'shortTerm') ? 'shortTerm' : 'swing';
+    const activeStrategy = strategyParam === 'dte5' ? 'dte5' : strategyParam === 'shortTerm' ? 'shortTerm' : 'swing';
     const STRATEGY_DEFAULTS = await _loadStrategyDefaults();
     const strategyDefaults = STRATEGY_DEFAULTS[activeStrategy];
 

@@ -133,6 +133,7 @@ export function useAddDirect() {
         iv_rank_entry: item.iv_rank_entry ?? null,
         spread_width: item.spread_width ?? null,
         strategy_type: item.strategy_type || null,
+        is_paper: item.is_paper ?? false,
         target_price: item.target_price ?? null,
       }]).select();
 

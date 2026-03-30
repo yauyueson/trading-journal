@@ -60,6 +60,12 @@ export interface StrategySettings {
   source: string;        // 'manual' | 'ga-optimize' | 'sweep' | 'walk-forward'
 }
 
+export interface DTE5CapitalSettings {
+  startingCapital: number;
+  riskPctPerTrade: number;
+  maxConcurrentPositions: number;
+}
+
 export interface AppSettings {
   portfolio: PortfolioSettings;
   techScore: TechScoreSettings;
@@ -67,7 +73,9 @@ export interface AppSettings {
   creditSpread?: {
     swing: CreditSpreadConfig;
     shortTerm: CreditSpreadConfig;
+    dte5: CreditSpreadConfig;
   };
+  dte5Capital?: DTE5CapitalSettings;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -99,6 +107,23 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     source: 'manual',
   },
   creditSpread: {
+    dte5: {
+      signalPreset: 'ema',
+      defaultDelta: 0.25,
+      defaultWidth: 10,
+      dteMin: 2,
+      dteMax: 7,
+      dtePeak: 5,
+      profitTarget: 1.0,
+      ivRankMin: 0,
+      timeStopDTE: 0,
+      maxPositions: 1,
+      maxPerTicker: 1,
+      adxGate: null,
+      rvolGate: 0,
+      minScore: 0,
+      minDirConfidence: 0,
+    },
     swing: {
       signalPreset: 'vol',
       defaultDelta: 0.35,
@@ -133,6 +158,11 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
       minScore: 70,
       minDirConfidence: 0,
     },
+  },
+  dte5Capital: {
+    startingCapital: 1000,
+    riskPctPerTrade: 20,
+    maxConcurrentPositions: 1,
   },
 };
 

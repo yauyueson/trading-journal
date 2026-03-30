@@ -212,7 +212,7 @@ export const SignalsPage: React.FC = () => {
   const hasSeededWatchlist = useRef(false);
   const [tab, setTab] = useState<'dashboard' | 'history'>('dashboard');
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [activeBoard, setActiveBoard] = useState<'swing' | 'shortTerm'>('swing');
+  const [activeBoard, setActiveBoard] = useState<'swing' | 'shortTerm' | 'dte5'>('dte5');
 
   // Dynamic config — reads from active board's profile
   const activeConfig = getConfigProfile(stratConfig, activeBoard);
@@ -374,6 +374,16 @@ export const SignalsPage: React.FC = () => {
       {/* Board Toggle */}
       <div className="flex items-center gap-1 mb-4 bg-[#111] border border-[#333] rounded-lg p-1 w-fit">
         <button
+          onClick={() => setActiveBoard('dte5')}
+          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+            activeBoard === 'dte5'
+              ? 'bg-amber-500/20 text-amber-400'
+              : 'text-text-tertiary hover:text-text-secondary'
+          }`}
+        >
+          DTE5 (QQQ)
+        </button>
+        <button
           onClick={() => setActiveBoard('swing')}
           className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
             activeBoard === 'swing'
@@ -398,7 +408,7 @@ export const SignalsPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <Radio size={24} className={activeBoard === 'swing' ? 'text-accent-green' : 'text-blue-400'} />
+          <Radio size={24} className={activeBoard === 'dte5' ? 'text-amber-400' : activeBoard === 'swing' ? 'text-accent-green' : 'text-blue-400'} />
           <div>
             <h1 className="text-xl font-semibold">Signal Dashboard</h1>
             <p className="text-xs text-text-tertiary">
@@ -712,7 +722,7 @@ const DashboardRowView: React.FC<{
 
 // ── Dashboard Detail Panel ────────────────────────────────
 
-const DashboardDetailPanel: React.FC<{ row: DashboardRow; minScore: number; minIV: number; adxGate: number | null; minRvol: number; minDirConf: number; signalLabel: string; activeBoard: 'swing' | 'shortTerm' }> = ({ row, minScore, minIV, adxGate, minRvol, minDirConf, signalLabel, activeBoard }) => {
+const DashboardDetailPanel: React.FC<{ row: DashboardRow; minScore: number; minIV: number; adxGate: number | null; minRvol: number; minDirConf: number; signalLabel: string; activeBoard: 'swing' | 'shortTerm' | 'dte5' }> = ({ row, minScore, minIV, adxGate, minRvol, minDirConf, signalLabel, activeBoard }) => {
   const navigate = useNavigate();
   const profile = STRATEGY_PROFILES[activeBoard];
   const isGo = row.status === 'GO';
