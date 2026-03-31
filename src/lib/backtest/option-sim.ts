@@ -35,7 +35,7 @@ import { applyFill, applySpreadFill } from './slippage';
 
 // ── Types ────────────────────────────────────────────────
 
-export type OptionMode = 'LEAP' | 'CREDIT_SPREAD';
+export type OptionMode = 'LEAP' | 'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SWING_LONG_OPTION';
 export type OptionExitType = 'PROFIT_TARGET' | 'STOP_LOSS' | 'TIME_STOP' | 'SIGNAL_REVERSAL' | 'EXPIRATION' | 'NO_CHAIN' | 'PROFIT_TARGET_2' | 'SL_BREAKEVEN' | 'DELTA_STOP' | 'MAX_LOSS_STOP' | 'TRAILING_LOCK';
 
 export interface OptionTrade {
@@ -165,6 +165,31 @@ export interface SimConfig {
   ivThetaSource?: 'entry_iv' | 'hv60' | 'orats_iv60';
   missingChainExitAfterDays?: number;
   commissionPerLeg?: number;
+  // Debit spread params
+  debitDTERange?: [number, number];       // e.g. [30, 45]
+  debitLongDelta?: number;                // closer to ATM, e.g. 0.50
+  debitShortDelta?: number;               // further OTM, e.g. 0.20
+  debitProfitTargetPct?: number;          // e.g. 0.50 = 50% of max profit
+  debitMaxHoldDays?: number;              // max calendar days to hold
+  debitMinExitDTE?: number;               // min DTE before forced time exit
+  // Underlying trend exit (shared by debit and underlying strategies)
+  underlyingExitEMA?: number;             // exit EMA period (21, 34)
+  underlyingExitConfirmDays?: number;     // consecutive bars below EMA
+  underlyingExitRequireSlope?: boolean;   // require EMA slope agreement
+  // IV filter for debit/option entries
+  maxIVRank?: number;                     // max IV rank for debit entries (want low IV)
+  // Swing long option params
+  swingLongDeltaRange?: [number, number]; // e.g. [0.70, 0.80]
+  swingLongDTERange?: [number, number];   // e.g. [35, 50]
+  swingLongProfitTargetPct?: number;      // e.g. 0.25 = 25% gain on premium
+  swingLongMaxHoldDays?: number;          // max trading days to hold
+  swingLongMinExitDTE?: number;           // exit when DTE drops below this
+  swingLongMaxIVRank?: number;            // max IV rank for entry (want low IV)
+  swingLongMaxRecentGapPct?: number;      // max recent gap % (gap risk filter)
+  swingLongMaxFrontBackIVAnomaly?: number; // max front/back IV ratio
+  swingLongMinOI?: number;               // min open interest on selected contract
+  swingLongMaxBidAskSpreadPct?: number;  // max bid-ask spread as % of mid
+  swingLongRiskBudgetPct?: number;       // fraction of capital risked per trade
 }
 
 export const DEFAULT_LEAP_CONFIG: SimConfig = {
@@ -214,6 +239,9 @@ export const DEFAULT_SHORT_CREDIT_CONFIG: SimConfig = {
   fillMode: 'mid' as FillMode,
   slippage: { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: false },
 };
+
+// DEFAULT_DEBIT_CONFIG and DEFAULT_SWING_LONG_OPTION_CONFIG removed 2026-03-30
+// (retired strategies — archived to archived/backtest/)
 
 // ── Trading Day Helpers ──────────────────────────────────
 

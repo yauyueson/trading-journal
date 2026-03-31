@@ -1,0 +1,108 @@
+{
+  "results": [
+    {
+      "name": "Baseline (5 pos, 1 contract)",
+      "trades": 317,
+      "winRate": 82.64984227129337,
+      "sharpe": -0.06239708674687349,
+      "profitFactor": 0.959874493988409,
+      "totalPnl": -1473.148765840083,
+      "maxDD": 11.151448328610183,
+      "avgPnl": -4.6471569900318075,
+      "avgHoldDays": 22.78864353312303,
+      "capitalUtilPct": 6.13388433647115,
+      "cagr": -0.18173741329047255
+    },
+    {
+      "name": "Scale 10 pos, 1 contract",
+      "trades": 474,
+      "winRate": 79.32489451476793,
+      "sharpe": 0.21476035604019103,
+      "profitFactor": 1.0855926463367411,
+      "totalPnl": 4785.343396467697,
+      "maxDD": 13.997265911313567,
+      "avgPnl": 10.095661173982483,
+      "avgHoldDays": 25.810126582278482,
+      "capitalUtilPct": 11.406624969810624,
+      "cagr": 0.5745686735919575
+    },
+    {
+      "name": "Scale 15 pos, 1 contract",
+      "trades": 657,
+      "winRate": 80.06088280060882,
+      "sharpe": 0.2304743282643979,
+      "profitFactor": 1.072854882271074,
+      "totalPnl": 6200.088664413636,
+      "maxDD": 20.31409489683138,
+      "avgPnl": 9.436969047813754,
+      "avgHoldDays": 25.30593607305936,
+      "capitalUtilPct": 19.702675347775305,
+      "cagr": 0.7400242502370258
+    },
+    {
+      "name": "Scale 10 pos, 2 contracts",
+      "trades": 474,
+      "winRate": 79.32489451476793,
+      "sharpe": 0.33629811782598223,
+      "profitFactor": 1.0855926463367411,
+      "totalPnl": 9570.686792935394,
+      "maxDD": 23.826996664592095,
+      "avgPnl": 20.191322347964967,
+      "avgHoldDays": 25.810126582278482,
+      "capitalUtilPct": 22.813249939621247,
+      "cagr": 1.1265581092510413
+    },
+    {
+      "name": "Scale 15 pos, 2 contracts",
+      "trades": 657,
+      "winRate": 80.06088280060882,
+      "sharpe": 0.36625544069372923,
+      "profitFactor": 1.072854882271074,
+      "totalPnl": 12400.177328827273,
+      "maxDD": 32.71409089513893,
+      "avgPnl": 18.87393809562751,
+      "avgHoldDays": 25.30593607305936,
+      "capitalUtilPct": 39.40535069555061,
+      "cagr": 1.4430654050278546
+    },
+    {
+      "name": "Scale 10 pos, 2c + DD halt 8%",
+      "trades": 474,
+      "winRate": 79.32489451476793,
+      "sharpe": 0.33629811782598223,
+      "profitFactor": 1.0855926463367411,
+      "totalPnl": 9570.686792935394,
+      "maxDD": 23.826996664592095,
+      "avgPnl": 20.191322347964967,
+      "avgHoldDays": 25.810126582278482,
+      "capitalUtilPct": 22.813249939621247,
+      "cagr": 1.1265581092510413
+    },
+    {
+      "name": "Scale 15 pos, 2c + DD halt 8%",
+      "trades": 657,
+      "winRate": 80.06088280060882,
+      "sharpe": 0.36625544069372923,
+      "profitFactor": 1.072854882271074,
+      "totalPnl": 12400.177328827273,
+      "maxDD": 32.71409089513893,
+      "avgPnl": 18.87393809562751,
+      "avgHoldDays": 25.30593607305936,
+      "capitalUtilPct": 39.40535069555061,
+      "cagr": 1.4430654050278546
+    },
+    {
+      "name": "Scale 20 pos, 3 contracts",
+      "trades": 876,
+      "winRate": 81.84931506849315,
+      "sharpe": 0.8042165115678812,
+      "profitFactor": 1.1404283891031382,
+      "totalPnl": 48170.08990671202,
+      "maxDD": 39.88952416209933,
+      "avgPnl": 54.98868710811875,
+      "avgHoldDays": 25.248858447488583,
+      "capitalUtilPct": 87.47717796202836,
+      "cagr": 4.93723750740509
+    }
+  ]
+}

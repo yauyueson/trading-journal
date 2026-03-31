@@ -1,0 +1,22 @@
+{
+  "name": "pb-ema-trend-stop-phase1",
+  "description": "Phase 1 test for stock-structure exits on the best pb pocket. Compare no-stop vs EMA trend-stop variants.",
+  "maxPositions": 5,
+  "maxPerTicker": 3,
+  "fillMode": "bidask",
+  "presets": ["pb"],
+  "sweepOverrides": {
+    "presets": ["pb"],
+    "profitTargets": [0.30],
+    "spreadWidths": [15],
+    "ivRankMins": [0],
+    "deltaStops": [99999],
+    "timeStopDTEs": [3],
+    "creditShortDeltas": [0.30],
+    "underlyingStopModes": ["off", "breach", "atr"],
+    "underlyingStopEMAs": [21, 34, 50],
+    "underlyingStopConfirmDays": [1, 2],
+    "underlyingStopRequireSlope": [true],
+    "underlyingStopAtrMultipliers": [1.0]
+  }
+}

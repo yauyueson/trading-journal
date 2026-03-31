@@ -1,0 +1,26 @@
+{
+  "stage": "stage0",
+  "tickers": [
+    "SPY", "QQQ", "AMD", "IWM", "TSLA", "AAPL", "JPM",
+    "NVDA", "AMZN", "MSFT", "META", "NFLX", "GOOG", "GS"
+  ],
+  "presets": ["pb8", "pb21"],
+  "sweepOverrides": {
+    "presets": ["pb8", "pb21"],
+    "dteRanges": [[35, 50], [50, 70]],
+    "deltaRanges": [[0.65, 0.75], [0.70, 0.80]],
+    "profitTargets": [0.25],
+    "maxHoldDays": [10],
+    "exitEMAs": [21],
+    "exitConfirmDays": [2],
+    "exitRequireSlope": [true],
+    "maxIVRanks": [55],
+    "maxRecentGapPcts": [5],
+    "maxFrontBackIVAnomalies": [1.25],
+    "maxSpreadPcts": [0.06, 0.10],
+    "minOIs": [50, 100],
+    "riskBudgetPcts": [0.005, 0.01, 0.015],
+    "maxPortfolioPremiumPcts": [0.02, 0.03],
+    "maxPositions": [3]
+  }
+}

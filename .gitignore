@@ -11,16 +11,9 @@ data/*.sqlite
 data/*.sqlite-shm
 data/*.sqlite-wal
 data/*.json
-!data/wfa-results.json
-!data/wfa-results-short.json
-!data/wfa-v2-results-swing.json
-!data/wfa-v2-results-short.json
-!data/viewer-signals.json
-!data/viewer-configs.json
 !data/strategy-config.json
-!data/wfa-v2-results-swing-noadx.json
-!data/wfa-v2-results-swing-seed43.json
 data/cache/
 data/runs/
 scripts/.*.mjs
+chain-cache.db
 .worktrees/

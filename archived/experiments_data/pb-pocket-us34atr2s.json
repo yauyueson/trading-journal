@@ -1,0 +1,22 @@
+{
+  "name": "pb-pocket-us34atr2s",
+  "description": "Strict A/B test for pb/tp30/w15/d30/ts3 with EMA34 ATR danger stop, 2 closes, adverse slope required.",
+  "maxPositions": 5,
+  "maxPerTicker": 3,
+  "fillMode": "bidask",
+  "presets": ["pb"],
+  "sweepOverrides": {
+    "presets": ["pb"],
+    "profitTargets": [0.3],
+    "spreadWidths": [15],
+    "ivRankMins": [0],
+    "deltaStops": [99999],
+    "timeStopDTEs": [3],
+    "creditShortDeltas": [0.3],
+    "underlyingStopModes": ["atr"],
+    "underlyingStopEMAs": [34],
+    "underlyingStopConfirmDays": [2],
+    "underlyingStopRequireSlope": [true],
+    "underlyingStopAtrMultipliers": [1]
+  }
+}

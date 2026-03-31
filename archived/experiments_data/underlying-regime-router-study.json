@@ -1,0 +1,22 @@
+{
+  "name": "underlying-regime-router-study",
+  "description": "Full-universe underlying-only regime router study: pb8 default, pb21 selected directly or via routed pb8+pb21 switch using low-contango or high-VRP states.",
+  "strategy": "underlying",
+  "tickers": ["SPY", "QQQ", "AMD", "IWM", "TSLA", "AAPL", "JPM", "NVDA", "AMZN", "MSFT", "META", "NFLX", "GOOG", "GS"],
+  "maxPositions": 3,
+  "maxPerTicker": 1,
+  "fixedNotional": 10000,
+  "fillMode": "bidask",
+  "presets": ["pb8", "pb21"],
+  "sweepOverrides": {
+    "presets": ["pb8", "pb21"],
+    "underlyingSignalBundles": [["pb8"], ["pb21"], ["pb8", "pb21"]],
+    "underlyingPb21RouterModes": ["off", "contangoPct_lte_50", "contangoPct_lte_60", "vrpPct_gte_50", "vrpPct_gte_60"],
+    "underlyingPb21RankingBonuses": [0],
+    "underlyingMaxPositions": [3],
+    "underlyingExitEMAs": [21, 34],
+    "underlyingExitConfirmDays": [1, 2],
+    "underlyingExitRequireSlope": [true],
+    "underlyingMaxHoldDays": [15, 20]
+  }
+}

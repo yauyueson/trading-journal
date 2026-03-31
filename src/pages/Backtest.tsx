@@ -5,14 +5,15 @@ import {
     BarChart, Bar, Legend
 } from 'recharts';
 import { TrendingUp, Activity, ShieldAlert, BarChart3, Layers, AlertTriangle, Info, Clock, Beaker, Shield, Zap } from 'lucide-react';
-import wfaRaw from '../../data/wfa-results.json';
-import wfaShortRaw from '../../data/wfa-results-short.json';
-import wfaV2SwingRaw from '../../data/wfa-v2-results-swing.json';
-import wfaV2ShortRaw from '../../data/wfa-v2-results-short.json';
-import wfaV2NoAdxRaw from '../../data/wfa-v2-results-swing-noadx.json';
-import wfaV2Seed43Raw from '../../data/wfa-v2-results-swing-seed43.json';
-import signalsRaw from '../../data/viewer-signals.json';
-import configsRaw from '../../data/viewer-configs.json';
+// Stale WFA viewer data archived 2026-03-30 — all pre-audit results
+const wfaRaw: never[] = [];
+const wfaShortRaw: never[] = [];
+const wfaV2SwingRaw: never[] = [];
+const wfaV2ShortRaw: never[] = [];
+const wfaV2NoAdxRaw: never[] = [];
+const wfaV2Seed43Raw: never[] = [];
+const signalsRaw: never[] = [];
+const configsRaw: never[] = [];
 import { getProfile } from '../lib/strategyProfiles';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -1103,6 +1104,18 @@ const V2ValidationPanels: React.FC<{ v2: V2Data; isShort: boolean }> = ({ v2, is
 
     return (
         <div className="space-y-4">
+            {/* ── Archive notice ── */}
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+                <div className="flex items-center gap-2">
+                    <AlertTriangle size={16} className="text-yellow-400" />
+                    <span className="text-sm font-semibold text-yellow-400">Archived — Pre-Audit Results</span>
+                </div>
+                <p className="text-xs text-text-tertiary mt-1">
+                    These WFA results were generated before the pricing audit (2026-03-28) and contain phantom expiration profits.
+                    Do not use for strategy validation. Current validated strategy: DTE5 sp30/20 bull put (QQQ, EMA34).
+                    See <code>backtesting history/credit-spread/reports/spread-comparison/</code> for current analysis.
+                </p>
+            </div>
             {/* ── Hero: What is this strategy? ── */}
             <div className="bg-gradient-to-br from-emerald-500/5 to-blue-500/5 rounded-xl border border-emerald-500/15 p-4">
                 <div className="flex items-center gap-2 mb-2">

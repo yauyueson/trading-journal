@@ -45,12 +45,13 @@ Options trading journal with React 18 + Vite 5 + React Router v6 + React Query v
 | `src/lib/types.ts` | Shared TypeScript interfaces |
 | `src/hooks/useSignalScanner.ts` | Signal scanner hook (130M + approxTickers) |
 | `scripts/prefetch-130m.mjs` | 130M candle prefetch for Supabase stock_candles |
-| `scripts/wfa-pipeline-short.ts` | Short-term 130M WFA pipeline (worker threads) |
+| `scripts/short-put-1dte.ts` | DTE5 strategy backtester + WFA + portfolio growth sim |
 | `tests/migration-130m.test.ts` | 130M migration validation (38 tests) |
+| `backtesting history/credit-spread/reports/spread-comparison/` | Current DTE5 sp30/20 analysis |
 
 ## Testing
 
-683 Vitest tests across 18 files (307 parity + 48 oss-core + 19 riskSizing + 10 tech-parity + 33 backtest + 32 bsm + 38 migration-130m + others). CI: GitHub Actions lint→build→test.
+738 Vitest tests across active test files. Retired strategy tests archived to `archived/tests/`. CI: GitHub Actions lint→build→test.
 
 ## Database Tables
 

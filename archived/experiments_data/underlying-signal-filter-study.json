@@ -1,0 +1,21 @@
+{
+  "name": "underlying-signal-filter-study",
+  "description": "Underlying-only full-universe study for pb8/pb21 with ex-ante signal-quality and gap-risk filters.",
+  "strategy": "underlying",
+  "tickers": ["SPY", "QQQ", "AMD", "IWM", "TSLA", "AAPL", "JPM", "NVDA", "AMZN", "MSFT", "META", "NFLX", "GOOG", "GS"],
+  "maxPositions": 3,
+  "maxPerTicker": 1,
+  "fixedNotional": 10000,
+  "fillMode": "bidask",
+  "presets": ["pb8", "pb21"],
+  "sweepOverrides": {
+    "presets": ["pb8", "pb21"],
+    "underlyingExitEMAs": [21, 34],
+    "underlyingExitConfirmDays": [1, 2],
+    "underlyingExitRequireSlope": [true],
+    "underlyingMaxHoldDays": [15, 20, 25],
+    "underlyingMinDirConfidences": [0, 55, 65],
+    "underlyingMaxEntryD8s": [1.5, 2.5, 1000],
+    "underlyingMaxRecentGapPcts": [3, 5, 1000]
+  }
+}

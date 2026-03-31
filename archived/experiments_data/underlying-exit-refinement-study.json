@@ -1,0 +1,23 @@
+{
+  "name": "underlying-exit-refinement-study",
+  "description": "Exit parameter refinement: test wider EMA periods (21/34/50), fast exit (1 confirm day), extended hold (25d), and profit targets (5%/8%) to improve risk-adjusted returns.",
+  "strategy": "underlying",
+  "tickers": ["SPY", "QQQ", "AMD", "IWM", "TSLA", "AAPL", "JPM", "NVDA", "AMZN", "MSFT", "META", "NFLX", "GOOG", "GS"],
+  "maxPositions": 3,
+  "maxPerTicker": 1,
+  "fixedNotional": 10000,
+  "fillMode": "bidask",
+  "presets": ["pb8", "pb21"],
+  "sweepOverrides": {
+    "presets": ["pb8", "pb21"],
+    "underlyingSignalBundles": [["pb8"], ["pb21"]],
+    "underlyingPb21RouterModes": ["off"],
+    "underlyingPb21RankingBonuses": [0],
+    "underlyingMaxPositions": [3],
+    "underlyingExitEMAs": [21, 34, 50],
+    "underlyingExitConfirmDays": [1, 2],
+    "underlyingExitRequireSlope": [true],
+    "underlyingMaxHoldDays": [15, 20, 25],
+    "underlyingProfitTargetPcts": [null, 0.05, 0.08]
+  }
+}

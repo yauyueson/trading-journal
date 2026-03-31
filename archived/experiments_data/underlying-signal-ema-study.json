@@ -1,0 +1,18 @@
+{
+  "name": "underlying-signal-ema-study",
+  "description": "Underlying-only full-universe signal study comparing pullback entry anchors pb(any), pb8, pb21, and pb34 with quality-ranked same-day signal selection.",
+  "strategy": "underlying",
+  "tickers": ["SPY", "QQQ", "AMD", "IWM", "TSLA", "AAPL", "JPM", "NVDA", "AMZN", "MSFT", "META", "NFLX", "GOOG", "GS"],
+  "maxPositions": 3,
+  "maxPerTicker": 1,
+  "fixedNotional": 10000,
+  "fillMode": "bidask",
+  "presets": ["pb", "pb8", "pb21", "pb34"],
+  "sweepOverrides": {
+    "presets": ["pb", "pb8", "pb21", "pb34"],
+    "underlyingExitEMAs": [21, 34],
+    "underlyingExitConfirmDays": [1, 2],
+    "underlyingExitRequireSlope": [true],
+    "underlyingMaxHoldDays": [15, 20, 25]
+  }
+}

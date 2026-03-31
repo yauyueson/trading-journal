@@ -1,0 +1,25 @@
+{
+  "name": "option-native-control-match",
+  "description": "Matched option wrapper test against the frozen stock control baseline: full 14-ticker universe, pb8 vs pb21, moderate ITM single-leg options, shorter DTE bands, same underlying exit family, maxPositions=3.",
+  "stage": "stage1",
+  "tickers": ["SPY", "QQQ", "AMD", "IWM", "TSLA", "AAPL", "JPM", "NVDA", "AMZN", "MSFT", "META", "NFLX", "GOOG", "GS"],
+  "presets": ["pb8", "pb21"],
+  "sweepOverrides": {
+    "presets": ["pb8", "pb21"],
+    "dteRanges": [[21, 35], [35, 50]],
+    "deltaRanges": [[0.55, 0.65], [0.65, 0.75]],
+    "profitTargets": [0.25, 0.40],
+    "maxHoldDays": [15, 20],
+    "exitEMAs": [21, 34],
+    "exitConfirmDays": [1, 2],
+    "exitRequireSlope": [true],
+    "maxIVRanks": [55],
+    "maxRecentGapPcts": [5],
+    "maxFrontBackIVAnomalies": [1.25],
+    "maxSpreadPcts": [0.06, 0.08],
+    "minOIs": [50],
+    "riskBudgetPcts": [0.01, 0.015],
+    "maxPortfolioPremiumPcts": [0.03],
+    "maxPositions": [3]
+  }
+}
