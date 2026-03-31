@@ -426,23 +426,19 @@ describe('STRAT-03 — strategy derived from DTE selection in spread builder', (
 });
 
 // ---------------------------------------------------------------------------
-// STRAT-04: Backtest.tsx has local profile toggle (swing/shortTerm)
+// STRAT-04: Backtest.tsx — DTE5 dashboard (replaces old swing/shortTerm toggle)
 // ---------------------------------------------------------------------------
-describe('STRAT-04 — Backtest.tsx has local profile toggle', () => {
-  it('Backtest.tsx has local backtestProfile state for swing/shortTerm toggle', () => {
-    expect(backtestSrc).toContain('backtestProfile');
+describe('STRAT-04 — Backtest.tsx DTE5 dashboard', () => {
+  it('Backtest.tsx imports dte5-dashboard.json data', () => {
+    expect(backtestSrc).toContain('dte5-dashboard.json');
   });
 
-  it('Backtest.tsx derives isShort from local backtestProfile', () => {
-    expect(backtestSrc).toContain("backtestProfile === 'shortTerm'");
+  it('Backtest.tsx has interactive tab navigation', () => {
+    expect(backtestSrc).toContain('activeTab');
   });
 
-  it('Backtest.tsx does NOT contain useState<StrategyMode> (old enum toggle)', () => {
-    expect(backtestSrc).not.toContain('useState<StrategyMode>');
-  });
-
-  it('Backtest.tsx imports getProfile for profile-driven label strings', () => {
-    expect(backtestSrc).toContain('getProfile');
+  it('Backtest.tsx shows spread comparison data', () => {
+    expect(backtestSrc).toContain('spreadComparison');
   });
 });
 
