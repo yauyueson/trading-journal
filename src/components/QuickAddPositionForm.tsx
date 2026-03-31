@@ -148,7 +148,7 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h3 className="text-xl font-bold text-text-primary">{isDTE5 ? 'Add DTE5 Paper Trade' : 'Quick Add Position'}</h3>
-                    <p className="text-sm text-text-tertiary">{isDTE5 ? 'QQQ bull put spread \u2022 Delta 25/15 \u2022 Hold to expiry' : 'Enter the details of your new option position'}</p>
+                    <p className="text-sm text-text-tertiary">{isDTE5 ? 'QQQ bull put spread \u2022 Delta 30/20 \u2022 Hold to expiry' : 'Enter the details of your new option position'}</p>
                 </div>
                 <button onClick={onClose} className="p-2 hover:bg-bg-elevated rounded-lg transition-colors text-text-tertiary hover:text-text-primary">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>

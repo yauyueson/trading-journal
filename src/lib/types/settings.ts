@@ -160,8 +160,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     },
   },
   dte5Capital: {
-    startingCapital: 1000,
-    riskPctPerTrade: 20,
+    startingCapital: 10000,
+    riskPctPerTrade: 10,
     maxConcurrentPositions: 1,
   },
 };

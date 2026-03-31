@@ -307,8 +307,8 @@ async function _loadStrategyDefaults() {
         dte5: {
             dtePeak: 5,
             dteSigma: 2,
-            deltaRange: [0.20, 0.30],  // Short leg ~25-delta
-            longDelta: 0.15,           // Long leg ~15-delta (sp25/15)
+            deltaRange: [0.25, 0.35],  // Short leg ~30-delta
+            longDelta: 0.20,           // Long leg ~20-delta (sp30/20)
             defaultWidth: 10,
             profitTarget: 1.0,         // Hold-to-expiry
             ivRankMin: 0,

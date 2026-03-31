@@ -47,9 +47,9 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     dteMax: 7,
     dtePeak: 5,
     dteSigma: 2,
-    deltaMin: 0.15,
-    deltaMax: 0.25,
-    defaultDelta: 0.25,       // short leg delta
+    deltaMin: 0.20,
+    deltaMax: 0.30,
+    defaultDelta: 0.30,       // short leg delta
     spreadWidths: [10],
     defaultWidth: 10,
     profitTarget: 1.0,        // hold-to-expiry = 100% of credit
@@ -59,7 +59,7 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
       { label: 'DTE5', val: 5, text: '2-7d' },
     ],
     widthOptions: [{ label: '$10', val: 10 }],
-    subtitle: 'QQQ Only \u2022 Bull Put \u2022 Delta 25/15 \u2022 DTE 5 \u2022 Hold-to-Expiry',
+    subtitle: 'QQQ Only \u2022 Bull Put \u2022 Delta 30/20 \u2022 DTE 5 \u2022 Hold-to-Expiry',
     signalPreset: 'ema',
     maxPerTicker: 1,
     maxPositions: 1,

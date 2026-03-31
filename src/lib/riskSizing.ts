@@ -319,16 +319,18 @@ export function aggregatePortfolioGreeks(
 }
 
 /**
- * DTE5 strategy sizing — always 1 contract at $1K capital.
+ * DTE5 strategy sizing — 10% of capital per trade at $10K base.
  * Returns max contracts and risk warning if max loss exceeds 50% of capital.
  */
 export function getDTE5Sizing(
     capitalBase: number,
     maxRiskPerContract: number,
+    riskPct = 0.10,
 ): { maxContracts: number; riskDollars: number; riskPct: number; warning: string | null } {
-    const contracts = Math.max(1, Math.floor(capitalBase / maxRiskPerContract));
+    const riskBudget = capitalBase * riskPct;
+    const contracts = Math.max(1, Math.floor(riskBudget / maxRiskPerContract));
     const riskDollars = maxRiskPerContract * contracts;
-    const riskPct = capitalBase > 0 ? (riskDollars / capitalBase) * 100 : 0;
-    const warning = riskPct > 50 ? `${riskPct.toFixed(0)}% of capital at risk per trade` : null;
-    return { maxContracts: contracts, riskDollars, riskPct, warning };
+    const actualRiskPct = capitalBase > 0 ? (riskDollars / capitalBase) * 100 : 0;
+    const warning = actualRiskPct > 50 ? `${actualRiskPct.toFixed(0)}% of capital at risk per trade` : null;
+    return { maxContracts: contracts, riskDollars, riskPct: actualRiskPct, warning };
 }

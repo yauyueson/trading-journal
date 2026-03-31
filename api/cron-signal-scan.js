@@ -482,7 +482,7 @@ async function checkDTE5Signal(today) {
                 body: JSON.stringify({
                     embeds: [{
                         title: `DTE5 Signal: QQQ BULL PUT`,
-                        description: `QQQ $${lastClose.toFixed(2)} > EMA34 $${lastEMA.toFixed(2)} (+${pctAbove}%)\n\nOpen /selector → DTE5 to get spread recommendation.\nsp25/15 bull put spread, hold to expiry.`,
+                        description: `QQQ $${lastClose.toFixed(2)} > EMA34 $${lastEMA.toFixed(2)} (+${pctAbove}%)\n\nOpen /selector → DTE5 to get spread recommendation.\nsp30/20 bull put spread, hold to expiry.`,
                         color: 0xF59E0B,  // amber
                         footer: { text: `DTE5 Validated Strategy • ${today}` },
                         timestamp: new Date().toISOString(),

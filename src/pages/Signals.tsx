@@ -432,7 +432,7 @@ export const SignalsPage: React.FC = () => {
               <Radio size={24} className="text-amber-400" />
               <div>
                 <h1 className="text-xl font-semibold">DTE5 Signal — QQQ Bull Put</h1>
-                <p className="text-xs text-text-tertiary">EMA34 gate check — hold-to-expiry — sp25/15 — $1K paper</p>
+                <p className="text-xs text-text-tertiary">EMA34 gate check — hold-to-expiry — sp30/20 — $10K paper</p>
               </div>
             </div>
 

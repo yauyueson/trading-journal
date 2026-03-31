@@ -1,11 +1,11 @@
 {
   "version": "2026-03-30",
-  "source": "DTE5 validated (QQQ bull EMA34 sp25/15 hold-to-expiry, Sharpe ~1.09 WFA, all 11 audit PASS)",
+  "source": "DTE5 validated (QQQ bull EMA34 sp30/20 hold-to-expiry, Sharpe ~1.18 WFA portfolio growth, 10% risk)",
   "profiles": {
     "dte5": {
       "signalPreset": "ema",
-      "defaultDelta": 0.25,
-      "longDelta": 0.15,
+      "defaultDelta": 0.30,
+      "longDelta": 0.20,
       "defaultWidth": 10,
       "dteMin": 2,
       "dteMax": 7,

@@ -68,11 +68,11 @@ SPY, QQQ, GOOGL, JPM, META, TSLA, MSFT, NFLX, AAPL, NVDA, AMD, COST, IREN, BA, A
 
 ### Validated: DTE5 Bull Put Credit Spread (QQQ only)
 
-**Config:** QQQ bull put spread, short delta 0.25 / long delta 0.15 (~$10 width), DTE 2-7 (target 5), EMA34 gate (close > EMA34), hold-to-expiry, $0 commissions (Robinhood).
+**Config:** QQQ bull put spread, short delta 0.30 / long delta 0.20 (~$5-10 width), DTE 2-7 (target 5), EMA34 gate (close > EMA34), hold-to-expiry, $0 commissions (Robinhood).
 
-**Validation:** 4-stage WFA re-examination (518 runs), hold-out validation (train 2020-2024H1, test 2024H2-2026), adversarial audit (all 11 checks PASS). WFA OOS Sharpe ~1.09, hold-out Sharpe ~1.17, 84% win rate, not correlated to buy-and-hold (R²=3.9%).
+**Validation:** True portfolio growth WFA (10 windows, equity carries forward). sp30/20 at 10% risk: $10K → $51,881, Sharpe 1.18, CAGR 38.8%, MaxDD 25.6%, WR 80%, equity never dipped below $10K. EMA34 filter comparison confirms it's the optimal period (without EMA, MaxDD doubles to 75%). Full results in `backtesting history/credit-spread/reports/spread-comparison/README.md`.
 
-**Live config:** Paper trading at $1K capital, 1 contract per trade, max 1 concurrent position. Strategy type `'dte5'` in `src/lib/strategyProfiles.ts`. Daily signal via `cron-signal-scan.js` EMA34 gate check.
+**Live config:** Paper trading at $10K capital, 10% risk per trade, max 1 concurrent position. Strategy type `'dte5'` in `src/lib/strategyProfiles.ts`. Daily signal via `cron-signal-scan.js` EMA34 gate check.
 
 ### Retired Strategies (kept in type system for DB compat, hidden from UI)
 
