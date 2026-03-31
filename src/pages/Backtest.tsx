@@ -3,9 +3,8 @@ import {
     AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip,
     ResponsiveContainer, CartesianGrid,
     BarChart, Bar, Legend, Cell,
-    RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts';
-import { TrendingUp, Activity, ShieldAlert, BarChart3, Layers, Target, Zap, Filter } from 'lucide-react';
+import { TrendingUp, Activity, BarChart3, Layers, Target, Filter } from 'lucide-react';
 import dashboardData from '../../data/dte5-dashboard.json';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -51,13 +50,6 @@ function scoreColor(sharpe: number): string {
     return 'text-red-400';
 }
 
-function scoreBg(sharpe: number): string {
-    if (sharpe >= 1.0) return 'bg-emerald-500/15 border-emerald-500/30';
-    if (sharpe >= 0.7) return 'bg-yellow-500/15 border-yellow-500/30';
-    if (sharpe >= 0.3) return 'bg-orange-500/15 border-orange-500/30';
-    return 'bg-red-500/15 border-red-500/30';
-}
-
 const RISK_LABELS: Record<number, string> = { 0.05: 'Conservative (5%)', 0.1: 'Moderate (10%)', 0.2: 'Aggressive (20%)' };
 const RISK_COLORS: Record<number, string> = { 0.05: '#22c55e', 0.1: '#3b82f6', 0.2: '#f59e0b' };
 const SPREAD_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1', '#14b8a6'];
@@ -68,7 +60,7 @@ type Tab = 'overview' | 'spreads' | 'ema' | 'equity';
 
 // ── Main Component ───────────────────────────────────────────────────────────
 
-export default function Backtest() {
+export function BacktestPage() {
     const [activeTab, setActiveTab] = useState<Tab>('overview');
     const [selectedRisk, setSelectedRisk] = useState<number>(0.1);
     const [selectedSpread, setSelectedSpread] = useState<string>('sp30/20');
@@ -195,8 +187,8 @@ export default function Backtest() {
                                     <YAxis tick={{ fontSize: 10, fill: '#888' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}K`} />
                                     <RechartsTooltip
                                         contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8, fontSize: 12 }}
-                                        formatter={(v: number) => [fmt$(v), '']}
-                                        labelFormatter={(l: string) => l?.slice(0, 7) || ''}
+                                        formatter={(v) => [fmt$(Number(v)), '']}
+                                        labelFormatter={(l) => String(l)?.slice(0, 7) || ''}
                                     />
                                     {data.detailedCurves.map((curve, i) => {
                                         const curveData = [{ date: data.detailedCurves[0]?.windows[0]?.testStart || '', equity: data.startingCapital }, ...curve.windows.map(w => ({ date: w.testEnd, equity: w.endEq }))];
@@ -298,7 +290,7 @@ export default function Backtest() {
                                     <YAxis type="category" dataKey="label" tick={{ fontSize: 10, fill: '#888' }} width={60} />
                                     <RechartsTooltip
                                         contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8, fontSize: 12 }}
-                                        formatter={(v: number) => [v.toFixed(3), 'Sharpe']}
+                                        formatter={(v) => [Number(v).toFixed(3), 'Sharpe']}
                                     />
                                     <Bar dataKey="sharpe" radius={[0, 4, 4, 0]}>
                                         {spreadsForRisk.map((entry, i) => (
@@ -383,8 +375,8 @@ export default function Backtest() {
                                     <YAxis tick={{ fontSize: 10, fill: '#888' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}K`} />
                                     <RechartsTooltip
                                         contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8, fontSize: 12 }}
-                                        formatter={(v: number) => [fmt$(v), '']}
-                                        labelFormatter={(l: string) => l?.slice(0, 7) || ''}
+                                        formatter={(v) => [fmt$(Number(v)), '']}
+                                        labelFormatter={(l) => String(l)?.slice(0, 7) || ''}
                                     />
                                     {spreadsForRisk.slice(0, 8).map((r, i) => {
                                         if (!highlightedSpreads.has(r.label)) return null;
@@ -509,7 +501,7 @@ export default function Backtest() {
                                     <YAxis tick={{ fontSize: 10, fill: '#888' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}K`} />
                                     <RechartsTooltip
                                         contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8, fontSize: 12 }}
-                                        formatter={(v: number) => [fmt$(v), '']}
+                                        formatter={(v) => [fmt$(Number(v)), '']}
                                     />
                                     {[null, 34, 55].map((ema, i) => {
                                         const r = emasForSpread.find(e => e.ema === ema);
@@ -574,7 +566,7 @@ export default function Backtest() {
                                             <YAxis tick={{ fontSize: 10, fill: '#888' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}K`} />
                                             <RechartsTooltip
                                                 contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8, fontSize: 12 }}
-                                                formatter={(v: number) => [fmt$(v), 'Equity']}
+                                                formatter={(v) => [fmt$(Number(v)), 'Equity']}
                                             />
                                             <Area type="monotone" dataKey="equity" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.15} strokeWidth={2} dot={{ r: 3, fill: '#3b82f6' }} />
                                         </AreaChart>
