@@ -549,6 +549,11 @@ export const SignalsPage: React.FC = () => {
               })}
             </div>
 
+            {/* Entry timing note */}
+            <div className="p-2.5 rounded-lg bg-white/[0.03] border border-white/5 text-[11px] text-text-tertiary leading-relaxed">
+              <span className="text-text-secondary font-medium">Entry tip:</span> Enter next morning 10:00-10:30 AM, not at signal close. Backtest shows ~8% better credit on average (stock trends intraday in regime direction). Verify EMAs still hold before entering.
+            </div>
+
             {/* Scan button */}
             <button
               onClick={() => { scanner.clearCache(); scanner.scan(techOptions, ['QQQ', 'SPY', 'IWM'], '1D'); }}
