@@ -425,8 +425,6 @@ export const SignalsPage: React.FC = () => {
             note: 'Primary strategy — Sharpe 0.69 standalone',
             criteria: (row: typeof scanner.signals[0] | undefined) => {
               const close = row?.lastClose ?? 0;
-              const ema34Val = row ? (row.result.debug?.ema34 as number ?? 0) : 0;
-              // Approximate EMA34 from EMA score direction
               const isBull = row?.result.type === 'CALL';
               return [
                 { label: 'close > EMA34', pass: isBull, value: `$${close.toFixed(2)} ${isBull ? '>' : '≤'} EMA34` },
