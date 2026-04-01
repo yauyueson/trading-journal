@@ -34,7 +34,8 @@ if (fs.existsSync(envPath)) {
 }
 
 import Database from 'better-sqlite3';
-import { initDB, getCachedChain, findContractDirect, type ChainRow } from '../src/lib/backtest/chain-cache';
+import { initDB, getCachedChain, findContractDirect, getCachedCoresRange, type ChainRow } from '../src/lib/backtest/chain-cache';
+import { computeIVRankMinMax } from '../src/lib/backtest/iv-rank';
 
 // ── Configuration ──────────────────────────────────────
 
@@ -370,6 +371,20 @@ function runStrategy(config: ShortPut1DTEConfig): StrategyResult {
     }
   }
 
+  // Compute IV Rank series from ORATS cores cache (local SQLite)
+  const ivRankMap = new Map<string, number>();
+  if (config.minIVRank && config.minIVRank > 0) {
+    const cores = getCachedCoresRange(config.ticker, warmupStart.toISOString().split('T')[0], config.endDate);
+    const ivSeries = allPriceDates.map(d => {
+      const core = cores.find(c => c.trade_date === d);
+      return core?.iv30 ?? null;
+    });
+    const ranks = computeIVRankMinMax(ivSeries);
+    for (let ri = 0; ri < allPriceDates.length; ri++) {
+      if (ranks[ri] != null) ivRankMap.set(allPriceDates[ri], ranks[ri]!);
+    }
+  }
+
   // Track open positions (for multi-day holds if DTE=2)
   const openPositions: Array<{
     entryDate: string;
@@ -614,6 +629,12 @@ function runStrategy(config: ShortPut1DTEConfig): StrategyResult {
         const distFromPullback = Math.abs(todayClose - pullbackEmaVal) / pullbackEmaVal;
         if (distFromPullback > tolerance) { filtered = true; }
       }
+    }
+
+    // IV Rank gate: skip when IV percentile is below minimum
+    if (!filtered && config.minIVRank && config.minIVRank > 0) {
+      const rank = ivRankMap.get(date);
+      if (rank == null || rank < config.minIVRank) { filtered = true; }
     }
 
     if (filtered) {
@@ -5213,6 +5234,84 @@ async function bearStrategyReport() {
   }
 
   // ════════════════════════════════════════════════════════
+  // PHASE F: IV Rank Filter Experiment
+  // ════════════════════════════════════════════════════════
+  console.log(`\n${'═'.repeat(130)}`);
+  console.log('  PHASE F: IV Rank Filter — Best Config Per Ticker × IV Rank Thresholds');
+  console.log('═'.repeat(130));
+
+  const IV_RANK_THRESHOLDS = [0, 15, 25, 35];
+
+  interface IVRankResult {
+    ticker: string; ivRankMin: number; sharpe: number; cagr: number;
+    maxDD: number; winRate: number; finalEquity: number; trades: number; minEquity: number;
+  }
+  const ivRankResults: IVRankResult[] = [];
+
+  // Test each ticker's best config at each IV rank threshold
+  for (const ticker of TICKERS) {
+    const best = bestPerTicker[ticker];
+    const proxCfg = PROXIMITY.find(p => p.label === best.proximity)!;
+    const rallyCfg = RALLY.find(r => r.label === best.rally)!;
+    const spreadCfg = SPREADS.find(s => s.label === best.spread)!;
+
+    for (const ivMin of IV_RANK_THRESHOLDS) {
+      const r = runWFAPortfolio(allTradingDates, ticker, TRAIN_DAYS, TEST_DAYS, {
+        direction: 'bear', targetDelta: spreadCfg.delta, longPutDelta: spreadCfg.wing, maxDTE: DTE,
+        maxRiskPct: 0.10, startingCapital: CAP, compounding: true,
+        minIVRank: ivMin,
+        ...BEAR_REGIME, ...proxCfg.ov, ...rallyCfg.ov,
+      });
+      ivRankResults.push({
+        ticker, ivRankMin: ivMin, sharpe: r.oosSharpe, cagr: r.oosCagr,
+        maxDD: r.oosMaxDD, winRate: r.oosWR, finalEquity: r.finalEquity,
+        trades: r.oosTrades, minEquity: r.minEquity,
+      });
+    }
+  }
+
+  // Per-ticker IV Rank results
+  console.log('\n  Per-Ticker IV Rank Impact (standalone bear):');
+  console.log('  ' + 'Ticker'.padEnd(8) + 'IVR Min'.padStart(10) + 'Sharpe'.padStart(8) + 'CAGR'.padStart(8) + 'MaxDD'.padStart(8) + 'WR'.padStart(6) + 'Final$'.padStart(10) + 'Trades'.padStart(8));
+  console.log('  ' + '-'.repeat(66));
+  for (const r of ivRankResults) {
+    console.log('  ' + r.ticker.padEnd(8) + (r.ivRankMin === 0 ? 'none' : `>=${r.ivRankMin}`).padStart(10) +
+      r.sharpe.toFixed(3).padStart(8) + (r.cagr.toFixed(1)+'%').padStart(8) + (r.maxDD.toFixed(1)+'%').padStart(8) +
+      (r.winRate.toFixed(0)+'%').padStart(6) + formatCurrency(r.finalEquity).padStart(10) + String(r.trades).padStart(8));
+  }
+
+  // Portfolio-level: for each IV rank, combine best bear configs (at that threshold) with QQQ bull
+  console.log('\n  Portfolio-Level IV Rank Impact (QQQ bull + all 3 bear):');
+  console.log('  ' + 'IVR Gate'.padEnd(12) + 'Sharpe'.padStart(8) + 'CAGR'.padStart(8) + 'MaxDD'.padStart(8) + 'Final$'.padStart(11) + 'MinEq'.padStart(10) + 'Trades'.padStart(8) + '  vs Baseline');
+  console.log('  ' + '-'.repeat(80));
+
+  interface IVRankPortfolioResult { ivRankMin: number; sharpe: number; cagr: number; maxDD: number; finalEquity: number; minEquity: number; trades: number }
+  const ivRankPortfolioResults: IVRankPortfolioResult[] = [];
+
+  for (const ivMin of IV_RANK_THRESHOLDS) {
+    const ivLegs = TICKERS.map(ticker => {
+      const best = bestPerTicker[ticker];
+      const proxCfg = PROXIMITY.find(p => p.label === best.proximity)!;
+      const rallyCfg = RALLY.find(r => r.label === best.rally)!;
+      const spreadCfg = SPREADS.find(s => s.label === best.spread)!;
+      return {
+        ticker,
+        overrides: {
+          direction: 'bear' as const, targetDelta: spreadCfg.delta, longPutDelta: spreadCfg.wing, maxDTE: DTE,
+          maxRiskPct: 0.10, compounding: true, minIVRank: ivMin,
+          ...BEAR_REGIME, ...proxCfg.ov, ...rallyCfg.ov,
+        },
+      };
+    });
+    const r = runCombinedWFAPortfolio(allTradingDates, TRAIN_DAYS, TEST_DAYS, [BULL_LEG, ...ivLegs]);
+    const delta = r.oosSharpe - portfolioResults[0].sharpe;
+    ivRankPortfolioResults.push({ ivRankMin: ivMin, sharpe: r.oosSharpe, cagr: r.oosCagr, maxDD: r.oosMaxDD, finalEquity: r.finalEquity, minEquity: r.minEquity, trades: r.oosTrades });
+    console.log('  ' + (ivMin === 0 ? 'none' : `>=${ivMin}`).padEnd(12) + r.oosSharpe.toFixed(3).padStart(8) + (r.oosCagr.toFixed(1)+'%').padStart(8) +
+      (r.oosMaxDD.toFixed(1)+'%').padStart(8) + formatCurrency(r.finalEquity).padStart(11) + formatCurrency(r.minEquity).padStart(10) +
+      String(r.oosTrades).padStart(8) + '  ' + (delta >= 0 ? '+' : '') + delta.toFixed(3));
+  }
+
+  // ════════════════════════════════════════════════════════
   // WRITE REPORT
   // ════════════════════════════════════════════════════════
   console.log('\n  Writing report...');
@@ -5335,6 +5434,25 @@ async function bearStrategyReport() {
   md += `4. **Bear contribution:** Fills idle periods (especially 2022 crash, 2025 correction)\n`;
   md += `5. **Optimal risk tier:** See Section 5 for Sharpe-optimal risk level\n\n`;
 
+  // Section 7: IV Rank Filter Experiment
+  md += `## Section 7: IV Rank Filter Experiment\n\n`;
+  md += `Tests whether filtering bear entries by IV Rank percentile (252d min-max) improves portfolio performance.\n`;
+  md += `Uses best config per ticker from Phase A.\n\n`;
+  md += `### Per-Ticker Impact (standalone)\n\n`;
+  md += `| Ticker | IV Gate | Sharpe | CAGR | MaxDD | WR | Final$ | Trades |\n`;
+  md += `|--------|---------|--------|------|-------|----|--------|--------|\n`;
+  for (const r of ivRankResults) {
+    md += `| ${r.ticker} | ${r.ivRankMin === 0 ? 'none' : `>=${r.ivRankMin}`} | ${r.sharpe.toFixed(3)} | ${r.cagr.toFixed(1)}% | ${r.maxDD.toFixed(1)}% | ${r.winRate.toFixed(0)}% | $${r.finalEquity.toFixed(0)} | ${r.trades} |\n`;
+  }
+  md += `\n### Portfolio-Level Impact (QQQ bull + all 3 bear)\n\n`;
+  md += `| IV Gate | Sharpe | CAGR | MaxDD | Final$ | MinEq | Trades | vs Baseline |\n`;
+  md += `|---------|--------|------|-------|--------|-------|--------|-------------|\n`;
+  for (const r of ivRankPortfolioResults) {
+    const delta = r.sharpe - portfolioResults[0].sharpe;
+    md += `| ${r.ivRankMin === 0 ? 'none' : `>=${r.ivRankMin}`} | ${r.sharpe.toFixed(3)} | ${r.cagr.toFixed(1)}% | ${r.maxDD.toFixed(1)}% | $${r.finalEquity.toFixed(0)} | $${r.minEquity.toFixed(0)} | ${r.trades} | ${delta >= 0 ? '+' : ''}${delta.toFixed(3)} |\n`;
+  }
+  md += '\n';
+
   md += `## Caveats\n\n`;
   md += `1. Backtest period (2017-2026) has limited sustained bear episodes — results have high variance\n`;
   md += `2. Bear configs with <30 trades are in statistical noise territory\n`;
@@ -5353,6 +5471,7 @@ async function bearStrategyReport() {
     riskTiers: riskResults,
     proximityAnalysis: proxAnalysis,
     yearByYear: Object.fromEntries(yearData),
+    ivRankExperiment: { perTicker: ivRankResults, portfolio: ivRankPortfolioResults },
   };
   fs.writeFileSync(`${reportDir}/bear-strategy.json`, JSON.stringify(jsonOutput, null, 2));
 

@@ -455,6 +455,7 @@ async function checkDTE5Signal(today) {
 
             const closes = candles.map(c => c.close);
             const lastClose = closes[closes.length - 1];
+            const lastOpen = candles[candles.length - 1].open;
 
             // Compute all needed EMAs
             const ema21 = emaFullSeries(closes, 21);
@@ -478,7 +479,7 @@ async function checkDTE5Signal(today) {
                     await supabaseUpsert('signal_history', [{
                         ticker, date: today, timeframe: '1D', score: 100,
                         direction: 'CALL', setup: 'DTE5_BULL_PUT', confidence: 100, status: 'GO',
-                        components: JSON.stringify({ strategy: 'dte5', side: 'bull', ema34: e34.toFixed(2), close: lastClose.toFixed(2), gate: 'close > EMA34' }),
+                        components: JSON.stringify({ strategy: 'dte5', side: 'bull', ema34: e34.toFixed(2), close: lastClose.toFixed(2), open: lastOpen.toFixed(2), gate: 'close > EMA34' }),
                     }]);
                 }
 
@@ -524,7 +525,8 @@ async function checkDTE5Signal(today) {
                         components: JSON.stringify({
                             strategy: 'dte5', side: 'bear', spread: bc.spread,
                             ema21: e21.toFixed(2), ema34: e34.toFixed(2), ema55: e55.toFixed(2),
-                            close: lastClose.toFixed(2), proximity: `${(proxDist*100).toFixed(1)}%`,
+                            close: lastClose.toFixed(2), open: lastOpen.toFixed(2),
+                            proximity: `${(proxDist*100).toFixed(1)}%`,
                             gate: 'close < EMA21 < EMA34 < EMA55',
                         }),
                     }]);
