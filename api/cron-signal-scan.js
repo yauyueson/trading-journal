@@ -422,79 +422,156 @@ async function sendShortTermDiscord(signals, totalScanned, date) {
 // ── DTE5 Signal Check (QQQ EMA34 gate) ─────────────────────────────────────────
 
 async function checkDTE5Signal(today) {
-    const DTE5_TICKER = 'QQQ';
-    const EMA_PERIOD = 34;
+    // Multi-ticker bull + bear DTE5 signal check
+    // Bull: close > EMA34 (QQQ only)
+    // Bear: close < EMA21 < EMA34 < EMA55 + proximity gate (QQQ, SPY, IWM)
+    const TICKER_CONFIGS = {
+        QQQ: {
+            bull: { ema: 34, spread: 'sp30/20', delta: 0.30, longDelta: 0.20 },
+            bear: { ema1: 21, ema2: 34, ema3: 55, proximityEma: 21, proximityPct: 0.01, spread: 'sp40/30', delta: 0.40, longDelta: 0.30 },
+        },
+        SPY: {
+            bear: { ema1: 21, ema2: 34, ema3: 55, proximityEma: 21, proximityPct: 0.05, spread: 'sp40/30', delta: 0.40, longDelta: 0.30 },
+        },
+        IWM: {
+            bear: { ema1: 21, ema2: 34, ema3: 55, proximityEma: 21, proximityPct: 0.03, rallyFilter: 0.08, spread: 'sp15/05', delta: 0.15, longDelta: 0.05 },
+        },
+    };
+
+    const results = [];
 
     try {
-        // Check if already have an active DTE5 position
+        // Check active DTE5 positions
         const activeDTE5 = await supabaseGet('positions',
             'select=id&status=eq.active&strategy_type=eq.dte5');
-        if (activeDTE5?.length > 0) {
-            console.log('[DTE5] Already have active position — skip signal');
-            return { fired: false, reason: 'active_position' };
+        const hasActivePosition = activeDTE5?.length > 0;
+
+        for (const [ticker, cfg] of Object.entries(TICKER_CONFIGS)) {
+            const candles = await getCachedCandles(ticker, 350);
+            if (!candles || candles.length < MIN_CANDLES) {
+                results.push({ ticker, direction: null, fired: false, reason: 'insufficient_data', criteria: {} });
+                continue;
+            }
+
+            const closes = candles.map(c => c.close);
+            const lastClose = closes[closes.length - 1];
+
+            // Compute all needed EMAs
+            const ema21 = emaFullSeries(closes, 21);
+            const ema34 = emaFullSeries(closes, 34);
+            const ema55 = emaFullSeries(closes, 55);
+            const e21 = ema21[ema21.length - 1];
+            const e34 = ema34[ema34.length - 1];
+            const e55 = ema55[ema55.length - 1];
+
+            // ── BULL CHECK (QQQ only) ──
+            if (cfg.bull) {
+                const bullEma = cfg.bull.ema === 34 ? e34 : e21;
+                const bullPass = lastClose > bullEma;
+                const criteria = {
+                    'close > EMA34': { pass: bullPass, value: `$${lastClose.toFixed(2)} ${bullPass ? '>' : '≤'} $${bullEma.toFixed(2)}` },
+                    'no active position': { pass: !hasActivePosition, value: hasActivePosition ? 'blocked' : 'clear' },
+                };
+                const fired = bullPass && !hasActivePosition;
+
+                if (fired) {
+                    await supabaseUpsert('signal_history', [{
+                        ticker, date: today, timeframe: '1D', score: 100,
+                        direction: 'CALL', setup: 'DTE5_BULL_PUT', confidence: 100, status: 'GO',
+                        components: JSON.stringify({ strategy: 'dte5', side: 'bull', ema34: e34.toFixed(2), close: lastClose.toFixed(2), gate: 'close > EMA34' }),
+                    }]);
+                }
+
+                results.push({ ticker, direction: 'bull', fired, spread: cfg.bull.spread, criteria });
+            }
+
+            // ── BEAR CHECK ──
+            if (cfg.bear) {
+                const bc = cfg.bear;
+                const tripleAligned = e21 < e34 && e34 < e55;
+                const belowEma21 = lastClose < e21;
+
+                // Proximity check: price within X% of proximity EMA
+                const proxEmaVal = bc.proximityEma === 21 ? e21 : ema34[ema34.length - 1];
+                const proxDist = Math.abs(lastClose - proxEmaVal) / proxEmaVal;
+                const proxPass = proxDist <= bc.proximityPct;
+
+                // Rally-from-low filter (if configured)
+                let rallyPass = true;
+                let rallyValue = 'n/a';
+                if (bc.rallyFilter) {
+                    const window = closes.slice(-20);
+                    const low20 = Math.min(...window);
+                    const rallyPct = (lastClose - low20) / low20;
+                    rallyPass = rallyPct <= bc.rallyFilter;
+                    rallyValue = `${(rallyPct * 100).toFixed(1)}% ${rallyPass ? '≤' : '>'} ${(bc.rallyFilter * 100).toFixed(0)}%`;
+                }
+
+                const criteria = {
+                    'EMA21 < EMA34 < EMA55': { pass: tripleAligned, value: `${e21.toFixed(2)} ${tripleAligned ? '<' : '≥'} ${e34.toFixed(2)} ${tripleAligned ? '<' : '≥'} ${e55.toFixed(2)}` },
+                    'close < EMA21': { pass: belowEma21, value: `$${lastClose.toFixed(2)} ${belowEma21 ? '<' : '≥'} $${e21.toFixed(2)}` },
+                    [`within ${(bc.proximityPct*100).toFixed(0)}% of EMA${bc.proximityEma}`]: { pass: proxPass, value: `${(proxDist * 100).toFixed(1)}% ${proxPass ? '≤' : '>'} ${(bc.proximityPct * 100).toFixed(0)}%` },
+                    ...(bc.rallyFilter ? { [`rally from 20d low ≤ ${(bc.rallyFilter*100).toFixed(0)}%`]: { pass: rallyPass, value: rallyValue } } : {}),
+                    'no active position': { pass: !hasActivePosition, value: hasActivePosition ? 'blocked' : 'clear' },
+                };
+
+                const allPass = tripleAligned && belowEma21 && proxPass && rallyPass && !hasActivePosition;
+
+                if (allPass) {
+                    await supabaseUpsert('signal_history', [{
+                        ticker, date: today, timeframe: '1D', score: 100,
+                        direction: 'PUT', setup: 'DTE5_BEAR_CALL', confidence: 100, status: 'GO',
+                        components: JSON.stringify({
+                            strategy: 'dte5', side: 'bear', spread: bc.spread,
+                            ema21: e21.toFixed(2), ema34: e34.toFixed(2), ema55: e55.toFixed(2),
+                            close: lastClose.toFixed(2), proximity: `${(proxDist*100).toFixed(1)}%`,
+                            gate: 'close < EMA21 < EMA34 < EMA55',
+                        }),
+                    }]);
+                }
+
+                results.push({ ticker, direction: 'bear', fired: allPass, spread: bc.spread, criteria });
+            }
         }
 
-        // Get QQQ candles from cache
-        const candles = await getCachedCandles(DTE5_TICKER, 350);
-        if (!candles || candles.length < MIN_CANDLES) {
-            console.warn(`[DTE5] Not enough candles (${candles?.length || 0})`);
-            return { fired: false, reason: 'insufficient_data' };
-        }
-
-        // Compute EMA34
-        const closes = candles.map(c => c.close);
-        const ema34 = emaFullSeries(closes, EMA_PERIOD);
-        const lastClose = closes[closes.length - 1];
-        const lastEMA = ema34[ema34.length - 1];
-
-        if (lastClose <= lastEMA) {
-            console.log(`[DTE5] QQQ $${lastClose.toFixed(2)} <= EMA34 $${lastEMA.toFixed(2)} — bearish, skip`);
-            return { fired: false, reason: 'below_ema', close: lastClose, ema: lastEMA };
-        }
-
-        console.log(`[DTE5] QQQ $${lastClose.toFixed(2)} > EMA34 $${lastEMA.toFixed(2)} — SIGNAL FIRED`);
-
-        // Upsert to signal_history
-        await supabaseUpsert('signal_history', [{
-            ticker: DTE5_TICKER,
-            date: today,
-            timeframe: '1D',
-            score: 100,
-            direction: 'CALL',
-            setup: 'DTE5_BULL_PUT',
-            confidence: 100,
-            status: 'GO',
-            components: JSON.stringify({
-                strategy: 'dte5',
-                ema34: lastEMA.toFixed(2),
-                close: lastClose.toFixed(2),
-                gate: 'close > EMA34',
-            }),
-        }]);
-
-        // Send Discord alert
+        // Discord summary — one embed with all tickers
         const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
         if (webhookUrl) {
-            const pctAbove = ((lastClose / lastEMA - 1) * 100).toFixed(1);
+            const firedSignals = results.filter(r => r.fired);
+            const fields = results.map(r => {
+                const icon = r.fired ? '🟢' : '⚫';
+                const dir = r.direction === 'bull' ? 'BULL PUT' : 'BEAR CALL';
+                const criteriaStr = Object.entries(r.criteria)
+                    .map(([k, v]) => `${v.pass ? '✅' : '❌'} ${k}: ${v.value}`)
+                    .join('\n');
+                return { name: `${icon} ${r.ticker} ${dir}`, value: criteriaStr, inline: false };
+            });
+
+            const goCount = firedSignals.length;
+            const color = goCount > 0 ? 0xF59E0B : 0x6B7280; // amber if signals, gray if none
             await fetch(webhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     embeds: [{
-                        title: `DTE5 Signal: QQQ BULL PUT`,
-                        description: `QQQ $${lastClose.toFixed(2)} > EMA34 $${lastEMA.toFixed(2)} (+${pctAbove}%)\n\nOpen /selector → DTE5 to get spread recommendation.\nsp30/20 bull put spread, hold to expiry.`,
-                        color: 0xF59E0B,  // amber
-                        footer: { text: `DTE5 Validated Strategy • ${today}` },
+                        title: `DTE5 Signal Scan — ${today}`,
+                        description: goCount > 0
+                            ? `**${goCount} signal(s) fired.** ${firedSignals.map(s => `${s.ticker} ${s.direction === 'bull' ? 'BULL PUT' : 'BEAR CALL'} ${s.spread}`).join(', ')}`
+                            : 'No signals — all criteria not met. See details below.',
+                        color,
+                        fields,
+                        footer: { text: `DTE5 Bull+Bear Strategy • Recommended: QQQ bull + SPY bear` },
                         timestamp: new Date().toISOString(),
                     }],
                 }),
             });
         }
 
-        return { fired: true, close: lastClose, ema: lastEMA };
+        console.log(`[DTE5] ${results.filter(r => r.fired).length}/${results.length} signals fired`);
+        return results;
     } catch (err) {
         console.warn('[DTE5] Signal check failed:', err.message);
-        return { fired: false, reason: 'error', error: err.message };
+        return [{ ticker: 'ALL', direction: null, fired: false, reason: 'error', error: err.message, criteria: {} }];
     }
 }
 
@@ -657,11 +734,12 @@ export default async function handler(req, res) {
         console.warn('[signal-scan/ST] Short-term scan failed:', stErr.message);
     }
 
-    // ── DTE5 Signal Check (QQQ EMA34 gate) ────────────────────────────────
-    let dte5Result = { fired: false };
+    // ── DTE5 Signal Check (multi-ticker bull + bear) ────────────────────
+    let dte5Result = [];
     try {
         dte5Result = await checkDTE5Signal(today);
-        console.log(`[signal-scan/DTE5] ${dte5Result.fired ? 'SIGNAL FIRED' : `No signal (${dte5Result.reason})`}`);
+        const fired = dte5Result.filter(r => r.fired);
+        console.log(`[signal-scan/DTE5] ${fired.length}/${dte5Result.length} signals fired: ${fired.map(r => `${r.ticker} ${r.direction}`).join(', ') || 'none'}`);
     } catch (dte5Err) {
         console.warn('[signal-scan/DTE5] Check failed:', dte5Err.message);
     }
@@ -731,7 +809,8 @@ export default async function handler(req, res) {
         console.warn('[signal-scan] Time stop check failed:', tsErr.message);
     }
 
-    console.log(`[signal-scan] Done: swing ${scanned}/${signals.length}, ST ${stResult.scanned}/${stResult.signals.length}, DTE5 ${dte5Result.fired ? 'FIRED' : 'skip'}, errors ${errors.length}`);
+    const dte5Fired = Array.isArray(dte5Result) ? dte5Result.filter(r => r.fired) : [];
+    console.log(`[signal-scan] Done: swing ${scanned}/${signals.length}, ST ${stResult.scanned}/${stResult.signals.length}, DTE5 ${dte5Fired.length} fired, errors ${errors.length}`);
 
     return res.status(200).json({
         ok: true,

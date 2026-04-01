@@ -234,15 +234,16 @@ export const SignalsPage: React.FC = () => {
     ? scaleIndicatorPeriods(SHORT_TERM_PERIOD_MULT, baseTechOptions)
     : baseTechOptions;
 
-  // Seed scanner with full watchlist on mount (skip for DTE5 — QQQ only)
+  // Seed scanner with full watchlist on mount (DTE5 scans QQQ+SPY+IWM)
   useEffect(() => {
     if (hasSeededWatchlist.current) return;
     if (!positions) return;
     hasSeededWatchlist.current = true;
 
     if (activeBoard === 'dte5') {
-      scanner.setTickers(['QQQ']);
-      scanner.scan(techOptions, ['QQQ'], '1D');
+      const dte5Tickers = ['QQQ', 'SPY', 'IWM'];
+      scanner.setTickers(dte5Tickers);
+      scanner.scan(techOptions, dte5Tickers, '1D');
     } else {
       const watchlistTickers = [...new Set(
         positions
@@ -272,8 +273,9 @@ export const SignalsPage: React.FC = () => {
     if (!hasSeededWatchlist.current) return; // don't scan before initial seed
     scanner.clearCache();
     if (activeBoard === 'dte5') {
-      scanner.setTickers(['QQQ']);
-      scanner.scan(techOptions, ['QQQ'], '1D');
+      const dte5Tickers = ['QQQ', 'SPY', 'IWM'];
+      scanner.setTickers(dte5Tickers);
+      scanner.scan(techOptions, dte5Tickers, '1D');
     } else {
       scanner.scan(techOptions, undefined, timeframe);
     }
@@ -391,7 +393,7 @@ export const SignalsPage: React.FC = () => {
               : 'text-text-tertiary hover:text-text-secondary'
           }`}
         >
-          DTE5 (QQQ)
+          DTE5 Bull+Bear
         </button>
         <button
           onClick={() => setActiveBoard('swing')}
@@ -415,78 +417,128 @@ export const SignalsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* DTE5 Board — simplified QQQ-only view */}
+      {/* DTE5 Board — Multi-ticker Bull + Bear */}
       {activeBoard === 'dte5' && (() => {
-        const qqqRow = scanner.signals.find(s => s.ticker === 'QQQ');
-        const qqqClose = qqqRow?.lastClose ?? 0;
-        const emaScore = qqqRow?.result.components.sc_ema ?? 0;
-        const isBullish = qqqRow?.result.type === 'CALL';
-        const isNeutral = qqqRow?.result.type === 'NEUTRAL';
-        const gateStatus = isBullish ? 'BULL' : isNeutral ? 'NEUTRAL' : 'BEAR';
-        const gateColor = isBullish ? 'text-emerald-400' : isNeutral ? 'text-yellow-400' : 'text-red-400';
-        const gateBg = isBullish ? 'bg-emerald-500/10 border-emerald-500/30' : isNeutral ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-red-500/10 border-red-500/30';
+        // Signal configs per ticker
+        const DTE5_SIGNALS = [
+          { ticker: 'QQQ', side: 'bull' as const, spread: 'sp30/20', label: 'Bull Put', recommended: true,
+            note: 'Primary strategy — Sharpe 0.69 standalone',
+            criteria: (row: typeof scanner.signals[0] | undefined) => {
+              const close = row?.lastClose ?? 0;
+              const ema34Val = row ? (row.result.debug?.ema34 as number ?? 0) : 0;
+              // Approximate EMA34 from EMA score direction
+              const isBull = row?.result.type === 'CALL';
+              return [
+                { label: 'close > EMA34', pass: isBull, value: `$${close.toFixed(2)} ${isBull ? '>' : '≤'} EMA34` },
+              ];
+            }},
+          { ticker: 'QQQ', side: 'bear' as const, spread: 'sp40/30', label: 'Bear Call', recommended: true,
+            note: '~3 trades/yr — tight proximity filter',
+            criteria: (row: typeof scanner.signals[0] | undefined) => {
+              const isBear = row?.result.type === 'PUT';
+              return [
+                { label: 'EMA21 < EMA34 < EMA55', pass: isBear, value: isBear ? 'aligned' : 'not aligned' },
+                { label: 'within 1% of EMA21', pass: false, value: 'check cron' },
+              ];
+            }},
+          { ticker: 'SPY', side: 'bear' as const, spread: 'sp40/30', label: 'Bear Call', recommended: true,
+            note: 'Primary bear engine — 114 trades, Sharpe 0.56',
+            criteria: (row: typeof scanner.signals[0] | undefined) => {
+              const isBear = row?.result.type === 'PUT';
+              return [
+                { label: 'EMA21 < EMA34 < EMA55', pass: isBear, value: isBear ? 'aligned' : 'not aligned' },
+                { label: 'within 5% of EMA21', pass: false, value: 'check cron' },
+              ];
+            }},
+          { ticker: 'IWM', side: 'bear' as const, spread: 'sp15/05', label: 'Bear Call', recommended: false,
+            note: 'Diversifier — Sharpe 0.58, adds hedging value',
+            criteria: (row: typeof scanner.signals[0] | undefined) => {
+              const isBear = row?.result.type === 'PUT';
+              return [
+                { label: 'EMA21 < EMA34 < EMA55', pass: isBear, value: isBear ? 'aligned' : 'not aligned' },
+                { label: 'within 3% of EMA21', pass: false, value: 'check cron' },
+                { label: 'rally from low ≤ 8%', pass: false, value: 'check cron' },
+              ];
+            }},
+        ];
 
         return (
           <div className="space-y-4">
             <div className="flex items-center gap-3 mb-4">
               <Radio size={24} className="text-amber-400" />
               <div>
-                <h1 className="text-xl font-semibold">DTE5 Signal — QQQ Bull Put</h1>
-                <p className="text-xs text-text-tertiary">EMA34 gate check — hold-to-expiry — sp30/20 — $10K paper</p>
+                <h1 className="text-xl font-semibold">DTE5 Signal Board — Bull + Bear</h1>
+                <p className="text-xs text-text-tertiary">Multi-ticker EMA gate check — hold-to-expiry — $10K shared equity — Recommended: QQQ bull + SPY bear</p>
               </div>
             </div>
 
-            {/* QQQ Status Card */}
-            <div className={`rounded-xl border ${gateBg} p-6`}>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <span className="text-2xl font-bold">QQQ</span>
-                  <span className="ml-3 text-lg text-text-secondary">${qqqClose.toFixed(2)}</span>
-                </div>
-                <span className={`px-4 py-2 rounded-lg text-sm font-bold ${gateBg} ${gateColor} border`}>
-                  {gateStatus}
-                </span>
-              </div>
+            {/* Signal Cards */}
+            <div className="space-y-3">
+              {DTE5_SIGNALS.map((sig, idx) => {
+                const row = scanner.signals.find(s => s.ticker === sig.ticker);
+                const close = row?.lastClose ?? 0;
+                const criteria = sig.criteria(row);
+                const allPass = criteria.every(c => c.pass);
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p className="text-text-tertiary text-xs">Direction</p>
-                  <p className={`font-semibold ${gateColor}`}>{qqqRow?.result.type || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-text-tertiary text-xs">EMA Score</p>
-                  <p className="font-semibold text-text-primary">{emaScore || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-text-tertiary text-xs">Dir Confidence</p>
-                  <p className="font-semibold text-text-primary">{qqqRow?.result.dirConfidence ?? '—'}</p>
-                </div>
-                <div>
-                  <p className="text-text-tertiary text-xs">ADX</p>
-                  <p className="font-semibold text-text-primary">{qqqRow?.result.debug?.adx?.toFixed(0) ?? '—'}</p>
-                </div>
-              </div>
+                const borderColor = allPass
+                  ? (sig.side === 'bull' ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-rose-500/30 bg-rose-500/10')
+                  : 'border-white/10 bg-white/5';
+                const badgeColor = allPass
+                  ? (sig.side === 'bull' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30')
+                  : 'bg-zinc-800 text-text-tertiary border-white/10';
 
-              {isBullish && (
-                <div className="mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                  <p className="text-emerald-400 text-sm font-semibold">Signal Active — Open /selector to get DTE5 spread recommendation</p>
-                </div>
-              )}
-              {!isBullish && (
-                <div className="mt-4 p-3 rounded-lg bg-white/5 border border-white/10">
-                  <p className="text-text-tertiary text-sm">No entry signal — QQQ not in bull regime. Wait for CALL direction.</p>
-                </div>
-              )}
+                return (
+                  <div key={idx} className={`rounded-xl border ${borderColor} p-4`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg font-bold">{sig.ticker}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeColor}`}>
+                          {sig.side === 'bull' ? '▲ BULL PUT' : '▼ BEAR CALL'}
+                        </span>
+                        <span className="text-sm text-text-secondary">{sig.spread}</span>
+                        {sig.recommended && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/20 text-amber-400">RECOMMENDED</span>}
+                        <span className="text-sm text-text-secondary">${close.toFixed(2)}</span>
+                      </div>
+                      <span className={`px-3 py-1 rounded-lg text-xs font-bold ${allPass ? (sig.side === 'bull' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400') : 'bg-zinc-800 text-zinc-500'}`}>
+                        {allPass ? 'GO' : 'NO SIGNAL'}
+                      </span>
+                    </div>
+
+                    {/* Criteria checklist */}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                      {criteria.map((c, ci) => (
+                        <span key={ci} className={c.pass ? 'text-emerald-400' : 'text-zinc-500'}>
+                          {c.pass ? '✓' : '✗'} {c.label}: {c.value}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Note */}
+                    <p className="mt-2 text-[10px] text-text-tertiary">{sig.note}</p>
+
+                    {allPass && sig.side === 'bull' && (
+                      <div className="mt-2 p-2 rounded bg-emerald-500/10 border border-emerald-500/20">
+                        <p className="text-emerald-400 text-xs font-semibold">Signal Active — Open /selector for DTE5 spread recommendation</p>
+                      </div>
+                    )}
+                    {allPass && sig.side === 'bear' && (
+                      <div className="mt-2 p-2 rounded bg-rose-500/10 border border-rose-500/20">
+                        <p className="text-rose-400 text-xs font-semibold">Bear Signal Active — Sell {sig.spread} call spread on {sig.ticker}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Scan button */}
             <button
-              onClick={() => { scanner.clearCache(); scanner.scan(techOptions, ['QQQ'], '1D'); }}
+              onClick={() => { scanner.clearCache(); scanner.scan(techOptions, ['QQQ', 'SPY', 'IWM'], '1D'); }}
               disabled={scanner.loading}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 transition-colors"
             >
               <RefreshCw size={13} className={scanner.loading ? 'animate-spin' : ''} />
-              {scanner.loading ? `${scanner.progress}%` : 'Rescan QQQ'}
+              {scanner.loading ? `${scanner.progress}%` : 'Rescan All'}
             </button>
           </div>
         );

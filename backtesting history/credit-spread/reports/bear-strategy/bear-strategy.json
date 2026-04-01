@@ -1,0 +1,6690 @@
+{
+  "generatedAt": "2026-04-01T01:43:40.162Z",
+  "config": {
+    "trainDays": 252,
+    "testDays": 126,
+    "startingCapital": 10000,
+    "dateRange": "2017-01-03 to 2026-03-28",
+    "bullBaseline": "QQQ sp30/20 EMA34 10%",
+    "bearRegime": "EMA21<EMA34<EMA55"
+  },
+  "sweepResults": [
+    {
+      "ticker": "QQQ",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": -0.08754485838219242,
+      "cagr": -0.9190791596667913,
+      "maxDD": 15.345920585454738,
+      "winRate": 80.83333333333333,
+      "finalEquity": 9286.55000000001,
+      "trades": 120,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9274.550000000014
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.5414124666457166,
+      "cagr": -7.53254498291046,
+      "maxDD": 47.36015779092676,
+      "winRate": 74.77477477477478,
+      "finalEquity": 5337.680000000024,
+      "trades": 111,
+      "posWindows": 1,
+      "totalWindows": 16,
+      "minEquity": 5337.680000000024
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.06943100042441523,
+      "cagr": -2.3918388131782597,
+      "maxDD": 34.75986277873048,
+      "winRate": 76.72413793103449,
+      "finalEquity": 8236.000000000031,
+      "trades": 116,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8104
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.21982093165777344,
+      "cagr": -5.84987058968367,
+      "maxDD": 55.15898683963827,
+      "winRate": 70.43478260869566,
+      "finalEquity": 6167.899999999984,
+      "trades": 115,
+      "posWindows": 1,
+      "totalWindows": 16,
+      "minEquity": 6167.899999999984
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": -0.11527555083807958,
+      "cagr": -5.8668282981369835,
+      "maxDD": 65.28967538322816,
+      "winRate": 61.86440677966102,
+      "finalEquity": 6158.999999999998,
+      "trades": 118,
+      "posWindows": 1,
+      "totalWindows": 16,
+      "minEquity": 6158.999999999998
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": -0.06241632502126103,
+      "cagr": -0.7287135224327668,
+      "maxDD": 15.437583938969428,
+      "winRate": 81.03448275862068,
+      "finalEquity": 9430.55000000001,
+      "trades": 116,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9210.550000000014
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.5209877900338444,
+      "cagr": -7.082183021015487,
+      "maxDD": 45.269428007889275,
+      "winRate": 74.54545454545455,
+      "finalEquity": 5549.680000000026,
+      "trades": 110,
+      "posWindows": 1,
+      "totalWindows": 16,
+      "minEquity": 5549.680000000026
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.10628857895661313,
+      "cagr": -2.920697753021806,
+      "maxDD": 33.37991266375523,
+      "winRate": 76.10619469026548,
+      "finalEquity": 7885.000000000032,
+      "trades": 113,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 7885.000000000032
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.23933858655494034,
+      "cagr": -6.078401887236362,
+      "maxDD": 55.206704961407915,
+      "winRate": 69.64285714285714,
+      "finalEquity": 6048.899999999984,
+      "trades": 112,
+      "posWindows": 1,
+      "totalWindows": 16,
+      "minEquity": 6048.899999999984
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": -0.10505014003239269,
+      "cagr": -5.490826631848722,
+      "maxDD": 62.042619232376296,
+      "winRate": 62.28070175438597,
+      "finalEquity": 6359,
+      "trades": 114,
+      "posWindows": 1,
+      "totalWindows": 16,
+      "minEquity": 6359
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": -0.2503807056492291,
+      "cagr": -1.8275829541883448,
+      "maxDD": 22.491237779007555,
+      "winRate": 77.58620689655173,
+      "finalEquity": 8625.500000000002,
+      "trades": 58,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8403.500000000004
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.5826130619948298,
+      "cagr": -6.471307274985582,
+      "maxDD": 44.18893129770982,
+      "winRate": 71.42857142857143,
+      "finalEquity": 5849.000000000015,
+      "trades": 56,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 5849.000000000015
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.11584626825941477,
+      "cagr": -2.058780299813645,
+      "maxDD": 36.13039541201316,
+      "winRate": 75,
+      "finalEquity": 8464.000000000016,
+      "trades": 56,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8464.000000000016
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.11719259806210444,
+      "cagr": -2.5530270036288827,
+      "maxDD": 46.1213125621477,
+      "winRate": 71.42857142857143,
+      "finalEquity": 8127.600000000013,
+      "trades": 56,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8127.600000000013
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.20336740236621406,
+      "cagr": 1.9756554671487958,
+      "maxDD": 42.490669189927885,
+      "winRate": 66.66666666666666,
+      "finalEquity": 11698.000000000018,
+      "trades": 54,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9600
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": -0.1849523533124791,
+      "cagr": -1.17431695024115,
+      "maxDD": 17.62276060521674,
+      "winRate": 77.19298245614034,
+      "finalEquity": 9096.500000000002,
+      "trades": 57,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8874.500000000004
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.5704356133670537,
+      "cagr": -6.04338973767109,
+      "maxDD": 41.43822393822384,
+      "winRate": 70.9090909090909,
+      "finalEquity": 6067.000000000015,
+      "trades": 55,
+      "posWindows": 1,
+      "totalWindows": 16,
+      "minEquity": 6067.000000000015
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.15857951577796334,
+      "cagr": -2.5943679647162488,
+      "maxDD": 36.847029471386115,
+      "winRate": 74.54545454545455,
+      "finalEquity": 8100.000000000016,
+      "trades": 55,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 8100.000000000016
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.07824422371568941,
+      "cagr": -1.9687099480482084,
+      "maxDD": 42.85792200709015,
+      "winRate": 70.9090909090909,
+      "finalEquity": 8526.600000000011,
+      "trades": 55,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 8526.600000000011
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.12536915757890027,
+      "cagr": 0.6736940447027884,
+      "maxDD": 44.251530328324904,
+      "winRate": 66.0377358490566,
+      "finalEquity": 10553.000000000015,
+      "trades": 53,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 9600
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": -0.32740237185444576,
+      "cagr": -2.6266875636647424,
+      "maxDD": 26.877945966660207,
+      "winRate": 78.3132530120482,
+      "finalEquity": 8078.480000000009,
+      "trades": 83,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7632.480000000011
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.46289009289100086,
+      "cagr": -5.68597501737067,
+      "maxDD": 39.53499613302381,
+      "winRate": 75.9493670886076,
+      "finalEquity": 6254.500000000022,
+      "trades": 79,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 6254.500000000022
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.05244805533106387,
+      "cagr": -1.58011232780767,
+      "maxDD": 32.06235400601548,
+      "winRate": 76.92307692307693,
+      "finalEquity": 8801.350000000031,
+      "trades": 78,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 8729.350000000031
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.15985702822034067,
+      "cagr": -3.699282992311692,
+      "maxDD": 41.810557571187026,
+      "winRate": 70,
+      "finalEquity": 7392.090000000005,
+      "trades": 80,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 7392.090000000005
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": -0.02935167175681704,
+      "cagr": -2.654501764478834,
+      "maxDD": 43.79750366083244,
+      "winRate": 62.96296296296296,
+      "finalEquity": 8060.000000000019,
+      "trades": 81,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8060.000000000019
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": -0.3559550512935144,
+      "cagr": -2.857137568712409,
+      "maxDD": 27.19860694592234,
+      "winRate": 77.5,
+      "finalEquity": 7926.480000000009,
+      "trades": 80,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7525.480000000011
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.505786605453774,
+      "cagr": -6.270364091569336,
+      "maxDD": 41.316568047337064,
+      "winRate": 75,
+      "finalEquity": 5950.500000000022,
+      "trades": 76,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 5950.500000000022
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.10365547178648762,
+      "cagr": -2.2413421976145376,
+      "maxDD": 30.943969579097086,
+      "winRate": 76,
+      "finalEquity": 8338.35000000003,
+      "trades": 75,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8338.35000000003
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.22910601874272143,
+      "cagr": -4.826230298196366,
+      "maxDD": 44.66790989833404,
+      "winRate": 69.23076923076923,
+      "finalEquity": 6726.440000000007,
+      "trades": 78,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 6726.440000000007
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": -0.06812156225276438,
+      "cagr": -3.2879927801302333,
+      "maxDD": 41.46770737679816,
+      "winRate": 63.1578947368421,
+      "finalEquity": 7649.000000000019,
+      "trades": 76,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7649.000000000019
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": -0.1707952826120567,
+      "cagr": -1.5953951451468384,
+      "maxDD": 22.431746995331782,
+      "winRate": 80.76923076923077,
+      "finalEquity": 8790.400000000014,
+      "trades": 104,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8484.400000000016
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.38856918142994107,
+      "cagr": -5.186526071732489,
+      "maxDD": 36.90775478630811,
+      "winRate": 76.28865979381443,
+      "finalEquity": 6525.000000000025,
+      "trades": 97,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 6525.000000000025
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.02421491810185832,
+      "cagr": -1.4980518339129278,
+      "maxDD": 40.07689339156819,
+      "winRate": 77,
+      "finalEquity": 8860.350000000037,
+      "trades": 100,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8307.350000000037
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.062366060365018745,
+      "cagr": -2.582387392039054,
+      "maxDD": 52.605910510064604,
+      "winRate": 71.28712871287128,
+      "finalEquity": 8107.989999999984,
+      "trades": 101,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8107.989999999984
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": -0.06515576066647676,
+      "cagr": -4.045024809284925,
+      "maxDD": 60.67889405967701,
+      "winRate": 62,
+      "finalEquity": 7181.999999999992,
+      "trades": 100,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7181.999999999992
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": -0.14587080445728692,
+      "cagr": -1.3957331110993731,
+      "maxDD": 22.563771498568062,
+      "winRate": 81,
+      "finalEquity": 8934.400000000014,
+      "trades": 100,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8420.400000000016
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.4252817892806493,
+      "cagr": -5.662482296947036,
+      "maxDD": 38.792850864342064,
+      "winRate": 75.78947368421053,
+      "finalEquity": 6267.000000000025,
+      "trades": 95,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 6267.000000000025
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.12247231432776945,
+      "cagr": -3.0265366390438198,
+      "maxDD": 43.38880506548707,
+      "winRate": 76.28865979381443,
+      "finalEquity": 7816.350000000034,
+      "trades": 97,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 7635.350000000033
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.11151903788661793,
+      "cagr": -3.456217871646472,
+      "maxDD": 54.18831207150494,
+      "winRate": 70.70707070707071,
+      "finalEquity": 7542.989999999984,
+      "trades": 99,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7542.989999999984
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": -0.10895687004079133,
+      "cagr": -4.899570947472309,
+      "maxDD": 61.73659206685368,
+      "winRate": 62.5,
+      "finalEquity": 6684.999999999991,
+      "trades": 96,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6684.999999999991
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": 0.04630607623608343,
+      "cagr": 0.08829415508555538,
+      "maxDD": 8.560737428128185,
+      "winRate": 80,
+      "finalEquity": 10071.000000000004,
+      "trades": 25,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.21819782502781945,
+      "cagr": -1.5457693497025304,
+      "maxDD": 23.372113214099592,
+      "winRate": 75,
+      "finalEquity": 8826.000000000015,
+      "trades": 24,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8826.000000000015
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": 0.041020471648691235,
+      "cagr": 0.009976016092516637,
+      "maxDD": 16.86541737649063,
+      "winRate": 80,
+      "finalEquity": 10008,
+      "trades": 25,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9440
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": 0.1686970440535853,
+      "cagr": 0.9998985748691958,
+      "maxDD": 14.438078985860436,
+      "winRate": 75,
+      "finalEquity": 10830.250000000015,
+      "trades": 24,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 9560
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.3678928152571032,
+      "cagr": 3.3130917325135067,
+      "maxDD": 19.78985456822768,
+      "winRate": 70.83333333333334,
+      "finalEquity": 12986,
+      "trades": 24,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9600
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.09794228417126068,
+      "cagr": 0.21419045016959348,
+      "maxDD": 8.644364574693624,
+      "winRate": 80.95238095238095,
+      "finalEquity": 10173.000000000004,
+      "trades": 21,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 9913
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.14356010187112878,
+      "cagr": -0.8998603235367608,
+      "maxDD": 20.40924325277819,
+      "winRate": 75,
+      "finalEquity": 9301.000000000015,
+      "trades": 20,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9189.000000000015
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": 0.019738909852835034,
+      "cagr": -0.10894261527877314,
+      "maxDD": 17.292576419213972,
+      "winRate": 80,
+      "finalEquity": 9913,
+      "trades": 20,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9440
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": 0.18167699478327898,
+      "cagr": 1.0374830831276105,
+      "maxDD": 14.473728106755503,
+      "winRate": 75,
+      "finalEquity": 10862.600000000015,
+      "trades": 20,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9560
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.3378422994219436,
+      "cagr": 2.6959225496398176,
+      "maxDD": 19.219547775346463,
+      "winRate": 70,
+      "finalEquity": 12377,
+      "trades": 20,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 9600
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": -0.23691949736308232,
+      "cagr": -1.6225125106647864,
+      "maxDD": 19.694195202343888,
+      "winRate": 82.22222222222221,
+      "finalEquity": 8771.000000000004,
+      "trades": 45,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8771.000000000004
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.2144755836081051,
+      "cagr": -2.1761943298376107,
+      "maxDD": 30.01279317697217,
+      "winRate": 77.27272727272727,
+      "finalEquity": 8383.000000000018,
+      "trades": 44,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 8206.000000000018
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": 0.01941324269298921,
+      "cagr": -0.37411531076018134,
+      "maxDD": 26.216194266222665,
+      "winRate": 78.72340425531915,
+      "finalEquity": 9704.000000000004,
+      "trades": 47,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 9085.000000000004
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": 0.21382432699658954,
+      "cagr": 1.7545911457515162,
+      "maxDD": 27.26279650436942,
+      "winRate": 75,
+      "finalEquity": 11496.250000000015,
+      "trades": 44,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 9560
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.11805274000455256,
+      "cagr": 0.628401345994023,
+      "maxDD": 44.50012528188427,
+      "winRate": 62.22222222222222,
+      "finalEquity": 10514.999999999989,
+      "trades": 45,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8859.999999999987
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": -0.2352474384817674,
+      "cagr": -1.5973503138809408,
+      "maxDD": 20.0149086843086,
+      "winRate": 82.5,
+      "finalEquity": 8789.000000000004,
+      "trades": 40,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8584.000000000004
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.23085103355192002,
+      "cagr": -2.2060676394530576,
+      "maxDD": 29.77302487996495,
+      "winRate": 76.31578947368422,
+      "finalEquity": 8362.50000000002,
+      "trades": 38,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8044.50000000002
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.026800972402033316,
+      "cagr": -0.7570396866377171,
+      "maxDD": 26.286334781156,
+      "winRate": 77.5,
+      "finalEquity": 9409.000000000004,
+      "trades": 40,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8825.000000000004
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": 0.15278463647070112,
+      "cagr": 1.0243077253605959,
+      "maxDD": 27.513062035469765,
+      "winRate": 73.68421052631578,
+      "finalEquity": 10851.250000000011,
+      "trades": 38,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9560
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.05881770880781638,
+      "cagr": -0.15426725875619107,
+      "maxDD": 42.11437274993081,
+      "winRate": 61.53846153846154,
+      "finalEquity": 9876.999999999987,
+      "trades": 39,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8360.999999999987
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": -0.3611588839329766,
+      "cagr": -3.064272986552219,
+      "maxDD": 32.28339350180506,
+      "winRate": 79.1044776119403,
+      "finalEquity": 7792.000000000003,
+      "trades": 67,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 7503.0000000000055
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.36886228696302026,
+      "cagr": -4.099298112255633,
+      "maxDD": 32.006903353057034,
+      "winRate": 75,
+      "finalEquity": 7149.500000000016,
+      "trades": 64,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7149.500000000016
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.03248026471035766,
+      "cagr": -1.1208866148681773,
+      "maxDD": 29.940606948173297,
+      "winRate": 76.5625,
+      "finalEquity": 9136.00000000002,
+      "trades": 64,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8566
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": 0.06304719577768346,
+      "cagr": -0.09939250072191763,
+      "maxDD": 32.94126252651579,
+      "winRate": 73.4375,
+      "finalEquity": 9920.60000000002,
+      "trades": 64,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 8913
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.11065622660546665,
+      "cagr": 0.37791504951656396,
+      "maxDD": 47.13932399010707,
+      "winRate": 62.903225806451616,
+      "finalEquity": 10307.000000000022,
+      "trades": 62,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9040
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": -0.3985791291622099,
+      "cagr": -3.3322261156869537,
+      "maxDD": 31.561002580169532,
+      "winRate": 77.41935483870968,
+      "finalEquity": 7621.000000000005,
+      "trades": 62,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 7427.000000000007
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.5002237886546925,
+      "cagr": -5.480633617076414,
+      "maxDD": 37.23372781065073,
+      "winRate": 72.41379310344827,
+      "finalEquity": 6364.500000000016,
+      "trades": 58,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 6364.500000000016
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.22421165411183303,
+      "cagr": -3.4418398939266237,
+      "maxDD": 35.04773372323024,
+      "winRate": 73.68421052631578,
+      "finalEquity": 7552.000000000022,
+      "trades": 57,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7552.000000000022
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.0879643053696565,
+      "cagr": -2.0897048799011997,
+      "maxDD": 33.59603586597436,
+      "winRate": 70.6896551724138,
+      "finalEquity": 8442.600000000013,
+      "trades": 58,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8442.600000000013
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": -0.013014664985640089,
+      "cagr": -1.5917648404652818,
+      "maxDD": 47.23942043786293,
+      "winRate": 61.81818181818181,
+      "finalEquity": 8793.000000000015,
+      "trades": 55,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8318.000000000015
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": 0.032427800939191564,
+      "cagr": -0.013104127164642598,
+      "maxDD": 19.123689727463322,
+      "winRate": 81.81818181818183,
+      "finalEquity": 9989.50000000001,
+      "trades": 99,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 9693.500000000011
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.31843788432309167,
+      "cagr": -4.486235961740681,
+      "maxDD": 38.60788231020694,
+      "winRate": 78.88888888888889,
+      "finalEquity": 6921.500000000021,
+      "trades": 90,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 6921.500000000021
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": 0.34067323239568814,
+      "cagr": 3.7716826276948723,
+      "maxDD": 23.78785043468326,
+      "winRate": 80.64516129032258,
+      "finalEquity": 13455.350000000031,
+      "trades": 93,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 8566
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": 0.16203259016556157,
+      "cagr": 1.266311436968337,
+      "maxDD": 44.02579047056098,
+      "winRate": 74.46808510638297,
+      "finalEquity": 11061.389999999961,
+      "trades": 94,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8913
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.16442947159155258,
+      "cagr": 1.1408416321850856,
+      "maxDD": 49.48006932409022,
+      "winRate": 64.8936170212766,
+      "finalEquity": 10951.999999999984,
+      "trades": 94,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 9040
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.03503926657972981,
+      "cagr": 0.004365366237557566,
+      "maxDD": 19.93137337964925,
+      "winRate": 81.91489361702128,
+      "finalEquity": 10003.50000000001,
+      "trades": 94,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 9499.500000000011
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.39526552035367024,
+      "cagr": -5.340568288663339,
+      "maxDD": 38.50377160316994,
+      "winRate": 77.90697674418605,
+      "finalEquity": 6440.500000000021,
+      "trades": 86,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 6440.500000000021
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": 0.1467266668880751,
+      "cagr": 1.030229421693618,
+      "maxDD": 26.24867566009926,
+      "winRate": 79.54545454545455,
+      "finalEquity": 10856.350000000033,
+      "trades": 88,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8566
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": 0.0975551660129942,
+      "cagr": 0.20526620224479153,
+      "maxDD": 44.51089319138108,
+      "winRate": 73.33333333333333,
+      "finalEquity": 10165.739999999963,
+      "trades": 90,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8913
+    },
+    {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.05826035589780803,
+      "cagr": -1.1438571160519495,
+      "maxDD": 52.753743329361235,
+      "winRate": 64.04494382022472,
+      "finalEquity": 9118.999999999982,
+      "trades": 89,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 9040
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": -0.08382157773484461,
+      "cagr": -1.2766968146576407,
+      "maxDD": 21.168744804655006,
+      "winRate": 86.23188405797102,
+      "finalEquity": 9021.230000000003,
+      "trades": 138,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 9021.230000000003
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.21302912420446316,
+      "cagr": -4.161299239398597,
+      "maxDD": 39.2308782497013,
+      "winRate": 78.57142857142857,
+      "finalEquity": 7112.5299999999415,
+      "trades": 140,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 7112.5299999999415
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.3240043511693595,
+      "cagr": -6.913831751082289,
+      "maxDD": 48.58200000000031,
+      "winRate": 72.72727272727273,
+      "finalEquity": 5630.7999999999665,
+      "trades": 132,
+      "posWindows": 1,
+      "totalWindows": 16,
+      "minEquity": 5490.7999999999665
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.2786371107525555,
+      "cagr": -7.684952936624345,
+      "maxDD": 50.57381739268578,
+      "winRate": 69.56521739130434,
+      "finalEquity": 5267.559999999975,
+      "trades": 138,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 5267.559999999975
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.26354454838168195,
+      "cagr": 3.4513805505928197,
+      "maxDD": 48.0946352961717,
+      "winRate": 61.940298507462686,
+      "finalEquity": 13126.000000000036,
+      "trades": 134,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9054.000000000007
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": -0.0677100335870562,
+      "cagr": -1.1394898383344843,
+      "maxDD": 24.500475894889288,
+      "winRate": 86.25954198473282,
+      "finalEquity": 9122.230000000007,
+      "trades": 131,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 9122.230000000007
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.2534898899696985,
+      "cagr": -4.703080101380197,
+      "maxDD": 41.37131766228192,
+      "winRate": 78.19548872180451,
+      "finalEquity": 6796.529999999932,
+      "trades": 133,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 6796.529999999932
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.39120479275092157,
+      "cagr": -7.971735292563786,
+      "maxDD": 49.45200000000032,
+      "winRate": 72,
+      "finalEquity": 5137.7999999999665,
+      "trades": 125,
+      "posWindows": 1,
+      "totalWindows": 16,
+      "minEquity": 5137.7999999999665
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.32157004928333854,
+      "cagr": -8.366962861951189,
+      "maxDD": 53.187476068229614,
+      "winRate": 68.93939393939394,
+      "finalEquity": 4963.559999999975,
+      "trades": 132,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 4963.559999999975
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.20611845954758423,
+      "cagr": 1.9495335203852937,
+      "maxDD": 48.74807221264618,
+      "winRate": 60.9375,
+      "finalEquity": 11674.00000000004,
+      "trades": 128,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 9054.000000000007
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": -0.40507122314630706,
+      "cagr": -4.328779677579542,
+      "maxDD": 38.94668117519036,
+      "winRate": 83.75,
+      "finalEquity": 7013.499999999996,
+      "trades": 80,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 7013.499999999996
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.2564531943802579,
+      "cagr": -3.428926886240957,
+      "maxDD": 36.88169747683926,
+      "winRate": 73.68421052631578,
+      "finalEquity": 7560.09999999994,
+      "trades": 76,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7560.09999999994
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.1964678721980454,
+      "cagr": -3.4171403979634363,
+      "maxDD": 30.48481880509353,
+      "winRate": 72.15189873417721,
+      "finalEquity": 7567.499999999969,
+      "trades": 79,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7567.499999999969
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.27834245444802436,
+      "cagr": -5.249206920406612,
+      "maxDD": 39.78942213516208,
+      "winRate": 67.10526315789474,
+      "finalEquity": 6490.499999999952,
+      "trades": 76,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6490.499999999952
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": -0.016549173985687782,
+      "cagr": -2.1035998861414273,
+      "maxDD": 40.66191799861005,
+      "winRate": 58.108108108108105,
+      "finalEquity": 8433.000000000022,
+      "trades": 74,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 7628.000000000022
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": -0.39708111056710677,
+      "cagr": -4.205122706213304,
+      "maxDD": 38.31120783460278,
+      "winRate": 84.61538461538461,
+      "finalEquity": 7086.4999999999945,
+      "trades": 78,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 7086.4999999999945
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.2561925522987724,
+      "cagr": -3.335232814304079,
+      "maxDD": 37.67862255122513,
+      "winRate": 73.61111111111111,
+      "finalEquity": 7619.09999999994,
+      "trades": 72,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7619.09999999994
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.24203734134784352,
+      "cagr": -4.012563921439572,
+      "maxDD": 31.532810969638092,
+      "winRate": 70.66666666666667,
+      "finalEquity": 7201.499999999969,
+      "trades": 75,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 7201.499999999969
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.2651782993240019,
+      "cagr": -5.00378474570965,
+      "maxDD": 35.097943192948605,
+      "winRate": 68.05555555555556,
+      "finalEquity": 6626.499999999948,
+      "trades": 72,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6626.499999999948
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.012847936256934757,
+      "cagr": -1.456993374842186,
+      "maxDD": 43.05050936809853,
+      "winRate": 58.57142857142858,
+      "finalEquity": 8890.000000000018,
+      "trades": 70,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8890.000000000018
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": -0.39852678927576796,
+      "cagr": -4.464185324180536,
+      "maxDD": 41.22212333121417,
+      "winRate": 83.80952380952381,
+      "finalEquity": 6934.319999999998,
+      "trades": 105,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6934.319999999998
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.30781728650282536,
+      "cagr": -4.722211062470894,
+      "maxDD": 41.0901060070675,
+      "winRate": 76.19047619047619,
+      "finalEquity": 6785.5999999999185,
+      "trades": 105,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6785.5999999999185
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.41493888226078546,
+      "cagr": -7.0307162092289595,
+      "maxDD": 44.25630000000028,
+      "winRate": 69.81132075471697,
+      "finalEquity": 5574.36999999997,
+      "trades": 106,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 5574.36999999997
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.347525355899407,
+      "cagr": -7.47673651595826,
+      "maxDD": 50.474400000000244,
+      "winRate": 66.0377358490566,
+      "finalEquity": 5363.559999999979,
+      "trades": 106,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 5333.559999999977
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.12726244579392,
+      "cagr": 0.30727922734063995,
+      "maxDD": 44.52654982997638,
+      "winRate": 59,
+      "finalEquity": 10249.000000000022,
+      "trades": 100,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7165.000000000022
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": -0.21900756700059218,
+      "cagr": -2.4254091702900826,
+      "maxDD": 30.545685171874297,
+      "winRate": 84.46601941747572,
+      "finalEquity": 8213.320000000002,
+      "trades": 103,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8213.320000000002
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.3246831355948427,
+      "cagr": -4.902055613711798,
+      "maxDD": 40.95759717314525,
+      "winRate": 76.23762376237624,
+      "finalEquity": 6683.599999999916,
+      "trades": 101,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6683.599999999916
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.36094588059823535,
+      "cagr": -6.17078109667919,
+      "maxDD": 41.936300000000394,
+      "winRate": 70.29702970297029,
+      "finalEquity": 6001.36999999997,
+      "trades": 101,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6001.36999999997
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.3335989094087899,
+      "cagr": -7.096016614908329,
+      "maxDD": 45.67940000000028,
+      "winRate": 66.33663366336634,
+      "finalEquity": 5543.059999999974,
+      "trades": 101,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 5543.059999999974
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.11453509308848972,
+      "cagr": 0.10811618237940301,
+      "maxDD": 45.457771469126975,
+      "winRate": 58.94736842105262,
+      "finalEquity": 10087.000000000022,
+      "trades": 95,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8065.000000000022
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": -0.07473135331685296,
+      "cagr": -1.1645220066835438,
+      "maxDD": 24.121765982306584,
+      "winRate": 88.09523809523809,
+      "finalEquity": 9103.730000000027,
+      "trades": 126,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 9103.730000000027
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.12089140138121889,
+      "cagr": -2.5995742637802244,
+      "maxDD": 37.612173571568995,
+      "winRate": 79.03225806451613,
+      "finalEquity": 8096.529999999941,
+      "trades": 124,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 8096.529999999941
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.30682124736905686,
+      "cagr": -6.362442092755394,
+      "maxDD": 46.59256433869646,
+      "winRate": 72.72727272727273,
+      "finalEquity": 5903.799999999967,
+      "trades": 121,
+      "posWindows": 1,
+      "totalWindows": 16,
+      "minEquity": 5903.799999999967
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.12141495066898789,
+      "cagr": -4.2379434083962835,
+      "maxDD": 44.92972221483144,
+      "winRate": 69.84126984126983,
+      "finalEquity": 7067.059999999969,
+      "trades": 126,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6976.059999999964
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.290283907246333,
+      "cagr": 4.101480768100996,
+      "maxDD": 49.60735402808564,
+      "winRate": 61.86440677966102,
+      "finalEquity": 13802.000000000031,
+      "trades": 118,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8839.000000000022
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.012783419808695348,
+      "cagr": -0.3309835485235224,
+      "maxDD": 23.46356991275632,
+      "winRate": 88.23529411764706,
+      "finalEquity": 9737.730000000025,
+      "trades": 119,
+      "posWindows": 7,
+      "totalWindows": 16,
+      "minEquity": 9737.730000000025
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.09757161565603222,
+      "cagr": -2.2159471974782075,
+      "maxDD": 38.526034813339045,
+      "winRate": 78.8135593220339,
+      "finalEquity": 8355.72999999994,
+      "trades": 118,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 8355.72999999994
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.31687024531869096,
+      "cagr": -6.214852968833206,
+      "maxDD": 42.14955199102749,
+      "winRate": 72.17391304347827,
+      "finalEquity": 5978.809999999969,
+      "trades": 115,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 5978.809999999969
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.14892170543377703,
+      "cagr": -4.646301207190707,
+      "maxDD": 46.104585519816546,
+      "winRate": 69.49152542372882,
+      "finalEquity": 6829.059999999969,
+      "trades": 118,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6829.059999999969
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.21812287898983557,
+      "cagr": 2.331217212027026,
+      "maxDD": 49.85827428095032,
+      "winRate": 60.71428571428571,
+      "finalEquity": 12029.000000000038,
+      "trades": 112,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 9054.000000000007
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": 0.07433090933935159,
+      "cagr": 0.24487874346661442,
+      "maxDD": 18.761264951663055,
+      "winRate": 88.37209302325581,
+      "finalEquity": 10198.000000000011,
+      "trades": 43,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 9916.000000000007
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": 0.01610110102557733,
+      "cagr": -0.17849955592578182,
+      "maxDD": 24.077367025425136,
+      "winRate": 79.06976744186046,
+      "finalEquity": 9857.799999999952,
+      "trades": 43,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 9734.799999999963
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.23423720620944136,
+      "cagr": -2.772517833159349,
+      "maxDD": 24.655465357750042,
+      "winRate": 68.18181818181817,
+      "finalEquity": 7981.999999999942,
+      "trades": 44,
+      "posWindows": 1,
+      "totalWindows": 16,
+      "minEquity": 7981.999999999942
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.17598983593974205,
+      "cagr": -2.714897337271216,
+      "maxDD": 33.515709193401456,
+      "winRate": 67.44186046511628,
+      "finalEquity": 8019.9999999999645,
+      "trades": 43,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8019.9999999999645
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.29515145179061686,
+      "cagr": 3.2105150388458847,
+      "maxDD": 35.70627802690571,
+      "winRate": 65.9090909090909,
+      "finalEquity": 12883.000000000022,
+      "trades": 44,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.05305337636016463,
+      "cagr": 0.13409087201139425,
+      "maxDD": 18.761264951663055,
+      "winRate": 87.8048780487805,
+      "finalEquity": 10108.000000000007,
+      "trades": 41,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 9916.000000000007
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": 0.0781415226228738,
+      "cagr": 0.2923768248430436,
+      "maxDD": 24.077367025425136,
+      "winRate": 80.48780487804879,
+      "finalEquity": 10236.799999999963,
+      "trades": 41,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 9734.799999999963
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.17181131943341924,
+      "cagr": -2.0703328722959657,
+      "maxDD": 23.739852746838203,
+      "winRate": 69.04761904761905,
+      "finalEquity": 8455.999999999942,
+      "trades": 42,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 8078.999999999942
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.10563078859168042,
+      "cagr": -1.7885930756710522,
+      "maxDD": 32.520931774848854,
+      "winRate": 68.29268292682927,
+      "finalEquity": 8652.999999999964,
+      "trades": 41,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8139.9999999999645
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.33958021301297125,
+      "cagr": 3.7559445447476136,
+      "maxDD": 35.70627802690571,
+      "winRate": 66.66666666666666,
+      "finalEquity": 13439.000000000022,
+      "trades": 42,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": -0.3516634648434758,
+      "cagr": -3.3734274772681205,
+      "maxDD": 35.10211056993922,
+      "winRate": 83.82352941176471,
+      "finalEquity": 7595.000000000011,
+      "trades": 68,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 7595.000000000011
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.09463245446623937,
+      "cagr": -1.4268817566699732,
+      "maxDD": 31.781517942203934,
+      "winRate": 76.81159420289855,
+      "finalEquity": 8911.799999999967,
+      "trades": 69,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 8911.799999999967
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.3213689902526133,
+      "cagr": -5.260538656349977,
+      "maxDD": 40.226473256097115,
+      "winRate": 70.27027027027027,
+      "finalEquity": 6484.279999999975,
+      "trades": 74,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 6484.279999999975
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.14667652020108457,
+      "cagr": -3.1100044872420907,
+      "maxDD": 33.53454057679427,
+      "winRate": 69.11764705882352,
+      "finalEquity": 7762.5799999999645,
+      "trades": 68,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 7647.08
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.34439628079468726,
+      "cagr": 4.640133500103216,
+      "maxDD": 43.75664957926289,
+      "winRate": 63.76811594202898,
+      "finalEquity": 14385.000000000044,
+      "trades": 69,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 9740.000000000018
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": -0.37525725471172755,
+      "cagr": -3.5877512229084307,
+      "maxDD": 35.94058555851281,
+      "winRate": 83.33333333333334,
+      "finalEquity": 7461.000000000011,
+      "trades": 66,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7461.000000000011
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.15698874706260305,
+      "cagr": -2.0302287289057697,
+      "maxDD": 31.802250803858577,
+      "winRate": 75.38461538461539,
+      "finalEquity": 8483.799999999965,
+      "trades": 65,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 8483.799999999965
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.32273432958181963,
+      "cagr": -5.002747569344635,
+      "maxDD": 40.680009734441796,
+      "winRate": 70,
+      "finalEquity": 6627.079999999973,
+      "trades": 70,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 6627.079999999973
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.2260447645197361,
+      "cagr": -4.195716505584002,
+      "maxDD": 34.67735101777685,
+      "winRate": 67.6923076923077,
+      "finalEquity": 7092.079999999966,
+      "trades": 65,
+      "posWindows": 1,
+      "totalWindows": 16,
+      "minEquity": 7092.079999999966
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.1895844507360456,
+      "cagr": 1.768661870232524,
+      "maxDD": 44.30940364610145,
+      "winRate": 61.53846153846154,
+      "finalEquity": 11509.00000000004,
+      "trades": 65,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9740.000000000018
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": -0.19582741474951534,
+      "cagr": -2.195859797620381,
+      "maxDD": 30.349935505346792,
+      "winRate": 86.17021276595744,
+      "finalEquity": 8369.499999999995,
+      "trades": 94,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 8369.499999999995
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.0032602291260836807,
+      "cagr": -0.7316683602478502,
+      "maxDD": 28.916860671586104,
+      "winRate": 78.26086956521739,
+      "finalEquity": 9428.299999999927,
+      "trades": 92,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 9428.299999999927
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.16930508215367368,
+      "cagr": -3.3971264997326056,
+      "maxDD": 31.213374889547257,
+      "winRate": 72.63157894736842,
+      "finalEquity": 7580.079999999987,
+      "trades": 95,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 7580.079999999987
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.03504621050783905,
+      "cagr": -2.0233591143919205,
+      "maxDD": 36.55800459981071,
+      "winRate": 70.96774193548387,
+      "finalEquity": 8488.569999999965,
+      "trades": 93,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8079.070000000003
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.5538250498872098,
+      "cagr": 9.663110667394115,
+      "maxDD": 41.02662619587343,
+      "winRate": 66.66666666666666,
+      "finalEquity": 20948.000000000047,
+      "trades": 87,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9668.000000000007
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": -0.21655894873995865,
+      "cagr": -2.392578027697656,
+      "maxDD": 31.144182935495984,
+      "winRate": 85.86956521739131,
+      "finalEquity": 8235.499999999995,
+      "trades": 92,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 8235.499999999995
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.04450136869375673,
+      "cagr": -1.1529204938733106,
+      "maxDD": 26.394303153611652,
+      "winRate": 77.01149425287356,
+      "finalEquity": 9112.299999999927,
+      "trades": 87,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9112.299999999927
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.17935374473778407,
+      "cagr": -3.4321460333742837,
+      "maxDD": 32.581328541798655,
+      "winRate": 72.22222222222221,
+      "finalEquity": 7558.079999999987,
+      "trades": 90,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7558.079999999987
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.13662204888158638,
+      "cagr": -3.6328472026005643,
+      "maxDD": 37.425580672278755,
+      "winRate": 69.66292134831461,
+      "finalEquity": 7433.06999999997,
+      "trades": 89,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7433.06999999997
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.4359356640156214,
+      "cagr": 6.952615820241537,
+      "maxDD": 40.222132471728514,
+      "winRate": 65.06024096385542,
+      "finalEquity": 17140.000000000047,
+      "trades": 83,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 9668.000000000007
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": 0.11011296796860404,
+      "cagr": 0.5670643762944128,
+      "maxDD": 19.95305200275706,
+      "winRate": 88.70967741935483,
+      "finalEquity": 10463.730000000023,
+      "trades": 124,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.05374506783015164,
+      "cagr": -1.6635257059365083,
+      "maxDD": 35.232303707426645,
+      "winRate": 79.67479674796748,
+      "finalEquity": 8741.729999999938,
+      "trades": 123,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 8741.729999999938
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.17040704726055855,
+      "cagr": -4.006745753265173,
+      "maxDD": 38.3506416731005,
+      "winRate": 73.72881355932203,
+      "finalEquity": 7204.999999999965,
+      "trades": 118,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 6946.999999999965
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.1279599578652985,
+      "cagr": -4.245552054857593,
+      "maxDD": 46.516065534257024,
+      "winRate": 70.24793388429752,
+      "finalEquity": 7062.559999999966,
+      "trades": 121,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7062.559999999966
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.5592751260040242,
+      "cagr": 10.898354717541615,
+      "maxDD": 46.58569242540162,
+      "winRate": 64.91228070175438,
+      "finalEquity": 22916.000000000036,
+      "trades": 114,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9054.000000000007
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.024774070025067683,
+      "cagr": -0.21146868293283605,
+      "maxDD": 23.195609717990695,
+      "winRate": 88.03418803418803,
+      "finalEquity": 9831.730000000018,
+      "trades": 117,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 9831.730000000018
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.03976223596454185,
+      "cagr": -1.43387902174974,
+      "maxDD": 34.14682129597752,
+      "winRate": 79.66101694915254,
+      "finalEquity": 8906.729999999938,
+      "trades": 118,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 8906.729999999938
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.2276713475569687,
+      "cagr": -4.802317631620124,
+      "maxDD": 37.22830587836263,
+      "winRate": 72.56637168141593,
+      "finalEquity": 6739.999999999965,
+      "trades": 113,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6629.999999999965
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.12839214235337298,
+      "cagr": -4.155367031605284,
+      "maxDD": 44.03875730053217,
+      "winRate": 69.56521739130434,
+      "finalEquity": 7116.059999999966,
+      "trades": 115,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7116.059999999966
+    },
+    {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.36627024480499987,
+      "cagr": 5.934593498699203,
+      "maxDD": 46.28710256681095,
+      "winRate": 62.727272727272734,
+      "finalEquity": 15875.000000000038,
+      "trades": 110,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 9054.000000000007
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": 0.25697919270023534,
+      "cagr": 1.9723927904448324,
+      "maxDD": 17.59051586030121,
+      "winRate": 87.16577540106952,
+      "finalEquity": 11694.999999999993,
+      "trades": 187,
+      "posWindows": 8,
+      "totalWindows": 16,
+      "minEquity": 9174.000000000004
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.20006233180197924,
+      "cagr": -4.243962342620189,
+      "maxDD": 36.69592053235598,
+      "winRate": 80.44692737430168,
+      "finalEquity": 7063.500000000003,
+      "trades": 179,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6564.000000000008
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.2662958677219767,
+      "cagr": -6.6611549443469364,
+      "maxDD": 55.782475607422974,
+      "winRate": 75.40983606557377,
+      "finalEquity": 5754.499999999995,
+      "trades": 183,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 5322.500000000001
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": 0.23094463637114285,
+      "cagr": 2.578493082951705,
+      "maxDD": 33.715331278890496,
+      "winRate": 75.42857142857143,
+      "finalEquity": 12263.999999999973,
+      "trades": 175,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 7083
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "none",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.07941226929047117,
+      "cagr": -1.0690031712948134,
+      "maxDD": 47.109067017082694,
+      "winRate": 62.841530054644814,
+      "finalEquity": 9174.500000000018,
+      "trades": 183,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 7440.999999999991
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.4112903946710476,
+      "cagr": 3.342834522647209,
+      "maxDD": 18.568311395790825,
+      "winRate": 87.77777777777777,
+      "finalEquity": 13015.999999999993,
+      "trades": 180,
+      "posWindows": 8,
+      "totalWindows": 16,
+      "minEquity": 9835
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.07066556262666322,
+      "cagr": -2.1674630180207544,
+      "maxDD": 27.22538335422888,
+      "winRate": 80.92485549132948,
+      "finalEquity": 8389.000000000004,
+      "trades": 173,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7546.000000000009
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.11801242698566988,
+      "cagr": -3.902439477674391,
+      "maxDD": 46.058924813468515,
+      "winRate": 76.27118644067797,
+      "finalEquity": 7267.999999999994,
+      "trades": 177,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 6586.999999999999
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": 0.24791778659542055,
+      "cagr": 2.9167825030559147,
+      "maxDD": 26.759080540445645,
+      "winRate": 75.29411764705883,
+      "finalEquity": 12591.999999999973,
+      "trades": 170,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 8000.000000000004
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "none",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.11488826254026768,
+      "cagr": -0.15678953175668475,
+      "maxDD": 47.431832593531944,
+      "winRate": 63.06818181818182,
+      "finalEquity": 9875.000000000022,
+      "trades": 176,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 8077.999999999991
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": 0.3979757875163929,
+      "cagr": 2.622020728466312,
+      "maxDD": 20.314976386196278,
+      "winRate": 88.28828828828829,
+      "finalEquity": 12305.779999999988,
+      "trades": 111,
+      "posWindows": 8,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.0993796403877284,
+      "cagr": -1.8279521046648872,
+      "maxDD": 32.67467583523243,
+      "winRate": 79.0909090909091,
+      "finalEquity": 8625.239999999989,
+      "trades": 110,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8380.239999999983
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.1683068614496708,
+      "cagr": -3.4881712624203587,
+      "maxDD": 35.686929195718236,
+      "winRate": 75.22935779816514,
+      "finalEquity": 7523.000000000005,
+      "trades": 109,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6957.0000000000055
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.025041477860555647,
+      "cagr": -1.6337102195277842,
+      "maxDD": 25.29624914308094,
+      "winRate": 71.96261682242991,
+      "finalEquity": 8763.000000000002,
+      "trades": 107,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 7909.999999999994
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_1%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": -0.21334689587404138,
+      "cagr": -4.912886978795317,
+      "maxDD": 36.819246535233276,
+      "winRate": 58.87850467289719,
+      "finalEquity": 6677.5000000000055,
+      "trades": 107,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 6677.5000000000055
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.4059464878886392,
+      "cagr": 2.6646101798690536,
+      "maxDD": 21.200299927269064,
+      "winRate": 88.67924528301887,
+      "finalEquity": 12346.779999999988,
+      "trades": 106,
+      "posWindows": 8,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.007099474726171837,
+      "cagr": -0.7159425899697314,
+      "maxDD": 30.8859859318236,
+      "winRate": 79.24528301886792,
+      "finalEquity": 9440.279999999986,
+      "trades": 106,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 9294.27999999998
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.14517506774052052,
+      "cagr": -3.0751403182712855,
+      "maxDD": 35.41706071496114,
+      "winRate": 75.23809523809524,
+      "finalEquity": 7785.000000000003,
+      "trades": 105,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 7237.000000000004
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": -0.07931369862743613,
+      "cagr": -2.4466470800244666,
+      "maxDD": 29.502762430939143,
+      "winRate": 70.87378640776699,
+      "finalEquity": 8199.000000000011,
+      "trades": 103,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 8056.999999999994
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_1%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": -0.190818891878153,
+      "cagr": -4.425262554741927,
+      "maxDD": 40.262751159196256,
+      "winRate": 58.82352941176471,
+      "finalEquity": 6957.0000000000055,
+      "trades": 102,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 6957.0000000000055
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": 0.4045635016969492,
+      "cagr": 3.0580630574441825,
+      "maxDD": 19.305019305019364,
+      "winRate": 87.42138364779875,
+      "finalEquity": 12731.23999999998,
+      "trades": 159,
+      "posWindows": 8,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.11202969128175161,
+      "cagr": -2.5490790923543005,
+      "maxDD": 32.29650012898793,
+      "winRate": 79.60526315789474,
+      "finalEquity": 8130.239999999997,
+      "trades": 152,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 8130.239999999997
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.2130213595673183,
+      "cagr": -5.172032822007811,
+      "maxDD": 48.221558512082474,
+      "winRate": 75.48387096774194,
+      "finalEquity": 6533.000000000001,
+      "trades": 155,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 6533.000000000001
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": 0.3088716880596726,
+      "cagr": 3.9739149722437084,
+      "maxDD": 24.51719698363058,
+      "winRate": 76.87074829931973,
+      "finalEquity": 13666.999999999989,
+      "trades": 147,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 8363.999999999998
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_2%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.059511651091749,
+      "cagr": -1.0831342739435978,
+      "maxDD": 40.46815042210281,
+      "winRate": 62.98701298701299,
+      "finalEquity": 9164.000000000002,
+      "trades": 154,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 7964.999999999985
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.36540455047169657,
+      "cagr": 2.72516424214857,
+      "maxDD": 20.253477033903582,
+      "winRate": 87.5,
+      "finalEquity": 12405.279999999984,
+      "trades": 152,
+      "posWindows": 9,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": -0.0975194954716957,
+      "cagr": -2.3030643850565746,
+      "maxDD": 33.20068610634661,
+      "winRate": 79.59183673469387,
+      "finalEquity": 8296.24,
+      "trades": 147,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8296.24
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.12384060378950393,
+      "cagr": -3.5266328312697603,
+      "maxDD": 41.11684315322646,
+      "winRate": 75.83892617449665,
+      "finalEquity": 7499.000000000001,
+      "trades": 149,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7499.000000000001
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": 0.29276915548196014,
+      "cagr": 3.640890689014964,
+      "maxDD": 19.928269266139313,
+      "winRate": 76.05633802816901,
+      "finalEquity": 13319.999999999995,
+      "trades": 142,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 8707.000000000005
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_2%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.09329476385442444,
+      "cagr": -0.2796597773829679,
+      "maxDD": 40.917418741942015,
+      "winRate": 63.26530612244898,
+      "finalEquity": 9778.000000000005,
+      "trades": 147,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 8646.999999999985
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": 0.3109900535672107,
+      "cagr": 2.5021270488508884,
+      "maxDD": 18.217973231357576,
+      "winRate": 88,
+      "finalEquity": 12190.999999999993,
+      "trades": 175,
+      "posWindows": 8,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.056035534468367475,
+      "cagr": -1.8652580944115371,
+      "maxDD": 30.155191631655683,
+      "winRate": 80.72289156626506,
+      "finalEquity": 8599.000000000007,
+      "trades": 166,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8146.000000000001
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.2109007292296742,
+      "cagr": -5.412262121826695,
+      "maxDD": 52.68946477869794,
+      "winRate": 75.43859649122807,
+      "finalEquity": 6401.500000000001,
+      "trades": 171,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6071.500000000007
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": 0.27018829156289037,
+      "cagr": 3.3408535376653337,
+      "maxDD": 29.63366966639387,
+      "winRate": 76.07361963190185,
+      "finalEquity": 13013.999999999995,
+      "trades": 163,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 8155.000000000009
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_3%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.0868839998022163,
+      "cagr": -0.6704651990627863,
+      "maxDD": 42.28710462287102,
+      "winRate": 63.095238095238095,
+      "finalEquity": 9474.999999999996,
+      "trades": 168,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 7428.999999999984
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.45026573963208905,
+      "cagr": 3.545462941450084,
+      "maxDD": 18.030417727616836,
+      "winRate": 88.55421686746988,
+      "finalEquity": 13221.999999999993,
+      "trades": 166,
+      "posWindows": 9,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": 0.049008437699102236,
+      "cagr": -0.3331925777796174,
+      "maxDD": 24.182020330368587,
+      "winRate": 81.13207547169812,
+      "finalEquity": 9736.000000000005,
+      "trades": 159,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9546.999999999998
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.1394713585450656,
+      "cagr": -4.054194391143506,
+      "maxDD": 47.54207854662029,
+      "winRate": 76.07361963190185,
+      "finalEquity": 7176.500000000003,
+      "trades": 163,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 6888.500000000008
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": 0.31998358778116376,
+      "cagr": 4.270810546928572,
+      "maxDD": 25.58198167913265,
+      "winRate": 75.64102564102564,
+      "finalEquity": 13983,
+      "trades": 156,
+      "posWindows": 7,
+      "totalWindows": 16,
+      "minEquity": 8834.000000000005
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA8_3%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.1762548798792667,
+      "cagr": 1.4265695840634418,
+      "maxDD": 42.89310232101992,
+      "winRate": 63.52201257861635,
+      "finalEquity": 11202.5,
+      "trades": 159,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 8868.999999999984
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": 0.1867889998337576,
+      "cagr": 0.8263933620181296,
+      "maxDD": 15.124779430299979,
+      "winRate": 85.96491228070175,
+      "finalEquity": 10681.999999999998,
+      "trades": 57,
+      "posWindows": 7,
+      "totalWindows": 16,
+      "minEquity": 9909.000000000004
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.03987161212542328,
+      "cagr": -0.6691575287121609,
+      "maxDD": 18.315648599560255,
+      "winRate": 80.7017543859649,
+      "finalEquity": 9476.000000000002,
+      "trades": 57,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8545.000000000002
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.2698272910207599,
+      "cagr": -3.3670807788154233,
+      "maxDD": 32.73921200750476,
+      "winRate": 73.68421052631578,
+      "finalEquity": 7598.999999999991,
+      "trades": 57,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 7598.999999999991
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": 0.40762831559001594,
+      "cagr": 3.7318477642086734,
+      "maxDD": 22.79251453488373,
+      "winRate": 77.19298245614034,
+      "finalEquity": 13413.999999999993,
+      "trades": 57,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 8498.999999999996
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.14861961570766113,
+      "cagr": 1.007748887556259,
+      "maxDD": 18.98989898989898,
+      "winRate": 64,
+      "finalEquity": 10837.000000000011,
+      "trades": 50,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8886.000000000018
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.24636085596069807,
+      "cagr": 1.1442972163824727,
+      "maxDD": 15.652314664940109,
+      "winRate": 87.27272727272727,
+      "finalEquity": 10955,
+      "trades": 55,
+      "posWindows": 7,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": 0.09161377576900785,
+      "cagr": 0.3936994759004664,
+      "maxDD": 18.12657348728188,
+      "winRate": 81.81818181818183,
+      "finalEquity": 10320.000000000002,
+      "trades": 55,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9431.000000000002
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.11503438490715931,
+      "cagr": -1.6575350903299646,
+      "maxDD": 25.497185741088263,
+      "winRate": 76.36363636363637,
+      "finalEquity": 8745.99999999999,
+      "trades": 55,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 8565.99999999999
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": 0.5606788740069157,
+      "cagr": 5.123152056193114,
+      "maxDD": 16.25181686046512,
+      "winRate": 80,
+      "finalEquity": 14925.999999999989,
+      "trades": 55,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 9218.999999999996
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_1%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.29584356540438866,
+      "cagr": 2.505273255087137,
+      "maxDD": 19.801980198019788,
+      "winRate": 66.66666666666666,
+      "finalEquity": 12194.000000000015,
+      "trades": 48,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 9481.00000000002
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": 0.16045773268240557,
+      "cagr": 0.8666526550045406,
+      "maxDD": 13.850865230483203,
+      "winRate": 85.71428571428571,
+      "finalEquity": 10716.239999999982,
+      "trades": 98,
+      "posWindows": 8,
+      "totalWindows": 16,
+      "minEquity": 9695.000000000004
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.17901258289706629,
+      "cagr": -2.607575064215739,
+      "maxDD": 26.099264363534918,
+      "winRate": 78.125,
+      "finalEquity": 8091.199999999989,
+      "trades": 96,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 7936.199999999985
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.41030347871676087,
+      "cagr": -6.5052607612893,
+      "maxDD": 47.94652303549103,
+      "winRate": 70.10309278350515,
+      "finalEquity": 5831.999999999989,
+      "trades": 97,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 5831.999999999989
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": -0.006736924708649906,
+      "cagr": -1.2333934228765608,
+      "maxDD": 32.43937232524965,
+      "winRate": 73.11827956989248,
+      "finalEquity": 9052.999999999996,
+      "trades": 93,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 7103.9999999999945
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_2%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": -0.19439953278700906,
+      "cagr": -4.585578899354436,
+      "maxDD": 38.870399373531775,
+      "winRate": 58.333333333333336,
+      "finalEquity": 6864.000000000001,
+      "trades": 96,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6643.000000000003
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.5235999072305326,
+      "cagr": 3.113496707678909,
+      "maxDD": 13.855840577881724,
+      "winRate": 88.42105263157895,
+      "finalEquity": 12786.239999999983,
+      "trades": 95,
+      "posWindows": 8,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": 0.16462544722646158,
+      "cagr": 1.1100272908137754,
+      "maxDD": 21.38490542611347,
+      "winRate": 80.64516129032258,
+      "finalEquity": 10925.279999999982,
+      "trades": 93,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 9624.279999999979
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.18747439448884953,
+      "cagr": -3.2706541648958254,
+      "maxDD": 37.67432913340388,
+      "winRate": 72.3404255319149,
+      "finalEquity": 7659.999999999985,
+      "trades": 94,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 7433.999999999988
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": 0.24168390337786774,
+      "cagr": 2.3810085958421823,
+      "maxDD": 19.058487874465047,
+      "winRate": 75.55555555555556,
+      "finalEquity": 12075.999999999998,
+      "trades": 90,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 8510.999999999995
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_2%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.011907485488060008,
+      "cagr": -1.1479146240763294,
+      "maxDD": 35.263490059955735,
+      "winRate": 60.86956521739131,
+      "finalEquity": 9116.000000000005,
+      "trades": 92,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 7803.0000000000055
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": 0.27591043594618275,
+      "cagr": 1.8541606417103784,
+      "maxDD": 20.37897800460526,
+      "winRate": 86.99186991869918,
+      "finalEquity": 11586.739999999987,
+      "trades": 123,
+      "posWindows": 9,
+      "totalWindows": 16,
+      "minEquity": 9936.000000000005
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.2148728825770265,
+      "cagr": -3.5954908113645767,
+      "maxDD": 33.746223564954754,
+      "winRate": 78.86178861788618,
+      "finalEquity": 7456.199999999995,
+      "trades": 123,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7456.199999999995
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.15139037344777714,
+      "cagr": -3.50738860106965,
+      "maxDD": 35.617348391382585,
+      "winRate": 75.60975609756098,
+      "finalEquity": 7511.000000000008,
+      "trades": 123,
+      "posWindows": 2,
+      "totalWindows": 16,
+      "minEquity": 7426.000000000003
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": 0.08876535169179815,
+      "cagr": 0.04981041249410012,
+      "maxDD": 28.93368010403109,
+      "winRate": 74.16666666666667,
+      "finalEquity": 10040.000000000011,
+      "trades": 120,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 7784.000000000008
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_3%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": -0.10665967277824459,
+      "cagr": -3.5950069593437606,
+      "maxDD": 40.770000000000074,
+      "winRate": 60.97560975609756,
+      "finalEquity": 7456.500000000005,
+      "trades": 123,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 6418.999999999986
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.57526764202475,
+      "cagr": 3.8066890854406843,
+      "maxDD": 20.63572142867231,
+      "winRate": 89.07563025210085,
+      "finalEquity": 13491.779999999988,
+      "trades": 119,
+      "posWindows": 9,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": 0.00872075625748932,
+      "cagr": -0.6504971613732757,
+      "maxDD": 29.272699339376455,
+      "winRate": 80.67226890756302,
+      "finalEquity": 9490.279999999988,
+      "trades": 119,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 9207.279999999984
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": 0.05792500377825667,
+      "cagr": -0.28093202694224884,
+      "maxDD": 34.99920923612199,
+      "winRate": 77.31092436974791,
+      "finalEquity": 9777.000000000005,
+      "trades": 119,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 8856
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": 0.2630527145959587,
+      "cagr": 2.919840849047195,
+      "maxDD": 23.241805522960117,
+      "winRate": 75.86206896551724,
+      "finalEquity": 12595.000000000011,
+      "trades": 116,
+      "posWindows": 7,
+      "totalWindows": 16,
+      "minEquity": 9299.000000000005
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.05552900560188928,
+      "cagr": -0.6619675000524294,
+      "maxDD": 31.198631565772384,
+      "winRate": 62.71186440677966,
+      "finalEquity": 9481.500000000011,
+      "trades": 118,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 7521.999999999986
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp15/05",
+      "sharpe": 0.2904363297921447,
+      "cagr": 2.2396670765960414,
+      "maxDD": 18.215186969488435,
+      "winRate": 87.87878787878788,
+      "finalEquity": 11942.999999999995,
+      "trades": 165,
+      "posWindows": 8,
+      "totalWindows": 16,
+      "minEquity": 9901.000000000004
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp20/10",
+      "sharpe": -0.031244782296174466,
+      "cagr": -1.4604506716277,
+      "maxDD": 31.513518212640072,
+      "winRate": 81.13207547169812,
+      "finalEquity": 8887.500000000007,
+      "trades": 159,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 7878.000000000016
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp25/15",
+      "sharpe": -0.20150149040000812,
+      "cagr": -5.165696909397777,
+      "maxDD": 49.63626443575514,
+      "winRate": 75.4601226993865,
+      "finalEquity": 6536.500000000001,
+      "trades": 163,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 6481.000000000004
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp30/20",
+      "sharpe": 0.23746158950938953,
+      "cagr": 2.6606888245217064,
+      "maxDD": 31.307584923219988,
+      "winRate": 75.81699346405229,
+      "finalEquity": 12342.999999999995,
+      "trades": 153,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 7541.000000000008
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.17579643042876586,
+      "cagr": 1.4067911877125416,
+      "maxDD": 41.44144144144148,
+      "winRate": 63.74999999999999,
+      "finalEquity": 11185.000000000015,
+      "trades": 160,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 7485.999999999987
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.4555214523691109,
+      "cagr": 3.513189754542956,
+      "maxDD": 17.76512069433146,
+      "winRate": 88.67924528301887,
+      "finalEquity": 13188.999999999996,
+      "trades": 159,
+      "posWindows": 9,
+      "totalWindows": 16,
+      "minEquity": 10000
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp20/10",
+      "sharpe": 0.06966781299534835,
+      "cagr": -0.033720704600659346,
+      "maxDD": 22.55183660790562,
+      "winRate": 81.81818181818183,
+      "finalEquity": 9973.000000000005,
+      "trades": 154,
+      "posWindows": 3,
+      "totalWindows": 16,
+      "minEquity": 9336.000000000016
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp25/15",
+      "sharpe": -0.0801926096325118,
+      "cagr": -2.940678007448716,
+      "maxDD": 38.62871692279708,
+      "winRate": 76.43312101910828,
+      "finalEquity": 7871.999999999999,
+      "trades": 157,
+      "posWindows": 5,
+      "totalWindows": 16,
+      "minEquity": 7788.000000000002
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp30/20",
+      "sharpe": 0.29128294496498275,
+      "cagr": 3.6631979346390953,
+      "maxDD": 25.84560608512699,
+      "winRate": 75.83892617449665,
+      "finalEquity": 13342.999999999998,
+      "trades": 149,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 8659.000000000005
+    },
+    {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_5%",
+      "rally": "rally8%",
+      "spread": "sp40/30",
+      "sharpe": 0.25481460396871886,
+      "cagr": 3.173491808944373,
+      "maxDD": 39.82461268634893,
+      "winRate": 64.28571428571429,
+      "finalEquity": 12846.000000000018,
+      "trades": 154,
+      "posWindows": 6,
+      "totalWindows": 16,
+      "minEquity": 8835.999999999987
+    }
+  ],
+  "bestPerTicker": {
+    "QQQ": {
+      "ticker": "QQQ",
+      "proximity": "nearEMA21_1%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.3678928152571032,
+      "cagr": 3.3130917325135067,
+      "maxDD": 19.78985456822768,
+      "winRate": 70.83333333333334,
+      "finalEquity": 12986,
+      "trades": 24,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9600
+    },
+    "SPY": {
+      "ticker": "SPY",
+      "proximity": "nearEMA21_5%",
+      "rally": "none",
+      "spread": "sp40/30",
+      "sharpe": 0.5592751260040242,
+      "cagr": 10.898354717541615,
+      "maxDD": 46.58569242540162,
+      "winRate": 64.91228070175438,
+      "finalEquity": 22916.000000000036,
+      "trades": 114,
+      "posWindows": 4,
+      "totalWindows": 16,
+      "minEquity": 9054.000000000007
+    },
+    "IWM": {
+      "ticker": "IWM",
+      "proximity": "nearEMA21_3%",
+      "rally": "rally8%",
+      "spread": "sp15/05",
+      "sharpe": 0.57526764202475,
+      "cagr": 3.8066890854406843,
+      "maxDD": 20.63572142867231,
+      "winRate": 89.07563025210085,
+      "finalEquity": 13491.779999999988,
+      "trades": 119,
+      "posWindows": 9,
+      "totalWindows": 16,
+      "minEquity": 10000
+    }
+  },
+  "portfolioCombos": [
+    {
+      "label": "QQQ bull only (baseline)",
+      "sharpe": 0.6868110849338305,
+      "cagr": 18.529769684346675,
+      "maxDD": 39.615749525616614,
+      "finalEquity": 39069.00000000016,
+      "minEquity": 6963.5000000000055,
+      "trades": 552,
+      "posWindows": 10,
+      "totalWindows": 16,
+      "legSummary": [
+        {
+          "ticker": "QQQ",
+          "dir": "bull",
+          "trades": 552,
+          "pnl": 29069.00000000016,
+          "wr": 78.80434782608695
+        }
+      ],
+      "windows": [
+        {
+          "testStart": "2018-01-03",
+          "testEnd": "2018-07-03",
+          "startEq": 10000,
+          "endEq": 8230.999999999996,
+          "pnl": -1769.000000000004,
+          "trades": 21,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 21,
+              "pnl": -1769.000000000004,
+              "wr": 66.66666666666666
+            }
+          ]
+        },
+        {
+          "testStart": "2018-07-05",
+          "testEnd": "2019-01-03",
+          "startEq": 8230.999999999996,
+          "endEq": 6963.5000000000055,
+          "pnl": -1267.4999999999905,
+          "trades": 16,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 16,
+              "pnl": -1267.4999999999905,
+              "wr": 75
+            }
+          ]
+        },
+        {
+          "testStart": "2019-01-04",
+          "testEnd": "2019-07-05",
+          "startEq": 6963.5000000000055,
+          "endEq": 8156.500000000011,
+          "pnl": 1193.0000000000057,
+          "trades": 23,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 23,
+              "pnl": 1193.0000000000057,
+              "wr": 86.95652173913044
+            }
+          ]
+        },
+        {
+          "testStart": "2019-07-08",
+          "testEnd": "2020-01-03",
+          "startEq": 8156.500000000011,
+          "endEq": 7953.500000000011,
+          "pnl": -203.00000000000003,
+          "trades": 23,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 23,
+              "pnl": -203.00000000000003,
+              "wr": 82.6086956521739
+            }
+          ]
+        },
+        {
+          "testStart": "2020-01-06",
+          "testEnd": "2020-07-06",
+          "startEq": 7953.500000000011,
+          "endEq": 9063.500000000005,
+          "pnl": 1109.999999999994,
+          "trades": 22,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 22,
+              "pnl": 1109.999999999994,
+              "wr": 77.27272727272727
+            }
+          ]
+        },
+        {
+          "testStart": "2020-07-07",
+          "testEnd": "2021-01-04",
+          "startEq": 9063.500000000005,
+          "endEq": 8333.500000000007,
+          "pnl": -729.9999999999984,
+          "trades": 26,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 26,
+              "pnl": -729.9999999999984,
+              "wr": 73.07692307692307
+            }
+          ]
+        },
+        {
+          "testStart": "2021-01-05",
+          "testEnd": "2021-07-06",
+          "startEq": 8333.500000000007,
+          "endEq": 9687.5,
+          "pnl": 1353.9999999999934,
+          "trades": 31,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 31,
+              "pnl": 1353.9999999999934,
+              "wr": 80.64516129032258
+            }
+          ]
+        },
+        {
+          "testStart": "2021-07-07",
+          "testEnd": "2022-01-03",
+          "startEq": 9687.5,
+          "endEq": 10177.500000000007,
+          "pnl": 490.0000000000068,
+          "trades": 50,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 50,
+              "pnl": 490.0000000000068,
+              "wr": 78
+            }
+          ]
+        },
+        {
+          "testStart": "2022-01-04",
+          "testEnd": "2022-07-06",
+          "startEq": 10177.500000000007,
+          "endEq": 8945.500000000002,
+          "pnl": -1232.0000000000061,
+          "trades": 8,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 8,
+              "pnl": -1232.0000000000061,
+              "wr": 62.5
+            }
+          ]
+        },
+        {
+          "testStart": "2022-07-07",
+          "testEnd": "2023-01-04",
+          "startEq": 8945.500000000002,
+          "endEq": 8260.000000000005,
+          "pnl": -685.4999999999966,
+          "trades": 29,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 29,
+              "pnl": -685.4999999999966,
+              "wr": 72.41379310344827
+            }
+          ]
+        },
+        {
+          "testStart": "2023-01-05",
+          "testEnd": "2023-07-07",
+          "startEq": 8260.000000000005,
+          "endEq": 13333.000000000011,
+          "pnl": 5073.0000000000055,
+          "trades": 60,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 60,
+              "pnl": 5073.0000000000055,
+              "wr": 80
+            }
+          ]
+        },
+        {
+          "testStart": "2023-07-10",
+          "testEnd": "2024-01-05",
+          "startEq": 13333.000000000011,
+          "endEq": 14700.000000000011,
+          "pnl": 1367.000000000001,
+          "trades": 44,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 44,
+              "pnl": 1367.000000000001,
+              "wr": 77.27272727272727
+            }
+          ]
+        },
+        {
+          "testStart": "2024-01-08",
+          "testEnd": "2024-07-09",
+          "startEq": 14700.000000000011,
+          "endEq": 24536.000000000073,
+          "pnl": 9836.00000000006,
+          "trades": 54,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 54,
+              "pnl": 9836.00000000006,
+              "wr": 85.18518518518519
+            }
+          ]
+        },
+        {
+          "testStart": "2024-07-10",
+          "testEnd": "2025-01-07",
+          "startEq": 24536.000000000073,
+          "endEq": 25011.000000000124,
+          "pnl": 475.0000000000499,
+          "trades": 48,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 48,
+              "pnl": 475.0000000000499,
+              "wr": 77.08333333333334
+            }
+          ]
+        },
+        {
+          "testStart": "2025-01-08",
+          "testEnd": "2025-07-11",
+          "startEq": 25011.000000000124,
+          "endEq": 33379.00000000015,
+          "pnl": 8368.00000000003,
+          "trades": 40,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 40,
+              "pnl": 8368.00000000003,
+              "wr": 82.5
+            }
+          ]
+        },
+        {
+          "testStart": "2025-07-14",
+          "testEnd": "2026-01-09",
+          "startEq": 33379.00000000015,
+          "endEq": 39069.00000000016,
+          "pnl": 5690.000000000011,
+          "trades": 57,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 57,
+              "pnl": 5690.000000000011,
+              "wr": 80.7017543859649
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "QQQ bull + QQQ bear (nearEMA21_1%+sp40/30)",
+      "sharpe": 0.812673705496457,
+      "cagr": 24.644057643824425,
+      "maxDD": 37.03036053130923,
+      "finalEquity": 58471.50000000023,
+      "minEquity": 7365.000000000005,
+      "trades": 576,
+      "posWindows": 11,
+      "totalWindows": 16,
+      "legSummary": [
+        {
+          "ticker": "QQQ",
+          "dir": "bull",
+          "trades": 552,
+          "pnl": 43923.50000000024,
+          "wr": 78.80434782608695
+        },
+        {
+          "ticker": "QQQ",
+          "dir": "bear",
+          "trades": 24,
+          "pnl": 4548,
+          "wr": 70.83333333333334
+        }
+      ],
+      "windows": [
+        {
+          "testStart": "2018-01-03",
+          "testEnd": "2018-07-03",
+          "startEq": 10000,
+          "endEq": 7830.999999999996,
+          "pnl": -2169.000000000004,
+          "trades": 23,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 21,
+              "pnl": -1769.000000000004,
+              "wr": 66.66666666666666
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 2,
+              "pnl": -399.99999999999994,
+              "wr": 50
+            }
+          ]
+        },
+        {
+          "testStart": "2018-07-05",
+          "testEnd": "2019-01-03",
+          "startEq": 7830.999999999996,
+          "endEq": 7365.000000000005,
+          "pnl": -465.9999999999918,
+          "trades": 19,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 16,
+              "pnl": -1305.9999999999918,
+              "wr": 75
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 3,
+              "pnl": 840,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2019-01-04",
+          "testEnd": "2019-07-05",
+          "startEq": 7365.000000000005,
+          "endEq": 8626.000000000011,
+          "pnl": 1261.0000000000064,
+          "trades": 23,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 23,
+              "pnl": 1261.0000000000064,
+              "wr": 86.95652173913044
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2019-07-08",
+          "testEnd": "2020-01-03",
+          "startEq": 8626.000000000011,
+          "endEq": 8297.000000000011,
+          "pnl": -329,
+          "trades": 23,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 23,
+              "pnl": -329,
+              "wr": 82.6086956521739
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2020-01-06",
+          "testEnd": "2020-07-06",
+          "startEq": 8297.000000000011,
+          "endEq": 9948.000000000005,
+          "pnl": 1650.999999999994,
+          "trades": 23,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 22,
+              "pnl": 1212.999999999994,
+              "wr": 77.27272727272727
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": 438,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2020-07-07",
+          "testEnd": "2021-01-04",
+          "startEq": 9948.000000000005,
+          "endEq": 9500.000000000007,
+          "pnl": -447.99999999999886,
+          "trades": 26,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 26,
+              "pnl": -447.99999999999886,
+              "wr": 73.07692307692307
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2021-01-05",
+          "testEnd": "2021-07-06",
+          "startEq": 9500.000000000007,
+          "endEq": 11297.000000000002,
+          "pnl": 1796.999999999994,
+          "trades": 31,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 31,
+              "pnl": 1796.999999999994,
+              "wr": 80.64516129032258
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2021-07-07",
+          "testEnd": "2022-01-03",
+          "startEq": 11297.000000000002,
+          "endEq": 12110.00000000001,
+          "pnl": 813.0000000000076,
+          "trades": 50,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 50,
+              "pnl": 813.0000000000076,
+              "wr": 78
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2022-01-04",
+          "testEnd": "2022-07-06",
+          "startEq": 12110.00000000001,
+          "endEq": 13562,
+          "pnl": 1451.9999999999918,
+          "trades": 13,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 8,
+              "pnl": -1276.0000000000082,
+              "wr": 62.5
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 5,
+              "pnl": 2728,
+              "wr": 80
+            }
+          ]
+        },
+        {
+          "testStart": "2022-07-07",
+          "testEnd": "2023-01-04",
+          "startEq": 13562,
+          "endEq": 12239.500000000005,
+          "pnl": -1322.499999999994,
+          "trades": 35,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 29,
+              "pnl": -1286.499999999994,
+              "wr": 72.41379310344827
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 6,
+              "pnl": -35.999999999999886,
+              "wr": 66.66666666666666
+            }
+          ]
+        },
+        {
+          "testStart": "2023-01-05",
+          "testEnd": "2023-07-07",
+          "startEq": 12239.500000000005,
+          "endEq": 19494.500000000015,
+          "pnl": 7255.000000000009,
+          "trades": 61,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 60,
+              "pnl": 8011.000000000009,
+              "wr": 80
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": -755.9999999999998,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2023-07-10",
+          "testEnd": "2024-01-05",
+          "startEq": 19494.500000000015,
+          "endEq": 20424.500000000015,
+          "pnl": 930.0000000000018,
+          "trades": 46,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 44,
+              "pnl": 1740.0000000000018,
+              "wr": 77.27272727272727
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 2,
+              "pnl": -810,
+              "wr": 50
+            }
+          ]
+        },
+        {
+          "testStart": "2024-01-08",
+          "testEnd": "2024-07-09",
+          "startEq": 20424.500000000015,
+          "endEq": 35087.5000000001,
+          "pnl": 14663.00000000009,
+          "trades": 54,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 54,
+              "pnl": 14663.00000000009,
+              "wr": 85.18518518518519
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2024-07-10",
+          "testEnd": "2025-01-07",
+          "startEq": 35087.5000000001,
+          "endEq": 35202.500000000175,
+          "pnl": 115.00000000007265,
+          "trades": 48,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 48,
+              "pnl": 115.00000000007265,
+              "wr": 77.08333333333334
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2025-01-08",
+          "testEnd": "2025-07-11",
+          "startEq": 35202.500000000175,
+          "endEq": 50244.50000000022,
+          "pnl": 15042.000000000045,
+          "trades": 44,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 40,
+              "pnl": 12498.000000000045,
+              "wr": 82.5
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 4,
+              "pnl": 2544,
+              "wr": 75
+            }
+          ]
+        },
+        {
+          "testStart": "2025-07-14",
+          "testEnd": "2026-01-09",
+          "startEq": 50244.50000000022,
+          "endEq": 58471.50000000023,
+          "pnl": 8227.000000000016,
+          "trades": 57,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 57,
+              "pnl": 8227.000000000016,
+              "wr": 80.7017543859649
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "QQQ bull + SPY bear (nearEMA21_5%+sp40/30)",
+      "sharpe": 0.9124282526677023,
+      "cagr": 33.889371331341756,
+      "maxDD": 47.542694497153676,
+      "finalEquity": 103765.00000000038,
+      "minEquity": 7285.000000000003,
+      "trades": 666,
+      "posWindows": 12,
+      "totalWindows": 16,
+      "legSummary": [
+        {
+          "ticker": "QQQ",
+          "dir": "bull",
+          "trades": 552,
+          "pnl": 71406.00000000035,
+          "wr": 78.80434782608695
+        },
+        {
+          "ticker": "SPY",
+          "dir": "bear",
+          "trades": 114,
+          "pnl": 22359.000000000022,
+          "wr": 64.91228070175438
+        }
+      ],
+      "windows": [
+        {
+          "testStart": "2018-01-03",
+          "testEnd": "2018-07-03",
+          "startEq": 10000,
+          "endEq": 7285.000000000003,
+          "pnl": -2714.9999999999973,
+          "trades": 31,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 21,
+              "pnl": -1769.000000000004,
+              "wr": 66.66666666666666
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 10,
+              "pnl": -945.9999999999932,
+              "wr": 50
+            }
+          ]
+        },
+        {
+          "testStart": "2018-07-05",
+          "testEnd": "2019-01-03",
+          "startEq": 7285.000000000003,
+          "endEq": 7469.000000000028,
+          "pnl": 184.00000000002547,
+          "trades": 34,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 16,
+              "pnl": -1195.9999999999918,
+              "wr": 75
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 18,
+              "pnl": 1380.0000000000173,
+              "wr": 66.66666666666666
+            }
+          ]
+        },
+        {
+          "testStart": "2019-01-04",
+          "testEnd": "2019-07-05",
+          "startEq": 7469.000000000028,
+          "endEq": 8399.000000000035,
+          "pnl": 930.0000000000064,
+          "trades": 24,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 23,
+              "pnl": 1378.0000000000064,
+              "wr": 86.95652173913044
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": -448,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2019-07-08",
+          "testEnd": "2020-01-03",
+          "startEq": 8399.000000000035,
+          "endEq": 7631.000000000035,
+          "pnl": -768,
+          "trades": 24,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 23,
+              "pnl": -288,
+              "wr": 82.6086956521739
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": -480.00000000000006,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2020-01-06",
+          "testEnd": "2020-07-06",
+          "startEq": 7631.000000000035,
+          "endEq": 10074.00000000003,
+          "pnl": 2442.9999999999945,
+          "trades": 25,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 22,
+              "pnl": 1038.999999999994,
+              "wr": 77.27272727272727
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 3,
+              "pnl": 1404.0000000000002,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2020-07-07",
+          "testEnd": "2021-01-04",
+          "startEq": 10074.00000000003,
+          "endEq": 9626.000000000031,
+          "pnl": -447.99999999999886,
+          "trades": 26,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 26,
+              "pnl": -447.99999999999886,
+              "wr": 73.07692307692307
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2021-01-05",
+          "testEnd": "2021-07-06",
+          "startEq": 9626.000000000031,
+          "endEq": 11570.000000000024,
+          "pnl": 1943.999999999992,
+          "trades": 31,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 31,
+              "pnl": 1943.999999999992,
+              "wr": 80.64516129032258
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2021-07-07",
+          "testEnd": "2022-01-03",
+          "startEq": 11570.000000000024,
+          "endEq": 12378.000000000031,
+          "pnl": 808.0000000000076,
+          "trades": 50,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 50,
+              "pnl": 808.0000000000076,
+              "wr": 78
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2022-01-04",
+          "testEnd": "2022-07-06",
+          "startEq": 12378.000000000031,
+          "endEq": 24336.000000000022,
+          "pnl": 11957.999999999993,
+          "trades": 42,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 8,
+              "pnl": -1276.0000000000082,
+              "wr": 62.5
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 34,
+              "pnl": 13234,
+              "wr": 76.47058823529412
+            }
+          ]
+        },
+        {
+          "testStart": "2022-07-07",
+          "testEnd": "2023-01-04",
+          "startEq": 24336.000000000022,
+          "endEq": 18959.00000000004,
+          "pnl": -5376.999999999983,
+          "trades": 47,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 29,
+              "pnl": -2991.999999999988,
+              "wr": 72.41379310344827
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 18,
+              "pnl": -2384.9999999999945,
+              "wr": 55.55555555555556
+            }
+          ]
+        },
+        {
+          "testStart": "2023-01-05",
+          "testEnd": "2023-07-07",
+          "startEq": 18959.00000000004,
+          "endEq": 29900.000000000055,
+          "pnl": 10941.000000000015,
+          "trades": 63,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 60,
+              "pnl": 13335.000000000015,
+              "wr": 80
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 3,
+              "pnl": -2393.9999999999995,
+              "wr": 33.33333333333333
+            }
+          ]
+        },
+        {
+          "testStart": "2023-07-10",
+          "testEnd": "2024-01-05",
+          "startEq": 29900.000000000055,
+          "endEq": 30331.000000000065,
+          "pnl": 431.0000000000091,
+          "trades": 55,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 44,
+              "pnl": 2615.0000000000005,
+              "wr": 77.27272727272727
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 11,
+              "pnl": -2183.9999999999914,
+              "wr": 54.54545454545454
+            }
+          ]
+        },
+        {
+          "testStart": "2024-01-08",
+          "testEnd": "2024-07-09",
+          "startEq": 30331.000000000065,
+          "endEq": 52195.0000000002,
+          "pnl": 21864.00000000013,
+          "trades": 54,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 54,
+              "pnl": 21864.00000000013,
+              "wr": 85.18518518518519
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2024-07-10",
+          "testEnd": "2025-01-07",
+          "startEq": 52195.0000000002,
+          "endEq": 52630.000000000306,
+          "pnl": 435.00000000011073,
+          "trades": 48,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 48,
+              "pnl": 435.00000000011073,
+              "wr": 77.08333333333334
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2025-01-08",
+          "testEnd": "2025-07-11",
+          "startEq": 52630.000000000306,
+          "endEq": 86588.00000000036,
+          "pnl": 33958.00000000006,
+          "trades": 55,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 40,
+              "pnl": 18780.000000000073,
+              "wr": 82.5
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 15,
+              "pnl": 15177.999999999982,
+              "wr": 73.33333333333333
+            }
+          ]
+        },
+        {
+          "testStart": "2025-07-14",
+          "testEnd": "2026-01-09",
+          "startEq": 86588.00000000036,
+          "endEq": 103765.00000000038,
+          "pnl": 17177.000000000022,
+          "trades": 57,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 57,
+              "pnl": 17177.000000000022,
+              "wr": 80.7017543859649
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "QQQ bull + IWM bear (nearEMA21_3%+sp15/05)",
+      "sharpe": 0.7863647746610891,
+      "cagr": 23.042203577734078,
+      "maxDD": 32.87950664136611,
+      "finalEquity": 52712.320000000196,
+      "minEquity": 7554.5000000000055,
+      "trades": 671,
+      "posWindows": 9,
+      "totalWindows": 16,
+      "legSummary": [
+        {
+          "ticker": "QQQ",
+          "dir": "bull",
+          "trades": 552,
+          "pnl": 38194.00000000021,
+          "wr": 78.80434782608695
+        },
+        {
+          "ticker": "IWM",
+          "dir": "bear",
+          "trades": 119,
+          "pnl": 4518.319999999987,
+          "wr": 89.07563025210085
+        }
+      ],
+      "windows": [
+        {
+          "testStart": "2018-01-03",
+          "testEnd": "2018-07-03",
+          "startEq": 10000,
+          "endEq": 8321.999999999996,
+          "pnl": -1678.000000000004,
+          "trades": 22,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 21,
+              "pnl": -1769.000000000004,
+              "wr": 66.66666666666666
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": 91,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2018-07-05",
+          "testEnd": "2019-01-03",
+          "startEq": 8321.999999999996,
+          "endEq": 7554.5000000000055,
+          "pnl": -767.4999999999905,
+          "trades": 25,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 16,
+              "pnl": -1370.4999999999905,
+              "wr": 75
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 9,
+              "pnl": 603,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2019-01-04",
+          "testEnd": "2019-07-05",
+          "startEq": 7554.5000000000055,
+          "endEq": 8940.500000000013,
+          "pnl": 1386.0000000000073,
+          "trades": 26,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 23,
+              "pnl": 1378.0000000000064,
+              "wr": 86.95652173913044
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 3,
+              "pnl": 8.000000000000924,
+              "wr": 66.66666666666666
+            }
+          ]
+        },
+        {
+          "testStart": "2019-07-08",
+          "testEnd": "2020-01-03",
+          "startEq": 8940.500000000013,
+          "endEq": 8851.500000000016,
+          "pnl": -88.99999999999636,
+          "trades": 31,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 23,
+              "pnl": -460,
+              "wr": 82.6086956521739
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 8,
+              "pnl": 371.00000000000364,
+              "wr": 75
+            }
+          ]
+        },
+        {
+          "testStart": "2020-01-06",
+          "testEnd": "2020-07-06",
+          "startEq": 8851.500000000016,
+          "endEq": 10129.50000000001,
+          "pnl": 1277.9999999999923,
+          "trades": 23,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 22,
+              "pnl": 1217.9999999999923,
+              "wr": 77.27272727272727
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": 60.00000000000001,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2020-07-07",
+          "testEnd": "2021-01-04",
+          "startEq": 10129.50000000001,
+          "endEq": 9450.500000000011,
+          "pnl": -678.9999999999989,
+          "trades": 26,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 26,
+              "pnl": -678.9999999999989,
+              "wr": 73.07692307692307
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2021-01-05",
+          "testEnd": "2021-07-06",
+          "startEq": 9450.500000000011,
+          "endEq": 11149.500000000005,
+          "pnl": 1698.999999999994,
+          "trades": 31,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 31,
+              "pnl": 1698.999999999994,
+              "wr": 80.64516129032258
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2021-07-07",
+          "testEnd": "2022-01-03",
+          "startEq": 11149.500000000005,
+          "endEq": 12960.500000000015,
+          "pnl": 1811.00000000001,
+          "trades": 63,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 50,
+              "pnl": 917.0000000000067,
+              "wr": 78
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 13,
+              "pnl": 894.0000000000032,
+              "wr": 92.3076923076923
+            }
+          ]
+        },
+        {
+          "testStart": "2022-01-04",
+          "testEnd": "2022-07-06",
+          "startEq": 12960.500000000015,
+          "endEq": 12828.819999999994,
+          "pnl": -131.68000000002098,
+          "trades": 38,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 8,
+              "pnl": -1893.0000000000102,
+              "wr": 62.5
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 30,
+              "pnl": 1761.3199999999892,
+              "wr": 93.33333333333333
+            }
+          ]
+        },
+        {
+          "testStart": "2022-07-07",
+          "testEnd": "2023-01-04",
+          "startEq": 12828.819999999994,
+          "endEq": 11073.32,
+          "pnl": -1755.499999999994,
+          "trades": 42,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 29,
+              "pnl": -1647.499999999994,
+              "wr": 72.41379310344827
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 13,
+              "pnl": -108.00000000000011,
+              "wr": 76.92307692307693
+            }
+          ]
+        },
+        {
+          "testStart": "2023-01-05",
+          "testEnd": "2023-07-07",
+          "startEq": 11073.32,
+          "endEq": 18376.319999999996,
+          "pnl": 7302.999999999996,
+          "trades": 77,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 60,
+              "pnl": 7248.000000000007,
+              "wr": 80
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 17,
+              "pnl": 54.99999999998954,
+              "wr": 88.23529411764706
+            }
+          ]
+        },
+        {
+          "testStart": "2023-07-10",
+          "testEnd": "2024-01-05",
+          "startEq": 18376.319999999996,
+          "endEq": 17866.32,
+          "pnl": -509.9999999999982,
+          "trades": 56,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 44,
+              "pnl": 1738.0000000000018,
+              "wr": 77.27272727272727
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 12,
+              "pnl": -2248,
+              "wr": 83.33333333333334
+            }
+          ]
+        },
+        {
+          "testStart": "2024-01-08",
+          "testEnd": "2024-07-09",
+          "startEq": 17866.32,
+          "endEq": 30578.320000000072,
+          "pnl": 12712.000000000075,
+          "trades": 54,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 54,
+              "pnl": 12712.000000000075,
+              "wr": 85.18518518518519
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2024-07-10",
+          "testEnd": "2025-01-07",
+          "startEq": 30578.320000000072,
+          "endEq": 30753.320000000138,
+          "pnl": 175.00000000006537,
+          "trades": 48,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 48,
+              "pnl": 175.00000000006537,
+              "wr": 77.08333333333334
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2025-01-08",
+          "testEnd": "2025-07-11",
+          "startEq": 30753.320000000138,
+          "endEq": 44638.32000000018,
+          "pnl": 13885.000000000042,
+          "trades": 52,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 40,
+              "pnl": 10854.000000000042,
+              "wr": 82.5
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 12,
+              "pnl": 3031,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2025-07-14",
+          "testEnd": "2026-01-09",
+          "startEq": 44638.32000000018,
+          "endEq": 52712.320000000196,
+          "pnl": 8074.000000000015,
+          "trades": 57,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 57,
+              "pnl": 8074.000000000015,
+              "wr": 80.7017543859649
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "QQQ bull + SPY bear + IWM bear",
+      "sharpe": 0.9432340073562092,
+      "cagr": 36.10211712623994,
+      "maxDD": 46.67931688804551,
+      "finalEquity": 118336.32000000039,
+      "minEquity": 7376.000000000003,
+      "trades": 785,
+      "posWindows": 11,
+      "totalWindows": 16,
+      "legSummary": [
+        {
+          "ticker": "QQQ",
+          "dir": "bull",
+          "trades": 552,
+          "pnl": 80332.00000000038,
+          "wr": 78.80434782608695
+        },
+        {
+          "ticker": "SPY",
+          "dir": "bear",
+          "trades": 114,
+          "pnl": 23104.000000000022,
+          "wr": 64.91228070175438
+        },
+        {
+          "ticker": "IWM",
+          "dir": "bear",
+          "trades": 119,
+          "pnl": 4900.319999999976,
+          "wr": 89.07563025210085
+        }
+      ],
+      "windows": [
+        {
+          "testStart": "2018-01-03",
+          "testEnd": "2018-07-03",
+          "startEq": 10000,
+          "endEq": 7376.000000000003,
+          "pnl": -2623.9999999999973,
+          "trades": 32,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 21,
+              "pnl": -1769.000000000004,
+              "wr": 66.66666666666666
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 10,
+              "pnl": -945.9999999999932,
+              "wr": 50
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": 91,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2018-07-05",
+          "testEnd": "2019-01-03",
+          "startEq": 7376.000000000003,
+          "endEq": 8110.000000000028,
+          "pnl": 734.0000000000255,
+          "trades": 43,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 16,
+              "pnl": -1176.9999999999918,
+              "wr": 75
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 18,
+              "pnl": 1375.0000000000173,
+              "wr": 66.66666666666666
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 9,
+              "pnl": 536,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2019-01-04",
+          "testEnd": "2019-07-05",
+          "startEq": 8110.000000000028,
+          "endEq": 9132.000000000036,
+          "pnl": 1022.000000000008,
+          "trades": 27,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 23,
+              "pnl": 1526.000000000007,
+              "wr": 86.95652173913044
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": -512,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 3,
+              "pnl": 8.000000000000924,
+              "wr": 66.66666666666666
+            }
+          ]
+        },
+        {
+          "testStart": "2019-07-08",
+          "testEnd": "2020-01-03",
+          "startEq": 9132.000000000036,
+          "endEq": 8576.00000000004,
+          "pnl": -555.9999999999957,
+          "trades": 32,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 23,
+              "pnl": -382,
+              "wr": 82.6086956521739
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": -540.0000000000001,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 8,
+              "pnl": 366.00000000000443,
+              "wr": 75
+            }
+          ]
+        },
+        {
+          "testStart": "2020-01-06",
+          "testEnd": "2020-07-06",
+          "startEq": 8576.00000000004,
+          "endEq": 11046.000000000033,
+          "pnl": 2469.999999999993,
+          "trades": 26,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 22,
+              "pnl": 1005.9999999999928,
+              "wr": 77.27272727272727
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 3,
+              "pnl": 1404.0000000000002,
+              "wr": 100
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": 60.00000000000001,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2020-07-07",
+          "testEnd": "2021-01-04",
+          "startEq": 11046.000000000033,
+          "endEq": 9762.000000000036,
+          "pnl": -1283.9999999999973,
+          "trades": 26,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 26,
+              "pnl": -1283.9999999999973,
+              "wr": 73.07692307692307
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2021-01-05",
+          "testEnd": "2021-07-06",
+          "startEq": 9762.000000000036,
+          "endEq": 11766.00000000003,
+          "pnl": 2003.999999999992,
+          "trades": 31,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 31,
+              "pnl": 2003.999999999992,
+              "wr": 80.64516129032258
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2021-07-07",
+          "testEnd": "2022-01-03",
+          "startEq": 11766.00000000003,
+          "endEq": 13465.00000000004,
+          "pnl": 1699.0000000000114,
+          "trades": 63,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 50,
+              "pnl": 789.0000000000083,
+              "wr": 78
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 13,
+              "pnl": 910.0000000000032,
+              "wr": 92.3076923076923
+            }
+          ]
+        },
+        {
+          "testStart": "2022-01-04",
+          "testEnd": "2022-07-06",
+          "startEq": 13465.00000000004,
+          "endEq": 28799.320000000018,
+          "pnl": 15334.319999999978,
+          "trades": 72,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 8,
+              "pnl": -1745.0000000000102,
+              "wr": 62.5
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 34,
+              "pnl": 15124,
+              "wr": 76.47058823529412
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 30,
+              "pnl": 1955.3199999999892,
+              "wr": 93.33333333333333
+            }
+          ]
+        },
+        {
+          "testStart": "2022-07-07",
+          "testEnd": "2023-01-04",
+          "startEq": 28799.320000000018,
+          "endEq": 22878.32000000004,
+          "pnl": -5920.999999999979,
+          "trades": 60,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 29,
+              "pnl": -3393.9999999999864,
+              "wr": 72.41379310344827
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 18,
+              "pnl": -2520.9999999999927,
+              "wr": 55.55555555555556
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 13,
+              "pnl": -6.0000000000004405,
+              "wr": 76.92307692307693
+            }
+          ]
+        },
+        {
+          "testStart": "2023-01-05",
+          "testEnd": "2023-07-07",
+          "startEq": 22878.32000000004,
+          "endEq": 36164.320000000036,
+          "pnl": 13285.999999999996,
+          "trades": 80,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 60,
+              "pnl": 16139.000000000018,
+              "wr": 80
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 3,
+              "pnl": -3028.9999999999995,
+              "wr": 33.33333333333333
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 17,
+              "pnl": 175.99999999997817,
+              "wr": 88.23529411764706
+            }
+          ]
+        },
+        {
+          "testStart": "2023-07-10",
+          "testEnd": "2024-01-05",
+          "startEq": 36164.320000000036,
+          "endEq": 31727.320000000047,
+          "pnl": -4436.999999999989,
+          "trades": 67,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 44,
+              "pnl": 2868.0000000000005,
+              "wr": 77.27272727272727
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 11,
+              "pnl": -2626.9999999999895,
+              "wr": 54.54545454545454
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 12,
+              "pnl": -4678,
+              "wr": 83.33333333333334
+            }
+          ]
+        },
+        {
+          "testStart": "2024-01-08",
+          "testEnd": "2024-07-09",
+          "startEq": 31727.320000000047,
+          "endEq": 54657.32000000018,
+          "pnl": 22930.00000000014,
+          "trades": 54,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 54,
+              "pnl": 22930.00000000014,
+              "wr": 85.18518518518519
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2024-07-10",
+          "testEnd": "2025-01-07",
+          "startEq": 54657.32000000018,
+          "endEq": 55132.3200000003,
+          "pnl": 475.0000000001162,
+          "trades": 48,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 48,
+              "pnl": 475.0000000001162,
+              "wr": 77.08333333333334
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2025-01-08",
+          "testEnd": "2025-07-11",
+          "startEq": 55132.3200000003,
+          "endEq": 96065.32000000036,
+          "pnl": 40933.00000000006,
+          "trades": 67,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 40,
+              "pnl": 20075.000000000073,
+              "wr": 82.5
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 15,
+              "pnl": 15375.999999999982,
+              "wr": 73.33333333333333
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 12,
+              "pnl": 5482,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2025-07-14",
+          "testEnd": "2026-01-09",
+          "startEq": 96065.32000000036,
+          "endEq": 118336.32000000039,
+          "pnl": 22271.000000000022,
+          "trades": 57,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 57,
+              "pnl": 22271.000000000022,
+              "wr": 80.7017543859649
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "QQQ bull + all 3 bear",
+      "sharpe": 0.9847257559498925,
+      "cagr": 39.92418304473646,
+      "maxDD": 47.945406634678946,
+      "finalEquity": 147753.86000000042,
+      "minEquity": 6976.000000000003,
+      "trades": 809,
+      "posWindows": 11,
+      "totalWindows": 16,
+      "legSummary": [
+        {
+          "ticker": "QQQ",
+          "dir": "bull",
+          "trades": 552,
+          "pnl": 101195.50000000042,
+          "wr": 78.80434782608695
+        },
+        {
+          "ticker": "QQQ",
+          "dir": "bear",
+          "trades": 24,
+          "pnl": 4733,
+          "wr": 70.83333333333334
+        },
+        {
+          "ticker": "SPY",
+          "dir": "bear",
+          "trades": 114,
+          "pnl": 26846.000000000025,
+          "wr": 64.91228070175438
+        },
+        {
+          "ticker": "IWM",
+          "dir": "bear",
+          "trades": 119,
+          "pnl": 4979.359999999968,
+          "wr": 89.07563025210085
+        }
+      ],
+      "windows": [
+        {
+          "testStart": "2018-01-03",
+          "testEnd": "2018-07-03",
+          "startEq": 10000,
+          "endEq": 6976.000000000003,
+          "pnl": -3023.9999999999973,
+          "trades": 34,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 21,
+              "pnl": -1769.000000000004,
+              "wr": 66.66666666666666
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 2,
+              "pnl": -399.99999999999994,
+              "wr": 50
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 10,
+              "pnl": -945.9999999999932,
+              "wr": 50
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": 91,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2018-07-05",
+          "testEnd": "2019-01-03",
+          "startEq": 6976.000000000003,
+          "endEq": 8544.00000000003,
+          "pnl": 1568.0000000000255,
+          "trades": 46,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 16,
+              "pnl": -1115.9999999999918,
+              "wr": 75
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 3,
+              "pnl": 730,
+              "wr": 100
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 18,
+              "pnl": 1434.0000000000173,
+              "wr": 66.66666666666666
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 9,
+              "pnl": 520,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2019-01-04",
+          "testEnd": "2019-07-05",
+          "startEq": 8544.00000000003,
+          "endEq": 9604.000000000036,
+          "pnl": 1060.000000000008,
+          "trades": 27,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 23,
+              "pnl": 1540.000000000007,
+              "wr": 86.95652173913044
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": -512,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 3,
+              "pnl": 32.000000000000924,
+              "wr": 66.66666666666666
+            }
+          ]
+        },
+        {
+          "testStart": "2019-07-08",
+          "testEnd": "2020-01-03",
+          "startEq": 9604.000000000036,
+          "endEq": 9363.00000000004,
+          "pnl": -240.99999999999568,
+          "trades": 32,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 23,
+              "pnl": -94,
+              "wr": 82.6086956521739
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": -540.0000000000001,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 8,
+              "pnl": 393.00000000000443,
+              "wr": 75
+            }
+          ]
+        },
+        {
+          "testStart": "2020-01-06",
+          "testEnd": "2020-07-06",
+          "startEq": 9363.00000000004,
+          "endEq": 12924.000000000033,
+          "pnl": 3560.9999999999927,
+          "trades": 27,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 22,
+              "pnl": 1411.9999999999923,
+              "wr": 77.27272727272727
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": 511,
+              "wr": 100
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 3,
+              "pnl": 1563.0000000000002,
+              "wr": 100
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": 75.00000000000001,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2020-07-07",
+          "testEnd": "2021-01-04",
+          "startEq": 12924.000000000033,
+          "endEq": 12193.000000000035,
+          "pnl": -730.9999999999986,
+          "trades": 26,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 26,
+              "pnl": -730.9999999999986,
+              "wr": 73.07692307692307
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2021-01-05",
+          "testEnd": "2021-07-06",
+          "startEq": 12193.000000000035,
+          "endEq": 14177.000000000024,
+          "pnl": 1983.9999999999898,
+          "trades": 31,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 31,
+              "pnl": 1983.9999999999898,
+              "wr": 80.64516129032258
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2021-07-07",
+          "testEnd": "2022-01-03",
+          "startEq": 14177.000000000024,
+          "endEq": 15983.000000000038,
+          "pnl": 1806.000000000014,
+          "trades": 63,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 50,
+              "pnl": 752.0000000000102,
+              "wr": 78
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 13,
+              "pnl": 1054.0000000000039,
+              "wr": 92.3076923076923
+            }
+          ]
+        },
+        {
+          "testStart": "2022-01-04",
+          "testEnd": "2022-07-06",
+          "startEq": 15983.000000000038,
+          "endEq": 37522.360000000015,
+          "pnl": 21539.35999999998,
+          "trades": 77,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 8,
+              "pnl": -2108.0000000000123,
+              "wr": 62.5
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 5,
+              "pnl": 3708,
+              "wr": 80
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 34,
+              "pnl": 17548,
+              "wr": 76.47058823529412
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 30,
+              "pnl": 2391.359999999988,
+              "wr": 93.33333333333333
+            }
+          ]
+        },
+        {
+          "testStart": "2022-07-07",
+          "testEnd": "2023-01-04",
+          "startEq": 37522.360000000015,
+          "endEq": 29432.860000000044,
+          "pnl": -8089.499999999969,
+          "trades": 66,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 29,
+              "pnl": -4410.49999999998,
+              "wr": 72.41379310344827
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 6,
+              "pnl": -418.9999999999998,
+              "wr": 66.66666666666666
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 18,
+              "pnl": -3326.999999999989,
+              "wr": 55.55555555555556
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 13,
+              "pnl": 67.00000000000006,
+              "wr": 76.92307692307693
+            }
+          ]
+        },
+        {
+          "testStart": "2023-01-05",
+          "testEnd": "2023-07-07",
+          "startEq": 29432.860000000044,
+          "endEq": 44809.860000000044,
+          "pnl": 15376.999999999996,
+          "trades": 81,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 60,
+              "pnl": 21113.000000000025,
+              "wr": 80
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 1,
+              "pnl": -1826.9999999999995,
+              "wr": 0
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 3,
+              "pnl": -3883.9999999999995,
+              "wr": 33.33333333333333
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 17,
+              "pnl": -25.000000000029104,
+              "wr": 88.23529411764706
+            }
+          ]
+        },
+        {
+          "testStart": "2023-07-10",
+          "testEnd": "2024-01-05",
+          "startEq": 44809.860000000044,
+          "endEq": 37149.86000000006,
+          "pnl": -7659.999999999987,
+          "trades": 69,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 44,
+              "pnl": 3489.0000000000014,
+              "wr": 77.27272727272727
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 2,
+              "pnl": -2064,
+              "wr": 50
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 11,
+              "pnl": -3173.999999999988,
+              "wr": 54.54545454545454
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 12,
+              "pnl": -5911,
+              "wr": 83.33333333333334
+            }
+          ]
+        },
+        {
+          "testStart": "2024-01-08",
+          "testEnd": "2024-07-09",
+          "startEq": 37149.86000000006,
+          "endEq": 63933.86000000022,
+          "pnl": 26784.00000000016,
+          "trades": 54,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 54,
+              "pnl": 26784.00000000016,
+              "wr": 85.18518518518519
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2024-07-10",
+          "testEnd": "2025-01-07",
+          "startEq": 63933.86000000022,
+          "endEq": 64092.86000000035,
+          "pnl": 159.00000000013438,
+          "trades": 48,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 48,
+              "pnl": 159.00000000013438,
+              "wr": 77.08333333333334
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        },
+        {
+          "testStart": "2025-01-08",
+          "testEnd": "2025-07-11",
+          "startEq": 64092.86000000035,
+          "endEq": 116623.86000000041,
+          "pnl": 52531.00000000006,
+          "trades": 71,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 40,
+              "pnl": 23061.000000000084,
+              "wr": 82.5
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 4,
+              "pnl": 4494,
+              "wr": 75
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 15,
+              "pnl": 18683.999999999978,
+              "wr": 73.33333333333333
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 12,
+              "pnl": 6292,
+              "wr": 100
+            }
+          ]
+        },
+        {
+          "testStart": "2025-07-14",
+          "testEnd": "2026-01-09",
+          "startEq": 116623.86000000041,
+          "endEq": 147753.86000000042,
+          "pnl": 31130.000000000015,
+          "trades": 57,
+          "legDetail": [
+            {
+              "ticker": "QQQ",
+              "dir": "bull",
+              "trades": 57,
+              "pnl": 31130.000000000015,
+              "wr": 80.7017543859649
+            },
+            {
+              "ticker": "QQQ",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "SPY",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            },
+            {
+              "ticker": "IWM",
+              "dir": "bear",
+              "trades": 0,
+              "pnl": 0,
+              "wr": 0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "riskTiers": [
+    {
+      "risk": 0.05,
+      "sharpe": 0.9819413456278693,
+      "cagr": 20.00866728546624,
+      "maxDD": 24.87349385097161,
+      "finalEquity": 43152.12000000011,
+      "minEquity": 8528,
+      "trades": 809
+    },
+    {
+      "risk": 0.1,
+      "sharpe": 0.9847257559498925,
+      "cagr": 39.92418304473646,
+      "maxDD": 47.945406634678946,
+      "finalEquity": 147753.86000000042,
+      "minEquity": 6976.000000000003,
+      "trades": 809
+    },
+    {
+      "risk": 0.15,
+      "sharpe": 1.0172835301312604,
+      "cagr": 50.88238859763878,
+      "maxDD": 64.43108233117479,
+      "finalEquity": 270422.5600000007,
+      "minEquity": 5280.000000000004,
+      "trades": 809
+    },
+    {
+      "risk": 0.2,
+      "sharpe": 0.9828084308960929,
+      "cagr": 52.949108599338615,
+      "maxDD": 82.18375259219181,
+      "finalEquity": 301583.22000000067,
+      "minEquity": 3493.0000000000055,
+      "trades": 809
+    }
+  ],
+  "proximityAnalysis": {
+    "QQQ": [
+      {
+        "proximity": "none",
+        "standaloneSharpe": -0.11527555083807958,
+        "standaloneTrades": 118,
+        "portfolioSharpe": 0.5069153103198143,
+        "portfolioCagr": 12.95078122706068,
+        "portfolioMaxDD": 57.229832572298356,
+        "portfolioFinal": 26545.000000000146
+      },
+      {
+        "proximity": "nearEMA8_1%",
+        "standaloneSharpe": 0.20336740236621406,
+        "standaloneTrades": 54,
+        "portfolioSharpe": 0.7217050569237744,
+        "portfolioCagr": 21.997636352172776,
+        "portfolioMaxDD": 50.98196392785561,
+        "portfolioFinal": 49230.000000000204
+      },
+      {
+        "proximity": "nearEMA8_2%",
+        "standaloneSharpe": -0.02935167175681704,
+        "standaloneTrades": 81,
+        "portfolioSharpe": 0.5718224753451877,
+        "portfolioCagr": 15.697317136290456,
+        "portfolioMaxDD": 46.93548387096771,
+        "portfolioFinal": 32183.00000000018
+      },
+      {
+        "proximity": "nearEMA8_3%",
+        "standaloneSharpe": -0.06515576066647676,
+        "standaloneTrades": 100,
+        "portfolioSharpe": 0.5325212554741978,
+        "portfolioCagr": 14.097787734804923,
+        "portfolioMaxDD": 58.49885189437436,
+        "portfolioFinal": 28784.500000000127
+      },
+      {
+        "proximity": "nearEMA21_1%",
+        "standaloneSharpe": 0.3678928152571032,
+        "standaloneTrades": 24,
+        "portfolioSharpe": 0.812673705496457,
+        "portfolioCagr": 24.644057643824425,
+        "portfolioMaxDD": 37.03036053130923,
+        "portfolioFinal": 58471.50000000023
+      },
+      {
+        "proximity": "nearEMA21_2%",
+        "standaloneSharpe": 0.11805274000455256,
+        "standaloneTrades": 45,
+        "portfolioSharpe": 0.6537366429971873,
+        "portfolioCagr": 18.576066936624724,
+        "portfolioMaxDD": 48.05386402159586,
+        "portfolioFinal": 39191.500000000146
+      },
+      {
+        "proximity": "nearEMA21_3%",
+        "standaloneSharpe": 0.11065622660546665,
+        "standaloneTrades": 62,
+        "portfolioSharpe": 0.661630087955397,
+        "portfolioCagr": 19.390097837524543,
+        "portfolioMaxDD": 48.01563602801444,
+        "portfolioFinal": 41401.0000000002
+      },
+      {
+        "proximity": "nearEMA21_5%",
+        "standaloneSharpe": 0.16442947159155258,
+        "standaloneTrades": 94,
+        "portfolioSharpe": 0.7051124993291442,
+        "portfolioCagr": 22.520033025207177,
+        "portfolioMaxDD": 48.13748042759659,
+        "portfolioFinal": 50945.50000000022
+      }
+    ],
+    "SPY": [
+      {
+        "proximity": "none",
+        "standaloneSharpe": 0.26354454838168195,
+        "standaloneTrades": 134,
+        "portfolioSharpe": 0.7253588100086458,
+        "portfolioCagr": 24.438246053231328,
+        "portfolioMaxDD": 48.54212578403106,
+        "portfolioFinal": 57702.00000000026
+      },
+      {
+        "proximity": "nearEMA8_1%",
+        "standaloneSharpe": -0.016549173985687782,
+        "standaloneTrades": 74,
+        "portfolioSharpe": 0.6178695657391117,
+        "portfolioCagr": 17.63104627080636,
+        "portfolioMaxDD": 41.49430740037918,
+        "portfolioFinal": 36756.50000000015
+      },
+      {
+        "proximity": "nearEMA8_2%",
+        "standaloneSharpe": 0.12726244579392,
+        "standaloneTrades": 100,
+        "portfolioSharpe": 0.6544767689839363,
+        "portfolioCagr": 19.814114726224474,
+        "portfolioMaxDD": 52.12523719165061,
+        "portfolioFinal": 42594.50000000019
+      },
+      {
+        "proximity": "nearEMA8_3%",
+        "standaloneSharpe": 0.290283907246333,
+        "standaloneTrades": 118,
+        "portfolioSharpe": 0.7488241732449741,
+        "portfolioCagr": 25.215286038743344,
+        "portfolioMaxDD": 47.542694497153676,
+        "portfolioFinal": 60654.50000000026
+      },
+      {
+        "proximity": "nearEMA21_1%",
+        "standaloneSharpe": 0.29515145179061686,
+        "standaloneTrades": 44,
+        "portfolioSharpe": 0.7675670463481521,
+        "portfolioCagr": 23.752591341037732,
+        "portfolioMaxDD": 39.635927394116244,
+        "portfolioFinal": 55202.00000000025
+      },
+      {
+        "proximity": "nearEMA21_2%",
+        "standaloneSharpe": 0.34439628079468726,
+        "standaloneTrades": 69,
+        "portfolioSharpe": 0.7715269492149994,
+        "portfolioCagr": 24.975212539866654,
+        "portfolioMaxDD": 42.2002056266939,
+        "portfolioFinal": 59728.50000000026
+      },
+      {
+        "proximity": "nearEMA21_3%",
+        "standaloneSharpe": 0.5538250498872098,
+        "standaloneTrades": 87,
+        "portfolioSharpe": 0.9112149731352678,
+        "portfolioCagr": 32.58174895949579,
+        "portfolioMaxDD": 42.08728652751421,
+        "portfolioFinal": 95914.0000000004
+      },
+      {
+        "proximity": "nearEMA21_5%",
+        "standaloneSharpe": 0.5592751260040242,
+        "standaloneTrades": 114,
+        "portfolioSharpe": 0.9124282526677023,
+        "portfolioCagr": 33.889371331341756,
+        "portfolioMaxDD": 47.542694497153676,
+        "portfolioFinal": 103765.00000000038
+      }
+    ],
+    "IWM": [
+      {
+        "proximity": "none",
+        "standaloneSharpe": 0.4112903946710476,
+        "standaloneTrades": 180,
+        "portfolioSharpe": 0.8142599871283631,
+        "portfolioCagr": 24.192960279638264,
+        "portfolioMaxDD": 36.47533206831112,
+        "portfolioFinal": 56796.50000000021
+      },
+      {
+        "proximity": "nearEMA8_1%",
+        "standaloneSharpe": 0.4059464878886392,
+        "standaloneTrades": 106,
+        "portfolioSharpe": 0.7583120128295441,
+        "portfolioCagr": 21.736095350103902,
+        "portfolioMaxDD": 33.30645161290313,
+        "portfolioFinal": 48390.28000000018
+      },
+      {
+        "proximity": "nearEMA8_2%",
+        "standaloneSharpe": 0.36540455047169657,
+        "standaloneTrades": 152,
+        "portfolioSharpe": 0.7869373475885912,
+        "portfolioCagr": 23.084507518121967,
+        "portfolioMaxDD": 33.429791271347156,
+        "portfolioFinal": 52857.78000000019
+      },
+      {
+        "proximity": "nearEMA8_3%",
+        "standaloneSharpe": 0.45026573963208905,
+        "standaloneTrades": 166,
+        "portfolioSharpe": 0.7968219242013211,
+        "portfolioCagr": 23.56125320462108,
+        "portfolioMaxDD": 33.334914611005594,
+        "portfolioFinal": 54521.5000000002
+      },
+      {
+        "proximity": "nearEMA21_1%",
+        "standaloneSharpe": 0.24636085596069807,
+        "standaloneTrades": 55,
+        "portfolioSharpe": 0.7290078794402178,
+        "portfolioCagr": 20.340683622159595,
+        "portfolioMaxDD": 36.247628083491385,
+        "portfolioFinal": 44118.50000000019
+      },
+      {
+        "proximity": "nearEMA21_2%",
+        "standaloneSharpe": 0.5235999072305326,
+        "standaloneTrades": 95,
+        "portfolioSharpe": 0.7471058499303834,
+        "portfolioCagr": 21.25480758303373,
+        "portfolioMaxDD": 34.35958254269442,
+        "portfolioFinal": 46877.74000000018
+      },
+      {
+        "proximity": "nearEMA21_3%",
+        "standaloneSharpe": 0.57526764202475,
+        "standaloneTrades": 119,
+        "portfolioSharpe": 0.7863647746610891,
+        "portfolioCagr": 23.042203577734078,
+        "portfolioMaxDD": 32.87950664136611,
+        "portfolioFinal": 52712.320000000196
+      },
+      {
+        "proximity": "nearEMA21_5%",
+        "standaloneSharpe": 0.4555214523691109,
+        "standaloneTrades": 159,
+        "portfolioSharpe": 0.8008877509986169,
+        "portfolioCagr": 23.703443913942568,
+        "portfolioMaxDD": 33.24003795066404,
+        "portfolioFinal": 55026.50000000021
+      }
+    ]
+  },
+  "yearByYear": {
+    "2018": {
+      "bullPnl": -2884.999999999996,
+      "bearPnl": 1429.000000000024,
+      "bullTrades": 37,
+      "bearTrades": 43
+    },
+    "2019": {
+      "bullPnl": 1446.000000000007,
+      "bearPnl": -626.9999999999948,
+      "bullTrades": 46,
+      "bearTrades": 13
+    },
+    "2020": {
+      "bullPnl": 680.9999999999936,
+      "bearPnl": 2149,
+      "bullTrades": 48,
+      "bearTrades": 5
+    },
+    "2021": {
+      "bullPnl": 2736,
+      "bearPnl": 1054.0000000000039,
+      "bullTrades": 81,
+      "bearTrades": 13
+    },
+    "2022": {
+      "bullPnl": -6518.499999999993,
+      "bearPnl": 19968.359999999997,
+      "bullTrades": 37,
+      "bearTrades": 106
+    },
+    "2023": {
+      "bullPnl": 24602.000000000025,
+      "bearPnl": -16885.000000000015,
+      "bullTrades": 104,
+      "bearTrades": 46
+    },
+    "2024": {
+      "bullPnl": 26943.000000000295,
+      "bearPnl": 0,
+      "bullTrades": 102,
+      "bearTrades": 0
+    },
+    "2025": {
+      "bullPnl": 54191.0000000001,
+      "bearPnl": 29469.999999999978,
+      "bullTrades": 97,
+      "bearTrades": 31
+    }
+  }
+}

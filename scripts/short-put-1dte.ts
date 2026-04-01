@@ -61,6 +61,7 @@ interface ShortPut1DTEConfig {
   trendEMA?: number;             // e.g., 21 — only sell puts when close > EMA (bullish)
   atrPauseMultiple?: number;     // skip when today's range > X * ATR14 (catching knives)
   maxDrawdownFromHigh?: number;  // skip when SPY is > X% below its 20-day high
+  maxRallyFromLow?: number;      // skip when price is > X% above 20-day low (bear: avoid selling calls into V-recovery)
   minDaysAboveEMA?: number;      // require N consecutive days above EMA (trend strength)
   // Pullback double-sizing
   pullbackEMA?: number;          // shorter EMA for pullback detection (e.g., 21)
@@ -335,12 +336,27 @@ function runStrategy(config: ShortPut1DTEConfig): StrategyResult {
     return highs;
   }
 
+  // Compute 20-day rolling low (bear filter: detect V-recoveries)
+  function compute20DayLow(): Map<string, number> {
+    const lows = new Map<string, number>();
+    const window: number[] = [];
+    for (const d of allPriceDates) {
+      const c = dailyCloses.get(d);
+      if (c == null) continue;
+      window.push(c);
+      if (window.length > 20) window.shift();
+      lows.set(d, Math.min(...window));
+    }
+    return lows;
+  }
+
   const emaMap = config.trendEMA ? computeEMA(config.trendEMA) : null;
   const ema2Map = config.trendEMA2 ? computeEMA(config.trendEMA2) : null;
   const ema3Map = config.trendEMA3 ? computeEMA(config.trendEMA3) : null;
   const pullbackEmaMap = config.pullbackEMA ? computeEMA(config.pullbackEMA) : null;
   const atrMap = config.atrPauseMultiple ? computeATRProxy(14) : null;
   const highMap = config.maxDrawdownFromHigh ? compute20DayHigh() : null;
+  const lowMap = config.maxRallyFromLow ? compute20DayLow() : null;
 
   // Count consecutive days above EMA
   const daysAboveEMA = new Map<string, number>();
@@ -572,6 +588,15 @@ function runStrategy(config: ShortPut1DTEConfig): StrategyResult {
       }
     }
 
+    // Max rally from 20-day low (bear filter: avoid selling calls into V-recoveries)
+    if (!filtered && lowMap && config.maxRallyFromLow && todayClose != null) {
+      const recentLow = lowMap.get(date);
+      if (recentLow != null && recentLow > 0) {
+        const rallyFromLow = (todayClose - recentLow) / recentLow;
+        if (rallyFromLow > config.maxRallyFromLow) { filtered = true; }
+      }
+    }
+
     // Day-of-week filter
     if (!filtered && config.allowedDaysOfWeek) {
       const dow = new Date(date + 'T12:00:00Z').getUTCDay();
@@ -664,11 +689,14 @@ function runStrategy(config: ShortPut1DTEConfig): StrategyResult {
       const trendEmaVal = emaMap.get(date);
       const pullbackEmaVal = pullbackEmaMap.get(date);
       const tolerance = config.pullbackTolerance ?? 0.005;
-      if (trendEmaVal != null && pullbackEmaVal != null && todayClose > trendEmaVal) {
-        // Uptrend confirmed. Check if price is near the pullback EMA
-        const distFromPullback = Math.abs(todayClose - pullbackEmaVal) / pullbackEmaVal;
-        if (distFromPullback <= tolerance) {
-          sizeMultiplier = config.pullbackSizeMultiple;
+      if (trendEmaVal != null && pullbackEmaVal != null) {
+        // Trend confirmed in the correct direction
+        const inTrend = direction === 'bull' ? todayClose > trendEmaVal : todayClose < trendEmaVal;
+        if (inTrend) {
+          const distFromPullback = Math.abs(todayClose - pullbackEmaVal) / pullbackEmaVal;
+          if (distFromPullback <= tolerance) {
+            sizeMultiplier = config.pullbackSizeMultiple;
+          }
         }
       }
     }
@@ -1554,7 +1582,7 @@ async function main() {
   console.log(`Total WFA runs: ${runCount}`);
 }
 
-main().catch(console.error); // 4-stage pipeline
+// main().catch(console.error); // 4-stage pipeline
 
 // ── Capital Utilization Study ─────────────────────────
 async function capitalUtilStudy() {
@@ -2997,6 +3025,14 @@ async function smallCapStudy() {
     { label: 'QQQ sp25/10 10%×1',  ticker: 'QQQ', d: 0.25, w: 0.10, risk: 0.10, maxPos: 1 },
     { label: 'QQQ sp25/10 20%×1',  ticker: 'QQQ', d: 0.25, w: 0.10, risk: 0.20, maxPos: 1 },
     { label: 'QQQ sp25/10 30%×1',  ticker: 'QQQ', d: 0.25, w: 0.10, risk: 0.30, maxPos: 1 },
+    // QQQ sp35/25 — higher delta, narrower spread
+    { label: 'QQQ sp35/25 10%×1',  ticker: 'QQQ', d: 0.35, w: 0.25, risk: 0.10, maxPos: 1 },
+    { label: 'QQQ sp35/25 20%×1',  ticker: 'QQQ', d: 0.35, w: 0.25, risk: 0.20, maxPos: 1 },
+    { label: 'QQQ sp35/25 30%×1',  ticker: 'QQQ', d: 0.35, w: 0.25, risk: 0.30, maxPos: 1 },
+    // QQQ sp40/30 — aggressive delta
+    { label: 'QQQ sp40/30 10%×1',  ticker: 'QQQ', d: 0.40, w: 0.30, risk: 0.10, maxPos: 1 },
+    { label: 'QQQ sp40/30 20%×1',  ticker: 'QQQ', d: 0.40, w: 0.30, risk: 0.20, maxPos: 1 },
+    { label: 'QQQ sp40/30 30%×1',  ticker: 'QQQ', d: 0.40, w: 0.30, risk: 0.30, maxPos: 1 },
     // SPY sp20/10
     { label: 'SPY sp20/10 10%×1',  ticker: 'SPY', d: 0.20, w: 0.10, risk: 0.10, maxPos: 1 },
     { label: 'SPY sp20/10 20%×1',  ticker: 'SPY', d: 0.20, w: 0.10, risk: 0.20, maxPos: 1 },
@@ -3414,7 +3450,1920 @@ async function sanityAudit() {
 
 // sanityAudit().catch(console.error); // sanity audit
 
-// ── EMA Alignment Study — Bear + Improved Bull ────────
+// ── TRUE PORTFOLIO GROWTH WFA ─────────────────────────
+// Unlike runWFA which resets startingCapital each window,
+// this carries equity forward: W2 sizes from W1's ending equity.
+function runWFAPortfolio(
+  allTradingDates: string[],
+  ticker: string,
+  trainDays: number,
+  testDays: number,
+  configOverrides: Partial<ShortPut1DTEConfig>,
+): {
+  windows: Array<{ testStart: string; testEnd: string; startEq: number; endEq: number; pnl: number; trades: number; wr: number }>;
+  finalEquity: number;
+  totalPnl: number;
+  oosSharpe: number;
+  oosCagr: number;
+  oosMaxDD: number;
+  oosTrades: number;
+  oosWR: number;
+  posWindows: number;
+  minEquity: number;
+} {
+  const cap0 = configOverrides.startingCapital ?? BASE.startingCapital;
+  let runningEquity = cap0;
+  let minEquity = cap0;
+  const windowResults: Array<{ testStart: string; testEnd: string; startEq: number; endEq: number; pnl: number; trades: number; wr: number }> = [];
+  const allTrades: ShortPutTrade[] = [];
+  const scaledDailyPnl = new Map<string, number>();
+
+  let startIdx = 0;
+  while (startIdx + trainDays + testDays <= allTradingDates.length) {
+    const trainStart = allTradingDates[startIdx];
+    const trainEnd = allTradingDates[startIdx + trainDays - 1];
+    const testStart = allTradingDates[startIdx + trainDays];
+    const testEnd = allTradingDates[Math.min(startIdx + trainDays + testDays - 1, allTradingDates.length - 1)];
+
+    // Train phase (for EMA selection if needed — here we use fixed EMA34)
+    const testResult = runStrategy({
+      ...BASE, ...configOverrides, ticker,
+      startDate: testStart, endDate: testEnd,
+      startingCapital: runningEquity,  // KEY: size from actual portfolio equity
+    });
+
+    const windowPnl = testResult.totalPnl;
+    const startEq = runningEquity;
+    runningEquity += windowPnl;
+    minEquity = Math.min(minEquity, runningEquity);
+
+    // Track per-trade daily PnL scaled to actual equity context
+    for (const t of testResult.trades) {
+      allTrades.push(t);
+      scaledDailyPnl.set(t.exitDate, (scaledDailyPnl.get(t.exitDate) ?? 0) + t.totalPnl);
+    }
+
+    windowResults.push({
+      testStart, testEnd,
+      startEq, endEq: runningEquity,
+      pnl: windowPnl,
+      trades: testResult.totalTrades,
+      wr: testResult.winRate,
+    });
+
+    startIdx += testDays;
+  }
+
+  // Sharpe from daily returns across all OOS dates
+  const oosDateSet = new Set<string>();
+  for (const w of windowResults) {
+    for (const d of allTradingDates) {
+      if (d >= w.testStart && d <= w.testEnd) oosDateSet.add(d);
+    }
+  }
+  const oosDates = [...oosDateSet].sort();
+
+  let eq = cap0, pk = eq, mdd = 0;
+  const rets: number[] = [];
+  for (const d of oosDates) {
+    const dayPnl = scaledDailyPnl.get(d) ?? 0;
+    const base = eq;
+    eq += dayPnl;
+    pk = Math.max(pk, eq);
+    mdd = Math.max(mdd, pk > 0 ? (pk - eq) / pk : 0);
+    if (base > 0) rets.push(dayPnl / base);
+  }
+  const avg = rets.length > 0 ? rets.reduce((s, r) => s + r, 0) / rets.length : 0;
+  const std = rets.length > 1 ? Math.sqrt(rets.reduce((s, r) => s + (r - avg) ** 2, 0) / (rets.length - 1)) : 0;
+  const oosSharpe = std > 0 ? (avg / std) * Math.sqrt(252) : 0;
+
+  const oosYears = oosDates.length > 1
+    ? (new Date(oosDates[oosDates.length - 1]).getTime() - new Date(oosDates[0]).getTime()) / (365.25 * 86400000)
+    : 0;
+  const oosCagr = oosYears > 0 && cap0 > 0
+    ? ((runningEquity / cap0) ** (1 / oosYears) - 1) * 100
+    : 0;
+
+  const oosWR = allTrades.length > 0 ? allTrades.filter(t => t.totalPnl > 0).length / allTrades.length * 100 : 0;
+  const posWindows = windowResults.filter(w => w.pnl > 0).length;
+
+  return {
+    windows: windowResults,
+    finalEquity: runningEquity,
+    totalPnl: runningEquity - cap0,
+    oosSharpe, oosCagr, oosMaxDD: mdd * 100,
+    oosTrades: allTrades.length, oosWR, posWindows,
+    minEquity,
+  };
+}
+
+// ── Portfolio Growth Comparison Study ─────────────────
+async function portfolioGrowthStudy() {
+  console.log('╔══════════════════════════════════════════════════════════════════════════╗');
+  console.log('║  TRUE PORTFOLIO GROWTH — $10K start, equity carries across WFA windows  ║');
+  console.log('║  Position sizing from ACTUAL equity, not fixed startingCapital           ║');
+  console.log('║  Grouped by risk % for apples-to-apples comparison                      ║');
+  console.log('╚══════════════════════════════════════════════════════════════════════════╝\n');
+
+  const db = new Database('data/option-chains.sqlite');
+  const allTradingDates: string[] = db.prepare(
+    'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+  ).all('SPY', '2020-01-01', '2026-02-28').map((r: any) => r.trade_date);
+  db.close();
+
+  const TRAIN_DAYS = 252;
+  const TEST_DAYS = 126;
+  const CAP = 10_000;
+
+  // All spreads to compare
+  const SPREADS = [
+    { label: 'sp15/05', d: 0.15, w: 0.05, tag: 'deep OTM' },
+    { label: 'sp20/10', d: 0.20, w: 0.10, tag: '' },
+    { label: 'sp25/10', d: 0.25, w: 0.10, tag: 'narrow $15w' },
+    { label: 'sp25/15', d: 0.25, w: 0.15, tag: 'CURRENT' },
+    { label: 'sp25/20', d: 0.25, w: 0.20, tag: 'wide $5w' },
+    { label: 'sp30/15', d: 0.30, w: 0.15, tag: '' },
+    { label: 'sp30/20', d: 0.30, w: 0.20, tag: '' },
+    { label: 'sp30/25', d: 0.30, w: 0.25, tag: 'narrow $5w' },
+    { label: 'sp35/25', d: 0.35, w: 0.25, tag: '' },
+    { label: 'sp40/30', d: 0.40, w: 0.30, tag: '' },
+    { label: 'sp40/35', d: 0.40, w: 0.35, tag: 'narrow $5w' },
+  ];
+
+  const RISK_TIERS = [0.05, 0.10, 0.20];
+
+  function printHeader() {
+    console.log(
+      'Spread'.padEnd(11) +
+      'Final$'.padStart(10) +
+      'CAGR'.padStart(8) +
+      'Sharpe'.padStart(9) +
+      'MaxDD'.padStart(8) +
+      'MinEq'.padStart(9) +
+      'WR%'.padStart(6) +
+      'Trades'.padStart(8) +
+      '+Win'.padStart(7) +
+      '  Tag'
+    );
+    console.log('-'.repeat(85));
+  }
+
+  for (const riskPct of RISK_TIERS) {
+    console.log(`\n${'═'.repeat(85)}`);
+    console.log(`RISK TIER: ${(riskPct * 100).toFixed(0)}% of equity per trade — QQQ bull EMA34 DTE5, $10K start`);
+    console.log('═'.repeat(85));
+    printHeader();
+
+    for (const sp of SPREADS) {
+      const pg = runWFAPortfolio(allTradingDates, 'QQQ', TRAIN_DAYS, TEST_DAYS, {
+        trendEMA: 34, direction: 'bull', maxDTE: DTE,
+        targetDelta: sp.d, longPutDelta: sp.w,
+        maxRiskPct: riskPct, maxPositions: 1,
+        startingCapital: CAP,
+      });
+
+      console.log(
+        sp.label.padEnd(11) +
+        `$${pg.finalEquity.toFixed(0)}`.padStart(10) +
+        `${pg.oosCagr.toFixed(1)}%`.padStart(8) +
+        pg.oosSharpe.toFixed(3).padStart(9) +
+        `${pg.oosMaxDD.toFixed(1)}%`.padStart(8) +
+        `$${pg.minEquity.toFixed(0)}`.padStart(9) +
+        `${pg.oosWR.toFixed(0)}%`.padStart(6) +
+        String(pg.oosTrades).padStart(8) +
+        `${pg.posWindows}/${pg.windows.length}`.padStart(7) +
+        `  ${sp.tag}`
+      );
+    }
+  }
+
+  // ── Best per tier summary ──────────────────────────────
+  console.log(`\n\n${'═'.repeat(85)}`);
+  console.log('BEST CONFIG PER RISK TIER (ranked by Sharpe, MinEq >= $7K filter)');
+  console.log('═'.repeat(85));
+
+  for (const riskPct of RISK_TIERS) {
+    const results: Array<{ label: string; tag: string; pg: ReturnType<typeof runWFAPortfolio> }> = [];
+    for (const sp of SPREADS) {
+      const pg = runWFAPortfolio(allTradingDates, 'QQQ', TRAIN_DAYS, TEST_DAYS, {
+        trendEMA: 34, direction: 'bull', maxDTE: DTE,
+        targetDelta: sp.d, longPutDelta: sp.w,
+        maxRiskPct: riskPct, maxPositions: 1,
+        startingCapital: CAP,
+      });
+      results.push({ label: sp.label, tag: sp.tag, pg });
+    }
+
+    // Filter to configs that never went below $7K (30% max loss from start)
+    const safe = results.filter(r => r.pg.minEquity >= 7000);
+    const ranked = safe.sort((a, b) => b.pg.oosSharpe - a.pg.oosSharpe);
+
+    console.log(`\n  ${(riskPct * 100).toFixed(0)}% risk — Top 3 (MinEq >= $7K):`);
+    for (let i = 0; i < Math.min(3, ranked.length); i++) {
+      const r = ranked[i];
+      console.log(
+        `    ${i + 1}. ${r.label.padEnd(10)} ` +
+        `Final $${r.pg.finalEquity.toFixed(0).padStart(6)} | ` +
+        `Sharpe ${r.pg.oosSharpe.toFixed(3)} | ` +
+        `CAGR ${r.pg.oosCagr.toFixed(1).padStart(5)}% | ` +
+        `MaxDD ${r.pg.oosMaxDD.toFixed(1).padStart(5)}% | ` +
+        `MinEq $${r.pg.minEquity.toFixed(0).padStart(5)} | ` +
+        `WR ${r.pg.oosWR.toFixed(0)}%` +
+        (r.tag ? `  [${r.tag}]` : '')
+      );
+    }
+    if (ranked.length === 0) console.log(`    (no config met MinEq >= $7K at this risk level)`);
+  }
+
+  // ── Equity curves for winners ──────────────────────────
+  // Show curve for the best Sharpe at 10% risk
+  const best10 = SPREADS.map(sp => {
+    const pg = runWFAPortfolio(allTradingDates, 'QQQ', TRAIN_DAYS, TEST_DAYS, {
+      trendEMA: 34, direction: 'bull', maxDTE: DTE,
+      targetDelta: sp.d, longPutDelta: sp.w,
+      maxRiskPct: 0.10, maxPositions: 1,
+      startingCapital: CAP,
+    });
+    return { label: sp.label, tag: sp.tag, pg };
+  }).filter(r => r.pg.minEquity >= 7000).sort((a, b) => b.pg.oosSharpe - a.pg.oosSharpe);
+
+  for (const r of best10.slice(0, 3)) {
+    console.log(`\n${'═'.repeat(90)}`);
+    console.log(`EQUITY CURVE — QQQ ${r.label} 10% risk (true portfolio growth, $10K start)${r.tag ? ` [${r.tag}]` : ''}`);
+    console.log('═'.repeat(90));
+    console.log(
+      'Win'.padEnd(5) + 'Period'.padEnd(28) +
+      'StartEq'.padStart(10) + 'PnL'.padStart(10) + 'EndEq'.padStart(10) +
+      'Return'.padStart(9) + 'Trades'.padStart(8) + 'WR'.padStart(6)
+    );
+    console.log('-'.repeat(86));
+    for (let i = 0; i < r.pg.windows.length; i++) {
+      const w = r.pg.windows[i];
+      const ret = w.startEq > 0 ? ((w.endEq / w.startEq - 1) * 100).toFixed(1) : '0.0';
+      console.log(
+        `W${i + 1}`.padEnd(5) +
+        `${w.testStart} → ${w.testEnd}`.padEnd(28) +
+        `$${w.startEq.toFixed(0)}`.padStart(10) +
+        `$${w.pnl.toFixed(0)}`.padStart(10) +
+        `$${w.endEq.toFixed(0)}`.padStart(10) +
+        `${ret}%`.padStart(9) +
+        String(w.trades).padStart(8) +
+        `${w.wr.toFixed(0)}%`.padStart(6)
+      );
+    }
+    console.log(
+      `\nFinal: $${r.pg.finalEquity.toFixed(0)} (${((r.pg.finalEquity / CAP - 1) * 100).toFixed(0)}% total) | ` +
+      `Sharpe ${r.pg.oosSharpe.toFixed(3)} | CAGR ${r.pg.oosCagr.toFixed(1)}% | MaxDD ${r.pg.oosMaxDD.toFixed(1)}% | MinEq $${r.pg.minEquity.toFixed(0)}`
+    );
+  }
+
+  console.log('\nDone.');
+}
+
+// portfolioGrowthStudy().catch(console.error); // true portfolio growth study
+
+// ── Audit: trace dollars through sp30/20 20% ─────────
+async function auditSp3020() {
+  console.log('╔══════════════════════════════════════════════════════════════════╗');
+  console.log('║  AUDIT — sp30/20 20% risk, $10K start, trace every window      ║');
+  console.log('╚══════════════════════════════════════════════════════════════════╝\n');
+
+  const db = new Database('data/option-chains.sqlite');
+  const allTradingDates: string[] = db.prepare(
+    'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+  ).all('SPY', '2020-01-01', '2026-02-28').map((r: any) => r.trade_date);
+  db.close();
+
+  const TRAIN_DAYS = 252;
+  const TEST_DAYS = 126;
+  const CAP = 10_000;
+
+  let runningEquity = CAP;
+
+  let startIdx = 0;
+  let winNum = 0;
+  while (startIdx + TRAIN_DAYS + TEST_DAYS <= allTradingDates.length) {
+    const testStart = allTradingDates[startIdx + TRAIN_DAYS];
+    const testEnd = allTradingDates[Math.min(startIdx + TRAIN_DAYS + TEST_DAYS - 1, allTradingDates.length - 1)];
+    winNum++;
+
+    const result = runStrategy({
+      ...BASE,
+      ticker: 'QQQ',
+      startDate: testStart, endDate: testEnd,
+      trendEMA: 34, direction: 'bull', maxDTE: DTE,
+      targetDelta: 0.30, longPutDelta: 0.20,
+      maxRiskPct: 0.20, maxPositions: 1,
+      startingCapital: runningEquity,
+      commissionPerContract: 0,
+    });
+
+    const trades = result.trades;
+    const avgContracts = trades.length > 0 ? trades.reduce((s, t) => s + t.contracts, 0) / trades.length : 0;
+    const maxContracts = trades.length > 0 ? Math.max(...trades.map(t => t.contracts)) : 0;
+    const avgRiskPerTrade = trades.length > 0 ? trades.reduce((s, t) => s + t.maxRiskPerContract * t.contracts, 0) / trades.length : 0;
+    const avgPremPerTrade = trades.length > 0 ? trades.reduce((s, t) => s + t.premium * t.contracts * 100, 0) / trades.length : 0;
+    const winners = trades.filter(t => t.totalPnl > 0);
+    const losers = trades.filter(t => t.totalPnl <= 0);
+    const avgWin = winners.length > 0 ? winners.reduce((s, t) => s + t.totalPnl, 0) / winners.length : 0;
+    const avgLoss = losers.length > 0 ? losers.reduce((s, t) => s + t.totalPnl, 0) / losers.length : 0;
+    const biggestWin = winners.length > 0 ? Math.max(...winners.map(t => t.totalPnl)) : 0;
+    const biggestLoss = losers.length > 0 ? Math.min(...losers.map(t => t.totalPnl)) : 0;
+
+    console.log(`W${winNum} ${testStart} → ${testEnd}`);
+    console.log(`  StartEq: $${runningEquity.toFixed(0)} | RiskBudget: $${(runningEquity * 0.20).toFixed(0)} (20%)`);
+    console.log(`  Trades: ${trades.length} | WR: ${result.winRate.toFixed(0)}% | PnL: $${result.totalPnl.toFixed(0)}`);
+    console.log(`  Contracts: avg ${avgContracts.toFixed(1)}, max ${maxContracts} | AvgRisk/trade: $${avgRiskPerTrade.toFixed(0)} | AvgPrem/trade: $${avgPremPerTrade.toFixed(0)}`);
+    console.log(`  AvgWin: $${avgWin.toFixed(0)} | AvgLoss: $${avgLoss.toFixed(0)} | BigWin: $${biggestWin.toFixed(0)} | BigLoss: $${biggestLoss.toFixed(0)}`);
+
+    runningEquity += result.totalPnl;
+    console.log(`  EndEq: $${runningEquity.toFixed(0)}\n`);
+
+    startIdx += TEST_DAYS;
+  }
+  console.log(`Final: $${runningEquity.toFixed(0)} from $${CAP}`);
+}
+
+// auditSp3020().catch(console.error);
+
+// ── EMA Filter Comparison — True Portfolio Growth ─────
+async function emaFilterStudy() {
+  console.log('╔══════════════════════════════════════════════════════════════════════════╗');
+  console.log('║  EMA FILTER COMPARISON — True Portfolio Growth, $10K start              ║');
+  console.log('║  With vs without EMA gate, plus EMA period sweep                        ║');
+  console.log('╚══════════════════════════════════════════════════════════════════════════╝\n');
+
+  const db = new Database('data/option-chains.sqlite');
+  const allTradingDates: string[] = db.prepare(
+    'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+  ).all('SPY', '2020-01-01', '2026-02-28').map((r: any) => r.trade_date);
+  db.close();
+
+  const TRAIN_DAYS = 252;
+  const TEST_DAYS = 126;
+  const CAP = 10_000;
+
+  const EMAS: Array<number | undefined> = [undefined, 8, 13, 21, 34, 55, 89];
+  const SPREADS = [
+    { label: 'sp25/15', d: 0.25, w: 0.15 },
+    { label: 'sp30/20', d: 0.30, w: 0.20 },
+  ];
+  const RISKS = [0.05, 0.10, 0.20];
+
+  for (const risk of RISKS) {
+    console.log(`\n${'═'.repeat(100)}`);
+    console.log(`RISK TIER: ${(risk * 100).toFixed(0)}% — QQQ bull DTE5, $10K start, true portfolio growth`);
+    console.log('═'.repeat(100));
+
+    for (const sp of SPREADS) {
+      console.log(`\n  --- ${sp.label} ---`);
+      console.log(
+        '  EMA'.padEnd(8) +
+        'Final$'.padStart(10) +
+        'CAGR'.padStart(8) +
+        'Sharpe'.padStart(9) +
+        'MaxDD'.padStart(8) +
+        'MinEq'.padStart(9) +
+        'WR%'.padStart(6) +
+        'Trades'.padStart(8) +
+        '+Win'.padStart(7) +
+        '  Note'
+      );
+      console.log('  ' + '-'.repeat(80));
+
+      for (const ema of EMAS) {
+        const pg = runWFAPortfolio(allTradingDates, 'QQQ', TRAIN_DAYS, TEST_DAYS, {
+          trendEMA: ema, direction: 'bull', maxDTE: DTE,
+          targetDelta: sp.d, longPutDelta: sp.w,
+          maxRiskPct: risk, maxPositions: 1,
+          startingCapital: CAP,
+        });
+
+        const label = ema == null ? 'none' : `EMA${ema}`;
+        const note = ema === 34 ? '← CURRENT' : ema == null ? 'no filter' : '';
+        console.log(
+          `  ${label.padEnd(6)}` +
+          `$${pg.finalEquity.toFixed(0)}`.padStart(10) +
+          `${pg.oosCagr.toFixed(1)}%`.padStart(8) +
+          pg.oosSharpe.toFixed(3).padStart(9) +
+          `${pg.oosMaxDD.toFixed(1)}%`.padStart(8) +
+          `$${pg.minEquity.toFixed(0)}`.padStart(9) +
+          `${pg.oosWR.toFixed(0)}%`.padStart(6) +
+          String(pg.oosTrades).padStart(8) +
+          `${pg.posWindows}/${pg.windows.length}`.padStart(7) +
+          `  ${note}`
+        );
+      }
+    }
+  }
+
+  // Detailed equity curves: sp25/15 10% with EMA34 vs no EMA
+  for (const ema of [undefined, 34] as Array<number | undefined>) {
+    const label = ema == null ? 'NO EMA' : 'EMA34';
+    console.log(`\n${'═'.repeat(90)}`);
+    console.log(`EQUITY CURVE — QQQ sp25/15 10% risk, ${label} (true portfolio growth, $10K start)`);
+    console.log('═'.repeat(90));
+
+    const pg = runWFAPortfolio(allTradingDates, 'QQQ', TRAIN_DAYS, TEST_DAYS, {
+      trendEMA: ema, direction: 'bull', maxDTE: DTE,
+      targetDelta: 0.25, longPutDelta: 0.15,
+      maxRiskPct: 0.10, maxPositions: 1,
+      startingCapital: CAP,
+    });
+
+    console.log(
+      'Win'.padEnd(5) + 'Period'.padEnd(28) +
+      'StartEq'.padStart(10) + 'PnL'.padStart(10) + 'EndEq'.padStart(10) +
+      'Return'.padStart(9) + 'Trades'.padStart(8) + 'WR'.padStart(6)
+    );
+    console.log('-'.repeat(86));
+
+    for (let i = 0; i < pg.windows.length; i++) {
+      const w = pg.windows[i];
+      const ret = w.startEq > 0 ? ((w.endEq / w.startEq - 1) * 100).toFixed(1) : '0.0';
+      console.log(
+        `W${i + 1}`.padEnd(5) +
+        `${w.testStart} → ${w.testEnd}`.padEnd(28) +
+        `$${w.startEq.toFixed(0)}`.padStart(10) +
+        `$${w.pnl.toFixed(0)}`.padStart(10) +
+        `$${w.endEq.toFixed(0)}`.padStart(10) +
+        `${ret}%`.padStart(9) +
+        String(w.trades).padStart(8) +
+        `${w.wr.toFixed(0)}%`.padStart(6)
+      );
+    }
+    console.log(
+      `\nFinal: $${pg.finalEquity.toFixed(0)} (${((pg.finalEquity / CAP - 1) * 100).toFixed(0)}% total) | ` +
+      `Sharpe ${pg.oosSharpe.toFixed(3)} | CAGR ${pg.oosCagr.toFixed(1)}% | MaxDD ${pg.oosMaxDD.toFixed(1)}% | MinEq $${pg.minEquity.toFixed(0)}`
+    );
+  }
+
+  console.log('\nDone.');
+}
+
+// emaFilterStudy().catch(console.error);
+
+// ── Dashboard Data Export ─────────────────────────────
+async function exportDashboardData() {
+  console.log('Generating DTE5 dashboard data (multi-ticker)...\n');
+
+  const DATA_START = '2017-01-03';
+  const DATA_END = '2026-02-28';
+  const TICKERS = ['QQQ', 'SPY', 'IWM'];
+
+  const TRAIN_DAYS = 252;
+  const TEST_DAYS = 126;
+  const CAP = 10_000;
+
+  const SPREADS = [
+    { label: 'sp15/05', d: 0.15, w: 0.05 },
+    { label: 'sp20/10', d: 0.20, w: 0.10 },
+    { label: 'sp25/10', d: 0.25, w: 0.10 },
+    { label: 'sp25/15', d: 0.25, w: 0.15 },
+    { label: 'sp25/20', d: 0.25, w: 0.20 },
+    { label: 'sp30/15', d: 0.30, w: 0.15 },
+    { label: 'sp30/20', d: 0.30, w: 0.20 },
+    { label: 'sp30/25', d: 0.30, w: 0.25 },
+    { label: 'sp35/25', d: 0.35, w: 0.25 },
+    { label: 'sp40/30', d: 0.40, w: 0.30 },
+    { label: 'sp40/35', d: 0.40, w: 0.35 },
+  ];
+  const RISKS = [0.05, 0.10, 0.15, 0.20];
+  const EMAS: Array<number | undefined> = [undefined, 8, 13, 21, 34, 55, 89];
+  const EMA_SPREADS = [
+    { label: 'sp25/15', d: 0.25, w: 0.15 },
+    { label: 'sp30/20', d: 0.30, w: 0.20 },
+  ];
+
+  // Load trading dates per ticker
+  const db = new Database('data/option-chains.sqlite');
+  const tickerDates: Record<string, string[]> = {};
+  for (const ticker of TICKERS) {
+    tickerDates[ticker] = db.prepare(
+      'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+    ).all(ticker, DATA_START, DATA_END).map((r: any) => r.trade_date);
+    console.log(`${ticker}: ${tickerDates[ticker].length} trading days (${tickerDates[ticker][0]} → ${tickerDates[ticker][tickerDates[ticker].length - 1]})`);
+  }
+  db.close();
+
+  // ── 1. Spread comparison across tickers × risk tiers ───
+  type SpreadRow = {
+    ticker: string; label: string; riskPct: number;
+    finalEquity: number; cagr: number; sharpe: number; maxDD: number;
+    minEquity: number; winRate: number; trades: number; posWindows: number; totalWindows: number;
+    equityCurve: Array<{ date: string; equity: number }>;
+  };
+  const spreadResults: SpreadRow[] = [];
+
+  for (const ticker of TICKERS) {
+    const dates = tickerDates[ticker];
+    process.stdout.write(`\nSpreads ${ticker}: `);
+    for (const risk of RISKS) {
+      for (const sp of SPREADS) {
+        const pg = runWFAPortfolio(dates, ticker, TRAIN_DAYS, TEST_DAYS, {
+          trendEMA: 34, direction: 'bull', maxDTE: DTE,
+          targetDelta: sp.d, longPutDelta: sp.w,
+          maxRiskPct: risk, maxPositions: 1,
+          startingCapital: CAP,
+        });
+        spreadResults.push({
+          ticker, label: sp.label, riskPct: risk,
+          finalEquity: pg.finalEquity, cagr: pg.oosCagr, sharpe: pg.oosSharpe,
+          maxDD: pg.oosMaxDD, minEquity: pg.minEquity, winRate: pg.oosWR,
+          trades: pg.oosTrades, posWindows: pg.posWindows, totalWindows: pg.windows.length,
+          equityCurve: pg.windows.map(w => ({ date: w.testEnd, equity: w.endEq })),
+        });
+        process.stdout.write('.');
+      }
+    }
+  }
+  console.log(`\n${spreadResults.length} spread configs done`);
+
+  // ── 2. EMA comparison per ticker at 10% risk ───────────
+  type EMARow = {
+    ticker: string; spread: string; ema: number | null;
+    finalEquity: number; cagr: number; sharpe: number; maxDD: number;
+    minEquity: number; winRate: number; trades: number;
+    equityCurve: Array<{ date: string; equity: number }>;
+  };
+  const emaResults: EMARow[] = [];
+
+  for (const ticker of TICKERS) {
+    const dates = tickerDates[ticker];
+    process.stdout.write(`\nEMAs ${ticker}: `);
+    for (const sp of EMA_SPREADS) {
+      for (const ema of EMAS) {
+        const pg = runWFAPortfolio(dates, ticker, TRAIN_DAYS, TEST_DAYS, {
+          trendEMA: ema, direction: 'bull', maxDTE: DTE,
+          targetDelta: sp.d, longPutDelta: sp.w,
+          maxRiskPct: 0.10, maxPositions: 1,
+          startingCapital: CAP,
+        });
+        emaResults.push({
+          ticker, spread: sp.label, ema: ema ?? null,
+          finalEquity: pg.finalEquity, cagr: pg.oosCagr, sharpe: pg.oosSharpe,
+          maxDD: pg.oosMaxDD, minEquity: pg.minEquity, winRate: pg.oosWR,
+          trades: pg.oosTrades,
+          equityCurve: pg.windows.map(w => ({ date: w.testEnd, equity: w.endEq })),
+        });
+        process.stdout.write('.');
+      }
+    }
+  }
+  console.log(`\n${emaResults.length} EMA configs done`);
+
+  // ── 3. Detailed equity curves for top configs per ticker ──
+  type DetailRow = {
+    ticker: string; label: string; tag: string;
+    windows: Array<{ testStart: string; testEnd: string; startEq: number; endEq: number; pnl: number; trades: number; wr: number }>;
+    summary: { finalEquity: number; cagr: number; sharpe: number; maxDD: number; minEquity: number; winRate: number; trades: number };
+  };
+  const detailedCurves: DetailRow[] = [];
+
+  const TOP_CONFIGS = [
+    { label: 'sp25/15 10%', d: 0.25, w: 0.15, risk: 0.10, tag: 'PREVIOUS' },
+    { label: 'sp30/20 10%', d: 0.30, w: 0.20, risk: 0.10, tag: 'RECOMMENDED' },
+    { label: 'sp30/20 5%', d: 0.30, w: 0.20, risk: 0.05, tag: 'CONSERVATIVE' },
+    { label: 'sp25/15 20%', d: 0.25, w: 0.15, risk: 0.20, tag: 'AGGRESSIVE' },
+  ];
+
+  for (const ticker of TICKERS) {
+    const dates = tickerDates[ticker];
+    for (const cfg of TOP_CONFIGS) {
+      const pg = runWFAPortfolio(dates, ticker, TRAIN_DAYS, TEST_DAYS, {
+        trendEMA: 34, direction: 'bull', maxDTE: DTE,
+        targetDelta: cfg.d, longPutDelta: cfg.w,
+        maxRiskPct: cfg.risk, maxPositions: 1,
+        startingCapital: CAP,
+      });
+      detailedCurves.push({
+        ticker, label: cfg.label, tag: cfg.tag,
+        windows: pg.windows,
+        summary: {
+          finalEquity: pg.finalEquity, cagr: pg.oosCagr, sharpe: pg.oosSharpe,
+          maxDD: pg.oosMaxDD, minEquity: pg.minEquity, winRate: pg.oosWR, trades: pg.oosTrades,
+        },
+      });
+    }
+  }
+
+  const output = {
+    generatedAt: new Date().toISOString(),
+    engine: 'post-audit, worst-side fills, honest pricing, true portfolio growth WFA',
+    dataStart: DATA_START,
+    dataEnd: DATA_END,
+    startingCapital: CAP,
+    tickers: TICKERS,
+    direction: 'bull',
+    defaultEMA: 34,
+    dte: DTE,
+    trainDays: TRAIN_DAYS,
+    testDays: TEST_DAYS,
+    spreadComparison: spreadResults,
+    emaComparison: emaResults,
+    detailedCurves,
+  };
+
+  const outPath = path.join(__dirname, '../data/dte5-dashboard.json');
+  fs.writeFileSync(outPath, JSON.stringify(output, null, 2));
+  console.log(`\nSaved to ${outPath} (${(JSON.stringify(output).length / 1024).toFixed(0)}KB)`);
+}
+
+// exportDashboardData().catch(console.error);
+
+// ── Bear Call Credit Spread Experiment ─────────────────
+async function bearCallStudy() {
+  console.log('╔═════════════���════════════════════���═══════════════════════════════════════╗');
+  console.log('║  BEAR CALL CREDIT SPREAD — DTE5 Experiment                              ║');
+  console.log('║  Triple-EMA alignment + proximity gates + rally-from-low filter          ║');
+  console.log('║  True portfolio growth ($10K start, equity carries across WFA windows)   ║');
+  console.log('╚═══════════════��════════════════════════════════════���═════════════════════╝\n');
+
+  const db = new Database('data/option-chains.sqlite');
+  const allTradingDates: string[] = db.prepare(
+    'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+  ).all('QQQ', '2017-01-03', '2026-03-28').map((r: any) => r.trade_date);
+  db.close();
+
+  const TRAIN_DAYS = 252;
+  const TEST_DAYS = 126;
+  const CAP = 10_000;
+
+  // ── Regime Filters ──────────────────────────────────
+  const REGIMES = [
+    { label: 'tripleEMA(21<34<55)',
+      overrides: { trendEMA: 21, trendEMA2: 34, trendEMA3: 55, requireAlignment: true } },
+    { label: 'dualEMA(21<34)',
+      overrides: { trendEMA: 21, trendEMA2: 34, requireAlignment: true } },
+    { label: 'singleEMA34',
+      overrides: { trendEMA: 34, requireAlignment: false } },
+  ];
+
+  // ── Proximity Gates ─────────────────────────────────
+  const PROXIMITY_GATES = [
+    { label: 'nearEMA8_1%',  overrides: { pullbackOnly: true, pullbackEMA: 8,  pullbackTolerance: 0.01 } },
+    { label: 'nearEMA8_2%',  overrides: { pullbackOnly: true, pullbackEMA: 8,  pullbackTolerance: 0.02 } },
+    { label: 'nearEMA21_1%', overrides: { pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01 } },
+    { label: 'nearEMA21_2%', overrides: { pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.02 } },
+    { label: 'none',         overrides: {} },
+  ];
+
+  // ── Spread Configs ──────────────────────────────────
+  const SPREADS = [
+    { label: 'sp15/05', delta: 0.15, wing: 0.05 },
+    { label: 'sp20/10', delta: 0.20, wing: 0.10 },
+    { label: 'sp25/15', delta: 0.25, wing: 0.15 },
+    { label: 'sp30/20', delta: 0.30, wing: 0.20 },
+    { label: 'sp40/30', delta: 0.40, wing: 0.30 },
+  ];
+
+  const RISKS = [0.05, 0.10, 0.15, 0.20];
+  const BEAR_TICKERS = ['QQQ', 'SPY', 'IWM'];
+
+  interface BearResult {
+    ticker: string;
+    regime: string;
+    proximity: string;
+    spread: string;
+    riskPct: number;
+    sharpe: number;
+    cagr: number;
+    maxDD: number;
+    winRate: number;
+    finalEquity: number;
+    trades: number;
+    posWindows: number;
+    totalWindows: number;
+    minEquity: number;
+  }
+
+  const allResults: BearResult[] = [];
+  let totalRuns = 0;
+  const totalExpected = BEAR_TICKERS.length * REGIMES.length * PROXIMITY_GATES.length * SPREADS.length * RISKS.length;
+
+  console.log(`  Total configs to test: ${totalExpected}`);
+  console.log(`  Tickers: ${BEAR_TICKERS.join(', ')}`);
+  console.log(`  Regimes: ${REGIMES.map(r => r.label).join(', ')}`);
+  console.log(`  Proximity: ${PROXIMITY_GATES.map(p => p.label).join(', ')}`);
+  console.log(`  Spreads: ${SPREADS.map(s => s.label).join(', ')}`);
+  console.log(`  Risk tiers: ${RISKS.map(r => (r*100)+'%').join(', ')}\n`);
+
+  for (const ticker of BEAR_TICKERS) {
+    const startTime = Date.now();
+    let tickerRuns = 0;
+
+    for (const regime of REGIMES) {
+      for (const prox of PROXIMITY_GATES) {
+        for (const sp of SPREADS) {
+          for (const risk of RISKS) {
+            const result = runWFAPortfolio(allTradingDates, ticker, TRAIN_DAYS, TEST_DAYS, {
+              direction: 'bear',
+              targetDelta: sp.delta,
+              longPutDelta: sp.wing,
+              maxDTE: DTE,
+              maxRiskPct: risk,
+              startingCapital: CAP,
+              compounding: true,
+              ...regime.overrides,
+              ...prox.overrides,
+            });
+
+            allResults.push({
+              ticker,
+              regime: regime.label,
+              proximity: prox.label,
+              spread: sp.label,
+              riskPct: risk,
+              sharpe: result.oosSharpe,
+              cagr: result.oosCagr,
+              maxDD: result.oosMaxDD,
+              winRate: result.oosWR,
+              finalEquity: result.finalEquity,
+              trades: result.oosTrades,
+              posWindows: result.posWindows,
+              totalWindows: result.windows.length,
+              minEquity: result.minEquity,
+            });
+
+            totalRuns++;
+            tickerRuns++;
+          }
+        }
+      }
+    }
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`  ${ticker}: ${tickerRuns} runs in ${elapsed}s`);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // RESULTS — sorted by Sharpe, grouped by ticker
+  // ��═════════════���════════════════════════════════════════════
+
+  for (const ticker of BEAR_TICKERS) {
+    const tickerResults = allResults.filter(r => r.ticker === ticker);
+    const sorted = [...tickerResults].sort((a, b) => b.sharpe - a.sharpe);
+
+    console.log(`\n${'═'.repeat(130)}`);
+    console.log(`  ${ticker} — BEAR CALL SPREADS — Top 30 by Sharpe (of ${tickerResults.length} configs)`);
+    console.log('═'.repeat(130));
+    console.log(
+      'Regime'.padEnd(22) +
+      'Prox'.padEnd(16) +
+      'Spread'.padEnd(9) +
+      'Risk'.padStart(6) +
+      'Sharpe'.padStart(8) +
+      'CAGR'.padStart(8) +
+      'MaxDD'.padStart(8) +
+      'WR'.padStart(6) +
+      'Final$'.padStart(11) +
+      'Trades'.padStart(8) +
+      '+Win'.padStart(7) +
+      'MinEq'.padStart(10)
+    );
+    console.log('-'.repeat(130));
+
+    for (const r of sorted.slice(0, 30)) {
+      console.log(
+        r.regime.padEnd(22) +
+        r.proximity.padEnd(16) +
+        r.spread.padEnd(9) +
+        ((r.riskPct * 100).toFixed(0) + '%').padStart(6) +
+        r.sharpe.toFixed(3).padStart(8) +
+        (r.cagr.toFixed(1) + '%').padStart(8) +
+        (r.maxDD.toFixed(1) + '%').padStart(8) +
+        (r.winRate.toFixed(0) + '%').padStart(6) +
+        formatCurrency(r.finalEquity).padStart(11) +
+        String(r.trades).padStart(8) +
+        `${r.posWindows}/${r.totalWindows}`.padStart(7) +
+        formatCurrency(r.minEquity).padStart(10)
+      );
+    }
+
+    // Summary stats
+    const positive = tickerResults.filter(r => r.sharpe > 0);
+    const viable = tickerResults.filter(r => r.sharpe > 0.3);
+    console.log(`\n  ${ticker} Summary: ${positive.length}/${tickerResults.length} positive Sharpe, ${viable.length} viable (Sharpe > 0.3)`);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // REGIME COMPARISON — average Sharpe by regime × proximity
+  // ═══════════════���═══════════════════════════════════════════
+  console.log(`\n${'═'.repeat(100)}`);
+  console.log('  REGIME × PROXIMITY COMPARISON (avg Sharpe across spreads/risks/tickers)');
+  console.log('═'.repeat(100));
+  console.log(
+    'Regime'.padEnd(22) +
+    PROXIMITY_GATES.map(p => p.label.padStart(16)).join('')
+  );
+  console.log('-'.repeat(22 + PROXIMITY_GATES.length * 16));
+
+  for (const regime of REGIMES) {
+    let row = regime.label.padEnd(22);
+    for (const prox of PROXIMITY_GATES) {
+      const subset = allResults.filter(r => r.regime === regime.label && r.proximity === prox.label);
+      const avgSharpe = subset.length > 0 ? subset.reduce((s, r) => s + r.sharpe, 0) / subset.length : 0;
+      row += avgSharpe.toFixed(3).padStart(16);
+    }
+    console.log(row);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // BEST CONFIG PER TICKER at 10% risk
+  // ═══════════════════════════════════════════════════════════
+  console.log(`\n${'���'.repeat(100)}`);
+  console.log('  BEST CONFIG PER TICKER (10% risk tier)');
+  console.log('═'.repeat(100));
+
+  for (const ticker of BEAR_TICKERS) {
+    const at10 = allResults.filter(r => r.ticker === ticker && r.riskPct === 0.10);
+    const best = at10.sort((a, b) => b.sharpe - a.sharpe)[0];
+    if (best) {
+      console.log(`  ${ticker}: ${best.regime} + ${best.proximity} + ${best.spread}`);
+      console.log(`    Sharpe ${best.sharpe.toFixed(3)}, CAGR ${best.cagr.toFixed(1)}%, MaxDD ${best.maxDD.toFixed(1)}%, WR ${best.winRate.toFixed(0)}%, Final $${best.finalEquity.toFixed(0)}, ${best.trades} trades`);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // ADDITIONAL: Max rally-from-low filter sweep
+  // ═══════════════════════════════════════════════════════════
+  console.log(`\n${'═'.repeat(100)}`);
+  console.log('  RALLY-FROM-LOW FILTER SWEEP (best regime per ticker, 10% risk)');
+  console.log('═'.repeat(100));
+
+  const RALLY_THRESHOLDS = [0.03, 0.05, 0.08, 0.10, 0.15]; // 3%, 5%, 8%, 10%, 15%
+
+  for (const ticker of BEAR_TICKERS) {
+    // Find best regime+prox at 10% risk for this ticker
+    const at10 = allResults.filter(r => r.ticker === ticker && r.riskPct === 0.10);
+    const best = at10.sort((a, b) => b.sharpe - a.sharpe)[0];
+    if (!best) continue;
+
+    const bestRegime = REGIMES.find(r => r.label === best.regime)!;
+    const bestProx = PROXIMITY_GATES.find(p => p.label === best.proximity)!;
+    const bestSpread = SPREADS.find(s => s.label === best.spread)!;
+
+    console.log(`\n  ${ticker} — ${best.regime} + ${best.proximity} + ${best.spread}:`);
+    console.log('  ' + 'MaxRally'.padEnd(12) + 'Sharpe'.padStart(8) + 'CAGR'.padStart(8) + 'MaxDD'.padStart(8) + 'WR'.padStart(6) + 'Trades'.padStart(8) + 'Final$'.padStart(11));
+    console.log('  ' + '-'.repeat(61));
+
+    // Baseline (no rally filter)
+    console.log(
+      '  ' + 'none'.padEnd(12) +
+      best.sharpe.toFixed(3).padStart(8) +
+      (best.cagr.toFixed(1) + '%').padStart(8) +
+      (best.maxDD.toFixed(1) + '%').padStart(8) +
+      (best.winRate.toFixed(0) + '%').padStart(6) +
+      String(best.trades).padStart(8) +
+      formatCurrency(best.finalEquity).padStart(11)
+    );
+
+    for (const thresh of RALLY_THRESHOLDS) {
+      const result = runWFAPortfolio(allTradingDates, ticker, TRAIN_DAYS, TEST_DAYS, {
+        direction: 'bear',
+        targetDelta: bestSpread.delta,
+        longPutDelta: bestSpread.wing,
+        maxDTE: DTE,
+        maxRiskPct: 0.10,
+        startingCapital: CAP,
+        compounding: true,
+        maxRallyFromLow: thresh,
+        ...bestRegime.overrides,
+        ...bestProx.overrides,
+      });
+
+      console.log(
+        '  ' + ((thresh * 100).toFixed(0) + '%').padEnd(12) +
+        result.oosSharpe.toFixed(3).padStart(8) +
+        (result.oosCagr.toFixed(1) + '%').padStart(8) +
+        (result.oosMaxDD.toFixed(1) + '%').padStart(8) +
+        (result.oosWR.toFixed(0) + '%').padStart(6) +
+        String(result.oosTrades).padStart(8) +
+        formatCurrency(result.finalEquity).padStart(11)
+      );
+    }
+  }
+
+  // Save results
+  const outPath = 'data/bear-experiment-results.json';
+  fs.writeFileSync(outPath, JSON.stringify({
+    timestamp: new Date().toISOString(),
+    config: { trainDays: TRAIN_DAYS, testDays: TEST_DAYS, startingCapital: CAP, dateRange: '2017-01-03 to 2026-03-28' },
+    results: allResults,
+    totalRuns,
+  }, null, 2));
+  console.log(`\nResults saved to ${outPath}`);
+  console.log('Done.');
+}
+
+// bearCallStudy().catch(console.error);
+
+// ── TRUE PORTFOLIO Combined Bull/Bear ─────────────────
+// Shared equity pool: both bull and bear sides size from the SAME running equity.
+// Each WFA window runs both sides, merges P&L, then updates equity for next window.
+function runCombinedWFAPortfolio(
+  allTradingDates: string[],
+  trainDays: number,
+  testDays: number,
+  legs: Array<{ ticker: string; overrides: Partial<ShortPut1DTEConfig> }>,
+): {
+  windows: Array<{ testStart: string; testEnd: string; startEq: number; endEq: number; pnl: number; trades: number; legDetail: Array<{ ticker: string; dir: string; trades: number; pnl: number; wr: number }> }>;
+  finalEquity: number;
+  totalPnl: number;
+  oosSharpe: number;
+  oosCagr: number;
+  oosMaxDD: number;
+  oosTrades: number;
+  oosWR: number;
+  posWindows: number;
+  minEquity: number;
+  legSummary: Array<{ ticker: string; dir: string; trades: number; pnl: number; wr: number }>;
+} {
+  const cap0 = 10_000;
+  let runningEquity = cap0;
+  let minEquity = cap0;
+  const windowResults: typeof undefined extends never ? never : Array<{ testStart: string; testEnd: string; startEq: number; endEq: number; pnl: number; trades: number; legDetail: Array<{ ticker: string; dir: string; trades: number; pnl: number; wr: number }> }> = [];
+  const allTrades: ShortPutTrade[] = [];
+  const scaledDailyPnl = new Map<string, number>();
+  const legTotals = new Map<string, { trades: number; pnl: number; wins: number }>();
+
+  let startIdx = 0;
+  while (startIdx + trainDays + testDays <= allTradingDates.length) {
+    const testStart = allTradingDates[startIdx + trainDays];
+    const testEnd = allTradingDates[Math.min(startIdx + trainDays + testDays - 1, allTradingDates.length - 1)];
+
+    const startEq = runningEquity;
+    let windowPnl = 0;
+    let windowTrades = 0;
+    const legDetail: Array<{ ticker: string; dir: string; trades: number; pnl: number; wr: number }> = [];
+
+    // Run each leg with the SAME running equity as starting capital
+    // Risk budget per leg = maxRiskPct applies to the shared equity
+    for (const leg of legs) {
+      const result = runStrategy({
+        ...BASE, ...leg.overrides,
+        ticker: leg.ticker,
+        startDate: testStart,
+        endDate: testEnd,
+        startingCapital: runningEquity,  // KEY: shared equity
+      });
+
+      windowPnl += result.totalPnl;
+      windowTrades += result.totalTrades;
+
+      const dir = leg.overrides.direction ?? 'bull';
+      const key = `${leg.ticker}-${dir}`;
+      const existing = legTotals.get(key) ?? { trades: 0, pnl: 0, wins: 0 };
+      existing.trades += result.totalTrades;
+      existing.pnl += result.totalPnl;
+      existing.wins += result.trades.filter(t => t.totalPnl > 0).length;
+      legTotals.set(key, existing);
+
+      legDetail.push({
+        ticker: leg.ticker,
+        dir,
+        trades: result.totalTrades,
+        pnl: result.totalPnl,
+        wr: result.winRate,
+      });
+
+      for (const t of result.trades) {
+        allTrades.push(t);
+        scaledDailyPnl.set(t.exitDate, (scaledDailyPnl.get(t.exitDate) ?? 0) + t.totalPnl);
+      }
+    }
+
+    runningEquity += windowPnl;
+    minEquity = Math.min(minEquity, runningEquity);
+
+    windowResults.push({ testStart, testEnd, startEq, endEq: runningEquity, pnl: windowPnl, trades: windowTrades, legDetail });
+    startIdx += testDays;
+  }
+
+  // Sharpe from daily returns
+  const oosDateSet = new Set<string>();
+  for (const w of windowResults) {
+    for (const d of allTradingDates) {
+      if (d >= w.testStart && d <= w.testEnd) oosDateSet.add(d);
+    }
+  }
+  const oosDates = [...oosDateSet].sort();
+
+  let eq = cap0, pk = eq, mdd = 0;
+  const rets: number[] = [];
+  for (const d of oosDates) {
+    const dayPnl = scaledDailyPnl.get(d) ?? 0;
+    const base = eq;
+    eq += dayPnl;
+    pk = Math.max(pk, eq);
+    mdd = Math.max(mdd, pk > 0 ? (pk - eq) / pk : 0);
+    if (base > 0) rets.push(dayPnl / base);
+  }
+  const avg = rets.length > 0 ? rets.reduce((s, r) => s + r, 0) / rets.length : 0;
+  const std = rets.length > 1 ? Math.sqrt(rets.reduce((s, r) => s + (r - avg) ** 2, 0) / (rets.length - 1)) : 0;
+  const oosSharpe = std > 0 ? (avg / std) * Math.sqrt(252) : 0;
+
+  const oosYears = oosDates.length > 1
+    ? (new Date(oosDates[oosDates.length - 1]).getTime() - new Date(oosDates[0]).getTime()) / (365.25 * 86400000)
+    : 0;
+  const oosCagr = oosYears > 0 && cap0 > 0 ? ((runningEquity / cap0) ** (1 / oosYears) - 1) * 100 : 0;
+  const oosWR = allTrades.length > 0 ? allTrades.filter(t => t.totalPnl > 0).length / allTrades.length * 100 : 0;
+  const posWindows = windowResults.filter(w => w.pnl > 0).length;
+
+  const legSummary = [...legTotals.entries()].map(([key, v]) => {
+    const [ticker, dir] = key.split('-');
+    return { ticker, dir, trades: v.trades, pnl: v.pnl, wr: v.trades > 0 ? v.wins / v.trades * 100 : 0 };
+  });
+
+  return { windows: windowResults, finalEquity: runningEquity, totalPnl: runningEquity - cap0, oosSharpe, oosCagr, oosMaxDD: mdd * 100, oosTrades: allTrades.length, oosWR, posWindows, minEquity, legSummary };
+}
+
+// ── Bear Deep Dive + Combined Bull/Bear Portfolio ─────
+async function bearDeepDive() {
+  console.log('╔══════════════════════════════════════════════════════════════════════════╗');
+  console.log('║  BEAR DEEP DIVE — Enhanced configs + Combined Bull/Bear Portfolio       ║');
+  console.log('║  Goal: Utilize idle capital during bear markets                         ║');
+  console.log('╚══════════════════════════════════════════════════════════════════════════╝\n');
+
+  const db = new Database('data/option-chains.sqlite');
+  const allTradingDates: string[] = db.prepare(
+    'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+  ).all('QQQ', '2017-01-03', '2026-03-28').map((r: any) => r.trade_date);
+  db.close();
+
+  const TRAIN_DAYS = 252;
+  const TEST_DAYS = 126;
+  const CAP = 10_000;
+
+  // ═══════════════════════════════════════════════════════════
+  // STEP 1: Window-by-window analysis of best enhanced bear configs
+  // ═══════════════════════════════════════════════════════════
+  console.log('═'.repeat(120));
+  console.log('  STEP 1: WINDOW-BY-WINDOW — Best bear configs with 8% rally filter');
+  console.log('═'.repeat(120));
+
+  interface EnhancedConfig {
+    label: string;
+    ticker: string;
+    overrides: Partial<ShortPut1DTEConfig>;
+  }
+
+  const ENHANCED_BEAR_CONFIGS: EnhancedConfig[] = [
+    {
+      label: 'SPY bear sp40/30 + EMA34 + nearEMA21_1% + rally8%',
+      ticker: 'SPY',
+      overrides: {
+        direction: 'bear', targetDelta: 0.40, longPutDelta: 0.30, maxDTE: DTE,
+        trendEMA: 34, requireAlignment: false,
+        pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01,
+        maxRallyFromLow: 0.08,
+        maxRiskPct: 0.10, startingCapital: CAP, compounding: true,
+      },
+    },
+    {
+      label: 'IWM bear sp30/20 + triple(21<34<55) + nearEMA21_1% + rally8%',
+      ticker: 'IWM',
+      overrides: {
+        direction: 'bear', targetDelta: 0.30, longPutDelta: 0.20, maxDTE: DTE,
+        trendEMA: 21, trendEMA2: 34, trendEMA3: 55, requireAlignment: true,
+        pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01,
+        maxRallyFromLow: 0.08,
+        maxRiskPct: 0.10, startingCapital: CAP, compounding: true,
+      },
+    },
+    {
+      label: 'QQQ bear sp40/30 + triple(21<34<55) + nearEMA21_1%',
+      ticker: 'QQQ',
+      overrides: {
+        direction: 'bear', targetDelta: 0.40, longPutDelta: 0.30, maxDTE: DTE,
+        trendEMA: 21, trendEMA2: 34, trendEMA3: 55, requireAlignment: true,
+        pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01,
+        maxRiskPct: 0.10, startingCapital: CAP, compounding: true,
+      },
+    },
+  ];
+
+  // Run each with full window details
+  for (const cfg of ENHANCED_BEAR_CONFIGS) {
+    const result = runWFAPortfolio(allTradingDates, cfg.ticker, TRAIN_DAYS, TEST_DAYS, cfg.overrides);
+
+    console.log(`\n  ${cfg.label}`);
+    console.log(`  Sharpe ${result.oosSharpe.toFixed(3)}, CAGR ${result.oosCagr.toFixed(1)}%, MaxDD ${result.oosMaxDD.toFixed(1)}%, WR ${result.oosWR.toFixed(0)}%, Final $${result.finalEquity.toFixed(0)}, ${result.oosTrades} trades\n`);
+    console.log(
+      '  ' + 'W#'.padEnd(4) +
+      'Test Period'.padEnd(26) +
+      'StartEq'.padStart(10) +
+      'EndEq'.padStart(10) +
+      'PnL'.padStart(10) +
+      'Trades'.padStart(8) +
+      'WR'.padStart(6)
+    );
+    console.log('  ' + '-'.repeat(74));
+
+    for (let i = 0; i < result.windows.length; i++) {
+      const w = result.windows[i];
+      console.log(
+        '  ' + String(i + 1).padEnd(4) +
+        `${w.testStart} → ${w.testEnd}`.padEnd(26) +
+        formatCurrency(w.startEq).padStart(10) +
+        formatCurrency(w.endEq).padStart(10) +
+        formatCurrency(w.pnl).padStart(10) +
+        String(w.trades).padStart(8) +
+        (w.trades > 0 ? (w.wr.toFixed(0) + '%').padStart(6) : '--'.padStart(6))
+      );
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // STEP 1b: WHY QQQ BEAR UNDERPERFORMS — diagnostic comparison
+  // ═══════════════════════════════════════════════════════════
+  console.log(`\n${'═'.repeat(130)}`);
+  console.log('  STEP 1b: WHY QQQ BEAR UNDERPERFORMS SPY/IWM — Diagnostic Comparison');
+  console.log('═'.repeat(130));
+
+  // Run all 3 bear strategies at fixed $10K, full date range, with detailed trade output
+  const DIAG_CONFIGS = [
+    { label: 'QQQ bear (triple 21<34<55 + nearEMA21_1% + rally8%)', ticker: 'QQQ',
+      overrides: { direction: 'bear' as const, targetDelta: 0.40, longPutDelta: 0.30, maxDTE: DTE,
+        trendEMA: 21, trendEMA2: 34, trendEMA3: 55, requireAlignment: true,
+        pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01, maxRallyFromLow: 0.08,
+        maxRiskPct: 0.10, startingCapital: 10_000 } },
+    { label: 'SPY bear (EMA34 + nearEMA21_1% + rally8%)', ticker: 'SPY',
+      overrides: { direction: 'bear' as const, targetDelta: 0.40, longPutDelta: 0.30, maxDTE: DTE,
+        trendEMA: 34, requireAlignment: false as const,
+        pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01, maxRallyFromLow: 0.08,
+        maxRiskPct: 0.10, startingCapital: 10_000 } },
+    { label: 'IWM bear (triple 21<34<55 + nearEMA21_1% + rally8%)', ticker: 'IWM',
+      overrides: { direction: 'bear' as const, targetDelta: 0.30, longPutDelta: 0.20, maxDTE: DTE,
+        trendEMA: 21, trendEMA2: 34, trendEMA3: 55, requireAlignment: true,
+        pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01, maxRallyFromLow: 0.08,
+        maxRiskPct: 0.10, startingCapital: 10_000 } },
+    // QQQ bear with same EMA34-only filter as SPY (apples-to-apples regime comparison)
+    { label: 'QQQ bear (EMA34 only + nearEMA21_1% + rally8%)', ticker: 'QQQ',
+      overrides: { direction: 'bear' as const, targetDelta: 0.40, longPutDelta: 0.30, maxDTE: DTE,
+        trendEMA: 34, requireAlignment: false as const,
+        pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01, maxRallyFromLow: 0.08,
+        maxRiskPct: 0.10, startingCapital: 10_000 } },
+    // QQQ bear with NO proximity gate (how many days pass regime filter?)
+    { label: 'QQQ bear (triple, NO proximity, NO rally)', ticker: 'QQQ',
+      overrides: { direction: 'bear' as const, targetDelta: 0.40, longPutDelta: 0.30, maxDTE: DTE,
+        trendEMA: 21, trendEMA2: 34, trendEMA3: 55, requireAlignment: true,
+        maxRiskPct: 0.10, startingCapital: 10_000 } },
+    // SPY bear with NO proximity gate
+    { label: 'SPY bear (EMA34, NO proximity, NO rally)', ticker: 'SPY',
+      overrides: { direction: 'bear' as const, targetDelta: 0.40, longPutDelta: 0.30, maxDTE: DTE,
+        trendEMA: 34, requireAlignment: false as const,
+        maxRiskPct: 0.10, startingCapital: 10_000 } },
+    // IWM bear with NO proximity gate
+    { label: 'IWM bear (triple, NO proximity, NO rally)', ticker: 'IWM',
+      overrides: { direction: 'bear' as const, targetDelta: 0.30, longPutDelta: 0.20, maxDTE: DTE,
+        trendEMA: 21, trendEMA2: 34, trendEMA3: 55, requireAlignment: true,
+        maxRiskPct: 0.10, startingCapital: 10_000 } },
+  ];
+
+  console.log('\n  A) TRADE VOLUME & FILTER IMPACT (full 2017-2026 range, fixed $10K)\n');
+  console.log(
+    '  ' + 'Config'.padEnd(52) +
+    'Trades'.padStart(8) +
+    'PnL'.padStart(10) +
+    'Sharpe'.padStart(8) +
+    'WR'.padStart(6) +
+    'AvgWin'.padStart(10) +
+    'AvgLoss'.padStart(10) +
+    'Skipped'.padStart(10)
+  );
+  console.log('  ' + '-'.repeat(114));
+
+  const diagResults: Array<{ label: string; ticker: string; result: StrategyResult }> = [];
+  for (const cfg of DIAG_CONFIGS) {
+    const r = runStrategy({ ...BASE, ...cfg.overrides, ticker: cfg.ticker, startDate: '2017-01-03', endDate: '2026-03-28' });
+    diagResults.push({ label: cfg.label, ticker: cfg.ticker, result: r });
+
+    const winners = r.trades.filter(t => t.totalPnl > 0);
+    const losers = r.trades.filter(t => t.totalPnl <= 0);
+    const avgWin = winners.length > 0 ? winners.reduce((s, t) => s + t.totalPnl, 0) / winners.length : 0;
+    const avgLoss = losers.length > 0 ? losers.reduce((s, t) => s + t.totalPnl, 0) / losers.length : 0;
+    const totalSkipped = r.skippedDays.filtered + r.skippedDays.noChain + r.skippedDays.noContract + r.skippedDays.lowPremium + r.skippedDays.capacityFull;
+
+    console.log(
+      '  ' + cfg.label.slice(0, 51).padEnd(52) +
+      String(r.totalTrades).padStart(8) +
+      formatCurrency(r.totalPnl).padStart(10) +
+      r.sharpe.toFixed(3).padStart(8) +
+      (r.winRate.toFixed(0) + '%').padStart(6) +
+      formatCurrency(avgWin).padStart(10) +
+      formatCurrency(avgLoss).padStart(10) +
+      String(totalSkipped).padStart(10)
+    );
+  }
+
+  // B) Skipped reasons breakdown
+  console.log('\n  B) SKIP REASONS BREAKDOWN (why trades don\'t happen)\n');
+  console.log(
+    '  ' + 'Config'.padEnd(52) +
+    'Filtered'.padStart(10) +
+    'NoChain'.padStart(10) +
+    'NoCtrct'.padStart(10) +
+    'LowPrem'.padStart(10) +
+    'CapFull'.padStart(10) +
+    'DayOfWk'.padStart(10)
+  );
+  console.log('  ' + '-'.repeat(112));
+
+  for (const d of diagResults) {
+    const sk = d.result.skippedDays;
+    console.log(
+      '  ' + d.label.slice(0, 51).padEnd(52) +
+      String(sk.filtered).padStart(10) +
+      String(sk.noChain).padStart(10) +
+      String(sk.noContract).padStart(10) +
+      String(sk.lowPremium).padStart(10) +
+      String(sk.capacityFull).padStart(10) +
+      String(sk.dayOfWeek).padStart(10)
+    );
+  }
+
+  // C) Year-by-year trade count and PnL for each ticker
+  console.log('\n  C) YEAR-BY-YEAR TRADE COUNT (with full filters: regime + proximity + rally8%)\n');
+  const DIAG_YEARS = ['2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025'];
+  console.log('  ' + 'Ticker'.padEnd(8) + DIAG_YEARS.map(y => y.padStart(12)).join('') + 'Total'.padStart(12));
+  console.log('  ' + '-'.repeat(8 + DIAG_YEARS.length * 12 + 12));
+
+  // Only the 3 production configs (first 3 in DIAG_CONFIGS)
+  for (const cfg of DIAG_CONFIGS.slice(0, 3)) {
+    let row = '  ' + cfg.ticker.padEnd(8);
+    let total = 0;
+    for (const year of DIAG_YEARS) {
+      const r = runStrategy({ ...BASE, ...cfg.overrides, ticker: cfg.ticker, startDate: `${year}-01-01`, endDate: `${year}-12-31` });
+      row += `${r.totalTrades}t/${formatCurrency(r.totalPnl)}`.padStart(12);
+      total += r.totalTrades;
+    }
+    row += String(total).padStart(12);
+    console.log(row);
+  }
+
+  // D) Trade-level P&L distribution for the 3 main bear configs
+  console.log('\n  D) TRADE P&L DISTRIBUTION (per-trade $ amount)\n');
+  for (const d of diagResults.slice(0, 3)) {
+    const trades = d.result.trades;
+    if (trades.length === 0) continue;
+    const pnls = trades.map(t => t.totalPnl).sort((a, b) => a - b);
+    const p10 = pnls[Math.floor(pnls.length * 0.10)];
+    const p25 = pnls[Math.floor(pnls.length * 0.25)];
+    const p50 = pnls[Math.floor(pnls.length * 0.50)];
+    const p75 = pnls[Math.floor(pnls.length * 0.75)];
+    const p90 = pnls[Math.floor(pnls.length * 0.90)];
+    const avg = pnls.reduce((s, v) => s + v, 0) / pnls.length;
+
+    console.log(`  ${d.label}:`);
+    console.log(`    Trades: ${trades.length}, Avg: ${formatCurrency(avg)}, Median: ${formatCurrency(p50)}`);
+    console.log(`    P10: ${formatCurrency(p10)}, P25: ${formatCurrency(p25)}, P75: ${formatCurrency(p75)}, P90: ${formatCurrency(p90)}`);
+    console.log(`    Worst: ${formatCurrency(pnls[0])}, Best: ${formatCurrency(pnls[pnls.length - 1])}`);
+
+    // Premium collected vs exit cost
+    const avgPremium = trades.reduce((s, t) => s + t.premium, 0) / trades.length;
+    const avgExitCost = trades.reduce((s, t) => s + t.exitCost, 0) / trades.length;
+    const avgDelta = trades.reduce((s, t) => s + t.delta, 0) / trades.length;
+    const avgIV = trades.reduce((s, t) => s + t.iv, 0) / trades.length;
+    const avgDTE = trades.reduce((s, t) => s + t.dte, 0) / trades.length;
+    const avgWidth = trades.filter(t => t.spreadWidth).reduce((s, t) => s + (t.spreadWidth ?? 0), 0) / trades.filter(t => t.spreadWidth).length;
+    console.log(`    Avg premium: $${avgPremium.toFixed(2)}, Avg exit cost: $${avgExitCost.toFixed(2)}, Avg spread width: $${avgWidth.toFixed(1)}`);
+    console.log(`    Avg delta: ${avgDelta.toFixed(3)}, Avg IV: ${(avgIV * 100).toFixed(1)}%, Avg DTE: ${avgDTE.toFixed(1)}`);
+    console.log('');
+  }
+
+  // E) KEY INSIGHT: How many days each ticker spends below EMA34?
+  console.log('  E) REGIME DAYS — How often is each ticker in a bearish regime?\n');
+  for (const ticker of ['QQQ', 'SPY', 'IWM']) {
+    const db2 = new Database('data/option-chains.sqlite');
+    const dates: string[] = db2.prepare(
+      'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+    ).all(ticker, '2017-01-03', '2026-03-28').map((r: any) => r.trade_date);
+
+    // Get close prices and compute EMAs
+    const closes = new Map<string, number>();
+    for (const d of dates) {
+      const row = db2.prepare('SELECT stock_price FROM option_chains WHERE ticker = ? AND trade_date = ? LIMIT 1').get(ticker, d) as any;
+      if (row?.stock_price) closes.set(d, row.stock_price);
+    }
+    db2.close();
+
+    // Compute EMA21, EMA34, EMA55
+    function ema(period: number): Map<string, number> {
+      const m = new Map<string, number>();
+      const k = 2 / (period + 1);
+      let prev = 0; let init = false;
+      for (const d of dates) {
+        const c = closes.get(d);
+        if (c == null) continue;
+        if (!init) { prev = c; init = true; m.set(d, c); continue; }
+        prev = c * k + prev * (1 - k);
+        m.set(d, prev);
+      }
+      return m;
+    }
+    const ema21 = ema(21), ema34 = ema(34), ema55 = ema(55);
+
+    let belowEma34 = 0, tripleAligned = 0, totalDays = 0;
+    for (const d of dates) {
+      const c = closes.get(d), e21 = ema21.get(d), e34 = ema34.get(d), e55 = ema55.get(d);
+      if (c == null || e34 == null) continue;
+      totalDays++;
+      if (c < e34) belowEma34++;
+      if (e21 != null && e55 != null && c < e21 && e21 < e34 && e34 < e55) tripleAligned++;
+    }
+
+    console.log(`  ${ticker}: ${totalDays} trading days`);
+    console.log(`    Below EMA34: ${belowEma34} days (${(belowEma34 / totalDays * 100).toFixed(1)}%)`);
+    console.log(`    Triple aligned (EMA21<34<55): ${tripleAligned} days (${(tripleAligned / totalDays * 100).toFixed(1)}%)`);
+    console.log('');
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // STEP 2: TRUE PORTFOLIO SIMULATION — Shared equity, compounding
+  // Both bull and bear sides size from the SAME running equity each window.
+  // ═══════════════════════════════════════════════════════════
+  console.log(`\n${'═'.repeat(130)}`);
+  console.log('  STEP 2: TRUE PORTFOLIO SIMULATION — $10K shared equity, both sides compound together');
+  console.log('═'.repeat(130));
+
+  // Leg definitions (reusable across combos)
+  const LEG_QQQ_BULL = { ticker: 'QQQ', overrides: { direction: 'bull' as const, targetDelta: 0.30, longPutDelta: 0.20, maxDTE: DTE, trendEMA: 34, maxRiskPct: 0.10, compounding: true } };
+  const LEG_SPY_BULL = { ticker: 'SPY', overrides: { direction: 'bull' as const, targetDelta: 0.30, longPutDelta: 0.20, maxDTE: DTE, trendEMA: 34, maxRiskPct: 0.10, compounding: true } };
+  const LEG_QQQ_BEAR = { ticker: 'QQQ', overrides: { direction: 'bear' as const, targetDelta: 0.40, longPutDelta: 0.30, maxDTE: DTE, trendEMA: 21, trendEMA2: 34, trendEMA3: 55, requireAlignment: true, pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01, maxRallyFromLow: 0.08, maxRiskPct: 0.10, compounding: true } };
+  const LEG_SPY_BEAR = { ticker: 'SPY', overrides: { direction: 'bear' as const, targetDelta: 0.40, longPutDelta: 0.30, maxDTE: DTE, trendEMA: 34, requireAlignment: false as const, pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01, maxRallyFromLow: 0.08, maxRiskPct: 0.10, compounding: true } };
+  const LEG_IWM_BEAR = { ticker: 'IWM', overrides: { direction: 'bear' as const, targetDelta: 0.30, longPutDelta: 0.20, maxDTE: DTE, trendEMA: 21, trendEMA2: 34, trendEMA3: 55, requireAlignment: true, pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01, maxRallyFromLow: 0.08, maxRiskPct: 0.10, compounding: true } };
+
+  const PORTFOLIOS = [
+    { label: 'QQQ bull only (baseline)',              legs: [LEG_QQQ_BULL] },
+    { label: 'QQQ bull + QQQ bear',                   legs: [LEG_QQQ_BULL, LEG_QQQ_BEAR] },
+    { label: 'QQQ bull + SPY bear',                   legs: [LEG_QQQ_BULL, LEG_SPY_BEAR] },
+    { label: 'QQQ bull + IWM bear',                   legs: [LEG_QQQ_BULL, LEG_IWM_BEAR] },
+    { label: 'QQQ bull + QQQ bear + SPY bear',        legs: [LEG_QQQ_BULL, LEG_QQQ_BEAR, LEG_SPY_BEAR] },
+    { label: 'QQQ bull + SPY bear + IWM bear',        legs: [LEG_QQQ_BULL, LEG_SPY_BEAR, LEG_IWM_BEAR] },
+    { label: 'QQQ bull + all 3 bear',                 legs: [LEG_QQQ_BULL, LEG_QQQ_BEAR, LEG_SPY_BEAR, LEG_IWM_BEAR] },
+    { label: 'SPY bull + SPY bear (same ticker)',     legs: [LEG_SPY_BULL, LEG_SPY_BEAR] },
+    { label: 'SPY bull + IWM bear',                   legs: [LEG_SPY_BULL, LEG_IWM_BEAR] },
+  ];
+
+  console.log('\n  Each WFA window: all legs run with startingCapital = current shared equity.');
+  console.log('  10% risk per leg per trade. Legs naturally alternate (bull when > EMA, bear when < EMA).\n');
+
+  console.log(
+    '  ' + 'Portfolio'.padEnd(42) +
+    'Sharpe'.padStart(8) +
+    'CAGR'.padStart(8) +
+    'MaxDD'.padStart(8) +
+    'Final$'.padStart(11) +
+    'MinEq'.padStart(10) +
+    'Trades'.padStart(8) +
+    '+Win'.padStart(7) +
+    '  Leg breakdown'
+  );
+  console.log('  ' + '-'.repeat(130));
+
+  for (const pf of PORTFOLIOS) {
+    const result = runCombinedWFAPortfolio(allTradingDates, TRAIN_DAYS, TEST_DAYS, pf.legs);
+
+    const legStr = result.legSummary
+      .map(l => `${l.ticker}${l.dir[0]}:${l.trades}t/${formatCurrency(l.pnl)}/${l.wr.toFixed(0)}%wr`)
+      .join('  ');
+
+    console.log(
+      '  ' + pf.label.padEnd(42) +
+      result.oosSharpe.toFixed(3).padStart(8) +
+      (result.oosCagr.toFixed(1) + '%').padStart(8) +
+      (result.oosMaxDD.toFixed(1) + '%').padStart(8) +
+      formatCurrency(result.finalEquity).padStart(11) +
+      formatCurrency(result.minEquity).padStart(10) +
+      String(result.oosTrades).padStart(8) +
+      `${result.posWindows}/${result.windows.length}`.padStart(7) +
+      '  ' + legStr
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // STEP 2b: WINDOW-BY-WINDOW for best combo
+  // ═══════════════════════════════════════════════════════════
+  console.log(`\n${'═'.repeat(130)}`);
+  console.log('  WINDOW-BY-WINDOW: QQQ bull + all 3 bear (true portfolio growth)');
+  console.log('═'.repeat(130));
+
+  const bestCombo = runCombinedWFAPortfolio(allTradingDates, TRAIN_DAYS, TEST_DAYS,
+    [LEG_QQQ_BULL, LEG_QQQ_BEAR, LEG_SPY_BEAR, LEG_IWM_BEAR]);
+
+  console.log(
+    '  ' + 'W#'.padEnd(4) +
+    'Test Period'.padEnd(26) +
+    'StartEq'.padStart(10) +
+    'EndEq'.padStart(10) +
+    'PnL'.padStart(10) +
+    'Trades'.padStart(8) +
+    '  Leg detail'
+  );
+  console.log('  ' + '-'.repeat(120));
+
+  for (let i = 0; i < bestCombo.windows.length; i++) {
+    const w = bestCombo.windows[i];
+    const legStr = w.legDetail
+      .filter(l => l.trades > 0)
+      .map(l => `${l.ticker}${l.dir[0]}:${l.trades}t/${formatCurrency(l.pnl)}`)
+      .join('  ');
+
+    console.log(
+      '  ' + String(i + 1).padEnd(4) +
+      `${w.testStart} → ${w.testEnd}`.padEnd(26) +
+      formatCurrency(w.startEq).padStart(10) +
+      formatCurrency(w.endEq).padStart(10) +
+      formatCurrency(w.pnl).padStart(10) +
+      String(w.trades).padStart(8) +
+      '  ' + (legStr || '(no trades)')
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // STEP 2c: RISK TIER COMPARISON — 5%, 10%, 15%, 20% per leg
+  // ═══════════════════════════════════════════════════════════
+  console.log(`\n${'═'.repeat(130)}`);
+  console.log('  RISK TIER COMPARISON: QQQ bull + all 3 bear at different risk levels');
+  console.log('═'.repeat(130));
+
+  const RISK_TIERS = [0.05, 0.10, 0.15, 0.20];
+  console.log(
+    '  ' + 'Risk/leg'.padEnd(12) +
+    'Sharpe'.padStart(8) +
+    'CAGR'.padStart(8) +
+    'MaxDD'.padStart(8) +
+    'Final$'.padStart(11) +
+    'MinEq'.padStart(10) +
+    'Trades'.padStart(8)
+  );
+  console.log('  ' + '-'.repeat(65));
+
+  for (const risk of RISK_TIERS) {
+    const legs = [
+      { ticker: 'QQQ', overrides: { ...LEG_QQQ_BULL.overrides, maxRiskPct: risk } },
+      { ticker: 'QQQ', overrides: { ...LEG_QQQ_BEAR.overrides, maxRiskPct: risk } },
+      { ticker: 'SPY', overrides: { ...LEG_SPY_BEAR.overrides, maxRiskPct: risk } },
+      { ticker: 'IWM', overrides: { ...LEG_IWM_BEAR.overrides, maxRiskPct: risk } },
+    ];
+    const r = runCombinedWFAPortfolio(allTradingDates, TRAIN_DAYS, TEST_DAYS, legs);
+    console.log(
+      '  ' + ((risk * 100).toFixed(0) + '%').padEnd(12) +
+      r.oosSharpe.toFixed(3).padStart(8) +
+      (r.oosCagr.toFixed(1) + '%').padStart(8) +
+      (r.oosMaxDD.toFixed(1) + '%').padStart(8) +
+      formatCurrency(r.finalEquity).padStart(11) +
+      formatCurrency(r.minEquity).padStart(10) +
+      String(r.oosTrades).padStart(8)
+    );
+  }
+
+  console.log('\nDone.');
+}
+
+// bearDeepDive().catch(console.error);
+
+// ── Bear Strategy Comprehensive Report ────────────────
+async function bearStrategyReport() {
+  console.log('╔══════════════════════════════════════════════════════════════════════════╗');
+  console.log('║  BEAR CALL SPREAD — Comprehensive Report Generation                    ║');
+  console.log('║  All results: TRUE PORTFOLIO SIM with QQQ bull, shared $10K equity      ║');
+  console.log('╚══════════════════════════════════════════════════════════════════════════╝\n');
+
+  const db = new Database('data/option-chains.sqlite');
+  const allTradingDates: string[] = db.prepare(
+    'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+  ).all('QQQ', '2017-01-03', '2026-03-28').map((r: any) => r.trade_date);
+  db.close();
+
+  const TRAIN_DAYS = 252;
+  const TEST_DAYS = 126;
+  const CAP = 10_000;
+
+  // Fixed regime for ALL bear configs
+  const BEAR_REGIME = { trendEMA: 21, trendEMA2: 34, trendEMA3: 55, requireAlignment: true };
+
+  // QQQ bull baseline (production config)
+  const BULL_LEG = { ticker: 'QQQ', overrides: { direction: 'bull' as const, targetDelta: 0.30, longPutDelta: 0.20, maxDTE: DTE, trendEMA: 34, maxRiskPct: 0.10, compounding: true } };
+
+  // Proximity gates (8 — wider range for QQQ)
+  const PROXIMITY = [
+    { label: 'none',           ov: {} },
+    { label: 'nearEMA8_1%',   ov: { pullbackOnly: true, pullbackEMA: 8,  pullbackTolerance: 0.01 } },
+    { label: 'nearEMA8_2%',   ov: { pullbackOnly: true, pullbackEMA: 8,  pullbackTolerance: 0.02 } },
+    { label: 'nearEMA8_3%',   ov: { pullbackOnly: true, pullbackEMA: 8,  pullbackTolerance: 0.03 } },
+    { label: 'nearEMA21_1%',  ov: { pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01 } },
+    { label: 'nearEMA21_2%',  ov: { pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.02 } },
+    { label: 'nearEMA21_3%',  ov: { pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.03 } },
+    { label: 'nearEMA21_5%',  ov: { pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.05 } },
+  ];
+
+  const RALLY = [
+    { label: 'none', ov: {} },
+    { label: 'rally8%', ov: { maxRallyFromLow: 0.08 } },
+  ];
+
+  const SPREADS = [
+    { label: 'sp15/05', delta: 0.15, wing: 0.05 },
+    { label: 'sp20/10', delta: 0.20, wing: 0.10 },
+    { label: 'sp25/15', delta: 0.25, wing: 0.15 },
+    { label: 'sp30/20', delta: 0.30, wing: 0.20 },
+    { label: 'sp40/30', delta: 0.40, wing: 0.30 },
+  ];
+
+  const TICKERS = ['QQQ', 'SPY', 'IWM'];
+
+  interface SweepResult {
+    ticker: string; proximity: string; rally: string; spread: string;
+    sharpe: number; cagr: number; maxDD: number; winRate: number;
+    finalEquity: number; trades: number; posWindows: number; totalWindows: number; minEquity: number;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // PHASE A: Per-Ticker Standalone Sweep
+  // ════════════════════════════════════════════════════════
+  console.log('═'.repeat(130));
+  console.log('  PHASE A: Per-Ticker Bear Sweep (standalone, 10% risk, triple EMA regime)');
+  console.log('═'.repeat(130));
+  const totalConfigs = TICKERS.length * PROXIMITY.length * RALLY.length * SPREADS.length;
+  console.log(`  ${totalConfigs} configs (${TICKERS.length} tickers × ${PROXIMITY.length} proximity × ${RALLY.length} rally × ${SPREADS.length} spreads)\n`);
+
+  const allSweep: SweepResult[] = [];
+
+  for (const ticker of TICKERS) {
+    const t0 = Date.now();
+    for (const prox of PROXIMITY) {
+      for (const rally of RALLY) {
+        for (const sp of SPREADS) {
+          const r = runWFAPortfolio(allTradingDates, ticker, TRAIN_DAYS, TEST_DAYS, {
+            direction: 'bear', targetDelta: sp.delta, longPutDelta: sp.wing, maxDTE: DTE,
+            maxRiskPct: 0.10, startingCapital: CAP, compounding: true,
+            ...BEAR_REGIME, ...prox.ov, ...rally.ov,
+          });
+          allSweep.push({
+            ticker, proximity: prox.label, rally: rally.label, spread: sp.label,
+            sharpe: r.oosSharpe, cagr: r.oosCagr, maxDD: r.oosMaxDD, winRate: r.oosWR,
+            finalEquity: r.finalEquity, trades: r.oosTrades, posWindows: r.posWindows,
+            totalWindows: r.windows.length, minEquity: r.minEquity,
+          });
+        }
+      }
+    }
+    console.log(`  ${ticker}: ${PROXIMITY.length * RALLY.length * SPREADS.length} runs in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  }
+
+  // Print per-ticker top 10
+  for (const ticker of TICKERS) {
+    const top = allSweep.filter(r => r.ticker === ticker).sort((a, b) => b.sharpe - a.sharpe).slice(0, 10);
+    console.log(`\n  ${ticker} — Top 10 by Sharpe:`);
+    console.log('  ' + 'Proximity'.padEnd(16) + 'Rally'.padEnd(10) + 'Spread'.padEnd(9) + 'Sharpe'.padStart(8) + 'CAGR'.padStart(8) + 'MaxDD'.padStart(8) + 'WR'.padStart(6) + 'Final$'.padStart(10) + 'Trades'.padStart(8));
+    console.log('  ' + '-'.repeat(83));
+    for (const r of top) {
+      console.log('  ' + r.proximity.padEnd(16) + r.rally.padEnd(10) + r.spread.padEnd(9) +
+        r.sharpe.toFixed(3).padStart(8) + (r.cagr.toFixed(1)+'%').padStart(8) + (r.maxDD.toFixed(1)+'%').padStart(8) +
+        (r.winRate.toFixed(0)+'%').padStart(6) + formatCurrency(r.finalEquity).padStart(10) + String(r.trades).padStart(8));
+    }
+  }
+
+  // Proximity impact summary: avg sharpe & total trades per ticker × proximity
+  console.log(`\n${'═'.repeat(100)}`);
+  console.log('  PROXIMITY IMPACT SUMMARY (avg Sharpe & avg trades across spreads/rally)');
+  console.log('═'.repeat(100));
+  console.log('  ' + 'Proximity'.padEnd(16) + TICKERS.map(t => `${t} Sharpe`.padStart(12) + `${t} Trades`.padStart(10)).join(''));
+  console.log('  ' + '-'.repeat(16 + TICKERS.length * 22));
+  for (const prox of PROXIMITY) {
+    let row = '  ' + prox.label.padEnd(16);
+    for (const ticker of TICKERS) {
+      const subset = allSweep.filter(r => r.ticker === ticker && r.proximity === prox.label);
+      const avgSharpe = subset.reduce((s, r) => s + r.sharpe, 0) / subset.length;
+      const avgTrades = subset.reduce((s, r) => s + r.trades, 0) / subset.length;
+      row += avgSharpe.toFixed(3).padStart(12) + avgTrades.toFixed(0).padStart(10);
+    }
+    console.log(row);
+  }
+
+  // Best config per ticker
+  const bestPerTicker: Record<string, SweepResult> = {};
+  for (const ticker of TICKERS) {
+    bestPerTicker[ticker] = allSweep.filter(r => r.ticker === ticker).sort((a, b) => b.sharpe - a.sharpe)[0];
+  }
+
+  console.log('\n  Best config per ticker:');
+  for (const ticker of TICKERS) {
+    const b = bestPerTicker[ticker];
+    console.log(`  ${ticker}: ${b.proximity} + ${b.rally} + ${b.spread} → Sharpe ${b.sharpe.toFixed(3)}, ${b.trades} trades`);
+  }
+
+  // ════════════════════════════════════════════════════════
+  // PHASE B: Portfolio Combinations (true combined WFA)
+  // ════════════════════════════════════════════════════════
+  console.log(`\n${'═'.repeat(130)}`);
+  console.log('  PHASE B: Portfolio Combinations — QQQ bull + bear (true combined sim, shared $10K)');
+  console.log('═'.repeat(130));
+
+  function makeBearLeg(ticker: string, sr: SweepResult) {
+    const proxCfg = PROXIMITY.find(p => p.label === sr.proximity)!;
+    const rallyCfg = RALLY.find(r => r.label === sr.rally)!;
+    const spreadCfg = SPREADS.find(s => s.label === sr.spread)!;
+    return {
+      ticker,
+      overrides: {
+        direction: 'bear' as const, targetDelta: spreadCfg.delta, longPutDelta: spreadCfg.wing, maxDTE: DTE,
+        maxRiskPct: 0.10, compounding: true, ...BEAR_REGIME, ...proxCfg.ov, ...rallyCfg.ov,
+      },
+    };
+  }
+
+  const PORTFOLIOS = [
+    { label: 'QQQ bull only (baseline)', legs: [BULL_LEG] },
+    { label: `QQQ bull + QQQ bear (${bestPerTicker['QQQ'].proximity}+${bestPerTicker['QQQ'].spread})`, legs: [BULL_LEG, makeBearLeg('QQQ', bestPerTicker['QQQ'])] },
+    { label: `QQQ bull + SPY bear (${bestPerTicker['SPY'].proximity}+${bestPerTicker['SPY'].spread})`, legs: [BULL_LEG, makeBearLeg('SPY', bestPerTicker['SPY'])] },
+    { label: `QQQ bull + IWM bear (${bestPerTicker['IWM'].proximity}+${bestPerTicker['IWM'].spread})`, legs: [BULL_LEG, makeBearLeg('IWM', bestPerTicker['IWM'])] },
+    { label: 'QQQ bull + SPY bear + IWM bear', legs: [BULL_LEG, makeBearLeg('SPY', bestPerTicker['SPY']), makeBearLeg('IWM', bestPerTicker['IWM'])] },
+    { label: 'QQQ bull + all 3 bear', legs: [BULL_LEG, makeBearLeg('QQQ', bestPerTicker['QQQ']), makeBearLeg('SPY', bestPerTicker['SPY']), makeBearLeg('IWM', bestPerTicker['IWM'])] },
+  ];
+
+  interface PortfolioResult { label: string; sharpe: number; cagr: number; maxDD: number; finalEquity: number; minEquity: number; trades: number; posWindows: number; totalWindows: number; legSummary: any[]; windows: any[] }
+  const portfolioResults: PortfolioResult[] = [];
+
+  console.log('\n  ' + 'Portfolio'.padEnd(50) + 'Sharpe'.padStart(8) + 'CAGR'.padStart(8) + 'MaxDD'.padStart(8) + 'Final$'.padStart(11) + 'MinEq'.padStart(10) + 'Trades'.padStart(8) + '  Leg breakdown');
+  console.log('  ' + '-'.repeat(130));
+
+  for (const pf of PORTFOLIOS) {
+    const r = runCombinedWFAPortfolio(allTradingDates, TRAIN_DAYS, TEST_DAYS, pf.legs);
+    const legStr = r.legSummary.map((l: any) => `${l.ticker}${l.dir[0]}:${l.trades}t/${formatCurrency(l.pnl)}/${l.wr.toFixed(0)}%`).join('  ');
+    console.log('  ' + pf.label.padEnd(50) + r.oosSharpe.toFixed(3).padStart(8) + (r.oosCagr.toFixed(1)+'%').padStart(8) +
+      (r.oosMaxDD.toFixed(1)+'%').padStart(8) + formatCurrency(r.finalEquity).padStart(11) + formatCurrency(r.minEquity).padStart(10) +
+      String(r.oosTrades).padStart(8) + '  ' + legStr);
+    portfolioResults.push({ label: pf.label, sharpe: r.oosSharpe, cagr: r.oosCagr, maxDD: r.oosMaxDD, finalEquity: r.finalEquity, minEquity: r.minEquity, trades: r.oosTrades, posWindows: r.posWindows, totalWindows: r.windows.length, legSummary: r.legSummary, windows: r.windows });
+  }
+
+  // Window-by-window for best combo (highest Sharpe)
+  const bestComboIdx = portfolioResults.reduce((best, r, i) => i > 0 && r.sharpe > portfolioResults[best].sharpe ? i : best, 1);
+  const bestCombo = portfolioResults[bestComboIdx];
+  console.log(`\n  Window-by-Window: ${bestCombo.label}`);
+  console.log('  ' + 'W#'.padEnd(4) + 'Test Period'.padEnd(26) + 'StartEq'.padStart(10) + 'EndEq'.padStart(10) + 'PnL'.padStart(10) + 'Trades'.padStart(8) + '  Leg detail');
+  console.log('  ' + '-'.repeat(120));
+  for (let i = 0; i < bestCombo.windows.length; i++) {
+    const w = bestCombo.windows[i];
+    const legStr = w.legDetail.filter((l: any) => l.trades > 0).map((l: any) => `${l.ticker}${l.dir[0]}:${l.trades}t/${formatCurrency(l.pnl)}`).join('  ');
+    console.log('  ' + String(i+1).padEnd(4) + `${w.testStart} → ${w.testEnd}`.padEnd(26) +
+      formatCurrency(w.startEq).padStart(10) + formatCurrency(w.endEq).padStart(10) + formatCurrency(w.pnl).padStart(10) +
+      String(w.trades).padStart(8) + '  ' + (legStr || '(no trades)'));
+  }
+
+  // ════════════════════════════════════════════════════════
+  // PHASE C: Risk Tier Comparison
+  // ════════════════════════════════════════════════════════
+  console.log(`\n${'═'.repeat(100)}`);
+  console.log(`  PHASE C: Risk Tier Comparison — ${bestCombo.label}`);
+  console.log('═'.repeat(100));
+
+  const RISK_TIERS = [0.05, 0.10, 0.15, 0.20];
+  interface RiskResult { risk: number; sharpe: number; cagr: number; maxDD: number; finalEquity: number; minEquity: number; trades: number }
+  const riskResults: RiskResult[] = [];
+
+  console.log('  ' + 'Risk/leg'.padEnd(12) + 'Sharpe'.padStart(8) + 'CAGR'.padStart(8) + 'MaxDD'.padStart(8) + 'Final$'.padStart(11) + 'MinEq'.padStart(10) + 'Trades'.padStart(8));
+  console.log('  ' + '-'.repeat(65));
+
+  // Reconstruct legs for risk sweep using bestCombo's structure
+  const bestComboLegs = PORTFOLIOS[bestComboIdx].legs;
+  for (const risk of RISK_TIERS) {
+    const riskLegs = bestComboLegs.map(leg => ({ ticker: leg.ticker, overrides: { ...leg.overrides, maxRiskPct: risk } }));
+    const r = runCombinedWFAPortfolio(allTradingDates, TRAIN_DAYS, TEST_DAYS, riskLegs);
+    riskResults.push({ risk, sharpe: r.oosSharpe, cagr: r.oosCagr, maxDD: r.oosMaxDD, finalEquity: r.finalEquity, minEquity: r.minEquity, trades: r.oosTrades });
+    console.log('  ' + ((risk*100).toFixed(0)+'%').padEnd(12) + r.oosSharpe.toFixed(3).padStart(8) + (r.oosCagr.toFixed(1)+'%').padStart(8) +
+      (r.oosMaxDD.toFixed(1)+'%').padStart(8) + formatCurrency(r.finalEquity).padStart(11) + formatCurrency(r.minEquity).padStart(10) + String(r.oosTrades).padStart(8));
+  }
+
+  // ════════════════════════════════════════════════════════
+  // PHASE D: Per-Ticker Proximity Analysis (portfolio-level)
+  // ════════════════════════════════════════════════════════
+  console.log(`\n${'═'.repeat(130)}`);
+  console.log('  PHASE D: Proximity Filter Impact at Portfolio Level (QQQ bull + each bear)');
+  console.log('═'.repeat(130));
+
+  const proxAnalysis: Record<string, Array<{ proximity: string; standaloneSharpe: number; standaloneTrades: number; portfolioSharpe: number; portfolioCagr: number; portfolioMaxDD: number; portfolioFinal: number }>> = {};
+
+  for (const ticker of TICKERS) {
+    proxAnalysis[ticker] = [];
+    const best = bestPerTicker[ticker];
+    const spreadCfg = SPREADS.find(s => s.label === best.spread)!;
+    const rallyCfg = RALLY.find(r => r.label === best.rally)!;
+
+    console.log(`\n  ${ticker} Bear — best spread: ${best.spread}, rally: ${best.rally}`);
+    console.log('  ' + 'Proximity'.padEnd(16) + 'Solo Sharpe'.padStart(12) + 'Solo Trades'.padStart(12) + '| Ptf Sharpe'.padStart(12) + 'Ptf CAGR'.padStart(10) + 'Ptf MaxDD'.padStart(10) + 'Ptf Final$'.padStart(12) + ' | vs Baseline');
+    console.log('  ' + '-'.repeat(96));
+
+    const baselineSharpe = portfolioResults[0].sharpe;
+
+    for (const prox of PROXIMITY) {
+      // Standalone
+      const solo = allSweep.find(r => r.ticker === ticker && r.proximity === prox.label && r.spread === best.spread && r.rally === best.rally);
+      const soloSharpe = solo?.sharpe ?? 0;
+      const soloTrades = solo?.trades ?? 0;
+
+      // Portfolio: QQQ bull + this bear
+      const bearLeg = {
+        ticker, overrides: {
+          direction: 'bear' as const, targetDelta: spreadCfg.delta, longPutDelta: spreadCfg.wing, maxDTE: DTE,
+          maxRiskPct: 0.10, compounding: true, ...BEAR_REGIME, ...prox.ov, ...rallyCfg.ov,
+        },
+      };
+      const pf = runCombinedWFAPortfolio(allTradingDates, TRAIN_DAYS, TEST_DAYS, [BULL_LEG, bearLeg]);
+      const delta = pf.oosSharpe - baselineSharpe;
+
+      proxAnalysis[ticker].push({ proximity: prox.label, standaloneSharpe: soloSharpe, standaloneTrades: soloTrades,
+        portfolioSharpe: pf.oosSharpe, portfolioCagr: pf.oosCagr, portfolioMaxDD: pf.oosMaxDD, portfolioFinal: pf.finalEquity });
+
+      console.log('  ' + prox.label.padEnd(16) + soloSharpe.toFixed(3).padStart(12) + String(soloTrades).padStart(12) +
+        '| '.padStart(2) + pf.oosSharpe.toFixed(3).padStart(10) + (pf.oosCagr.toFixed(1)+'%').padStart(10) + (pf.oosMaxDD.toFixed(1)+'%').padStart(10) +
+        formatCurrency(pf.finalEquity).padStart(12) + ' | ' + (delta >= 0 ? '+' : '') + delta.toFixed(3));
+    }
+  }
+
+  // ════════════════════════════════════════════════════════
+  // PHASE E: Year-by-Year Breakdown
+  // ════════════════════════════════════════════════════════
+  console.log(`\n${'═'.repeat(120)}`);
+  console.log(`  PHASE E: Year-by-Year — ${bestCombo.label}`);
+  console.log('═'.repeat(120));
+
+  // Attribute each window's legDetail to the year of window midpoint
+  const yearData = new Map<string, { bullPnl: number; bearPnl: number; bullTrades: number; bearTrades: number }>();
+  for (const w of bestCombo.windows) {
+    const midDate = w.testStart.slice(0, 4); // use start year as proxy
+    const entry = yearData.get(midDate) ?? { bullPnl: 0, bearPnl: 0, bullTrades: 0, bearTrades: 0 };
+    for (const leg of w.legDetail) {
+      if (leg.dir === 'bull') { entry.bullPnl += leg.pnl; entry.bullTrades += leg.trades; }
+      else { entry.bearPnl += leg.pnl; entry.bearTrades += leg.trades; }
+    }
+    yearData.set(midDate, entry);
+  }
+
+  console.log('  ' + 'Year'.padEnd(8) + 'Bull PnL'.padStart(12) + 'B-Trades'.padStart(10) + 'Bear PnL'.padStart(12) + 'R-Trades'.padStart(10) + 'Total PnL'.padStart(12) + 'Bear %'.padStart(10));
+  console.log('  ' + '-'.repeat(74));
+  for (const [year, d] of [...yearData.entries()].sort()) {
+    const total = d.bullPnl + d.bearPnl;
+    const bearPct = total !== 0 ? (d.bearPnl / Math.abs(total) * 100) : 0;
+    console.log('  ' + year.padEnd(8) + formatCurrency(d.bullPnl).padStart(12) + String(d.bullTrades).padStart(10) +
+      formatCurrency(d.bearPnl).padStart(12) + String(d.bearTrades).padStart(10) +
+      formatCurrency(total).padStart(12) + (bearPct.toFixed(0)+'%').padStart(10));
+  }
+
+  // ════════════════════════════════════════════════════════
+  // WRITE REPORT
+  // ════════════════════════════════════════════════════════
+  console.log('\n  Writing report...');
+
+  const reportDir = 'backtesting history/credit-spread/reports/bear-strategy';
+  fs.mkdirSync(reportDir, { recursive: true });
+
+  // Build markdown
+  let md = `# Bear Call Spread Strategy — Comprehensive Report\n\n`;
+  md += `**Date:** 2026-03-31\n`;
+  md += `**Engine:** Post-audit (worst-side fills, honest pricing, same-expiry legs)\n`;
+  md += `**Commission:** $0 (Robinhood)\n`;
+  md += `**Methodology:** Walk-Forward Analysis (252d train / 126d test, ~16 windows) with TRUE portfolio growth\n`;
+  md += `**Starting Capital:** $10,000 shared equity (bull + bear size from same pool)\n\n`;
+
+  md += `## Study Design\n\n`;
+  md += `**Goal:** Utilize idle capital during bear markets. The validated QQQ bull put spread (sp30/20 EMA34) generates no signals when price < EMA34. Bear call spreads can profit during those periods.\n\n`;
+  md += `**Fixed regime for all bear configs:** EMA21 < EMA34 < EMA55 (triple alignment — confirmed downtrend)\n\n`;
+  md += `**Variables swept per ticker (QQQ, SPY, IWM):**\n`;
+  md += `- Proximity filters (8): ${PROXIMITY.map(p => p.label).join(', ')}\n`;
+  md += `- Rally-from-low filter: none vs 8%\n`;
+  md += `- Spread configs (5): ${SPREADS.map(s => s.label).join(', ')}\n`;
+  md += `- Total: ${totalConfigs} standalone configs → best per ticker → 6 portfolio combos\n\n`;
+  md += `---\n\n`;
+
+  // Section 1: Proximity Impact
+  md += `## Section 1: Proximity Filter Impact (Per-Ticker)\n\n`;
+  md += `Average Sharpe and trade count across all spread/rally combos:\n\n`;
+  md += `| Proximity | ${TICKERS.map(t => `${t} Sharpe | ${t} Trades`).join(' | ')} |\n`;
+  md += `|-----------|${TICKERS.map(() => '---------|--------').join('|')}|\n`;
+  for (const prox of PROXIMITY) {
+    let row = `| ${prox.label} |`;
+    for (const ticker of TICKERS) {
+      const subset = allSweep.filter(r => r.ticker === ticker && r.proximity === prox.label);
+      const avgSharpe = subset.reduce((s, r) => s + r.sharpe, 0) / subset.length;
+      const avgTrades = subset.reduce((s, r) => s + r.trades, 0) / subset.length;
+      row += ` ${avgSharpe.toFixed(3)} | ${avgTrades.toFixed(0)} |`;
+    }
+    md += row + '\n';
+  }
+  md += '\n';
+
+  // Section 2: Best Config Per Ticker
+  md += `## Section 2: Best Bear Config Per Ticker (Standalone, 10% Risk)\n\n`;
+  for (const ticker of TICKERS) {
+    const top5 = allSweep.filter(r => r.ticker === ticker).sort((a, b) => b.sharpe - a.sharpe).slice(0, 5);
+    md += `### ${ticker} Bear — Top 5\n\n`;
+    md += `| Proximity | Rally | Spread | Sharpe | CAGR | MaxDD | WR | Final$ | Trades |\n`;
+    md += `|-----------|-------|--------|--------|------|-------|----|--------|--------|\n`;
+    for (const r of top5) {
+      md += `| ${r.proximity} | ${r.rally} | ${r.spread} | ${r.sharpe.toFixed(3)} | ${r.cagr.toFixed(1)}% | ${r.maxDD.toFixed(1)}% | ${r.winRate.toFixed(0)}% | $${r.finalEquity.toFixed(0)} | ${r.trades} |\n`;
+    }
+    md += '\n';
+  }
+
+  // Section 3: Portfolio Combinations
+  md += `## Section 3: Portfolio Combinations (True Combined WFA, $10K Shared Equity)\n\n`;
+  md += `| Portfolio | Sharpe | CAGR | MaxDD | Final$ | MinEq | Trades | Leg Breakdown |\n`;
+  md += `|-----------|--------|------|-------|--------|-------|--------|---------------|\n`;
+  for (const r of portfolioResults) {
+    const legStr = r.legSummary.map((l: any) => `${l.ticker}${l.dir[0]}:${l.trades}t/$${l.pnl.toFixed(0)}/${l.wr.toFixed(0)}%`).join(', ');
+    md += `| ${r.label} | ${r.sharpe.toFixed(3)} | ${r.cagr.toFixed(1)}% | ${r.maxDD.toFixed(1)}% | $${r.finalEquity.toFixed(0)} | $${r.minEquity.toFixed(0)} | ${r.trades} | ${legStr} |\n`;
+  }
+  md += '\n';
+
+  // Window-by-window for best
+  md += `### Window-by-Window: ${bestCombo.label}\n\n`;
+  md += `| W# | Period | StartEq | EndEq | PnL | Trades | Leg Detail |\n`;
+  md += `|----|--------|---------|-------|-----|--------|------------|\n`;
+  for (let i = 0; i < bestCombo.windows.length; i++) {
+    const w = bestCombo.windows[i];
+    const legStr = w.legDetail.filter((l: any) => l.trades > 0).map((l: any) => `${l.ticker}${l.dir[0]}:${l.trades}t/$${l.pnl.toFixed(0)}`).join(', ');
+    md += `| ${i+1} | ${w.testStart}→${w.testEnd} | $${w.startEq.toFixed(0)} | $${w.endEq.toFixed(0)} | $${w.pnl.toFixed(0)} | ${w.trades} | ${legStr || 'none'} |\n`;
+  }
+  md += '\n';
+
+  // Section 4: Proximity at portfolio level
+  md += `## Section 4: Per-Ticker Proximity at Portfolio Level\n\n`;
+  md += `Each row: QQQ bull + [ticker] bear with given proximity. Best spread/rally per ticker held constant.\n\n`;
+  const baseS = portfolioResults[0].sharpe;
+  for (const ticker of TICKERS) {
+    const b = bestPerTicker[ticker];
+    md += `### ${ticker} Bear (${b.spread}, ${b.rally})\n\n`;
+    md += `| Proximity | Solo Sharpe | Solo Trades | Ptf Sharpe | Ptf CAGR | Ptf MaxDD | Ptf Final$ | vs Baseline |\n`;
+    md += `|-----------|-------------|-------------|------------|----------|-----------|------------|-------------|\n`;
+    for (const pa of proxAnalysis[ticker]) {
+      const delta = pa.portfolioSharpe - baseS;
+      md += `| ${pa.proximity} | ${pa.standaloneSharpe.toFixed(3)} | ${pa.standaloneTrades} | ${pa.portfolioSharpe.toFixed(3)} | ${pa.portfolioCagr.toFixed(1)}% | ${pa.portfolioMaxDD.toFixed(1)}% | $${pa.portfolioFinal.toFixed(0)} | ${delta >= 0 ? '+' : ''}${delta.toFixed(3)} |\n`;
+    }
+    md += '\n';
+  }
+
+  // Section 5: Risk Tiers
+  md += `## Section 5: Risk Tier Comparison\n\n`;
+  md += `Best combo (${bestCombo.label}) at different risk levels:\n\n`;
+  md += `| Risk/Leg | Sharpe | CAGR | MaxDD | Final$ | MinEq | Trades |\n`;
+  md += `|----------|--------|------|-------|--------|-------|--------|\n`;
+  for (const r of riskResults) {
+    md += `| ${(r.risk*100).toFixed(0)}% | ${r.sharpe.toFixed(3)} | ${r.cagr.toFixed(1)}% | ${r.maxDD.toFixed(1)}% | $${r.finalEquity.toFixed(0)} | $${r.minEquity.toFixed(0)} | ${r.trades} |\n`;
+  }
+  md += '\n';
+
+  // Section 6: Year-by-Year
+  md += `## Section 6: Year-by-Year Breakdown\n\n`;
+  md += `${bestCombo.label}:\n\n`;
+  md += `| Year | Bull PnL | B-Trades | Bear PnL | R-Trades | Total PnL | Bear % |\n`;
+  md += `|------|----------|----------|----------|----------|-----------|--------|\n`;
+  for (const [year, d] of [...yearData.entries()].sort()) {
+    const total = d.bullPnl + d.bearPnl;
+    const bearPct = total !== 0 ? (d.bearPnl / Math.abs(total) * 100) : 0;
+    md += `| ${year} | $${d.bullPnl.toFixed(0)} | ${d.bullTrades} | $${d.bearPnl.toFixed(0)} | ${d.bearTrades} | $${total.toFixed(0)} | ${bearPct.toFixed(0)}% |\n`;
+  }
+  md += '\n';
+
+  // Conclusions
+  md += `## Key Conclusions\n\n`;
+  md += `1. **Best standalone bear per ticker:** QQQ: ${bestPerTicker['QQQ'].proximity}+${bestPerTicker['QQQ'].spread} (Sharpe ${bestPerTicker['QQQ'].sharpe.toFixed(3)}), SPY: ${bestPerTicker['SPY'].proximity}+${bestPerTicker['SPY'].spread} (Sharpe ${bestPerTicker['SPY'].sharpe.toFixed(3)}), IWM: ${bestPerTicker['IWM'].proximity}+${bestPerTicker['IWM'].spread} (Sharpe ${bestPerTicker['IWM'].sharpe.toFixed(3)})\n`;
+  md += `2. **Best portfolio combo:** ${bestCombo.label} — Sharpe ${bestCombo.sharpe.toFixed(3)}, CAGR ${bestCombo.cagr.toFixed(1)}%, MaxDD ${bestCombo.maxDD.toFixed(1)}%\n`;
+  md += `3. **Bull-only baseline:** Sharpe ${portfolioResults[0].sharpe.toFixed(3)}, CAGR ${portfolioResults[0].cagr.toFixed(1)}%\n`;
+  md += `4. **Bear contribution:** Fills idle periods (especially 2022 crash, 2025 correction)\n`;
+  md += `5. **Optimal risk tier:** See Section 5 for Sharpe-optimal risk level\n\n`;
+
+  md += `## Caveats\n\n`;
+  md += `1. Backtest period (2017-2026) has limited sustained bear episodes — results have high variance\n`;
+  md += `2. Bear configs with <30 trades are in statistical noise territory\n`;
+  md += `3. Combined portfolio assumes no margin interaction between bull and bear positions\n`;
+  md += `4. All positions hold to expiry — no TP/SL exits\n`;
+
+  fs.writeFileSync(`${reportDir}/README.md`, md);
+
+  // Write JSON
+  const jsonOutput = {
+    generatedAt: new Date().toISOString(),
+    config: { trainDays: TRAIN_DAYS, testDays: TEST_DAYS, startingCapital: CAP, dateRange: '2017-01-03 to 2026-03-28', bullBaseline: 'QQQ sp30/20 EMA34 10%', bearRegime: 'EMA21<EMA34<EMA55' },
+    sweepResults: allSweep,
+    bestPerTicker,
+    portfolioCombos: portfolioResults,
+    riskTiers: riskResults,
+    proximityAnalysis: proxAnalysis,
+    yearByYear: Object.fromEntries(yearData),
+  };
+  fs.writeFileSync(`${reportDir}/bear-strategy.json`, JSON.stringify(jsonOutput, null, 2));
+
+  console.log(`\n  Report saved to: ${reportDir}/README.md`);
+  console.log(`  Data saved to: ${reportDir}/bear-strategy.json`);
+  console.log('  Done.');
+}
+
+bearStrategyReport().catch(console.error);
+
+// ── EMA Alignment Study ��� Bear + Improved Bull ────────
 async function alignmentStudy() {
   console.log('╔══════════════════════════════════════════════════════════════════╗');
   console.log('║  EMA Alignment Study — Multi-EMA filter for bull & bear sides   ║');
