@@ -18,6 +18,8 @@
 
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -5002,36 +5004,58 @@ async function bearStrategyReport() {
   }
 
   // ════════════════════════════════════════════════════════
-  // PHASE A: Per-Ticker Standalone Sweep
+  // PHASE A: Per-Ticker Standalone Sweep (PARALLEL — 1 process per ticker)
   // ════════════════════════════════════════════════════════
   console.log('═'.repeat(130));
   console.log('  PHASE A: Per-Ticker Bear Sweep (standalone, 10% risk, triple EMA regime)');
   console.log('═'.repeat(130));
   const totalConfigs = TICKERS.length * PROXIMITY.length * RALLY.length * SPREADS.length;
-  console.log(`  ${totalConfigs} configs (${TICKERS.length} tickers × ${PROXIMITY.length} proximity × ${RALLY.length} rally × ${SPREADS.length} spreads)\n`);
+  console.log(`  ${totalConfigs} configs (${TICKERS.length} tickers × ${PROXIMITY.length} proximity × ${RALLY.length} rally × ${SPREADS.length} spreads)`);
+  console.log(`  Running ${TICKERS.length} tickers in PARALLEL (${os.cpus().length} cores available)\n`);
 
   const allSweep: SweepResult[] = [];
+  const t0all = Date.now();
+  const scriptPath = path.resolve(__dirname, 'short-put-1dte.ts');
+  const tmpDir = path.resolve(__dirname, '../data');
 
-  for (const ticker of TICKERS) {
+  // Spawn all tickers in parallel using child processes
+  const childProcs = TICKERS.map(ticker => {
+    const outFile = path.resolve(tmpDir, `.bear-sweep-${ticker}.json`);
+    return { ticker, outFile, proc: null as any };
+  });
+
+  // Launch all at once (fire and forget — execSync would block, so use spawn)
+  const { execFile } = await import('child_process');
+  const { promisify } = await import('util');
+  const execFileAsync = promisify(execFile);
+
+  const sweepPromises = childProcs.map(async (cp) => {
     const t0 = Date.now();
-    for (const prox of PROXIMITY) {
-      for (const rally of RALLY) {
-        for (const sp of SPREADS) {
-          const r = runWFAPortfolio(allTradingDates, ticker, TRAIN_DAYS, TEST_DAYS, {
-            direction: 'bear', targetDelta: sp.delta, longPutDelta: sp.wing, maxDTE: DTE,
-            maxRiskPct: 0.10, startingCapital: CAP, compounding: true,
-            ...BEAR_REGIME, ...prox.ov, ...rally.ov,
-          });
-          allSweep.push({
-            ticker, proximity: prox.label, rally: rally.label, spread: sp.label,
-            sharpe: r.oosSharpe, cagr: r.oosCagr, maxDD: r.oosMaxDD, winRate: r.oosWR,
-            finalEquity: r.finalEquity, trades: r.oosTrades, posWindows: r.posWindows,
-            totalWindows: r.windows.length, minEquity: r.minEquity,
-          });
-        }
-      }
+    try {
+      await execFileAsync('npx', ['tsx', scriptPath, `--bear-ticker=${cp.ticker}`, `--out=${cp.outFile}`], {
+        cwd: path.resolve(__dirname, '..'),
+        timeout: 600_000, // 10 min per ticker
+        maxBuffer: 10 * 1024 * 1024,
+      });
+      const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+      console.log(`  ${cp.ticker}: done in ${elapsed}s`);
+    } catch (err: any) {
+      console.error(`  ${cp.ticker}: FAILED — ${err.stderr?.slice(0, 200) || err.message}`);
     }
-    console.log(`  ${ticker}: ${PROXIMITY.length * RALLY.length * SPREADS.length} runs in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  });
+
+  await Promise.all(sweepPromises);
+  console.log(`  All tickers complete in ${((Date.now() - t0all) / 1000).toFixed(1)}s (parallel)`);
+
+  // Collect results from temp files
+  for (const cp of childProcs) {
+    if (fs.existsSync(cp.outFile)) {
+      const tickerResults = JSON.parse(fs.readFileSync(cp.outFile, 'utf8'));
+      allSweep.push(...tickerResults);
+      fs.unlinkSync(cp.outFile); // clean up temp file
+    } else {
+      console.error(`  WARNING: No results for ${cp.ticker}`);
+    }
   }
 
   // Print per-ticker top 10
@@ -5478,6 +5502,68 @@ async function bearStrategyReport() {
   console.log(`\n  Report saved to: ${reportDir}/README.md`);
   console.log(`  Data saved to: ${reportDir}/bear-strategy.json`);
   console.log('  Done.');
+}
+
+// ── CLI: --bear-ticker mode (child process for parallel sweep) ──
+const bearTickerArg = process.argv.find(a => a.startsWith('--bear-ticker='));
+if (bearTickerArg) {
+  const ticker = bearTickerArg.split('=')[1];
+  const outFile = process.argv.find(a => a.startsWith('--out='))?.split('=')[1];
+  if (!ticker || !outFile) { console.error('Usage: --bear-ticker=QQQ --out=/tmp/bear-QQQ.json'); process.exit(1); }
+
+  // Run Phase A for this single ticker
+  const db = new Database('data/option-chains.sqlite');
+  const allTradingDates: string[] = db.prepare(
+    'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+  ).all('QQQ', '2017-01-03', '2026-03-28').map((r: any) => r.trade_date);
+  db.close();
+
+  const DTE = 5;
+  const TRAIN_DAYS = 252;
+  const TEST_DAYS = 126;
+  const CAP = 10_000;
+  const BEAR_REGIME = { trendEMA: 21, trendEMA2: 34, trendEMA3: 55, requireAlignment: true };
+  const PROXIMITY = [
+    { label: 'none', ov: {} },
+    { label: 'nearEMA8_1%', ov: { pullbackOnly: true, pullbackEMA: 8, pullbackTolerance: 0.01 } },
+    { label: 'nearEMA8_2%', ov: { pullbackOnly: true, pullbackEMA: 8, pullbackTolerance: 0.02 } },
+    { label: 'nearEMA8_3%', ov: { pullbackOnly: true, pullbackEMA: 8, pullbackTolerance: 0.03 } },
+    { label: 'nearEMA21_1%', ov: { pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01 } },
+    { label: 'nearEMA21_2%', ov: { pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.02 } },
+    { label: 'nearEMA21_3%', ov: { pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.03 } },
+    { label: 'nearEMA21_5%', ov: { pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.05 } },
+  ];
+  const RALLY = [{ label: 'none', ov: {} }, { label: 'rally8%', ov: { maxRallyFromLow: 0.08 } }];
+  const SPREADS = [
+    { label: 'sp15/05', delta: 0.15, wing: 0.05 },
+    { label: 'sp20/10', delta: 0.20, wing: 0.10 },
+    { label: 'sp25/15', delta: 0.25, wing: 0.15 },
+    { label: 'sp30/20', delta: 0.30, wing: 0.20 },
+    { label: 'sp40/30', delta: 0.40, wing: 0.30 },
+  ];
+
+  const results: any[] = [];
+  const t0 = Date.now();
+  for (const prox of PROXIMITY) {
+    for (const rally of RALLY) {
+      for (const sp of SPREADS) {
+        const r = runWFAPortfolio(allTradingDates, ticker, TRAIN_DAYS, TEST_DAYS, {
+          direction: 'bear', targetDelta: sp.delta, longPutDelta: sp.wing, maxDTE: DTE,
+          maxRiskPct: 0.10, startingCapital: CAP, compounding: true,
+          ...BEAR_REGIME, ...prox.ov, ...rally.ov,
+        });
+        results.push({
+          ticker, proximity: prox.label, rally: rally.label, spread: sp.label,
+          sharpe: r.oosSharpe, cagr: r.oosCagr, maxDD: r.oosMaxDD, winRate: r.oosWR,
+          finalEquity: r.finalEquity, trades: r.oosTrades, posWindows: r.posWindows,
+          totalWindows: r.windows.length, minEquity: r.minEquity,
+        });
+      }
+    }
+  }
+  console.error(`  ${ticker}: ${results.length} configs in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  fs.writeFileSync(outFile, JSON.stringify(results));
+  process.exit(0);
 }
 
 bearStrategyReport().catch(console.error);
