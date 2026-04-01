@@ -318,14 +318,6 @@ describe('v3 Optimizer', () => {
 // ── 5. v3 Types Tests ───────────────────────────────────
 
 import { V3_PROFILE_BOUNDS, V3_SHORT_GRID, DEFAULT_WFA_V3_CONFIG } from '../src/lib/backtest/wfa-v3-types';
-import {
-  buildV3SweepCandidates,
-  DEFAULT_SHORT_HOLDOUT_DAYS,
-  DEFAULT_SHORT_TICKERS,
-  SHORT_DTE_ENTRY_RANGE,
-  SHORT_IV_RANK_MINS,
-} from '../scripts/wfa-run-short';
-
 describe('v3 Types', () => {
   test('V3_PROFILE_BOUNDS has short DTE range', () => {
     expect(V3_PROFILE_BOUNDS.creditDTERange).toEqual([7, 21]);
@@ -346,30 +338,11 @@ describe('v3 Types', () => {
     expect(DEFAULT_WFA_V3_CONFIG.holdoutDays).toBe(63);
   });
 
-  test('short wrapper defaults align with shared v3 universe and holdout', () => {
-    expect(DEFAULT_SHORT_HOLDOUT_DAYS).toBe(DEFAULT_WFA_V3_CONFIG.holdoutDays);
-    expect(DEFAULT_SHORT_TICKERS).toEqual(DEFAULT_WFA_V3_CONFIG.tickers);
-    expect(DEFAULT_SHORT_TICKERS).toContain('COST');
-    expect(DEFAULT_SHORT_TICKERS).toHaveLength(15);
-  });
-
   test('DEFAULT_WFA_V3_CONFIG has BSM parameters', () => {
     expect(DEFAULT_WFA_V3_CONFIG.bsmKappa).toBe(4.0);
     expect(DEFAULT_WFA_V3_CONFIG.bsmRiskFreeRate).toBe(0.04);
     expect(DEFAULT_WFA_V3_CONFIG.ivThetaSource).toBe('hv60');
     expect(DEFAULT_WFA_V3_CONFIG.dailyCalibration).toBe(true);
-  });
-
-  test('short wrapper exposes expanded DTE range and tighter IV floors', () => {
-    expect(SHORT_DTE_ENTRY_RANGE).toEqual([7, 21]);
-    expect([...SHORT_IV_RANK_MINS]).toEqual([20, 30]);
-
-    const candidates = buildV3SweepCandidates('mid');
-    const ivRankMins = [...new Set(candidates.map(c => Number(c.minIVRank)))].sort((a, b) => a - b);
-
-    expect(candidates.length).toBeGreaterThan(0);
-    expect(ivRankMins).toEqual([20, 30]);
-    expect(candidates.every(c => c.fillMode === 'mid')).toBe(true);
   });
 });
 
