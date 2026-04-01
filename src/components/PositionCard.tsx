@@ -697,7 +697,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                             <Tooltip label="Target" explanation="Profit Target Price. Click to edit." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                             <button
                                 onClick={() => { setIsEditingTarget(true); setTargetInput(targetPrice.toString()); }}
-                                className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+                                className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer p-2 -m-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center"
                                 aria-label="Edit target"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
@@ -737,7 +737,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                             <Tooltip label="Stop" explanation="Optional stop price. Credit spreads have defined risk — no stop needed." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                             <button
                                 onClick={() => { setIsEditingStop(true); setStopInput((currentStopLoss ?? '').toString()); }}
-                                className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+                                className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer p-2 -m-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center"
                                 aria-label="Edit stop"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>

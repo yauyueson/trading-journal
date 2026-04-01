@@ -34,7 +34,7 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({ trades }) => {
 
     if (trades.length < 2) {
         return (
-            <div className="card p-6 h-[250px] flex items-center justify-center text-text-tertiary text-sm">
+            <div className="card p-6 chart-container flex items-center justify-center text-text-tertiary text-sm">
                 Need at least 2 closed trades to show equity curve
             </div>
         );
@@ -46,7 +46,7 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({ trades }) => {
     return (
         <div className="card p-4">
             <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">Equity Curve</h3>
-            <div className="h-[250px] w-full">
+            <div className="chart-container">
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
                         <defs>

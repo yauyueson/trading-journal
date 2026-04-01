@@ -428,9 +428,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         <div className="flex-1">
                             <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Target DTE</label>
                             <div className="bg-[#000] p-1.5 rounded-lg border border-[#333]">
-                                <div className="flex gap-0">
+                                <div className="flex flex-col sm:flex-row gap-2 sm:gap-0">
                                     {/* Short-Term group */}
-                                    <div className="flex-1 pr-2">
+                                    <div className="flex-1 sm:pr-2">
                                         <div className="text-[9px] text-blue-400 font-semibold uppercase tracking-wider text-center mb-1.5 mt-0.5">Short-Term</div>
                                         <div className="grid grid-cols-3 gap-1">
                                             {STRATEGY_PROFILES.shortTerm.dteOptions.map((opt) => (
@@ -452,9 +452,10 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                         </div>
                                     </div>
                                     {/* Divider */}
-                                    <div className="w-px bg-[#444] mx-1 my-1 self-stretch" />
+                                    <div className="hidden sm:block w-px bg-[#444] mx-1 my-1 self-stretch" />
+                                    <div className="sm:hidden h-px bg-[#444] my-1" />
                                     {/* Swing group */}
-                                    <div className="flex-1 pl-2">
+                                    <div className="flex-1 sm:pl-2">
                                         <div className="text-[9px] text-green-400 font-semibold uppercase tracking-wider text-center mb-1.5 mt-0.5">Swing</div>
                                         <div className="grid grid-cols-3 gap-1">
                                             {STRATEGY_PROFILES.swing.dteOptions.map((opt) => (
@@ -770,7 +771,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
                                             <div>
                                                 <div className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
                                                     IV Rank

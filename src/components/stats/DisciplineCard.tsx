@@ -174,7 +174,7 @@ export const DisciplineCard: React.FC<DisciplineCardProps> = ({ closedPositions,
             {metrics.barData.length > 0 && (
                 <div className="card p-4">
                     <h4 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">Exit Type Distribution</h4>
-                    <div className="h-[180px]">
+                    <div className="h-[160px] sm:h-[180px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={metrics.barData} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
                                 <XAxis type="number" tick={{ fill: '#888', fontSize: 11 }} axisLine={false} tickLine={false} />

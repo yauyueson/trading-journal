@@ -387,7 +387,7 @@ export const SignalsPage: React.FC = () => {
       <div className="flex items-center gap-1 mb-4 bg-[#111] border border-[#333] rounded-lg p-1 w-fit">
         <button
           onClick={() => setActiveBoard('dte5')}
-          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium rounded-md transition-colors min-h-[44px] ${
             activeBoard === 'dte5'
               ? 'bg-amber-500/20 text-amber-400'
               : 'text-text-tertiary hover:text-text-secondary'
@@ -397,7 +397,7 @@ export const SignalsPage: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveBoard('swing')}
-          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium rounded-md transition-colors min-h-[44px] ${
             activeBoard === 'swing'
               ? 'bg-green-500/20 text-green-400'
               : 'text-text-tertiary hover:text-text-secondary'
@@ -407,7 +407,7 @@ export const SignalsPage: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveBoard('shortTerm')}
-          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium rounded-md transition-colors min-h-[44px] ${
             activeBoard === 'shortTerm'
               ? 'bg-blue-500/20 text-blue-400'
               : 'text-text-tertiary hover:text-text-secondary'
@@ -507,23 +507,23 @@ export const SignalsPage: React.FC = () => {
 
                 return (
                   <div key={idx} className={`rounded-xl border ${borderColor} p-4`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-lg font-bold">{sig.ticker}</span>
                         <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeColor}`}>
                           {sig.side === 'bull' ? '▲ BULL PUT' : '▼ BEAR CALL'}
                         </span>
                         <span className="text-sm text-text-secondary">{sig.spread}</span>
-                        {sig.recommended && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/20 text-amber-400">RECOMMENDED</span>}
+                        {sig.recommended && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/20 text-amber-400">REC</span>}
                         <span className="text-sm text-text-secondary">${close.toFixed(2)}</span>
                       </div>
-                      <span className={`px-3 py-1 rounded-lg text-xs font-bold ${allPass ? (sig.side === 'bull' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400') : 'bg-zinc-800 text-zinc-500'}`}>
+                      <span className={`px-3 py-1.5 rounded-lg text-xs font-bold self-start sm:self-auto ${allPass ? (sig.side === 'bull' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400') : 'bg-zinc-800 text-zinc-500'}`}>
                         {allPass ? 'GO' : 'NO SIGNAL'}
                       </span>
                     </div>
 
                     {/* Criteria checklist */}
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-1 sm:gap-x-4 sm:gap-y-1 text-xs">
                       {criteria.map((c, ci) => (
                         <span key={ci} className={c.pass ? 'text-emerald-400' : 'text-zinc-500'}>
                           {c.pass ? '✓' : '✗'} {c.label}: {c.value}
@@ -697,12 +697,12 @@ export const SignalsPage: React.FC = () => {
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Ticker</th>
                 <th className="px-3 py-2 font-medium">Dir</th>
-                <th className="px-3 py-2 font-medium text-right">Dir Conf</th>
+                <th className="px-3 py-2 font-medium text-right hidden sm:table-cell">Dir Conf</th>
                 <th className="px-3 py-2 font-medium text-right">{presetKey.toUpperCase()}</th>
                 <th className="px-3 py-2 font-medium text-right">IV</th>
-                <th className="px-3 py-2 font-medium text-right">ADX</th>
-                <th className="px-3 py-2 font-medium text-right">RVOL</th>
-                <th className="px-3 py-2 font-medium text-center">Streak</th>
+                <th className="px-3 py-2 font-medium text-right hidden sm:table-cell">ADX</th>
+                <th className="px-3 py-2 font-medium text-right hidden sm:table-cell">RVOL</th>
+                <th className="px-3 py-2 font-medium text-center hidden sm:table-cell">Streak</th>
                 <th className="px-3 py-2 font-medium text-right">Price</th>
               </tr>
             </thead>
@@ -835,7 +835,7 @@ const DashboardRowView: React.FC<{
           {dir.label}
         </span>
       </td>
-      <td className={`px-3 py-2 text-right font-mono font-semibold ${
+      <td className={`px-3 py-2 text-right font-mono font-semibold hidden sm:table-cell ${
         row.dirConfidence >= 70 ? 'text-green-400' : row.dirConfidence >= 50 ? 'text-yellow-400' : 'text-red-400'
       }`}>
         {row.dirConfidence > 0 ? row.dirConfidence : '\u2014'}
@@ -848,13 +848,13 @@ const DashboardRowView: React.FC<{
       <td className={`px-3 py-2 text-right font-mono ${ivColor(row.iv30)}`}>
         {row.iv30 != null ? `${(row.iv30 * 100).toFixed(0)}%` : '\u2014'}
       </td>
-      <td className={`px-3 py-2 text-right font-mono ${adxGate == null || row.adx >= adxGate ? 'text-text-secondary' : 'text-red-400/60'}`}>
+      <td className={`px-3 py-2 text-right font-mono hidden sm:table-cell ${adxGate == null || row.adx >= adxGate ? 'text-text-secondary' : 'text-red-400/60'}`}>
         {row.adx > 0 ? row.adx.toFixed(0) : '\u2014'}
       </td>
-      <td className={`px-3 py-2 text-right font-mono ${row.rvol >= minRvol ? 'text-text-secondary' : 'text-red-400/60'}`}>
+      <td className={`px-3 py-2 text-right font-mono hidden sm:table-cell ${row.rvol >= minRvol ? 'text-text-secondary' : 'text-red-400/60'}`}>
         {row.rvol > 0 ? row.rvol.toFixed(1) : '\u2014'}
       </td>
-      <td className="px-3 py-2 text-center">
+      <td className="px-3 py-2 text-center hidden sm:table-cell">
         {row.streak > 0 ? (
           <span className="inline-flex items-center gap-1 text-xs font-mono">
             <Flame size={11} className={row.streak >= 3 ? 'text-orange-400' : 'text-text-tertiary'} />

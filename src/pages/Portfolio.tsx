@@ -281,21 +281,21 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                         aria-expanded={showAccountSettings}
                     >
                         <Settings2 size={16} className="text-accent-green shrink-0" />
-                        <span className="font-mono truncate">
+                        <span className="font-mono truncate min-w-0">
                             <span className="hidden sm:inline">Portfolio {formatCurrency(portfolioTotal)} · Risk {riskPct}% · Stop {stopOutPct}% · Cap {formatCurrency(maxRiskPerTrade)}/trade</span>
-                            <span className="sm:hidden">{formatCurrency(portfolioTotal)} · {riskPct}% risk · {formatCurrency(maxRiskPerTrade)}/trade</span>
+                            <span className="sm:hidden truncate">{formatCurrency(portfolioTotal)} · {riskPct}% · {formatCurrency(maxRiskPerTrade)}/trade</span>
                         </span>
                         <ChevronDown size={16} className={`text-gray-500 transition-transform shrink-0 ${showAccountSettings ? 'rotate-180' : ''}`} />
                     </button>
                 </div>
-                {/* Owner Filter */}
-                <div className="flex items-center gap-1.5">
+                {/* Filters — Owner + Strategy + Mode in one compact row */}
+                <div className="flex flex-wrap items-center gap-1.5">
                     {(['All', 'Yuchen', 'Annie'] as const).map(value => (
                         <button
                             key={value}
                             type="button"
                             onClick={() => setOwnerFilter(value)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${ownerFilter === value
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] ${ownerFilter === value
                                 ? value === 'Yuchen'
                                     ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
                                     : value === 'Annie'
@@ -307,16 +307,13 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                             {value}
                         </button>
                     ))}
-                </div>
-                {/* Strategy Filter */}
-                <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-text-tertiary">Strategy:</span>
+                    <span className="text-text-tertiary/30 mx-0.5">|</span>
                     {([['All', 'All'], ['dte5', 'DTE5'], ['swing', 'Swing'], ['shortTerm', 'ST'], ['untagged', '\u2014']] as const).map(([value, label]) => (
                         <button
                             key={value}
                             type="button"
                             onClick={() => setStrategyFilter(value as typeof strategyFilter)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${strategyFilter === value
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] ${strategyFilter === value
                                 ? value === 'dte5'
                                     ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
                                     : value === 'swing'
@@ -330,16 +327,13 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                             {label}
                         </button>
                     ))}
-                </div>
-                {/* Paper / Live Filter */}
-                <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-text-tertiary">Mode:</span>
+                    <span className="text-text-tertiary/30 mx-0.5">|</span>
                     {([['all', 'All'], ['paper', 'Paper'], ['live', 'Live']] as const).map(([value, label]) => (
                         <button
                             key={value}
                             type="button"
                             onClick={() => setPaperFilter(value as typeof paperFilter)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${paperFilter === value
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] ${paperFilter === value
                                 ? value === 'paper'
                                     ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40'
                                     : value === 'live'

@@ -142,6 +142,54 @@
     .badge-gray {
         @apply bg-white/10 text-text-secondary;
     }
+
+    /* Page headers — consistent across all pages */
+    .page-header {
+        @apply text-lg sm:text-xl font-semibold text-text-primary;
+    }
+
+    .page-subtitle {
+        @apply text-xs text-text-tertiary mt-0.5;
+    }
+
+    /* Filter pills — standardized across Portfolio, Stats, History, Signals */
+    .filter-pill {
+        @apply px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px]
+               flex items-center justify-center
+               bg-bg-secondary/30 text-text-tertiary border border-border-default/50
+               hover:text-text-secondary;
+    }
+
+    .filter-pill-active {
+        @apply bg-white/10 text-text-primary border-white/20;
+    }
+
+    /* Responsive chart containers */
+    .chart-container {
+        @apply h-[200px] sm:h-[250px] md:h-[280px] w-full;
+    }
+
+    .chart-container-tall {
+        @apply h-[240px] sm:h-[280px] md:h-[320px] w-full;
+    }
+
+    /* Summary stat cards */
+    .stat-card {
+        @apply card p-4;
+    }
+
+    .stat-card .stat-value {
+        @apply text-xl sm:text-2xl font-bold font-mono;
+    }
+
+    .stat-card .stat-label {
+        @apply text-text-tertiary text-[10px] sm:text-xs uppercase tracking-wider mb-1;
+    }
+
+    /* Mobile-friendly table wrapper — edge-to-edge bleed on mobile */
+    .table-responsive {
+        @apply overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0;
+    }
 }
 
 @layer utilities {
@@ -284,4 +332,24 @@ input[type="number"]::-webkit-outer-spin-button {
 
 input[type="number"] {
     -moz-appearance: textfield;
+}
+
+/* Range slider thumb — touch-friendly 44px */
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #00C805;
+    cursor: pointer;
+    border: 2px solid #000;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #00C805;
+    cursor: pointer;
+    border: 2px solid #000;
 }

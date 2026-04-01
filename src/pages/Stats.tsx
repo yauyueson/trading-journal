@@ -306,7 +306,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                                 key={tab.key}
                                 type="button"
                                 onClick={() => setStatsTab(tab.key)}
-                                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap min-h-[36px] ${
                                     statsTab === tab.key
                                         ? 'bg-white/10 text-text-primary border border-white/20'
                                         : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
@@ -321,7 +321,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                     {statsTab === 'overview' && (
                         <>
                             {/* Key Metrics */}
-                            <div className="grid grid-cols-2 gap-4 mb-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                                 <div className="card p-5">
                                     <div className="text-text-tertiary text-xs uppercase tracking-wider mb-2">Total P&L</div>
                                     <div className={`text-3xl font-bold font-mono ${stats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>

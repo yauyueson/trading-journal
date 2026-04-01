@@ -93,7 +93,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
                         </div>
                     </div>
                     {/* Other Stats Row */}
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 xs:grid-cols-3 gap-3">
                         <div className="card p-4">
                             <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Win Rate</div>
                             <div className={`text-xl font-bold ${overallStats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>

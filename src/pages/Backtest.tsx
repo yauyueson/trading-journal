@@ -176,9 +176,9 @@ export function BacktestPage() {
                                         <th className="text-left py-1.5 px-2">Best Spread</th>
                                         <th className="text-right py-1.5 px-2">Sharpe</th>
                                         <th className="text-right py-1.5 px-2">CAGR</th>
-                                        <th className="text-right py-1.5 px-2">MaxDD</th>
-                                        <th className="text-right py-1.5 px-2">Final$</th>
-                                        <th className="text-right py-1.5 px-2">WR%</th>
+                                        <th className="text-right py-1.5 px-2 hidden sm:table-cell">MaxDD</th>
+                                        <th className="text-right py-1.5 px-2 hidden sm:table-cell">Final$</th>
+                                        <th className="text-right py-1.5 px-2 hidden sm:table-cell">WR%</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -194,9 +194,9 @@ export function BacktestPage() {
                                                     <td className="py-1.5 px-2 font-medium">{best.label}{isActive ? ' ✦' : ''}</td>
                                                     <td className={`py-1.5 px-2 text-right font-medium ${scoreColor(best.sharpe)}`}>{best.sharpe.toFixed(3)}</td>
                                                     <td className={`py-1.5 px-2 text-right ${(best.cagr ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPct(best.cagr)}</td>
-                                                    <td className={`py-1.5 px-2 text-right ${best.maxDD > 50 ? 'text-red-400' : best.maxDD > 30 ? 'text-yellow-400' : ''}`}>{fmtPct(best.maxDD)}</td>
-                                                    <td className="py-1.5 px-2 text-right">{fmt$(best.finalEquity)}</td>
-                                                    <td className="py-1.5 px-2 text-right">{best.winRate.toFixed(0)}%</td>
+                                                    <td className={`py-1.5 px-2 text-right hidden sm:table-cell ${best.maxDD > 50 ? 'text-red-400' : best.maxDD > 30 ? 'text-yellow-400' : ''}`}>{fmtPct(best.maxDD)}</td>
+                                                    <td className="py-1.5 px-2 text-right hidden sm:table-cell">{fmt$(best.finalEquity)}</td>
+                                                    <td className="py-1.5 px-2 text-right hidden sm:table-cell">{best.winRate.toFixed(0)}%</td>
                                                 </tr>
                                             );
                                         })
@@ -211,7 +211,7 @@ export function BacktestPage() {
                         <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
                             <TrendingUp size={14} className="text-emerald-400" /> Portfolio Growth — Best Config Per Ticker at 10% Risk
                         </h2>
-                        <div className="h-64">
+                        <div className="chart-container">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -265,7 +265,7 @@ export function BacktestPage() {
                     {/* Bar chart */}
                     <div className="bg-bg-secondary rounded-xl border border-white/5 p-4">
                         <h2 className="text-sm font-semibold mb-3">Sharpe by Spread — {selectedTicker} at {(selectedRisk * 100).toFixed(0)}% Risk</h2>
-                        <div className="h-56">
+                        <div className="chart-container">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={spreadsForTickerRisk} layout="vertical">
                                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -295,10 +295,10 @@ export function BacktestPage() {
                                         <th className="text-right py-1.5 px-2">CAGR</th>
                                         <th className="text-right py-1.5 px-2">Sharpe</th>
                                         <th className="text-right py-1.5 px-2">MaxDD</th>
-                                        <th className="text-right py-1.5 px-2">MinEq</th>
-                                        <th className="text-right py-1.5 px-2">WR%</th>
-                                        <th className="text-right py-1.5 px-2">Trades</th>
-                                        <th className="text-right py-1.5 px-2">+Win</th>
+                                        <th className="text-right py-1.5 px-2 hidden sm:table-cell">MinEq</th>
+                                        <th className="text-right py-1.5 px-2 hidden sm:table-cell">WR%</th>
+                                        <th className="text-right py-1.5 px-2 hidden sm:table-cell">Trades</th>
+                                        <th className="text-right py-1.5 px-2 hidden sm:table-cell">+Win</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -314,10 +314,10 @@ export function BacktestPage() {
                                                 <td className={`py-1.5 px-2 text-right ${(r.cagr ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPct(r.cagr)}</td>
                                                 <td className={`py-1.5 px-2 text-right font-medium ${scoreColor(r.sharpe)}`}>{r.sharpe.toFixed(3)}</td>
                                                 <td className={`py-1.5 px-2 text-right ${r.maxDD > 50 ? 'text-red-400' : r.maxDD > 30 ? 'text-yellow-400' : ''}`}>{fmtPct(r.maxDD)}</td>
-                                                <td className={`py-1.5 px-2 text-right ${r.minEquity < 5000 ? 'text-red-400' : ''}`}>{fmt$(r.minEquity)}</td>
-                                                <td className="py-1.5 px-2 text-right">{r.winRate.toFixed(0)}%</td>
-                                                <td className="py-1.5 px-2 text-right">{r.trades}</td>
-                                                <td className="py-1.5 px-2 text-right">{r.posWindows}/{r.totalWindows}</td>
+                                                <td className={`py-1.5 px-2 text-right hidden sm:table-cell ${r.minEquity < 5000 ? 'text-red-400' : ''}`}>{fmt$(r.minEquity)}</td>
+                                                <td className="py-1.5 px-2 text-right hidden sm:table-cell">{r.winRate.toFixed(0)}%</td>
+                                                <td className="py-1.5 px-2 text-right hidden sm:table-cell">{r.trades}</td>
+                                                <td className="py-1.5 px-2 text-right hidden sm:table-cell">{r.posWindows}/{r.totalWindows}</td>
                                             </tr>
                                         );
                                     })}
@@ -337,7 +337,7 @@ export function BacktestPage() {
                                 >{r.label}</button>
                             ))}
                         </div>
-                        <div className="h-64">
+                        <div className="chart-container">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -384,7 +384,7 @@ export function BacktestPage() {
                     {/* Bar chart */}
                     <div className="bg-bg-secondary rounded-xl border border-white/5 p-4">
                         <h2 className="text-sm font-semibold mb-3">Sharpe by EMA — {selectedTicker} {selectedSpread} at 10% Risk</h2>
-                        <div className="h-52">
+                        <div className="chart-container">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={emasForTickerSpread.map(r => ({ ...r, label: r.ema === null ? 'None' : `EMA${r.ema}` }))}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -414,9 +414,9 @@ export function BacktestPage() {
                                         <th className="text-right py-1.5 px-2">CAGR</th>
                                         <th className="text-right py-1.5 px-2">Sharpe</th>
                                         <th className="text-right py-1.5 px-2">MaxDD</th>
-                                        <th className="text-right py-1.5 px-2">MinEq</th>
-                                        <th className="text-right py-1.5 px-2">WR%</th>
-                                        <th className="text-right py-1.5 px-2">Trades</th>
+                                        <th className="text-right py-1.5 px-2 hidden sm:table-cell">MinEq</th>
+                                        <th className="text-right py-1.5 px-2 hidden sm:table-cell">WR%</th>
+                                        <th className="text-right py-1.5 px-2 hidden sm:table-cell">Trades</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -434,9 +434,9 @@ export function BacktestPage() {
                                                 <td className={`py-1.5 px-2 text-right ${(r.cagr ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPct(r.cagr)}</td>
                                                 <td className={`py-1.5 px-2 text-right font-medium ${scoreColor(r.sharpe)}`}>{r.sharpe.toFixed(3)}</td>
                                                 <td className={`py-1.5 px-2 text-right ${r.maxDD > 50 ? 'text-red-400' : r.maxDD > 30 ? 'text-yellow-400' : ''}`}>{fmtPct(r.maxDD)}</td>
-                                                <td className={`py-1.5 px-2 text-right ${r.minEquity < 5000 ? 'text-red-400' : ''}`}>{fmt$(r.minEquity)}</td>
-                                                <td className="py-1.5 px-2 text-right">{r.winRate.toFixed(0)}%</td>
-                                                <td className="py-1.5 px-2 text-right">{r.trades}</td>
+                                                <td className={`py-1.5 px-2 text-right hidden sm:table-cell ${r.minEquity < 5000 ? 'text-red-400' : ''}`}>{fmt$(r.minEquity)}</td>
+                                                <td className="py-1.5 px-2 text-right hidden sm:table-cell">{r.winRate.toFixed(0)}%</td>
+                                                <td className="py-1.5 px-2 text-right hidden sm:table-cell">{r.trades}</td>
                                             </tr>
                                         );
                                     })}
@@ -448,7 +448,7 @@ export function BacktestPage() {
                     {/* EMA equity overlay */}
                     <div className="bg-bg-secondary rounded-xl border border-white/5 p-4">
                         <h2 className="text-sm font-semibold mb-3">Equity — No EMA vs EMA34 vs EMA55 ({selectedTicker} {selectedSpread})</h2>
-                        <div className="h-64">
+                        <div className="chart-container">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -500,14 +500,14 @@ export function BacktestPage() {
                                         <h2 className="text-sm font-semibold">{curve.label}</h2>
                                         <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: tagColor + '22', color: tagColor }}>{curve.tag}</span>
                                     </div>
-                                    <div className="flex gap-3 text-xs text-text-tertiary">
+                                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-tertiary">
                                         <span>Sharpe <span className={scoreColor(s.sharpe)}>{s.sharpe.toFixed(3)}</span></span>
                                         <span>CAGR <span className="text-text-primary">{fmtPct(s.cagr)}</span></span>
-                                        <span>MaxDD <span className={s.maxDD > 50 ? 'text-red-400' : 'text-text-primary'}>{fmtPct(s.maxDD)}</span></span>
+                                        <span className="hidden sm:inline">MaxDD <span className={s.maxDD > 50 ? 'text-red-400' : 'text-text-primary'}>{fmtPct(s.maxDD)}</span></span>
                                         <span>Final <span className="text-emerald-400">{fmt$(s.finalEquity)}</span></span>
                                     </div>
                                 </div>
-                                <div className="h-48">
+                                <div className="chart-container">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <AreaChart data={curveData}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -525,12 +525,12 @@ export function BacktestPage() {
                                             <tr className="text-text-tertiary border-b border-white/10">
                                                 <th className="text-left py-1 px-1.5">W#</th>
                                                 <th className="text-left py-1 px-1.5">Period</th>
-                                                <th className="text-right py-1 px-1.5">Start</th>
+                                                <th className="text-right py-1 px-1.5 hidden sm:table-cell">Start</th>
                                                 <th className="text-right py-1 px-1.5">P&L</th>
-                                                <th className="text-right py-1 px-1.5">End</th>
+                                                <th className="text-right py-1 px-1.5 hidden sm:table-cell">End</th>
                                                 <th className="text-right py-1 px-1.5">Ret%</th>
-                                                <th className="text-right py-1 px-1.5">Trades</th>
-                                                <th className="text-right py-1 px-1.5">WR</th>
+                                                <th className="text-right py-1 px-1.5 hidden sm:table-cell">Trades</th>
+                                                <th className="text-right py-1 px-1.5 hidden sm:table-cell">WR</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -540,12 +540,12 @@ export function BacktestPage() {
                                                     <tr key={i} className="border-b border-white/5">
                                                         <td className="py-1 px-1.5">W{i + 1}</td>
                                                         <td className="py-1 px-1.5 text-text-tertiary">{w.testStart.slice(2, 7)}→{w.testEnd.slice(2, 7)}</td>
-                                                        <td className="py-1 px-1.5 text-right">{fmt$(w.startEq)}</td>
+                                                        <td className="py-1 px-1.5 text-right hidden sm:table-cell">{fmt$(w.startEq)}</td>
                                                         <td className={`py-1 px-1.5 text-right ${w.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{w.pnl >= 0 ? '+' : ''}{fmt$(w.pnl)}</td>
-                                                        <td className="py-1 px-1.5 text-right">{fmt$(w.endEq)}</td>
+                                                        <td className="py-1 px-1.5 text-right hidden sm:table-cell">{fmt$(w.endEq)}</td>
                                                         <td className={`py-1 px-1.5 text-right ${ret >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{ret.toFixed(1)}%</td>
-                                                        <td className="py-1 px-1.5 text-right">{w.trades}</td>
-                                                        <td className="py-1 px-1.5 text-right">{w.wr.toFixed(0)}%</td>
+                                                        <td className="py-1 px-1.5 text-right hidden sm:table-cell">{w.trades}</td>
+                                                        <td className="py-1 px-1.5 text-right hidden sm:table-cell">{w.wr.toFixed(0)}%</td>
                                                     </tr>
                                                 );
                                             })}
