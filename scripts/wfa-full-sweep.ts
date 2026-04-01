@@ -544,7 +544,7 @@ async function main() {
     const r = results[i];
     const marker = r.grade === 'A' ? ' ◄' : '';
     console.log(
-      `  ${String(i + 1).padStart(4)}  ${r.configLabel.padEnd(50)} ${r.isSharpe.toFixed(2).padStart(9)}  ${r.oosSharpe.toFixed(2).padStart(10)}  ${r.holdoutSharpe.toFixed(2).padStart(8)}  ${(r.oosWinRate * 100).toFixed(1).padStart(5)}%  ${r.oosMaxDD.toFixed(1).padStart(5)}%  ${String(r.tradeCount).padStart(6)}  ${r.grade.padStart(5)}${marker}`,
+      `  ${String(i + 1).padStart(4)}  ${r.configLabel.padEnd(50)} ${r.isSharpe.toFixed(2).padStart(9)}  ${r.oosSharpe.toFixed(2).padStart(10)}  ${r.holdoutSharpe.toFixed(2).padStart(8)}  ${r.oosWinRate.toFixed(1).padStart(5)}%  ${r.oosMaxDD.toFixed(1).padStart(5)}%  ${String(r.tradeCount).padStart(6)}  ${r.grade.padStart(5)}${marker}`,
     );
   }
 
@@ -560,7 +560,7 @@ async function main() {
   for (const preset of PRESETS) {
     const best = results.filter(r => r.preset === preset).sort((a, b) => b.oosSharpe - a.oosSharpe)[0];
     if (best) {
-      console.log(`  ${preset.padEnd(8)} Best: ${best.configLabel.padEnd(50)} OOS ${best.oosSharpe.toFixed(2)} | Holdout ${best.holdoutSharpe.toFixed(2)} | WR ${(best.oosWinRate * 100).toFixed(1)}% | Grade ${best.grade}`);
+      console.log(`  ${preset.padEnd(8)} Best: ${best.configLabel.padEnd(50)} OOS ${best.oosSharpe.toFixed(2)} | Holdout ${best.holdoutSharpe.toFixed(2)} | WR ${best.oosWinRate.toFixed(1)}% | Grade ${best.grade}`);
     }
   }
 
@@ -608,7 +608,7 @@ async function main() {
     '| Rank | Config | IS Sharpe | OOS Net | OOS Gross | Holdout Net | Holdout Gross | WR% | MaxDD | Trades | Grade |',
     '|------|--------|-----------|---------|-----------|-------------|---------------|-----|-------|--------|-------|',
     ...top10.map((r, i) =>
-      `| ${i + 1} | ${r.configLabel} | ${r.isSharpe.toFixed(2)} | ${r.oosNetSharpe.toFixed(2)} | ${r.oosGrossSharpe.toFixed(2)} | ${r.holdoutNetSharpe.toFixed(2)} | ${r.holdoutGrossSharpe.toFixed(2)} | ${(r.oosWinRate * 100).toFixed(1)}% | ${r.oosMaxDD.toFixed(1)}% | ${r.tradeCount} | ${r.grade} |`
+      `| ${i + 1} | ${r.configLabel} | ${r.isSharpe.toFixed(2)} | ${r.oosNetSharpe.toFixed(2)} | ${r.oosGrossSharpe.toFixed(2)} | ${r.holdoutNetSharpe.toFixed(2)} | ${r.holdoutGrossSharpe.toFixed(2)} | ${r.oosWinRate.toFixed(1)}% | ${r.oosMaxDD.toFixed(1)}% | ${r.tradeCount} | ${r.grade} |`
     ),
     '',
     `## Grade Distribution`,

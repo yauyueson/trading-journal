@@ -18,3 +18,4 @@ data/runs/
 scripts/.*.mjs
 chain-cache.db
 .worktrees/
+.vscode/
