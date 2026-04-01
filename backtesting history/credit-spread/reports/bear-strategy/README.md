@@ -176,6 +176,37 @@ QQQ bull + all 3 bear:
 4. **Bear contribution:** Fills idle periods (especially 2022 crash, 2025 correction)
 5. **Optimal risk tier:** See Section 5 for Sharpe-optimal risk level
 
+## Section 7: IV Rank Filter Experiment
+
+Tests whether filtering bear entries by IV Rank percentile (252d min-max) improves portfolio performance.
+Uses best config per ticker from Phase A.
+
+### Per-Ticker Impact (standalone)
+
+| Ticker | IV Gate | Sharpe | CAGR | MaxDD | WR | Final$ | Trades |
+|--------|---------|--------|------|-------|----|--------|--------|
+| QQQ | none | 0.368 | 3.3% | 19.8% | 71% | $12986 | 24 |
+| QQQ | >=15 | 0.368 | 3.3% | 19.8% | 71% | $12986 | 24 |
+| QQQ | >=25 | 0.471 | 4.3% | 14.1% | 74% | $13979 | 23 |
+| QQQ | >=35 | 0.489 | 4.1% | 13.1% | 75% | $13764 | 20 |
+| SPY | none | 0.559 | 10.9% | 46.6% | 65% | $22916 | 114 |
+| SPY | >=15 | 0.644 | 13.0% | 41.1% | 66% | $26627 | 112 |
+| SPY | >=25 | 0.644 | 13.0% | 41.1% | 66% | $26627 | 112 |
+| SPY | >=35 | 0.679 | 13.7% | 34.4% | 67% | $28060 | 108 |
+| IWM | none | 0.575 | 3.8% | 20.6% | 89% | $13492 | 119 |
+| IWM | >=15 | 0.712 | 4.2% | 16.7% | 90% | $13865 | 105 |
+| IWM | >=25 | 0.593 | 3.2% | 14.5% | 88% | $12910 | 93 |
+| IWM | >=35 | 0.316 | 1.4% | 11.0% | 87% | $11222 | 63 |
+
+### Portfolio-Level Impact (QQQ bull + all 3 bear)
+
+| IV Gate | Sharpe | CAGR | MaxDD | Final$ | MinEq | Trades | vs Baseline |
+|---------|--------|------|-------|--------|-------|--------|-------------|
+| none | 0.985 | 39.9% | 47.9% | $147754 | $6976 | 809 | +0.298 |
+| >=15 | 1.015 | 41.4% | 44.8% | $160438 | $6976 | 793 | +0.329 |
+| >=25 | 1.030 | 42.0% | 44.8% | $166498 | $6976 | 780 | +0.343 |
+| >=35 | 0.990 | 39.3% | 47.1% | $142397 | $6408 | 743 | +0.303 |
+
 ## Caveats
 
 1. Backtest period (2017-2026) has limited sustained bear episodes — results have high variance

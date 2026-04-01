@@ -373,13 +373,18 @@ function runStrategy(config: ShortPut1DTEConfig): StrategyResult {
     }
   }
 
-  // Compute IV Rank series from ORATS cores cache (local SQLite)
+  // Compute IV Rank series from ATM option IV in chain cache (no cores needed)
   const ivRankMap = new Map<string, number>();
   if (config.minIVRank && config.minIVRank > 0) {
-    const cores = getCachedCoresRange(config.ticker, warmupStart.toISOString().split('T')[0], config.endDate);
+    // Extract ~30-day ATM IV from chain data for each trading date
     const ivSeries = allPriceDates.map(d => {
-      const core = cores.find(c => c.trade_date === d);
-      return core?.iv30 ?? null;
+      // Find nearest-to-ATM option with DTE 20-40 (proxy for IV30)
+      const row = db.prepare(
+        `SELECT (call_iv + put_iv) / 2.0 as atm_iv FROM option_chains
+         WHERE ticker = ? AND trade_date = ? AND dte BETWEEN 20 AND 40
+         ORDER BY ABS(strike - stock_price) LIMIT 1`
+      ).get(config.ticker, d) as { atm_iv: number } | undefined;
+      return row?.atm_iv ?? null;
     });
     const ranks = computeIVRankMinMax(ivSeries);
     for (let ri = 0; ri < allPriceDates.length; ri++) {

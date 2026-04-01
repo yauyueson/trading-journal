@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-01T01:43:40.162Z",
+  "generatedAt": "2026-04-01T18:47:03.672Z",
   "config": {
     "trainDays": 252,
     "testDays": 126,
@@ -6686,5 +6686,179 @@
       "bullTrades": 97,
       "bearTrades": 31
     }
+  },
+  "ivRankExperiment": {
+    "perTicker": [
+      {
+        "ticker": "QQQ",
+        "ivRankMin": 0,
+        "sharpe": 0.3678928152571032,
+        "cagr": 3.3130917325135067,
+        "maxDD": 19.78985456822768,
+        "winRate": 70.83333333333334,
+        "finalEquity": 12986,
+        "trades": 24,
+        "minEquity": 9600
+      },
+      {
+        "ticker": "QQQ",
+        "ivRankMin": 15,
+        "sharpe": 0.3678928152571032,
+        "cagr": 3.3130917325135067,
+        "maxDD": 19.78985456822768,
+        "winRate": 70.83333333333334,
+        "finalEquity": 12986,
+        "trades": 24,
+        "minEquity": 9600
+      },
+      {
+        "ticker": "QQQ",
+        "ivRankMin": 25,
+        "sharpe": 0.47060614115641747,
+        "cagr": 4.267089236410371,
+        "maxDD": 14.090877461554518,
+        "winRate": 73.91304347826086,
+        "finalEquity": 13979,
+        "trades": 23,
+        "minEquity": 9600
+      },
+      {
+        "ticker": "QQQ",
+        "ivRankMin": 35,
+        "sharpe": 0.48875817969326313,
+        "cagr": 4.065684191463137,
+        "maxDD": 13.074942592721452,
+        "winRate": 75,
+        "finalEquity": 13764,
+        "trades": 20,
+        "minEquity": 9600
+      },
+      {
+        "ticker": "SPY",
+        "ivRankMin": 0,
+        "sharpe": 0.5592751260040242,
+        "cagr": 10.898354717541615,
+        "maxDD": 46.58569242540162,
+        "winRate": 64.91228070175438,
+        "finalEquity": 22916.000000000036,
+        "trades": 114,
+        "minEquity": 9054.000000000007
+      },
+      {
+        "ticker": "SPY",
+        "ivRankMin": 15,
+        "sharpe": 0.6440653625092527,
+        "cagr": 12.994247573583294,
+        "maxDD": 41.11445334604039,
+        "winRate": 66.07142857142857,
+        "finalEquity": 26627.000000000036,
+        "trades": 112,
+        "minEquity": 9054.000000000007
+      },
+      {
+        "ticker": "SPY",
+        "ivRankMin": 25,
+        "sharpe": 0.6440653625092527,
+        "cagr": 12.994247573583294,
+        "maxDD": 41.11445334604039,
+        "winRate": 66.07142857142857,
+        "finalEquity": 26627.000000000036,
+        "trades": 112,
+        "minEquity": 9054.000000000007
+      },
+      {
+        "ticker": "SPY",
+        "ivRankMin": 35,
+        "sharpe": 0.6786258218172835,
+        "cagr": 13.735536820470395,
+        "maxDD": 34.4160512384811,
+        "winRate": 66.66666666666666,
+        "finalEquity": 28060,
+        "trades": 108,
+        "minEquity": 8486.000000000007
+      },
+      {
+        "ticker": "IWM",
+        "ivRankMin": 0,
+        "sharpe": 0.57526764202475,
+        "cagr": 3.8066890854406843,
+        "maxDD": 20.63572142867231,
+        "winRate": 89.07563025210085,
+        "finalEquity": 13491.779999999988,
+        "trades": 119,
+        "minEquity": 10000
+      },
+      {
+        "ticker": "IWM",
+        "ivRankMin": 15,
+        "sharpe": 0.7121560379687962,
+        "cagr": 4.160431938706233,
+        "maxDD": 16.70138848477089,
+        "winRate": 89.52380952380953,
+        "finalEquity": 13864.78,
+        "trades": 105,
+        "minEquity": 10000
+      },
+      {
+        "ticker": "IWM",
+        "ivRankMin": 25,
+        "sharpe": 0.5929356901718738,
+        "cagr": 3.2372538391900463,
+        "maxDD": 14.46180710326605,
+        "winRate": 88.17204301075269,
+        "finalEquity": 12909.780000000004,
+        "trades": 93,
+        "minEquity": 10000
+      },
+      {
+        "ticker": "IWM",
+        "ivRankMin": 35,
+        "sharpe": 0.31556777363045463,
+        "cagr": 1.4482833328939293,
+        "maxDD": 10.988430363402511,
+        "winRate": 87.3015873015873,
+        "finalEquity": 11221.739999999989,
+        "trades": 63,
+        "minEquity": 10000
+      }
+    ],
+    "portfolio": [
+      {
+        "ivRankMin": 0,
+        "sharpe": 0.9847257559498925,
+        "cagr": 39.92418304473646,
+        "maxDD": 47.945406634678946,
+        "finalEquity": 147753.86000000042,
+        "minEquity": 6976.000000000003,
+        "trades": 809
+      },
+      {
+        "ivRankMin": 15,
+        "sharpe": 1.0154961596611942,
+        "cagr": 41.36919663204006,
+        "maxDD": 44.78178368121439,
+        "finalEquity": 160438.3600000005,
+        "minEquity": 6976.000000000003,
+        "trades": 793
+      },
+      {
+        "ivRankMin": 25,
+        "sharpe": 1.0300664780531288,
+        "cagr": 42.0245375563836,
+        "maxDD": 44.78178368121439,
+        "finalEquity": 166498.3600000005,
+        "minEquity": 6976.000000000003,
+        "trades": 780
+      },
+      {
+        "ivRankMin": 35,
+        "sharpe": 0.9898785642524768,
+        "cagr": 39.28111829374221,
+        "maxDD": 47.134724857684986,
+        "finalEquity": 142397.2800000004,
+        "minEquity": 6408.000000000003,
+        "trades": 743
+      }
+    ]
   }
 }
