@@ -27,6 +27,9 @@ export interface TechScoreResult {
         adx: number;
         rvol: number;
         regime: 'trending' | 'ranging' | 'neutral';
+        ema21: number;
+        ema34: number;
+        ema55: number;
     };
 }
 
@@ -144,7 +147,7 @@ export function calculateTechScore(
             setup: 'Insufficient Data',
             confidence: 0,
             components: { sc_mb: 50, sc_bxs: 50, sc_bxl: 50, sc_ema: 50, sc_mom: 50, sc_adx: 50, sc_vol: 50 },
-            debug: { mb_osc: 0, bxs: 0, bxl: 0, d8: 0, reversal: false, close: closes[len - 1] || 0, adx: 20, rvol: 1, regime: 'neutral' }
+            debug: { mb_osc: 0, bxs: 0, bxl: 0, d8: 0, reversal: false, close: closes[len - 1] || 0, adx: 20, rvol: 1, regime: 'neutral', ema21: 0, ema34: 0, ema55: 0 }
         };
     }
 
@@ -207,10 +210,12 @@ export function calculateTechScore(
     const e8 = emaFullSeries(closes, 8);
     const e21 = emaFullSeries(closes, 21);
     const e34 = emaFullSeries(closes, 34);
+    const e55 = emaFullSeries(closes, 55);
 
     const currE8 = e8[len - 1] || 0;
     const currE21 = e21[len - 1] || 0;
     const currE34 = e34[len - 1] || 0;
+    const currE55 = e55[len - 1] || 0;
     const currClose = closes[len - 1] || 0;
     const prevClose1 = closes[len - 2] || currClose;
 
@@ -447,7 +452,10 @@ export function calculateTechScore(
             close: currClose,
             adx: parseFloat(adx_v.toFixed(1)),
             rvol: parseFloat(rvol_now.toFixed(2)),
-            regime
+            regime,
+            ema21: parseFloat(currE21.toFixed(2)),
+            ema34: parseFloat(currE34.toFixed(2)),
+            ema55: parseFloat(currE55.toFixed(2)),
         }
     };
 }
@@ -560,6 +568,106 @@ function calcEntryQuality(
 }
 
 /** Aggregate daily candles into weekly candles (Mon–Fri). */
+// ── Pullback Signal ─────────────────────────────────────
+
+export interface PullbackOptions {
+    entryEMA?: number; // 8, 21, or 34 — default: undefined (any)
+}
+
+export interface PullbackSignalResult {
+    type: 'CALL' | 'PUT' | 'NEUTRAL';
+    techScore: number;
+    dirConfidence: number;
+    setup: string;
+    debug: { d8: number; dAnchor: number; anchorEMA: number };
+}
+
+/**
+ * Calculate a pullback entry signal based on price retracing to an EMA anchor.
+ *
+ * A pullback requires:
+ * 1. EMA stack intact (bull: 8>21>34; bear: 8<21<34)
+ * 2. Price has pulled back TO the anchor EMA — the bar's range must touch or
+ *    cross the EMA (low <= EMA for bull pullback, high >= EMA for bear)
+ * 3. Close recovers on the trend side of the anchor EMA
+ * 4. Tech score confirms direction (CALL/PUT) with score >= 70
+ * 5. Previous bar was further from the EMA (actual retracement, not sideways)
+ */
+export function calculatePullbackSignal(
+    candles: { open: number; high: number; low: number; close: number; volume?: number }[],
+    options?: PullbackOptions,
+): PullbackSignalResult {
+    const anchorPeriod = options?.entryEMA ?? 8;
+    const neutral: PullbackSignalResult = {
+        type: 'NEUTRAL', techScore: 50, dirConfidence: 0,
+        setup: 'No Pullback', debug: { d8: 0, dAnchor: 0, anchorEMA: anchorPeriod },
+    };
+
+    if (candles.length < 50) return neutral;
+
+    const techResult = calculateTechScore(candles);
+    const { type, debug } = techResult;
+    if (type === 'NEUTRAL') return neutral;
+
+    const closes = candles.map(c => c.close);
+    const lows = candles.map(c => c.low);
+    const highs = candles.map(c => c.high);
+    const len = closes.length;
+    const close = closes[len - 1];
+    const low = lows[len - 1];
+    const high = highs[len - 1];
+    const prevClose = closes[len - 2] || close;
+
+    // EMA stack check
+    const e8 = emaFullSeries(closes, 8);
+    const e21 = emaFullSeries(closes, 21);
+    const e34 = emaFullSeries(closes, 34);
+    const bullStack = e8[len - 1] > e21[len - 1] && e21[len - 1] > e34[len - 1];
+    const bearStack = e8[len - 1] < e21[len - 1] && e21[len - 1] < e34[len - 1];
+
+    // Compute anchor EMA value
+    const anchor = emaFullSeries(closes, anchorPeriod);
+    const anchorVal = anchor[len - 1] || close;
+    const prevAnchorVal = anchor[len - 2] || anchorVal;
+    const dAnchor = ((close - anchorVal) / anchorVal) * 100;
+    const prevDAnchor = ((prevClose - prevAnchorVal) / prevAnchorVal) * 100;
+
+    let isPullback = false;
+    let setup = 'No Pullback';
+
+    if (type === 'CALL' && bullStack) {
+        // Bull pullback: bar's low touches/dips below anchor EMA, close recovers above
+        // Also accept: close within 0.5% above anchor (tight proximity)
+        const touched = low <= anchorVal * 1.005;
+        const recovered = close >= anchorVal * 0.995;
+        // Must be retracement: previous bar was further above the anchor
+        const retraced = prevDAnchor > dAnchor + 0.3 || prevClose > close;
+        if (touched && recovered && retraced) {
+            isPullback = true;
+            setup = `Pullback EMA${anchorPeriod} Buy`;
+        }
+    } else if (type === 'PUT' && bearStack) {
+        // Bear pullback: bar's high touches/rises above anchor EMA, close falls below
+        const touched = high >= anchorVal * 0.995;
+        const recovered = close <= anchorVal * 1.005;
+        const retraced = prevDAnchor < dAnchor - 0.3 || prevClose < close;
+        if (touched && recovered && retraced) {
+            isPullback = true;
+            setup = `Pullback EMA${anchorPeriod} Sell`;
+        }
+    }
+
+    if (!isPullback) return neutral;
+
+    return {
+        type,
+        techScore: techResult.techScore,
+        dirConfidence: techResult.dirConfidence,
+        setup,
+        debug: { d8: debug.d8, dAnchor, anchorEMA: anchorPeriod },
+    };
+}
+
 export function aggregateToWeekly(dailyCandles: Candle[]): Candle[] {
     const weekly: Candle[] = [];
     let current: Candle | null = null;

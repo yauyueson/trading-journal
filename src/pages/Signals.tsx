@@ -420,42 +420,62 @@ export const SignalsPage: React.FC = () => {
       {/* DTE5 Board — Multi-ticker Bull + Bear */}
       {activeBoard === 'dte5' && (() => {
         // Signal configs per ticker
+        // Helper: extract real EMA values from debug
+        const getEMAs = (row: typeof scanner.signals[0] | undefined) => {
+          const d = row?.result.debug;
+          return { close: row?.lastClose ?? 0, e21: d?.ema21 ?? 0, e34: d?.ema34 ?? 0, e55: d?.ema55 ?? 0 };
+        };
+
         const DTE5_SIGNALS = [
           { ticker: 'QQQ', side: 'bull' as const, spread: 'sp30/20', label: 'Bull Put', recommended: true,
             note: 'Primary strategy — Sharpe 0.69 standalone',
             criteria: (row: typeof scanner.signals[0] | undefined) => {
-              const close = row?.lastClose ?? 0;
-              const isBull = row?.result.type === 'CALL';
+              const { close, e34 } = getEMAs(row);
+              const pass = close > e34 && e34 > 0;
               return [
-                { label: 'close > EMA34', pass: isBull, value: `$${close.toFixed(2)} ${isBull ? '>' : '≤'} EMA34` },
+                { label: 'close > EMA34', pass, value: `$${close.toFixed(2)} ${pass ? '>' : '≤'} $${e34.toFixed(2)}` },
               ];
             }},
           { ticker: 'QQQ', side: 'bear' as const, spread: 'sp40/30', label: 'Bear Call', recommended: true,
             note: '~3 trades/yr — tight proximity filter',
             criteria: (row: typeof scanner.signals[0] | undefined) => {
-              const isBear = row?.result.type === 'PUT';
+              const { close, e21, e34, e55 } = getEMAs(row);
+              const tripleAligned = e21 > 0 && e21 < e34 && e34 < e55;
+              const belowE21 = close < e21 && e21 > 0;
+              const proxDist = e21 > 0 ? Math.abs(close - e21) / e21 : 1;
+              const proxPass = belowE21 && proxDist <= 0.01;
               return [
-                { label: 'EMA21 < EMA34 < EMA55', pass: isBear, value: isBear ? 'aligned' : 'not aligned' },
-                { label: 'within 1% of EMA21', pass: false, value: 'check cron' },
+                { label: 'EMA21 < EMA34 < EMA55', pass: tripleAligned, value: `${e21.toFixed(1)} ${tripleAligned ? '<' : '≥'} ${e34.toFixed(1)} ${tripleAligned ? '<' : '≥'} ${e55.toFixed(1)}` },
+                { label: 'close < EMA21', pass: belowE21, value: `$${close.toFixed(2)} ${belowE21 ? '<' : '≥'} $${e21.toFixed(2)}` },
+                { label: 'within 1% of EMA21', pass: proxPass, value: `${(proxDist * 100).toFixed(1)}% ${proxPass ? '≤' : '>'} 1%` },
               ];
             }},
           { ticker: 'SPY', side: 'bear' as const, spread: 'sp40/30', label: 'Bear Call', recommended: true,
             note: 'Primary bear engine — 114 trades, Sharpe 0.56',
             criteria: (row: typeof scanner.signals[0] | undefined) => {
-              const isBear = row?.result.type === 'PUT';
+              const { close, e21, e34, e55 } = getEMAs(row);
+              const tripleAligned = e21 > 0 && e21 < e34 && e34 < e55;
+              const belowE21 = close < e21 && e21 > 0;
+              const proxDist = e21 > 0 ? Math.abs(close - e21) / e21 : 1;
+              const proxPass = belowE21 && proxDist <= 0.05;
               return [
-                { label: 'EMA21 < EMA34 < EMA55', pass: isBear, value: isBear ? 'aligned' : 'not aligned' },
-                { label: 'within 5% of EMA21', pass: false, value: 'check cron' },
+                { label: 'EMA21 < EMA34 < EMA55', pass: tripleAligned, value: `${e21.toFixed(1)} ${tripleAligned ? '<' : '≥'} ${e34.toFixed(1)} ${tripleAligned ? '<' : '≥'} ${e55.toFixed(1)}` },
+                { label: 'close < EMA21', pass: belowE21, value: `$${close.toFixed(2)} ${belowE21 ? '<' : '≥'} $${e21.toFixed(2)}` },
+                { label: 'within 5% of EMA21', pass: proxPass, value: `${(proxDist * 100).toFixed(1)}% ${proxPass ? '≤' : '>'} 5%` },
               ];
             }},
           { ticker: 'IWM', side: 'bear' as const, spread: 'sp15/05', label: 'Bear Call', recommended: false,
             note: 'Diversifier — Sharpe 0.58, adds hedging value',
             criteria: (row: typeof scanner.signals[0] | undefined) => {
-              const isBear = row?.result.type === 'PUT';
+              const { close, e21, e34, e55 } = getEMAs(row);
+              const tripleAligned = e21 > 0 && e21 < e34 && e34 < e55;
+              const belowE21 = close < e21 && e21 > 0;
+              const proxDist = e21 > 0 ? Math.abs(close - e21) / e21 : 1;
+              const proxPass = belowE21 && proxDist <= 0.03;
               return [
-                { label: 'EMA21 < EMA34 < EMA55', pass: isBear, value: isBear ? 'aligned' : 'not aligned' },
-                { label: 'within 3% of EMA21', pass: false, value: 'check cron' },
-                { label: 'rally from low ≤ 8%', pass: false, value: 'check cron' },
+                { label: 'EMA21 < EMA34 < EMA55', pass: tripleAligned, value: `${e21.toFixed(1)} ${tripleAligned ? '<' : '≥'} ${e34.toFixed(1)} ${tripleAligned ? '<' : '≥'} ${e55.toFixed(1)}` },
+                { label: 'close < EMA21', pass: belowE21, value: `$${close.toFixed(2)} ${belowE21 ? '<' : '≥'} $${e21.toFixed(2)}` },
+                { label: 'within 3% of EMA21', pass: proxPass, value: `${(proxDist * 100).toFixed(1)}% ${proxPass ? '≤' : '>'} 3%` },
               ];
             }},
         ];

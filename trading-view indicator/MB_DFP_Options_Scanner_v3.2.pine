@@ -23,9 +23,11 @@ show_stack = input.bool(true,         "Show EMA Stack", group=emaGR, display=dis
 ema_len1  = input.int(8,  "EMA 1 Length", group=emaGR, display=display.data_window)
 ema_len2  = input.int(21, "EMA 2 Length", group=emaGR, display=display.data_window)
 ema_len3  = input.int(34, "EMA 3 Length", group=emaGR, display=display.data_window)
+ema_len4  = input.int(55, "EMA 4 Length", group=emaGR, display=display.data_window)
 c_ema1    = input.color(color.yellow, "EMA 1 Color",    group=emaGR, display=display.data_window)
 c_ema2    = input.color(color.orange, "EMA 2 Color",   group=emaGR, display=display.data_window)
 c_ema3    = input.color(color.red,    "EMA 3 Color",   group=emaGR, display=display.data_window)
+c_ema4    = input.color(color.purple, "EMA 4 Color",   group=emaGR, display=display.data_window)
 
 
 
@@ -71,9 +73,11 @@ f_drawLabelX(_x, _y, _text, _style, _textcolor, _size, _tooltip) =>
 v_ema1  = ta.ema(close, ema_len1)
 v_ema2  = ta.ema(close, ema_len2)
 v_ema3  = ta.ema(close, ema_len3)
+v_ema4  = ta.ema(close, ema_len4)
 plot(show_stack ? v_ema1  : na, "EMA 1",  color=c_ema1,  linewidth=2)
 plot(show_stack ? v_ema2  : na, "EMA 2",  color=c_ema2, linewidth=2)
 plot(show_stack ? v_ema3  : na, "EMA 3",  color=c_ema3, linewidth=2)
+plot(show_stack ? v_ema4  : na, "EMA 4",  color=c_ema4, linewidth=2)
 
 
 
