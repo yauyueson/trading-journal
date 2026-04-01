@@ -16,7 +16,7 @@ interface DisciplineCardProps {
     transactions: Transaction[];
 }
 
-type ExitType = 'TP' | 'SL' | 'TIME' | 'MANUAL' | 'ROLL' | 'Unknown';
+type ExitType = 'TP' | 'SL' | 'TIME' | 'MANUAL' | 'ROLL' | 'EXP_PROFIT' | 'EXP_LOSS' | 'EARLY_PROFIT' | 'EARLY_DEFENSE' | 'Unknown';
 
 const EXIT_COLORS: Record<ExitType, string> = {
     TP: '#00C805',
@@ -24,6 +24,10 @@ const EXIT_COLORS: Record<ExitType, string> = {
     TIME: '#FFD60A',
     MANUAL: '#A3A3A3',
     ROLL: '#0A84FF',
+    EXP_PROFIT: '#00C805',
+    EXP_LOSS: '#FF5000',
+    EARLY_PROFIT: '#34D399',
+    EARLY_DEFENSE: '#F97316',
     Unknown: '#555555',
 };
 
@@ -33,6 +37,10 @@ const EXIT_LABELS: Record<ExitType, string> = {
     TIME: 'Expiry',
     MANUAL: 'Manual',
     ROLL: 'Roll',
+    EXP_PROFIT: 'Expired +',
+    EXP_LOSS: 'Expired −',
+    EARLY_PROFIT: 'Early Profit',
+    EARLY_DEFENSE: 'Early Defense',
     Unknown: 'Unknown',
 };
 
@@ -44,6 +52,10 @@ export const DisciplineCard: React.FC<DisciplineCardProps> = ({ closedPositions,
             TIME: { count: 0, totalPnl: 0 },
             MANUAL: { count: 0, totalPnl: 0 },
             ROLL: { count: 0, totalPnl: 0 },
+            EXP_PROFIT: { count: 0, totalPnl: 0 },
+            EXP_LOSS: { count: 0, totalPnl: 0 },
+            EARLY_PROFIT: { count: 0, totalPnl: 0 },
+            EARLY_DEFENSE: { count: 0, totalPnl: 0 },
             Unknown: { count: 0, totalPnl: 0 },
         };
         let withExitType = 0;
