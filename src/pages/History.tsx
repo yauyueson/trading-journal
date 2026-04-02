@@ -22,7 +22,11 @@ function exitTypeBadge(type: Position['exit_type']) {
         SL:     { label: 'SL Hit',   cls: 'bg-red-500/15 text-red-400 border border-red-500/25' },
         TIME:   { label: 'Time',     cls: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25' },
         MANUAL: { label: 'Manual',   cls: 'bg-gray-500/15 text-gray-400 border border-gray-500/25' },
-        ROLL:   { label: 'Rolled',   cls: 'bg-blue-500/15 text-blue-400 border border-blue-500/25' },
+        ROLL:          { label: 'Rolled',        cls: 'bg-blue-500/15 text-blue-400 border border-blue-500/25' },
+        EXP_PROFIT:    { label: 'Expired +',      cls: 'bg-green-500/15 text-green-400 border border-green-500/25' },
+        EXP_LOSS:      { label: 'Expired −',      cls: 'bg-red-500/15 text-red-400 border border-red-500/25' },
+        EARLY_PROFIT:  { label: 'Early Profit',   cls: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25' },
+        EARLY_DEFENSE: { label: 'Early Defense',  cls: 'bg-orange-500/15 text-orange-400 border border-orange-500/25' },
     };
     const m = map[type];
     if (!m) return null;

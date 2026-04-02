@@ -39,7 +39,7 @@ export interface Position {
     iv_regime_entry?: string;
     // Analytics columns (added via migration)
     max_risk_entry?: number;   // net debit or (spread width − credit) per contract
-    exit_type?: 'TP' | 'SL' | 'TIME' | 'MANUAL' | 'ROLL';
+    exit_type?: 'TP' | 'SL' | 'TIME' | 'MANUAL' | 'ROLL' | 'EXP_PROFIT' | 'EXP_LOSS' | 'EARLY_PROFIT' | 'EARLY_DEFENSE';
     /** Spread width in dollars (e.g. 15 for a $15-wide spread). Null for single-leg positions. */
     spread_width?: number;
     /** Which strategy profile was used to open this position. */
