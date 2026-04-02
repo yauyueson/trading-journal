@@ -8,12 +8,14 @@
     }
 
     body {
-        @apply text-text-primary m-0 p-0;
+        @apply text-text-secondary m-0 p-0;
         min-height: 100dvh;
         background: #0A0A0E;
         font-feature-settings: 'ss01' on, 'ss02' on;
         font-variant-numeric: tabular-nums;
+        line-height: 1.4;
         -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
         overscroll-behavior: none;
     }
 
@@ -75,43 +77,67 @@
         @apply bg-[#333] rounded-sm;
     }
 
-    /* Cards — matte glass effect */
+    /* Cards — matte glass with Fey-style 0.5px borders + inset highlight */
     .card {
-        background: rgba(200, 200, 220, 0.06);
+        background: rgba(200, 200, 220, 0.05);
         backdrop-filter: blur(20px) saturate(1.2);
         -webkit-backdrop-filter: blur(20px) saturate(1.2);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06), 0 2px 8px rgba(0, 0, 0, 0.2);
-        @apply rounded-2xl transition-all duration-300;
+        border: 0.5px solid rgba(255, 255, 255, 0.1);
+        box-shadow:
+            inset 0.5px 0.5px 0.5px rgba(255, 255, 255, 0.2),
+            inset 0.5px -0.5px 0.5px rgba(255, 255, 255, 0.04),
+            0px 6px 4px rgba(0, 0, 0, 0.04),
+            0px 16px 8px rgba(0, 0, 0, 0.07),
+            0px 30px 16px rgba(0, 0, 0, 0.12);
+        @apply rounded-2xl;
+        transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.3s ease;
     }
 
     .card-elevated {
-        background: rgba(200, 200, 220, 0.08);
+        background: rgba(200, 200, 220, 0.07);
         backdrop-filter: blur(24px) saturate(1.3);
         -webkit-backdrop-filter: blur(24px) saturate(1.3);
-        border: 1px solid rgba(255, 255, 255, 0.10);
-        box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08), 0 4px 16px rgba(0, 0, 0, 0.3);
-        @apply rounded-xl transition-all duration-300;
+        border: 0.5px solid rgba(255, 255, 255, 0.12);
+        box-shadow:
+            inset 0.5px 0.5px 0.5px rgba(255, 255, 255, 0.24),
+            inset 0.5px -0.5px 0.5px rgba(255, 255, 255, 0.05),
+            0px 6px 4px rgba(0, 0, 0, 0.04),
+            0px 16px 8px rgba(0, 0, 0, 0.07),
+            0px 30px 16px rgba(0, 0, 0, 0.12);
+        @apply rounded-xl;
+        transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.3s ease;
     }
 
     /* Glass Card — stronger matte glass */
     .card-glass {
-        background: rgba(200, 200, 220, 0.07);
+        background: rgba(200, 200, 220, 0.06);
         backdrop-filter: blur(24px) saturate(1.3);
         -webkit-backdrop-filter: blur(24px) saturate(1.3);
-        border: 1px solid rgba(255, 255, 255, 0.09);
-        box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.07), 0 4px 16px rgba(0, 0, 0, 0.25);
-        @apply rounded-2xl transition-all duration-300;
+        border: 0.5px solid rgba(255, 255, 255, 0.1);
+        box-shadow:
+            inset 0.5px 0.5px 0.5px rgba(255, 255, 255, 0.24),
+            inset 0.5px -0.5px 0.5px rgba(255, 255, 255, 0.05),
+            0px 6px 4px rgba(0, 0, 0, 0.04),
+            0px 16px 8px rgba(0, 0, 0, 0.07),
+            0px 30px 16px rgba(0, 0, 0, 0.12);
+        @apply rounded-2xl;
+        transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.3s ease;
     }
 
     /* Glass Card Elevated — modal/overlay level */
     .card-glass-elevated {
-        background: rgba(200, 200, 220, 0.10);
+        background: rgba(200, 200, 220, 0.08);
         backdrop-filter: blur(32px) saturate(1.4);
         -webkit-backdrop-filter: blur(32px) saturate(1.4);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
-        @apply rounded-2xl transition-all duration-300;
+        border: 0.5px solid rgba(255, 255, 255, 0.14);
+        box-shadow:
+            inset 0.5px 0.5px 0.5px rgba(255, 255, 255, 0.32),
+            inset 0.5px -0.5px 0.5px rgba(255, 255, 255, 0.05),
+            0px 6px 4px rgba(0, 0, 0, 0.04),
+            0px 16px 8px rgba(0, 0, 0, 0.07),
+            0px 30px 16px rgba(0, 0, 0, 0.12);
+        @apply rounded-2xl;
+        transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.3s ease;
     }
 
     .card-danger {
@@ -153,9 +179,11 @@
     input,
     select,
     textarea {
-        @apply text-text-primary transition-all duration-300 text-base appearance-none rounded-xl;
+        @apply transition-all text-base appearance-none rounded-xl;
+        color: #FFFFFF;
         background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 0.5px solid rgba(255, 255, 255, 0.1);
+        transition: border-color 0.15s ease, background 0.15s ease;
     }
 
     input:focus,
@@ -177,17 +205,49 @@
         @apply block text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-1.5 ml-1;
     }
 
-    /* Buttons */
+    /* Buttons — Fey-style: glass secondary, solid primary */
     .btn-primary {
-        @apply bg-accent-green text-black font-semibold transition-all duration-200 min-h-[44px] hover:bg-[#5ED4A6] hover:-translate-y-[1px] active:translate-y-0 active:bg-[#3EAE86] disabled:opacity-50 disabled:transform-none;
+        @apply bg-accent-green font-semibold min-h-[44px] disabled:opacity-50;
+        color: #000;
+        transition: background 0.1s ease, transform 0.1s ease;
+    }
+
+    .btn-primary:hover {
+        background: #5ED4A6;
+    }
+
+    .btn-primary:active {
+        background: #3EAE86;
     }
 
     .btn-secondary {
-        @apply bg-bg-elevated text-text-primary transition-all duration-200 min-h-[44px] hover:bg-border-light active:bg-[#3A3A3A];
+        @apply font-semibold min-h-[44px];
+        color: #E6E6E6;
+        background: rgba(255, 255, 255, 0.05);
+        border: 0.5px solid rgba(255, 255, 255, 0.1);
+        transition: background 0.1s ease, border-color 0.1s ease;
+    }
+
+    .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    .btn-secondary:active {
+        background: rgba(255, 255, 255, 0.12);
     }
 
     .btn-danger {
-        @apply bg-accent-redDim text-accent-red transition-all duration-200 min-h-[44px] hover:bg-[#FF6B6B30] active:bg-[#FF6B6B40];
+        @apply bg-accent-redDim text-accent-red min-h-[44px];
+        transition: background 0.1s ease;
+    }
+
+    .btn-danger:hover {
+        background: rgba(255, 107, 107, 0.12);
+    }
+
+    .btn-danger:active {
+        background: rgba(255, 107, 107, 0.16);
     }
 
     /* Badges */
@@ -217,23 +277,39 @@
 
     /* Page headers — consistent across all pages */
     .page-header {
-        @apply text-lg sm:text-xl font-semibold text-text-primary;
+        @apply text-lg sm:text-xl font-semibold;
+        color: #FFFFFF;
     }
 
     .page-subtitle {
         @apply text-xs text-text-tertiary mt-0.5;
     }
 
-    /* Filter pills — standardized across Portfolio, Stats, History, Signals */
+    /* Emphasis text — true white for headings and key data */
+    h1, h2, h3, h4, h5, h6 {
+        color: #FFFFFF;
+        font-weight: 600;
+    }
+
+    /* Filter pills — Fey-style glass pills */
     .filter-pill {
-        @apply px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px]
-               flex items-center justify-center
-               bg-bg-secondary/30 text-text-tertiary border border-border-default/50
-               hover:text-text-secondary;
+        @apply px-3 py-1.5 text-xs font-semibold min-h-[36px]
+               flex items-center justify-center text-text-tertiary;
+        background: rgba(255, 255, 255, 0.03);
+        border: 0.5px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        transition: background 0.1s ease, border-color 0.1s ease, color 0.1s ease;
+    }
+
+    .filter-pill:hover {
+        color: #868F97;
+        background: rgba(255, 255, 255, 0.05);
     }
 
     .filter-pill-active {
-        @apply bg-white/10 text-text-primary border-white/20;
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.14);
+        color: #FFFFFF;
     }
 
     /* Responsive chart containers */
@@ -252,6 +328,7 @@
 
     .stat-card .stat-value {
         @apply text-xl sm:text-2xl font-bold font-mono;
+        color: #FFFFFF;
     }
 
     .stat-card .stat-label {
@@ -305,7 +382,29 @@
     }
 
     .action-btn {
-        @apply flex-1 p-3 rounded-xl font-semibold text-sm transition-all duration-150 min-h-[44px];
+        @apply flex-1 p-3 rounded-xl font-semibold text-sm min-h-[44px];
+        transition: background 0.1s ease, border-color 0.1s ease, transform 0.1s ease;
+    }
+
+    /* Fey-style wipe reveal for headings */
+    .wipe-reveal {
+        background: linear-gradient(90deg, #FFFFFF 50%, transparent 50%);
+        background-size: 200% 100%;
+        background-position: 100% 0;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: wipeIn 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    }
+
+    /* Arrow hover micro-interaction */
+    .arrow-hover {
+        transition: transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .group:hover .arrow-hover,
+    *:hover>.arrow-hover {
+        transform: translateX(2px);
     }
 
     .touch-feedback {
@@ -434,6 +533,16 @@
     }
 }
 
+@keyframes wipeIn {
+    from {
+        background-position: 100% 0;
+    }
+
+    to {
+        background-position: 0% 0;
+    }
+}
+
 @keyframes orbFloat {
 
     0%,
@@ -472,24 +581,28 @@ select {
     padding-right: 36px !important;
 }
 
-/* Desktop Hover Effects */
+/* Desktop Hover Effects — Fey-style: no lift, subtle bg/border shift */
 @media (min-width: 641px) {
 
     .card:hover,
-    .card-glass:hover,
-    .card-danger:hover,
-    .card-warning:hover,
-    .card-earnings:hover,
-    .card-earnings-soon:hover,
-    .card-success:hover {
-        @apply -translate-y-1;
-        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    .card-glass:hover {
+        background: rgba(200, 200, 220, 0.08);
+        border-color: rgba(255, 255, 255, 0.14);
     }
 
-    .card:hover,
-    .card-glass:hover {
-        border-color: rgba(255, 255, 255, 0.14);
-        background: rgba(200, 200, 220, 0.09);
+    .card-danger:hover {
+        background: rgba(255, 107, 107, 0.08);
+        border-color: rgba(255, 107, 107, 0.25);
+    }
+
+    .card-warning:hover {
+        background: rgba(255, 214, 10, 0.08);
+        border-color: rgba(255, 214, 10, 0.2);
+    }
+
+    .card-success:hover {
+        background: rgba(78, 190, 150, 0.08);
+        border-color: rgba(78, 190, 150, 0.2);
     }
 }
 
@@ -500,8 +613,16 @@ select {
     .pulse,
     .pulse-glow,
     .spinner,
+    .wipe-reveal,
     .stagger-fade-in>* {
         animation: none !important;
+    }
+
+    .wipe-reveal {
+        color: #FFFFFF !important;
+        background: none !important;
+        -webkit-background-clip: unset !important;
+        background-clip: unset !important;
     }
 
     .ambient-glow::before,

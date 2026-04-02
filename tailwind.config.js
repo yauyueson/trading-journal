@@ -15,7 +15,7 @@ export default {
             },
             colors: {
                 bg: { primary: '#000000', secondary: '#0D0D0D', tertiary: '#1A1A1A', elevated: '#242424' },
-                text: { primary: '#FFFFFF', secondary: '#A3A3A3', tertiary: '#666666' },
+                text: { primary: '#E6E6E6', secondary: '#868F97', tertiary: '#555555' },
                 accent: {
                     green: '#4EBE96',
                     greenDim: '#4EBE9620',

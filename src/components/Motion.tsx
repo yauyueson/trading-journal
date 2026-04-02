@@ -4,10 +4,14 @@
 import { motion, type Variants } from 'framer-motion';
 import { type ReactNode } from 'react';
 
+// Fey easing curves
+const feyEaseOut = [0.25, 0.46, 0.45, 0.94] as const;
+// const feyEaseInOut = [0.455, 0.03, 0.515, 0.955] as const;
+
 // ── Fade up (default page/section entrance) ──
 const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.25, 0.1, 0.25, 1] } },
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [...feyEaseOut] } },
 };
 
 // ── Stagger container ──
@@ -16,28 +20,28 @@ const stagger: Variants = {
   show: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.06,
-      delayChildren: 0.05,
+      staggerChildren: 0.05,
+      delayChildren: 0.03,
     },
   },
 };
 
 // ── Stagger child item ──
 const staggerItem: Variants = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1] } },
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [...feyEaseOut] } },
 };
 
 // ── Scale in (cards, badges) ──
 const scaleIn: Variants = {
-  hidden: { opacity: 0, scale: 0.95 },
-  show: { opacity: 1, scale: 1, transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] } },
+  hidden: { opacity: 0, scale: 0.96 },
+  show: { opacity: 1, scale: 1, transition: { duration: 0.3, ease: [...feyEaseOut] } },
 };
 
 // ── Slide from right (sidebar panels) ──
 const slideRight: Variants = {
-  hidden: { opacity: 0, x: 30 },
-  show: { opacity: 1, x: 0, transition: { duration: 0.45, ease: [0.25, 0.1, 0.25, 1] } },
+  hidden: { opacity: 0, x: 20 },
+  show: { opacity: 1, x: 0, transition: { duration: 0.4, ease: [...feyEaseOut] } },
 };
 
 // ── Page wrapper — stagger children with fade-up ──
