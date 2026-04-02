@@ -8,21 +8,35 @@
     }
 
     body {
-        @apply text-text-primary min-h-screen m-0 p-0;
-        background: linear-gradient(160deg, #16161A 0%, #0A0A0E 35%, #101015 65%, #0E0E14 100%);
-        background-attachment: fixed;
+        @apply text-text-primary m-0 p-0;
+        min-height: 100dvh;
+        background: #0A0A0E;
         font-feature-settings: 'ss01' on, 'ss02' on;
         font-variant-numeric: tabular-nums;
         -webkit-font-smoothing: antialiased;
         overscroll-behavior: none;
     }
 
-    /* Fey-style noise texture overlay */
+    /* Radial gradient background — iOS-safe (no background-attachment: fixed) */
+    body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background:
+            radial-gradient(ellipse 80% 50% at 50% -10%, rgba(78, 190, 150, 0.12), transparent 60%),
+            radial-gradient(ellipse 60% 40% at 80% 60%, rgba(71, 159, 250, 0.06), transparent 50%),
+            radial-gradient(ellipse 50% 50% at 20% 80%, rgba(168, 85, 247, 0.04), transparent 50%),
+            #0A0A0E;
+    }
+
+    /* Noise texture overlay — z-45 so it's below nav (z-50) and modals (z-100) */
     body::after {
         content: '';
         position: fixed;
         inset: 0;
-        z-index: 9999;
+        z-index: 45;
         pointer-events: none;
         opacity: 0.03;
         background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");

@@ -66,7 +66,7 @@ export function AppLayout() {
   if (!isAuthenticated) return <LoginForm />;
 
   return (
-    <div className="min-h-screen">
+    <div style={{ minHeight: '100dvh' }}>
       {/* Header — Fey-style with integrated nav */}
       <div
         className="sticky top-0 z-40 bg-black/40 backdrop-blur-2xl border-b border-white/[0.06]"
@@ -106,8 +106,11 @@ export function AppLayout() {
         </div>
       </div>
 
-      {/* Content — generous top spacing, safe bottom for mobile nav */}
-      <div className="mx-auto px-4 sm:px-6 pt-6 sm:pt-10 pb-28 sm:pb-10 max-w-7xl ambient-glow">
+      {/* Content — generous top spacing, safe bottom for mobile nav + safe area */}
+      <div
+        className="mx-auto px-4 sm:px-6 pt-6 sm:pt-10 sm:pb-10 max-w-7xl ambient-glow"
+        style={{ paddingBottom: 'max(7rem, calc(7rem + env(safe-area-inset-bottom)))' }}
+      >
         <Outlet />
       </div>
     </div>
