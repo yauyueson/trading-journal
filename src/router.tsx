@@ -3,6 +3,7 @@ import { AppLayout } from './layouts/AppLayout';
 
 // Tab ID <-> URL path mapping (used by TabNav)
 export const TAB_PATHS: Record<string, string> = {
+  dashboard: '/dashboard',
   signals: '/signals',
   selector: '/selector',
   portfolio: '/portfolio',
@@ -21,11 +22,15 @@ export const PATH_TO_TAB: Record<string, string> = Object.fromEntries(
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <Navigate to="/portfolio" replace />,
+    element: <Navigate to="/dashboard" replace />,
   },
   {
     element: <AppLayout />,
     children: [
+      {
+        path: '/dashboard',
+        lazy: () => import('./pages/Dashboard').then(m => ({ Component: m.DashboardPage })),
+      },
       {
         path: '/signals',
         lazy: () => import('./pages/Signals').then(m => ({ Component: m.SignalsPage })),
