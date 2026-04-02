@@ -29,8 +29,9 @@ export function useSignalStatus(ticker = 'QQQ') {
       }
 
       const latest = data[0];
-      // Signal is active if latest day has a BULL direction and score > 0
-      const isActive = latest.direction === 'BULL' && (latest.score ?? 0) > 0;
+      // Signal is active if latest day has direction CALL (DTE5 bull put) and score > 0
+      // cron-signal-scan.js stores DTE5 bull put signals with direction: 'CALL'
+      const isActive = latest.direction === 'CALL' && (latest.score ?? 0) > 0;
 
       // Calculate streak: count consecutive days with same direction
       let streak = 0;
@@ -43,7 +44,7 @@ export function useSignalStatus(ticker = 'QQQ') {
         }
       }
 
-      const lastSignalDate = isActive ? latest.date : (data.find(r => r.direction === 'BULL' && (r.score ?? 0) > 0)?.date ?? null);
+      const lastSignalDate = isActive ? latest.date : (data.find(r => r.direction === 'CALL' && (r.score ?? 0) > 0)?.date ?? null);
 
       return {
         isActive,
