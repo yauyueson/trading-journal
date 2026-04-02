@@ -83,7 +83,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const [actionMode, setActionMode] = useState<'Add' | 'TakeProfit' | 'Close' | null>(null);
     const [actionQty, setActionQty] = useState(1);
     const [actionPrice, setActionPrice] = useState('');
-    const [closeExitType, setCloseExitType] = useState<Position['exit_type']>('MANUAL');
+    const [closeExitType, setCloseExitType] = useState<'TP' | 'SL' | 'TIME' | 'MANUAL'>('MANUAL');
     const [isEditingTarget, setIsEditingTarget] = useState(false);
     const [targetInput, setTargetInput] = useState('');
     const [isEditingStop, setIsEditingStop] = useState(false);
@@ -958,26 +958,19 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         <div className="space-y-2">
                             <p className="text-xs text-text-tertiary">Why are you closing?</p>
                             <div className="flex flex-wrap gap-2">
-                                {(['TP', 'SL', 'TIME', 'MANUAL', 'EXP_PROFIT', 'EXP_LOSS', 'EARLY_PROFIT', 'EARLY_DEFENSE'] as const).map(t => {
-                                    const labels: Record<string, string> = {
-                                        TP: 'Profit Target', SL: 'Stop Loss', TIME: 'Time Stop', MANUAL: 'Manual',
-                                        EXP_PROFIT: 'Expired +', EXP_LOSS: 'Expired −',
-                                        EARLY_PROFIT: 'Early Profit', EARLY_DEFENSE: 'Early Defense',
-                                    };
-                                    return (
-                                        <button
-                                            key={t}
-                                            onClick={() => setCloseExitType(t)}
-                                            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-                                                closeExitType === t
-                                                    ? 'bg-accent-green/20 text-accent-green border-accent-green/40'
-                                                    : 'bg-[#2C2C2E] text-text-tertiary border-[#3A3A3C] hover:text-white'
-                                            }`}
-                                        >
-                                            {labels[t] ?? t}
-                                        </button>
-                                    );
-                                })}
+                                {(['TP', 'SL', 'TIME', 'MANUAL'] as const).map(t => (
+                                    <button
+                                        key={t}
+                                        onClick={() => setCloseExitType(t)}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                                            closeExitType === t
+                                                ? 'bg-accent-green/20 text-accent-green border-accent-green/40'
+                                                : 'bg-[#2C2C2E] text-text-tertiary border-[#3A3A3C] hover:text-white'
+                                        }`}
+                                    >
+                                        {t === 'TP' ? 'Profit Target' : t === 'SL' ? 'Stop Loss' : t === 'TIME' ? 'Time Stop' : 'Manual'}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     )}
