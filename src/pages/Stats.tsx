@@ -110,7 +110,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
     const loading = loadingProp ?? (positionsLoading || transactionsLoading);
     const { activeStrategy } = useAppSettings();
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
-    const [strategyFilter, setStrategyFilter] = useState<'All' | 'swing' | 'shortTerm' | 'dte5'>('dte5');
+    const [strategyFilter, setStrategyFilter] = useState<'All' | 'swing' | 'shortTerm'>('All');
     const [statsTab, setStatsTab] = useState<StatsTab>('overview');
     const allClosedPositions = positions.filter(p => p.status === 'closed');
     const ownerFiltered = ownerFilter === 'All'
@@ -270,15 +270,17 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                 </div>
                 {/* Strategy Filter */}
                 <div className="flex items-center gap-1.5">
-                    {([['dte5', 'DTE5'], ['All', 'All (Legacy)']] as const).map(([value, label]) => (
+                    {([['All', 'All'], ['swing', 'Swing'], ['shortTerm', 'ST']] as const).map(([value, label]) => (
                         <button
                             key={value}
                             type="button"
                             onClick={() => setStrategyFilter(value as typeof strategyFilter)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${strategyFilter === value
-                                ? value === 'dte5'
-                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                    : 'bg-white/10 text-text-primary border border-white/20'
+                                ? value === 'swing'
+                                    ? 'bg-green-500/20 text-green-400 border border-green-500/40'
+                                    : value === 'shortTerm'
+                                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                        : 'bg-white/10 text-text-primary border border-white/20'
                                 : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
                                 }`}
                         >
