@@ -106,8 +106,8 @@ export function AppLayout() {
         </div>
       </div>
 
-      {/* Content — generous top spacing like Fey */}
-      <div className="mx-auto px-4 sm:px-6 pt-8 sm:pt-10 pb-24 sm:pb-10 max-w-7xl ambient-glow">
+      {/* Content — generous top spacing, safe bottom for mobile nav */}
+      <div className="mx-auto px-4 sm:px-6 pt-6 sm:pt-10 pb-28 sm:pb-10 max-w-7xl ambient-glow">
         <Outlet />
       </div>
     </div>

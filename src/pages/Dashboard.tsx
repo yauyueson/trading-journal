@@ -198,7 +198,7 @@ export function DashboardPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-            className="h-[220px] sm:h-[280px] mt-4"
+            className="h-[180px] sm:h-[280px] mt-4"
           >
             {chartData.length >= 2 ? (
               <ResponsiveContainer width="100%" height="100%">
