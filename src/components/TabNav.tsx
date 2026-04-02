@@ -71,10 +71,7 @@ export const TabNav: React.FC<TabNavProps> = ({ activeTab: activeTabProp, setAct
             </nav>
 
             {/* Mobile: fixed bottom bar with icons */}
-            <nav
-                className="fixed bottom-0 left-0 right-0 sm:hidden bg-black/90 border-t border-white/[0.06] z-50 backdrop-blur-2xl"
-                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)' }}
-            >
+            <nav className="fixed bottom-0 left-0 right-0 sm:hidden bg-[#0A0A0E]/95 border-t border-white/[0.06] z-50 backdrop-blur-xl pb-safe-nav">
                 <div
                     ref={scrollRef}
                     className="flex overflow-x-auto scrollbar-hide"

@@ -33,12 +33,12 @@
             #0A0A0E;
     }
 
-    /* Noise texture overlay — z-45 so it's below nav (z-50) and modals (z-100) */
+    /* Noise texture overlay — z-10, below everything interactive */
     body::after {
         content: '';
         position: fixed;
         inset: 0;
-        z-index: 45;
+        z-index: 10;
         pointer-events: none;
         opacity: 0.03;
         background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -49,6 +49,13 @@
     /* Prevent iOS rubber-band overscroll on fixed elements */
     html {
         overscroll-behavior: none;
+    }
+
+    /* iOS safe area — apply to root so all children inherit */
+    #root {
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-left: env(safe-area-inset-left, 0px);
+        padding-right: env(safe-area-inset-right, 0px);
     }
 
     /* Accessibility: Focus-visible ring for keyboard navigation */
@@ -405,6 +412,22 @@
     .group:hover .arrow-hover,
     *:hover>.arrow-hover {
         transform: translateX(2px);
+    }
+
+    /* Safe bottom padding — clears mobile nav + home indicator */
+    .pb-safe {
+        padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    @media (min-width: 640px) {
+        .pb-safe {
+            padding-bottom: 2.5rem;
+        }
+    }
+
+    /* Bottom nav safe padding */
+    .pb-safe-nav {
+        padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
     }
 
     .touch-feedback {

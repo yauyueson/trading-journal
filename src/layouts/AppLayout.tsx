@@ -67,11 +67,8 @@ export function AppLayout() {
 
   return (
     <div style={{ minHeight: '100dvh' }}>
-      {/* Header — Fey-style with integrated nav */}
-      <div
-        className="sticky top-0 z-40 bg-black/40 backdrop-blur-2xl border-b border-white/[0.06]"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
-      >
+      {/* Header — sticky, safe-area handled by #root padding */}
+      <div className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#0A0A0E]/90 backdrop-blur-xl sm:bg-black/40 sm:backdrop-blur-2xl">
         <div className="mx-auto px-4 py-2.5 flex items-center gap-6 max-w-7xl">
           {/* Logo */}
           <h1
@@ -106,11 +103,8 @@ export function AppLayout() {
         </div>
       </div>
 
-      {/* Content — generous top spacing, safe bottom for mobile nav + safe area */}
-      <div
-        className="mx-auto px-4 sm:px-6 pt-6 sm:pt-10 sm:pb-10 max-w-7xl ambient-glow"
-        style={{ paddingBottom: 'max(7rem, calc(7rem + env(safe-area-inset-bottom)))' }}
-      >
+      {/* Content */}
+      <div className="mx-auto px-4 sm:px-6 pt-4 sm:pt-10 pb-safe max-w-7xl ambient-glow">
         <Outlet />
       </div>
     </div>
