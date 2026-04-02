@@ -382,9 +382,9 @@ export const SignalsPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 pb-24 sm:pb-6">
+    <div className="max-w-7xl mx-auto px-4 pb-24 sm:pb-6 stagger-fade-in">
       {/* Board Toggle */}
-      <div className="flex items-center gap-1 mb-4 bg-[#111] border border-[#333] rounded-lg p-1 w-fit">
+      <div className="flex items-center gap-1 mb-4 bg-white/[0.03] border border-white/[0.06] rounded-lg p-1 w-fit">
         <button
           onClick={() => setActiveBoard('dte5')}
           className={`px-4 py-2.5 text-sm font-medium rounded-md transition-colors min-h-[44px] ${
@@ -499,11 +499,11 @@ export const SignalsPage: React.FC = () => {
                 const allPass = criteria.every(c => c.pass);
 
                 const borderColor = allPass
-                  ? (sig.side === 'bull' ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-rose-500/30 bg-rose-500/10')
-                  : 'border-white/10 bg-white/5';
+                  ? (sig.side === 'bull' ? 'border-white/[0.06] bg-white/[0.02]' : 'border-white/[0.06] bg-white/[0.02]')
+                  : 'border-white/[0.08] bg-white/5';
                 const badgeColor = allPass
                   ? (sig.side === 'bull' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30')
-                  : 'bg-zinc-800 text-text-tertiary border-white/10';
+                  : 'bg-zinc-800 text-text-tertiary border-white/[0.08]';
 
                 return (
                   <div key={idx} className={`rounded-xl border ${borderColor} p-4`}>
@@ -640,15 +640,15 @@ export const SignalsPage: React.FC = () => {
       {tab === 'dashboard' && <>
         {/* Summary cards */}
         <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="bg-[#1A1A1A] rounded-lg border border-white/10 px-4 py-3">
+          <div className="py-3 px-1">
             <div className="text-2xl font-bold text-green-400">{goCount}</div>
             <div className="text-[10px] text-text-tertiary uppercase tracking-wider">GO Signals</div>
           </div>
-          <div className="bg-[#1A1A1A] rounded-lg border border-white/10 px-4 py-3">
+          <div className="py-3 px-1">
             <div className="text-2xl font-bold text-yellow-400">{activeCount - goCount}</div>
             <div className="text-[10px] text-text-tertiary uppercase tracking-wider">Filtered Out</div>
           </div>
-          <div className="bg-[#1A1A1A] rounded-lg border border-white/10 px-4 py-3">
+          <div className="py-3 px-1">
             <div className="text-2xl font-bold text-text-secondary">{scanner.tickers.length}</div>
             <div className="text-[10px] text-text-tertiary uppercase tracking-wider">Watchlist</div>
           </div>
@@ -687,17 +687,17 @@ export const SignalsPage: React.FC = () => {
               value={tickerInput}
               onChange={e => setTickerInput(e.target.value)}
               placeholder="Add tickers..."
-              className="w-28 px-2 py-1 text-xs bg-[#111] border border-white/10 rounded focus:border-accent-green/50 outline-none"
+              className="w-28 px-2 py-1 text-xs bg-bg-secondary border border-white/[0.08] rounded focus:border-accent-green/50 outline-none"
             />
             <button type="submit" className="px-2 py-1 text-xs bg-white/5 rounded hover:bg-white/10">+</button>
           </form>
         </div>
 
         {/* Dashboard table */}
-        <div className="bg-[#1A1A1A] rounded-lg border border-white/10 overflow-x-auto">
+        <div className="rounded-lg border border-white/[0.08] overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-white/10 text-text-tertiary text-xs text-left">
+              <tr className="border-b border-white/[0.08] text-text-tertiary text-xs text-left">
                 <th className="px-3 py-2 font-medium w-6"></th>
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Ticker</th>
@@ -787,7 +787,7 @@ export const SignalsPage: React.FC = () => {
           </summary>
           <div className="mt-2 flex flex-wrap gap-1">
             {scanner.tickers.map(t => (
-              <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-white/5 rounded border border-white/10">
+              <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-white/5 rounded border border-white/[0.08]">
                 {t}
                 {!WATCHLIST.includes(t) && (
                   <button onClick={() => handleRemoveTicker(t)} className="text-text-tertiary hover:text-white">
@@ -948,7 +948,7 @@ const DashboardDetailPanel: React.FC<{ row: DashboardRow; minScore: number; minI
 
       {/* Build Spread CTA */}
       {row.status === 'GO' && (
-        <div className="mt-3 pt-3 border-t border-white/10">
+        <div className="mt-3 pt-3 border-t border-white/[0.08]">
           {(() => {
             const p = new URLSearchParams({
               ticker: row.ticker,
@@ -1031,22 +1031,22 @@ const SignalHistoryTab: React.FC = () => {
         <label className="flex items-center gap-1.5 text-xs text-text-tertiary">
           From
           <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-            className="px-2 py-1 text-xs bg-[#111] border border-white/10 rounded focus:border-accent-green/50 outline-none" />
+            className="px-2 py-1 text-xs bg-bg-secondary border border-white/[0.08] rounded focus:border-accent-green/50 outline-none" />
         </label>
         <label className="flex items-center gap-1.5 text-xs text-text-tertiary">
           To
           <input type="date" value={to} onChange={e => setTo(e.target.value)}
-            className="px-2 py-1 text-xs bg-[#111] border border-white/10 rounded focus:border-accent-green/50 outline-none" />
+            className="px-2 py-1 text-xs bg-bg-secondary border border-white/[0.08] rounded focus:border-accent-green/50 outline-none" />
         </label>
         <label className="flex items-center gap-1.5 text-xs text-text-tertiary">
           Ticker
           <input value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} placeholder="All"
-            className="w-20 px-2 py-1 text-xs bg-[#111] border border-white/10 rounded focus:border-accent-green/50 outline-none" />
+            className="w-20 px-2 py-1 text-xs bg-bg-secondary border border-white/[0.08] rounded focus:border-accent-green/50 outline-none" />
         </label>
         <label className="flex items-center gap-1.5 text-xs text-text-tertiary">
           Min Score
           <input type="number" value={histMinScore} onChange={e => setHistMinScore(Number(e.target.value))} min={0} max={100}
-            className="w-14 px-2 py-1 text-xs bg-[#111] border border-white/10 rounded focus:border-accent-green/50 outline-none" />
+            className="w-14 px-2 py-1 text-xs bg-bg-secondary border border-white/[0.08] rounded focus:border-accent-green/50 outline-none" />
         </label>
         <div className="flex items-center gap-1">
           {(['', 'CALL', 'PUT'] as const).map(d => (
@@ -1066,10 +1066,10 @@ const SignalHistoryTab: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-[#1A1A1A] rounded-lg border border-white/10 overflow-x-auto">
+      <div className="rounded-lg border border-white/[0.08] overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-white/10 text-text-tertiary text-xs text-left">
+            <tr className="border-b border-white/[0.08] text-text-tertiary text-xs text-left">
               <th className="px-3 py-2 font-medium w-6"></th>
               <th className="px-3 py-2 font-medium">Date</th>
               <th className="px-3 py-2 font-medium">Ticker</th>

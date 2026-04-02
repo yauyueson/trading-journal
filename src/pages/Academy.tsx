@@ -250,14 +250,14 @@ export const Academy: React.FC = () => {
     });
 
     return (
-        <div className="fade-in pb-20 sm:pb-10 font-sans max-w-5xl mx-auto">
+        <div className="stagger-fade-in pb-20 sm:pb-10 font-sans max-w-5xl mx-auto">
             {/* Header section with glass effect */}
             <div className="mb-6 sm:mb-10 text-center">
                 <div className="inline-block p-3 bg-accent-green/10 rounded-2xl mb-3 sm:mb-4 border border-accent-green/20">
                     <BookOpen className="text-accent-green w-7 h-7 sm:w-8 sm:h-8" />
                 </div>
-                <h1 className="text-2xl sm:text-4xl font-extrabold text-white mb-2 tracking-tight">Trading Academy</h1>
-                <p className="text-gray-400 text-sm sm:text-lg">Credit Spread strategy concepts, risk management, and WFA-validated rules.</p>
+                <h1 className="text-2xl sm:text-4xl font-extrabold text-text-primary mb-2 tracking-tight">Trading Academy</h1>
+                <p className="text-text-tertiary text-sm sm:text-lg">Credit Spread strategy concepts, risk management, and WFA-validated rules.</p>
             </div>
 
             {/* Search and Filters */}
@@ -268,7 +268,7 @@ export const Academy: React.FC = () => {
                         placeholder="Search terms, formulas or concepts..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-[#1C1C1E] border border-[#2A2A2A] text-white rounded-xl pl-12 pr-4 py-3.5 sm:py-4 focus:outline-none focus:border-accent-green transition-all shadow-xl text-sm sm:text-base"
+                        className="w-full bg-bg-tertiary border border-white/[0.08] text-text-primary rounded-xl pl-12 pr-4 py-3.5 sm:py-4 focus:outline-none focus:border-accent-green transition-all shadow-xl text-sm sm:text-base"
                     />
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
                 </div>
@@ -279,7 +279,7 @@ export const Academy: React.FC = () => {
                             onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
                             className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold border transition-all shrink-0 ${selectedCategory === cat
                                 ? 'bg-accent-green text-black border-accent-green'
-                                : 'bg-[#1C1C1E] text-gray-400 border-[#2A2A2A] hover:border-gray-600'
+                                : 'bg-bg-tertiary text-text-tertiary border-white/[0.08] hover:border-gray-600'
                                 }`}
                         >
                             {cat}
@@ -294,18 +294,18 @@ export const Academy: React.FC = () => {
                     filteredGlossary.map((item) => (
                         <div
                             key={item.id}
-                            className="bg-[#1C1C1E] border border-[#2A2A2A] rounded-2xl p-6 hover:border-[#444] transition-all group overflow-hidden relative"
+                            className="bg-bg-tertiary border border-white/[0.08] rounded-2xl p-6 hover:border-white/[0.12] transition-all group overflow-hidden relative"
                         >
                             {/* Decorative background icon */}
                             <item.icon className="absolute -right-4 -top-4 w-32 h-32 text-white/5 group-hover:text-white/10 transition-colors pointer-events-none" />
 
                             <div className="flex items-start gap-4 relative z-10">
                                 <div className="p-3 bg-white/5 rounded-xl border border-white/10 group-hover:bg-accent-green/10 group-hover:border-accent-green/30 transition-all">
-                                    <item.icon className="w-6 h-6 text-gray-400 group-hover:text-accent-green transition-colors" />
+                                    <item.icon className="w-6 h-6 text-text-tertiary group-hover:text-accent-green transition-colors" />
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex flex-wrap items-center gap-3 mb-2">
-                                        <h3 className="text-xl font-bold text-white tracking-wide">{item.term}</h3>
+                                        <h3 className="text-xl font-bold text-text-primary tracking-wide">{item.term}</h3>
                                         <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded border ${item.category === 'Metric' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
                                             item.category === 'Greek' ? 'bg-pink-500/10 text-pink-400 border-pink-500/30' :
                                                 item.category === 'Strategy' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
@@ -317,7 +317,7 @@ export const Academy: React.FC = () => {
                                         </span>
                                     </div>
 
-                                    <p className="text-gray-400 leading-relaxed mb-4 text-[15px]">
+                                    <p className="text-text-tertiary leading-relaxed mb-4 text-[15px]">
                                         {item.explanation}
                                     </p>
 
@@ -328,10 +328,10 @@ export const Academy: React.FC = () => {
                                         </div>
                                     )}
 
-                                    <div className="flex items-start gap-2 bg-[#2C2C2E] rounded-xl p-4 border-l-4 border-accent-green/50">
+                                    <div className="flex items-start gap-2 bg-bg-elevated rounded-xl p-4 border-l-4 border-accent-green/50">
                                         <Info size={18} className="text-accent-green shrink-0 mt-0.5" />
                                         <div>
-                                            <div className="text-white text-xs font-bold uppercase mb-1 tracking-wider">Trading Edge</div>
+                                            <div className="text-text-primary text-xs font-bold uppercase mb-1 tracking-wider">Trading Edge</div>
                                             <div className="text-gray-300 text-sm italic">{item.whyItMatters}</div>
                                         </div>
                                     </div>
@@ -340,11 +340,11 @@ export const Academy: React.FC = () => {
                         </div>
                     ))
                 ) : (
-                    <div className="text-center py-20 bg-[#1C1C1E] rounded-3xl border border-[#2A2A2A] border-dashed">
+                    <div className="text-center py-20 bg-bg-tertiary rounded-3xl border border-white/[0.08] border-dashed">
                         <div className="mb-4 flex justify-center">
                             <AlertTriangle size={48} className="text-gray-600" />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-400 mb-1">No matches found</h3>
+                        <h3 className="text-xl font-bold text-text-tertiary mb-1">No matches found</h3>
                         <p className="text-gray-500">Try searching for different keywords or clear your filters.</p>
                         <button
                             onClick={() => { setSearchQuery(''); setSelectedCategory(null); }}

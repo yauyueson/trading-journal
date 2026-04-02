@@ -196,7 +196,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             case 'CREDIT_SPREAD': return { label: 'Credit', color: 'bg-red-500/20 text-red-400 border-red-500/30' };
             case 'DEBIT_SPREAD': return { label: 'Debit', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
             case 'SINGLE_LEG': return { label: 'Long', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' };
-            default: return { label: category, color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' };
+            default: return { label: category, color: 'bg-gray-500/20 text-text-tertiary border-gray-500/30' };
         }
     };
 
@@ -343,25 +343,25 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     }, [onAddDirect, result, openPosQty, openPosPrice, openPosOwner, direction, isSpread, activeStrategy, openPosTP]);
 
     return (
-        <div className="fade-in pb-24 sm:pb-0 font-sans">
+        <div className="stagger-fade-in pb-24 sm:pb-0 font-sans">
             {/* Header */}
             <div className="mb-6">
                 <h1 className="text-2xl font-bold flex items-center gap-2">
                     <Activity className="text-accent-green" />
                     Spread Builder
                 </h1>
-                <p className="text-gray-400 text-sm mt-1">{`Credit spread recommendations · ${profile.subtitle}`}</p>
+                <p className="text-text-tertiary text-sm mt-1">{`Credit spread recommendations · ${profile.subtitle}`}</p>
             </div>
 
             {/* Input Panel */}
-            <div className="bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl p-4 sm:p-6 mb-6 shadow-sm">
+            <div className="bg-bg-tertiary border border-white/[0.08] rounded-xl p-4 sm:p-6 mb-6 shadow-sm">
                 <div className="flex flex-col gap-4">
                     {/* Portfolio / Risk Settings */}
-                    <div className="border border-[#2A2A2A] rounded-lg overflow-hidden">
+                    <div className="border border-white/[0.08] rounded-lg overflow-hidden">
                         <button
                             type="button"
                             onClick={() => setShowSettings(!showSettings)}
-                            className="w-full flex items-center justify-between px-4 py-2.5 bg-[#0a0a0a] hover:bg-[#111] transition-colors text-left"
+                            className="w-full flex items-center justify-between px-4 py-2.5 bg-bg-primary hover:bg-bg-secondary transition-colors text-left"
                         >
                             <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
                                 <Settings2 size={16} className="text-accent-green" />
@@ -370,7 +370,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                             <ChevronDown size={18} className={`text-gray-500 transition-transform ${showSettings ? 'rotate-180' : ''}`} />
                         </button>
                         {showSettings && (
-                            <div className="p-4 bg-[#111] border-t border-[#2A2A2A]">
+                            <div className="p-4 bg-bg-secondary border-t border-white/[0.08]">
                                 <PortfolioSettingsForm variant="full" />
                             </div>
                         )}
@@ -379,14 +379,14 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                     {/* Row 1: Ticker + Direction + Analyze (always visible, minimum viable input) */}
                     <div className="flex flex-col md:flex-row gap-3 items-end">
                         <div className="flex-1 min-w-0">
-                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Ticker</label>
+                            <label className="text-xs text-text-tertiary font-medium mb-1.5 block uppercase tracking-wider">Ticker</label>
                             <div className="relative">
                                 <input
                                     ref={tickerRef}
                                     type="text"
                                     value={ticker}
                                     onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                                    className="w-full bg-[#000] border border-[#333] text-white rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:border-accent-green text-xl font-black tracking-wide placeholder-gray-600 transition-colors"
+                                    className="w-full bg-bg-primary border border-white/[0.08] text-white rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:border-accent-green text-xl font-black tracking-wide placeholder-gray-600 transition-colors"
                                     placeholder="SPY"
                                     onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
                                 />
@@ -394,8 +394,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                             </div>
                         </div>
                         <div className="w-44">
-                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Direction</label>
-                            <div className="grid grid-cols-2 gap-2 bg-[#000] p-1 rounded-lg border border-[#333]">
+                            <label className="text-xs text-text-tertiary font-medium mb-1.5 block uppercase tracking-wider">Direction</label>
+                            <div className="grid grid-cols-2 gap-2 bg-bg-primary p-1 rounded-lg border border-white/[0.08]">
                                 {(['BULL', 'BEAR'] as const).map((d) => (
                                     <button
                                         key={d}
@@ -426,8 +426,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                     {/* Row 2: DTE + Spread Width */}
                     <div className="flex flex-col md:flex-row gap-4 items-end">
                         <div className="flex-1">
-                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Target DTE</label>
-                            <div className="bg-[#000] p-1.5 rounded-lg border border-[#333]">
+                            <label className="text-xs text-text-tertiary font-medium mb-1.5 block uppercase tracking-wider">Target DTE</label>
+                            <div className="bg-bg-primary p-1.5 rounded-lg border border-white/[0.08]">
                                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-0">
                                     {/* Short-Term group */}
                                     <div className="flex-1 sm:pr-2">
@@ -480,8 +480,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                             </div>
                         </div>
                         <div className="w-full md:w-44">
-                            <label className="text-xs text-gray-400 font-medium mb-1.5 block uppercase tracking-wider">Spread Width</label>
-                            <div className="grid grid-cols-4 gap-1.5 bg-[#000] p-1 rounded-lg border border-[#333]">
+                            <label className="text-xs text-text-tertiary font-medium mb-1.5 block uppercase tracking-wider">Spread Width</label>
+                            <div className="grid grid-cols-4 gap-1.5 bg-bg-primary p-1 rounded-lg border border-white/[0.08]">
                                 {profile.widthOptions.map((opt) => (
                                     <button
                                         key={opt.val}
@@ -575,7 +575,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                 <div className="space-y-6 animate-fade-in">
                     {/* Signal Context Banner — only shown when arriving from signals page */}
                     {hasSignalContext && (
-                        <div className="bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl p-4">
+                        <div className="bg-bg-tertiary border border-white/[0.08] rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-3">
                                 <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded px-2 py-0.5 text-xs font-bold">
                                     WFA Validated
@@ -668,14 +668,14 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         return (
                             <div className={`border rounded-xl p-4 sm:p-5 relative overflow-hidden ${result.regime.mode === 'CREDIT' ? 'bg-red-900/10 border-red-500/30' :
                                 result.regime.mode === 'DEBIT' ? 'bg-green-900/10 border-green-500/30' :
-                                    'bg-[#1C1C1E] border-[#2A2A2A]'
+                                    'bg-bg-tertiary border-white/[0.08]'
                                 }`}>
                                 <div className="flex flex-col gap-4 relative z-10">
                                     {/* Upper half: Ticker + explanation */}
                                     <div className="min-w-0">
                                         <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 sm:gap-3 flex-wrap">
                                             {result.context.ticker}
-                                            <span className="text-base sm:text-lg font-normal text-gray-400 font-mono">${(result.context.currentPrice || 0).toFixed(2)}</span>
+                                            <span className="text-base sm:text-lg font-normal text-text-tertiary font-mono">${(result.context.currentPrice || 0).toFixed(2)}</span>
                                             <span className={`text-xs font-bold px-2 py-0.5 rounded border ${result.context.direction === 'BULL' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'
                                                 }`}>
                                                 {result.context.direction} {result.context.direction === 'BULL' ? '🐂' : '🐻'}
@@ -692,7 +692,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                             {result.regime.advice}
                                         </p>
                                         {result.regime.adviceDetail && (
-                                            <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-gray-400 leading-relaxed max-w-2xl">
+                                            <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-text-tertiary leading-relaxed max-w-2xl">
                                                 {result.regime.adviceDetail}
                                             </p>
                                         )}
@@ -711,7 +711,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                 {hasRealEarnings && (
                                                     <span className={`font-bold px-2 py-0.5 rounded border ${result.context.daysUntilEarnings! <= 7
                                                         ? 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400'
-                                                        : 'bg-gray-500/10 border-gray-500/30 text-gray-400'
+                                                        : 'bg-gray-500/10 border-gray-500/30 text-text-tertiary'
                                                         }`}>
                                                         Earnings in {result.context.daysUntilEarnings}d
                                                     </span>
@@ -754,7 +754,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                     )}
 
                                     {/* Technical indicators — single compact row */}
-                                    <div className="border-t border-[#333] pt-4 sm:pt-5 mt-2">
+                                    <div className="border-t border-white/[0.08] pt-4 sm:pt-5 mt-2">
                                         <div className="flex items-center justify-between mb-3">
                                             <div className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-wider">Technical indicators</div>
                                             {result.regime.ivTrend && (
@@ -762,7 +762,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     ? 'bg-orange-500/10 border-orange-500/30 text-orange-400'
                                                     : result.regime.ivTrend === 'falling'
                                                         ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                                                        : 'bg-gray-500/10 border-gray-500/30 text-gray-400'
+                                                        : 'bg-gray-500/10 border-gray-500/30 text-text-tertiary'
                                                     }`}>
                                                     IV {result.regime.ivTrend === 'rising' ? '▲' : result.regime.ivTrend === 'falling' ? '▼' : '—'}
                                                     {result.regime.iv5dChange != null && (
@@ -924,7 +924,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                     return (
                                         <div
                                             key={idx}
-                                            className={`bg-[#1C1C1E] border border-[#2A2A2A] rounded-xl overflow-hidden transition-all duration-300 ${expandedCard === idx ? 'ring-1 ring-accent-green/50 shadow-lg shadow-green-900/10' : 'hover:border-[#444]'
+                                            className={`bg-bg-tertiary border border-white/[0.08] rounded-xl overflow-hidden transition-all duration-300 ${expandedCard === idx ? 'ring-1 ring-accent-green/50 shadow-lg shadow-green-900/10' : 'hover:border-[#444]'
                                                 }`}
                                         >
                                             {/* Card Header (Clickable) */}
@@ -950,12 +950,12 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                     <span className="text-[10px] sm:text-xs text-gray-500 font-mono shrink-0">(score: {rec.score})</span>
                                                                 )}
                                                                 {isSpread(rec) && (
-                                                                    <span className="text-xs sm:text-sm font-mono text-gray-400 bg-white/5 px-1.5 sm:px-2 py-0.5 rounded border border-white/10 shrink-0">
+                                                                    <span className="text-xs sm:text-sm font-mono text-text-tertiary bg-white/5 px-1.5 sm:px-2 py-0.5 rounded border border-white/10 shrink-0">
                                                                         ${rec.shortLeg?.strike} / ${rec.longLeg?.strike}
                                                                     </span>
                                                                 )}
                                                             </div>
-                                                            <div className="text-xs sm:text-sm text-gray-400 font-mono">
+                                                            <div className="text-xs sm:text-sm text-text-tertiary font-mono">
                                                                 {isSpread(rec) ? (
                                                                     <span className="flex items-center gap-2">
                                                                         {rec.shortLeg?.expiration || rec.longLeg?.expiration}
@@ -1096,7 +1096,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     const riskPctActual = portfolioTotal > 0 ? (riskAtStopOut / portfolioTotal) * 100 : 0;
                                                     const budgetConsumed = sizing.riskCapDollars > 0 ? (riskAtStopOut / sizing.riskCapDollars) * 100 : 0;
                                                     return (
-                                                        <div className="text-[10px] sm:text-xs text-gray-400 font-mono pl-6 leading-relaxed">
+                                                        <div className="text-[10px] sm:text-xs text-text-tertiary font-mono pl-6 leading-relaxed">
                                                             Size: <span className="text-accent-green font-bold">{sizing.suggestedContracts}</span> contracts
                                                             {sizing.suggestedContracts > 0 && (
                                                                 <>
@@ -1181,7 +1181,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                             <span className="text-red-400 font-bold text-xs uppercase">Short (Sell)</span>
                                                                             <span className="font-mono text-white">${rec.shortLeg.strike}</span>
                                                                         </div>
-                                                                        <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                                                        <div className="flex justify-between text-xs text-text-tertiary mb-1">
                                                                             <span>Δ {rec.shortLeg.delta}</span>
                                                                             <span>Price: ${rec.shortLeg.price}</span>
                                                                         </div>
@@ -1198,7 +1198,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                             <span className="text-green-400 font-bold text-xs uppercase">Long (Buy)</span>
                                                                             <span className="font-mono text-white">${rec.longLeg.strike}</span>
                                                                         </div>
-                                                                        <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                                                        <div className="flex justify-between text-xs text-text-tertiary mb-1">
                                                                             <span>Δ {rec.longLeg.delta}</span>
                                                                             <span>Price: ${rec.longLeg.price}</span>
                                                                         </div>
@@ -1210,7 +1210,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                 )}
 
                                                                 <div className="pt-2 border-t border-white/5 flex justify-between items-center">
-                                                                    <span className="text-sm text-gray-400">Breakeven</span>
+                                                                    <span className="text-sm text-text-tertiary">Breakeven</span>
                                                                     <span className="text-white font-mono font-bold">${(rec.breakeven || 0).toFixed(2)}</span>
                                                                 </div>
                                                             </div>
@@ -1271,7 +1271,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                             min="1"
                                                                             value={openPosQty}
                                                                             onChange={(e) => setOpenPosQty(e.target.value)}
-                                                                            className="w-full bg-[#000] border border-[#333] text-white rounded px-2 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500"
+                                                                            className="w-full bg-bg-primary border border-white/[0.08] text-white rounded px-2 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500"
                                                                             placeholder="1"
                                                                             autoFocus
                                                                         />
@@ -1283,7 +1283,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                             step="0.01"
                                                                             value={openPosPrice}
                                                                             onChange={(e) => setOpenPosPrice(e.target.value)}
-                                                                            className="w-full bg-[#000] border border-[#333] text-white rounded px-2 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500"
+                                                                            className="w-full bg-bg-primary border border-white/[0.08] text-white rounded px-2 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500"
                                                                             placeholder="0.00"
                                                                         />
                                                                     </div>
@@ -1302,7 +1302,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                                 step="0.01"
                                                                                 value={openPosTP}
                                                                                 onChange={(e) => setOpenPosTP(e.target.value)}
-                                                                                className="w-full bg-[#000] border border-[#333] text-white rounded px-2 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500"
+                                                                                className="w-full bg-bg-primary border border-white/[0.08] text-white rounded px-2 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500"
                                                                                 placeholder="0.00"
                                                                             />
                                                                         </div>
@@ -1317,7 +1317,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                                     ? name === 'Yuchen'
                                                                                         ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
                                                                                         : 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
-                                                                                    : 'bg-[#111] text-gray-500 border border-[#333] hover:text-gray-300'
+                                                                                    : 'bg-bg-secondary text-gray-500 border border-white/[0.08] hover:text-gray-300'
                                                                                     }`}
                                                                             >
                                                                                 {name}
@@ -1410,8 +1410,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                             }
                                             if (reasons.length === 0) return null;
                                             return (
-                                                <div className="mt-4 mx-auto max-w-md text-left bg-[#111] border border-[#2A2A2A] rounded-lg p-4">
-                                                    <p className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-1.5">
+                                                <div className="mt-4 mx-auto max-w-md text-left bg-bg-secondary border border-white/[0.08] rounded-lg p-4">
+                                                    <p className="text-xs font-medium text-text-tertiary mb-2 flex items-center gap-1.5">
                                                         <AlertCircle size={14} className="text-yellow-500" />
                                                         Why no spreads matched
                                                     </p>
@@ -1435,9 +1435,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                     <button
                                         type="button"
                                         onClick={() => setShowAdvanced(v => !v)}
-                                        className="w-full flex items-center justify-between px-4 py-2.5 bg-[#111] border border-[#2A2A2A] rounded-lg hover:bg-[#1a1a1a] transition-colors text-left"
+                                        className="w-full flex items-center justify-between px-4 py-2.5 bg-bg-secondary border border-white/[0.08] rounded-lg hover:bg-[#1a1a1a] transition-colors text-left"
                                     >
-                                        <span className="text-xs font-medium text-gray-400">
+                                        <span className="text-xs font-medium text-text-tertiary">
                                             Advanced — Single-leg options ({singleRecs.length})
                                         </span>
                                         <ChevronDown size={16} className={`text-gray-500 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
@@ -1451,10 +1451,10 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                 </div>
                                 {showIvGate && (
                                     <div className="absolute inset-0 flex items-center justify-center z-10">
-                                        <div className="bg-[#1C1C1E] border border-amber-500/40 rounded-xl p-6 max-w-md mx-4 shadow-2xl text-center">
+                                        <div className="bg-bg-tertiary border border-amber-500/40 rounded-xl p-6 max-w-md mx-4 shadow-2xl text-center">
                                             <AlertCircle className="text-amber-400 mx-auto mb-3" size={28} />
                                             <p className="text-amber-300 font-bold mb-1">IV Rank below WFA threshold</p>
-                                            <p className="text-gray-400 text-sm mb-4">
+                                            <p className="text-text-tertiary text-sm mb-4">
                                                 {ivBelowThreshold
                                                     ? `IV Rank ${ivRankPct!.toFixed(0)}% is below the ${ivRankMin}% WFA threshold for ${activeStrategy} trades`
                                                     : 'IV Rank unavailable — cannot validate against WFA threshold'}

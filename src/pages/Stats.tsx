@@ -73,7 +73,7 @@ const BucketList: React.FC<{ entries: [string, BucketStats][]; renderLabel?: (ke
                 const total = data.wins + data.losses;
                 const wr = total > 0 ? (data.wins / total) * 100 : 0;
                 return (
-                    <div key={key} className="card p-4 flex justify-between items-center bg-[#242426]/50">
+                    <div key={key} className="py-3 border-b border-white/[0.04] flex justify-between items-center">
                         <div>
                             {renderLabel ? renderLabel(key) : (
                                 <div className="font-medium text-[#E0E0E0]">{key || 'Unknown'}</div>
@@ -243,7 +243,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
     if (loading) return <LoadingSpinner />;
 
     return (
-        <div className="fade-in pb-24 sm:pb-0">
+        <div className="stagger-fade-in pb-24 sm:pb-0">
             <h2 className="text-2xl font-bold mb-4">Performance Stats</h2>
 
             {/* Filters */}
@@ -315,13 +315,13 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                         <>
                             {/* Key Metrics */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                                <div className="card p-5">
+                                <div className="py-3">
                                     <div className="text-text-tertiary text-xs uppercase tracking-wider mb-2">Total P&L</div>
                                     <div className={`text-3xl font-bold font-mono ${stats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                                         {stats.totalPnL >= 0 ? '+' : ''}{formatCurrency(stats.totalPnL)}
                                     </div>
                                 </div>
-                                <div className="card p-5">
+                                <div className="py-3">
                                     <div className="text-text-tertiary text-xs uppercase tracking-wider mb-2">Win Rate</div>
                                     <div className={`text-3xl font-bold ${stats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>
                                         {stats.winRate.toFixed(1)}%
@@ -330,21 +330,21 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                             </div>
 
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                                <div className="card p-4">
+                                <div className="py-3">
                                     <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Avg Win</div>
                                     <div className="text-xl font-bold font-mono text-accent-green">{formatCurrency(stats.avgWin)}</div>
                                 </div>
-                                <div className="card p-4">
+                                <div className="py-3">
                                     <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Avg Loss</div>
                                     <div className="text-xl font-bold font-mono text-accent-red">{formatCurrency(Math.abs(stats.avgLoss))}</div>
                                 </div>
-                                <div className="card p-4">
+                                <div className="py-3">
                                     <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Profit Factor</div>
                                     <div className={`text-xl font-bold ${stats.profitFactor >= 1 ? 'text-accent-green' : 'text-accent-red'}`}>
                                         {stats.profitFactor === Infinity ? '\u221E' : stats.profitFactor.toFixed(2)}
                                     </div>
                                 </div>
-                                <div className="card p-4">
+                                <div className="py-3">
                                     <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Total Trades</div>
                                     <div className="text-xl font-bold">{closedPositions.length}</div>
                                 </div>
@@ -363,12 +363,12 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                     {/* ═══ BREAKDOWNS TAB ═══ */}
                     {statsTab === 'breakdowns' && (
                         <>
-                            <h3 className="text-lg font-semibold mb-4 text-white/90">By Strategy</h3>
+                            <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By Strategy</h3>
                             <div className="mb-8">
                                 <BucketList entries={Object.entries(stats.strategyStats)} />
                             </div>
 
-                            <h3 className="text-lg font-semibold mb-4 text-white/90">By Setup</h3>
+                            <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By Setup</h3>
                             <div className="mb-8">
                                 <BucketList entries={Object.entries(stats.setupStats)} renderLabel={key => (
                                     <div className="font-medium text-[#E0E0E0]">{key || 'Unknown Setup'}</div>
@@ -377,7 +377,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
 
                             {Object.keys(stats.crossTabStats).length > 0 && (
                                 <>
-                                    <h3 className="text-lg font-semibold mb-4 text-white/90">Setup x Strategy</h3>
+                                    <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">Setup x Strategy</h3>
                                     <div className="mb-8">
                                         <BucketList
                                             entries={Object.entries(stats.crossTabStats)}
@@ -399,7 +399,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                             {/* DTE Breakdown */}
                             {Object.keys(stats.dteStats).length > 0 && (
                                 <>
-                                    <h3 className="text-lg font-semibold mb-4 text-white/90">By DTE at Entry</h3>
+                                    <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By DTE at Entry</h3>
                                     <div className="mb-8">
                                         <BucketList entries={Object.entries(stats.dteStats).sort((a, b) => {
                                             const order = activeStrategy === 'shortTerm'
@@ -416,7 +416,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                             {/* Regime Breakdown */}
                             {Object.keys(stats.regimeStats).length > 0 && (
                                 <>
-                                    <h3 className="text-lg font-semibold mb-4 text-white/90">By IV Regime</h3>
+                                    <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By IV Regime</h3>
                                     <div className="mb-8">
                                         <BucketList entries={Object.entries(stats.regimeStats)} />
                                     </div>
@@ -426,7 +426,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                             {/* Hold Duration Breakdown */}
                             {Object.keys(stats.holdDurationStats).length > 0 && (
                                 <>
-                                    <h3 className="text-lg font-semibold mb-4 text-white/90">By Hold Duration</h3>
+                                    <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By Hold Duration</h3>
                                     <div className="mb-8">
                                         <BucketList entries={Object.entries(stats.holdDurationStats).sort((a, b) => {
                                             const order = ['<3d', '3-7d', '7-14d', '14+d'];
@@ -439,7 +439,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                             {/* Exit Type Breakdown */}
                             {Object.keys(stats.exitTypeStats).length > 0 && (
                                 <>
-                                    <h3 className="text-lg font-semibold mb-4 text-white/90">By Exit Reason</h3>
+                                    <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By Exit Reason</h3>
                                     <div className="mb-8">
                                         <BucketList entries={Object.entries(stats.exitTypeStats)} renderLabel={key => {
                                             const labels: Record<string, string> = { TP: 'Profit Target', SL: 'Stop Loss', TIME: 'Time Stop', MANUAL: 'Manual Close', ROLL: 'Rolled' };
@@ -452,7 +452,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                             {/* Spread Width Breakdown */}
                             {Object.keys(stats.spreadWidthStats).length > 0 && (
                                 <>
-                                    <h3 className="text-lg font-semibold mb-4 text-white/90">By Spread Width</h3>
+                                    <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By Spread Width</h3>
                                     <div className="mb-8">
                                         <BucketList entries={Object.entries(stats.spreadWidthStats).sort((a, b) => {
                                             const order = ['$5', '$10', '$15', '$20+'];

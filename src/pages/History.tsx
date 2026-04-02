@@ -85,30 +85,30 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
     if (loading) return <LoadingSpinner />;
 
     return (
-        <div className="fade-in pb-24 sm:pb-0">
+        <div className="stagger-fade-in pb-24 sm:pb-0">
             {/* Summary Stats */}
             {closedPositions.length > 0 && (
-                <div className="space-y-3 mb-6">
-                    {/* Total P&L - Full Width */}
-                    <div className="card p-4">
+                <div className="mb-6 pb-4 border-b border-white/[0.1]">
+                    {/* Total P&L */}
+                    <div className="mb-3">
                         <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Total P&L</div>
-                        <div className={`text-3xl font-bold font-mono ${overallStats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                        <div className={`hero-number text-4xl font-bold font-mono ${overallStats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                             {overallStats.totalPnL >= 0 ? '+' : '-'}${Math.abs(overallStats.totalPnL).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                     </div>
-                    {/* Other Stats Row */}
-                    <div className="grid grid-cols-1 xs:grid-cols-3 gap-3">
-                        <div className="card p-4">
+                    {/* Stats Strip */}
+                    <div className="flex items-center gap-6">
+                        <div>
                             <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Win Rate</div>
                             <div className={`text-xl font-bold ${overallStats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>
                                 {overallStats.winRate.toFixed(0)}%
                             </div>
                         </div>
-                        <div className="card p-4">
+                        <div>
                             <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Wins</div>
                             <div className="text-xl font-bold text-accent-green">{overallStats.wins}</div>
                         </div>
-                        <div className="card p-4">
+                        <div>
                             <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Losses</div>
                             <div className="text-xl font-bold text-accent-red">{overallStats.losses}</div>
                         </div>
@@ -152,7 +152,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
                         const { pnl, pnlPct, holdDays } = getStats(p);
                         const isWin = pnl >= 0;
                         return (
-                            <div key={p.id} className="card p-4 sm:p-5 fade-in">
+                            <div key={p.id} className="py-4 sm:py-5 border-b border-white/[0.04]">
                                 <div className="flex justify-between items-start gap-3">
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
@@ -173,7 +173,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
                                                     {p.owner}
                                                 </button>
                                             )}
-                                            <span className={`badge bg-[#2C2C2E] text-white border border-[#3A3A3C]`}>{p.type}</span>
+                                            <span className={`badge bg-bg-elevated text-white border border-white/[0.1]`}>{p.type}</span>
                                             {p.setup && <span className={`badge bg-yellow-500/10 text-yellow-500 border border-yellow-500/20`}>{p.setup}</span>}
                                             {p.strategy && <span className={`badge bg-violet-500/10 text-violet-400 border border-violet-500/20`}>{p.strategy}</span>}
                                             <span className={`badge ${isWin ? 'badge-green' : 'badge-red'} flex items-center gap-1`}>

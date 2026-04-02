@@ -19,15 +19,15 @@ interface DisciplineCardProps {
 type ExitType = 'TP' | 'SL' | 'TIME' | 'MANUAL' | 'ROLL' | 'EXP_PROFIT' | 'EXP_LOSS' | 'EARLY_PROFIT' | 'EARLY_DEFENSE' | 'Unknown';
 
 const EXIT_COLORS: Record<ExitType, string> = {
-    TP: '#00C805',
-    SL: '#FF5000',
+    TP: '#4EBE96',
+    SL: '#FF6B6B',
     TIME: '#FFD60A',
     MANUAL: '#A3A3A3',
-    ROLL: '#0A84FF',
-    EXP_PROFIT: '#00C805',
-    EXP_LOSS: '#FF5000',
-    EARLY_PROFIT: '#34D399',
-    EARLY_DEFENSE: '#F97316',
+    ROLL: '#479FFA',
+    EXP_PROFIT: '#4EBE96',
+    EXP_LOSS: '#FF6B6B',
+    EARLY_PROFIT: '#6EEDB4',
+    EARLY_DEFENSE: '#FFA16C',
     Unknown: '#555555',
 };
 

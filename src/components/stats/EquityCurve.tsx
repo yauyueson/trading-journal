@@ -51,8 +51,8 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({ trades }) => {
                     <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
                         <defs>
                             <linearGradient id="eqGreen" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#00C805" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="#00C805" stopOpacity={0} />
+                                <stop offset="5%" stopColor="#4EBE96" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="#4EBE96" stopOpacity={0} />
                             </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
@@ -88,11 +88,11 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({ trades }) => {
                         <Area
                             type="monotone"
                             dataKey="cumPnL"
-                            stroke="#00C805"
+                            stroke="#4EBE96"
                             strokeWidth={2}
                             fill="url(#eqGreen)"
                             dot={false}
-                            activeDot={{ r: 4, fill: '#00C805' }}
+                            activeDot={{ r: 4, fill: '#4EBE96' }}
                         />
                     </AreaChart>
                 </ResponsiveContainer>

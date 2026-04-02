@@ -232,7 +232,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     if (loading) return <LoadingSpinner />;
 
     return (
-        <div className="fade-in pb-24 sm:pb-0 space-y-6">
+        <div className="stagger-fade-in pb-24 sm:pb-0 space-y-6">
             {/* Header */}
             <div className="space-y-4">
                 <div className="flex flex-col gap-4">
@@ -255,8 +255,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                                 onClick={refreshAllPrices}
                                 disabled={refreshing}
                                 className={`
-                                    relative overflow-hidden group flex items-center gap-2 p-2.5 sm:px-4 sm:py-2 rounded-xl border border-border-default/50
-                                    bg-bg-secondary/30 backdrop-blur-sm hover:bg-bg-secondary transition-all duration-200
+                                    relative overflow-hidden group flex items-center gap-2 p-2.5 sm:px-4 sm:py-2 rounded-xl border border-white/[0.06]
+                                    bg-white/[0.03] hover:bg-white/[0.05] transition-all duration-200
                                     ${refreshing ? 'opacity-70 cursor-not-allowed text-text-tertiary' : 'text-text-secondary hover:text-text-primary hover:border-text-secondary/30'}
                                 `}
                                 aria-label="Refresh all prices"
@@ -266,7 +266,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                             </button>
                             <button
                                 onClick={() => setShowForm(!showForm)}
-                                className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2.5 sm:py-2 rounded-xl font-medium text-sm text-white shadow-lg transition-all duration-200 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:-translate-y-0.5"
+                                className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2.5 sm:py-2 rounded-xl font-medium text-sm text-black shadow-lg transition-all duration-200 bg-accent-green hover:bg-[#5ED4A6] shadow-accent-green/20 hover:shadow-accent-green/30 hover:-translate-y-0.5"
                             >
                                 <span className="text-lg leading-none">+</span>
                                 <span className="hidden sm:inline">Add Position</span>
@@ -277,7 +277,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                     <button
                         type="button"
                         onClick={() => setShowAccountSettings(!showAccountSettings)}
-                        className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border border-border-default/50 bg-bg-secondary/30 hover:bg-bg-secondary text-text-secondary hover:text-text-primary text-xs sm:text-sm font-medium transition-colors w-full sm:w-auto"
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.05] text-text-secondary hover:text-text-primary text-xs sm:text-sm font-medium transition-colors w-full sm:w-auto"
                         aria-expanded={showAccountSettings}
                     >
                         <Settings2 size={16} className="text-accent-green shrink-0" />
@@ -349,7 +349,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
 
                 {/* Collapsible Account & Risk Settings */}
                 {showAccountSettings && (
-                    <div className="rounded-xl border border-border-default/50 bg-bg-secondary/20 p-6">
+                    <div className="rounded-xl border border-white/[0.06] bg-bg-secondary/10 p-6">
                         <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4">Account & risk</h3>
                         <PortfolioSettingsForm variant="full" className="max-w-md" />
                     </div>
@@ -375,7 +375,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                 const nearestUrgent = nearestDTE != null && nearestDTE <= timeStopThreshold;
 
                 return (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5 rounded-xl bg-bg-secondary/40 border border-border-default/30 text-xs font-mono mb-4">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2.5 border-b border-white/[0.04] text-xs font-mono mb-4">
                         <span className="text-text-tertiary">
                             {swingCount > 0 && <span className="text-green-400">{swingCount} Swing</span>}
                             {swingCount > 0 && stCount > 0 && <span className="text-text-tertiary"> / </span>}

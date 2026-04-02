@@ -66,37 +66,48 @@ export function AppLayout() {
   if (!isAuthenticated) return <LoginForm />;
 
   return (
-    <div className="min-h-screen bg-bg-primary">
-      {/* Header */}
+    <div className="min-h-screen">
+      {/* Header — Fey-style with integrated nav */}
       <div
-        className="sticky top-0 z-40 bg-black/85 backdrop-blur-xl border-b border-white/10"
+        className="sticky top-0 z-40 bg-black/40 backdrop-blur-2xl border-b border-white/[0.06]"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <div className="mx-auto px-4 py-3 flex justify-between items-center max-w-5xl lg:max-w-6xl">
-          <h1 className="text-xl font-semibold">Trading Journal</h1>
-          <div className="flex items-center gap-2 sm:gap-4">
+        <div className="mx-auto px-4 py-2.5 flex items-center gap-6 max-w-7xl">
+          {/* Logo */}
+          <h1
+            className="text-base font-semibold text-gradient-primary shrink-0 cursor-pointer"
+            onClick={() => navigate('/dashboard')}
+          >
+            Trading Journal
+          </h1>
+
+          {/* Desktop nav — integrated into header */}
+          <TabNav />
+
+          {/* Right actions */}
+          <div className="flex items-center gap-1 ml-auto shrink-0">
             <button
               onClick={() => navigate('/settings')}
-              className="flex items-center gap-1.5 text-text-tertiary text-sm hover:text-text-secondary transition-colors min-w-[44px] min-h-[44px] justify-center sm:justify-start"
+              className="flex items-center gap-1.5 text-text-tertiary text-sm hover:text-text-secondary transition-colors min-w-[44px] min-h-[44px] justify-center"
               aria-label="Settings"
             >
-              <Settings size={18} />
-              <span className="hidden sm:inline">Settings</span>
+              <Settings size={16} />
+              <span className="hidden lg:inline text-[13px]">Settings</span>
             </button>
             <button
               onClick={logout}
-              className="flex items-center gap-1.5 text-text-tertiary text-sm hover:text-text-secondary transition-colors min-w-[44px] min-h-[44px] justify-center sm:justify-start"
+              className="flex items-center gap-1.5 text-text-tertiary text-sm hover:text-text-secondary transition-colors min-w-[44px] min-h-[44px] justify-center"
               aria-label="Logout"
             >
-              <LogOut size={18} className="sm:hidden" />
-              <span className="hidden sm:inline">Logout</span>
+              <LogOut size={16} className="sm:hidden" />
+              <span className="hidden sm:inline text-[13px]">Logout</span>
             </button>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto px-4 py-6 pb-24 sm:pb-6 max-w-5xl lg:max-w-6xl">
-        <TabNav />
+      {/* Content — generous top spacing like Fey */}
+      <div className="mx-auto px-4 sm:px-6 pt-8 sm:pt-10 pb-24 sm:pb-10 max-w-7xl ambient-glow">
         <Outlet />
       </div>
     </div>
