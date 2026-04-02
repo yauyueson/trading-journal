@@ -22,7 +22,7 @@ export const PATH_TO_TAB: Record<string, string> = Object.fromEntries(
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <Navigate to="/portfolio" replace />,
+    element: <Navigate to="/dashboard" replace />,
   },
   {
     element: <AppLayout />,
@@ -37,7 +37,7 @@ export const router = createBrowserRouter([
       },
       {
         path: '/portfolio',
-        lazy: () => import('./pages/Portfolio').then(m => ({ Component: m.PortfolioPage })),
+        element: <Navigate to="/dashboard" replace />,
       },
       {
         path: '/selector',
