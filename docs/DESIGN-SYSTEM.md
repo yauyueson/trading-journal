@@ -1,7 +1,7 @@
 # Trading Journal — UI/UX Design System
 
 > Fey-inspired dark trading dashboard aesthetic. Built with React 18 + Tailwind CSS + Framer Motion.
-> Last updated: 2026-04-03.
+> Last updated: 2026-04-02.
 
 ---
 
@@ -55,7 +55,15 @@ This is a data-dense trading tool. Every design decision serves information dens
 | `accent-yellow` | `#FFD60A` | Warnings, time-based exits |
 | `accent-coral` | `#FFA16C` | Risk indicators, warm highlights |
 
-**Dim variants:** Append `20` for 12% opacity backgrounds (e.g. `#4EBE9620` for badge backgrounds).
+**Dim variants:** Every accent has a `Dim` token at 12% opacity for badge/pill backgrounds:
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `accent-greenDim` | `#4EBE9620` | Win badges, bull backgrounds |
+| `accent-redDim` | `#FF6B6B20` | Loss badges, bear backgrounds |
+| `accent-yellowDim` | `#FFD60A20` | Warning badges |
+| `accent-blueDim` | `#479FFA20` | Info badges |
+| `accent-coralDim` | `#FFA16C20` | Risk indicator backgrounds |
 
 ### Chart Colors
 
@@ -135,12 +143,15 @@ box-shadow:
 
 ### Semantic Card Variants
 
-| Class | Tint Color | Border | Context |
-|-------|-----------|--------|---------|
-| `.card-danger` | `rgba(255,107,107, 0.06)` | `#FF6B6B30` | Losing positions |
-| `.card-warning` | `rgba(255,214,10, 0.06)` | `#FFD60A25` | Warnings |
-| `.card-success` | `rgba(78,190,150, 0.06)` | `#4EBE9625` | Winning positions |
-| `.card-earnings` | `rgba(168,85,247, 0.06)` | `#A855F740` | Earnings proximity |
+Each semantic card uses 0.5px `rgba()` borders (not hex) with a matching inset highlight — same pattern as glass cards:
+
+| Class | Tint Color | Border | Inset Highlight | Context |
+|-------|-----------|--------|-----------------|---------|
+| `.card-danger` | `rgba(255,107,107, 0.06)` | `0.5px rgba(255,107,107, 0.19)` | `rgba(255,107,107, 0.1)` | Losing positions |
+| `.card-warning` | `rgba(255,214,10, 0.06)` | `0.5px rgba(255,214,10, 0.15)` | `rgba(255,214,10, 0.08)` | Warnings |
+| `.card-success` | `rgba(78,190,150, 0.06)` | `0.5px rgba(78,190,150, 0.15)` | `rgba(78,190,150, 0.08)` | Winning positions |
+| `.card-earnings` | `rgba(168,85,247, 0.06)` | `0.5px rgba(168,85,247, 0.25)` | `rgba(168,85,247, 0.1)` + glow | Earnings proximity |
+| `.card-earnings-soon` | `rgba(59,130,246, 0.06)` | `0.5px rgba(59,130,246, 0.19)` | `rgba(59,130,246, 0.08)` | Upcoming earnings |
 
 ---
 
@@ -226,17 +237,35 @@ Mobile (`< lg`): single column, sidebar content stacks above main.
 |---------|----------|-------|
 | Cards | `background` brightens to `rgba(200,200,220, 0.08)`, `border-color` to `rgba(255,255,255,0.14)` | `0.15s ease` |
 | Buttons | Background shift only | `0.1s ease` |
+| Inputs | `border-color` brightens to `rgba(255,255,255,0.16)` | `0.15s ease` |
 | List rows | `bg-white/[0.02]` | CSS transition |
-| **Never** | `translate-y` lift, scale transforms | — |
+| **Never** | `translate-y` lift on hover | — |
+
+### Active Press (All Devices)
+
+All buttons and action items scale down on press for tactile feedback:
+
+```css
+.btn-primary:active,
+.btn-secondary:active,
+.btn-danger:active,
+.action-btn:active {
+    transform: scale(0.97);
+}
+```
+
+This is distinct from hover — press feedback is allowed, hover lift is not.
 
 ### Touch (Mobile)
 
 | Property | Value |
 |----------|-------|
 | Touch targets | Minimum 44x44px (`min-h-[44px]`) |
+| Filter pills | Minimum 44px height (WCAG 2.5.5) |
 | Tap highlight | Disabled (`-webkit-tap-highlight-color: transparent`) |
 | Touch feedback | `.touch-feedback` = `active:opacity-80` |
 | Bottom nav items | `min-w-[64px] min-h-[56px]` |
+| Cursor | All buttons/pills use `cursor-pointer` explicitly |
 
 ---
 
@@ -258,7 +287,7 @@ Mobile (`< lg`): single column, sidebar content stacks above main.
 |-------|----------|-------|
 | `.fade-in` | 0.3s ease-out | Generic entrance |
 | `.pulse-glow` | 2s infinite | Active signal dots |
-| `.stagger-fade-in > *` | 0.4s, 50ms delay per child | Page section reveal |
+| `.stagger-fade-in > *` | 0.4s, 50ms delay per child (up to 12 children) | Page section reveal |
 | `.wipe-reveal` | 0.8s | Gradient text reveal for headings |
 | `orbFloat` | 12-15s infinite | Background glow orbs |
 
@@ -276,7 +305,7 @@ All animations respect `prefers-reduced-motion: reduce` — disabled via CSS `an
 | `.btn-secondary` | `rgba(255,255,255,0.05)` | `#E6E6E6` | `rgba(255,255,255,0.08)` | Secondary actions (glass style) |
 | `.btn-danger` | `accent-redDim` | `accent-red` | `rgba(255,107,107,0.12)` | Destructive actions |
 
-All buttons: `0.5px` border, `0.1s ease` transition, `min-h-[44px]`.
+All buttons: `0.5px` border, `0.1s ease` transition, `min-h-[44px]`, `cursor-pointer`, `disabled:cursor-not-allowed disabled:opacity-50`, `active:scale(0.97)`.
 
 ---
 
@@ -306,8 +335,9 @@ All buttons: `0.5px` border, `0.1s ease` transition, `min-h-[44px]`.
 
 ### Header
 
-- Mobile: `bg-[#0A0A0E]/90 backdrop-blur-xl` (solid, matches body)
+- Mobile: `bg-[#0A0A0E]/90 backdrop-blur-md` (solid, matches body, blurs on scroll)
 - Desktop: `bg-black/40 backdrop-blur-2xl` (glass, shows gradient)
+- Border: `border-white/[0.08]` (visible but subtle)
 
 ### Bottom Navigation
 
@@ -315,13 +345,22 @@ All buttons: `0.5px` border, `0.1s ease` transition, `min-h-[44px]`.
 - 8 tabs, horizontally scrollable, active tab has green dot with `pulse-glow`
 - Icons only on mobile (22px), text labels hidden
 
-### Viewport
+### iOS-Specific
 
 ```html
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0A0A0E">
+```
+
+**Autofill styling:** iOS Safari autofill is overridden to prevent bright yellow/white flash:
+```css
+input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px #0A0A0E inset !important;
+    -webkit-text-fill-color: #FFFFFF !important;
+}
 ```
 
 ---
@@ -339,6 +378,60 @@ All buttons: `0.5px` border, `0.1s ease` transition, `min-h-[44px]`.
 
 ---
 
+## Accessibility
+
+### WCAG 2.1 AA Compliance
+
+| Requirement | Implementation |
+|-------------|---------------|
+| Color contrast | `text-tertiary` (#6B6B6B) on `#0A0A0E` = 4.7:1 (passes AA) |
+| Focus indicators | `ring-2 ring-accent-green ring-offset-2 ring-offset-bg-primary` on `:focus-visible` |
+| Touch targets | All interactive elements `min-h-[44px]` (WCAG 2.5.5) |
+| Reduced motion | `@media (prefers-reduced-motion: reduce)` disables all animations |
+| Modal semantics | `role="dialog" aria-modal="true" aria-label="..."` on all modals |
+| Icon buttons | `aria-label` on every button with only an icon child |
+| Tab navigation | `aria-current="page"` on active tab, `aria-label` on nav |
+| Color-scheme | `<meta name="color-scheme" content="dark">` for native dark controls |
+
+### Rules
+
+- Color must never be the sole indicator — always pair with text, icons, or shape
+- All `<button>` elements with only icons must have `aria-label`
+- Modals must have `role="dialog"`, `aria-modal="true"`, and a descriptive `aria-label`
+- Form inputs must have associated `<label>` elements
+
+---
+
+## Design Tokens (Tailwind Config)
+
+All colors, shadows, and spacing should use Tailwind config tokens — never hardcode hex values in components.
+
+### Color Token Mapping
+
+| Hardcoded Hex | Use Instead |
+|---------------|-------------|
+| `#222`, `#2C2C2E`, `#252528` | `bg-bg-tertiary` |
+| `#111`, `#0D0D0D` | `bg-bg-secondary` |
+| `#000` | `bg-bg-primary` |
+| `#333`, `#3A3A3C`, `#444` | `border-white/[0.1]` or `border-white/[0.14]` |
+| `#888`, `#999`, `#A3A3A3`, `#8E8E93` | `text-text-secondary` |
+| `#555`, `#666` | `text-text-tertiary` |
+| `#E0E0E0`, `#E6E6E6` | `text-text-primary` |
+
+### Extended Tokens
+
+```js
+// tailwind.config.js
+borderWidth: { '0.5': '0.5px' },  // Tailwind utility for 0.5px borders
+boxShadow: {
+  'glow-green': '...',  'glow-red': '...',
+  'glow-blue': '...',   'glow-yellow': '...',
+  'glow-coral': '...',  // All accent colors have glow variants
+},
+```
+
+---
+
 ## Anti-Patterns (Don't Do This)
 
 | Don't | Do Instead |
@@ -351,8 +444,12 @@ All buttons: `0.5px` border, `0.1s ease` transition, `min-h-[44px]`.
 | `0.3s+` hover transitions | `0.1s ease` (snappy) |
 | `background-attachment: fixed` | `body::before` pseudo-element |
 | Solid hex border colors | `rgba()` with low opacity |
+| Hardcoded hex in components | Use Tailwind design tokens (see table above) |
 | Emojis as icons | Lucide React SVG icons |
 | `z-index: 9999` | Use the defined z-index scale |
+| Missing `cursor-pointer` on buttons | All interactive elements get `cursor-pointer` |
+| Missing `aria-label` on icon buttons | Every icon-only button needs `aria-label` |
+| Default cursor on clickable cards | Add `cursor-pointer` when `onClick` exists |
 
 ---
 
