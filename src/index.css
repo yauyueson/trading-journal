@@ -82,7 +82,7 @@
     }
 
     ::-webkit-scrollbar-thumb {
-        @apply bg-[#333] rounded-sm;
+        @apply bg-white/20 rounded-sm;
     }
 
     /* Cards — matte glass with Fey-style 0.5px borders + inset highlight */
@@ -152,35 +152,45 @@
         background: rgba(255, 107, 107, 0.06);
         backdrop-filter: blur(20px) saturate(1.2);
         -webkit-backdrop-filter: blur(20px) saturate(1.2);
-        @apply border border-[#FF6B6B30] rounded-2xl transition-all duration-300;
+        border: 0.5px solid rgba(255, 107, 107, 0.19);
+        box-shadow: inset 0.5px 0.5px 0.5px rgba(255, 107, 107, 0.1);
+        @apply rounded-2xl transition-all duration-300;
     }
 
     .card-warning {
         background: rgba(255, 214, 10, 0.06);
         backdrop-filter: blur(20px) saturate(1.2);
         -webkit-backdrop-filter: blur(20px) saturate(1.2);
-        @apply border border-[#FFD60A25] rounded-2xl transition-all duration-300;
+        border: 0.5px solid rgba(255, 214, 10, 0.15);
+        box-shadow: inset 0.5px 0.5px 0.5px rgba(255, 214, 10, 0.08);
+        @apply rounded-2xl transition-all duration-300;
     }
 
     .card-earnings {
         background: rgba(168, 85, 247, 0.06);
         backdrop-filter: blur(20px) saturate(1.2);
         -webkit-backdrop-filter: blur(20px) saturate(1.2);
-        @apply border border-[#A855F740] rounded-2xl shadow-[0_0_20px_#A855F710] transition-all duration-300;
+        border: 0.5px solid rgba(168, 85, 247, 0.25);
+        box-shadow: inset 0.5px 0.5px 0.5px rgba(168, 85, 247, 0.1), 0 0 20px rgba(168, 85, 247, 0.06);
+        @apply rounded-2xl transition-all duration-300;
     }
 
     .card-earnings-soon {
         background: rgba(59, 130, 246, 0.06);
         backdrop-filter: blur(20px) saturate(1.2);
         -webkit-backdrop-filter: blur(20px) saturate(1.2);
-        @apply border border-[#3B82F630] rounded-2xl transition-all duration-300;
+        border: 0.5px solid rgba(59, 130, 246, 0.19);
+        box-shadow: inset 0.5px 0.5px 0.5px rgba(59, 130, 246, 0.08);
+        @apply rounded-2xl transition-all duration-300;
     }
 
     .card-success {
         background: rgba(78, 190, 150, 0.06);
         backdrop-filter: blur(20px) saturate(1.2);
         -webkit-backdrop-filter: blur(20px) saturate(1.2);
-        @apply border border-[#4EBE9625] rounded-2xl transition-all duration-300;
+        border: 0.5px solid rgba(78, 190, 150, 0.15);
+        box-shadow: inset 0.5px 0.5px 0.5px rgba(78, 190, 150, 0.08);
+        @apply rounded-2xl transition-all duration-300;
     }
 
     /* Inputs */
@@ -194,6 +204,12 @@
         transition: border-color 0.15s ease, background 0.15s ease;
     }
 
+    input:hover,
+    select:hover,
+    textarea:hover {
+        border-color: rgba(255, 255, 255, 0.16);
+    }
+
     input:focus,
     select:focus,
     textarea:focus {
@@ -202,6 +218,16 @@
 
     input::placeholder {
         @apply text-text-tertiary;
+    }
+
+    /* iOS autofill — prevent bright yellow/white flash on dark theme */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+        -webkit-box-shadow: 0 0 0 1000px #0A0A0E inset !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+        caret-color: #FFFFFF;
+        transition: background-color 5000s ease-in-out 0s;
     }
 
     .input-field {
@@ -215,7 +241,7 @@
 
     /* Buttons — Fey-style: glass secondary, solid primary */
     .btn-primary {
-        @apply bg-accent-green font-semibold min-h-[44px] disabled:opacity-50;
+        @apply bg-accent-green font-semibold min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer;
         color: #000;
         transition: background 0.1s ease, transform 0.1s ease;
     }
@@ -226,10 +252,11 @@
 
     .btn-primary:active {
         background: #3EAE86;
+        transform: scale(0.97);
     }
 
     .btn-secondary {
-        @apply font-semibold min-h-[44px];
+        @apply font-semibold min-h-[44px] cursor-pointer;
         color: #E6E6E6;
         background: rgba(255, 255, 255, 0.05);
         border: 0.5px solid rgba(255, 255, 255, 0.1);
@@ -243,10 +270,11 @@
 
     .btn-secondary:active {
         background: rgba(255, 255, 255, 0.12);
+        transform: scale(0.97);
     }
 
     .btn-danger {
-        @apply bg-accent-redDim text-accent-red min-h-[44px];
+        @apply bg-accent-redDim text-accent-red min-h-[44px] cursor-pointer;
         transition: background 0.1s ease;
     }
 
@@ -256,6 +284,7 @@
 
     .btn-danger:active {
         background: rgba(255, 107, 107, 0.16);
+        transform: scale(0.97);
     }
 
     /* Badges */
@@ -301,8 +330,8 @@
 
     /* Filter pills — Fey-style glass pills */
     .filter-pill {
-        @apply px-3 py-1.5 text-xs font-semibold min-h-[36px]
-               flex items-center justify-center text-text-tertiary;
+        @apply px-3 py-1.5 text-xs font-semibold min-h-[44px]
+               flex items-center justify-center text-text-tertiary cursor-pointer;
         background: rgba(255, 255, 255, 0.03);
         border: 0.5px solid rgba(255, 255, 255, 0.08);
         border-radius: 8px;
@@ -390,8 +419,12 @@
     }
 
     .action-btn {
-        @apply flex-1 p-3 rounded-xl font-semibold text-sm min-h-[44px];
+        @apply flex-1 p-3 rounded-xl font-semibold text-sm min-h-[44px] cursor-pointer;
         transition: background 0.1s ease, border-color 0.1s ease, transform 0.1s ease;
+    }
+
+    .action-btn:active {
+        transform: scale(0.97);
     }
 
     /* Fey-style wipe reveal for headings */
@@ -514,6 +547,10 @@
     .stagger-fade-in>*:nth-child(6) { animation-delay: 0.2s; }
     .stagger-fade-in>*:nth-child(7) { animation-delay: 0.25s; }
     .stagger-fade-in>*:nth-child(8) { animation-delay: 0.3s; }
+    .stagger-fade-in>*:nth-child(9) { animation-delay: 0.35s; }
+    .stagger-fade-in>*:nth-child(10) { animation-delay: 0.4s; }
+    .stagger-fade-in>*:nth-child(11) { animation-delay: 0.45s; }
+    .stagger-fade-in>*:nth-child(12) { animation-delay: 0.5s; }
 
     /* Subtle page background gradient */
     .page-gradient {

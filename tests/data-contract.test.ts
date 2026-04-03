@@ -78,42 +78,19 @@ describe('EXIT-02 — useAddDirect mutation insert', () => {
 });
 
 // ---------------------------------------------------------------------------
-// SIG-01: Signals navigate() calls contain signal metadata params
+// SIG-01: Signals page — DTE5 board contract
 // ---------------------------------------------------------------------------
-describe('SIG-01 — Signals page navigate() URL params', () => {
-  it('src/pages/Signals.tsx should include score param in navigate calls', () => {
-    expect(signalsSrc).toContain('score');
-  });
-
-  it('src/pages/Signals.tsx should include streak param in navigate calls', () => {
-    expect(signalsSrc).toContain('streak');
-  });
-
-  it('src/pages/Signals.tsx should include signalType param in navigate calls', () => {
-    expect(signalsSrc).toContain('signalType');
-  });
-
-  it('src/pages/Signals.tsx should include adx param in buildParams URLSearchParams', () => {
-    // Ensure adx is passed as a URL param via buildParams (object key or p.set)
-    expect(signalsSrc).toMatch(/adx\s*:/);
-  });
-
-  it('src/pages/Signals.tsx should include rvol param in buildParams URLSearchParams', () => {
-    expect(signalsSrc).toMatch(/rvol\s*:/);
-  });
-
-  it('src/pages/Signals.tsx should conditionally include iv30d param when row.iv30 is non-null', () => {
-    expect(signalsSrc).toContain('iv30d');
-    // Ensure it is conditional on row.iv30
-    expect(signalsSrc).toContain('row.iv30');
-  });
-
-  it('src/pages/Signals.tsx passes activeBoard strategy to spread builder', () => {
-    expect(signalsSrc).toContain('strategy: activeBoard');
-  });
-
+describe('SIG-01 — Signals page DTE5 board', () => {
   it('src/pages/Signals.tsx has DTE5 board as default', () => {
     expect(signalsSrc).toContain("'dte5'");
+  });
+
+  it('src/pages/Signals.tsx uses SpreadPickerModal for signal-to-spread flow', () => {
+    expect(signalsSrc).toContain('SpreadPickerModal');
+  });
+
+  it('src/pages/Signals.tsx uses useSignalScanner hook', () => {
+    expect(signalsSrc).toContain('useSignalScanner');
   });
 });
 

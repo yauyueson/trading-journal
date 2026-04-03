@@ -454,7 +454,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                         </div>
                                     </div>
                                     {/* Divider */}
-                                    <div className="h-px bg-[#444]" />
+                                    <div className="h-px bg-white/[0.1]" />
                                     {/* Swing group */}
                                     <div>
                                         <div className="text-[9px] text-green-400 font-semibold uppercase tracking-wider text-center mb-1.5 mt-0.5">Swing</div>
@@ -491,7 +491,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                         type="button"
                                         onClick={() => setSpreadWidth(opt.val)}
                                         className={`py-2 rounded px-1 text-xs font-bold transition-all ${spreadWidth === opt.val
-                                            ? 'bg-[#3A3A3C] text-white shadow-sm'
+                                            ? 'bg-white/[0.12] text-white shadow-sm'
                                             : 'text-gray-500 hover:text-gray-300'
                                             }`}
                                     >
@@ -929,7 +929,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                     return (
                                         <div
                                             key={idx}
-                                            className={`bg-bg-tertiary border border-white/[0.08] rounded-xl overflow-hidden transition-all duration-300 ${expandedCard === idx ? 'ring-1 ring-accent-green/50 shadow-lg shadow-green-900/10' : 'hover:border-[#444]'
+                                            className={`bg-bg-tertiary border border-white/[0.08] rounded-xl overflow-hidden transition-all duration-300 ${expandedCard === idx ? 'ring-1 ring-accent-green/50 shadow-lg shadow-green-900/10' : 'hover:border-white/[0.14]'
                                                 }`}
                                         >
                                             {/* Card Header (Clickable) */}
@@ -1090,7 +1090,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                             </div>
 
                                             {/* Review "Why This" Banner */}
-                                            <div className="bg-[#2C2C2E] px-3 sm:px-5 py-2 border-t border-[#3A3A3C] space-y-1">
+                                            <div className="bg-bg-tertiary px-3 sm:px-5 py-2 border-t border-white/[0.1] space-y-1">
                                                 <div className="flex items-start gap-2">
                                                     <Info size={14} className="text-yellow-500 shrink-0 mt-0.5" />
                                                     <span className="text-xs sm:text-sm text-gray-300 italic">{rec.whyThis}</span>
@@ -1117,10 +1117,10 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
                                             {/* Expanded Details */}
                                             {expandedCard === idx && (
-                                                <div className="p-5 border-t border-[#3A3A3C] bg-black/20">
+                                                <div className="p-5 border-t border-white/[0.1] bg-black/20">
                                                     {/* Score explainability (unified score factors for TOP_PICKS) */}
                                                     {(rec as UnifiedCandidateType).factors && (rec as UnifiedCandidateType).factors!.length > 0 && (
-                                                        <div className="mb-6 p-4 bg-[#252528] border border-[#3A3A3C] rounded-xl">
+                                                        <div className="mb-6 p-4 bg-bg-tertiary border border-white/[0.1] rounded-xl">
                                                             <ScoreFactorsView factors={(rec as UnifiedCandidateType).factors!} />
                                                         </div>
                                                     )}
@@ -1223,24 +1223,24 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     ) : (
                                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                                             {/* Delta, Gamma, Theta, Vega */}
-                                                            <div className="p-3 bg-[#222] rounded-lg">
+                                                            <div className="p-3 bg-bg-tertiary rounded-lg">
                                                                 <div className="text-gray-500 text-[10px] uppercase">Delta</div>
                                                                 <div className="text-white font-mono">{(rec as SingleLegRecommendation).delta?.toFixed(2)}</div>
                                                             </div>
-                                                            <div className="p-3 bg-[#222] rounded-lg">
+                                                            <div className="p-3 bg-bg-tertiary rounded-lg">
                                                                 <div className="text-gray-500 text-[10px] uppercase">Gamma</div>
                                                                 <div className="text-white font-mono">{(rec as SingleLegRecommendation).gamma?.toFixed(4)}</div>
                                                             </div>
-                                                            <div className="p-3 bg-[#222] rounded-lg">
+                                                            <div className="p-3 bg-bg-tertiary rounded-lg">
                                                                 <div className="text-gray-500 text-[10px] uppercase">Theta</div>
                                                                 <div className="text-red-400 font-mono">{(rec as SingleLegRecommendation).theta?.toFixed(4)}</div>
                                                             </div>
-                                                            <div className="p-3 bg-[#222] rounded-lg">
+                                                            <div className="p-3 bg-bg-tertiary rounded-lg">
                                                                 <div className="text-gray-500 text-[10px] uppercase">Vega</div>
                                                                 <div className="text-white font-mono">{(rec as SingleLegRecommendation).vega?.toFixed(4)}</div>
                                                             </div>
                                                             {/* Vol / OI / Gamma Eff */}
-                                                            <div className="p-3 bg-[#222] rounded-lg col-span-2 md:col-span-4">
+                                                            <div className="p-3 bg-bg-tertiary rounded-lg col-span-2 md:col-span-4">
                                                                 <div className="flex justify-between items-center">
                                                                     <div>
                                                                         <div className="text-gray-500 text-[10px] uppercase">Volume</div>
@@ -1260,7 +1260,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     )}
 
                                                     {/* Action Buttons */}
-                                                    <div className="mt-6 pt-4 border-t border-[#3A3A3C]">
+                                                    <div className="mt-6 pt-4 border-t border-white/[0.1]">
                                                         {openPosIdx === idx ? (
                                                             /* Inline Open Position form */
                                                             <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4 space-y-3">
@@ -1440,7 +1440,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                     <button
                                         type="button"
                                         onClick={() => setShowAdvanced(v => !v)}
-                                        className="w-full flex items-center justify-between px-4 py-2.5 bg-bg-secondary border border-white/[0.08] rounded-lg hover:bg-[#1a1a1a] transition-colors text-left"
+                                        className="w-full flex items-center justify-between px-4 py-2.5 bg-bg-secondary border border-white/[0.08] rounded-lg hover:bg-bg-tertiary transition-colors text-left"
                                     >
                                         <span className="text-xs font-medium text-text-tertiary">
                                             Advanced — Single-leg options ({singleRecs.length})

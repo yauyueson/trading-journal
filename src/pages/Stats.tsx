@@ -76,7 +76,7 @@ const BucketList: React.FC<{ entries: [string, BucketStats][]; renderLabel?: (ke
                     <div key={key} className="py-3 border-b border-white/[0.04] flex justify-between items-center">
                         <div>
                             {renderLabel ? renderLabel(key) : (
-                                <div className="font-medium text-[#E0E0E0]">{key || 'Unknown'}</div>
+                                <div className="font-medium text-text-primary">{key || 'Unknown'}</div>
                             )}
                             <div className="text-text-secondary text-sm">
                                 <span className="text-accent-green">{data.wins}W</span> / <span className="text-red-400">{data.losses}L</span> · {wr.toFixed(0)}%
@@ -394,7 +394,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                             <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By Setup</h3>
                             <div className="mb-8">
                                 <BucketList entries={Object.entries(stats.setupStats)} renderLabel={key => (
-                                    <div className="font-medium text-[#E0E0E0]">{key || 'Unknown Setup'}</div>
+                                    <div className="font-medium text-text-primary">{key || 'Unknown Setup'}</div>
                                 )} />
                             </div>
 
@@ -430,7 +430,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                                                 : ['<30d', '30-45d', '45-65d', '65+d'];
                                             return order.indexOf(a[0]) - order.indexOf(b[0]);
                                         })} renderLabel={key => (
-                                            <div className="font-medium text-[#E0E0E0]">{key} DTE</div>
+                                            <div className="font-medium text-text-primary">{key} DTE</div>
                                         )} />
                                     </div>
                                 </>
@@ -466,7 +466,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                                     <div className="mb-8">
                                         <BucketList entries={Object.entries(stats.exitTypeStats)} renderLabel={key => {
                                             const labels: Record<string, string> = { TP: 'Profit Target', SL: 'Stop Loss', TIME: 'Time Stop', MANUAL: 'Manual Close', ROLL: 'Rolled' };
-                                            return <div className="font-medium text-[#E0E0E0]">{labels[key] || key}</div>;
+                                            return <div className="font-medium text-text-primary">{labels[key] || key}</div>;
                                         }} />
                                     </div>
                                 </>
@@ -481,7 +481,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                                             const order = ['$5', '$10', '$15', '$20+'];
                                             return order.indexOf(a[0]) - order.indexOf(b[0]);
                                         })} renderLabel={key => (
-                                            <div className="font-medium text-[#E0E0E0]">{key} wide</div>
+                                            <div className="font-medium text-text-primary">{key} wide</div>
                                         )} />
                                     </div>
                                 </>

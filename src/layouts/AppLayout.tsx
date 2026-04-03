@@ -68,7 +68,7 @@ export function AppLayout() {
   return (
     <div style={{ minHeight: '100dvh' }}>
       {/* Header — sticky, safe-area handled by #root padding */}
-      <div className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#0A0A0E]/90 backdrop-blur-xl sm:bg-black/40 sm:backdrop-blur-2xl">
+      <div className="sticky top-0 z-50 border-b border-white/[0.08] bg-[#0A0A0E]/90 backdrop-blur-md sm:bg-black/40 sm:backdrop-blur-2xl">
         <div className="mx-auto px-4 py-2.5 flex items-center gap-6 max-w-7xl">
           {/* Logo */}
           <h1

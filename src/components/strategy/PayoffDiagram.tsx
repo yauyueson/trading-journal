@@ -57,23 +57,23 @@ export const PayoffDiagram: React.FC<PayoffDiagramProps> = ({ recommendation, cu
     return (
         <div className="flex flex-col items-center w-full max-w-[400px]">
             {/* View Mode Toggle */}
-            <div className="flex bg-[#111] p-1 rounded-lg border border-[#333] mb-4 w-full">
+            <div className="flex bg-bg-secondary p-1 rounded-lg border border-white/[0.1] mb-4 w-full">
                 <button
                     onClick={() => setViewMode('Exp')}
-                    className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all ${viewMode === 'Exp' ? 'bg-[#222] text-accent-green border border-accent-green/20' : 'text-gray-500 hover:text-gray-300'}`}
+                    className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all ${viewMode === 'Exp' ? 'bg-bg-tertiary text-accent-green border border-accent-green/20' : 'text-gray-500 hover:text-gray-300'}`}
                 >
                     AT EXPIRATION
                 </button>
                 <button
                     onClick={() => setViewMode('T0')}
-                    className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all ${viewMode === 'T0' ? 'bg-[#222] text-blue-400 border border-blue-400/20' : 'text-gray-500 hover:text-gray-300'}`}
+                    className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all ${viewMode === 'T0' ? 'bg-bg-tertiary text-blue-400 border border-blue-400/20' : 'text-gray-500 hover:text-gray-300'}`}
                 >
                     T+0 (NOW)
                 </button>
             </div>
 
             {/* SVG Graph */}
-            <div className="relative w-full bg-[#0a0a0a] rounded-xl border border-[#222] p-2 mb-4 overflow-hidden shadow-inner">
+            <div className="relative w-full bg-bg-primary rounded-xl border border-bg-tertiary p-2 mb-4 overflow-hidden shadow-inner">
                 <svg
                     className="w-full h-auto overflow-visible cursor-crosshair select-none"
                     viewBox={`0 0 ${width} ${height}`}
@@ -136,7 +136,7 @@ export const PayoffDiagram: React.FC<PayoffDiagramProps> = ({ recommendation, cu
             <div className="w-full px-2">
                 <div className="flex justify-between text-[10px] text-gray-500 mb-1 font-mono uppercase tracking-wider">
                     <span>${minX.toFixed(0)}</span>
-                    <span className="text-white font-bold bg-[#222] px-2 rounded tracking-normal">${hoverPrice.toFixed(2)}</span>
+                    <span className="text-white font-bold bg-bg-tertiary px-2 rounded tracking-normal">${hoverPrice.toFixed(2)}</span>
                     <span>${maxX.toFixed(0)}</span>
                 </div>
                 <input
@@ -149,7 +149,7 @@ export const PayoffDiagram: React.FC<PayoffDiagramProps> = ({ recommendation, cu
                         setHoverPrice(parseFloat(e.target.value));
                         setIsHovered(true);
                     }}
-                    className="w-full h-1.5 bg-[#222] rounded-lg appearance-none cursor-pointer accent-accent-green"
+                    className="w-full h-1.5 bg-bg-tertiary rounded-lg appearance-none cursor-pointer accent-accent-green"
                 />
             </div>
         </div>

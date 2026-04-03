@@ -29,7 +29,7 @@ export const MFEMAEChart: React.FC = () => {
   if (error) return <p className="text-xs text-red-400 py-8 text-center">Error: {(error as Error).message}</p>;
   if (!stats) {
     return (
-      <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-6 text-center">
+      <div className="bg-bg-secondary rounded-lg border border-white/10 p-6 text-center">
         <p className="text-sm text-text-tertiary">No trade outcomes computed yet.</p>
         <p className="text-xs text-text-tertiary mt-1">The MFE/MAE cron runs daily after market close for closed trades.</p>
       </div>
@@ -65,7 +65,7 @@ export const MFEMAEChart: React.FC = () => {
       </div>
 
       {/* Scatter plot (CSS-based) */}
-      <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-4">
+      <div className="bg-bg-secondary rounded-lg border border-white/10 p-4">
         <h3 className="text-sm font-medium mb-3">MFE vs MAE Scatter ({valid.length} trades)</h3>
         <div className="relative w-full" style={{ paddingBottom: '60%' }}>
           <div className="absolute inset-0">
@@ -136,7 +136,7 @@ export const MFEMAEChart: React.FC = () => {
       </div>
 
       {/* Insight */}
-      <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-4">
+      <div className="bg-bg-secondary rounded-lg border border-white/10 p-4">
         <p className="text-xs text-text-secondary">{insight}</p>
       </div>
     </div>
@@ -144,7 +144,7 @@ export const MFEMAEChart: React.FC = () => {
 };
 
 const StatCard: React.FC<{ label: string; value: string; color: string; sub?: string }> = ({ label, value, color, sub }) => (
-  <div className="bg-[#1A1A1A] rounded-lg border border-white/10 p-3">
+  <div className="bg-bg-secondary rounded-lg border border-white/10 p-3">
     <p className="text-[10px] text-text-tertiary uppercase tracking-wider">{label}</p>
     <p className={`text-lg font-semibold font-mono ${color}`}>{value}</p>
     {sub && <p className="text-[10px] text-text-tertiary mt-0.5">{sub}</p>}

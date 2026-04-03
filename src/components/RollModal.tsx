@@ -46,7 +46,7 @@ export const RollModal: React.FC<RollModalProps> = ({ position, currentQuantity,
     };
 
     return (
-        <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-[100]">
+        <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-[100]" role="dialog" aria-modal="true" aria-label="Roll position">
             <div className="card p-6 w-full max-w-2xl fade-in max-h-[90vh] overflow-y-auto">
                 <h3 className="text-xl font-bold mb-4">Roll Position</h3>
 
@@ -72,7 +72,7 @@ export const RollModal: React.FC<RollModalProps> = ({ position, currentQuantity,
                                         max={currentQuantity}
                                         value={closeQty}
                                         onChange={e => setCloseQty(Math.min(currentQuantity, parseInt(e.target.value) || 1))}
-                                        className="w-full px-3 py-2 rounded-lg font-mono bg-[#2C2C2E] border border-border-default text-white"
+                                        className="w-full px-3 py-2 rounded-lg font-mono bg-bg-tertiary border border-border-default text-white"
                                     />
                                 </div>
                                 <div>
@@ -82,7 +82,7 @@ export const RollModal: React.FC<RollModalProps> = ({ position, currentQuantity,
                                         step="0.01"
                                         value={closePrice}
                                         onChange={e => setClosePrice(e.target.value)}
-                                        className="w-full px-3 py-2 rounded-lg font-mono bg-[#2C2C2E] border border-border-default text-white"
+                                        className="w-full px-3 py-2 rounded-lg font-mono bg-bg-tertiary border border-border-default text-white"
                                         placeholder="Price you close at"
                                     />
                                 </div>
@@ -103,13 +103,13 @@ export const RollModal: React.FC<RollModalProps> = ({ position, currentQuantity,
                                             type="date"
                                             value={newExpiration}
                                             onChange={e => setNewExpiration(e.target.value)}
-                                            className="w-full px-3 py-2 rounded-lg font-mono bg-[#2C2C2E] border border-border-default text-white text-xs"
+                                            className="w-full px-3 py-2 rounded-lg font-mono bg-bg-tertiary border border-border-default text-white text-xs"
                                         />
                                     </div>
                                     <div>
                                         <label className="text-xs text-text-secondary block mb-1">Type</label>
                                         <select
-                                            className="w-full px-3 py-2 rounded-lg font-mono bg-[#2C2C2E] border border-border-default text-white text-xs h-[34px]"
+                                            className="w-full px-3 py-2 rounded-lg font-mono bg-bg-tertiary border border-border-default text-white text-xs h-[34px]"
                                             value={newType}
                                             onChange={e => setNewType(e.target.value as 'Call' | 'Put')}
                                         >
@@ -126,7 +126,7 @@ export const RollModal: React.FC<RollModalProps> = ({ position, currentQuantity,
                                         step="0.5"
                                         value={newStrike}
                                         onChange={e => setNewStrike(parseFloat(e.target.value) || 0)}
-                                        className="w-full px-3 py-2 rounded-lg font-mono bg-[#2C2C2E] border border-border-default text-white"
+                                        className="w-full px-3 py-2 rounded-lg font-mono bg-bg-tertiary border border-border-default text-white"
                                     />
                                 </div>
 
@@ -137,7 +137,7 @@ export const RollModal: React.FC<RollModalProps> = ({ position, currentQuantity,
                                         min="1"
                                         value={newQty}
                                         onChange={e => setNewQty(parseInt(e.target.value) || 1)}
-                                        className="w-full px-3 py-2 rounded-lg font-mono bg-[#2C2C2E] border border-border-default text-white"
+                                        className="w-full px-3 py-2 rounded-lg font-mono bg-bg-tertiary border border-border-default text-white"
                                         placeholder="Same or less to scale down"
                                     />
                                 </div>
@@ -148,7 +148,7 @@ export const RollModal: React.FC<RollModalProps> = ({ position, currentQuantity,
                                         step="0.01"
                                         value={newPrice}
                                         onChange={e => setNewPrice(e.target.value)}
-                                        className="w-full px-3 py-2 rounded-lg font-mono bg-[#2C2C2E] border border-border-default text-white"
+                                        className="w-full px-3 py-2 rounded-lg font-mono bg-bg-tertiary border border-border-default text-white"
                                         placeholder="Price you open at"
                                     />
                                 </div>

@@ -30,7 +30,7 @@ export const PortfolioSettingsForm: React.FC<PortfolioSettingsFormProps> = ({ va
                         step={100}
                         value={portfolioTotal}
                         onChange={e => setPortfolioTotal(parseFloat(e.target.value) || 0)}
-                        className="w-24 px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+                        className="w-24 px-2 py-1.5 bg-bg-primary border border-white/[0.1] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
                     />
                 </div>
                 <div className="flex items-center gap-2">
@@ -42,7 +42,7 @@ export const PortfolioSettingsForm: React.FC<PortfolioSettingsFormProps> = ({ va
                         step={0.1}
                         value={riskPct}
                         onChange={e => setRiskPct(parseFloat(e.target.value) || MIN_RISK_PCT)}
-                        className="w-14 px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+                        className="w-14 px-2 py-1.5 bg-bg-primary border border-white/[0.1] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
                     />
                     <span className="text-gray-500 text-sm">%</span>
                 </div>
@@ -55,7 +55,7 @@ export const PortfolioSettingsForm: React.FC<PortfolioSettingsFormProps> = ({ va
                         step={5}
                         value={stopOutPct}
                         onChange={e => setStopOutPct(parseFloat(e.target.value) || MIN_STOP_OUT_PCT)}
-                        className="w-12 px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+                        className="w-12 px-2 py-1.5 bg-bg-primary border border-white/[0.1] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
                     />
                     <span className="text-gray-500 text-sm">%</span>
                 </div>
@@ -80,7 +80,7 @@ export const PortfolioSettingsForm: React.FC<PortfolioSettingsFormProps> = ({ va
                         step={100}
                         value={portfolioTotal}
                         onChange={e => setPortfolioTotal(parseFloat(e.target.value) || 0)}
-                        className="w-full bg-[#000] border border-[#333] text-white rounded-lg pl-8 pr-4 py-2.5 font-mono focus:outline-none focus:border-accent-green"
+                        className="w-full bg-bg-primary border border-white/[0.1] text-white rounded-lg pl-8 pr-4 py-2.5 font-mono focus:outline-none focus:border-accent-green"
                     />
                 </div>
             </div>
@@ -96,7 +96,7 @@ export const PortfolioSettingsForm: React.FC<PortfolioSettingsFormProps> = ({ va
                         step={0.1}
                         value={riskPct}
                         onChange={e => setRiskPct(parseFloat(e.target.value))}
-                        className="flex-1 h-2 bg-[#222] rounded-lg appearance-none cursor-pointer accent-accent-green"
+                        className="flex-1 h-2 bg-bg-tertiary rounded-lg appearance-none cursor-pointer accent-accent-green"
                     />
                     <input
                         type="number"
@@ -105,7 +105,7 @@ export const PortfolioSettingsForm: React.FC<PortfolioSettingsFormProps> = ({ va
                         step={0.1}
                         value={riskPct}
                         onChange={e => setRiskPct(parseFloat(e.target.value) || MIN_RISK_PCT)}
-                        className="w-16 px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+                        className="w-16 px-2 py-1.5 bg-bg-primary border border-white/[0.1] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
                     />
                     <span className="text-gray-500 text-sm w-6">%</span>
                 </div>
@@ -125,7 +125,7 @@ export const PortfolioSettingsForm: React.FC<PortfolioSettingsFormProps> = ({ va
                         step={5}
                         value={stopOutPct}
                         onChange={e => setStopOutPct(parseFloat(e.target.value))}
-                        className="flex-1 h-2 bg-[#222] rounded-lg appearance-none cursor-pointer accent-accent-green"
+                        className="flex-1 h-2 bg-bg-tertiary rounded-lg appearance-none cursor-pointer accent-accent-green"
                     />
                     <input
                         type="number"
@@ -134,7 +134,7 @@ export const PortfolioSettingsForm: React.FC<PortfolioSettingsFormProps> = ({ va
                         step={5}
                         value={stopOutPct}
                         onChange={e => setStopOutPct(parseFloat(e.target.value) || MIN_STOP_OUT_PCT)}
-                        className="w-16 px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+                        className="w-16 px-2 py-1.5 bg-bg-primary border border-white/[0.1] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
                     />
                     <span className="text-gray-500 text-sm w-6">%</span>
                 </div>

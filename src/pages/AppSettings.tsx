@@ -61,7 +61,7 @@ export const AppSettingsPage: React.FC = () => {
               type="number" min={0} step={100}
               value={draft.portfolio.accountSize}
               onChange={e => setPortfolio({ accountSize: parseFloat(e.target.value) || 0 })}
-              className="w-full bg-[#000] border border-[#333] text-white rounded-lg pl-8 pr-4 py-2.5 font-mono focus:outline-none focus:border-accent-green"
+              className="w-full bg-bg-primary border border-white/[0.1] text-white rounded-lg pl-8 pr-4 py-2.5 font-mono focus:outline-none focus:border-accent-green"
             />
           </div>
         </div>
@@ -75,12 +75,12 @@ export const AppSettingsPage: React.FC = () => {
             <input type="range" min={MIN_RISK_PCT} max={MAX_RISK_PCT} step={0.1}
               value={draft.portfolio.riskPct}
               onChange={e => setPortfolio({ riskPct: parseFloat(e.target.value) })}
-              className="flex-1 h-2 bg-[#222] rounded-lg appearance-none cursor-pointer accent-accent-green"
+              className="flex-1 h-2 bg-bg-tertiary rounded-lg appearance-none cursor-pointer accent-accent-green"
             />
             <input type="number" min={MIN_RISK_PCT} max={MAX_RISK_PCT} step={0.1}
               value={draft.portfolio.riskPct}
               onChange={e => setPortfolio({ riskPct: parseFloat(e.target.value) || MIN_RISK_PCT })}
-              className="w-16 px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+              className="w-16 px-2 py-1.5 bg-bg-primary border border-white/[0.1] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
             />
             <span className="text-gray-500 text-sm w-4">%</span>
           </div>
@@ -95,12 +95,12 @@ export const AppSettingsPage: React.FC = () => {
             <input type="range" min={MIN_STOP_OUT_PCT} max={MAX_STOP_OUT_PCT} step={5}
               value={draft.portfolio.stopOutPct}
               onChange={e => setPortfolio({ stopOutPct: parseFloat(e.target.value) })}
-              className="flex-1 h-2 bg-[#222] rounded-lg appearance-none cursor-pointer accent-accent-green"
+              className="flex-1 h-2 bg-bg-tertiary rounded-lg appearance-none cursor-pointer accent-accent-green"
             />
             <input type="number" min={MIN_STOP_OUT_PCT} max={MAX_STOP_OUT_PCT} step={5}
               value={draft.portfolio.stopOutPct}
               onChange={e => setPortfolio({ stopOutPct: parseFloat(e.target.value) || MIN_STOP_OUT_PCT })}
-              className="w-16 px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+              className="w-16 px-2 py-1.5 bg-bg-primary border border-white/[0.1] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
             />
             <span className="text-gray-500 text-sm w-4">%</span>
           </div>
@@ -115,7 +115,7 @@ export const AppSettingsPage: React.FC = () => {
             <input type="number" min={0} max={1000} step={10}
               value={draft.portfolio.minOpenInterest}
               onChange={e => setPortfolio({ minOpenInterest: parseInt(e.target.value) || 0 })}
-              className="w-24 px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+              className="w-24 px-2 py-1.5 bg-bg-primary border border-white/[0.1] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
             />
             <span className="text-gray-500 text-sm">contracts</span>
           </div>
@@ -156,7 +156,7 @@ export const AppSettingsPage: React.FC = () => {
                   <input type="number" min={0} max={100} step={1}
                     value={draft.techScore.weights[key]}
                     onChange={e => setWeights({ [key]: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+                    className="w-full px-2 py-1.5 bg-bg-primary border border-white/[0.1] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
                   />
                   <span className="text-gray-500 text-sm w-4">%</span>
                 </div>
@@ -183,7 +183,7 @@ export const AppSettingsPage: React.FC = () => {
                 <input type="number" min={1} max={200} step={1}
                   value={draft.techScore.periods[key]}
                   onChange={e => setPeriods({ [key]: parseInt(e.target.value) || 1 })}
-                  className="w-full px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
+                  className="w-full px-2 py-1.5 bg-bg-primary border border-white/[0.1] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green"
                 />
               </div>
             ))}
@@ -239,7 +239,7 @@ const CreditSpreadSection: React.FC<{
       },
     }));
 
-  const inputCls = 'w-full px-2 py-1.5 bg-[#000] border border-[#333] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green';
+  const inputCls = 'w-full px-2 py-1.5 bg-bg-primary border border-white/[0.1] rounded text-white font-mono text-sm focus:outline-none focus:border-accent-green';
 
   return (
     <section className="space-y-4">
@@ -254,7 +254,7 @@ const CreditSpreadSection: React.FC<{
           const isLocked = true;  // WFA v3: both swing and short-term params are locked
           const lockCls = isLocked ? ' opacity-60 cursor-not-allowed' : '';
           return (
-            <div key={key} className="bg-[#111] border border-[#333] rounded-lg p-4 space-y-3">
+            <div key={key} className="bg-bg-secondary border border-white/[0.1] rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-white">{label}{isLocked && <span className="ml-2 text-xs text-amber-500 font-normal">WFA v3 locked</span>}</span>
                 <button

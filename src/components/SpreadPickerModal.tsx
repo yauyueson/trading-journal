@@ -112,7 +112,6 @@ export function SpreadPickerModal({ signal, onClose }: SpreadPickerModalProps) {
   }, [signal, computeSize, addDirect, onClose]);
 
   const isBull = signal?.side === 'bull';
-  const accentColor = isBull ? 'emerald' : 'rose';
 
   if (!signal) return null;
 
@@ -123,6 +122,9 @@ export function SpreadPickerModal({ signal, onClose }: SpreadPickerModalProps) {
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center modal-overlay"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${signal.ticker} ${isBull ? 'Bull Put' : 'Bear Call'} spread picker`}
     >
       <motion.div
         initial={{ opacity: 0, y: 40 }}
@@ -141,7 +143,7 @@ export function SpreadPickerModal({ signal, onClose }: SpreadPickerModalProps) {
               {signal.spread} · DTE 2-7 · ${maxRiskDollars.toFixed(0)} risk budget
             </p>
           </div>
-          <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary p-1">
+          <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary p-1" aria-label="Close spread picker">
             <X size={16} />
           </button>
         </div>
@@ -219,7 +221,7 @@ export function SpreadPickerModal({ signal, onClose }: SpreadPickerModalProps) {
                   <button
                     key={`${spread.shortLeg.strike}-${spread.longLeg.strike}-${i}`}
                     onClick={() => setConfirming(spread)}
-                    className={`w-full text-left py-3 px-4 rounded-xl border border-white/[0.06] hover:border-${accentColor}-500/30 hover:bg-white/[0.03] transition-all duration-150`}
+                    className={`w-full text-left py-3 px-4 rounded-xl border border-white/[0.06] ${isBull ? 'hover:border-emerald-500/30' : 'hover:border-rose-500/30'} hover:bg-white/[0.03] transition-all duration-150`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -228,7 +230,7 @@ export function SpreadPickerModal({ signal, onClose }: SpreadPickerModalProps) {
                         </span>
                         <span className="text-text-tertiary text-xs">{spread.shortLeg.dte}d · {contracts}ct</span>
                       </div>
-                      <span className={`font-mono text-sm font-semibold text-${accentColor}-400`}>
+                      <span className={`font-mono text-sm font-semibold ${isBull ? 'text-emerald-400' : 'text-rose-400'}`}>
                         ${credit.toFixed(2)}
                       </span>
                     </div>

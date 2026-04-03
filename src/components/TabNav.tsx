@@ -85,7 +85,7 @@ export const TabNav: React.FC<TabNavProps> = ({ activeTab: activeTabProp, setAct
                             aria-label={`${tab.label} tab`}
                             aria-current={activeTab === tab.id ? 'page' : undefined}
                             className={`shrink-0 flex-none flex flex-col items-center justify-center gap-1 px-4 py-2.5 min-w-[64px] min-h-[56px] transition-colors relative cursor-pointer
-                                ${activeTab === tab.id ? 'text-accent-green' : 'text-[#8E8E93]'}`}
+                                ${activeTab === tab.id ? 'text-accent-green' : 'text-text-tertiary'}`}
                         >
                             <tab.Icon size={22} strokeWidth={1.5} />
                             <span className="text-[10px] font-medium">{tab.mobileLabel}</span>

@@ -40,7 +40,7 @@ This is a data-dense trading tool. Every design decision serves information dens
 |-------|-------|-------|
 | `text-primary` | `#E6E6E6` | Headings, emphasis, key data — NOT body text |
 | `text-secondary` | `#868F97` | **Default body text** (Fey gray) |
-| `text-tertiary` | `#555555` | Labels, timestamps, metadata |
+| `text-tertiary` | `#6B6B6B` | Labels, timestamps, metadata |
 | True white | `#FFFFFF` | h1-h6 headings, stat values, input text |
 
 **Rule:** Body defaults to `text-secondary` (#868F97). Only headings (`h1`-`h6`), stat values, and input text use white. This creates the visual hierarchy — white draws the eye to what matters.

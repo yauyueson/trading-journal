@@ -37,7 +37,7 @@ export const ScoreValidation: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="card p-6 bg-[#242426]/50">
+            <div className="card p-6 bg-bg-tertiary/50">
                 <div className="flex items-center gap-2 text-text-secondary">
                     <Loader2 size={16} className="animate-spin" />
                     <span className="text-sm">Loading score validation...</span>
@@ -48,7 +48,7 @@ export const ScoreValidation: React.FC = () => {
 
     if (error) {
         return (
-            <div className="card p-6 bg-[#242426]/50">
+            <div className="card p-6 bg-bg-tertiary/50">
                 <div className="text-red-400 text-sm">Score validation error: {error}</div>
             </div>
         );
@@ -56,7 +56,7 @@ export const ScoreValidation: React.FC = () => {
 
     if (!data || data.totalClosed === 0) {
         return (
-            <div className="card p-6 bg-[#242426]/50">
+            <div className="card p-6 bg-bg-tertiary/50">
                 <h3 className="text-lg font-semibold text-white/90 flex items-center gap-2 mb-2">
                     <TrendingUp size={18} />
                     Score → P&L Validation
@@ -71,7 +71,7 @@ export const ScoreValidation: React.FC = () => {
     const hasData = data.buckets.some(b => b.closedCount > 0);
 
     return (
-        <div className="card p-6 bg-[#242426]/50">
+        <div className="card p-6 bg-bg-tertiary/50">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-white/90 flex items-center gap-2">
                     <TrendingUp size={18} />

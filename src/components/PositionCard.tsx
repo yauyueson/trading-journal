@@ -975,7 +975,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                         className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
                                             closeExitType === t
                                                 ? 'bg-accent-green/20 text-accent-green border-accent-green/40'
-                                                : 'bg-[#2C2C2E] text-text-tertiary border-[#3A3A3C] hover:text-white'
+                                                : 'bg-bg-tertiary text-text-tertiary border-white/[0.1] hover:text-white'
                                         }`}
                                     >
                                         {label}
