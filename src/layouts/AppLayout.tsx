@@ -68,8 +68,8 @@ export function AppLayout() {
   return (
     <div style={{ minHeight: '100dvh' }}>
       {/* Header — floating bar on desktop, sticky full-width on mobile */}
-      <div className="sticky top-0 z-50 sm:top-3 sm:px-4 lg:px-8">
-        <div className="mx-auto px-4 py-2.5 flex items-center gap-6 max-w-6xl
+      <div className="sticky top-0 z-50 sm:top-3 sm:px-4 sm:px-6">
+        <div className="mx-auto px-4 py-2.5 flex items-center gap-6 max-w-7xl
           border-b border-white/[0.08] bg-[#0A0A0E]/90 backdrop-blur-md
           sm:border sm:border-white/[0.08] sm:rounded-2xl sm:bg-black/60 sm:backdrop-blur-2xl sm:shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
           {/* Logo */}
@@ -106,7 +106,7 @@ export function AppLayout() {
       </div>
 
       {/* Content — extra top padding on desktop to account for floating bar */}
-      <div className="mx-auto px-4 sm:px-6 pt-4 sm:pt-10 pb-safe max-w-7xl ambient-glow">
+      <div className="mx-auto px-4 sm:px-6 pt-4 sm:pt-14 pb-safe max-w-7xl ambient-glow">
         <Outlet />
       </div>
     </div>
