@@ -10,6 +10,7 @@ import { useAppSettings } from '../context/AppSettingsContext';
 import { STRATEGY_PROFILES } from '../lib/strategyProfiles';
 import { useStrategyConfig, getConfigProfile } from '../lib/strategyConfig';
 import { supabase } from '../lib/supabase';
+import { SpreadPickerModal } from '../components/SpreadPickerModal';
 import type { TechScoreOptions } from '../lib/tech-analysis';
 
 // Signal preset weight maps — production subset of src/lib/backtest/types.ts SIGNAL_PRESETS
@@ -212,7 +213,8 @@ export const SignalsPage: React.FC = () => {
   const hasSeededWatchlist = useRef(false);
   const [tab, setTab] = useState<'dashboard' | 'history'>('dashboard');
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [activeBoard, setActiveBoard] = useState<'swing' | 'shortTerm' | 'dte5'>('dte5');
+  const [activeBoard] = useState<'swing' | 'shortTerm' | 'dte5'>('dte5');
+  const [pickerSignal, setPickerSignal] = useState<{ ticker: string; side: 'bull' | 'bear'; spread: string } | null>(null);
 
   // Dynamic config — reads from active board's profile
   const activeConfig = getConfigProfile(stratConfig, activeBoard);
@@ -382,43 +384,10 @@ export const SignalsPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 pb-24 sm:pb-6 stagger-fade-in">
-      {/* Board Toggle */}
-      <div className="flex items-center gap-1 mb-4 bg-white/[0.03] border border-white/[0.06] rounded-lg p-1 w-fit">
-        <button
-          onClick={() => setActiveBoard('dte5')}
-          className={`px-4 py-2.5 text-sm font-medium rounded-md transition-colors min-h-[44px] ${
-            activeBoard === 'dte5'
-              ? 'bg-amber-500/20 text-amber-400'
-              : 'text-text-tertiary hover:text-text-secondary'
-          }`}
-        >
-          DTE5 Bull+Bear
-        </button>
-        <button
-          onClick={() => setActiveBoard('swing')}
-          className={`px-4 py-2.5 text-sm font-medium rounded-md transition-colors min-h-[44px] ${
-            activeBoard === 'swing'
-              ? 'bg-green-500/20 text-green-400'
-              : 'text-text-tertiary hover:text-text-secondary'
-          }`}
-        >
-          Swing (1D)
-        </button>
-        <button
-          onClick={() => setActiveBoard('shortTerm')}
-          className={`px-4 py-2.5 text-sm font-medium rounded-md transition-colors min-h-[44px] ${
-            activeBoard === 'shortTerm'
-              ? 'bg-blue-500/20 text-blue-400'
-              : 'text-text-tertiary hover:text-text-secondary'
-          }`}
-        >
-          Short-Term (130M)
-        </button>
-      </div>
+    <div className="max-w-7xl mx-auto stagger-fade-in">
 
       {/* DTE5 Board — Multi-ticker Bull + Bear */}
-      {activeBoard === 'dte5' && (() => {
+      {(() => {
         // Signal configs per ticker
         // Helper: extract real EMA values from debug
         const getEMAs = (row: typeof scanner.signals[0] | undefined) => {
@@ -481,94 +450,133 @@ export const SignalsPage: React.FC = () => {
         ];
 
         return (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 mb-4">
-              <Radio size={24} className="text-amber-400" />
+          <div>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
               <div>
-                <h1 className="text-xl font-semibold">DTE5 Signal Board — Bull + Bear</h1>
-                <p className="text-xs text-text-tertiary">Multi-ticker EMA gate check — hold-to-expiry — $10K shared equity — Recommended: QQQ bull + SPY bear</p>
+                <h1 className="text-lg font-semibold">Signals</h1>
+                <p className="text-xs text-text-tertiary mt-0.5">DTE5 EMA gate · hold-to-expiry · $10K equity</p>
+              </div>
+              <button
+                onClick={() => { scanner.clearCache(); scanner.scan(techOptions, ['QQQ', 'SPY', 'IWM'], '1D'); }}
+                disabled={scanner.loading}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/[0.05] border border-white/[0.08] text-text-secondary hover:text-text-primary hover:bg-white/[0.08] disabled:opacity-50 transition-all duration-150"
+              >
+                <RefreshCw size={12} className={scanner.loading ? 'animate-spin' : ''} />
+                {scanner.loading ? `${scanner.progress}%` : 'Scan'}
+              </button>
+            </div>
+
+            {/* Two columns: Bull (left) | Bear (right) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+
+              {/* ── BULL column ── */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-1 h-4 rounded-full bg-emerald-400" />
+                  <span className="text-sm font-semibold text-emerald-400">Bull Put</span>
+                  <span className="text-xs text-text-tertiary">· Close &gt; EMA34</span>
+                </div>
+                <div className="space-y-3">
+                  {DTE5_SIGNALS.filter(s => s.side === 'bull').map((sig, idx) => {
+                    const row = scanner.signals.find(s => s.ticker === sig.ticker);
+                    const close = row?.lastClose ?? 0;
+                    const criteria = sig.criteria(row);
+                    const allPass = criteria.every(c => c.pass);
+                    return (
+                      <div
+                        key={idx}
+                        className={`rounded-xl p-4 border transition-all duration-150 ${
+                          allPass ? 'border-emerald-500/20 bg-emerald-500/[0.04] cursor-pointer hover:bg-emerald-500/[0.07]' : 'border-white/[0.06] bg-white/[0.02]'
+                        }`}
+                        onClick={allPass ? () => setPickerSignal({ ticker: sig.ticker, side: 'bull', spread: sig.spread }) : undefined}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base font-bold">{sig.ticker}</span>
+                            <span className="text-xs text-text-tertiary font-mono">{sig.spread}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-text-secondary font-mono">${close.toFixed(2)}</span>
+                            <div className={`w-2 h-2 rounded-full ${allPass ? 'bg-emerald-400 pulse-glow' : 'bg-text-tertiary/20'}`} />
+                          </div>
+                        </div>
+                        <div className="space-y-1 mb-2">
+                          {criteria.map((c, ci) => (
+                            <div key={ci} className="flex items-center gap-1.5 text-[11px]">
+                              <span className={c.pass ? 'text-emerald-400' : 'text-text-tertiary'}>{c.pass ? '✓' : '✗'}</span>
+                              <span className={c.pass ? 'text-text-secondary' : 'text-text-tertiary'}>{c.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className={`text-[11px] font-semibold ${allPass ? 'text-emerald-400' : 'text-text-tertiary'}`}>
+                          {allPass ? 'Tap to open spread →' : 'No signal'}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ── BEAR column ── */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-1 h-4 rounded-full bg-rose-400" />
+                  <span className="text-sm font-semibold text-rose-400">Bear Call</span>
+                  <span className="text-xs text-text-tertiary">· EMA21 &lt; EMA34 &lt; EMA55 · Close &lt; EMA21</span>
+                </div>
+                <div className="space-y-3">
+                  {DTE5_SIGNALS.filter(s => s.side === 'bear').map((sig, idx) => {
+                    const row = scanner.signals.find(s => s.ticker === sig.ticker);
+                    const close = row?.lastClose ?? 0;
+                    const criteria = sig.criteria(row);
+                    const allPass = criteria.every(c => c.pass);
+                    return (
+                      <div
+                        key={idx}
+                        className={`rounded-xl p-4 border transition-all duration-150 ${
+                          allPass ? 'border-rose-500/20 bg-rose-500/[0.04] cursor-pointer hover:bg-rose-500/[0.07]' : 'border-white/[0.06] bg-white/[0.02]'
+                        }`}
+                        onClick={allPass ? () => setPickerSignal({ ticker: sig.ticker, side: 'bear', spread: sig.spread }) : undefined}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base font-bold">{sig.ticker}</span>
+                            <span className="text-xs text-text-tertiary font-mono">{sig.spread}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-text-secondary font-mono">${close.toFixed(2)}</span>
+                            <div className={`w-2 h-2 rounded-full ${allPass ? 'bg-rose-400' : 'bg-text-tertiary/20'}`} />
+                          </div>
+                        </div>
+                        <div className="space-y-1 mb-2">
+                          {criteria.map((c, ci) => (
+                            <div key={ci} className="flex items-center gap-1.5 text-[11px]">
+                              <span className={c.pass ? 'text-rose-400' : 'text-text-tertiary'}>{c.pass ? '✓' : '✗'}</span>
+                              <span className={c.pass ? 'text-text-secondary' : 'text-text-tertiary'}>{c.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className={`text-[11px] font-semibold ${allPass ? 'text-rose-400' : 'text-text-tertiary'}`}>
+                          {allPass ? 'Tap to open spread →' : 'No signal'}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            {/* Signal Cards */}
-            <div className="space-y-3">
-              {DTE5_SIGNALS.map((sig, idx) => {
-                const row = scanner.signals.find(s => s.ticker === sig.ticker);
-                const close = row?.lastClose ?? 0;
-                const criteria = sig.criteria(row);
-                const allPass = criteria.every(c => c.pass);
-
-                const borderColor = allPass
-                  ? (sig.side === 'bull' ? 'border-white/[0.06] bg-white/[0.02]' : 'border-white/[0.06] bg-white/[0.02]')
-                  : 'border-white/[0.08] bg-white/5';
-                const badgeColor = allPass
-                  ? (sig.side === 'bull' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30')
-                  : 'bg-zinc-800 text-text-tertiary border-white/[0.08]';
-
-                return (
-                  <div key={idx} className={`rounded-xl border ${borderColor} p-4`}>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-lg font-bold">{sig.ticker}</span>
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeColor}`}>
-                          {sig.side === 'bull' ? '▲ BULL PUT' : '▼ BEAR CALL'}
-                        </span>
-                        <span className="text-sm text-text-secondary">{sig.spread}</span>
-                        {sig.recommended && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/20 text-amber-400">REC</span>}
-                        <span className="text-sm text-text-secondary">${close.toFixed(2)}</span>
-                      </div>
-                      <span className={`px-3 py-1.5 rounded-lg text-xs font-bold self-start sm:self-auto ${allPass ? (sig.side === 'bull' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400') : 'bg-zinc-800 text-zinc-500'}`}>
-                        {allPass ? 'GO' : 'NO SIGNAL'}
-                      </span>
-                    </div>
-
-                    {/* Criteria checklist */}
-                    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-1 sm:gap-x-4 sm:gap-y-1 text-xs">
-                      {criteria.map((c, ci) => (
-                        <span key={ci} className={c.pass ? 'text-emerald-400' : 'text-zinc-500'}>
-                          {c.pass ? '✓' : '✗'} {c.label}: {c.value}
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* Note */}
-                    <p className="mt-2 text-[10px] text-text-tertiary">{sig.note}</p>
-
-                    {allPass && sig.side === 'bull' && (
-                      <div className="mt-2 p-2 rounded bg-emerald-500/10 border border-emerald-500/20">
-                        <p className="text-emerald-400 text-xs font-semibold">Signal Active — Open /selector for DTE5 spread recommendation</p>
-                      </div>
-                    )}
-                    {allPass && sig.side === 'bear' && (
-                      <div className="mt-2 p-2 rounded bg-rose-500/10 border border-rose-500/20">
-                        <p className="text-rose-400 text-xs font-semibold">Bear Signal Active — Sell {sig.spread} call spread on {sig.ticker}</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Entry timing note */}
-            <div className="p-2.5 rounded-lg bg-white/[0.03] border border-white/5 text-[11px] text-text-tertiary leading-relaxed">
-              <span className="text-text-secondary font-medium">Entry tip:</span> Enter next morning 10:00-10:30 AM, not at signal close. Backtest shows ~8% better credit on average (stock trends intraday in regime direction). Verify EMAs still hold before entering.
-            </div>
-
-            {/* Scan button */}
-            <button
-              onClick={() => { scanner.clearCache(); scanner.scan(techOptions, ['QQQ', 'SPY', 'IWM'], '1D'); }}
-              disabled={scanner.loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50 transition-colors"
-            >
-              <RefreshCw size={13} className={scanner.loading ? 'animate-spin' : ''} />
-              {scanner.loading ? `${scanner.progress}%` : 'Rescan All'}
-            </button>
+            {/* Entry timing */}
+            <p className="text-[10px] text-text-tertiary mt-6">
+              Entry: next morning 10:00-10:30 AM · Verify EMAs hold before entering
+            </p>
           </div>
         );
       })()}
 
-      {/* Legacy boards — full scanner view */}
-      {activeBoard !== 'dte5' && <>
+      {/* Legacy boards — hidden (retired strategies) */}
+      {false && <>
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
@@ -801,6 +809,7 @@ export const SignalsPage: React.FC = () => {
       </>}
 
       </>}
+      <SpreadPickerModal signal={pickerSignal} onClose={() => setPickerSignal(null)} />
     </div>
   );
 };

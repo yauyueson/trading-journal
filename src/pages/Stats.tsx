@@ -246,43 +246,66 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
         <div className="stagger-fade-in pb-24 sm:pb-0">
             <h2 className="text-2xl font-bold mb-4">Performance Stats</h2>
 
-            {/* Filters */}
-            <div className="flex flex-wrap items-center gap-4 mb-4">
-                {/* Owner Filter */}
-                <div className="flex items-center gap-1.5">
-                    {(['All', 'Yuchen', 'Annie'] as const).map(value => (
-                        <button
-                            key={value}
-                            type="button"
-                            onClick={() => setOwnerFilter(value)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${ownerFilter === value
-                                ? value === 'Yuchen'
-                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                    : value === 'Annie'
-                                        ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
-                                        : 'bg-white/10 text-text-primary border border-white/20'
-                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                                }`}
-                        >
-                            {value}
-                        </button>
-                    ))}
-                </div>
-                {/* Strategy Filter */}
-                <div className="flex items-center gap-1.5">
-                    {([['dte5', 'DTE5'], ['All', 'All'], ['swing', 'Swing'], ['shortTerm', 'ST']] as const).map(([value, label]) => (
-                        <button
-                            key={value}
-                            type="button"
-                            onClick={() => setStrategyFilter(value as typeof strategyFilter)}
-                            className={`filter-pill ${strategyFilter === value ? 'filter-pill-active' : ''}`}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            <div className="lg:flex lg:gap-8">
+                {/* Sidebar — filters + vertical tabs on desktop */}
+                <div className="lg:w-48 shrink-0 lg:sticky lg:top-20 lg:self-start">
+                    {/* Owner Filter */}
+                    <div className="flex items-center gap-1.5 mb-4 lg:flex-col lg:items-stretch">
+                        {(['All', 'Yuchen', 'Annie'] as const).map(value => (
+                            <button
+                                key={value}
+                                type="button"
+                                onClick={() => setOwnerFilter(value)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all lg:text-left ${ownerFilter === value
+                                    ? value === 'Yuchen'
+                                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                        : value === 'Annie'
+                                            ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
+                                            : 'bg-white/10 text-text-primary border border-white/20'
+                                    : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                    }`}
+                            >
+                                {value}
+                            </button>
+                        ))}
+                    </div>
+                    {/* Strategy Filter */}
+                    <div className="flex items-center gap-1.5 mb-4 lg:flex-col lg:items-stretch">
+                        {([['dte5', 'DTE5'], ['All', 'All'], ['swing', 'Swing'], ['shortTerm', 'ST']] as const).map(([value, label]) => (
+                            <button
+                                key={value}
+                                type="button"
+                                onClick={() => setStrategyFilter(value as typeof strategyFilter)}
+                                className={`filter-pill lg:text-left ${strategyFilter === value ? 'filter-pill-active' : ''}`}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
 
+                    {/* Vertical tab nav — desktop only */}
+                    {closedPositions.length > 0 && (
+                        <div className="hidden lg:flex flex-col gap-1">
+                            {TABS.map(tab => (
+                                <button
+                                    key={tab.key}
+                                    type="button"
+                                    onClick={() => setStatsTab(tab.key)}
+                                    className={`text-left px-3 py-2 rounded-lg text-sm ${
+                                        statsTab === tab.key
+                                            ? 'bg-white/[0.08] text-white'
+                                            : 'text-text-tertiary hover:text-text-secondary'
+                                    }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Main content */}
+                <div className="flex-1 min-w-0">
             {closedPositions.length === 0 ? (
                 <div className="text-center py-16 text-text-secondary">
                     <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-bg-tertiary flex items-center justify-center">
@@ -292,8 +315,8 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                 </div>
             ) : (
                 <>
-                    {/* Sub-tab pills */}
-                    <div className="flex items-center gap-1.5 mb-6 overflow-x-auto scrollbar-hide">
+                    {/* Sub-tab pills — mobile only */}
+                    <div className="flex items-center gap-1.5 mb-6 overflow-x-auto scrollbar-hide lg:hidden">
                         {TABS.map(tab => (
                             <button
                                 key={tab.key}
@@ -486,6 +509,8 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                     )}
                 </>
             )}
+                </div>
+            </div>
         </div>
     );
 };

@@ -353,32 +353,13 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                 <p className="text-text-tertiary text-sm mt-1">{`Credit spread recommendations · ${profile.subtitle}`}</p>
             </div>
 
-            {/* Input Panel */}
-            <div className="bg-bg-tertiary border border-white/[0.08] rounded-xl p-4 sm:p-6 mb-6 shadow-sm">
-                <div className="flex flex-col gap-4">
-                    {/* Portfolio / Risk Settings */}
-                    <div className="border border-white/[0.08] rounded-lg overflow-hidden">
-                        <button
-                            type="button"
-                            onClick={() => setShowSettings(!showSettings)}
-                            className="w-full flex items-center justify-between px-4 py-2.5 bg-bg-primary hover:bg-bg-secondary transition-colors text-left"
-                        >
-                            <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                                <Settings2 size={16} className="text-accent-green" />
-                                Portfolio / Risk Settings
-                            </span>
-                            <ChevronDown size={18} className={`text-gray-500 transition-transform ${showSettings ? 'rotate-180' : ''}`} />
-                        </button>
-                        {showSettings && (
-                            <div className="p-4 bg-bg-secondary border-t border-white/[0.08]">
-                                <PortfolioSettingsForm variant="full" />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Row 1: Ticker + Direction + Analyze (always visible, minimum viable input) */}
-                    <div className="flex flex-col md:flex-row gap-3 items-end">
-                        <div className="flex-1 min-w-0">
+            {/* Two-column layout */}
+            <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                {/* Sidebar — settings/controls */}
+                <div className="lg:w-1/3 lg:sticky lg:top-20 lg:self-start space-y-4">
+                    <div className="bg-bg-tertiary border border-white/[0.08] rounded-xl p-4 sm:p-6 shadow-sm space-y-4">
+                        {/* Ticker + Analyze */}
+                        <div>
                             <label className="text-xs text-text-tertiary font-medium mb-1.5 block uppercase tracking-wider">Ticker</label>
                             <div className="relative">
                                 <input
@@ -393,7 +374,38 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                 <Search className="absolute left-3 top-3.5 text-gray-500" size={20} />
                             </div>
                         </div>
-                        <div className="w-44">
+
+                        <button
+                            onClick={handleAnalyze}
+                            disabled={loading || !ticker}
+                            className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-lg transition-all shadow-lg shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                            {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Activity size={20} />}
+                            Analyze
+                        </button>
+
+                        {/* Portfolio / Risk Settings */}
+                        <div className="border border-white/[0.08] rounded-lg overflow-hidden">
+                            <button
+                                type="button"
+                                onClick={() => setShowSettings(!showSettings)}
+                                className="w-full flex items-center justify-between px-4 py-2.5 bg-bg-primary hover:bg-bg-secondary transition-colors text-left"
+                            >
+                                <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                                    <Settings2 size={16} className="text-accent-green" />
+                                    Portfolio / Risk Settings
+                                </span>
+                                <ChevronDown size={18} className={`text-gray-500 transition-transform ${showSettings ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showSettings && (
+                                <div className="p-4 bg-bg-secondary border-t border-white/[0.08]">
+                                    <PortfolioSettingsForm variant="full" />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Direction */}
+                        <div>
                             <label className="text-xs text-text-tertiary font-medium mb-1.5 block uppercase tracking-wider">Direction</label>
                             <div className="grid grid-cols-2 gap-2 bg-bg-primary p-1 rounded-lg border border-white/[0.08]">
                                 {(['BULL', 'BEAR'] as const).map((d) => (
@@ -413,24 +425,14 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                 ))}
                             </div>
                         </div>
-                        <button
-                            onClick={handleAnalyze}
-                            disabled={loading || !ticker}
-                            className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-lg transition-all shadow-lg shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[140px]"
-                        >
-                            {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Activity size={20} />}
-                            Analyze
-                        </button>
-                    </div>
 
-                    {/* Row 2: DTE + Spread Width */}
-                    <div className="flex flex-col md:flex-row gap-4 items-end">
-                        <div className="flex-1">
+                        {/* Target DTE */}
+                        <div>
                             <label className="text-xs text-text-tertiary font-medium mb-1.5 block uppercase tracking-wider">Target DTE</label>
                             <div className="bg-bg-primary p-1.5 rounded-lg border border-white/[0.08]">
-                                <div className="flex flex-col sm:flex-row gap-2 sm:gap-0">
+                                <div className="flex flex-col gap-2">
                                     {/* Short-Term group */}
-                                    <div className="flex-1 sm:pr-2">
+                                    <div>
                                         <div className="text-[9px] text-blue-400 font-semibold uppercase tracking-wider text-center mb-1.5 mt-0.5">Short-Term</div>
                                         <div className="grid grid-cols-3 gap-1">
                                             {STRATEGY_PROFILES.shortTerm.dteOptions.map((opt) => (
@@ -452,10 +454,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                         </div>
                                     </div>
                                     {/* Divider */}
-                                    <div className="hidden sm:block w-px bg-[#444] mx-1 my-1 self-stretch" />
-                                    <div className="sm:hidden h-px bg-[#444] my-1" />
+                                    <div className="h-px bg-[#444]" />
                                     {/* Swing group */}
-                                    <div className="flex-1 sm:pl-2">
+                                    <div>
                                         <div className="text-[9px] text-green-400 font-semibold uppercase tracking-wider text-center mb-1.5 mt-0.5">Swing</div>
                                         <div className="grid grid-cols-3 gap-1">
                                             {STRATEGY_PROFILES.swing.dteOptions.map((opt) => (
@@ -479,7 +480,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                 </div>
                             </div>
                         </div>
-                        <div className="w-full md:w-44">
+
+                        {/* Spread Width */}
+                        <div>
                             <label className="text-xs text-text-tertiary font-medium mb-1.5 block uppercase tracking-wider">Spread Width</label>
                             <div className="grid grid-cols-4 gap-1.5 bg-bg-primary p-1 rounded-lg border border-white/[0.08]">
                                 {profile.widthOptions.map((opt) => (
@@ -499,7 +502,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         </div>
                     </div>
                 </div>
-            </div>
+
+                {/* Main — results */}
+                <div className="lg:w-2/3">
 
             {error && (
                 <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl mb-6 flex items-center gap-3">
@@ -1473,6 +1478,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                     })()}
                 </div>
             )}
+
+                </div>{/* end lg:w-2/3 main */}
+            </div>{/* end flex two-column layout */}
 
             <DataFooter timestamp={null} />
         </div>

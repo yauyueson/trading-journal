@@ -112,9 +112,8 @@ describe('SIG-01 — Signals page navigate() URL params', () => {
     expect(signalsSrc).toContain('strategy: activeBoard');
   });
 
-  it('src/pages/Signals.tsx has board toggle for swing and shortTerm', () => {
-    expect(signalsSrc).toContain("setActiveBoard('swing')");
-    expect(signalsSrc).toContain("setActiveBoard('shortTerm')");
+  it('src/pages/Signals.tsx has DTE5 board as default', () => {
+    expect(signalsSrc).toContain("'dte5'");
   });
 });
 

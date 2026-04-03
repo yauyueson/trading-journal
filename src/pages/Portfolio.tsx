@@ -233,210 +233,233 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
 
     return (
         <div className="stagger-fade-in pb-24 sm:pb-0 space-y-6">
-            {/* Header */}
-            <div className="space-y-4">
-                <div className="flex flex-col gap-4">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-text-primary to-text-secondary bg-clip-text text-transparent">
-                                Portfolio
-                            </h1>
-                            <p className="text-text-secondary text-sm mt-1 hidden sm:block">Manage open positions and track performance</p>
-                            {activePositions.length > 0 && portfolioTotal > 0 && (
-                                <p className="text-xs sm:text-sm text-text-tertiary mt-1.5 sm:mt-2 font-mono">
-                                    Risk: <span className={totalRiskPct > 10 ? 'text-accent-red font-semibold' : 'text-text-primary'}>{formatCurrency(totalRiskDollars)}</span>
-                                    {' '}<span className={totalRiskPct > 10 ? 'text-accent-red font-semibold' : ''}>({totalRiskPct.toFixed(1)}%)</span>
-                                </p>
-                            )}
-                        </div>
-                        {/* Mobile: only add button. Desktop: full row */}
-                        <div className="flex items-center gap-2 sm:gap-3">
-                            <button
-                                onClick={refreshAllPrices}
-                                disabled={refreshing}
-                                className={`
-                                    relative overflow-hidden group flex items-center gap-2 p-2.5 sm:px-4 sm:py-2 rounded-xl border border-white/[0.06]
-                                    bg-white/[0.03] hover:bg-white/[0.05] transition-all duration-200
-                                    ${refreshing ? 'opacity-70 cursor-not-allowed text-text-tertiary' : 'text-text-secondary hover:text-text-primary hover:border-text-secondary/30'}
-                                `}
-                                aria-label="Refresh all prices"
-                            >
-                                <RefreshCw size={18} className={`transition-transform duration-500 ${refreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
-                                <span className="font-medium text-sm hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh All'}</span>
-                            </button>
-                            <button
-                                onClick={() => setShowForm(!showForm)}
-                                className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2.5 sm:py-2 rounded-xl font-medium text-sm text-black shadow-lg transition-all duration-200 bg-accent-green hover:bg-[#5ED4A6] shadow-accent-green/20 hover:shadow-accent-green/30 hover:-translate-y-0.5"
-                            >
-                                <span className="text-lg leading-none">+</span>
-                                <span className="hidden sm:inline">Add Position</span>
-                            </button>
+            {/* Header — full width above both columns */}
+            <div className="flex justify-between items-start">
+                <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-text-primary to-text-secondary bg-clip-text text-transparent">
+                        Portfolio
+                    </h1>
+                    <p className="text-text-secondary text-sm mt-1 hidden sm:block">Manage open positions and track performance</p>
+                    {activePositions.length > 0 && portfolioTotal > 0 && (
+                        <p className="text-xs sm:text-sm text-text-tertiary mt-1.5 sm:mt-2 font-mono">
+                            Risk: <span className={totalRiskPct > 10 ? 'text-accent-red font-semibold' : 'text-text-primary'}>{formatCurrency(totalRiskDollars)}</span>
+                            {' '}<span className={totalRiskPct > 10 ? 'text-accent-red font-semibold' : ''}>({totalRiskPct.toFixed(1)}%)</span>
+                        </p>
+                    )}
+                </div>
+                {/* Mobile: only add button. Desktop: full row */}
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <button
+                        onClick={refreshAllPrices}
+                        disabled={refreshing}
+                        className={`
+                            relative overflow-hidden group flex items-center gap-2 p-2.5 sm:px-4 sm:py-2 rounded-xl border border-white/[0.06]
+                            bg-white/[0.03] hover:bg-white/[0.05] transition-all duration-200
+                            ${refreshing ? 'opacity-70 cursor-not-allowed text-text-tertiary' : 'text-text-secondary hover:text-text-primary hover:border-text-secondary/30'}
+                        `}
+                        aria-label="Refresh all prices"
+                    >
+                        <RefreshCw size={18} className={`transition-transform duration-500 ${refreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
+                        <span className="font-medium text-sm hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh All'}</span>
+                    </button>
+                    <button
+                        onClick={() => setShowForm(!showForm)}
+                        className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2.5 sm:py-2 rounded-xl font-medium text-sm text-black shadow-lg transition-all duration-200 bg-accent-green hover:bg-[#5ED4A6] shadow-accent-green/20 hover:shadow-accent-green/30 hover:-translate-y-0.5"
+                    >
+                        <span className="text-lg leading-none">+</span>
+                        <span className="hidden sm:inline">Add Position</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Two-column layout: sidebar + main content */}
+            <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                {/* Sidebar */}
+                <div className="lg:w-1/4 lg:sticky lg:top-20 lg:self-start space-y-4">
+                    {/* Filter: Owner */}
+                    <div>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary mb-1.5 block">Owner</span>
+                        <div className="flex flex-row lg:flex-col gap-1.5">
+                            {(['All', 'Yuchen', 'Annie'] as const).map(value => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => setOwnerFilter(value)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] ${ownerFilter === value
+                                        ? value === 'Yuchen'
+                                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                            : value === 'Annie'
+                                                ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
+                                                : 'bg-white/10 text-text-primary border border-white/20'
+                                        : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                        }`}
+                                >
+                                    {value}
+                                </button>
+                            ))}
                         </div>
                     </div>
-                    {/* Settings toggle - full width on mobile */}
+
+                    {/* Filter: Strategy */}
+                    <div>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary mb-1.5 block">Strategy</span>
+                        <div className="flex flex-row lg:flex-col gap-1.5">
+                            {([['All', 'All'], ['dte5', 'DTE5'], ['swing', 'Swing'], ['shortTerm', 'ST'], ['untagged', '\u2014']] as const).map(([value, label]) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => setStrategyFilter(value as typeof strategyFilter)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] ${strategyFilter === value
+                                        ? value === 'dte5'
+                                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                                            : value === 'swing'
+                                                ? 'bg-green-500/20 text-green-400 border border-green-500/40'
+                                                : value === 'shortTerm'
+                                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                                    : 'bg-white/10 text-text-primary border border-white/20'
+                                        : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                        }`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Filter: Mode */}
+                    <div>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary mb-1.5 block">Mode</span>
+                        <div className="flex flex-row lg:flex-col gap-1.5">
+                            {([['all', 'All'], ['paper', 'Paper'], ['live', 'Live']] as const).map(([value, label]) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => setPaperFilter(value as typeof paperFilter)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] ${paperFilter === value
+                                        ? value === 'paper'
+                                            ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40'
+                                            : value === 'live'
+                                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                                : 'bg-white/10 text-text-primary border border-white/20'
+                                        : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                        }`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Settings toggle */}
                     <button
                         type="button"
                         onClick={() => setShowAccountSettings(!showAccountSettings)}
-                        className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.05] text-text-secondary hover:text-text-primary text-xs sm:text-sm font-medium transition-colors w-full sm:w-auto"
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.05] text-text-secondary hover:text-text-primary text-xs sm:text-sm font-medium transition-colors w-full"
                         aria-expanded={showAccountSettings}
                     >
                         <Settings2 size={16} className="text-accent-green shrink-0" />
                         <span className="font-mono truncate min-w-0">
-                            <span className="hidden sm:inline">Portfolio {formatCurrency(portfolioTotal)} · Risk {riskPct}% · Stop {stopOutPct}% · Cap {formatCurrency(maxRiskPerTrade)}/trade</span>
+                            <span className="hidden lg:inline">Portfolio {formatCurrency(portfolioTotal)} · Risk {riskPct}% · Stop {stopOutPct}% · Cap {formatCurrency(maxRiskPerTrade)}/trade</span>
+                            <span className="lg:hidden hidden sm:inline">Portfolio {formatCurrency(portfolioTotal)} · Risk {riskPct}% · Stop {stopOutPct}% · Cap {formatCurrency(maxRiskPerTrade)}/trade</span>
                             <span className="sm:hidden truncate">{formatCurrency(portfolioTotal)} · {riskPct}% · {formatCurrency(maxRiskPerTrade)}/trade</span>
                         </span>
                         <ChevronDown size={16} className={`text-gray-500 transition-transform shrink-0 ${showAccountSettings ? 'rotate-180' : ''}`} />
                     </button>
-                </div>
-                {/* Filters — Owner + Strategy + Mode in one compact row */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                    {(['All', 'Yuchen', 'Annie'] as const).map(value => (
-                        <button
-                            key={value}
-                            type="button"
-                            onClick={() => setOwnerFilter(value)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] ${ownerFilter === value
-                                ? value === 'Yuchen'
-                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                    : value === 'Annie'
-                                        ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
-                                        : 'bg-white/10 text-text-primary border border-white/20'
-                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                                }`}
-                        >
-                            {value}
-                        </button>
-                    ))}
-                    <span className="text-text-tertiary/30 mx-0.5">|</span>
-                    {([['All', 'All'], ['dte5', 'DTE5'], ['swing', 'Swing'], ['shortTerm', 'ST'], ['untagged', '\u2014']] as const).map(([value, label]) => (
-                        <button
-                            key={value}
-                            type="button"
-                            onClick={() => setStrategyFilter(value as typeof strategyFilter)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] ${strategyFilter === value
-                                ? value === 'dte5'
-                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                                    : value === 'swing'
-                                        ? 'bg-green-500/20 text-green-400 border border-green-500/40'
-                                        : value === 'shortTerm'
-                                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                            : 'bg-white/10 text-text-primary border border-white/20'
-                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                                }`}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                    <span className="text-text-tertiary/30 mx-0.5">|</span>
-                    {([['all', 'All'], ['paper', 'Paper'], ['live', 'Live']] as const).map(([value, label]) => (
-                        <button
-                            key={value}
-                            type="button"
-                            onClick={() => setPaperFilter(value as typeof paperFilter)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] ${paperFilter === value
-                                ? value === 'paper'
-                                    ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40'
-                                    : value === 'live'
-                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                        : 'bg-white/10 text-text-primary border border-white/20'
-                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                                }`}
-                        >
-                            {label}
-                        </button>
-                    ))}
+
+                    {/* Collapsible Account & Risk Settings */}
+                    {showAccountSettings && (
+                        <div className="rounded-xl border border-white/[0.06] bg-bg-secondary/10 p-6">
+                            <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4">Account & risk</h3>
+                            <PortfolioSettingsForm variant="full" className="max-w-md" />
+                        </div>
+                    )}
                 </div>
 
-                {/* Collapsible Account & Risk Settings */}
-                {showAccountSettings && (
-                    <div className="rounded-xl border border-white/[0.06] bg-bg-secondary/10 p-6">
-                        <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4">Account & risk</h3>
-                        <PortfolioSettingsForm variant="full" className="max-w-md" />
-                    </div>
-                )}
-            </div>
+                {/* Main content */}
+                <div className="lg:w-3/4 space-y-4">
+                    {/* Portfolio Greeks Aggregation Widget */}
+                    {portfolioGreeks && <PortfolioGreeksWidget greeks={portfolioGreeks} />}
 
-            {/* Portfolio Greeks Aggregation Widget */}
-            {portfolioGreeks && <PortfolioGreeksWidget greeks={portfolioGreeks} />}
+                    {/* Summary Strip */}
+                    {activePositions.length > 0 && (() => {
+                        const swingCount = activePositions.filter(p => p.strategy_type === 'swing').length;
+                        const stCount = activePositions.filter(p => p.strategy_type === 'shortTerm').length;
+                        const untaggedCount = activePositions.length - swingCount - stCount;
+                        const dailyTheta = portfolioGreeks?.netTheta ?? 0;
 
-            {/* Summary Strip */}
-            {activePositions.length > 0 && (() => {
-                const swingCount = activePositions.filter(p => p.strategy_type === 'swing').length;
-                const stCount = activePositions.filter(p => p.strategy_type === 'shortTerm').length;
-                const untaggedCount = activePositions.length - swingCount - stCount;
-                const dailyTheta = portfolioGreeks?.netTheta ?? 0;
+                        // Find nearest expiring position
+                        const nearest = [...activePositions].sort((a, b) =>
+                            daysUntil(a.expiration) - daysUntil(b.expiration)
+                        )[0];
+                        const nearestDTE = nearest ? daysUntil(nearest.expiration) : null;
+                        const timeStopThreshold = nearest?.strategy_type === 'shortTerm' ? 1 : 3;
+                        const nearestUrgent = nearestDTE != null && nearestDTE <= timeStopThreshold;
 
-                // Find nearest expiring position
-                const nearest = [...activePositions].sort((a, b) =>
-                    daysUntil(a.expiration) - daysUntil(b.expiration)
-                )[0];
-                const nearestDTE = nearest ? daysUntil(nearest.expiration) : null;
-                const timeStopThreshold = nearest?.strategy_type === 'shortTerm' ? 1 : 3;
-                const nearestUrgent = nearestDTE != null && nearestDTE <= timeStopThreshold;
+                        return (
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2.5 border-b border-white/[0.04] text-xs font-mono mb-4">
+                                <span className="text-text-tertiary">
+                                    {swingCount > 0 && <span className="text-green-400">{swingCount} Swing</span>}
+                                    {swingCount > 0 && stCount > 0 && <span className="text-text-tertiary"> / </span>}
+                                    {stCount > 0 && <span className="text-blue-400">{stCount} ST</span>}
+                                    {untaggedCount > 0 && <span className="text-text-tertiary"> + {untaggedCount}</span>}
+                                </span>
+                                {dailyTheta !== 0 && (
+                                    <span className="text-text-secondary">
+                                        <span className="text-accent-green font-semibold">${(dailyTheta * 100).toFixed(0)}</span>/day theta
+                                    </span>
+                                )}
+                                {nearest && nearestDTE != null && (
+                                    <span className={nearestUrgent ? 'text-accent-red font-semibold' : 'text-text-secondary'}>
+                                        Next: {nearest.ticker} {nearestDTE}d
+                                        {nearestUrgent && ' — close now'}
+                                    </span>
+                                )}
+                            </div>
+                        );
+                    })()}
 
-                return (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2.5 border-b border-white/[0.04] text-xs font-mono mb-4">
-                        <span className="text-text-tertiary">
-                            {swingCount > 0 && <span className="text-green-400">{swingCount} Swing</span>}
-                            {swingCount > 0 && stCount > 0 && <span className="text-text-tertiary"> / </span>}
-                            {stCount > 0 && <span className="text-blue-400">{stCount} ST</span>}
-                            {untaggedCount > 0 && <span className="text-text-tertiary"> + {untaggedCount}</span>}
-                        </span>
-                        {dailyTheta !== 0 && (
-                            <span className="text-text-secondary">
-                                <span className="text-accent-green font-semibold">${(dailyTheta * 100).toFixed(0)}</span>/day theta
-                            </span>
-                        )}
-                        {nearest && nearestDTE != null && (
-                            <span className={nearestUrgent ? 'text-accent-red font-semibold' : 'text-text-secondary'}>
-                                Next: {nearest.ticker} {nearestDTE}d
-                                {nearestUrgent && ' — close now'}
-                            </span>
-                        )}
-                    </div>
-                );
-            })()}
-
-            {/* Quick Add Form */}
-            {showForm && (
-                <QuickAddPositionForm
-                    onAddDirect={onAddDirect}
-                    onClose={() => setShowForm(false)}
-                    profile={profile}
-                    activeStrategy={activeStrategy}
-                />
-            )}
-
-            {activePositions.length === 0 ? (
-                <div className="text-center py-20 text-text-tertiary">
-                    No active positions. Click "Add Position" to start tracking.
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    {sortedPositions.map((position, index) => (
-                        <PositionCard
-                            key={position.id}
-                            position={position}
-                            transactions={transactions.filter(t => t.position_id === position.id)}
-                            onAction={onAction}
-                            onUpdateScore={onUpdateScore}
-                            onUpdatePrice={onUpdatePrice}
-                            onUpdateTarget={onUpdateTarget}
-                            onUpdateStop={onUpdateStop}
-                            onUpdateOwner={onUpdateOwner}
-                            onDelete={onDelete}
-                            onDataUpdate={setLastTimestamp}
-                            refreshTrigger={refreshTrigger}
-                            index={index}
-                            onRollClick={(qty) => setRollingPosition({ position, qty })}
-                            portfolioTotal={portfolioTotal}
-                            initialData={bulkData[position.id]}
+                    {/* Quick Add Form */}
+                    {showForm && (
+                        <QuickAddPositionForm
+                            onAddDirect={onAddDirect}
+                            onClose={() => setShowForm(false)}
+                            profile={profile}
+                            activeStrategy={activeStrategy}
                         />
-                    ))}
-                </div>
-            )}
+                    )}
 
-            <DataFooter timestamp={lastTimestamp} />
+                    {activePositions.length === 0 ? (
+                        <div className="text-center py-20 text-text-tertiary">
+                            No active positions. Click "Add Position" to start tracking.
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {sortedPositions.map((position, index) => (
+                                <PositionCard
+                                    key={position.id}
+                                    position={position}
+                                    transactions={transactions.filter(t => t.position_id === position.id)}
+                                    onAction={onAction}
+                                    onUpdateScore={onUpdateScore}
+                                    onUpdatePrice={onUpdatePrice}
+                                    onUpdateTarget={onUpdateTarget}
+                                    onUpdateStop={onUpdateStop}
+                                    onUpdateOwner={onUpdateOwner}
+                                    onDelete={onDelete}
+                                    onDataUpdate={setLastTimestamp}
+                                    refreshTrigger={refreshTrigger}
+                                    index={index}
+                                    onRollClick={(qty) => setRollingPosition({ position, qty })}
+                                    portfolioTotal={portfolioTotal}
+                                    initialData={bulkData[position.id]}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    <DataFooter timestamp={lastTimestamp} />
+                </div>
+            </div>
 
             {rollingPosition && (
                 <RollModal

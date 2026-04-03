@@ -122,9 +122,8 @@ describe('130M-03 — Signals.tsx wiring', () => {
     expect(signalsSrc).not.toContain('SHORT_TERM_PERIOD_MULT = 1.5');
   });
 
-  it('tab label shows 130M', () => {
-    expect(signalsSrc).toContain('Short-Term (130M)');
-    expect(signalsSrc).not.toContain('Short-Term (4H)');
+  it('DTE5 is default board (retired strategies hidden)', () => {
+    expect(signalsSrc).toContain("'dte5'");
   });
 
   it('signal subtitle shows 130M × 2.25', () => {

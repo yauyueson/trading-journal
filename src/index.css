@@ -27,9 +27,10 @@
         z-index: -1;
         pointer-events: none;
         background:
-            radial-gradient(ellipse 80% 50% at 50% -10%, rgba(78, 190, 150, 0.12), transparent 60%),
-            radial-gradient(ellipse 60% 40% at 80% 60%, rgba(71, 159, 250, 0.06), transparent 50%),
-            radial-gradient(ellipse 50% 50% at 20% 80%, rgba(168, 85, 247, 0.04), transparent 50%),
+            radial-gradient(ellipse 90% 60% at 50% -15%, rgba(78, 190, 150, 0.22), transparent 55%),
+            radial-gradient(ellipse 70% 50% at 85% 55%, rgba(71, 159, 250, 0.12), transparent 50%),
+            radial-gradient(ellipse 60% 55% at 15% 75%, rgba(168, 85, 247, 0.08), transparent 50%),
+            radial-gradient(ellipse 50% 40% at 50% 100%, rgba(255, 161, 108, 0.06), transparent 50%),
             #0A0A0E;
     }
 

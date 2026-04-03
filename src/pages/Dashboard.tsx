@@ -8,6 +8,7 @@ import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAddDirect, usePositionAction, useUpdatePrice } from '../hooks/usePositionMutations';
 import { PositionCard } from '../components/PositionCard';
+import { SpreadPickerModal } from '../components/SpreadPickerModal';
 import { useAllSignals } from '../hooks/useSignalStatus';
 import type { Position, PositionAction as PositionActionType, SpreadRecommendation } from '../lib/types';
 import { CONTRACT_MULTIPLIER } from '../lib/utils';
@@ -25,6 +26,7 @@ export function DashboardPage() {
 
   const [selectedSpread, setSelectedSpread] = useState<SpreadRecommendation | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [pickerSignal, setPickerSignal] = useState<{ ticker: string; side: 'bull' | 'bear'; spread: string } | null>(null);
 
   const capital = settings.dte5Capital?.startingCapital ?? 10000;
   const riskPctPerTrade = settings.dte5Capital?.riskPctPerTrade ?? 10;
@@ -260,36 +262,47 @@ export function DashboardPage() {
             {asOfDate && <span className="text-text-tertiary text-[10px] font-mono">{asOfDate}</span>}
           </div>
           <div className="border-t border-white/[0.06]">
-            {allSignals.map((sig, i) => (
-              <motion.div
-                key={sig.ticker}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: 0.3 + i * 0.08 }}
-                className="flex items-center justify-between py-3.5 border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors px-1"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${sig.isActive ? 'bg-accent-green pulse-glow' : 'bg-text-tertiary/20'}`} />
-                  <div>
-                    <span className="text-text-primary text-sm font-semibold">{sig.ticker}</span>
-                    <span className="text-text-tertiary text-xs ml-2">
-                      {sig.isActive ? 'Bull' : sig.direction === 'PUT' ? 'Bear' : 'Neutral'}
-                    </span>
+            {allSignals.map((sig, i) => {
+              const isBull = sig.isActive;
+              const isBear = sig.direction === 'PUT';
+              const hasSignal = isBull || isBear;
+              const spreadMap: Record<string, string> = { QQQ: isBull ? 'sp30/20' : 'sp40/30', SPY: 'sp40/30', IWM: 'sp15/05' };
+              return (
+                <motion.div
+                  key={sig.ticker}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: 0.3 + i * 0.08 }}
+                  className={`flex items-center justify-between py-3.5 border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors px-1 ${hasSignal ? 'cursor-pointer' : ''}`}
+                  onClick={hasSignal ? () => setPickerSignal({
+                    ticker: sig.ticker,
+                    side: isBull ? 'bull' : 'bear',
+                    spread: spreadMap[sig.ticker] ?? 'sp30/20',
+                  }) : undefined}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${isBull ? 'bg-accent-green pulse-glow' : isBear ? 'bg-accent-red' : 'bg-text-tertiary/20'}`} />
+                    <div>
+                      <span className="text-text-primary text-sm font-semibold">{sig.ticker}</span>
+                      <span className="text-text-tertiary text-xs ml-2">
+                        {isBull ? 'Bull' : isBear ? 'Bear' : 'Neutral'}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {sig.score != null && <span className="text-text-secondary text-xs font-mono">{sig.score}</span>}
-                  {sig.streak > 0 && <span className="text-text-tertiary text-[10px] font-mono">{sig.streak}d</span>}
-                  {sig.isActive ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-accent-green/10 text-accent-green">
-                      {sig.ticker === 'QQQ' && !activeDte5 ? 'ENTRY' : 'Active'}
-                    </span>
-                  ) : sig.direction === 'PUT' ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-accent-red/10 text-accent-red">Bear</span>
-                  ) : null}
-                </div>
-              </motion.div>
-            ))}
+                  <div className="flex items-center gap-3">
+                    {sig.score != null && <span className="text-text-secondary text-xs font-mono">{sig.score}</span>}
+                    {sig.streak > 0 && <span className="text-text-tertiary text-[10px] font-mono">{sig.streak}d</span>}
+                    {isBull ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-accent-green/10 text-accent-green">
+                        Open →
+                      </span>
+                    ) : isBear ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-accent-red/10 text-accent-red">Open →</span>
+                    ) : null}
+                  </div>
+                </motion.div>
+              );
+            })}
             {allSignals.length === 0 && (
               <div className="py-6 text-text-tertiary text-xs text-center">No signal data available</div>
             )}
@@ -419,7 +432,10 @@ export function DashboardPage() {
         </StaggerItem>
       )}
 
-      {/* ── Confirm Modal ── */}
+      {/* ── Spread Picker (click any signal to open) ── */}
+      <SpreadPickerModal signal={pickerSignal} onClose={() => setPickerSignal(null)} />
+
+      {/* ── Confirm Modal (legacy, for recommended spreads section) ── */}
       {showConfirm && selectedSpread && (() => {
         const { contracts, maxLoss, maxProfit } = computeSize(selectedSpread);
         const credit = selectedSpread.netCredit ?? 0;
