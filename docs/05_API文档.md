@@ -1,6 +1,6 @@
 # Trading Journal - API文档
 
-> 最后更新: 2026年3月12日
+> 最后更新: 2026年4月6日
 > **数据源**: ORATS（期权链/Greeks/IV/cores/earnings/impliedMove）+ Tiingo（股票K线）
 
 ## 📋 目录
@@ -49,6 +49,9 @@ Supabase PostgreSQL (数据存储)
 | `/api/analytics?type=execution-quality` | GET | 基于 Delta 代理对入场时机分类（early/late/at-market） | ✅ 生产 |
 | `/api/backtest-data?type=candles` | GET | 获取历史K线数据（Supabase 缓存 → Tiingo），供回测引擎使用 | ✅ 生产 |
 | `/api/backtest-data?type=iv` | GET | 获取 ORATS 历史 IV 数据（Supabase 缓存 → ORATS），供回测引擎使用 | ✅ 生产 |
+| `/api/cron-signal-scan` | GET | 每日信号扫描（21:00 UTC 工作日，外部 Cron），扫描 watchlist tickers 的 EMA34 信号并写入 signal_history | ✅ 生产 |
+| `/api/cron-trade-outcomes` | GET | 每日 MFE/MAE 计算（21:35 UTC 工作日，外部 Cron），分析已平仓交易的盈亏路径 | ✅ 生产 |
+| `/api/live-prices` | GET | 实时标的价格查询（Tiingo IEX） | ✅ 生产 |
 
 **评分逻辑统一**：所有 API 均引用 `api/_shared/scoring.cjs` / `api/_shared/ivHistory.cjs`，与前端 `src/lib/oss-core.ts` 逻辑镜像，保证扫描结果、策略推荐与持仓卡片 OSS 分数一致。
 
@@ -351,7 +354,7 @@ GET /api/strategy-recommend
 | `Debit Put Spread` | `buildDebitSpreads('Put')` | `HARD_FILTER_DEFAULTS` |
 | `Long Call` | `scoreSingleLegs('Call')` | `HARD_FILTER_DEFAULTS` |
 | `Long Put` | `scoreSingleLegs('Put')` | `HARD_FILTER_DEFAULTS` |
-| `Iron Condor` | `buildIronCondors()` ✅ v2.6 | `HARD_FILTER_CREDIT` |
+| `Iron Condor` | `buildIronCondors()` 📝 v2.6 已实现但未集成到生产推荐流 | `HARD_FILTER_CREDIT` |
 
 **`setup` 参数作用**：传入后会激活 Pine Script 设置感知权重（`hasPineSetup=true`：`wEV=0.45/wRegime=0.20`）。`Mixed`/`Other` 不激活权重切换。
 
@@ -525,4 +528,4 @@ vercel --prod
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年3月3日*
+*最后更新: 2026年4月6日*

@@ -1,6 +1,6 @@
 # Trading Journal - 产品需求文档（PRD）总览
 
-> 版本 1.3 · 最后更新: 2026年3月6日
+> 版本 1.4 · 最后更新: 2026年4月6日
 
 ---
 
@@ -14,7 +14,7 @@
 
 | 问题 | 用户痛点 | 产品应对 |
 |------|----------|----------|
-| 入场无纪律 | 感觉对了就买，没有量化依据 | Watchlist + Scanner OSS 评分，强制「先计划再入场」 |
+| 入场无纪律 | 感觉对了就买，没有量化依据 | 信号扫描 + EMA34 gate，强制「先看信号再入场」 |
 | 出场靠情绪 | 亏很多才割肉，赚一点就跑 | 止损规则 + 多级视觉警告（危险/警告/信息） |
 | 时间漂移 | 短线单拿成长期 | 到期日提醒、持仓天数、短 DTE 惩罚（Theta Pain） |
 | 记录难坚持 | 工具重、步骤多，用几天就弃 | 30 秒内完成关键操作、移动端友好、自动拉价 |
@@ -22,7 +22,7 @@
 
 ### 1.3 成功指标（可观测）
 
-- **纪律指标**：Watchlist 转 Active 的比例、止损触发后是否按规则平仓。
+- **纪律指标**：Signal → Active 的比例、止损触发后是否按规则平仓。
 - **使用粘性**：周活、单次会话时长、价格/Score 刷新频率。
 - **数据质量**：持仓价格与 Score 更新及时性、扫描与持仓分数一致性（OSS 单点事实）。
 
@@ -37,9 +37,9 @@
 
 ### 2.2 典型场景
 
-1. **发现机会**：在 Scanner 输入标的与策略（Long/Short），得到 OSS 高分合约列表，将心仪合约加入 Watchlist。
-2. **计划入场**：在 Watchlist 填写理想入场价、止损条件、目标价，等待价格进入区间后一键转为 Active。
-3. **持仓管理**：在 Portfolio 查看 P&L、Score、到期日；用「Refresh Prices」更新价格与 Score；根据危险/警告标签决定加仓、减仓或止损。
+1. **发现机会**：在 Signals 页面查看 EMA34 信号，确认 QQQ 是否满足入场条件。
+2. **计划入场**：信号确认后，通过 Strategy Recommender 获取 DTE5 Bull Put 推荐合约，将合约加入 Portfolio（Watchlist 状态）。
+3. **持仓管理**：在 Portfolio 查看 P&L、Score、到期日；用「Refresh Prices」更新价格；根据危险/警告标签决定是否提前平仓或 hold-to-expiry。
 4. **策略探索**：在 Strategy Recommender 输入标的与方向（BULL/BEAR），根据 IV 期限结构得到 Credit/Debit Spread 或单腿推荐，并可将推荐加入 Watchlist。
 5. **复盘**：在 History/Stats 查看已平仓记录与胜率、Setup 分布等。
 
@@ -53,8 +53,8 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Trading Journal                         │
 ├─────────────┬─────────────┬─────────────┬─────────────┬─────────┤
-│  Scanner    │  Watchlist  │  Portfolio  │  Strategy   │ History │ Backtest │
-│  (OSS 扫描)  │  (计划入场)  │  (持仓管理)  │  Recommender│ /Stats  │ /Signals │
+│  Dashboard  │  Scanner    │  Portfolio  │  Strategy   │ History │ Backtest │
+│  (仪表盘)   │  (OSS 扫描)  │  (持仓管理)  │  Recommender│ /Stats  │ /Signals │
 ├─────────────┴─────────────┴─────────────┴─────────────┴─────────┤
 │  数据与评分：ORATS + Tiingo + Nasdaq · OSS (oss-core + api/_shared)           │
 │  持久化：Supabase (positions, transactions, position_greeks_history)       │
@@ -69,7 +69,7 @@
 | P0 | Portfolio | 活跃持仓列表、P&L、价格/Score 更新、多级警告 | ✅ |
 | P0 | Watchlist | 计划入场、理想价/止损/目标、转 Active | ✅ |
 | P0 | 价格与 Greeks | 单合约 API（option-price）+ 批量刷新 | ✅ |
-| P0 | Scanner | OSS v2.1 扫描（Long/Short + Day Trade），Top N 结果 | ✅ |
+| P0 | Scanner | OSS v2.8 扫描（Long/Short + Day Trade），Top N 结果 | ✅ |
 | P0 | OSS 单点事实 | oss-core.ts + api/_shared/scoring.cjs，前后端分数一致 | ✅ |
 | P1 | Strategy Recommender | IV  regime + Credit/Debit/Single Leg 推荐 | ✅ |
 | P1 | History / Stats | 已平仓记录、胜率、Setup 分析 | ✅ |
@@ -81,6 +81,8 @@
 | P1 | Signals | 实时信号扫描仪表盘（多 Ticker Tech Score 扫描） | ✅ |
 | P2 | Settings | 全局应用设置（Dark Mode、通知偏好等） | ✅ |
 | 后续 | 导出、短信提醒、多账户等 | 见「未来规划」 | 规划中 |
+
+> **⚠️ 当前活跃策略**: 仅 **DTE5 Bull Put Credit Spread**（QQQ）处于活跃状态。Swing 和 ShortTerm 策略已退役（代码保留用于历史数据兼容）。
 
 ---
 
@@ -158,4 +160,4 @@
 
 ---
 
-*文档维护：Trading Journal Team · 2026年3月12日*
+*文档维护：Trading Journal Team · 2026年4月6日*

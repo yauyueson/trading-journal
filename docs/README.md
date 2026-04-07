@@ -1,6 +1,8 @@
 # Trading Journal - 文档总览
 
-> 最后更新: 2026年3月23日
+> 最后更新: 2026年4月6日
+
+> **⚠️ 当前活跃策略 (2026-04)**: 仅 **DTE5 Bull Put Credit Spread**（QQQ, DTE 2-7, EMA34 gate）处于活跃交易。Swing 和 ShortTerm 策略已退役。
 
 欢迎来到Trading Journal项目文档中心！这里包含了项目的完整技术文档和使用指南。
 
@@ -45,7 +47,7 @@
 - 数据流设计（React Query 缓存 + Supabase 实时失效）
 - API集成方案
 - 状态管理策略（Context + React Query，无 prop drilling）
-- 测试体系（683 项 Vitest 测试 + GitHub Actions CI）
+- 测试体系（695+ 项 Vitest 测试 + GitHub Actions CI）
 - 性能优化技巧（懒加载路由、代码分割）
 
 **阅读时间**: 25分钟
@@ -136,6 +138,13 @@
 
 ---
 
+### 8️⃣ [设计系统](./DESIGN-SYSTEM.md)
+**适合**: 前端开发者、UI/UX 设计
+**内容**: 颜色令牌、排版、布局规范、交互动画、反模式
+**阅读时间**: 10分钟
+
+---
+
 ---
 
 ## 🚀 快速开始
@@ -171,7 +180,8 @@ docs/
 ├── 05_API文档.md                # API 接口与数据源配置
 ├── 06_用户工作流.md             # 使用指南和最佳实践
 ├── 07_止损与目标价短信提醒方案.md  # Discord 提醒实现方案
-├── 算法改进总览_OSS_v2.7.md     # OSS v2.7/v2.8 改进记录（当前版本）
+├── DESIGN-SYSTEM.md              # UI/UX 设计系统规范
+├── 算法改进总览_OSS_v2.8.md     # OSS v2.8 改进记录（当前版本）
 ├── AUDIT_10D_v1.md              # 10 维度独立审计报告
 └── wfa/                         # WFA analysis docs
 ```
@@ -191,6 +201,12 @@ docs/
 - [前端技术栈](./02_技术路径.md#前端技术栈)
 - [后端架构](./02_技术路径.md#后端架构)
 - [数据库设计](./04_数据库设计.md)
+
+### 数据库表
+- [positions / transactions / position_greeks_history](./04_数据库设计.md) — 核心持仓与交易
+- [stock_candles](./04_数据库设计.md) — 股票K线缓存（Tiingo IEX 聚合）
+- [signal_history](./04_数据库设计.md) — 每日信号扫描结果
+- [trade_outcomes](./04_数据库设计.md) — MFE/MAE 交易结果分析
 
 ### 核心功能
 - [Portfolio管理](./01_项目概览.md#1-portfolio-持仓管理)
@@ -361,4 +377,4 @@ docs/
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年3月23日*
+*最后更新: 2026年4月6日*
