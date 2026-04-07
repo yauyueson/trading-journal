@@ -44,6 +44,7 @@ interface PositionCardProps {
     onUpdateStop?: (id: string, stopPrice: number) => Promise<void>;
     onDelete?: (id: string) => Promise<void>;
     onUpdateOwner?: (id: string, owner: 'Yuchen' | 'Annie' | null) => Promise<void>;
+    onUpdatePaper?: (id: string, isPaper: boolean) => Promise<void>;
     onDataUpdate?: (timestamp: string) => void;
     refreshTrigger?: number;
     index?: number;
@@ -552,11 +553,23 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                 {position.strategy_type === 'dte5' ? 'DTE5' : position.strategy_type === 'swing' ? 'Swing' : 'ST'}
                             </span>
                         )}
-                        {position.is_paper && (
+                        {props.onUpdatePaper ? (
+                            <button
+                                onClick={() => props.onUpdatePaper!(position.id, !position.is_paper)}
+                                className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded cursor-pointer transition-colors ${
+                                    position.is_paper
+                                        ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30 border-dashed hover:bg-orange-500/25'
+                                        : 'bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25'
+                                }`}
+                                title={position.is_paper ? 'Click to mark as LIVE' : 'Click to mark as PAPER'}
+                            >
+                                {position.is_paper ? 'PAPER' : 'LIVE'}
+                            </button>
+                        ) : position.is_paper ? (
                             <span className="inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded bg-orange-500/15 text-orange-400 border border-orange-500/30 border-dashed">
                                 PAPER
                             </span>
-                        )}
+                        ) : null}
                         {onUpdateOwner && (
                             <select
                                 value={position.owner || ''}

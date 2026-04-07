@@ -21,6 +21,7 @@ import {
     useUpdateTarget,
     useUpdateStop,
     useUpdateOwner,
+    useUpdatePaper,
     useAddDirect,
     useRollPosition,
     useDeletePosition,
@@ -51,6 +52,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const updateTargetMut = useUpdateTarget();
     const updateStopMut = useUpdateStop();
     const updateOwnerMut = useUpdateOwner();
+    const updatePaperMut = useUpdatePaper();
     const addDirectMut = useAddDirect();
     const rollPositionMut = useRollPosition();
     const deletePositionMut = useDeletePosition();
@@ -64,6 +66,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const onUpdateTarget = props.onUpdateTarget ?? (async (id: string, target: number) => { updateTargetMut.mutate({ id, target }); });
     const onUpdateStop = props.onUpdateStop ?? (async (id: string, stopPrice: number) => { updateStopMut.mutate({ id, stopPrice }); });
     const onUpdateOwner = props.onUpdateOwner ?? (async (id: string, owner: 'Yuchen' | 'Annie' | null) => { updateOwnerMut.mutate({ id, owner }); });
+    const onUpdatePaper = async (id: string, isPaper: boolean) => { updatePaperMut.mutate({ id, isPaper }); };
     const onAddDirect = props.onAddDirect ?? (async (item: DirectAddItem) => { addDirectMut.mutate(item); });
     const onRoll = props.onRoll ?? (async (originalPositionId: string, rollData: RollData) => {
         const originalPosition = positions.find(p => p.id === originalPositionId);
@@ -446,6 +449,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                                     onUpdateTarget={onUpdateTarget}
                                     onUpdateStop={onUpdateStop}
                                     onUpdateOwner={onUpdateOwner}
+                                    onUpdatePaper={onUpdatePaper}
                                     onDelete={onDelete}
                                     onDataUpdate={setLastTimestamp}
                                     refreshTrigger={refreshTrigger}

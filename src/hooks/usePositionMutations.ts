@@ -103,6 +103,16 @@ export function useUpdateOwner() {
   });
 }
 
+export function useUpdatePaper() {
+  const invalidate = useInvalidatePositionsAndTransactions();
+  return useMutation({
+    mutationFn: async ({ id, isPaper }: { id: string; isPaper: boolean }) => {
+      await supabase.from('positions').update({ is_paper: isPaper }).eq('id', id);
+    },
+    onSuccess: invalidate,
+  });
+}
+
 export function useAddDirect() {
   const invalidate = useInvalidatePositionsAndTransactions();
   return useMutation({
