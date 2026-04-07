@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { TabNav } from '../components/TabNav';
+import { MobileTabBar } from '../components/MobileTabBar';
 import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation';
 import { Settings, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -67,23 +68,17 @@ export function AppLayout() {
 
   return (
     <div style={{ minHeight: '100dvh' }}>
-      {/* Header — floating bar on desktop, sticky full-width on mobile */}
-      <div className="sticky top-0 z-50 sm:top-3 sm:px-4 sm:px-6">
+      {/* Desktop header — floating pill bar (hidden on mobile) */}
+      <div className="hidden sm:sticky sm:top-3 sm:block sm:z-50 sm:px-4 sm:px-6">
         <div className="mx-auto px-4 py-2.5 flex items-center gap-6 max-w-7xl
-          border-b border-white/[0.08] bg-[#0A0A0E]/90 backdrop-blur-md
           sm:border sm:border-white/[0.08] sm:rounded-2xl sm:bg-black/60 sm:backdrop-blur-2xl sm:shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
-          {/* Logo */}
           <h1
             className="text-base font-semibold text-gradient-primary shrink-0 cursor-pointer"
             onClick={() => navigate('/dashboard')}
           >
             Trading Journal
           </h1>
-
-          {/* Desktop nav — integrated into header */}
           <TabNav />
-
-          {/* Right actions */}
           <div className="flex items-center gap-1 ml-auto shrink-0">
             <button
               onClick={() => navigate('/settings')}
@@ -98,17 +93,45 @@ export function AppLayout() {
               className="flex items-center gap-1.5 text-text-tertiary text-sm hover:text-text-secondary transition-colors min-w-[44px] min-h-[44px] justify-center"
               aria-label="Logout"
             >
-              <LogOut size={16} className="sm:hidden" />
-              <span className="hidden sm:inline text-[13px]">Logout</span>
+              <span className="text-[13px]">Logout</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Content — extra top padding on desktop to account for floating bar */}
-      <div className="mx-auto px-4 sm:px-6 pt-4 sm:pt-14 pb-safe max-w-7xl ambient-glow">
+      {/* Mobile top bar — slim, no backdrop-blur (avoids iOS containing block bug) */}
+      <div className="sm:hidden flex items-center justify-between px-4 py-2">
+        <h1
+          className="text-base font-semibold text-gradient-primary cursor-pointer"
+          onClick={() => navigate('/dashboard')}
+        >
+          Trading Journal
+        </h1>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => navigate('/settings')}
+            className="flex items-center justify-center text-text-tertiary hover:text-text-secondary transition-colors min-w-[44px] min-h-[44px]"
+            aria-label="Settings"
+          >
+            <Settings size={18} />
+          </button>
+          <button
+            onClick={logout}
+            className="flex items-center justify-center text-text-tertiary hover:text-text-secondary transition-colors min-w-[44px] min-h-[44px]"
+            aria-label="Logout"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="mx-auto px-4 sm:px-6 pt-2 sm:pt-14 pb-safe max-w-7xl ambient-glow">
         <Outlet />
       </div>
+
+      {/* Mobile bottom tab bar — outside header, no containing block issue */}
+      <MobileTabBar />
     </div>
   );
 }
