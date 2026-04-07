@@ -1024,6 +1024,7 @@ export const PositionCard = React.memo(PositionCardInner, (prev, next) => {
     return prev.position.id === next.position.id
         && prev.position.current_score === next.position.current_score
         && prev.position.status === next.position.status
+        && prev.position.is_paper === next.position.is_paper
         && prev.refreshTrigger === next.refreshTrigger
         && prev.initialData === next.initialData
         && prev.portfolioTotal === next.portfolioTotal;
