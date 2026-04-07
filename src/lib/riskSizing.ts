@@ -216,17 +216,18 @@ export function aggregatePortfolioGreeks(
         if (!legData || legData.length === 0) return;
 
         const posTxns = transactions.filter(t => t.position_id === pos.id);
-        let qtyBought = 0, qtySold = 0, entryPrice = 0;
+        let qtyBought = 0, qtySold = 0, totalCostBasis = 0;
         posTxns.forEach(t => {
             if (t.quantity > 0) {
-                if (entryPrice === 0) entryPrice = t.price;
                 qtyBought += t.quantity;
+                totalCostBasis += t.quantity * Math.abs(t.price);
             } else {
                 qtySold += Math.abs(t.quantity);
             }
         });
         const qty = qtyBought - qtySold;
         if (qty <= 0) return;
+        const avgPrice = qtyBought > 0 ? totalCostBasis / qtyBought : 0;
 
         let posNetDelta = 0, posNetGamma = 0, posNetTheta = 0, posNetVega = 0;
         let hasData = false;
@@ -268,7 +269,7 @@ export function aggregatePortfolioGreeks(
         netVega += posNetVega * qty * CONTRACT_MULTIPLIER;
 
         if (portfolioTotal > 0) {
-            const riskDollars = getPositionRiskAtStopOutDollars(pos, qty, entryPrice, stopOutFraction);
+            const riskDollars = getPositionRiskAtStopOutDollars(pos, qty, avgPrice, stopOutFraction);
             const riskPctPos = (riskDollars / portfolioTotal) * 100;
             if (riskPctPos > largestRiskPct) {
                 largestRiskPct = riskPctPos;

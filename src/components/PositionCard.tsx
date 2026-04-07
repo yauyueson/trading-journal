@@ -406,7 +406,9 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
 
     const totalQty = totalQtyBought - totalQtySold;
     const avgCostPerContract = totalQtyBought > 0 ? totalCostBasis / totalQtyBought : 0;
-    const firstBuy = positionTxns.find(t => t.quantity > 0);
+    const avgPrice = avgCostPerContract / CONTRACT_MULTIPLIER;
+    const sortedTxns = [...positionTxns].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const firstBuy = sortedTxns.find(t => t.quantity > 0);
     const entryPrice = firstBuy ? Math.abs(firstBuy.price) : 0;
 
     const currentStopLoss = position.stop_price ?? null;
@@ -418,8 +420,8 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
 
     if (totalQty > 0 && currentPrice) {
         if (isCreditStrategy) {
-            unrealizedPnL = (entryPrice - currentPrice) * totalQty * CONTRACT_MULTIPLIER;
-            unrealizedPnLPct = entryPrice > 0 ? (unrealizedPnL / (entryPrice * totalQty * CONTRACT_MULTIPLIER)) * 100 : 0;
+            unrealizedPnL = (avgPrice - currentPrice) * totalQty * CONTRACT_MULTIPLIER;
+            unrealizedPnLPct = avgPrice > 0 ? (unrealizedPnL / (avgPrice * totalQty * CONTRACT_MULTIPLIER)) * 100 : 0;
         } else {
             const totalValue = totalQty * currentPrice * CONTRACT_MULTIPLIER;
             const totalCost = totalQty * avgCostPerContract;
@@ -432,8 +434,8 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
         ? (position.strategy_type === 'shortTerm' ? 0.50 : 0.30)
         : 0.25; // debit: 25% gain
     const calculatedTarget = isCreditStrategy
-        ? entryPrice * (1 - tpFraction) // credit: close at (1-TP%) of entry credit
-        : entryPrice * (1 + tpFraction);
+        ? avgPrice * (1 - tpFraction) // credit: close at (1-TP%) of avg credit
+        : avgPrice * (1 + tpFraction);
     const targetPrice = position.target_price || calculatedTarget;
 
     let realizedPnL = 0;
@@ -452,10 +454,10 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const daysToExp = daysUntil(position.expiration);
 
     // TP Progress (0-100%+)
-    const tpProgress = (isCreditStrategy && entryPrice > 0 && currentPrice != null)
-        ? Math.max(0, ((entryPrice - currentPrice) / (entryPrice * tpFraction)) * 100)
-        : (!isCreditStrategy && entryPrice > 0 && currentPrice != null)
-            ? Math.max(0, ((currentPrice - entryPrice) / (entryPrice * tpFraction)) * 100)
+    const tpProgress = (isCreditStrategy && avgPrice > 0 && currentPrice != null)
+        ? Math.max(0, ((avgPrice - currentPrice) / (avgPrice * tpFraction)) * 100)
+        : (!isCreditStrategy && avgPrice > 0 && currentPrice != null)
+            ? Math.max(0, ((currentPrice - avgPrice) / (avgPrice * tpFraction)) * 100)
             : null;
     const tpReady = tpProgress != null && tpProgress >= 100;
 
@@ -463,7 +465,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const timeStopDTE = position.strategy_type === 'shortTerm' ? 1 : 3;
     const isTimeStop = daysToExp <= timeStopDTE && daysToExp >= 0;
 
-    const positionRiskAtStopOutDollars = getPositionRiskAtStopOutDollars(position, Math.max(0, totalQty), entryPrice, stopOutFraction);
+    const positionRiskAtStopOutDollars = getPositionRiskAtStopOutDollars(position, Math.max(0, totalQty), avgPrice, stopOutFraction);
     const singleTradeRiskPct = portfolioTotal && portfolioTotal > 0
         ? (positionRiskAtStopOutDollars / portfolioTotal) * 100
         : null;

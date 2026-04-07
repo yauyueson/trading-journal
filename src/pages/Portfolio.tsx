@@ -105,18 +105,19 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     // ... (risk calc unchanged)
     const totalRiskDollars = activePositions.reduce((sum, position) => {
         const posTxns = transactions.filter(t => t.position_id === position.id);
-        let totalQtyBought = 0, totalQtySold = 0, entryPrice = 0;
+        let totalQtyBought = 0, totalQtySold = 0, totalCostBasis = 0;
         posTxns.forEach(t => {
             const qty = t.quantity;
             if (qty > 0) {
-                if (entryPrice === 0) entryPrice = t.price;
                 totalQtyBought += qty;
+                totalCostBasis += qty * Math.abs(t.price);
             } else {
                 totalQtySold += Math.abs(qty);
             }
         });
         const totalQty = totalQtyBought - totalQtySold;
-        return sum + getPositionRiskAtStopOutDollars(position, totalQty, entryPrice, stopOutFraction);
+        const avgPrice = totalQtyBought > 0 ? totalCostBasis / totalQtyBought : 0;
+        return sum + getPositionRiskAtStopOutDollars(position, totalQty, avgPrice, stopOutFraction);
     }, 0);
     const totalRiskPct = portfolioTotal > 0 ? (totalRiskDollars / portfolioTotal) * 100 : 0;
 
