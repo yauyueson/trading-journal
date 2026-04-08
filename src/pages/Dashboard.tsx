@@ -281,23 +281,24 @@ export function DashboardPage() {
                   }) : undefined}
                 >
                   <div className="flex items-center gap-2.5">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${isBull ? 'bg-accent-green pulse-glow' : isBear ? 'bg-accent-red' : 'bg-text-tertiary/20'}`} />
-                    <div>
-                      <span className="text-text-primary text-sm font-semibold">{sig.ticker}</span>
-                      <span className="text-text-tertiary text-xs ml-2">
-                        {isBull ? 'Bull' : isBear ? 'Bear' : 'Neutral'}
-                      </span>
-                    </div>
+                    <span className="text-text-primary text-sm font-semibold">{sig.ticker}</span>
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase ${
+                      isBull ? 'bg-accent-green/15 text-accent-green ring-1 ring-accent-green/20'
+                        : isBear ? 'bg-accent-red/15 text-accent-red ring-1 ring-accent-red/20'
+                        : 'bg-white/[0.04] text-text-tertiary ring-1 ring-white/[0.06]'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${isBull ? 'bg-accent-green pulse-glow' : isBear ? 'bg-accent-red' : 'bg-text-tertiary/30'}`} />
+                      {isBull ? 'Bull' : isBear ? 'Bear' : 'Off'}
+                    </span>
                   </div>
                   <div className="flex items-center gap-3">
-                    {sig.score != null && <span className="text-text-secondary text-xs font-mono">{sig.score}</span>}
                     {sig.streak > 0 && <span className="text-text-tertiary text-[10px] font-mono">{sig.streak}d</span>}
-                    {isBull ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-accent-green/10 text-accent-green">
+                    {hasSignal ? (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold ${
+                        isBull ? 'bg-accent-green/10 text-accent-green' : 'bg-accent-red/10 text-accent-red'
+                      }`}>
                         Open →
                       </span>
-                    ) : isBear ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-accent-red/10 text-accent-red">Open →</span>
                     ) : null}
                   </div>
                 </motion.div>

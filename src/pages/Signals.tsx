@@ -202,7 +202,12 @@ export const SignalsPage: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-sm text-text-secondary font-mono">${close.toFixed(2)}</span>
-                            <div className={`w-2 h-2 rounded-full ${allPass ? 'bg-emerald-400 pulse-glow' : 'bg-text-tertiary/20'}`} />
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide uppercase ${
+                              allPass ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20' : 'bg-white/[0.04] text-text-tertiary ring-1 ring-white/[0.06]'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${allPass ? 'bg-emerald-400 pulse-glow' : 'bg-text-tertiary/30'}`} />
+                              {allPass ? 'Active' : 'Off'}
+                            </span>
                           </div>
                         </div>
                         <div className="space-y-1 mb-2">
@@ -214,7 +219,10 @@ export const SignalsPage: React.FC = () => {
                           ))}
                         </div>
                         <div className={`text-[11px] font-semibold ${allPass ? 'text-emerald-400' : 'text-text-tertiary'}`}>
-                          {allPass ? 'Tap to open spread →' : 'No signal'}
+                          {allPass ? 'Tap to open spread →' : (() => {
+                            const failing = criteria.filter(c => !c.pass);
+                            return `Waiting — ${failing.map(c => c.label).join(', ')} not met`;
+                          })()}
                         </div>
                       </div>
                     );
@@ -250,7 +258,12 @@ export const SignalsPage: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-sm text-text-secondary font-mono">${close.toFixed(2)}</span>
-                            <div className={`w-2 h-2 rounded-full ${allPass ? 'bg-rose-400' : 'bg-text-tertiary/20'}`} />
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide uppercase ${
+                              allPass ? 'bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/20' : 'bg-white/[0.04] text-text-tertiary ring-1 ring-white/[0.06]'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${allPass ? 'bg-rose-400' : 'bg-text-tertiary/30'}`} />
+                              {allPass ? 'Active' : 'Off'}
+                            </span>
                           </div>
                         </div>
                         <div className="space-y-1 mb-2">
@@ -262,7 +275,10 @@ export const SignalsPage: React.FC = () => {
                           ))}
                         </div>
                         <div className={`text-[11px] font-semibold ${allPass ? 'text-rose-400' : 'text-text-tertiary'}`}>
-                          {allPass ? 'Tap to open spread →' : 'No signal'}
+                          {allPass ? 'Tap to open spread →' : (() => {
+                            const failing = criteria.filter(c => !c.pass);
+                            return `Waiting — ${failing.map(c => c.label).join(', ')} not met`;
+                          })()}
                         </div>
                       </div>
                     );
