@@ -30,6 +30,20 @@ export function usePositionAction() {
           closed_at: new Date().toISOString(),
           ...(exitType ? { exit_type: exitType } : {}),
         }).eq('id', id);
+      } else if (action.type === 'Take Profit' || action.type === 'Size Down') {
+        // Auto-close if remaining quantity is 0
+        const { data: txns } = await supabase
+          .from('transactions')
+          .select('quantity')
+          .eq('position_id', id);
+        const remaining = (txns || []).reduce((sum, t) => sum + t.quantity, 0);
+        if (remaining <= 0) {
+          await supabase.from('positions').update({
+            status: 'closed',
+            closed_at: new Date().toISOString(),
+            exit_type: action.type === 'Take Profit' ? 'TP' : 'MANUAL',
+          }).eq('id', id);
+        }
       }
     },
     onSuccess: invalidate,
