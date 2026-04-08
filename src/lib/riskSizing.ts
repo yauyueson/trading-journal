@@ -35,7 +35,8 @@ export function getPositionMaxLossDollars(
         ? Math.abs(shortLeg.strike - longLeg.strike)
         : 0;
     if (isCredit && width > 0) {
-        return (width - entryPricePerShare) * CONTRACT_MULTIPLIER * totalQty;
+        // Guard: credit should never exceed width; clamp to prevent negative max loss
+        return Math.max(0, width - entryPricePerShare) * CONTRACT_MULTIPLIER * totalQty;
     }
     return entryPricePerShare * CONTRACT_MULTIPLIER * totalQty;
 }

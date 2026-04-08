@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { Position, Transaction } from '../lib/types';
-import { formatCurrency, CONTRACT_MULTIPLIER } from '../lib/utils';
+import { formatCurrency, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ScoreValidation } from '../components/ScoreValidation';
 import { EquityCurve } from '../components/stats/EquityCurve';
@@ -138,7 +138,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
 
         closedPositions.forEach(p => {
             const txns = transactions.filter(t => t.position_id === p.id);
-            const isCreditStrategy = p.type.includes('Credit') || p.type.includes('Short');
+            const isCreditStrategy = isCreditStrategyFn(p.type);
             let cost = 0, proceeds = 0, totalQty = 0;
             txns.forEach(t => {
                 const price = t.price * CONTRACT_MULTIPLIER;

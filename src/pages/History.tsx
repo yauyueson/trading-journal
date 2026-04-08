@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { History, Check, Trash2 } from 'lucide-react';
 import { Position, Transaction } from '../lib/types';
-import { formatCurrency, formatPercent, CONTRACT_MULTIPLIER } from '../lib/utils';
+import { formatCurrency, formatPercent, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
@@ -56,7 +56,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
     const closedPositions = ownerFilter === 'All' ? allClosedPositions : allClosedPositions.filter(p => p.owner === ownerFilter);
     const getStats = (position: Position) => {
         const txns = transactions.filter(t => t.position_id === position.id);
-        const isCreditStrategy = position.type.includes('Credit') || position.type.includes('Short');
+        const isCreditStrategy = isCreditStrategyFn(position.type);
         let totalQtyBought = 0, totalCostBasis = 0, totalProceeds = 0;
         txns.forEach(t => {
             const price = t.price * CONTRACT_MULTIPLIER;

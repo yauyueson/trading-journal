@@ -9,7 +9,7 @@ import {
     Cell,
 } from 'recharts';
 import { Position, Transaction } from '../../lib/types';
-import { formatCurrency, computePositionPnL } from '../../lib/utils';
+import { formatCurrency, computePositionPnL, isCreditStrategy as isCreditStrategyFn } from '../../lib/utils';
 
 interface DisciplineCardProps {
     closedPositions: Position[];
@@ -62,7 +62,7 @@ export const DisciplineCard: React.FC<DisciplineCardProps> = ({ closedPositions,
 
         closedPositions.forEach(p => {
             const txns = transactions.filter(t => t.position_id === p.id);
-            const isCreditStrategy = p.type.includes('Credit') || p.type.includes('Short');
+            const isCreditStrategy = isCreditStrategyFn(p.type);
             const pnl = computePositionPnL(txns, isCreditStrategy);
             const et: ExitType = (p.exit_type as ExitType) || 'Unknown';
             byType[et].count++;
