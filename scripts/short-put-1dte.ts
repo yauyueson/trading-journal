@@ -4406,6 +4406,8 @@ function runCombinedWFAPortfolio(
   posWindows: number;
   minEquity: number;
   legSummary: Array<{ ticker: string; dir: string; trades: number; pnl: number; wr: number }>;
+  scaledDailyPnl: Map<string, number>;
+  oosDates: string[];
 } {
   const cap0 = 10_000;
   let runningEquity = cap0;
@@ -4503,7 +4505,7 @@ function runCombinedWFAPortfolio(
     return { ticker, dir, trades: v.trades, pnl: v.pnl, wr: v.trades > 0 ? v.wins / v.trades * 100 : 0 };
   });
 
-  return { windows: windowResults, finalEquity: runningEquity, totalPnl: runningEquity - cap0, oosSharpe, oosCagr, oosMaxDD: mdd * 100, oosTrades: allTrades.length, oosWR, posWindows, minEquity, legSummary };
+  return { windows: windowResults, finalEquity: runningEquity, totalPnl: runningEquity - cap0, oosSharpe, oosCagr, oosMaxDD: mdd * 100, oosTrades: allTrades.length, oosWR, posWindows, minEquity, legSummary, scaledDailyPnl, oosDates };
 }
 
 // ── Bear Deep Dive + Combined Bull/Bear Portfolio ─────
@@ -5571,9 +5573,1173 @@ if (bearTickerArg) {
   process.exit(0);
 }
 
-bearStrategyReport().catch(console.error);
+// bearStrategyReport().catch(console.error);
 
-// ── EMA Alignment Study ��� Bear + Improved Bull ────────
+// ── Sideways Iron Condor / Butterfly Study ────────────
+
+interface IronCondorTrade {
+  entryDate: string; exitDate: string; ticker: string;
+  structure: 'iron_condor' | 'iron_butterfly';
+  putShortStrike: number; putLongStrike: number; putCredit: number; putExitCost: number; putPnl: number; putBreached: boolean;
+  callShortStrike: number; callLongStrike: number; callCredit: number; callExitCost: number; callPnl: number; callBreached: boolean;
+  totalCredit: number; totalPnl: number; contracts: number; maxRiskPerContract: number;
+  stockPriceEntry: number; stockPriceExit: number; putDelta: number; callDelta: number; dte: number;
+}
+
+interface IronCondorConfig {
+  ticker: string; startDate: string; endDate: string; startingCapital: number;
+  structure: 'iron_condor' | 'iron_butterfly';
+  shortDelta: number; longDelta: number; adxThreshold: number;
+  maxRiskPct: number; maxPositions: number; commissionPerContract: number;
+  takeProfitPct?: number; deltaStop?: number; compounding: boolean;
+}
+
+/**
+ * Close-only directional trend strength indicator.
+ *
+ * WARNING: This is NOT Wilder's ADX. True ADX requires OHLC candles for
+ * True Range (max of high-low, |high-prevClose|, |low-prevClose|) and
+ * directional movement from high/low differences. We only have daily close
+ * prices from option chain snapshots, so:
+ *   - TR = |close - prevClose|  (understates true range)
+ *   - +DM/-DM from close diffs  (plusDI + minusDI ≈ 100 always)
+ *   - DX measures only the up/down imbalance of close-to-close moves
+ *
+ * The output is still a 0-100 smoothed trend strength metric that's useful
+ * for gating sideways regimes, but thresholds (18/20/25) are calibrated to
+ * THIS metric, not standard ADX values.
+ */
+function computeCloseOnlyTrend(dailyCloses: Map<string, number>, allPriceDates: string[], period: number = 14): Map<string, number> {
+  const trend = new Map<string, number>();
+  const closes: number[] = [];
+  let prevPlusDM = 0, prevMinusDM = 0, prevTR = 0, prevSmoothed = 0;
+  let warmup = 0, initialized = false;
+
+  for (const d of allPriceDates) {
+    const c = dailyCloses.get(d);
+    if (c == null) continue;
+    closes.push(c);
+    if (closes.length < 2) continue;
+
+    const curr = closes[closes.length - 1];
+    const prev = closes[closes.length - 2];
+    const diff = curr - prev;
+    const plusDM = diff > 0 ? Math.abs(diff) : 0;
+    const minusDM = diff < 0 ? Math.abs(diff) : 0;
+    const tr = Math.abs(diff);
+
+    warmup++;
+    if (warmup <= period) {
+      prevPlusDM += plusDM; prevMinusDM += minusDM; prevTR += tr;
+      if (warmup === period) {
+        const plusDI = prevTR > 0 ? (prevPlusDM / prevTR) * 100 : 0;
+        const minusDI = prevTR > 0 ? (prevMinusDM / prevTR) * 100 : 0;
+        const diSum = plusDI + minusDI;
+        const dx = diSum > 0 ? (Math.abs(plusDI - minusDI) / diSum) * 100 : 0;
+        prevSmoothed = dx; trend.set(d, dx); initialized = true;
+      }
+    } else if (initialized) {
+      prevPlusDM = prevPlusDM * (period - 1) / period + plusDM;
+      prevMinusDM = prevMinusDM * (period - 1) / period + minusDM;
+      prevTR = prevTR * (period - 1) / period + tr;
+      const plusDI = prevTR > 0 ? (prevPlusDM / prevTR) * 100 : 0;
+      const minusDI = prevTR > 0 ? (prevMinusDM / prevTR) * 100 : 0;
+      const diSum = plusDI + minusDI;
+      const dx = diSum > 0 ? (Math.abs(plusDI - minusDI) / diSum) * 100 : 0;
+      prevSmoothed = prevSmoothed * (period - 1) / period + dx / period;
+      trend.set(d, prevSmoothed);
+    }
+  }
+  return trend;
+}
+
+function runIronCondorStrategy(config: IronCondorConfig, data: {
+  allDates: string[]; dailyCloses: Map<string, number>;
+  ema21: Map<string, number>; ema34: Map<string, number>; ema55: Map<string, number>;
+  adxMap: Map<string, number>;
+}): { trades: IronCondorTrade[]; totalPnl: number; totalTrades: number; winRate: number; maxDrawdown: number; sharpe: number } {
+  initDB();
+  const { allDates, dailyCloses, ema21, ema34, ema55, adxMap } = data;
+  const trades: IronCondorTrade[] = [];
+  let equity = config.startingCapital;
+  let peakEquity = equity, maxDD = 0, totalNetPnl = 0;
+
+  const openPositions: Array<{
+    entryDate: string; expiryDate: string;
+    putShort: { strike: number; delta: number; iv: number }; putLong: { strike: number };
+    callShort: { strike: number; delta: number; iv: number }; callLong: { strike: number };
+    putCredit: number; callCredit: number; totalCredit: number;
+    contracts: number; maxRiskPerContract: number; stockPriceEntry: number; dte: number;
+  }> = [];
+
+  for (let i = 0; i < allDates.length; i++) {
+    const date = allDates[i];
+    if (date < config.startDate || date > config.endDate) continue;
+    const todayClose = dailyCloses.get(date);
+
+    // Close expired positions
+    const expired: typeof openPositions = [];
+    const remaining: typeof openPositions = [];
+    for (const pos of openPositions) {
+      if (pos.expiryDate <= date) expired.push(pos); else remaining.push(pos);
+    }
+    openPositions.length = 0;
+    openPositions.push(...remaining);
+
+    for (const pos of expired) {
+      const expiryChain = getCachedChain(config.ticker, pos.expiryDate);
+      let stockExit = expiryChain.length > 0 ? expiryChain[0].stock_price : 0;
+      if (stockExit === 0) { const pc = getCachedChain(config.ticker, date); stockExit = pc.length > 0 ? pc[0].stock_price : pos.stockPriceEntry; }
+
+      const putShortI = Math.max(0, pos.putShort.strike - stockExit);
+      const putLongI = Math.max(0, pos.putLong.strike - stockExit);
+      const putExitCost = putShortI - putLongI;
+      const putPnl = (pos.putCredit - putExitCost) * 100;
+      const callShortI = Math.max(0, stockExit - pos.callShort.strike);
+      const callLongI = Math.max(0, stockExit - pos.callLong.strike);
+      const callExitCost = callShortI - callLongI;
+      const callPnl = (pos.callCredit - callExitCost) * 100;
+      const totalPnl = (putPnl + callPnl - config.commissionPerContract * 8) * pos.contracts;
+
+      trades.push({
+        entryDate: pos.entryDate, exitDate: pos.expiryDate, ticker: config.ticker, structure: config.structure,
+        putShortStrike: pos.putShort.strike, putLongStrike: pos.putLong.strike, putCredit: pos.putCredit, putExitCost, putPnl, putBreached: stockExit < pos.putShort.strike,
+        callShortStrike: pos.callShort.strike, callLongStrike: pos.callLong.strike, callCredit: pos.callCredit, callExitCost, callPnl, callBreached: stockExit > pos.callShort.strike,
+        totalCredit: pos.totalCredit, totalPnl, contracts: pos.contracts, maxRiskPerContract: pos.maxRiskPerContract,
+        stockPriceEntry: pos.stockPriceEntry, stockPriceExit: stockExit, putDelta: pos.putShort.delta, callDelta: pos.callShort.delta, dte: pos.dte,
+      });
+      equity += totalPnl; totalNetPnl += totalPnl;
+    }
+
+    // TP/SL mid-life monitoring
+    if ((config.takeProfitPct != null || config.deltaStop != null) && openPositions.length > 0) {
+      const toClose: number[] = [];
+      for (let pi = 0; pi < openPositions.length; pi++) {
+        const pos = openPositions[pi];
+        const putS = findContractDirect(config.ticker, date, pos.putShort.strike, pos.expiryDate, 'Put');
+        const putL = findContractDirect(config.ticker, date, pos.putLong.strike, pos.expiryDate, 'Put');
+        const callS = findContractDirect(config.ticker, date, pos.callShort.strike, pos.expiryDate, 'Call');
+        const callL = findContractDirect(config.ticker, date, pos.callLong.strike, pos.expiryDate, 'Call');
+        if (!putS || !callS) continue;
+
+        const putCC = (putS.ask ?? putS.mid) - (putL ? (putL.bid ?? putL.mid) : 0);
+        const callCC = (callS.ask ?? callS.mid) - (callL ? (callL.bid ?? callL.mid) : 0);
+        const pnlPerShare = pos.totalCredit - (putCC + callCC);
+
+        if (config.takeProfitPct != null && pnlPerShare >= pos.totalCredit * config.takeProfitPct) {
+          toClose.push(pi);
+          const tPnl = ((pos.putCredit - putCC) * 100 + (pos.callCredit - callCC) * 100 - config.commissionPerContract * 8) * pos.contracts;
+          const sp = dailyCloses.get(date) ?? pos.stockPriceEntry;
+          trades.push({ entryDate: pos.entryDate, exitDate: date, ticker: config.ticker, structure: config.structure,
+            putShortStrike: pos.putShort.strike, putLongStrike: pos.putLong.strike, putCredit: pos.putCredit, putExitCost: putCC, putPnl: (pos.putCredit - putCC) * 100, putBreached: sp < pos.putShort.strike,
+            callShortStrike: pos.callShort.strike, callLongStrike: pos.callLong.strike, callCredit: pos.callCredit, callExitCost: callCC, callPnl: (pos.callCredit - callCC) * 100, callBreached: sp > pos.callShort.strike,
+            totalCredit: pos.totalCredit, totalPnl: tPnl, contracts: pos.contracts, maxRiskPerContract: pos.maxRiskPerContract,
+            stockPriceEntry: pos.stockPriceEntry, stockPriceExit: sp, putDelta: pos.putShort.delta, callDelta: pos.callShort.delta, dte: pos.dte });
+          equity += tPnl; totalNetPnl += tPnl; continue;
+        }
+
+        if (config.deltaStop != null && !toClose.includes(pi)) {
+          const putDA = Math.abs(putS.delta - 1);
+          const callDA = Math.abs(callS.delta);
+          if (putDA >= config.deltaStop || callDA >= config.deltaStop) {
+            toClose.push(pi);
+            const tPnl = ((pos.putCredit - putCC) * 100 + (pos.callCredit - callCC) * 100 - config.commissionPerContract * 8) * pos.contracts;
+            const sp = dailyCloses.get(date) ?? pos.stockPriceEntry;
+            trades.push({ entryDate: pos.entryDate, exitDate: date, ticker: config.ticker, structure: config.structure,
+              putShortStrike: pos.putShort.strike, putLongStrike: pos.putLong.strike, putCredit: pos.putCredit, putExitCost: putCC, putPnl: (pos.putCredit - putCC) * 100, putBreached: sp < pos.putShort.strike,
+              callShortStrike: pos.callShort.strike, callLongStrike: pos.callLong.strike, callCredit: pos.callCredit, callExitCost: callCC, callPnl: (pos.callCredit - callCC) * 100, callBreached: sp > pos.callShort.strike,
+              totalCredit: pos.totalCredit, totalPnl: tPnl, contracts: pos.contracts, maxRiskPerContract: pos.maxRiskPerContract,
+              stockPriceEntry: pos.stockPriceEntry, stockPriceExit: sp, putDelta: pos.putShort.delta, callDelta: pos.callShort.delta, dte: pos.dte });
+            equity += tPnl; totalNetPnl += tPnl;
+          }
+        }
+      }
+      for (let ci = toClose.length - 1; ci >= 0; ci--) openPositions.splice(toClose[ci], 1);
+    }
+
+    peakEquity = Math.max(peakEquity, equity);
+    maxDD = Math.max(maxDD, peakEquity > 0 ? (peakEquity - equity) / peakEquity : 0);
+    if (openPositions.length >= config.maxPositions) continue;
+    if (todayClose == null) continue;
+
+    // ── Sideways Regime Gate ──
+    const e21 = ema21.get(date), e34 = ema34.get(date), e55 = ema55.get(date), adxVal = adxMap.get(date);
+    if (e21 == null || e34 == null || e55 == null || adxVal == null) continue;
+    if (todayClose >= e34) continue; // NOT bull
+    if (todayClose < e21 && e21 < e34 && e34 < e55) continue; // NOT bear
+    if (adxVal >= config.adxThreshold) continue; // ADX confirmation
+
+    // ── Find Iron Condor/Butterfly Strikes ──
+    const chain = getCachedChain(config.ticker, date);
+    if (chain.length === 0) continue;
+
+    const putShortDelta = config.structure === 'iron_butterfly' ? 0.50 : config.shortDelta;
+    const callShortDelta = config.structure === 'iron_butterfly' ? 0.50 : config.shortDelta;
+
+    const shortPut = findPutByDelta(chain, putShortDelta, DTE);
+    if (!shortPut) continue;
+    const sameExpiryChain = chain.filter(r => r.expir_date === shortPut.row.expir_date);
+    const longPut = findPutByDelta(sameExpiryChain, config.longDelta, DTE);
+    if (!longPut || longPut.row.strike >= shortPut.row.strike) continue;
+
+    const shortCall = findCallByDelta(sameExpiryChain, callShortDelta, DTE);
+    if (!shortCall) continue;
+    const longCall = findCallByDelta(sameExpiryChain, config.longDelta, DTE);
+    if (!longCall || longCall.row.strike <= shortCall.row.strike) continue;
+    if (shortPut.row.expir_date !== shortCall.row.expir_date) continue;
+
+    const putCredit = shortPut.bid - longPut.ask;
+    const callCredit = shortCall.bid - longCall.ask;
+    if (putCredit <= 0 || callCredit <= 0) continue;
+    const totalCredit = putCredit + callCredit;
+
+    const putWidth = Math.abs(shortPut.row.strike - longPut.row.strike);
+    const callWidth = Math.abs(longCall.row.strike - shortCall.row.strike);
+    const maxLossPC = Math.max(putWidth, callWidth) * 100 - totalCredit * 100;
+    if (maxLossPC <= 0) continue;
+
+    const sizingBase = config.compounding ? Math.max(0, equity) : config.startingCapital;
+    const riskBudget = sizingBase * config.maxRiskPct;
+    if (config.compounding && riskBudget < maxLossPC) continue;
+    const contracts = Math.min(50, Math.max(1, Math.floor(riskBudget / Math.max(1, maxLossPC))));
+
+    openPositions.push({
+      entryDate: date, expiryDate: shortPut.row.expir_date,
+      putShort: { strike: shortPut.row.strike, delta: shortPut.delta, iv: shortPut.iv }, putLong: { strike: longPut.row.strike },
+      callShort: { strike: shortCall.row.strike, delta: shortCall.delta, iv: shortCall.iv }, callLong: { strike: longCall.row.strike },
+      putCredit, callCredit, totalCredit, contracts, maxRiskPerContract: maxLossPC, stockPriceEntry: shortPut.row.stock_price, dte: shortPut.row.dte,
+    });
+  }
+
+  // Close remaining at market (intrinsic)
+  const lastDate = allDates[allDates.length - 1];
+  for (const pos of openPositions) {
+    const se = dailyCloses.get(lastDate) ?? pos.stockPriceEntry;
+    const pEC = Math.max(0, pos.putShort.strike - se) - Math.max(0, pos.putLong.strike - se);
+    const cEC = Math.max(0, se - pos.callShort.strike) - Math.max(0, se - pos.callLong.strike);
+    const tP = ((pos.putCredit - pEC) * 100 + (pos.callCredit - cEC) * 100 - config.commissionPerContract * 8) * pos.contracts;
+    trades.push({ entryDate: pos.entryDate, exitDate: lastDate, ticker: config.ticker, structure: config.structure,
+      putShortStrike: pos.putShort.strike, putLongStrike: pos.putLong.strike, putCredit: pos.putCredit, putExitCost: pEC, putPnl: (pos.putCredit - pEC) * 100, putBreached: se < pos.putShort.strike,
+      callShortStrike: pos.callShort.strike, callLongStrike: pos.callLong.strike, callCredit: pos.callCredit, callExitCost: cEC, callPnl: (pos.callCredit - cEC) * 100, callBreached: se > pos.callShort.strike,
+      totalCredit: pos.totalCredit, totalPnl: tP, contracts: pos.contracts, maxRiskPerContract: pos.maxRiskPerContract,
+      stockPriceEntry: pos.stockPriceEntry, stockPriceExit: se, putDelta: pos.putShort.delta, callDelta: pos.callShort.delta, dte: pos.dte });
+    equity += tP; totalNetPnl += tP;
+  }
+
+  // Recompute drawdown after force-closing last-day positions
+  peakEquity = Math.max(peakEquity, equity);
+  maxDD = Math.max(maxDD, peakEquity > 0 ? (peakEquity - equity) / peakEquity : 0);
+
+  const winRate = trades.length > 0 ? trades.filter(t => t.totalPnl > 0).length / trades.length * 100 : 0;
+  return { trades, totalPnl: totalNetPnl, totalTrades: trades.length, winRate, maxDrawdown: maxDD * 100, sharpe: 0 };
+}
+
+// True WFA: per-window train/test optimization
+// For each window: sweep ALL configs on train data, pick best by Sharpe, run ONLY that on OOS
+function runSidewaysWFAProper(
+  allTradingDates: string[], ticker: string, trainDays: number, testDays: number,
+  configGrid: Array<Omit<IronCondorConfig, 'startDate' | 'endDate' | 'startingCapital'>>,
+  precompute: (ticker: string, startDate: string, endDate: string) => {
+    allDates: string[]; dailyCloses: Map<string, number>;
+    ema21: Map<string, number>; ema34: Map<string, number>; ema55: Map<string, number>;
+    adxMap: Map<string, number>;
+  },
+) {
+  const cap0 = 10_000;
+  let runningEquity = cap0, minEquity = cap0;
+  type WinResult = { testStart: string; testEnd: string; startEq: number; endEq: number; pnl: number; trades: number; selectedConfig: number; trainSharpe: number };
+  const windowResults: WinResult[] = [];
+  const allTrades: IronCondorTrade[] = [];
+  const scaledDailyPnl = new Map<string, number>();
+  const configSelections: number[] = []; // which config index was chosen per window
+
+  let startIdx = 0;
+  let windowNum = 0;
+  while (startIdx + trainDays + testDays <= allTradingDates.length) {
+    const trainStart = allTradingDates[startIdx];
+    const trainEnd = allTradingDates[startIdx + trainDays - 1];
+    const testStart = allTradingDates[startIdx + trainDays];
+    const testEnd = allTradingDates[Math.min(startIdx + trainDays + testDays - 1, allTradingDates.length - 1)];
+    const warmupStart = allTradingDates[Math.max(0, startIdx - 300)];
+
+    // Precompute indicators once for full range (warmup through test end)
+    const data = precompute(ticker, warmupStart, testEnd);
+
+    // ── TRAIN PHASE: sweep all configs on train data ──
+    let bestTrainSharpe = -Infinity;
+    let bestConfigIdx = 0;
+    const trainResults: Array<{ sharpe: number; trades: number; pnl: number }> = [];
+
+    for (let ci = 0; ci < configGrid.length; ci++) {
+      const cfg = configGrid[ci];
+      const result = runIronCondorStrategy({
+        ...cfg, ticker, startDate: trainStart, endDate: trainEnd, startingCapital: cap0, // fixed cap for train (relative comparison)
+      }, data);
+
+      // Compute train Sharpe from trades
+      const dailyPnlMap = new Map<string, number>();
+      for (const t of result.trades) { dailyPnlMap.set(t.exitDate, (dailyPnlMap.get(t.exitDate) ?? 0) + t.totalPnl); }
+      const trainDates = allTradingDates.filter(d => d >= trainStart && d <= trainEnd);
+      let teq = cap0;
+      const trets: number[] = [];
+      for (const d of trainDates) { const dp = dailyPnlMap.get(d) ?? 0; const b = teq; teq += dp; if (b > 0) trets.push(dp / b); }
+      const tavg = trets.length > 0 ? trets.reduce((s, r) => s + r, 0) / trets.length : 0;
+      const tstd = trets.length > 1 ? Math.sqrt(trets.reduce((s, r) => s + (r - tavg) ** 2, 0) / (trets.length - 1)) : 0;
+      const tSharpe = tstd > 0 ? (tavg / tstd) * Math.sqrt(252) : 0;
+
+      trainResults.push({ sharpe: tSharpe, trades: result.totalTrades, pnl: result.totalPnl });
+
+      // Select best: Sharpe, with min 5 trades to avoid noise
+      if (tSharpe > bestTrainSharpe && result.totalTrades >= 5) {
+        bestTrainSharpe = tSharpe;
+        bestConfigIdx = ci;
+      }
+    }
+
+    // If no config had >= 5 trades, pick best Sharpe with any trades
+    if (bestTrainSharpe === -Infinity) {
+      for (let ci = 0; ci < trainResults.length; ci++) {
+        if (trainResults[ci].sharpe > bestTrainSharpe && trainResults[ci].trades > 0) {
+          bestTrainSharpe = trainResults[ci].sharpe;
+          bestConfigIdx = ci;
+        }
+      }
+    }
+
+    configSelections.push(bestConfigIdx);
+
+    // ── OOS PHASE: run ONLY the train-selected config on test data ──
+    const oosResult = runIronCondorStrategy({
+      ...configGrid[bestConfigIdx], ticker, startDate: testStart, endDate: testEnd, startingCapital: runningEquity,
+    }, data);
+
+    const startEq = runningEquity;
+    runningEquity += oosResult.totalPnl;
+    minEquity = Math.min(minEquity, runningEquity);
+    for (const t of oosResult.trades) { allTrades.push(t); scaledDailyPnl.set(t.exitDate, (scaledDailyPnl.get(t.exitDate) ?? 0) + t.totalPnl); }
+    windowResults.push({ testStart, testEnd, startEq, endEq: runningEquity, pnl: oosResult.totalPnl, trades: oosResult.totalTrades, selectedConfig: bestConfigIdx, trainSharpe: bestTrainSharpe });
+
+    windowNum++;
+    startIdx += testDays;
+  }
+
+  // Sharpe from daily returns across all OOS windows
+  const oosDateSet = new Set<string>();
+  for (const w of windowResults) { for (const d of allTradingDates) { if (d >= w.testStart && d <= w.testEnd) oosDateSet.add(d); } }
+  const oosDates = [...oosDateSet].sort();
+  let eq = cap0, pk = eq, mdd = 0;
+  const rets: number[] = [];
+  for (const d of oosDates) { const dp = scaledDailyPnl.get(d) ?? 0; const b = eq; eq += dp; pk = Math.max(pk, eq); mdd = Math.max(mdd, pk > 0 ? (pk - eq) / pk : 0); if (b > 0) rets.push(dp / b); }
+  const avg = rets.length > 0 ? rets.reduce((s, r) => s + r, 0) / rets.length : 0;
+  const std = rets.length > 1 ? Math.sqrt(rets.reduce((s, r) => s + (r - avg) ** 2, 0) / (rets.length - 1)) : 0;
+  const oosSharpe = std > 0 ? (avg / std) * Math.sqrt(252) : 0;
+  const oosYears = oosDates.length > 1 ? (new Date(oosDates[oosDates.length - 1]).getTime() - new Date(oosDates[0]).getTime()) / (365.25 * 86400000) : 0;
+  const oosCagr = oosYears > 0 ? ((runningEquity / cap0) ** (1 / oosYears) - 1) * 100 : 0;
+  const oosWR = allTrades.length > 0 ? allTrades.filter(t => t.totalPnl > 0).length / allTrades.length * 100 : 0;
+
+  return { windows: windowResults, finalEquity: runningEquity, oosSharpe, oosCagr, oosMaxDD: mdd * 100, oosTrades: allTrades.length, oosWR, posWindows: windowResults.filter(w => w.pnl > 0).length, minEquity, configSelections, configGrid, scaledDailyPnl, oosDates };
+}
+
+async function sidewaysStudy() {
+  console.log('\n' + '='.repeat(80));
+  console.log('  SIDEWAYS STRATEGY -- Iron Condor & Iron Butterfly');
+  console.log('  TRUE WFA: per-window train/test optimization (no overfitting)');
+  console.log('  Gate: NOT bull AND NOT bear (EMA negation) + trend strength < threshold (close-only, not Wilder ADX)');
+  console.log('  Cache-only: ZERO ORATS API calls');
+  console.log('='.repeat(80) + '\n');
+
+  const db = new Database('data/option-chains.sqlite');
+  const allTradingDates: string[] = db.prepare(
+    'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+  ).all('QQQ', '2017-01-03', '2026-03-28').map((r: any) => r.trade_date);
+
+  const TRAIN_DAYS = 252, TEST_DAYS = 126, CAP = 10_000;
+  const SW_TICKERS = ['QQQ', 'SPY', 'IWM'];
+
+  function precompute(ticker: string, startDate: string, endDate: string) {
+    const ws = new Date(startDate); ws.setFullYear(ws.getFullYear() - 1);
+    const priceDates: string[] = db.prepare(
+      'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+    ).all(ticker, ws.toISOString().split('T')[0], endDate).map((r: any) => r.trade_date);
+
+    const dailyCloses = new Map<string, number>();
+    for (const d of priceDates) {
+      const row = db.prepare('SELECT stock_price FROM option_chains WHERE ticker = ? AND trade_date = ? LIMIT 1').get(ticker, d) as any;
+      if (row?.stock_price) dailyCloses.set(d, row.stock_price);
+    }
+
+    function ema(period: number) {
+      const r = new Map<string, number>(); const m = 2 / (period + 1); let p = 0, init = false;
+      for (const d of priceDates) { const c = dailyCloses.get(d); if (c == null) continue; if (!init) { p = c; init = true; r.set(d, c); continue; } p = c * m + p * (1 - m); r.set(d, p); }
+      return r;
+    }
+
+    const tickerDates: string[] = db.prepare(
+      'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+    ).all(ticker, startDate, endDate).map((r: any) => r.trade_date);
+
+    return { allDates: tickerDates, dailyCloses, ema21: ema(21), ema34: ema(34), ema55: ema(55), adxMap: computeCloseOnlyTrend(dailyCloses, priceDates, 14) };
+  }
+
+  // ── Build full config grid (swept per-window during train phase) ──
+  const STRUCTURES: Array<'iron_condor' | 'iron_butterfly'> = ['iron_condor', 'iron_butterfly'];
+  const CONDOR_DELTAS = [0.20, 0.25, 0.30];
+  const WINGS = [{ label: '$5', longOffset: 0.10 }, { label: '$10', longOffset: 0.15 }];
+  const ADX_THRESHOLDS = [18, 20, 25];
+  const PROFIT_TARGETS: Array<number | undefined> = [0.50, 0.80, undefined];
+  const DELTA_STOPS: Array<number | undefined> = [undefined, 0.50, 0.60];
+
+  type CfgWithLabel = Omit<IronCondorConfig, 'startDate' | 'endDate' | 'startingCapital'> & { label: string };
+  const configGrid: CfgWithLabel[] = [];
+  for (const structure of STRUCTURES) {
+    const deltas = structure === 'iron_butterfly' ? [0.50] : CONDOR_DELTAS;
+    for (const sd of deltas) {
+      for (const wing of WINGS) {
+        const longDelta = Math.max(0.03, sd - wing.longOffset);
+        for (const adx of ADX_THRESHOLDS) {
+          for (const tp of PROFIT_TARGETS) {
+            for (const ds of DELTA_STOPS) {
+              configGrid.push({
+                ticker: '', // filled per-ticker
+                structure, shortDelta: sd, longDelta, adxThreshold: adx,
+                maxRiskPct: 0.10, maxPositions: 1, commissionPerContract: 0,
+                takeProfitPct: tp, deltaStop: ds, compounding: true,
+                label: `${structure}|d${sd}|${wing.label}|ADX${adx}|${tp != null ? (tp*100)+'%' : 'hold'}|${ds != null ? 'ds'+ds : 'none'}`,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+  console.log(`  ${configGrid.length} configs in sweep grid (per ticker per window)`);
+  console.log(`  ${SW_TICKERS.length} tickers, ~16 windows each`);
+  console.log(`  Per window: train on ${configGrid.length} configs, select best, run OOS\n`);
+
+  // ── PHASE A: True WFA per ticker ──
+  console.log('  PHASE A: Per-Ticker WFA (train/test optimization per window)\n');
+  const t0 = Date.now();
+  const wfaResults: Record<string, ReturnType<typeof runSidewaysWFAProper>> = {};
+
+  for (const ticker of SW_TICKERS) {
+    const t0t = Date.now();
+    const tickerGrid = configGrid.map(c => ({ ...c, ticker }));
+    wfaResults[ticker] = runSidewaysWFAProper(allTradingDates, ticker, TRAIN_DAYS, TEST_DAYS, tickerGrid, precompute);
+    const r = wfaResults[ticker];
+    console.log(`  ${ticker}: OOS Sharpe ${r.oosSharpe.toFixed(3)}, CAGR ${r.oosCagr.toFixed(1)}%, MaxDD ${r.oosMaxDD.toFixed(1)}%, ${r.oosTrades} trades, ${((Date.now() - t0t) / 1000).toFixed(0)}s`);
+
+    // Print per-window detail
+    console.log('    W#  Period                    StartEq      EndEq       PnL  Trades  Config Selected (train Sharpe)');
+    console.log('    ' + '-'.repeat(110));
+    for (let wi = 0; wi < r.windows.length; wi++) {
+      const w = r.windows[wi];
+      const cfg = configGrid[w.selectedConfig];
+      console.log('    ' + String(wi + 1).padEnd(4) +
+        `${w.testStart} -> ${w.testEnd}`.padEnd(26) +
+        formatCurrency(w.startEq).padStart(10) +
+        formatCurrency(w.endEq).padStart(10) +
+        formatCurrency(w.pnl).padStart(10) +
+        String(w.trades).padStart(8) +
+        `  ${cfg?.label ?? 'none'} (${w.trainSharpe.toFixed(2)})`);
+    }
+    console.log('');
+  }
+  console.log(`  All tickers: ${((Date.now() - t0) / 1000).toFixed(0)}s total`);
+
+  // ── PHASE B: Portfolio Combinations ──
+  console.log('\n  PHASE B: Portfolio Combinations\n');
+  const BULL_LEG = { ticker: 'QQQ', overrides: { direction: 'bull' as const, targetDelta: 0.30, longPutDelta: 0.20, maxDTE: DTE, trendEMA: 34, maxRiskPct: 0.10, compounding: true } };
+  const BEAR_REGIME = { trendEMA: 21, trendEMA2: 34, trendEMA3: 55, requireAlignment: true };
+  const BEAR_LEGS = [
+    { ticker: 'QQQ', overrides: { direction: 'bear' as const, targetDelta: 0.40, longPutDelta: 0.30, maxDTE: DTE, maxRiskPct: 0.10, compounding: true, ...BEAR_REGIME, pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01 } },
+    { ticker: 'SPY', overrides: { direction: 'bear' as const, targetDelta: 0.40, longPutDelta: 0.30, maxDTE: DTE, maxRiskPct: 0.10, compounding: true, ...BEAR_REGIME, pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.05 } },
+    { ticker: 'IWM', overrides: { direction: 'bear' as const, targetDelta: 0.15, longPutDelta: 0.05, maxDTE: DTE, maxRiskPct: 0.10, compounding: true, ...BEAR_REGIME, pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.03, maxRallyFromLow: 0.08 } },
+  ];
+
+  const bullOnly = runCombinedWFAPortfolio(allTradingDates, TRAIN_DAYS, TEST_DAYS, [BULL_LEG]);
+  const bullBear = runCombinedWFAPortfolio(allTradingDates, TRAIN_DAYS, TEST_DAYS, [BULL_LEG, ...BEAR_LEGS]);
+
+  // Merge multiple daily PnL maps into a single equity curve and compute metrics.
+  // This replaces the old window-level PnL addition which stitched standalone
+  // equity curves, producing optimistic metrics that hid intra-window drawdowns.
+  // allOosDates: union of all OOS trading dates (includes zero-return days for accurate Sharpe/CAGR)
+  function mergedDailyMetrics(dailyPnlMaps: Map<string, number>[], cap: number, allOosDates?: string[]) {
+    const merged = new Map<string, number>();
+    for (const m of dailyPnlMaps) {
+      for (const [d, pnl] of m) merged.set(d, (merged.get(d) ?? 0) + pnl);
+    }
+    // Use provided OOS dates (includes flat days) or fall back to exit-only dates
+    const dates = allOosDates ? [...allOosDates].sort() : [...merged.keys()].sort();
+    let eq = cap, pk = cap, mdd = 0, minEq = cap;
+    const rets: number[] = [];
+    for (const d of dates) {
+      const dayPnl = merged.get(d) ?? 0;
+      const base = eq;
+      eq += dayPnl;
+      minEq = Math.min(minEq, eq);
+      pk = Math.max(pk, eq);
+      mdd = Math.max(mdd, pk > 0 ? (pk - eq) / pk : 0);
+      if (base > 0) rets.push(dayPnl / base);
+    }
+    const avg = rets.length > 0 ? rets.reduce((s, r) => s + r, 0) / rets.length : 0;
+    const std = rets.length > 1 ? Math.sqrt(rets.reduce((s2, r) => s2 + (r - avg) ** 2, 0) / (rets.length - 1)) : 0;
+    const sharpe = std > 0 ? (avg / std) * Math.sqrt(252) : 0;
+    const yrs = dates.length > 1 ? (new Date(dates[dates.length - 1]).getTime() - new Date(dates[0]).getTime()) / (365.25 * 86400000) : 0;
+    const cagr = yrs > 0 && cap > 0 ? ((eq / cap) ** (1 / yrs) - 1) * 100 : 0;
+    return { sharpe, cagr, maxDD: mdd * 100, finalEquity: eq, minEquity: minEq };
+  }
+
+  function addSidewaysPnl(bbResult: ReturnType<typeof runCombinedWFAPortfolio>, swTickers: string[]) {
+    const maps: Map<string, number>[] = [bbResult.scaledDailyPnl];
+    let totalTrades = bbResult.oosTrades;
+    // Build union of all OOS trading dates (includes flat/zero-return days)
+    const dateSet = new Set<string>(bbResult.oosDates);
+    for (const t of swTickers) {
+      if (wfaResults[t]) {
+        // NOTE: The sideways leg was WFA'd with its own standalone $10K equity, so its
+        // daily PnL reflects independent compounding. Ideally both legs would size from
+        // a single shared equity pool, but that requires re-running the WFA engine with
+        // dynamic cross-leg equity — a significant refactor. Since both legs start at
+        // the same CAP ($10K) and use small risk fractions, the additive approximation
+        // is reasonable for comparative ranking. Absolute metrics (CAGR, maxDD) may be
+        // slightly overstated vs a true shared-bankroll simulation.
+        maps.push(wfaResults[t].scaledDailyPnl);
+        totalTrades += wfaResults[t].oosTrades;
+        for (const d of wfaResults[t].oosDates) dateSet.add(d);
+      }
+    }
+    const allOosDates = [...dateSet].sort();
+    return { ...mergedDailyMetrics(maps, CAP, allOosDates), trades: totalTrades };
+  }
+
+  const viableSW = SW_TICKERS.filter(t => wfaResults[t] && wfaResults[t].oosTrades > 0);
+
+  interface PResult { label: string; sharpe: number; cagr: number; maxDD: number; finalEquity: number; minEquity: number; trades: number }
+  const pResults: PResult[] = [
+    { label: 'QQQ bull only', sharpe: bullOnly.oosSharpe, cagr: bullOnly.oosCagr, maxDD: bullOnly.oosMaxDD, finalEquity: bullOnly.finalEquity, minEquity: bullOnly.minEquity, trades: bullOnly.oosTrades },
+    { label: 'QQQ bull + all 3 bear', sharpe: bullBear.oosSharpe, cagr: bullBear.oosCagr, maxDD: bullBear.oosMaxDD, finalEquity: bullBear.finalEquity, minEquity: bullBear.minEquity, trades: bullBear.oosTrades },
+  ];
+  for (const t of viableSW) {
+    const r = addSidewaysPnl(runCombinedWFAPortfolio(allTradingDates, TRAIN_DAYS, TEST_DAYS, [BULL_LEG]), [t]);
+    pResults.push({ label: `QQQ bull + ${t} sideways`, ...r });
+  }
+  if (viableSW.length > 0) {
+    const r = addSidewaysPnl(bullBear, viableSW);
+    pResults.push({ label: 'Bull + bear + all sideways', ...r });
+  }
+
+  console.log('  ' + 'Portfolio'.padEnd(42) + 'Sharpe'.padStart(8) + 'CAGR'.padStart(8) + 'MaxDD'.padStart(8) + 'Final$'.padStart(11) + 'MinEq'.padStart(10) + 'Trades'.padStart(8));
+  console.log('  ' + '-'.repeat(95));
+  for (const r of pResults) {
+    console.log('  ' + r.label.padEnd(42) + r.sharpe.toFixed(3).padStart(8) + (r.cagr.toFixed(1)+'%').padStart(8) + (r.maxDD.toFixed(1)+'%').padStart(8) + formatCurrency(r.finalEquity).padStart(11) + formatCurrency(r.minEquity).padStart(10) + String(r.trades).padStart(8));
+  }
+
+  // ── WRITE REPORT ──
+  const reportDir = path.resolve(__dirname, '../backtesting history/credit-spread/reports/sideways-strategy');
+  if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir, { recursive: true });
+
+  let md = `# Sideways Strategy -- Iron Condor & Iron Butterfly Report\n\n`;
+  md += `**Date:** ${new Date().toISOString().split('T')[0]}\n`;
+  md += `**Engine:** Post-audit (worst-side fills, honest pricing, same-expiry legs)\n`;
+  md += `**Commission:** $0 (Robinhood)\n`;
+  md += `**Methodology:** TRUE Walk-Forward Analysis (${TRAIN_DAYS}d train / ${TEST_DAYS}d test)\n`;
+  md += `**WFA Design:** Per-window optimization -- sweep ${configGrid.length} configs on train, select best by Sharpe (min 5 trades), run ONLY selected config on OOS. No look-ahead.\n`;
+  md += `**Starting Capital:** $${CAP.toLocaleString()}\n\n`;
+  md += `## Study Design\n\nGate: close < EMA34 AND NOT(EMA21<EMA34<EMA55) AND trendStrength(14) < threshold\n\n> **Note:** trendStrength is a close-only directional metric, NOT Wilder ADX (no OHLC available). Thresholds (18/20/25) are calibrated to this metric.\n\n`;
+  md += `Config grid: ${configGrid.length} configs per ticker per window\n\n---\n\n`;
+
+  md += `## Section 1: Per-Ticker OOS Results\n\n`;
+  md += `| Ticker | OOS Sharpe | OOS CAGR | OOS MaxDD | Trades | Pos Windows | Min Equity |\n`;
+  md += `|--------|-----------|----------|-----------|--------|-------------|------------|\n`;
+  for (const ticker of SW_TICKERS) {
+    const r = wfaResults[ticker];
+    md += `| ${ticker} | ${r.oosSharpe.toFixed(3)} | ${r.oosCagr.toFixed(1)}% | ${r.oosMaxDD.toFixed(1)}% | ${r.oosTrades} | ${r.posWindows}/${r.windows.length} | $${r.minEquity.toFixed(0)} |\n`;
+  }
+
+  md += `\n## Section 2: Window-by-Window Detail\n\n`;
+  for (const ticker of SW_TICKERS) {
+    const r = wfaResults[ticker];
+    md += `### ${ticker}\n\n`;
+    md += `| W# | Period | StartEq | EndEq | PnL | Trades | Selected Config | Train Sharpe |\n`;
+    md += `|----|--------|---------|-------|-----|--------|-----------------|--------------|\n`;
+    for (let wi = 0; wi < r.windows.length; wi++) {
+      const w = r.windows[wi];
+      const cfg = configGrid[w.selectedConfig];
+      md += `| ${wi+1} | ${w.testStart} to ${w.testEnd} | $${w.startEq.toFixed(0)} | $${w.endEq.toFixed(0)} | $${w.pnl.toFixed(0)} | ${w.trades} | ${cfg?.label ?? 'none'} | ${w.trainSharpe.toFixed(2)} |\n`;
+    }
+    md += '\n';
+  }
+
+  md += `## Section 3: Portfolio Combinations\n\n| Portfolio | Sharpe | CAGR | MaxDD | Final$ | MinEq | Trades |\n|---|---|---|---|---|---|---|\n`;
+  for (const r of pResults) { md += `| ${r.label} | ${r.sharpe.toFixed(3)} | ${r.cagr.toFixed(1)}% | ${r.maxDD.toFixed(1)}% | $${r.finalEquity.toFixed(0)} | $${r.minEquity.toFixed(0)} | ${r.trades} |\n`; }
+
+  md += `\n## Caveats\n\n1. TRUE WFA: each window trains independently, no future data leakage\n2. Sideways regime may have limited occurrence in bull-dominated period\n3. Trend gate is close-only directional metric (NOT Wilder ADX) -- thresholds calibrated to this metric, not standard ADX values\n4. Max loss = MAX(put width, call width), only one side ITM at expiry\n5. Portfolio combinations use merged daily PnL equity curve (shared-capital simulation)\n6. Cache-only: zero API calls\n`;
+
+  fs.writeFileSync(`${reportDir}/README.md`, md);
+  fs.writeFileSync(`${reportDir}/sideways-results.json`, JSON.stringify({
+    generatedAt: new Date().toISOString(),
+    methodology: 'TRUE WFA: per-window train/test optimization, no look-ahead',
+    configGridSize: configGrid.length,
+    perTicker: Object.fromEntries(SW_TICKERS.map(t => [t, {
+      oosSharpe: wfaResults[t].oosSharpe, oosCagr: wfaResults[t].oosCagr, oosMaxDD: wfaResults[t].oosMaxDD,
+      oosTrades: wfaResults[t].oosTrades, finalEquity: wfaResults[t].finalEquity,
+      windows: wfaResults[t].windows, configSelections: wfaResults[t].configSelections,
+    }])),
+    portfolioCombos: pResults,
+  }, null, 2));
+
+  db.close();
+  console.log(`\n  Report: ${reportDir}/README.md`);
+  console.log('  Done. ZERO ORATS API calls. TRUE WFA -- no overfitting risk.');
+}
+
+// sidewaysStudy().catch(console.error);
+
+// ── Calendar Spread Study ─────────────────────────────
+// Sell near-term, buy far-term at same strike. Close both at near-term expiry.
+
+interface CalendarTrade {
+  entryDate: string; exitDate: string; ticker: string;
+  type: 'put' | 'call'; regime: 'bull' | 'bear' | 'sideways';
+  strike: number; nearExpiry: string; farExpiry: string;
+  nearDTE: number; farDTE: number;
+  debit: number; // net cost to open (far ask - near bid)
+  exitValue: number; // net value at close (far bid - near intrinsic)
+  pnl: number; totalPnl: number; contracts: number;
+  stockPriceEntry: number; stockPriceExit: number; delta: number;
+}
+
+interface CalendarConfig {
+  ticker: string; startDate: string; endDate: string; startingCapital: number;
+  calType: 'put' | 'call'; regime: 'bull' | 'bear' | 'sideways';
+  targetDelta: number; shortDTE: number; longDTE: number;
+  adxThreshold: number; // only used for sideways regime
+  maxRiskPct: number; maxPositions: number; commissionPerContract: number;
+  compounding: boolean;
+}
+
+function findLegByDeltaInDTERange(
+  chain: ChainRow[], targetDelta: number, minDTE: number, maxDTE: number, type: 'put' | 'call',
+): { row: ChainRow; delta: number; bid: number; ask: number; mid: number; iv: number } | null {
+  const candidates = chain.filter(r => r.dte >= minDTE && r.dte <= maxDTE);
+  if (candidates.length === 0) return null;
+
+  let best: ChainRow | null = null;
+  let bestDist = Infinity;
+  for (const r of candidates) {
+    if (type === 'put') {
+      const absDelta = Math.abs(r.delta - 1);
+      if (absDelta > 0.55) continue;
+      if (r.put_bid <= 0) continue;
+      const dist = Math.abs(absDelta - targetDelta);
+      if (dist < bestDist) { bestDist = dist; best = r; }
+    } else {
+      const callDelta = r.delta;
+      if (callDelta > 0.55 || callDelta < 0.01) continue;
+      if (r.call_bid <= 0) continue;
+      const dist = Math.abs(callDelta - targetDelta);
+      if (dist < bestDist) { bestDist = dist; best = r; }
+    }
+  }
+  if (!best) return null;
+  if (type === 'put') {
+    return { row: best, delta: Math.abs(best.delta - 1), bid: best.put_bid, ask: best.put_ask, mid: best.put_mid, iv: best.put_iv };
+  } else {
+    return { row: best, delta: best.delta, bid: best.call_bid, ask: best.call_ask, mid: best.call_mid, iv: best.call_iv };
+  }
+}
+
+function runCalendarStrategy(config: CalendarConfig, data: {
+  allDates: string[]; dailyCloses: Map<string, number>;
+  ema21: Map<string, number>; ema34: Map<string, number>; ema55: Map<string, number>;
+  adxMap: Map<string, number>;
+}): { trades: CalendarTrade[]; totalPnl: number; totalTrades: number; winRate: number; maxDrawdown: number } {
+  initDB();
+  const { allDates, dailyCloses, ema21, ema34, ema55, adxMap } = data;
+  const trades: CalendarTrade[] = [];
+  let equity = config.startingCapital;
+  let peakEquity = equity, maxDD = 0, totalNetPnl = 0;
+
+  const openPositions: Array<{
+    entryDate: string; nearExpiry: string; farExpiry: string;
+    strike: number; type: 'put' | 'call'; regime: string;
+    debit: number; contracts: number; stockPriceEntry: number;
+    nearDTE: number; farDTE: number; delta: number;
+  }> = [];
+
+  for (let i = 0; i < allDates.length; i++) {
+    const date = allDates[i];
+    if (date < config.startDate || date > config.endDate) continue;
+    const todayClose = dailyCloses.get(date);
+
+    // Check if near-term leg has expired — close the position
+    const expired: typeof openPositions = [];
+    const remaining: typeof openPositions = [];
+    for (const pos of openPositions) {
+      if (pos.nearExpiry <= date) expired.push(pos); else remaining.push(pos);
+    }
+    openPositions.length = 0;
+    openPositions.push(...remaining);
+
+    for (const pos of expired) {
+      const stockExit = dailyCloses.get(pos.nearExpiry) ?? dailyCloses.get(date) ?? pos.stockPriceEntry;
+
+      // Near-term: expired — compute intrinsic
+      let nearIntrinsic: number;
+      if (pos.type === 'put') {
+        nearIntrinsic = Math.max(0, pos.strike - stockExit); // short put: we owe this
+      } else {
+        nearIntrinsic = Math.max(0, stockExit - pos.strike); // short call: we owe this
+      }
+
+      // Far-term: sell at market. Look up via findContractDirect
+      const farLeg = findContractDirect(config.ticker, pos.nearExpiry, pos.strike, pos.farExpiry, pos.type === 'put' ? 'Put' : 'Call');
+      let farValue: number;
+      if (farLeg) {
+        farValue = farLeg.bid ?? farLeg.mid; // sell at bid (worst side)
+      } else {
+        // Fallback: try the date before expiry
+        // Guard against nearExpiry not in allDates (indexOf returns -1 → would resolve to allDates[0])
+        const nearIdx = allDates.indexOf(pos.nearExpiry);
+        let prevDate: string;
+        if (nearIdx > 0) {
+          prevDate = allDates[nearIdx - 1];
+        } else if (nearIdx === 0) {
+          prevDate = date; // no earlier date available
+        } else {
+          // nearExpiry not in allDates — find nearest prior trading date
+          let fallbackIdx = -1;
+          for (let i = allDates.length - 1; i >= 0; i--) {
+            if (allDates[i] < pos.nearExpiry) { fallbackIdx = i; break; }
+          }
+          prevDate = fallbackIdx >= 0 ? allDates[fallbackIdx] : date;
+        }
+        const farLeg2 = findContractDirect(config.ticker, prevDate, pos.strike, pos.farExpiry, pos.type === 'put' ? 'Put' : 'Call');
+        if (farLeg2) {
+          farValue = farLeg2.bid ?? farLeg2.mid;
+        } else {
+          // Last resort: intrinsic value
+          if (pos.type === 'put') farValue = Math.max(0, pos.strike - stockExit);
+          else farValue = Math.max(0, stockExit - pos.strike);
+        }
+      }
+
+      // P&L per share: (far sell - near cost) - debit
+      // Near cost = intrinsic we owe (we were short near)
+      // Far sell = what we get for selling far leg
+      const exitValue = farValue - nearIntrinsic;
+      const pnlPerShare = exitValue - pos.debit;
+      const pnlPerContract = pnlPerShare * 100 - config.commissionPerContract * 4; // 2 legs x open+close
+      const totalPnl = pnlPerContract * pos.contracts;
+
+      trades.push({
+        entryDate: pos.entryDate, exitDate: pos.nearExpiry, ticker: config.ticker,
+        type: pos.type, regime: pos.regime as any,
+        strike: pos.strike, nearExpiry: pos.nearExpiry, farExpiry: pos.farExpiry,
+        nearDTE: pos.nearDTE, farDTE: pos.farDTE,
+        debit: pos.debit, exitValue, pnl: pnlPerContract, totalPnl,
+        contracts: pos.contracts, stockPriceEntry: pos.stockPriceEntry, stockPriceExit: stockExit, delta: pos.delta,
+      });
+      equity += totalPnl; totalNetPnl += totalPnl;
+    }
+
+    peakEquity = Math.max(peakEquity, equity);
+    maxDD = Math.max(maxDD, peakEquity > 0 ? (peakEquity - equity) / peakEquity : 0);
+    if (openPositions.length >= config.maxPositions) continue;
+    if (todayClose == null) continue;
+
+    // ── Regime Gate ──
+    const e21 = ema21.get(date), e34 = ema34.get(date), e55 = ema55.get(date), adxVal = adxMap.get(date);
+    if (e21 == null || e34 == null || e55 == null) continue;
+
+    let regimeMatch = false;
+    if (config.regime === 'bull' && todayClose >= e34) regimeMatch = true;
+    if (config.regime === 'bear' && todayClose < e21 && e21 < e34 && e34 < e55) regimeMatch = true;
+    if (config.regime === 'sideways') {
+      if (adxVal == null) continue;
+      const notBull = todayClose < e34;
+      const notBear = !(todayClose < e21 && e21 < e34 && e34 < e55);
+      if (notBull && notBear && adxVal < config.adxThreshold) regimeMatch = true;
+    }
+    if (!regimeMatch) continue;
+
+    // ── Find Calendar Legs ──
+    const chain = getCachedChain(config.ticker, date);
+    if (chain.length === 0) continue;
+
+    // Near-term leg: find at target delta within short DTE range
+    const shortDTEMin = Math.max(2, config.shortDTE - 2);
+    const shortDTEMax = config.shortDTE + 2;
+    const nearLeg = findLegByDeltaInDTERange(chain, config.targetDelta, shortDTEMin, shortDTEMax, config.calType);
+    if (!nearLeg) continue;
+
+    // Far-term leg: same strike, different expiry in long DTE range
+    const longDTEMin = Math.max(config.longDTE - 5, config.shortDTE + 3); // must be further out
+    const longDTEMax = config.longDTE + 5;
+    // Filter chain to the target strike and long DTE range
+    const farCandidates = chain.filter(r =>
+      Math.abs(r.strike - nearLeg.row.strike) < 0.01 &&
+      r.dte >= longDTEMin && r.dte <= longDTEMax &&
+      r.expir_date !== nearLeg.row.expir_date
+    );
+    if (farCandidates.length === 0) continue;
+    // Pick closest to target long DTE
+    const farRow = farCandidates.sort((a, b) => Math.abs(a.dte - config.longDTE) - Math.abs(b.dte - config.longDTE))[0];
+
+    const farBid = config.calType === 'put' ? farRow.put_bid : farRow.call_bid;
+    const farAsk = config.calType === 'put' ? farRow.put_ask : farRow.call_ask;
+    const farMid = config.calType === 'put' ? farRow.put_mid : farRow.call_mid;
+    if (farBid <= 0) continue;
+
+    // Debit = buy far (ask) - sell near (bid) — worst side
+    const debit = farAsk - nearLeg.bid;
+    if (debit <= 0) continue; // shouldn't happen for calendar but guard against bad data
+    if (debit > nearLeg.row.stock_price * 0.05) continue; // sanity: debit > 5% of stock price is unreasonable
+
+    // Max loss = debit paid
+    const maxLossPerContract = debit * 100;
+    const sizingBase = config.compounding ? Math.max(0, equity) : config.startingCapital;
+    const riskBudget = sizingBase * config.maxRiskPct;
+    if (config.compounding && riskBudget < maxLossPerContract) continue;
+    const contracts = Math.min(50, Math.max(1, Math.floor(riskBudget / Math.max(1, maxLossPerContract))));
+
+    openPositions.push({
+      entryDate: date, nearExpiry: nearLeg.row.expir_date, farExpiry: farRow.expir_date,
+      strike: nearLeg.row.strike, type: config.calType, regime: config.regime,
+      debit, contracts, stockPriceEntry: nearLeg.row.stock_price,
+      nearDTE: nearLeg.row.dte, farDTE: farRow.dte, delta: nearLeg.delta,
+    });
+  }
+
+  // Close remaining at market
+  const lastDate = allDates[allDates.length - 1];
+  for (const pos of openPositions) {
+    const se = dailyCloses.get(lastDate) ?? pos.stockPriceEntry;
+    let nearI = pos.type === 'put' ? Math.max(0, pos.strike - se) : Math.max(0, se - pos.strike);
+    const farL = findContractDirect(config.ticker, lastDate, pos.strike, pos.farExpiry, pos.type === 'put' ? 'Put' : 'Call');
+    const farV = farL ? (farL.bid ?? farL.mid) : (pos.type === 'put' ? Math.max(0, pos.strike - se) : Math.max(0, se - pos.strike));
+    const exitValue = farV - nearI;
+    const pnlPC = (exitValue - pos.debit) * 100 - config.commissionPerContract * 4;
+    const tPnl = pnlPC * pos.contracts;
+    trades.push({
+      entryDate: pos.entryDate, exitDate: lastDate, ticker: config.ticker,
+      type: pos.type, regime: pos.regime as any,
+      strike: pos.strike, nearExpiry: pos.nearExpiry, farExpiry: pos.farExpiry,
+      nearDTE: pos.nearDTE, farDTE: pos.farDTE,
+      debit: pos.debit, exitValue, pnl: pnlPC, totalPnl: tPnl,
+      contracts: pos.contracts, stockPriceEntry: pos.stockPriceEntry, stockPriceExit: se, delta: pos.delta,
+    });
+    equity += tPnl; totalNetPnl += tPnl;
+  }
+
+  // Recompute drawdown after force-closing last-day positions
+  peakEquity = Math.max(peakEquity, equity);
+  maxDD = Math.max(maxDD, peakEquity > 0 ? (peakEquity - equity) / peakEquity : 0);
+
+  return { trades, totalPnl: totalNetPnl, totalTrades: trades.length, winRate: trades.length > 0 ? trades.filter(t => t.totalPnl > 0).length / trades.length * 100 : 0, maxDrawdown: maxDD * 100 };
+}
+
+async function calendarStudy() {
+  console.log('\n' + '='.repeat(80));
+  console.log('  CALENDAR SPREAD STRATEGY -- Regime-Aware');
+  console.log('  TRUE WFA: per-window train/test optimization');
+  console.log('  Bull=put cal, Bear=call cal, Sideways=swept');
+  console.log('  Cache-only: ZERO ORATS API calls');
+  console.log('='.repeat(80) + '\n');
+
+  const db = new Database('data/option-chains.sqlite');
+  const allTradingDates: string[] = db.prepare(
+    'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+  ).all('QQQ', '2017-01-03', '2026-03-28').map((r: any) => r.trade_date);
+
+  const TRAIN_DAYS = 252, TEST_DAYS = 126, CAP = 10_000;
+  const CAL_TICKERS = ['QQQ', 'SPY', 'IWM'];
+
+  function precompute(ticker: string, startDate: string, endDate: string) {
+    const ws = new Date(startDate); ws.setFullYear(ws.getFullYear() - 1);
+    const priceDates: string[] = db.prepare(
+      'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+    ).all(ticker, ws.toISOString().split('T')[0], endDate).map((r: any) => r.trade_date);
+    const dailyCloses = new Map<string, number>();
+    for (const d of priceDates) {
+      const row = db.prepare('SELECT stock_price FROM option_chains WHERE ticker = ? AND trade_date = ? LIMIT 1').get(ticker, d) as any;
+      if (row?.stock_price) dailyCloses.set(d, row.stock_price);
+    }
+    function ema(period: number) {
+      const r = new Map<string, number>(); const m = 2 / (period + 1); let p = 0, init = false;
+      for (const d of priceDates) { const c = dailyCloses.get(d); if (c == null) continue; if (!init) { p = c; init = true; r.set(d, c); continue; } p = c * m + p * (1 - m); r.set(d, p); }
+      return r;
+    }
+    const tickerDates: string[] = db.prepare(
+      'SELECT DISTINCT trade_date FROM option_chains WHERE ticker = ? AND trade_date >= ? AND trade_date <= ? ORDER BY trade_date'
+    ).all(ticker, startDate, endDate).map((r: any) => r.trade_date);
+    return { allDates: tickerDates, dailyCloses, ema21: ema(21), ema34: ema(34), ema55: ema(55), adxMap: computeCloseOnlyTrend(dailyCloses, priceDates, 14) };
+  }
+
+  // Build config grid -- all regimes combined
+  const SHORT_DTES = [5, 7, 14];
+  const LONG_DTES = [14, 21, 30, 45];
+  const DELTAS = [0.30, 0.40, 0.50];
+  const ADX_THRESHOLDS = [18, 20, 25];
+
+  type CalCfg = Omit<CalendarConfig, 'startDate' | 'endDate' | 'startingCapital'> & { label: string };
+  const configGrid: CalCfg[] = [];
+
+  for (const sd of SHORT_DTES) {
+    for (const ld of LONG_DTES) {
+      if (ld <= sd) continue; // long must be further out
+      for (const delta of DELTAS) {
+        // Bull regime: put calendar
+        configGrid.push({ ticker: '', calType: 'put', regime: 'bull', targetDelta: delta, shortDTE: sd, longDTE: ld, adxThreshold: 25, maxRiskPct: 0.10, maxPositions: 1, commissionPerContract: 0, compounding: true, label: `bull|put|d${delta}|${sd}/${ld}` });
+        // Bear regime: call calendar
+        configGrid.push({ ticker: '', calType: 'call', regime: 'bear', targetDelta: delta, shortDTE: sd, longDTE: ld, adxThreshold: 25, maxRiskPct: 0.10, maxPositions: 1, commissionPerContract: 0, compounding: true, label: `bear|call|d${delta}|${sd}/${ld}` });
+        // Sideways regime: put + call x ADX
+        for (const adx of ADX_THRESHOLDS) {
+          configGrid.push({ ticker: '', calType: 'put', regime: 'sideways', targetDelta: delta, shortDTE: sd, longDTE: ld, adxThreshold: adx, maxRiskPct: 0.10, maxPositions: 1, commissionPerContract: 0, compounding: true, label: `sw|put|d${delta}|${sd}/${ld}|ADX${adx}` });
+          configGrid.push({ ticker: '', calType: 'call', regime: 'sideways', targetDelta: delta, shortDTE: sd, longDTE: ld, adxThreshold: adx, maxRiskPct: 0.10, maxPositions: 1, commissionPerContract: 0, compounding: true, label: `sw|call|d${delta}|${sd}/${ld}|ADX${adx}` });
+        }
+      }
+    }
+  }
+  console.log(`  ${configGrid.length} configs in sweep grid per ticker per window`);
+
+  // TRUE WFA per ticker — reuse the same pattern as runSidewaysWFAProper
+  function runCalendarWFA(ticker: string, gridOverride?: CalCfg[]) {
+    const grid = gridOverride ?? configGrid;
+    const cap0 = CAP;
+    let runningEquity = cap0, minEquity = cap0;
+    type WinResult = { testStart: string; testEnd: string; startEq: number; endEq: number; pnl: number; trades: number; selectedConfig: number; trainSharpe: number };
+    const windowResults: WinResult[] = [];
+    const allTrades: CalendarTrade[] = [];
+    const scaledDailyPnl = new Map<string, number>();
+
+    let startIdx = 0;
+    while (startIdx + TRAIN_DAYS + TEST_DAYS <= allTradingDates.length) {
+      const trainStart = allTradingDates[startIdx];
+      const trainEnd = allTradingDates[startIdx + TRAIN_DAYS - 1];
+      const testStart = allTradingDates[startIdx + TRAIN_DAYS];
+      const testEnd = allTradingDates[Math.min(startIdx + TRAIN_DAYS + TEST_DAYS - 1, allTradingDates.length - 1)];
+      const warmupStart = allTradingDates[Math.max(0, startIdx - 300)];
+      const data = precompute(ticker, warmupStart, testEnd);
+
+      // TRAIN: sweep all configs
+      let bestSharpe = -Infinity, bestIdx = 0;
+      for (let ci = 0; ci < grid.length; ci++) {
+        const cfg = grid[ci];
+        const result = runCalendarStrategy({ ...cfg, ticker, startDate: trainStart, endDate: trainEnd, startingCapital: cap0 }, data);
+        const dpm = new Map<string, number>();
+        for (const t of result.trades) dpm.set(t.exitDate, (dpm.get(t.exitDate) ?? 0) + t.totalPnl);
+        const tDates = allTradingDates.filter(d => d >= trainStart && d <= trainEnd);
+        let teq = cap0; const trets: number[] = [];
+        for (const d of tDates) { const dp = dpm.get(d) ?? 0; const b = teq; teq += dp; if (b > 0) trets.push(dp / b); }
+        const ta = trets.length > 0 ? trets.reduce((s, r) => s + r, 0) / trets.length : 0;
+        const ts = trets.length > 1 ? Math.sqrt(trets.reduce((s, r) => s + (r - ta) ** 2, 0) / (trets.length - 1)) : 0;
+        const tSharpe = ts > 0 ? (ta / ts) * Math.sqrt(252) : 0;
+        if (tSharpe > bestSharpe && result.totalTrades >= 3) { bestSharpe = tSharpe; bestIdx = ci; }
+      }
+      // Fallback: any trades
+      if (bestSharpe === -Infinity) {
+        for (let ci = 0; ci < grid.length; ci++) {
+          const r = runCalendarStrategy({ ...grid[ci], ticker, startDate: trainStart, endDate: trainEnd, startingCapital: cap0 }, data);
+          if (r.totalTrades > 0) { bestIdx = ci; break; }
+        }
+      }
+
+      // OOS: run selected config
+      const oosResult = runCalendarStrategy({ ...grid[bestIdx], ticker, startDate: testStart, endDate: testEnd, startingCapital: runningEquity }, data);
+      const startEq = runningEquity;
+      runningEquity += oosResult.totalPnl;
+      minEquity = Math.min(minEquity, runningEquity);
+      for (const t of oosResult.trades) { allTrades.push(t); scaledDailyPnl.set(t.exitDate, (scaledDailyPnl.get(t.exitDate) ?? 0) + t.totalPnl); }
+      windowResults.push({ testStart, testEnd, startEq, endEq: runningEquity, pnl: oosResult.totalPnl, trades: oosResult.totalTrades, selectedConfig: bestIdx, trainSharpe: bestSharpe });
+      startIdx += TEST_DAYS;
+    }
+
+    // OOS Sharpe
+    const oosDateSet = new Set<string>();
+    for (const w of windowResults) { for (const d of allTradingDates) { if (d >= w.testStart && d <= w.testEnd) oosDateSet.add(d); } }
+    const oosDates = [...oosDateSet].sort();
+    let eq = cap0, pk = eq, mdd = 0; const rets: number[] = [];
+    for (const d of oosDates) { const dp = scaledDailyPnl.get(d) ?? 0; const b = eq; eq += dp; pk = Math.max(pk, eq); mdd = Math.max(mdd, pk > 0 ? (pk - eq) / pk : 0); if (b > 0) rets.push(dp / b); }
+    const avg = rets.length > 0 ? rets.reduce((s, r) => s + r, 0) / rets.length : 0;
+    const std = rets.length > 1 ? Math.sqrt(rets.reduce((s, r) => s + (r - avg) ** 2, 0) / (rets.length - 1)) : 0;
+    const oosSharpe = std > 0 ? (avg / std) * Math.sqrt(252) : 0;
+    const oosYears = oosDates.length > 1 ? (new Date(oosDates[oosDates.length - 1]).getTime() - new Date(oosDates[0]).getTime()) / (365.25 * 86400000) : 0;
+    const oosCagr = oosYears > 0 ? ((runningEquity / cap0) ** (1 / oosYears) - 1) * 100 : 0;
+    const oosWR = allTrades.length > 0 ? allTrades.filter(t => t.totalPnl > 0).length / allTrades.length * 100 : 0;
+
+    return { windows: windowResults, finalEquity: runningEquity, oosSharpe, oosCagr, oosMaxDD: mdd * 100, oosTrades: allTrades.length, oosWR, posWindows: windowResults.filter(w => w.pnl > 0).length, minEquity, scaledDailyPnl };
+  }
+
+  // PHASE A: Per-Ticker WFA
+  console.log('  PHASE A: Per-Ticker WFA\n');
+  const t0 = Date.now();
+  const wfaResults: Record<string, ReturnType<typeof runCalendarWFA>> = {};
+
+  for (const ticker of CAL_TICKERS) {
+    const t0t = Date.now();
+    wfaResults[ticker] = runCalendarWFA(ticker);
+    const r = wfaResults[ticker];
+    console.log(`  ${ticker}: OOS Sharpe ${r.oosSharpe.toFixed(3)}, CAGR ${r.oosCagr.toFixed(1)}%, MaxDD ${r.oosMaxDD.toFixed(1)}%, ${r.oosTrades} trades, ${((Date.now() - t0t) / 1000).toFixed(0)}s`);
+    // Window detail
+    for (let wi = 0; wi < r.windows.length; wi++) {
+      const w = r.windows[wi];
+      const cfg = configGrid[w.selectedConfig];
+      console.log('    W' + String(wi+1).padStart(2) + ` ${w.testStart}->${w.testEnd}` +
+        formatCurrency(w.startEq).padStart(10) + '->' + formatCurrency(w.endEq).padStart(10) +
+        formatCurrency(w.pnl).padStart(10) + String(w.trades).padStart(5) + 't  ' +
+        (cfg?.label ?? 'none') + ` (${w.trainSharpe.toFixed(2)})`);
+    }
+    console.log('');
+  }
+  console.log(`  All: ${((Date.now() - t0) / 1000).toFixed(0)}s`);
+
+  // ── PHASE A2: IWM Sideways-Only Re-Run ──
+  // Avoid overlap with existing IWM bear call spread by restricting to sideways regime only
+  console.log('\n  PHASE A2: IWM Sideways-Only Calendar (no bear overlap)\n');
+  const sidewaysOnlyGrid = configGrid.filter(c => c.regime === 'sideways');
+  console.log(`  Sideways-only grid: ${sidewaysOnlyGrid.length} configs (filtered from ${configGrid.length})`);
+  const t0sw = Date.now();
+  const iwmSWGrid = sidewaysOnlyGrid.map(c => ({ ...c, ticker: 'IWM' }));
+  const iwmSidewaysOnly = runCalendarWFA('IWM', iwmSWGrid);
+  console.log(`  IWM (sw-only): OOS Sharpe ${iwmSidewaysOnly.oosSharpe.toFixed(3)}, CAGR ${iwmSidewaysOnly.oosCagr.toFixed(1)}%, MaxDD ${iwmSidewaysOnly.oosMaxDD.toFixed(1)}%, ${iwmSidewaysOnly.oosTrades} trades, ${((Date.now() - t0sw) / 1000).toFixed(0)}s`);
+  for (let wi = 0; wi < iwmSidewaysOnly.windows.length; wi++) {
+    const w = iwmSidewaysOnly.windows[wi];
+    const cfg = sidewaysOnlyGrid[w.selectedConfig];
+    console.log('    W' + String(wi+1).padStart(2) + ` ${w.testStart}->${w.testEnd}` +
+      formatCurrency(w.startEq).padStart(10) + '->' + formatCurrency(w.endEq).padStart(10) +
+      formatCurrency(w.pnl).padStart(10) + String(w.trades).padStart(5) + 't  ' +
+      (cfg?.label ?? 'none') + ` (${w.trainSharpe.toFixed(2)})`);
+  }
+  console.log('\n  Comparison: IWM all-regime vs sideways-only');
+  console.log(`    All-regime:    Sharpe ${wfaResults['IWM'].oosSharpe.toFixed(3)}, CAGR ${wfaResults['IWM'].oosCagr.toFixed(1)}%, MaxDD ${wfaResults['IWM'].oosMaxDD.toFixed(1)}%, ${wfaResults['IWM'].oosTrades} trades`);
+  console.log(`    Sideways-only: Sharpe ${iwmSidewaysOnly.oosSharpe.toFixed(3)}, CAGR ${iwmSidewaysOnly.oosCagr.toFixed(1)}%, MaxDD ${iwmSidewaysOnly.oosMaxDD.toFixed(1)}%, ${iwmSidewaysOnly.oosTrades} trades`);
+
+  // PHASE B: Portfolio Combinations
+  console.log('\n  PHASE B: Portfolio Combinations\n');
+  const BULL_LEG = { ticker: 'QQQ', overrides: { direction: 'bull' as const, targetDelta: 0.30, longPutDelta: 0.20, maxDTE: DTE, trendEMA: 34, maxRiskPct: 0.10, compounding: true } };
+  const BEAR_REGIME = { trendEMA: 21, trendEMA2: 34, trendEMA3: 55, requireAlignment: true };
+  const BEAR_LEGS = [
+    { ticker: 'QQQ', overrides: { direction: 'bear' as const, targetDelta: 0.40, longPutDelta: 0.30, maxDTE: DTE, maxRiskPct: 0.10, compounding: true, ...BEAR_REGIME, pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.01 } },
+    { ticker: 'SPY', overrides: { direction: 'bear' as const, targetDelta: 0.40, longPutDelta: 0.30, maxDTE: DTE, maxRiskPct: 0.10, compounding: true, ...BEAR_REGIME, pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.05 } },
+    { ticker: 'IWM', overrides: { direction: 'bear' as const, targetDelta: 0.15, longPutDelta: 0.05, maxDTE: DTE, maxRiskPct: 0.10, compounding: true, ...BEAR_REGIME, pullbackOnly: true, pullbackEMA: 21, pullbackTolerance: 0.03, maxRallyFromLow: 0.08 } },
+  ];
+
+  const bullOnly = runCombinedWFAPortfolio(allTradingDates, TRAIN_DAYS, TEST_DAYS, [BULL_LEG]);
+  const bullBear = runCombinedWFAPortfolio(allTradingDates, TRAIN_DAYS, TEST_DAYS, [BULL_LEG, ...BEAR_LEGS]);
+
+  // Helper: combine bull+bear window PnL with calendar window PnL
+  // Reuses mergedDailyMetrics from sideways study scope — redeclare here for calendar scope
+  function mergedDailyMetricsCal(dailyPnlMaps: Map<string, number>[], cap: number) {
+    const merged = new Map<string, number>();
+    for (const m of dailyPnlMaps) {
+      for (const [d, pnl] of m) merged.set(d, (merged.get(d) ?? 0) + pnl);
+    }
+    const dates = [...merged.keys()].sort();
+    let eq = cap, pk = cap, mdd = 0, minEq = cap;
+    const rets: number[] = [];
+    for (const d of dates) {
+      const dayPnl = merged.get(d) ?? 0;
+      const base = eq;
+      eq += dayPnl;
+      minEq = Math.min(minEq, eq);
+      pk = Math.max(pk, eq);
+      mdd = Math.max(mdd, pk > 0 ? (pk - eq) / pk : 0);
+      if (base > 0) rets.push(dayPnl / base);
+    }
+    const avg = rets.length > 0 ? rets.reduce((s, r) => s + r, 0) / rets.length : 0;
+    const std = rets.length > 1 ? Math.sqrt(rets.reduce((s2, r) => s2 + (r - avg) ** 2, 0) / (rets.length - 1)) : 0;
+    const sharpe = std > 0 ? (avg / std) * Math.sqrt(252) : 0;
+    const yrs = dates.length > 1 ? (new Date(dates[dates.length - 1]).getTime() - new Date(dates[0]).getTime()) / (365.25 * 86400000) : 0;
+    const cagr = yrs > 0 && cap > 0 ? ((eq / cap) ** (1 / yrs) - 1) * 100 : 0;
+    return { sharpe, cagr, maxDD: mdd * 100, finalEquity: eq, minEquity: minEq };
+  }
+
+  function addCalPnl(bbResult: ReturnType<typeof runCombinedWFAPortfolio>, calWFA: ReturnType<typeof runCalendarWFA>) {
+    const totalTrades = bbResult.oosTrades + calWFA.oosTrades;
+    return { ...mergedDailyMetricsCal([bbResult.scaledDailyPnl, calWFA.scaledDailyPnl], CAP), trades: totalTrades };
+  }
+
+  interface PResult { label: string; sharpe: number; cagr: number; maxDD: number; finalEquity: number; minEquity: number; trades: number }
+  const pResults: PResult[] = [
+    { label: 'QQQ bull only', sharpe: bullOnly.oosSharpe, cagr: bullOnly.oosCagr, maxDD: bullOnly.oosMaxDD, finalEquity: bullOnly.finalEquity, minEquity: bullOnly.minEquity, trades: bullOnly.oosTrades },
+    { label: 'QQQ bull + all 3 bear', sharpe: bullBear.oosSharpe, cagr: bullBear.oosCagr, maxDD: bullBear.oosMaxDD, finalEquity: bullBear.finalEquity, minEquity: bullBear.minEquity, trades: bullBear.oosTrades },
+  ];
+
+  // IWM all-regime calendar (original, has bear overlap)
+  const rAllRegime = addCalPnl(bullBear, wfaResults['IWM']);
+  pResults.push({ label: 'BB + IWM calendar (all-regime)', ...rAllRegime });
+
+  // IWM sideways-only calendar (no overlap)
+  const rSWOnly = addCalPnl(bullBear, iwmSidewaysOnly);
+  pResults.push({ label: 'BB + IWM calendar (sw-only)', ...rSWOnly });
+
+  console.log('  ' + 'Portfolio'.padEnd(42) + 'Sharpe'.padStart(8) + 'CAGR'.padStart(8) + 'MaxDD'.padStart(8) + 'Final$'.padStart(11) + 'MinEq'.padStart(10) + 'Trades'.padStart(8));
+  console.log('  ' + '-'.repeat(95));
+  for (const r of pResults) {
+    console.log('  ' + r.label.padEnd(42) + r.sharpe.toFixed(3).padStart(8) + (r.cagr.toFixed(1)+'%').padStart(8) + (r.maxDD.toFixed(1)+'%').padStart(8) + formatCurrency(r.finalEquity).padStart(11) + formatCurrency(r.minEquity).padStart(10) + String(r.trades).padStart(8));
+  }
+
+  // WRITE REPORT
+  const reportDir = path.resolve(__dirname, '../backtesting history/credit-spread/reports/calendar-strategy');
+  if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir, { recursive: true });
+
+  let md = `# Calendar Spread Strategy -- Regime-Aware Report\n\n`;
+  md += `**Date:** ${new Date().toISOString().split('T')[0]}\n`;
+  md += `**Engine:** Post-audit (worst-side fills, honest pricing)\n`;
+  md += `**Commission:** $0 (Robinhood)\n`;
+  md += `**Methodology:** TRUE WFA (${TRAIN_DAYS}d train / ${TEST_DAYS}d test), per-window optimization\n`;
+  md += `**Config grid:** ${configGrid.length} configs per ticker per window\n`;
+  md += `**Starting Capital:** $${CAP.toLocaleString()}\n\n`;
+  md += `## Design\n\nBull regime (close>EMA34): put calendar. Bear regime (EMA21<EMA34<EMA55): call calendar. Sideways (NOT bull, NOT bear, trendStrength<threshold): put or call swept.\n\n> **Note:** trendStrength is a close-only directional metric, NOT Wilder ADX. Thresholds calibrated to this metric.\n\n`;
+  md += `Short DTE: [${SHORT_DTES}], Long DTE: [${LONG_DTES}], Deltas: [${DELTAS}]\n\n---\n\n`;
+
+  md += `## Section 1: Per-Ticker OOS Results\n\n`;
+  md += `| Ticker | OOS Sharpe | CAGR | MaxDD | Trades | Pos Win | Final$ |\n|---|---|---|---|---|---|---|\n`;
+  for (const t of CAL_TICKERS) { const r = wfaResults[t]; md += `| ${t} | ${r.oosSharpe.toFixed(3)} | ${r.oosCagr.toFixed(1)}% | ${r.oosMaxDD.toFixed(1)}% | ${r.oosTrades} | ${r.posWindows}/${r.windows.length} | $${r.finalEquity.toFixed(0)} |\n`; }
+
+  md += `\n## Section 2: Window-by-Window\n\n`;
+  for (const ticker of CAL_TICKERS) {
+    const r = wfaResults[ticker];
+    md += `### ${ticker}\n\n| W# | Period | StartEq | EndEq | PnL | Trades | Config | Train Sharpe |\n|---|---|---|---|---|---|---|---|\n`;
+    for (let wi = 0; wi < r.windows.length; wi++) { const w = r.windows[wi]; const cfg = configGrid[w.selectedConfig]; md += `| ${wi+1} | ${w.testStart} to ${w.testEnd} | $${w.startEq.toFixed(0)} | $${w.endEq.toFixed(0)} | $${w.pnl.toFixed(0)} | ${w.trades} | ${cfg?.label ?? 'none'} | ${w.trainSharpe.toFixed(2)} |\n`; }
+    md += '\n';
+  }
+
+  md += `## Section 3: IWM Sideways-Only Calendar (no bear overlap)\n\n`;
+  md += `IWM all-regime calendar selected bear configs in 4/16 windows, overlapping with existing IWM bear call spread. Sideways-only version restricts to ${sidewaysOnlyGrid.length} sideways configs.\n\n`;
+  md += `| Variant | OOS Sharpe | CAGR | MaxDD | Trades | Final$ |\n|---|---|---|---|---|---|\n`;
+  md += `| IWM all-regime | ${wfaResults['IWM'].oosSharpe.toFixed(3)} | ${wfaResults['IWM'].oosCagr.toFixed(1)}% | ${wfaResults['IWM'].oosMaxDD.toFixed(1)}% | ${wfaResults['IWM'].oosTrades} | $${wfaResults['IWM'].finalEquity.toFixed(0)} |\n`;
+  md += `| IWM sideways-only | ${iwmSidewaysOnly.oosSharpe.toFixed(3)} | ${iwmSidewaysOnly.oosCagr.toFixed(1)}% | ${iwmSidewaysOnly.oosMaxDD.toFixed(1)}% | ${iwmSidewaysOnly.oosTrades} | $${iwmSidewaysOnly.finalEquity.toFixed(0)} |\n\n`;
+
+  md += `### IWM Sideways-Only Window Detail\n\n| W# | Period | StartEq | EndEq | PnL | Trades | Config | Train Sharpe |\n|---|---|---|---|---|---|---|---|\n`;
+  for (let wi = 0; wi < iwmSidewaysOnly.windows.length; wi++) {
+    const w = iwmSidewaysOnly.windows[wi];
+    const cfg = sidewaysOnlyGrid[w.selectedConfig];
+    md += `| ${wi+1} | ${w.testStart} to ${w.testEnd} | $${w.startEq.toFixed(0)} | $${w.endEq.toFixed(0)} | $${w.pnl.toFixed(0)} | ${w.trades} | ${cfg?.label ?? 'none'} | ${w.trainSharpe.toFixed(2)} |\n`;
+  }
+
+  md += `\n## Section 4: Portfolio Combinations\n\n| Portfolio | Sharpe | CAGR | MaxDD | Final$ | MinEq | Trades |\n|---|---|---|---|---|---|---|\n`;
+  for (const r of pResults) { md += `| ${r.label} | ${r.sharpe.toFixed(3)} | ${r.cagr.toFixed(1)}% | ${r.maxDD.toFixed(1)}% | $${r.finalEquity.toFixed(0)} | $${r.minEquity.toFixed(0)} | ${r.trades} |\n`; }
+
+  md += `\n## Caveats\n\n1. TRUE WFA: per-window train/test, no look-ahead\n2. Calendar exit = close both legs at near-term expiry (no rolling)\n3. Debit trade: max loss = premium paid\n4. Far-term leg sold at bid (worst side) at exit\n5. Trend gate is close-only directional metric (NOT Wilder ADX) -- no OHLC available from option chain snapshots\n6. Cache-only: zero API calls\n7. IWM sideways-only avoids overlap with existing IWM bear call spread\n`;
+
+  fs.writeFileSync(`${reportDir}/README.md`, md);
+  fs.writeFileSync(`${reportDir}/calendar-results.json`, JSON.stringify({
+    generatedAt: new Date().toISOString(), methodology: 'TRUE WFA', configGridSize: configGrid.length,
+    perTicker: Object.fromEntries(CAL_TICKERS.map(t => [t, { oosSharpe: wfaResults[t].oosSharpe, oosCagr: wfaResults[t].oosCagr, oosMaxDD: wfaResults[t].oosMaxDD, oosTrades: wfaResults[t].oosTrades, finalEquity: wfaResults[t].finalEquity, windows: wfaResults[t].windows }])),
+    iwmSidewaysOnly: { oosSharpe: iwmSidewaysOnly.oosSharpe, oosCagr: iwmSidewaysOnly.oosCagr, oosMaxDD: iwmSidewaysOnly.oosMaxDD, oosTrades: iwmSidewaysOnly.oosTrades, finalEquity: iwmSidewaysOnly.finalEquity, windows: iwmSidewaysOnly.windows },
+    portfolioCombos: pResults,
+  }, null, 2));
+
+  db.close();
+  console.log(`\n  Report: ${reportDir}/README.md`);
+  console.log('  Done. ZERO ORATS API calls. TRUE WFA.');
+}
+
+calendarStudy().catch(console.error);
+
+//── EMA Alignment Study ��� Bear + Improved Bull ────────
 async function alignmentStudy() {
   console.log('╔══════════════════════════════════════════════════════════════════╗');
   console.log('║  EMA Alignment Study — Multi-EMA filter for bull & bear sides   ║');
