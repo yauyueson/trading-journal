@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, ChevronDown, Settings2 } from 'lucide-react';
 import { Position, Transaction, PositionAction, DirectAddItem, RollData } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -13,10 +12,9 @@ import { useAppSettings } from '../context/AppSettingsContext';
 import { getProfile } from '../lib/strategyProfiles';
 import { getPositionRiskAtStopOutDollars, aggregatePortfolioGreeks } from '../lib/riskSizing';
 import { formatCurrency, daysUntil } from '../lib/utils';
-import { supabase } from '../lib/supabase';
-import { queryKeys } from '../lib/queryKeys';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
+import { useAutoCloseStuckPositions } from '../hooks/useAutoCloseStuckPositions';
 import {
     usePositionAction,
     useUpdateScore,
@@ -46,7 +44,6 @@ interface PortfolioPageProps {
 }
 
 export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
-    const queryClient = useQueryClient();
     // React Query hooks as fallbacks when props not provided
     const { data: positionsQuery = [], isLoading: positionsLoading } = usePositions();
     const { data: transactionsQuery = [], isLoading: transactionsLoading } = useTransactions();
@@ -116,24 +113,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // Auto-close active positions that have 0 remaining quantity (stuck from prior bug)
-    useEffect(() => {
-        const stuckPositions = positions.filter(p => {
-            if (p.status !== 'active') return false;
-            const txns = transactionsByPosition[p.id] ?? [];
-            if (txns.length === 0) return false;
-            const remaining = txns.reduce((sum, t) => sum + t.quantity, 0);
-            return remaining <= 0;
-        });
-        for (const p of stuckPositions) {
-            supabase.from('positions').update({
-                status: 'closed',
-                closed_at: new Date().toISOString(),
-                exit_type: 'MANUAL',
-            }).eq('id', p.id).then(() => {
-                queryClient.invalidateQueries({ queryKey: queryKeys.positions });
-            });
-        }
-    }, [positions, transactionsByPosition]);
+    useAutoCloseStuckPositions(positions, transactions);
 
     const allActivePositions = positions.filter(p => p.status === 'active');
     const ownerFiltered = ownerFilter === 'All' ? allActivePositions : allActivePositions.filter(p => p.owner === ownerFilter);

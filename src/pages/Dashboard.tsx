@@ -7,6 +7,7 @@ import { useAppSettings } from '../context/AppSettingsContext';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAddDirect, usePositionAction, useUpdatePrice } from '../hooks/usePositionMutations';
+import { useAutoCloseStuckPositions } from '../hooks/useAutoCloseStuckPositions';
 import { PositionCard } from '../components/PositionCard';
 import { SpreadPickerModal } from '../components/SpreadPickerModal';
 import { useAllSignals } from '../hooks/useSignalStatus';
@@ -23,6 +24,8 @@ export function DashboardPage() {
   const addDirect = useAddDirect();
   const positionAction = usePositionAction();
   const updatePrice = useUpdatePrice();
+
+  useAutoCloseStuckPositions(positions, transactions);
 
   const [selectedSpread, setSelectedSpread] = useState<SpreadRecommendation | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
