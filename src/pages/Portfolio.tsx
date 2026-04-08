@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, ChevronDown, Settings2 } from 'lucide-react';
 import { Position, Transaction, PositionAction, DirectAddItem, RollData } from '../lib/types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -12,6 +13,8 @@ import { useAppSettings } from '../context/AppSettingsContext';
 import { getProfile } from '../lib/strategyProfiles';
 import { getPositionRiskAtStopOutDollars, aggregatePortfolioGreeks } from '../lib/riskSizing';
 import { formatCurrency, daysUntil } from '../lib/utils';
+import { supabase } from '../lib/supabase';
+import { queryKeys } from '../lib/queryKeys';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 import {
@@ -43,6 +46,7 @@ interface PortfolioPageProps {
 }
 
 export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
+    const queryClient = useQueryClient();
     // React Query hooks as fallbacks when props not provided
     const { data: positionsQuery = [], isLoading: positionsLoading } = usePositions();
     const { data: transactionsQuery = [], isLoading: transactionsLoading } = useTransactions();
@@ -60,14 +64,33 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const positions = props.positions ?? positionsQuery;
     const transactions = props.transactions ?? transactionsQuery;
     const loading = props.loading ?? (positionsLoading || transactionsLoading);
-    const onAction = props.onAction ?? (async (id: string, action: PositionAction, exitType?: Position['exit_type']) => { positionActionMut.mutate({ id, action, exitType }); });
-    const onUpdateScore = props.onUpdateScore ?? (async (id: string, score: number) => { updateScoreMut.mutate({ id, score }); });
-    const onUpdatePrice = props.onUpdatePrice ?? (async (id: string, price: number) => { updatePriceMut.mutate({ id, price }); });
-    const onUpdateTarget = props.onUpdateTarget ?? (async (id: string, target: number) => { updateTargetMut.mutate({ id, target }); });
-    const onUpdateStop = props.onUpdateStop ?? (async (id: string, stopPrice: number) => { updateStopMut.mutate({ id, stopPrice }); });
-    const onUpdateOwner = props.onUpdateOwner ?? (async (id: string, owner: 'Yuchen' | 'Annie' | null) => { updateOwnerMut.mutate({ id, owner }); });
-    const onUpdatePaper = async (id: string, isPaper: boolean) => { updatePaperMut.mutate({ id, isPaper }); };
-    const onAddDirect = props.onAddDirect ?? (async (item: DirectAddItem) => { addDirectMut.mutate(item); });
+
+    // Pre-index transactions by position_id to avoid N+1 filtering (was 40+ filter ops per render)
+    const transactionsByPosition = useMemo(() => {
+        const map: Record<string, Transaction[]> = {};
+        transactions.forEach(t => {
+            if (!map[t.position_id]) map[t.position_id] = [];
+            map[t.position_id].push(t);
+        });
+        return map;
+    }, [transactions]);
+
+    // Stable callbacks — useCallback prevents cascading re-renders through PositionCard memo
+    const defaultOnAction = useCallback(async (id: string, action: PositionAction, exitType?: Position['exit_type']) => { positionActionMut.mutate({ id, action, exitType }); }, [positionActionMut.mutate]);
+    const defaultOnUpdateScore = useCallback(async (id: string, score: number) => { updateScoreMut.mutate({ id, score }); }, [updateScoreMut.mutate]);
+    const defaultOnUpdatePrice = useCallback(async (id: string, price: number) => { updatePriceMut.mutate({ id, price }); }, [updatePriceMut.mutate]);
+    const defaultOnUpdateTarget = useCallback(async (id: string, target: number) => { updateTargetMut.mutate({ id, target }); }, [updateTargetMut.mutate]);
+    const defaultOnUpdateStop = useCallback(async (id: string, stopPrice: number) => { updateStopMut.mutate({ id, stopPrice }); }, [updateStopMut.mutate]);
+    const defaultOnUpdateOwner = useCallback(async (id: string, owner: 'Yuchen' | 'Annie' | null) => { updateOwnerMut.mutate({ id, owner }); }, [updateOwnerMut.mutate]);
+    const onUpdatePaper = useCallback(async (id: string, isPaper: boolean) => { updatePaperMut.mutate({ id, isPaper }); }, [updatePaperMut.mutate]);
+    const defaultOnAddDirect = useCallback(async (item: DirectAddItem) => { addDirectMut.mutate(item); }, [addDirectMut.mutate]);
+    const onAction = props.onAction ?? defaultOnAction;
+    const onUpdateScore = props.onUpdateScore ?? defaultOnUpdateScore;
+    const onUpdatePrice = props.onUpdatePrice ?? defaultOnUpdatePrice;
+    const onUpdateTarget = props.onUpdateTarget ?? defaultOnUpdateTarget;
+    const onUpdateStop = props.onUpdateStop ?? defaultOnUpdateStop;
+    const onUpdateOwner = props.onUpdateOwner ?? defaultOnUpdateOwner;
+    const onAddDirect = props.onAddDirect ?? defaultOnAddDirect;
     const onRoll = props.onRoll ?? (async (originalPositionId: string, rollData: RollData) => {
         const originalPosition = positions.find(p => p.id === originalPositionId);
         if (originalPosition) rollPositionMut.mutate({ originalPosition, rollData });
@@ -92,6 +115,26 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+    // Auto-close active positions that have 0 remaining quantity (stuck from prior bug)
+    useEffect(() => {
+        const stuckPositions = positions.filter(p => {
+            if (p.status !== 'active') return false;
+            const txns = transactionsByPosition[p.id] ?? [];
+            if (txns.length === 0) return false;
+            const remaining = txns.reduce((sum, t) => sum + t.quantity, 0);
+            return remaining <= 0;
+        });
+        for (const p of stuckPositions) {
+            supabase.from('positions').update({
+                status: 'closed',
+                closed_at: new Date().toISOString(),
+                exit_type: 'MANUAL',
+            }).eq('id', p.id).then(() => {
+                queryClient.invalidateQueries({ queryKey: queryKeys.positions });
+            });
+        }
+    }, [positions, transactionsByPosition]);
+
     const allActivePositions = positions.filter(p => p.status === 'active');
     const ownerFiltered = ownerFilter === 'All' ? allActivePositions : allActivePositions.filter(p => p.owner === ownerFilter);
     const strategyFiltered = strategyFilter === 'All'
@@ -107,7 +150,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
 
     // ... (risk calc unchanged)
     const totalRiskDollars = activePositions.reduce((sum, position) => {
-        const posTxns = transactions.filter(t => t.position_id === position.id);
+        const posTxns = transactionsByPosition[position.id] ?? [];
         let totalQtyBought = 0, totalQtySold = 0, totalCostBasis = 0;
         posTxns.forEach(t => {
             const qty = t.quantity;
@@ -442,7 +485,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                                 <PositionCard
                                     key={position.id}
                                     position={position}
-                                    transactions={transactions.filter(t => t.position_id === position.id)}
+                                    transactions={transactionsByPosition[position.id] ?? []}
                                     onAction={onAction}
                                     onUpdateScore={onUpdateScore}
                                     onUpdatePrice={onUpdatePrice}
