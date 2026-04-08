@@ -4,9 +4,10 @@ import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory, PositionAction } from '../lib/types';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
-import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER } from '../lib/utils';
+import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
 import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQWithFactors } from '../lib/scoring';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
+import { STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
 import { useAppSettings } from '../context/AppSettingsContext';
 import {
     usePositionAction,
@@ -96,7 +97,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const [historyLoading, setHistoryLoading] = useState(false);
 
     const isSpread = !!position.legs && position.legs.length > 0;
-    const isCreditStrategy = position.type.includes('Credit') || position.type.includes('Short');
+    const isCreditStrategy = isCreditStrategyFn(position.type);
 
     // Fetch Earnings (uses cached lookup if provided, else falls back to direct API call)
     useEffect(() => {
@@ -195,10 +196,11 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
 
                     if (isCreditStrategy) {
                         // Cost to Close = Buy back Short (Ask) - Sell Long (Bid)
-                        netPrice = shortAsk - longBid;
+                        // Floor at 0: inverted quotes during low liquidity can produce negative values
+                        netPrice = Math.max(0, shortAsk - longBid);
                     } else {
                         // Liquidation Value = Sell Long (Bid) - Buy back Short (Ask)
-                        netPrice = longBid - shortAsk;
+                        netPrice = Math.max(0, longBid - shortAsk);
                     }
                 }
 
@@ -376,9 +378,10 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
             // If bulk succeeds, initialData updates, triggering above effect.
             // So this handles fallback only.
             const delay = index * 200;
-            setTimeout(() => {
+            const timeoutId = setTimeout(() => {
                 fetchGreeksAndPrice(false);
             }, delay);
+            return () => clearTimeout(timeoutId);
         }
     }, [refreshTrigger, index, fetchGreeksAndPrice, initialData]);
 
@@ -431,8 +434,11 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
         }
     }
 
+    const stratProfile = position.strategy_type && STRATEGY_PROFILES[position.strategy_type as StrategyType]
+        ? STRATEGY_PROFILES[position.strategy_type as StrategyType]
+        : null;
     const tpFraction = isCreditStrategy
-        ? (position.strategy_type === 'shortTerm' ? 0.50 : 0.30)
+        ? (stratProfile?.profitTarget ?? 0.30)
         : 0.25; // debit: 25% gain
     const calculatedTarget = isCreditStrategy
         ? avgPrice * (1 - tpFraction) // credit: close at (1-TP%) of avg credit
@@ -462,9 +468,9 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
             : null;
     const tpReady = tpProgress != null && tpProgress >= 100;
 
-    // Time Stop thresholds
-    const timeStopDTE = position.strategy_type === 'shortTerm' ? 1 : 3;
-    const isTimeStop = daysToExp <= timeStopDTE && daysToExp >= 0;
+    // Time Stop thresholds (from strategy profile; DTE5 = 0 = hold-to-expiry)
+    const timeStopDTE = stratProfile?.timeStopDTE ?? 3;
+    const isTimeStop = timeStopDTE > 0 && daysToExp <= timeStopDTE && daysToExp >= 0;
 
     const positionRiskAtStopOutDollars = getPositionRiskAtStopOutDollars(position, Math.max(0, totalQty), avgPrice, stopOutFraction);
     const singleTradeRiskPct = portfolioTotal && portfolioTotal > 0
@@ -1027,5 +1033,7 @@ export const PositionCard = React.memo(PositionCardInner, (prev, next) => {
         && prev.position.is_paper === next.position.is_paper
         && prev.refreshTrigger === next.refreshTrigger
         && prev.initialData === next.initialData
-        && prev.portfolioTotal === next.portfolioTotal;
+        && prev.portfolioTotal === next.portfolioTotal
+        && prev.transactions.length === next.transactions.length
+        && prev.transactions === next.transactions;
 });
