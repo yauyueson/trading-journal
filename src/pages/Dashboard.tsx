@@ -12,7 +12,7 @@ import { PositionCard } from '../components/PositionCard';
 import { SpreadPickerModal } from '../components/SpreadPickerModal';
 import { useAllSignals } from '../hooks/useSignalStatus';
 import type { Position, PositionAction as PositionActionType, SpreadRecommendation } from '../lib/types';
-import { CONTRACT_MULTIPLIER } from '../lib/utils';
+import { CONTRACT_MULTIPLIER, computePositionPnL, isCreditStrategy } from '../lib/utils';
 
 const DTE5_TICKERS = ['QQQ', 'SPY', 'IWM'];
 
@@ -60,10 +60,7 @@ export function DashboardPage() {
       const pos = closed[i];
       const txns = transactions.filter(t => t.position_id === pos.id);
       const opens = txns.filter(t => t.type === 'Open');
-      const closes = txns.filter(t => t.type === 'Close' || t.type === 'Take Profit');
-      const openVal = opens.reduce((s, t) => s + t.price * t.quantity * CONTRACT_MULTIPLIER, 0);
-      const closeVal = closes.reduce((s, t) => s + t.price * t.quantity * CONTRACT_MULTIPLIER, 0);
-      const pnl = openVal - closeVal;
+      const pnl = computePositionPnL(txns, isCreditStrategy(pos.type));
       totalPnl += pnl;
       if (pnl > 0) wins++;
       if (opens.length > 0) totalCredit += opens[0].price;
