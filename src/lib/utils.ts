@@ -54,6 +54,11 @@ export const STRATEGIES = [
     'Credit Call Spread', 'Credit Put Spread',
 ];
 
+/** Check if a position type is a credit strategy (Credit spreads, Short positions). */
+export function isCreditStrategy(positionType: string): boolean {
+    return positionType.includes('Credit') || positionType.includes('Short');
+}
+
 /** Compute realized P&L for a position from its transactions.
  *  For credit strategies (Credit spreads, Short positions), entry price is a credit received
  *  and close price is a debit paid, so the formula is inverted. */
