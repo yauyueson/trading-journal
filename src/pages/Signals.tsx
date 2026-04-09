@@ -50,7 +50,7 @@ export const SignalsPage: React.FC = () => {
     ? scaleIndicatorPeriods(SHORT_TERM_PERIOD_MULT, baseTechOptions)
     : baseTechOptions;
 
-  // Seed scanner with full watchlist on mount (DTE5 scans QQQ+SPY+IWM)
+  // Seed scanner with QQQ (DTE5 ema55 bull validated)
   useEffect(() => {
     if (hasSeededWatchlist.current) return;
     if (!positions) return;
@@ -131,7 +131,7 @@ export const SignalsPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Bull signals — QQQ, SPY, IWM (WFA-validated) */}
+            {/* Bull signals — QQQ only (Phase 8 ema55 validated) */}
             <div className="grid grid-cols-1 gap-6">
 
               {/* ── BULL column ── */}
@@ -139,7 +139,7 @@ export const SignalsPage: React.FC = () => {
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-1 h-4 rounded-full bg-emerald-400" />
                   <span className="text-sm font-semibold text-emerald-400">Bull Put</span>
-                  <span className="text-xs text-text-tertiary">· Close &gt; EMA34</span>
+                  <span className="text-xs text-text-tertiary">· Close &gt; EMA55 · SL 2.5x · TL 50/50</span>
                 </div>
                 <div className="space-y-3">
                   {DTE5_SIGNALS.filter(s => s.side === 'bull').map((sig, idx) => {

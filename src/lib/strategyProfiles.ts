@@ -62,7 +62,7 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     stopLossMultiple: 2.5,    // close at market if spread cost >= 2.5x entry credit
     trailingActivatePct: 0.50, // lock profit when 50% of max profit reached
     trailingFloorPct: 0.50,   // floor at 50% of TP target (locks half the gains)
-    ivRankMin: 0,             // no IV rank filter (EMA34 gate replaces)
+    ivRankMin: 0,             // no IV rank filter (EMA55 gate replaces)
     timeStopDTE: 0,           // hold-to-expiry, no time stop
     dteOptions: [
       { label: 'DTE5', val: 5, text: '2-7d' },
@@ -74,7 +74,7 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     maxPositions: 1,
     adxGate: null,
     rvolGate: 0,
-    minScore: 0,              // EMA34 gate replaces tech score
+    minScore: 0,              // EMA55 gate replaces tech score
     minDirConfidence: 0,
   },
   swing: {

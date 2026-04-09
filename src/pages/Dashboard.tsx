@@ -14,7 +14,7 @@ import { useAllSignals } from '../hooks/useSignalStatus';
 import type { Position, PositionAction as PositionActionType, SpreadRecommendation } from '../lib/types';
 import { CONTRACT_MULTIPLIER, computePositionPnL, isCreditStrategy } from '../lib/utils';
 
-const DTE5_TICKERS = ['QQQ', 'SPY', 'IWM'];
+const DTE5_TICKERS = ['QQQ'];
 
 export function DashboardPage() {
   const { settings } = useAppSettings();
@@ -250,7 +250,7 @@ export function DashboardPage() {
               <span className="w-1 h-3 rounded-full bg-accent-green" />
               DTE5 Bull Put
             </span>
-            <span>Paper Trading</span>
+            <span>Live $1K</span>
             {expiryInfo && <span>{expiryInfo.daysLeft}d {expiryInfo.hoursLeft}h to expiry</span>}
           </motion.div>
         </StaggerItem>
@@ -266,7 +266,7 @@ export function DashboardPage() {
               const isBull = sig.isActive;
               const isBear = sig.direction === 'PUT';
               const hasSignal = isBull || isBear;
-              const spreadMap: Record<string, string> = { QQQ: isBull ? 'sp30/20' : 'sp40/30', SPY: 'sp40/30', IWM: 'sp15/05' };
+              const spreadMap: Record<string, string> = { QQQ: 'sp30/20' };
               return (
                 <motion.div
                   key={sig.ticker}

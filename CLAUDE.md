@@ -1,133 +1,131 @@
-# Trading Journal — Claude Code Context
+# CLAUDE.md
 
-Options trading journal with React 18 + Vite 5 + React Router v6 + React Query v5 frontend, Vercel API routes (ESM .js), Supabase DB.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Key Architecture
+## Build & Dev Commands
 
-- **Routing**: React Router v6, lazy-loaded pages (`src/router.tsx`). Active routes: `/portfolio`, `/scanner`, `/history`, `/stats`, `/selector`, `/academy`, `/settings`, `/signals`, `/backtest`
-- **Data**: React Query v5 (staleTime 30s, gcTime 5min). Pages fetch via hooks, no prop drilling.
-- **Mutations**: `src/hooks/usePositionMutations.ts` — 11 mutation hooks, auto-invalidate on success
+```bash
+npm run dev          # Vite dev server (frontend only, stub APIs) → localhost:5173
+npm run build        # tsc && vite build
+npm run lint         # ESLint on src/ (max 25 warnings allowed)
+npm run test         # vitest run --passWithNoTests (all 695+ tests)
+npm run test:watch   # vitest in watch mode
+vercel dev           # Full-stack local dev (real API routes + env vars)
+```
+
+`npm run dev` serves frontend with Vite middleware stubs for `/api/option-price*`. Use `vercel dev` when you need real API routes hitting ORATS/Tiingo/Supabase.
+
+Run a single test file:
+```bash
+npx vitest run tests/scoring-parity.test.ts
+npx vitest run src/lib/__tests__/oss-core.test.ts
+```
+
+Run tests matching a pattern:
+```bash
+npx vitest run -t "delta stop"
+```
+
+Backtest scripts (tsx runner):
+```bash
+npx tsx scripts/short-put-1dte.ts
+```
+
+CI pipeline (GitHub Actions): `lint → build → test` on every push/PR.
+
+## Architecture
+
+**Stack**: React 18 + Vite 5 + TypeScript + Tailwind CSS frontend, Vercel serverless API routes (ESM `.js`), Supabase PostgreSQL + Realtime, ORATS + Tiingo data providers.
+
+### Frontend
+
+- **Provider chain**: `QueryClientProvider → AppSettingsProvider → AuthProvider → ErrorBoundary → Suspense → RouterProvider`
+- **Routing**: React Router v6 with lazy-loaded pages (`src/router.tsx`). Routes: `/dashboard`, `/portfolio`, `/signals`, `/history`, `/stats`, `/selector`, `/academy`, `/settings`, `/backtest`
+- **Data fetching**: React Query v5 (staleTime 30s, gcTime 5min, retry 1, refetchOnWindowFocus false). Query key factory in `src/lib/queryKeys.ts`. Pages fetch via hooks in `src/hooks/`, no prop drilling.
+- **Mutations**: `src/hooks/usePositionMutations.ts` — 11 mutation hooks, auto-invalidate `queryKeys.positions` + `queryKeys.transactions` on success
 - **Realtime**: Supabase channels → `useRealtimeInvalidation` → `queryClient.invalidateQueries`
-- **Contexts**: AuthContext, BuyModalContext, AppSettingsContext
-- **Crons**: Most crons triggered externally via cronjobs.org. Exception: `cron-iv` uses Vercel cron (`vercel.json` `crons` array, 22:00 UTC weekdays).
-- **Data providers**: ORATS (options chains/Greeks/IV/cores/earnings/impliedMove) + Tiingo (stock candles)
-- **Env vars**: `ORATS_API_TOKEN`, `TIINGO_API_TOKEN`, `DATA_SOURCE=ORATS`, `DISCORD_WEBHOOK_URL`
+- **Contexts**: AuthContext (session/auth state), AppSettingsContext (portfolio config, active strategy, derived risk limits), BuyModalContext
+- **Settings persistence**: localStorage with 5-min TTL, backed by Supabase `app_settings` table (id=1, JSON blob)
+- **Types**: Core types in `src/lib/types.ts` (Position, Transaction, LiveData), settings types in `src/lib/types/settings.ts`
+- **Shared utilities**: `src/lib/utils.ts` exports `isCreditStrategy(type)` (single source of truth for credit vs debit detection), `computePositionPnL(transactions, isCredit)` (realized P&L), formatting helpers (`formatCurrency`, `formatPrice`, `formatPercent`, `formatDate`, `daysUntil`)
+- **Path alias**: `@/*` → `./src/*` (tsconfig paths)
+- **Dark theme only**: Custom Tailwind tokens (`text-text-primary`, `bg-bg-secondary`, `text-accent-green`, etc.) defined in `tailwind.config.js`. Never use hardcoded hex colors.
+
+### Backend (Vercel API Routes)
+
+All in `api/` as ESM `.js` files. Key routes:
+- `strategy-recommend.js` (15s) — main recommendation engine (raw `fetch()` for Supabase REST, not JS client)
+- `scan-options.js` (15s) — options scanner
+- `option-prices.js` (15s) — single/bulk option price lookup; rewrite `/api/option-price` → `/api/option-prices` in `vercel.json`
+- `cron-signal-scan.js` (60s) — daily signal scanner (21:00 UTC weekdays, external cron)
+- `cron-trade-outcomes.js` (30s) — daily MFE/MAE computation (21:35 UTC weekdays, external cron)
+- `cron-iv.js` (120s) — IV backfill (Vercel cron, 22:00 UTC weekdays via `vercel.json`)
+- `backtest-data.js` (15s) — unified backtest endpoint (`?type=candles` or `?type=iv`)
+- `check-alerts.js` (60s) — stop loss/target price alerts → Discord webhook
+- `daily-recap.js` (60s) — daily summary → Discord
+
+Cron routes verify `CRON_SECRET` via `Authorization: Bearer` header. Non-cron routes have no auth guard (single-user app, RLS at Supabase layer).
+
+Data clients: `lib/orats-client.js` (ORATS), `lib/tiingo-client.js` (Tiingo)
+
+### Scoring System (Dual-File Parity)
+
+- `src/lib/oss-core.ts` — TypeScript source of truth (frontend)
+- `lib/_shared/scoring.cjs` — CJS mirror (used by API routes)
+- **These two files MUST stay in sync.** 307 parity tests in `tests/scoring-parity.test.ts` enforce this. Any scoring change requires updating both files.
+
+### Backtesting Engine
+
+Located in `src/lib/backtest/`:
+- `engine.ts` — core simulation + V4 quality gates
+- `option-sim.ts` — credit spread simulator (BSM on ORATS chains), `DELTA_STOP` exit, bid/ask fills
+- `chain-cache.ts` — SQLite cache for ORATS chain data, `findContractDirect()` O(1) PK lookup
+- `bsm-pricing.ts` — BSM pricing, delta, O-U IV evolution, rolling HV
+- `wfa-options.ts` — rolling window WFA engine
+- `slippage.ts` — dynamic slippage model
+- `portfolio-stress.ts` — correlated drawdown using dailyMtM
+
+### Risk Sizing
+
+`src/lib/riskSizing.ts` — position sizing uses stop-out level (not full max loss) as risk. 0.25 Kelly fraction. `getPositionRiskAtStopOutDollars()` for per-position risk, capped by `maxRiskPerTrade` from AppSettings.
+
+### Testing
+
+Vitest configured in `vite.config.ts` (not a separate config). Tests in two locations:
+- `tests/` — integration/parity tests (scoring parity, BSM, WFA, option-sim, migration)
+- `src/lib/__tests__/` — unit tests (oss-core, riskSizing)
+
+Test environment: jsdom with globals enabled. Setup file: `src/test/setup.ts`.
 
 ## Critical Rules
 
-- `src/lib/oss-core.ts` and `lib/_shared/scoring.cjs` **MUST stay in sync** — 307 parity tests enforce this. Any scoring change requires updating both files.
-- `api/strategy-recommend.js` uses raw `fetch()` for Supabase REST (no JS client), env vars: `SUPABASE_URL`/`SUPABASE_ANON_KEY`
-- `api/cron-iv.js` uses `@supabase/supabase-js` createClient
-- All 683 existing tests must keep passing after any change.
-- **Backtesting results & reports** must go in `backtesting history/credit-spread/reports/` — one subfolder per study (e.g., `130m-vs-4h-study/`). Each study folder should contain a `README.md` summarizing findings plus any JSON/data outputs. Never scatter result files across `data/`, `scripts/`, or project root.
+- **Scoring parity**: `oss-core.ts` ↔ `scoring.cjs` must match. Run `npx vitest run tests/scoring-parity.test.ts` after any scoring change.
+- **All tests must pass**: 695+ tests. Never merge with failures.
+- **Backtesting reports**: Must go in `backtesting history/credit-spread/reports/<study-name>/`. Each study folder gets a `README.md` plus data outputs. Never scatter results across `data/`, `scripts/`, or project root.
+- **ESLint**: Lints only `src/**/*.{ts,tsx}`. Ignores `api/`, `lib/`, `*.cjs`. Max 25 warnings.
+- **API route pattern**: `api/strategy-recommend.js` uses raw `fetch()` for Supabase REST (env: `SUPABASE_URL`/`SUPABASE_ANON_KEY`). `api/cron-iv.js` uses `@supabase/supabase-js` createClient.
+- **Paper trading**: Positions have `is_paper` boolean. Paper and live positions coexist; filter via the portfolio's paper/live toggle.
 
-## Key Files
+## Env Vars
 
-| File | Purpose |
-|------|---------|
-| `src/lib/oss-core.ts` | TypeScript scoring source (frontend) |
-| `lib/_shared/scoring.cjs` | CJS mirror of oss-core.ts (API) |
-| `src/router.tsx` | React Router route config |
-| `src/layouts/AppLayout.tsx` | Shell (Header + TabNav + Outlet) |
-| `src/hooks/usePositionMutations.ts` | 11 mutation hooks |
-| `lib/orats-client.js` | ORATS options data client |
-| `lib/tiingo-client.js` | Tiingo stock candle client |
-| `api/strategy-recommend.js` | Main strategy recommendation API |
-| `api/scan-options.js` | Options scanner API |
-| `api/cron-signal-scan.js` | Daily signal scanner cron (21:00 UTC weekdays) |
-| `api/cron-trade-outcomes.js` | Daily MFE/MAE computation cron (21:35 UTC weekdays) |
-| `api/backtest-data.js` | Unified backtest endpoint (?type=candles or ?type=iv) |
-| `src/lib/backtest/engine.ts` | Core simulation + V4 quality gates |
-| `src/lib/backtest/option-sim.ts` | Credit spread simulator (BSM on ORATS chains) |
-| `src/lib/backtest/chain-cache.ts` | SQLite cache for ORATS chain data |
-| `src/lib/backtest/bsm-pricing.ts` | BSM pricing, delta, O-U IV evolution, rolling HV |
-| `src/lib/riskSizing.ts` | Risk sizing + portfolio Greeks utility |
-| `src/lib/types.ts` | Shared TypeScript interfaces |
-| `src/hooks/useSignalScanner.ts` | Signal scanner hook (130M + approxTickers) |
-| `scripts/prefetch-130m.mjs` | 130M candle prefetch for Supabase stock_candles |
-| `scripts/short-put-1dte.ts` | DTE5 strategy backtester + WFA + portfolio growth sim |
-| `tests/migration-130m.test.ts` | 130M migration validation (38 tests) |
-| `backtesting history/credit-spread/reports/spread-comparison/` | Current DTE5 sp30/20 analysis |
-
-## Testing
-
-738 Vitest tests across active test files. Retired strategy tests archived to `archived/tests/`. CI: GitHub Actions lint→build→test.
+`ORATS_API_TOKEN`, `TIINGO_API_TOKEN`, `DATA_SOURCE=ORATS`, `DISCORD_WEBHOOK_URL`, `CRON_SECRET`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`
 
 ## Database Tables
 
-- `positions`, `transactions`, `position_greeks_history`, `ticker_iv_snapshots`, `app_settings` (existing)
-- `candidate_snapshots` (007), `stock_candles` (011), `signal_history` (012), `orats_iv_cache` (013)
-- `score_history` (008), `trade_outcomes` (014)
+Core: `positions`, `transactions`, `position_greeks_history`, `ticker_iv_snapshots`, `app_settings`
+Analytics: `candidate_snapshots`, `stock_candles`, `signal_history`, `orats_iv_cache`, `score_history`, `trade_outcomes`
+
+Migrations in `supabase/migrations/` as raw SQL (no ORM).
+
+## Active Strategy
+
+**DTE5 Bull Put Credit Spread (QQQ only)**: short delta 0.30 / long delta 0.20, DTE 2-7, EMA55 gate, SL 2.5x credit, trailing lock 50/50, hold-to-expiry. WFA-validated: OOS Sharpe 1.44, Holdout +0.84, MaxDD 11.8%. Strategy type `'dte5'` in `src/lib/strategyProfiles.ts`. Live testing at $1K, 10% risk per trade.
+
+`STRATEGY_PROFILES` in `strategyProfiles.ts` defines three types (`swing`, `shortTerm`, `dte5`) — only `dte5` is active. Retired strategies kept for backward compat with existing DB data.
 
 ## Ticker Watchlist
 
 SPY, QQQ, GOOGL, JPM, META, TSLA, MSFT, NFLX, AAPL, NVDA, AMD, COST, IREN, BA, AMZN, HOOD, CRWV, COIN, MSTR, PLTR, AVGO, LULU, UBER, GS, UNH, IWM, GLD
-
----
-
-## Credit Spread Strategy (Production Config)
-
-### Validated: DTE5 Bull Put Credit Spread (QQQ only)
-
-**Config:** QQQ bull put spread, short delta 0.30 / long delta 0.20 (~$5-10 width), DTE 2-7 (target 5), EMA34 gate (close > EMA34), hold-to-expiry, $0 commissions (Robinhood).
-
-**Validation:** True portfolio growth WFA (10 windows, equity carries forward). sp30/20 at 10% risk: $10K → $51,881, Sharpe 1.18, CAGR 38.8%, MaxDD 25.6%, WR 80%, equity never dipped below $10K. EMA34 filter comparison confirms it's the optimal period (without EMA, MaxDD doubles to 75%). Full results in `backtesting history/credit-spread/reports/spread-comparison/README.md`.
-
-**Live config:** Paper trading at $10K capital, 10% risk per trade, max 1 concurrent position. Strategy type `'dte5'` in `src/lib/strategyProfiles.ts`. Daily signal via `cron-signal-scan.js` EMA34 gate check.
-
-### Retired Strategies (kept in type system for DB compat, hidden from UI)
-
-**Swing (45-65 DTE):** Retired 2026-03-28 — phantom expiration profits inflated OOS Sharpe.
-**Short-Term (7-21 DTE):** Retired 2026-03-28 — Sharpe -0.96 with honest pricing.
-
-## WFA Results Viewer
-
-Live at `/backtest` tab. Loads from `data/wfa-results.json` — **STALE, pre-fix results, do not treat as validated.**
-
----
-
-## Completed Work — WFA Engine Overhaul
-
-All phases implemented and tested:
-
-- **Phase 0**: Daily MTM infrastructure — `dailyMtM` on `OptionTrade`, `purgeGapDays` default fixed (5 → 65)
-- **Phase 1**: Execution reality — `src/lib/backtest/slippage.ts` (dynamic slippage), bid/ask fills via `applyFill()` in option-sim.ts
-- **Phase 2**: Rolling WFA loop — `src/lib/backtest/wfa-options.ts` (rolling window engine). Worker thread (`wfa-worker.ts`) not yet in src/
-- **Phase 3**: Portfolio stress — `src/lib/backtest/portfolio-stress.ts` (correlated drawdown using dailyMtM)
-- `findContractDirect()` in chain-cache.ts — O(1) PK index lookup
-- `DELTA_STOP` exit type + `creditDeltaStop` config param in option-sim.ts
-- Max DD sort fix in `computeOptionAnalytics`
-- **130M Migration** (2026-03-23): Tiingo IEX 10-min bars → 130M aggregation (3 bars/day = 390min session), Supabase `stock_candles` cache with block-encoded timeframe (`130M_0/1/2`), cache-first pattern with 1H fallback (approx, UI warning), `cron-signal-scan.js` handles daily 130M top-up
-- **Multicore WFA** (2026-03-23): Worker cap changed from `Math.min(4, cpus-2)` to `Math.max(1, cpus-2)` in wfa-run.ts and wfa-run-unified.ts
-- **Scoring Phase 1** (2026-03-23): VRP (IV²-RV²) ±10pt adjustment in strategy-recommend.js credit/debit builders, `orFcst20d` clamp widened ±0.8→±2.0 in oss-core.ts and scoring.cjs
-
-Uncommitted worker scripts in `scripts/`: `.credit-worker.mjs`, `.eval-worker.mjs`, `.experiment-worker.mjs`, `.portfolio-sim.mjs`, `.portfolio-worker.mjs`
-
----
-
-## Scoring System Notes
-
-Full research: `memory/scoring-overhaul-research.md` (in Claude memory dir, not repo).
-
-### Fixed (Scoring Overhaul Phase 1, 2026-03-23)
-- VRP now uses variance form (IV²-RV²) and feeds ±10pt into credit/debit builder scoring in `strategy-recommend.js`
-- `orFcst20d` clamp widened from ±0.8 to ±2.0 (with ×8 builder multiplier → max ±16pt impact). Modulated by R² quality.
-- `smvVol` already fetched and used in chain-cache.ts (line 225: `iv: callSmvVol || row.callMidIv`)
-- `riskFreeRate` already set to 0.04 in types.ts and intraday-monitor.ts
-- IV-normalized distance (sigma-unit) already used in both builder and standalone scoring paths
-
-### Remaining Gaps
-- ~50% of fetched ORATS data is display-only (never affects score)
-- `smvVol` used in backtest path but live API path (`strategy-recommend.js`) still uses `midIv`
-- CSQ framework is dead code — credit spreads use inline scoring
-- exitMultiplier=0.92 unvalidated against `trade_outcomes` table
-- Unified score overwrites LOQ z-scores (8→4 dimension reduction)
-
-ORATS `getCores()` provides (all fetched, not all used): RV30, IV percentile, daysToNextErn, impliedMove, contango, put-call volumes, slope, deriv, orFcst20d, fcstR2, ivHvXernRatio, avgOptVolu20d, tkOver.
-
-`normalizeORATSStrike` sets `probabilityITM = |delta|` (BSM approximation).
-
----
 
 ## Multi-AI Team Protocol
 

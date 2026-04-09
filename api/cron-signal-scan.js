@@ -419,9 +419,9 @@ async function sendShortTermDiscord(signals, totalScanned, date) {
     }
 }
 
-// ── DTE5 Signal Check (QQQ/SPY/IWM bull EMA34 gate) ────────────────────────────
-// WFA-validated: QQQ bull Sharpe 1.29, SPY bull 0.85, IWM bull 0.76
-// All bears killed: QQQ bear (15 trades/6yr), SPY bear (Grade D), IWM bear (negative Sharpe)
+// ── DTE5 Signal Check (QQQ bull EMA55 gate) ─────────────────────────────────────
+// Phase 8 validated: ema55 QQQ bull — Sharpe 1.44, Holdout +0.84, MaxDD 11.8%
+// Exit: SL 2.5x credit, trailing lock 50/50, hold-to-expiry
 
 async function checkDTE5Signal(today) {
     // QQQ bull-only DTE5 signal check
