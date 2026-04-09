@@ -38,37 +38,14 @@ async function ensureScoring() {
     if (!scoring || typeof scoring.compressLambda !== 'function') {
         throw new Error('Scoring module load failed: missing exports');
     }
-    compressLambda = scoring.compressLambda;
-    calculateDollarGamma = scoring.calculateDollarGamma;
-    calculateGammaThetaRatio = scoring.calculateGammaThetaRatio;
-    calculateBreakevenMove = scoring.calculateBreakevenMove;
-    getBreakevenPenalty = scoring.getBreakevenPenalty;
-    calculateExpectedValue = scoring.calculateExpectedValue;
-    getThetaPenalty = scoring.getThetaPenalty;
-    getDeltaBonus = scoring.getDeltaBonus;
-    zScores = scoring.zScores;
-    zScoresByBucket = scoring.zScoresByBucket;
-    HARD_FILTER_DEFAULTS = scoring.HARD_FILTER_DEFAULTS;
-    HARD_FILTER_CREDIT = scoring.HARD_FILTER_CREDIT;
-    getIVRiskFactor = scoring.getIVRiskFactor;
-    getIVAdjustment = scoring.getIVAdjustment;
-    getIVRankAdjustment = scoring.getIVRankAdjustment;
-    getVolForecastAdjustment = scoring.getVolForecastAdjustment;
-    getRelativeIVAdjustmentLOQ = scoring.getRelativeIVAdjustmentLOQ;
-    getRelativeIVAdjustmentCSQ = scoring.getRelativeIVAdjustmentCSQ;
-    calculateLOQRaw = scoring.calculateLOQRaw;
-    normalizeScoreTo100 = scoring.normalizeScoreTo100;
-    normalizeLOQScoresWithDynamicBaseline = scoring.normalizeLOQScoresWithDynamicBaseline;
-    calculateSpreadPct = scoring.calculateSpreadPct;
-    getCleanATM_IV = scoring.getCleanATM_IV;
-    calculateTargetIV = scoring.calculateTargetIV;
-    buildIVTermStructure = scoring.buildIVTermStructure;
-    parseChain = scoring.parseChain;
-    calculateSkew = scoring.calculateSkew;
-    estimateSlippage = scoring.estimateSlippage;
-    getGammaRiskPenalty = scoring.getGammaRiskPenalty;
-    getSkewBonusForCreditSpread = scoring.getSkewBonusForCreditSpread;
-    calculateUnifiedScore = scoring.calculateUnifiedScore;
+    ({ compressLambda, calculateDollarGamma, calculateGammaThetaRatio, calculateBreakevenMove,
+       getBreakevenPenalty, calculateExpectedValue, getThetaPenalty, getDeltaBonus, zScores,
+       zScoresByBucket, HARD_FILTER_DEFAULTS, HARD_FILTER_CREDIT, getIVRiskFactor, getIVAdjustment,
+       getIVRankAdjustment, getVolForecastAdjustment, getRelativeIVAdjustmentLOQ,
+       getRelativeIVAdjustmentCSQ, calculateLOQRaw, normalizeScoreTo100,
+       normalizeLOQScoresWithDynamicBaseline, calculateSpreadPct, getCleanATM_IV, calculateTargetIV,
+       buildIVTermStructure, parseChain, calculateSkew, estimateSlippage, getGammaRiskPenalty,
+       getSkewBonusForCreditSpread, calculateUnifiedScore } = scoring);
     try {
         const ivUrl = new URL('../lib/_shared/ivHistory.cjs', import.meta.url).href;
         const ivMod = await import(ivUrl);

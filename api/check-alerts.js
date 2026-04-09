@@ -10,6 +10,7 @@
 
 import { generateOCCSymbol, findOptionMid } from '../lib/_shared/utils.js';
 import { DATA_SOURCE } from '../lib/_shared/config.js';
+import { supabaseQuery } from '../lib/_shared/supabase-rest.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -55,28 +56,6 @@ export default async function handler(req, res) {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) {
     return res.status(500).json({ error: 'DISCORD_WEBHOOK_URL not set' });
-  }
-
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) {
-    return res.status(500).json({ error: 'Supabase env not set' });
-  }
-
-  async function supabaseQuery(table, queryParams = '') {
-    const url = `${supabaseUrl}/rest/v1/${table}${queryParams ? '?' + queryParams : ''}`;
-    const resp = await fetch(url, {
-      headers: {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(`Supabase ${table} query failed: ${resp.status} ${text}`);
-    }
-    return resp.json();
   }
 
   try {

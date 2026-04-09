@@ -279,8 +279,6 @@ export function useBacktest(): UseBacktestReturn {
       const candleMap = new Map<string, BacktestCandle[]>();
       const skipped: string[] = [];
 
-      console.log('[optimize] tickers:', allTickers, 'IS:', optCfg.startDate, '→', optCfg.endDate, 'OOS:', oosDateRange?.startDate, '→', oosDateRange?.endDate);
-
       for (let ti = 0; ti < allTickers.length; ti++) {
         const ticker = allTickers[ti];
         setProgressDetail(`${ticker} (${ti + 1}/${allTickers.length})`);
@@ -290,21 +288,15 @@ export function useBacktest(): UseBacktestReturn {
 
           // IS candles: everything up to IS end date
           const isCandles = c.filter(candle => candle.date <= optCfg.endDate);
-          console.log(`[optimize] ${ticker}: ${c.length} total candles, ${isCandles.length} IS candles`);
 
           if (isCandles.length < MIN_CANDLES) {
-            console.warn(`${ticker}: Need ${MIN_CANDLES}+ IS candles, got ${isCandles.length} — skipping`);
             skipped.push(`${ticker}(${isCandles.length})`);
             continue;
           }
           candleMap.set(ticker, isCandles);
-        } catch (fetchErr: any) {
-          console.error(`[optimize] ${ticker} fetch failed:`, fetchErr.message);
+        } catch {
+          // fetch failed — skip ticker
         }
-      }
-
-      if (skipped.length > 0) {
-        console.warn(`[optimize] Excluded (< ${MIN_CANDLES} IS candles): ${skipped.join(', ')}`);
       }
 
       if (candleMap.size === 0) {
@@ -389,8 +381,8 @@ export function useBacktest(): UseBacktestReturn {
 
           try {
             runBacktest(fullCandles, oosConfig, undefined, oosIV);
-          } catch (e: any) {
-            console.warn(`[optimize] OOS backtest failed for ${ticker}:`, e.message);
+          } catch {
+            // OOS backtest failed for ticker — skip
           }
         }
 

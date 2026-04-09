@@ -12,6 +12,20 @@ function useInvalidatePositionsAndTransactions() {
   };
 }
 
+/** Factory for simple single-field position update mutations */
+function usePositionFieldUpdate<K extends string>(
+  field: K,
+  column: string = field,
+) {
+  const invalidate = useInvalidatePositionsAndTransactions();
+  return useMutation({
+    mutationFn: async (vars: { id: string } & Record<K, unknown>) => {
+      await supabase.from('positions').update({ [column]: vars[field] }).eq('id', vars.id);
+    },
+    onSuccess: invalidate,
+  });
+}
+
 /** Insert a transaction + optionally close the position */
 export function usePositionAction() {
   const invalidate = useInvalidatePositionsAndTransactions();
@@ -68,63 +82,27 @@ export function useUpdateScore() {
 }
 
 export function useUpdatePrice() {
-  const invalidate = useInvalidatePositionsAndTransactions();
-  return useMutation({
-    mutationFn: async ({ id, price }: { id: string; price: number }) => {
-      await supabase.from('positions').update({ current_price: price }).eq('id', id);
-    },
-    onSuccess: invalidate,
-  });
+  return usePositionFieldUpdate<'price'>('price', 'current_price');
 }
 
 export function useUpdateTarget() {
-  const invalidate = useInvalidatePositionsAndTransactions();
-  return useMutation({
-    mutationFn: async ({ id, target }: { id: string; target: number }) => {
-      await supabase.from('positions').update({ target_price: target }).eq('id', id);
-    },
-    onSuccess: invalidate,
-  });
+  return usePositionFieldUpdate<'target'>('target', 'target_price');
 }
 
 export function useUpdateStop() {
-  const invalidate = useInvalidatePositionsAndTransactions();
-  return useMutation({
-    mutationFn: async ({ id, stopPrice }: { id: string; stopPrice: number }) => {
-      await supabase.from('positions').update({ stop_price: stopPrice }).eq('id', id);
-    },
-    onSuccess: invalidate,
-  });
+  return usePositionFieldUpdate<'stopPrice'>('stopPrice', 'stop_price');
 }
 
 export function useUpdateNotes() {
-  const invalidate = useInvalidatePositionsAndTransactions();
-  return useMutation({
-    mutationFn: async ({ id, notes }: { id: string; notes: string }) => {
-      await supabase.from('positions').update({ notes }).eq('id', id);
-    },
-    onSuccess: invalidate,
-  });
+  return usePositionFieldUpdate<'notes'>('notes');
 }
 
 export function useUpdateOwner() {
-  const invalidate = useInvalidatePositionsAndTransactions();
-  return useMutation({
-    mutationFn: async ({ id, owner }: { id: string; owner: 'Yuchen' | 'Annie' | null }) => {
-      await supabase.from('positions').update({ owner }).eq('id', id);
-    },
-    onSuccess: invalidate,
-  });
+  return usePositionFieldUpdate<'owner'>('owner');
 }
 
 export function useUpdatePaper() {
-  const invalidate = useInvalidatePositionsAndTransactions();
-  return useMutation({
-    mutationFn: async ({ id, isPaper }: { id: string; isPaper: boolean }) => {
-      await supabase.from('positions').update({ is_paper: isPaper }).eq('id', id);
-    },
-    onSuccess: invalidate,
-  });
+  return usePositionFieldUpdate<'isPaper'>('isPaper', 'is_paper');
 }
 
 export function useAddDirect() {

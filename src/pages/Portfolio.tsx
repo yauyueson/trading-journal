@@ -198,7 +198,6 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
         }
 
         try {
-            console.log("Fetching bulk data for", legsToFetch.length, "legs");
             const res = await fetch('/api/option-prices-bulk', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -232,17 +231,14 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                         id => !newBulkData[id] || newBulkData[id].length === 0
                     );
                     if (partialFailIds.length > 0) {
-                        console.warn(`[Portfolio] ${partialFailIds.length} position(s) had no bulk data — triggering selective fallback`);
                         setRefreshTrigger(prev => prev + 1);
                     }
                 }
             } else {
-                console.error("Bulk fetch failed", await res.text());
                 // Full failure — fall back to individual fetches
                 setRefreshTrigger(prev => prev + 1);
             }
         } catch (e) {
-            console.error("Bulk fetch error", e);
             setRefreshTrigger(prev => prev + 1);
         }
 

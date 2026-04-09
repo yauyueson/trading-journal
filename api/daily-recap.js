@@ -9,6 +9,7 @@
  */
 
 import { DATA_SOURCE } from '../lib/_shared/config.js';
+import { supabaseQuery } from '../lib/_shared/supabase-rest.js';
 
 function sendJson(res, status, obj) {
   try {
@@ -53,28 +54,6 @@ export default async function handler(req, res) {
   if (!webhookUrl) {
     sendJson(res, 500, { error: 'DISCORD_WEBHOOK_URL not set' });
     return;
-  }
-
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) {
-    sendJson(res, 500, { error: 'Supabase env not set' });
-    return;
-  }
-
-  async function supabaseQuery(table, queryParams) {
-    const url = supabaseUrl + '/rest/v1/' + table + (queryParams ? '?' + queryParams : '');
-    const resp = await fetch(url, {
-      headers: {
-        'apikey': supabaseKey,
-        'Authorization': 'Bearer ' + supabaseKey,
-        'Content-Type': 'application/json',
-      },
-    });
-    if (!resp.ok) {
-      throw new Error('Supabase ' + table + ' failed: ' + resp.status);
-    }
-    return resp.json();
   }
 
   try {

@@ -13,12 +13,6 @@ const { buildIVTermStructure, parseChain } = require('../lib/_shared/scoring.cjs
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-const POPULAR_TICKERS = [
-    'SPY', 'QQQ', 'IWM', 'DIA', 'GLD', 'TLT',
-    'AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMD', 'AMZN', 'GOOGL', 'META', 'NFLX',
-    'COIN', 'MSTR', 'PLTR', 'HOOD', 'ROKU',
-];
-
 import { SCAN_TICKERS } from '../lib/_shared/config.js';
 
 const DELAY_MS = 300;
@@ -46,7 +40,7 @@ async function fetchTickerIV(ticker) {
 async function runSnapshot(supabase) {
     const { data: positions } = await supabase.from('positions').select('ticker').eq('status', 'active');
     const activeTickers = (positions || []).map(p => p.ticker);
-    const allTickers = [...new Set([...activeTickers, ...POPULAR_TICKERS])]
+    const allTickers = [...new Set([...activeTickers, ...SCAN_TICKERS])]
         .map(t => t.toUpperCase()).filter(Boolean).sort();
 
     console.log(`[iv-snapshot] Updating ${allTickers.length} tickers`);

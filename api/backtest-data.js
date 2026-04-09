@@ -6,6 +6,8 @@
 import { getCandles, getIntradayCandles, getIntraday5MinCandles, getIntradayNMinCandles } from '../lib/tiingo-client.js';
 import { getHistoricalCores } from '../lib/orats-client.js';
 
+const UPSERT_BATCH = 500;
+
 // ── 4H Aggregator ────────────────────────────────────────────────────────────
 // Mirrors the `candles_4h` SQLite view: group 1H bars by (date, hour/4) into
 // two blocks per day:
@@ -248,8 +250,7 @@ async function cache1DCandles(ticker, bars) {
 async function cache130MCandles(ticker, bars) {
     const key = SUPABASE_SERVICE || SUPABASE_KEY;
     if (!SUPABASE_URL || !key || bars.length === 0) return;
-    const BATCH = 500;
-    for (let i = 0; i < bars.length; i += BATCH) {
+    for (let i = 0; i < bars.length; i += UPSERT_BATCH) {
         const batch = bars.slice(i, i + BATCH).map(b => ({
             ticker: ticker.toUpperCase(),
             date: b.date,
@@ -472,8 +473,7 @@ async function getCachedIV(ticker, from, to) {
 async function cacheIVRows(ticker, rows) {
     const key = SUPABASE_SERVICE || SUPABASE_KEY;
     if (!SUPABASE_URL || !key || rows.length === 0) return;
-    const BATCH = 500;
-    for (let i = 0; i < rows.length; i += BATCH) {
+    for (let i = 0; i < rows.length; i += UPSERT_BATCH) {
         const batch = rows.slice(i, i + BATCH).map(r => ({
             ticker: ticker.toUpperCase(),
             date: r.date,

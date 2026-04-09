@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Calendar, ChevronDown, Trash2, ArrowRightLeft } from 'lucide-react';
+import { Calendar, ChevronDown } from 'lucide-react';
+import { InlineEditField } from './position/InlineEditField';
+import { PositionActionForm } from './position/PositionActionForm';
+import { NotesEditor } from './position/NotesEditor';
 import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory, PositionAction } from '../lib/types';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
@@ -82,17 +85,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const [loading, setLoading] = useState(false);
     const [liveData, setLiveData] = useState<LiveData>({ delta: undefined, iv: undefined, gamma: undefined, theta: undefined, vega: undefined, score: undefined });
     const [earnings, setEarnings] = useState<{ loading: boolean; date: string | null; days: number | null }>({ loading: true, date: null, days: null });
-    const [actionMode, setActionMode] = useState<'Add' | 'TakeProfit' | 'Close' | null>(null);
-    const [actionQty, setActionQty] = useState(1);
-    const [actionPrice, setActionPrice] = useState('');
-    const [closeExitType, setCloseExitType] = useState<Position['exit_type']>('MANUAL');
-    const [isEditingTarget, setIsEditingTarget] = useState(false);
-    const [targetInput, setTargetInput] = useState('');
-    const [isEditingStop, setIsEditingStop] = useState(false);
-    const [stopInput, setStopInput] = useState('');
     const [isExpanded, setIsExpanded] = useState(false);
-    const [isEditingNotes, setIsEditingNotes] = useState(false);
-    const [notesInput, setNotesInput] = useState('');
     const [historyData, setHistoryData] = useState<GreeksHistory[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
 
@@ -157,7 +150,6 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         );
                         return match || null;
                     });
-                    console.log(`[Card] Using Bulk Data for ${position.ticker}`);
                 } else {
                     const promises = position.legs.map(async (leg) => {
                         const params = new URLSearchParams({ ticker: position.ticker, expiration: normalizeExpiration(leg.expiration), strike: leg.strike.toString(), type: leg.type });
@@ -356,7 +348,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                     }
                 }
             }
-        } catch (e) { console.error(e); }
+        } catch { /* price fetch failed — silent */ }
         setLoading(false);
     }, [position.id, position.ticker, position.expiration, position.strike, position.type, isSpread, isCreditStrategy, position.legs, onUpdatePrice, initialData]);
 
@@ -507,39 +499,6 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     else if (earningsWarning) cardClass = 'card-earnings-soon';
 
     const pnlColor = unrealizedPnL >= 0 ? 'text-accent-green' : 'text-accent-red';
-
-    const handleAction = async (type: 'Size Up' | 'Take Profit' | 'Close', exitTypeOverride?: Position['exit_type']) => {
-        if (!actionPrice) return;
-        setLoading(true);
-        const qty = ['Size Down', 'Take Profit', 'Close'].includes(type) ? -Math.abs(actionQty) : Math.abs(actionQty);
-        await onAction(position.id, {
-            type,
-            quantity: type === 'Close' ? -totalQty : qty,
-            price: parseFloat(actionPrice)
-        }, exitTypeOverride);
-        setLoading(false);
-        setActionMode(null);
-        setActionPrice('');
-        setActionQty(1);
-        setCloseExitType('MANUAL');
-    };
-
-
-    const handleTargetSave = async () => {
-        const newTarget = parseFloat(targetInput);
-        if (!isNaN(newTarget)) {
-            await onUpdateTarget(position.id, newTarget);
-            setIsEditingTarget(false);
-        }
-    };
-
-    const handleStopSave = async () => {
-        const newStop = parseFloat(stopInput);
-        if (!isNaN(newStop) && onUpdateStop) {
-            await onUpdateStop(position.id, newStop);
-            setIsEditingStop(false);
-        }
-    };
 
     return (
         <div className={`${cardClass} p-4 sm:p-5 fade-in`}>
@@ -713,38 +672,16 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         <div className="metric-value">{formatPrice(avgCostPerContract / CONTRACT_MULTIPLIER)}</div>
                     </div>
                     {/* Target */}
-                    <div>
-                        <div className="mb-1 flex items-center gap-1 h-5">
-                            <Tooltip label="Target" explanation="Profit Target Price. Click to edit." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
-                            <button
-                                onClick={() => { setIsEditingTarget(true); setTargetInput(targetPrice.toString()); }}
-                                className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer p-2 -m-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                                aria-label="Edit target"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-                            </button>
-                        </div>
-                        {isEditingTarget ? (
-                            <div className="flex items-center gap-1">
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    value={targetInput}
-                                    onChange={e => setTargetInput(e.target.value)}
-                                    className="w-16 px-1 py-0.5 text-sm bg-bg-secondary rounded border border-border-default font-mono"
-                                    autoFocus
-                                />
-                                <button onClick={handleTargetSave} className="text-accent-green hover:bg-accent-green/10 p-0.5 rounded cursor-pointer">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                </button>
-                                <button onClick={() => setIsEditingTarget(false)} className="text-accent-red hover:bg-accent-red/10 p-0.5 rounded cursor-pointer">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="metric-value text-accent-green">{formatPrice(targetPrice)}</div>
-                        )}
-                    </div>
+                    <InlineEditField
+                        label="Target"
+                        value={targetPrice}
+                        onSave={v => onUpdateTarget(position.id, v)}
+                        formatValue={formatPrice}
+                        colorClass="text-accent-green"
+                        tooltipLabel="Target"
+                        tooltipExplanation="Profit Target Price. Click to edit."
+                        TooltipComponent={Tooltip}
+                    />
                     {/* Current */}
                     <div>
                         <div className="mb-1 flex items-center h-5">
@@ -753,40 +690,16 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         <div className="metric-value text-text-primary">{currentPrice ? formatPrice(currentPrice) : '—'}</div>
                     </div>
                     {/* Stop (only if user-set) */}
-                    <div>
-                        <div className="mb-1 flex items-center gap-1 h-5">
-                            <Tooltip label="Stop" explanation="Optional stop price. Credit spreads have defined risk — no stop needed." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
-                            <button
-                                onClick={() => { setIsEditingStop(true); setStopInput((currentStopLoss ?? '').toString()); }}
-                                className="text-text-tertiary hover:text-text-primary transition-colors cursor-pointer p-2 -m-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                                aria-label="Edit stop"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-                            </button>
-                        </div>
-                        {isEditingStop ? (
-                            <div className="flex items-center gap-1">
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    value={stopInput}
-                                    onChange={e => setStopInput(e.target.value)}
-                                    className="w-16 px-1 py-0.5 text-sm bg-bg-secondary rounded border border-border-default font-mono"
-                                    autoFocus
-                                />
-                                <button onClick={handleStopSave} className="text-accent-green hover:bg-accent-green/10 p-0.5 rounded cursor-pointer">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                </button>
-                                <button onClick={() => setIsEditingStop(false)} className="text-accent-red hover:bg-accent-red/10 p-0.5 rounded cursor-pointer">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                                </button>
-                            </div>
-                        ) : (
-                            <div className={`metric-value ${currentStopLoss != null ? 'text-accent-red' : 'text-text-tertiary'}`}>
-                                {currentStopLoss != null ? formatPrice(currentStopLoss) : '—'}
-                            </div>
-                        )}
-                    </div>
+                    <InlineEditField
+                        label="Stop"
+                        value={currentStopLoss}
+                        onSave={v => onUpdateStop(position.id, v)}
+                        formatValue={formatPrice}
+                        colorClass={currentStopLoss != null ? 'text-accent-red' : 'text-text-tertiary'}
+                        tooltipLabel="Stop"
+                        tooltipExplanation="Optional stop price. Credit spreads have defined risk — no stop needed."
+                        TooltipComponent={Tooltip}
+                    />
                     {/* DTE */}
                     <div>
                         <div className="mb-1 flex items-center h-5">
@@ -886,41 +799,12 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
             )}
 
             {/* Notes */}
-            <div className="mb-4">
-                {isEditingNotes ? (
-                    <div className="space-y-2">
-                        <textarea
-                            value={notesInput}
-                            onChange={e => setNotesInput(e.target.value)}
-                            placeholder="Trade notes — why you entered, adjustments, review..."
-                            className="w-full px-3 py-2 text-sm bg-bg-secondary rounded-lg border border-border-default text-text-primary resize-none"
-                            rows={3}
-                            autoFocus
-                        />
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => { updateNotesMut.mutate({ id: position.id, notes: notesInput }); setIsEditingNotes(false); }}
-                                className="text-xs px-3 py-1.5 bg-accent-green/20 text-accent-green rounded-lg font-medium"
-                            >Save</button>
-                            <button onClick={() => setIsEditingNotes(false)} className="text-xs px-3 py-1.5 text-text-tertiary hover:text-text-primary">Cancel</button>
-                        </div>
-                    </div>
-                ) : (
-                    <button
-                        onClick={() => { setIsEditingNotes(true); setNotesInput(position.notes || position.stop_reason || ''); }}
-                        className="text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center gap-1.5"
-                    >
-                        {position.notes || position.stop_reason ? (
-                            <span className="text-text-secondary truncate max-w-[300px]" title={position.notes || position.stop_reason || ''}>
-                                {position.notes || position.stop_reason}
-                            </span>
-                        ) : (
-                            <span>+ Add notes</span>
-                        )}
-                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-                    </button>
-                )}
-            </div>
+            <NotesEditor
+                positionId={position.id}
+                notes={position.notes}
+                stopReason={position.stop_reason}
+                onSave={vars => updateNotesMut.mutate(vars)}
+            />
 
             {/* Expandable Greeks History */}
             <div className="mb-4">
@@ -944,84 +828,15 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
             </div>
 
             {/* Action Buttons */}
-            {!actionMode ? (
-                <div className="flex flex-wrap gap-2">
-                    <button onClick={() => void fetchGreeksAndPrice()} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-1.5 cursor-pointer px-2.5 sm:px-3" aria-label="Refresh price">
-                        {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={15} />}
-                        <span className="hidden sm:inline text-sm">Refresh</span>
-                    </button>
-                    <button onClick={() => setActionMode('Add')} className="action-btn btn-secondary text-sm">+ Add</button>
-                    <button onClick={() => setActionMode('TakeProfit')} className="action-btn btn-secondary text-sm">Profit</button>
-                    {onRollClick && (
-                        <button onClick={() => onRollClick(totalQty)} className="action-btn btn-secondary text-text-secondary hover:text-white flex items-center gap-1 text-sm">
-                            <ArrowRightLeft size={14} /> Roll
-                        </button>
-                    )}
-                    <button onClick={() => setActionMode('Close')} className="action-btn btn-secondary text-text-secondary hover:text-accent-red hover:bg-accent-red/10 text-sm">Close</button>
-                    <button onClick={() => onDelete(position.id)} className="action-btn btn-secondary text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 px-2.5" aria-label="Delete Position">
-                        <Trash2 size={15} />
-                    </button>
-                </div>
-            ) : (
-                <div className="card-elevated p-4 space-y-3">
-                    <div className="text-sm font-medium text-text-secondary">
-                        {actionMode === 'Add' ? 'Add to Position' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close Position'}
-                    </div>
-                    <div className="flex gap-3">
-                        {actionMode !== 'Close' && (
-                            <input type="number" min="1" value={actionQty} onChange={e => setActionQty(parseInt(e.target.value) || 1)}
-                                placeholder="Qty" className="w-24 px-4 py-3 rounded-xl font-mono" />
-                        )}
-                        <input type="number" step="0.01" value={actionPrice} onChange={e => setActionPrice(e.target.value)}
-                            placeholder="Price" className="flex-1 px-4 py-3 rounded-xl font-mono" autoFocus />
-                    </div>
-                    {actionMode === 'Close' && (
-                        <div className="space-y-2">
-                            <p className="text-xs text-text-tertiary">Why are you closing?</p>
-                            <div className="flex flex-wrap gap-2">
-                                {([
-                                    ['EXP_PROFIT', 'Expired +'],
-                                    ['EXP_LOSS', 'Expired −'],
-                                    ['EARLY_PROFIT', 'Early Profit'],
-                                    ['EARLY_DEFENSE', 'Early Defense'],
-                                    ['TP', 'Profit Target'],
-                                    ['SL', 'Stop Loss'],
-                                    ['TIME', 'Time Stop'],
-                                    ['MANUAL', 'Manual'],
-                                    ['ROLL', 'Rolled'],
-                                ] as const).map(([t, label]) => (
-                                    <button
-                                        key={t}
-                                        onClick={() => setCloseExitType(t)}
-                                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-                                            closeExitType === t
-                                                ? 'bg-accent-green/20 text-accent-green border-accent-green/40'
-                                                : 'bg-bg-tertiary text-text-tertiary border-white/[0.1] hover:text-white'
-                                        }`}
-                                    >
-                                        {label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    <div className="flex gap-2">
-                        <button onClick={() => { setActionMode(null); setCloseExitType('MANUAL'); }} className="flex-1 py-3 btn-secondary rounded-xl">Cancel</button>
-                        {actionMode === 'Close' && (
-                            <button onClick={() => handleAction('Close', closeExitType)}
-                                disabled={!actionPrice || loading} className="flex-1 py-3 btn-primary rounded-xl">
-                                {loading ? '...' : 'Confirm Close'}
-                            </button>
-                        )}
-                        {actionMode !== 'Close' && (
-                            <button onClick={() => handleAction(actionMode === 'Add' ? 'Size Up' : 'Take Profit')}
-                                disabled={!actionPrice || loading} className="flex-1 py-3 btn-primary rounded-xl">
-                                {loading ? '...' : 'Confirm'}
-                            </button>
-                        )}
-                    </div>
-                </div>
-            )}
+            <PositionActionForm
+                positionId={position.id}
+                totalQty={totalQty}
+                loading={loading}
+                onAction={onAction}
+                onDelete={onDelete}
+                onRefresh={() => void fetchGreeksAndPrice()}
+                onRollClick={onRollClick}
+            />
         </div>
     );
 };

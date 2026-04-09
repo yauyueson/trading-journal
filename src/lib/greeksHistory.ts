@@ -16,7 +16,6 @@ export async function hasRecordedToday(positionId: string): Promise<boolean> {
         .limit(1);
 
     if (error) {
-        console.error('Error checking greeks history:', error);
         return true; // Assume recorded to avoid duplicates
     }
 
@@ -51,7 +50,6 @@ export async function saveGreeksHistory(
         }]);
 
     if (error) {
-        console.error('Error saving greeks history:', error);
         return false;
     }
 
@@ -69,7 +67,6 @@ export async function fetchGreeksHistory(positionId: string): Promise<GreeksHist
         .order('recorded_at', { ascending: true });
 
     if (error) {
-        console.error('Error fetching greeks history:', error);
         return [];
     }
 
