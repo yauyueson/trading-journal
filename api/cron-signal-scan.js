@@ -419,22 +419,23 @@ async function sendShortTermDiscord(signals, totalScanned, date) {
     }
 }
 
-// ── DTE5 Signal Check (QQQ EMA34 gate) ─────────────────────────────────────────
+// ── DTE5 Signal Check (QQQ/SPY/IWM bull EMA34 gate) ────────────────────────────
+// WFA-validated: QQQ bull Sharpe 1.29, SPY bull 0.85, IWM bull 0.76
+// All bears killed: QQQ bear (15 trades/6yr), SPY bear (Grade D), IWM bear (negative Sharpe)
 
 async function checkDTE5Signal(today) {
-    // Multi-ticker bull + bear DTE5 signal check
-    // Bull: close > EMA34 (QQQ only)
-    // Bear: close < EMA21 < EMA34 < EMA55 + proximity gate (QQQ, SPY, IWM)
+    // Multi-ticker bull-only DTE5 signal check
+    // Bull: close > EMA34 (QQQ, SPY, IWM — all WFA-validated)
+    // Exit: SL 2.5x credit, trailing lock 50/50, hold-to-expiry
     const TICKER_CONFIGS = {
         QQQ: {
             bull: { ema: 34, spread: 'sp30/20', delta: 0.30, longDelta: 0.20 },
-            bear: { ema1: 21, ema2: 34, ema3: 55, proximityEma: 21, proximityPct: 0.01, spread: 'sp40/30', delta: 0.40, longDelta: 0.30 },
         },
         SPY: {
-            bear: { ema1: 21, ema2: 34, ema3: 55, proximityEma: 21, proximityPct: 0.05, spread: 'sp40/30', delta: 0.40, longDelta: 0.30 },
+            bull: { ema: 34, spread: 'sp30/20', delta: 0.30, longDelta: 0.20 },
         },
         IWM: {
-            bear: { ema1: 21, ema2: 34, ema3: 55, proximityEma: 21, proximityPct: 0.03, rallyFilter: 0.08, spread: 'sp15/05', delta: 0.15, longDelta: 0.05 },
+            bull: { ema: 34, spread: 'sp30/20', delta: 0.30, longDelta: 0.20 },
         },
     };
 
@@ -465,7 +466,7 @@ async function checkDTE5Signal(today) {
             const e34 = ema34[ema34.length - 1];
             const e55 = ema55[ema55.length - 1];
 
-            // ── BULL CHECK (QQQ only) ──
+            // ── BULL CHECK (QQQ, SPY, IWM — WFA-validated) ──
             if (cfg.bull) {
                 const bullEma = cfg.bull.ema === 34 ? e34 : e21;
                 const bullPass = lastClose > bullEma;
@@ -486,54 +487,7 @@ async function checkDTE5Signal(today) {
                 results.push({ ticker, direction: 'bull', fired, spread: cfg.bull.spread, criteria });
             }
 
-            // ── BEAR CHECK ──
-            if (cfg.bear) {
-                const bc = cfg.bear;
-                const tripleAligned = e21 < e34 && e34 < e55;
-                const belowEma21 = lastClose < e21;
-
-                // Proximity check: price within X% of proximity EMA
-                const proxEmaVal = bc.proximityEma === 21 ? e21 : ema34[ema34.length - 1];
-                const proxDist = Math.abs(lastClose - proxEmaVal) / proxEmaVal;
-                const proxPass = proxDist <= bc.proximityPct;
-
-                // Rally-from-low filter (if configured)
-                let rallyPass = true;
-                let rallyValue = 'n/a';
-                if (bc.rallyFilter) {
-                    const window = closes.slice(-20);
-                    const low20 = Math.min(...window);
-                    const rallyPct = (lastClose - low20) / low20;
-                    rallyPass = rallyPct <= bc.rallyFilter;
-                    rallyValue = `${(rallyPct * 100).toFixed(1)}% ${rallyPass ? '≤' : '>'} ${(bc.rallyFilter * 100).toFixed(0)}%`;
-                }
-
-                const criteria = {
-                    'EMA21 < EMA34 < EMA55': { pass: tripleAligned, value: `${e21.toFixed(2)} ${tripleAligned ? '<' : '≥'} ${e34.toFixed(2)} ${tripleAligned ? '<' : '≥'} ${e55.toFixed(2)}` },
-                    'close < EMA21': { pass: belowEma21, value: `$${lastClose.toFixed(2)} ${belowEma21 ? '<' : '≥'} $${e21.toFixed(2)}` },
-                    [`within ${(bc.proximityPct*100).toFixed(0)}% of EMA${bc.proximityEma}`]: { pass: proxPass, value: `${(proxDist * 100).toFixed(1)}% ${proxPass ? '≤' : '>'} ${(bc.proximityPct * 100).toFixed(0)}%` },
-                    ...(bc.rallyFilter ? { [`rally from 20d low ≤ ${(bc.rallyFilter*100).toFixed(0)}%`]: { pass: rallyPass, value: rallyValue } } : {}),
-                    'no active position': { pass: !hasActivePosition, value: hasActivePosition ? 'blocked' : 'clear' },
-                };
-
-                const allPass = tripleAligned && belowEma21 && proxPass && rallyPass && !hasActivePosition;
-
-                if (allPass) {
-                    await supabaseUpsert('signal_history', [{
-                        ticker, date: today, timeframe: '1D', score: 100,
-                        direction: 'PUT', setup: 'DTE5_BEAR_CALL', confidence: 100, status: 'GO',
-                        components: JSON.stringify({
-                            strategy: 'dte5', side: 'bear', spread: bc.spread,
-                            ema21: e21.toFixed(2), ema34: e34.toFixed(2), ema55: e55.toFixed(2),
-                            close: lastClose.toFixed(2), open: lastOpen.toFixed(2),
-                            proximity: `${(proxDist*100).toFixed(1)}%`,
-                            gate: 'close < EMA21 < EMA34 < EMA55',
-                        }),
-                    }]);
-                }
-
-                results.push({ ticker, direction: 'bear', fired: allPass, spread: bc.spread, criteria });
-            }
+            // Bear signals disabled per WFA Phase 7: QQQ (15 trades/6yr), SPY (Grade D), IWM (negative Sharpe)
         }
 
         // Discord summary — one embed with all tickers

@@ -189,12 +189,27 @@ export default async function handler(req, res) {
         let spreadDesc = '';
         if (isCreditSpread) {
           const costToClose = shortMid - longMid;
-          if (costToClose > entryNet * 1.5) {
+          // DTE5 WFA champion config: SL at 2.5x credit, trailing lock at 50/50
+          const stratType = pos.strategy_type || '';
+          const isDte5 = stratType === 'dte5';
+          const slMultiple = isDte5 ? 2.5 : 1.5;
+          const tpFraction = isDte5 ? 1.0 : 0.5; // DTE5 = hold-to-expiry, no TP alert
+
+          // Stop loss check
+          if (costToClose > entryNet * slMultiple) {
             spreadTriggered = 'stop';
-            spreadDesc = `Cost-to-close **$${costToClose.toFixed(2)}** is >1.5x entry credit **$${entryNet.toFixed(2)}**`;
-          } else if (costToClose < entryNet * 0.5) {
+            spreadDesc = `Cost-to-close **$${costToClose.toFixed(2)}** is >${slMultiple}x entry credit **$${entryNet.toFixed(2)}**`;
+          }
+          // Trailing lock check for DTE5: alert when 50% profit reached (informational)
+          else if (isDte5 && costToClose < entryNet * 0.50) {
+            spreadTriggered = 'trailing';
+            const profitPct = ((1 - costToClose / entryNet) * 100).toFixed(0);
+            spreadDesc = `**${profitPct}% profit** reached (cost $${costToClose.toFixed(2)} vs credit $${entryNet.toFixed(2)}) — trailing lock floor is now active. If spread reverses past $${(entryNet * 0.50).toFixed(2)}, close to protect gains.`;
+          }
+          // Non-DTE5 TP check
+          else if (!isDte5 && costToClose < entryNet * tpFraction) {
             spreadTriggered = 'target';
-            spreadDesc = `Cost-to-close **$${costToClose.toFixed(2)}** is <0.5x entry credit **$${entryNet.toFixed(2)}** — 50% profit captured`;
+            spreadDesc = `Cost-to-close **$${costToClose.toFixed(2)}** is <${tpFraction}x entry credit **$${entryNet.toFixed(2)}** — ${(tpFraction * 100).toFixed(0)}% profit captured`;
           }
         } else {
           const currentValue = longMid - shortMid;
@@ -209,8 +224,12 @@ export default async function handler(req, res) {
 
         if (!spreadTriggered) continue;
 
-        const spreadTitle = spreadTriggered === 'stop' ? '🛑 Spread Stop Hit' : '🎯 Spread Target Hit';
-        const spreadColor = spreadTriggered === 'stop' ? 0xef4444 : 0x22c55e;
+        const spreadTitle = spreadTriggered === 'stop' ? '🛑 Spread Stop Hit'
+          : spreadTriggered === 'trailing' ? '🔒 Trailing Lock Active'
+          : '🎯 Spread Target Hit';
+        const spreadColor = spreadTriggered === 'stop' ? 0xef4444
+          : spreadTriggered === 'trailing' ? 0xf59e0b
+          : 0x22c55e;
         const spreadBody = {
           content: null,
           embeds: [{

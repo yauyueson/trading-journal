@@ -1,0 +1,2401 @@
+[
+  {
+    "configLabel": "nc+sl2.1x",
+    "mechanism": "nc_credit_fine",
+    "params": {
+      "creditStopLossMultiple": 2.1,
+      "missingChainExitAfterDays": 999
+    },
+    "isSharpe": 1.2452589307708333,
+    "oosSharpe": 1.1048485328367992,
+    "holdoutSharpe": -0.27255742525440396,
+    "oosWinRate": 78.22222222222223,
+    "oosMaxDD": 17.023972580352158,
+    "oosTotalPnl": 10020.077881388,
+    "holdoutTotalPnl": -549.1219845916763,
+    "wfEfficiency": 0.8872440145061895,
+    "grade": "C",
+    "tradeCount": 450,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 389,
+      "STOP_LOSS": 61
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": 0.44887062915272125,
+        "oosSharpe": 3.189722473467439,
+        "oosWR": 88.46153846153845,
+        "oosMaxDD": 1.925501508659513,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": 1.4629279432243252,
+        "oosSharpe": 1.588592051358387,
+        "oosWR": 80.76923076923077,
+        "oosMaxDD": 4.228881308410532,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": 2.1997415114933263,
+        "oosSharpe": 2.544774849488872,
+        "oosWR": 83.33333333333334,
+        "oosMaxDD": 3.8151710060097828,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 1.8611964176486264,
+        "oosSharpe": 1.2651145646111435,
+        "oosWR": 75.86206896551724,
+        "oosMaxDD": 8.492503256435738,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": 1.7285542549895738,
+        "oosSharpe": 0.7215151971719126,
+        "oosWR": 78.37837837837837,
+        "oosMaxDD": 8.71054379481079,
+        "oosTradeCount": 37
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": 1.1887138389619798,
+        "oosSharpe": -0.9449821513138743,
+        "oosWR": 71.11111111111111,
+        "oosMaxDD": 15.584461586571397,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.34478455254774015,
+        "oosSharpe": -1.4386053003339683,
+        "oosWR": 50,
+        "oosMaxDD": 11.592075552217613,
+        "oosTradeCount": 12
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -0.9288786467517505,
+        "oosSharpe": 0.8863024480074486,
+        "oosWR": 75,
+        "oosMaxDD": 11.170464527676062,
+        "oosTradeCount": 28
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -0.6570685474885938,
+        "oosSharpe": 4.394470361506569,
+        "oosWR": 82.6923076923077,
+        "oosMaxDD": 2.2985745651470464,
+        "oosTradeCount": 52
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 2.166696904010276,
+        "oosSharpe": 2.053473555368287,
+        "oosWR": 80,
+        "oosMaxDD": 5.085487178801251,
+        "oosTradeCount": 40
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 3.2945171125298205,
+        "oosSharpe": 0.9149995669033597,
+        "oosWR": 76,
+        "oosMaxDD": 11.463646694545725,
+        "oosTradeCount": 50
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 2.557574302424465,
+        "oosSharpe": -0.027750951366514637,
+        "oosWR": 73.91304347826086,
+        "oosMaxDD": 9.76429319738907,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5207358272783212,
+        "oosSharpe": 2.1306663427449033,
+        "oosWR": 88.57142857142857,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 35
+      }
+    ],
+    "oosDetailed": {
+      "totalTrades": 450,
+      "winners": 352,
+      "losers": 98,
+      "winRate": 78.22222222222223,
+      "totalPnl": 10020.077881388,
+      "avgPnlPct": 2.7261495665510296,
+      "profitFactor": 1.375097156097442,
+      "sharpe": 1.4952207716431531,
+      "maxDrawdown": 2.4086111444618514,
+      "avgHoldDays": 3.1577777777777776,
+      "avgEntryDelta": 0.29948235662817885,
+      "avgEntryDTE": 4.426666666666667,
+      "avgCapitalPerTrade": 838.95446677878,
+      "totalCapitalDeployed": 377529.510050451,
+      "returnOnCapital": 2.6541177880502564,
+      "avgWinPnl": 104.35614945621411,
+      "avgLossPnl": -272.5845584408097,
+      "expectancy": 22.26683973641783,
+      "byExit": {
+        "EXPIRATION": 389,
+        "STOP_LOSS": 61
+      }
+    },
+    "holdoutDetailed": {
+      "totalTrades": 50,
+      "winners": 37,
+      "losers": 13,
+      "winRate": 74,
+      "totalPnl": -549.1219845916763,
+      "avgPnlPct": -1.197254681835941,
+      "profitFactor": 0.8965545760800679,
+      "sharpe": -0.42858103648096624,
+      "maxDrawdown": 1.706742031020956,
+      "avgHoldDays": 3.24,
+      "avgEntryDelta": 0.3009010638260131,
+      "avgEntryDTE": 4.48,
+      "avgCapitalPerTrade": 866.4920024757902,
+      "totalCapitalDeployed": 43324.60012378951,
+      "returnOnCapital": -1.2674600181483355,
+      "avgWinPnl": 128.627122805981,
+      "avgLossPnl": -408.3327329548442,
+      "expectancy": -10.982439691833548,
+      "byExit": {
+        "EXPIRATION": 42,
+        "STOP_LOSS": 7,
+        "PROFIT_TARGET": 1
+      }
+    },
+    "oosGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 22077.449967017033,
+      "totalReturn": 1.2077449967017033,
+      "cagr": 0.12923569128411438,
+      "maxDD": 0.27887232599790523,
+      "minEquity": 10000,
+      "totalTrades": 450,
+      "avgContracts": 1.44,
+      "calendarDays": 2380
+    },
+    "holdoutGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 9450.87801540832,
+      "totalReturn": -0.05491219845916803,
+      "cagr": -0.09068316190810932,
+      "maxDD": 0.1544896970925944,
+      "minEquity": 9450.87801540832,
+      "totalTrades": 50,
+      "avgContracts": 1,
+      "calendarDays": 217
+    }
+  },
+  {
+    "configLabel": "nc+sl2.2x",
+    "mechanism": "nc_credit_fine",
+    "params": {
+      "creditStopLossMultiple": 2.2,
+      "missingChainExitAfterDays": 999
+    },
+    "isSharpe": 1.2578157576306064,
+    "oosSharpe": 1.1129521642998494,
+    "holdoutSharpe": -0.27255742525440396,
+    "oosWinRate": 78.52348993288591,
+    "oosMaxDD": 17.052832345809822,
+    "oosTotalPnl": 10031.819658512946,
+    "holdoutTotalPnl": -549.1219845916763,
+    "wfEfficiency": 0.88482924271545,
+    "grade": "C",
+    "tradeCount": 447,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 389,
+      "STOP_LOSS": 58
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": 0.5308533228021302,
+        "oosSharpe": 3.189722473467439,
+        "oosWR": 88.46153846153845,
+        "oosMaxDD": 1.925501508659513,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": 1.4629279432243252,
+        "oosSharpe": 1.7396203308235085,
+        "oosWR": 84,
+        "oosMaxDD": 4.228881308410532,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": 2.2687748759883544,
+        "oosSharpe": 2.8326374811860893,
+        "oosWR": 86.95652173913044,
+        "oosMaxDD": 3.743748275261965,
+        "oosTradeCount": 23
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 2.1004657176836528,
+        "oosSharpe": 1.2651145646111435,
+        "oosWR": 75.86206896551724,
+        "oosMaxDD": 8.492503256435738,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": 1.8802410036996828,
+        "oosSharpe": 0.4817800077716848,
+        "oosWR": 77.77777777777779,
+        "oosMaxDD": 8.71054379481079,
+        "oosTradeCount": 36
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": 1.1887138389619798,
+        "oosSharpe": -1.0170234963442828,
+        "oosWR": 71.11111111111111,
+        "oosMaxDD": 15.764279225101982,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.21767493633778456,
+        "oosSharpe": -1.4386053003339683,
+        "oosWR": 50,
+        "oosMaxDD": 11.592075552217613,
+        "oosTradeCount": 12
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.0963731202524234,
+        "oosSharpe": 0.8058726383715292,
+        "oosWR": 75,
+        "oosMaxDD": 11.170464527676062,
+        "oosTradeCount": 28
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -0.7012493645788533,
+        "oosSharpe": 4.394470361506569,
+        "oosWR": 82.6923076923077,
+        "oosMaxDD": 2.2985745651470464,
+        "oosTradeCount": 52
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 2.126748453098645,
+        "oosSharpe": 2.053473555368287,
+        "oosWR": 80,
+        "oosMaxDD": 5.085487178801251,
+        "oosTradeCount": 40
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 3.2945171125298205,
+        "oosSharpe": 0.9149995669033597,
+        "oosWR": 76,
+        "oosMaxDD": 11.463646694545725,
+        "oosTradeCount": 50
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 2.557574302424465,
+        "oosSharpe": -0.027750951366514637,
+        "oosWR": 73.91304347826086,
+        "oosMaxDD": 9.76429319738907,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5207358272783212,
+        "oosSharpe": 2.1306663427449033,
+        "oosWR": 88.57142857142857,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 35
+      }
+    ],
+    "oosDetailed": {
+      "totalTrades": 447,
+      "winners": 351,
+      "losers": 96,
+      "winRate": 78.52348993288591,
+      "totalPnl": 10031.819658512946,
+      "avgPnlPct": 2.757341504924073,
+      "profitFactor": 1.3757160078517492,
+      "sharpe": 1.4997102284999069,
+      "maxDrawdown": 2.4249770139440177,
+      "avgHoldDays": 3.178970917225951,
+      "avgEntryDelta": 0.2995034413595195,
+      "avgEntryDTE": 4.429530201342282,
+      "avgCapitalPerTrade": 839.0165035047203,
+      "totalCapitalDeployed": 375040.37706661,
+      "returnOnCapital": 2.674863900515762,
+      "avgWinPnl": 104.65059248155595,
+      "avgLossPnl": -278.13060731784554,
+      "expectancy": 22.442549571617363,
+      "byExit": {
+        "EXPIRATION": 389,
+        "STOP_LOSS": 58
+      }
+    },
+    "holdoutDetailed": {
+      "totalTrades": 50,
+      "winners": 37,
+      "losers": 13,
+      "winRate": 74,
+      "totalPnl": -549.1219845916763,
+      "avgPnlPct": -1.197254681835941,
+      "profitFactor": 0.8965545760800679,
+      "sharpe": -0.42858103648096624,
+      "maxDrawdown": 1.706742031020956,
+      "avgHoldDays": 3.24,
+      "avgEntryDelta": 0.3009010638260131,
+      "avgEntryDTE": 4.48,
+      "avgCapitalPerTrade": 866.4920024757902,
+      "totalCapitalDeployed": 43324.60012378951,
+      "returnOnCapital": -1.2674600181483355,
+      "avgWinPnl": 128.627122805981,
+      "avgLossPnl": -408.3327329548442,
+      "expectancy": -10.982439691833548,
+      "byExit": {
+        "EXPIRATION": 42,
+        "STOP_LOSS": 7,
+        "PROFIT_TARGET": 1
+      }
+    },
+    "oosGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 22084.07408240449,
+      "totalReturn": 1.2084074082404492,
+      "cagr": 0.12928768150901937,
+      "maxDD": 0.2787919785146176,
+      "minEquity": 10000,
+      "totalTrades": 447,
+      "avgContracts": 1.4407158836689038,
+      "calendarDays": 2380
+    },
+    "holdoutGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 9450.87801540832,
+      "totalReturn": -0.05491219845916803,
+      "cagr": -0.09068316190810932,
+      "maxDD": 0.1544896970925944,
+      "minEquity": 9450.87801540832,
+      "totalTrades": 50,
+      "avgContracts": 1,
+      "calendarDays": 217
+    }
+  },
+  {
+    "configLabel": "nc+sl2.3x",
+    "mechanism": "nc_credit_fine",
+    "params": {
+      "creditStopLossMultiple": 2.3,
+      "missingChainExitAfterDays": 999
+    },
+    "isSharpe": 1.2604901389726648,
+    "oosSharpe": 1.134101124015833,
+    "holdoutSharpe": -0.27255742525440396,
+    "oosWinRate": 78.87640449438203,
+    "oosMaxDD": 16.77171755237672,
+    "oosTotalPnl": 10231.50671235116,
+    "holdoutTotalPnl": -549.1219845916763,
+    "wfEfficiency": 0.8997302628167781,
+    "grade": "C",
+    "tradeCount": 445,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 390,
+      "STOP_LOSS": 55
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": 0.5154886813489372,
+        "oosSharpe": 3.189722473467439,
+        "oosWR": 88.46153846153845,
+        "oosMaxDD": 1.925501508659513,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": 1.4629279432243252,
+        "oosSharpe": 1.7396203308235085,
+        "oosWR": 84,
+        "oosMaxDD": 4.228881308410532,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": 2.2687748759883544,
+        "oosSharpe": 2.8326374811860893,
+        "oosWR": 86.95652173913044,
+        "oosMaxDD": 3.743748275261965,
+        "oosTradeCount": 23
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 2.1004657176836528,
+        "oosSharpe": 1.5525523087229307,
+        "oosWR": 78.57142857142857,
+        "oosMaxDD": 8.492503256435738,
+        "oosTradeCount": 28
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": 2.0330879729717615,
+        "oosSharpe": 0.4817800077716848,
+        "oosWR": 77.77777777777779,
+        "oosMaxDD": 8.71054379481079,
+        "oosTradeCount": 36
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": 1.3420760863201284,
+        "oosSharpe": -1.0170234963442828,
+        "oosWR": 71.11111111111111,
+        "oosMaxDD": 15.764279225101982,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.21767493633778456,
+        "oosSharpe": -1.4386053003339683,
+        "oosWR": 50,
+        "oosMaxDD": 11.592075552217613,
+        "oosTradeCount": 12
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.0963731202524234,
+        "oosSharpe": 0.642241803874642,
+        "oosWR": 75,
+        "oosMaxDD": 11.170464527676062,
+        "oosTradeCount": 28
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -0.798298660668947,
+        "oosSharpe": 4.394470361506569,
+        "oosWR": 82.6923076923077,
+        "oosMaxDD": 2.2985745651470464,
+        "oosTradeCount": 52
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 2.052137777913645,
+        "oosSharpe": 1.8966195057677344,
+        "oosWR": 80,
+        "oosMaxDD": 5.944057846574089,
+        "oosTradeCount": 40
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 3.2187131299053653,
+        "oosSharpe": 0.9149995669033597,
+        "oosWR": 76,
+        "oosMaxDD": 11.463646694545725,
+        "oosTradeCount": 50
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 2.478623006790756,
+        "oosSharpe": 0.0943876968315763,
+        "oosWR": 75.55555555555556,
+        "oosMaxDD": 9.76429319738907,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5910734590813008,
+        "oosSharpe": 2.1306663427449033,
+        "oosWR": 88.57142857142857,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 35
+      }
+    ],
+    "oosDetailed": {
+      "totalTrades": 445,
+      "winners": 351,
+      "losers": 94,
+      "winRate": 78.87640449438203,
+      "totalPnl": 10231.50671235116,
+      "avgPnlPct": 2.825488469201055,
+      "profitFactor": 1.3860509885590064,
+      "sharpe": 1.5203306788221498,
+      "maxDrawdown": 2.419210797016135,
+      "avgHoldDays": 3.197752808988764,
+      "avgEntryDelta": 0.2994705988965268,
+      "avgEntryDTE": 4.431460674157304,
+      "avgCapitalPerTrade": 838.9718166752483,
+      "totalCapitalDeployed": 373342.4584204855,
+      "returnOnCapital": 2.7405151708803746,
+      "avgWinPnl": 104.65669481634815,
+      "avgLossPnl": -281.94673583177666,
+      "expectancy": 22.99214991539595,
+      "byExit": {
+        "EXPIRATION": 390,
+        "STOP_LOSS": 55
+      }
+    },
+    "holdoutDetailed": {
+      "totalTrades": 50,
+      "winners": 37,
+      "losers": 13,
+      "winRate": 74,
+      "totalPnl": -549.1219845916763,
+      "avgPnlPct": -1.197254681835941,
+      "profitFactor": 0.8965545760800679,
+      "sharpe": -0.42858103648096624,
+      "maxDrawdown": 1.706742031020956,
+      "avgHoldDays": 3.24,
+      "avgEntryDelta": 0.3009010638260131,
+      "avgEntryDTE": 4.48,
+      "avgCapitalPerTrade": 866.4920024757902,
+      "totalCapitalDeployed": 43324.60012378951,
+      "returnOnCapital": -1.2674600181483355,
+      "avgWinPnl": 128.627122805981,
+      "avgLossPnl": -408.3327329548442,
+      "expectancy": -10.982439691833548,
+      "byExit": {
+        "EXPIRATION": 42,
+        "STOP_LOSS": 7,
+        "PROFIT_TARGET": 1
+      }
+    },
+    "oosGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 23545.204557203317,
+      "totalReturn": 1.3545204557203316,
+      "cagr": 0.14044547899532578,
+      "maxDD": 0.2496035784183336,
+      "minEquity": 10000,
+      "totalTrades": 445,
+      "avgContracts": 1.4786516853932585,
+      "calendarDays": 2380
+    },
+    "holdoutGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 9450.87801540832,
+      "totalReturn": -0.05491219845916803,
+      "cagr": -0.09068316190810932,
+      "maxDD": 0.1544896970925944,
+      "minEquity": 9450.87801540832,
+      "totalTrades": 50,
+      "avgContracts": 1,
+      "calendarDays": 217
+    }
+  },
+  {
+    "configLabel": "nc+sl2.4x",
+    "mechanism": "nc_credit_fine",
+    "params": {
+      "creditStopLossMultiple": 2.4,
+      "missingChainExitAfterDays": 999
+    },
+    "isSharpe": 1.1730660493299223,
+    "oosSharpe": 1.112142775951614,
+    "holdoutSharpe": -0.27255742525440396,
+    "oosWinRate": 79.18552036199095,
+    "oosMaxDD": 16.596655183208593,
+    "oosTotalPnl": 10005.197433522062,
+    "holdoutTotalPnl": -549.1219845916763,
+    "wfEfficiency": 0.9480649248922439,
+    "grade": "C",
+    "tradeCount": 442,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 392,
+      "STOP_LOSS": 50
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.06965192679350246,
+        "oosSharpe": 3.189722473467439,
+        "oosWR": 88.46153846153845,
+        "oosMaxDD": 1.925501508659513,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": 1.4629279432243252,
+        "oosSharpe": 1.7396203308235085,
+        "oosWR": 84,
+        "oosMaxDD": 4.228881308410532,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": 2.2687748759883544,
+        "oosSharpe": 2.8326374811860893,
+        "oosWR": 86.95652173913044,
+        "oosMaxDD": 3.743748275261965,
+        "oosTradeCount": 23
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 2.1004657176836528,
+        "oosSharpe": 1.4946894443798853,
+        "oosWR": 77.77777777777779,
+        "oosMaxDD": 8.492503256435738,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": 1.9990720427082385,
+        "oosSharpe": 0.7289681499585455,
+        "oosWR": 80.55555555555556,
+        "oosMaxDD": 8.71054379481079,
+        "oosTradeCount": 36
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": 1.4273920182683408,
+        "oosSharpe": -1.0170234963442828,
+        "oosWR": 71.11111111111111,
+        "oosMaxDD": 15.764279225101982,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.34707871082990205,
+        "oosSharpe": -1.4386053003339683,
+        "oosWR": 50,
+        "oosMaxDD": 11.592075552217613,
+        "oosTradeCount": 12
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.0963731202524234,
+        "oosSharpe": 0.642241803874642,
+        "oosWR": 75,
+        "oosMaxDD": 11.170464527676062,
+        "oosTradeCount": 28
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -0.798298660668947,
+        "oosSharpe": 4.430705003116342,
+        "oosWR": 82.35294117647058,
+        "oosMaxDD": 2.2985745651470464,
+        "oosTradeCount": 51
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 2.052137777913645,
+        "oosSharpe": 1.6775469564829646,
+        "oosWR": 80,
+        "oosMaxDD": 6.798786899048635,
+        "oosTradeCount": 40
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 3.0473805094414312,
+        "oosSharpe": 0.6001563974945213,
+        "oosWR": 77.55102040816327,
+        "oosMaxDD": 11.741807935126324,
+        "oosTradeCount": 49
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 2.055057610420143,
+        "oosSharpe": 0.0943876968315763,
+        "oosWR": 75.55555555555556,
+        "oosMaxDD": 9.76429319738907,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.45389514252582935,
+        "oosSharpe": 2.1306663427449033,
+        "oosWR": 88.57142857142857,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 35
+      }
+    ],
+    "oosDetailed": {
+      "totalTrades": 442,
+      "winners": 350,
+      "losers": 92,
+      "winRate": 79.18552036199095,
+      "totalPnl": 10005.197433522062,
+      "avgPnlPct": 2.7885976187036756,
+      "profitFactor": 1.375932026572235,
+      "sharpe": 1.477610259077678,
+      "maxDrawdown": 2.4155355896924027,
+      "avgHoldDays": 3.2217194570135748,
+      "avgEntryDelta": 0.2995489305255582,
+      "avgEntryDTE": 4.4434389140271495,
+      "avgCapitalPerTrade": 838.5164931688677,
+      "totalCapitalDeployed": 370624.2899806395,
+      "returnOnCapital": 2.6995525398631344,
+      "avgWinPnl": 104.62736123932274,
+      "avgLossPnl": -289.28672826348776,
+      "expectancy": 22.636193288511485,
+      "byExit": {
+        "EXPIRATION": 392,
+        "STOP_LOSS": 50
+      }
+    },
+    "holdoutDetailed": {
+      "totalTrades": 50,
+      "winners": 37,
+      "losers": 13,
+      "winRate": 74,
+      "totalPnl": -549.1219845916763,
+      "avgPnlPct": -1.197254681835941,
+      "profitFactor": 0.8965545760800679,
+      "sharpe": -0.42858103648096624,
+      "maxDrawdown": 1.706742031020956,
+      "avgHoldDays": 3.24,
+      "avgEntryDelta": 0.3009010638260131,
+      "avgEntryDTE": 4.48,
+      "avgCapitalPerTrade": 866.4920024757902,
+      "totalCapitalDeployed": 43324.60012378951,
+      "returnOnCapital": -1.2674600181483355,
+      "avgWinPnl": 128.627122805981,
+      "avgLossPnl": -408.3327329548442,
+      "expectancy": -10.982439691833548,
+      "byExit": {
+        "EXPIRATION": 42,
+        "STOP_LOSS": 7,
+        "PROFIT_TARGET": 1
+      }
+    },
+    "oosGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 23475.319914631582,
+      "totalReturn": 1.3475319914631583,
+      "cagr": 0.13992534728067962,
+      "maxDD": 0.2637471789336126,
+      "minEquity": 10000,
+      "totalTrades": 442,
+      "avgContracts": 1.4705882352941178,
+      "calendarDays": 2380
+    },
+    "holdoutGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 9450.87801540832,
+      "totalReturn": -0.05491219845916803,
+      "cagr": -0.09068316190810932,
+      "maxDD": 0.1544896970925944,
+      "minEquity": 9450.87801540832,
+      "totalTrades": 50,
+      "avgContracts": 1,
+      "calendarDays": 217
+    }
+  },
+  {
+    "configLabel": "nc+sl2.6x",
+    "mechanism": "nc_credit_fine",
+    "params": {
+      "creditStopLossMultiple": 2.6,
+      "missingChainExitAfterDays": 999
+    },
+    "isSharpe": 1.2072511285192813,
+    "oosSharpe": 1.146519633437158,
+    "holdoutSharpe": -0.2743980338940599,
+    "oosWinRate": 80.04535147392289,
+    "oosMaxDD": 16.395571556926892,
+    "oosTotalPnl": 10454.08364279694,
+    "holdoutTotalPnl": -576.4293467296433,
+    "wfEfficiency": 0.9496943977541675,
+    "grade": "C",
+    "tradeCount": 441,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 397,
+      "STOP_LOSS": 44
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": 0.11660107022023777,
+        "oosSharpe": 3.189722473467439,
+        "oosWR": 88.46153846153845,
+        "oosMaxDD": 1.925501508659513,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": 1.4629279432243252,
+        "oosSharpe": 1.7396203308235085,
+        "oosWR": 84,
+        "oosMaxDD": 4.228881308410532,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": 2.2687748759883544,
+        "oosSharpe": 2.758628447166222,
+        "oosWR": 86.36363636363636,
+        "oosMaxDD": 3.743748275261965,
+        "oosTradeCount": 22
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 2.0551145108994295,
+        "oosSharpe": 1.4946894443798853,
+        "oosWR": 77.77777777777779,
+        "oosMaxDD": 8.492503256435738,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": 1.9605691466711208,
+        "oosSharpe": 0.7289681499585455,
+        "oosWR": 80.55555555555556,
+        "oosMaxDD": 8.71054379481079,
+        "oosTradeCount": 36
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": 1.4273920182683408,
+        "oosSharpe": -0.7306910014441962,
+        "oosWR": 73.33333333333333,
+        "oosMaxDD": 15.41744525580231,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.49669906679348647,
+        "oosSharpe": -1.4386053003339683,
+        "oosWR": 50,
+        "oosMaxDD": 11.592075552217613,
+        "oosTradeCount": 12
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -0.9153282940299061,
+        "oosSharpe": 0.642241803874642,
+        "oosWR": 75,
+        "oosMaxDD": 11.170464527676062,
+        "oosTradeCount": 28
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -0.798298660668947,
+        "oosSharpe": 3.8949123614273566,
+        "oosWR": 84.31372549019608,
+        "oosMaxDD": 5.257930876096339,
+        "oosTradeCount": 51
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 1.9314780231887323,
+        "oosSharpe": 1.8566258048388182,
+        "oosWR": 82.5,
+        "oosMaxDD": 6.798786899048635,
+        "oosTradeCount": 40
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 2.8891935681730105,
+        "oosSharpe": 0.8568859612485831,
+        "oosWR": 79.59183673469387,
+        "oosMaxDD": 11.487011697181577,
+        "oosTradeCount": 49
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 2.2630816310821884,
+        "oosSharpe": 0.02891883194076746,
+        "oosWR": 75.55555555555556,
+        "oosMaxDD": 9.76429319738907,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.536059770940282,
+        "oosSharpe": 2.1306663427449033,
+        "oosWR": 88.57142857142857,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 35
+      }
+    ],
+    "oosDetailed": {
+      "totalTrades": 441,
+      "winners": 353,
+      "losers": 88,
+      "winRate": 80.04535147392289,
+      "totalPnl": 10454.08364279694,
+      "avgPnlPct": 2.902855596860433,
+      "profitFactor": 1.3975469307438781,
+      "sharpe": 1.5217448822424646,
+      "maxDrawdown": 2.4112314939380273,
+      "avgHoldDays": 3.2312925170068025,
+      "avgEntryDelta": 0.2994058379053427,
+      "avgEntryDTE": 4.4353741496598635,
+      "avgCapitalPerTrade": 838.8651271696422,
+      "totalCapitalDeployed": 369939.5210818122,
+      "returnOnCapital": 2.8258899217434563,
+      "avgWinPnl": 104.10923639311545,
+      "avgLossPnl": -298.8236000451453,
+      "expectancy": 23.705405085707383,
+      "byExit": {
+        "EXPIRATION": 397,
+        "STOP_LOSS": 44
+      }
+    },
+    "holdoutDetailed": {
+      "totalTrades": 50,
+      "winners": 38,
+      "losers": 12,
+      "winRate": 76,
+      "totalPnl": -576.4293467296433,
+      "avgPnlPct": -1.2797634762378869,
+      "profitFactor": 0.8947424044012368,
+      "sharpe": -0.43570949841974294,
+      "maxDrawdown": 1.5998963833990612,
+      "avgHoldDays": 3.24,
+      "avgEntryDelta": 0.30109914814338695,
+      "avgEntryDTE": 4.42,
+      "avgCapitalPerTrade": 866.8414142942114,
+      "totalCapitalDeployed": 43342.07071471057,
+      "returnOnCapital": -1.329953408372802,
+      "avgWinPnl": 128.9457586425828,
+      "avgLossPnl": -456.36401459564917,
+      "expectancy": -11.528586934592866,
+      "byExit": {
+        "EXPIRATION": 43,
+        "STOP_LOSS": 6,
+        "PROFIT_TARGET": 1
+      }
+    },
+    "oosGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 24428.052375500418,
+      "totalReturn": 1.4428052375500418,
+      "cagr": 0.1469061962130609,
+      "maxDD": 0.24063904504315478,
+      "minEquity": 10000,
+      "totalTrades": 441,
+      "avgContracts": 1.5056689342403629,
+      "calendarDays": 2380
+    },
+    "holdoutGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 9423.570653270355,
+      "totalReturn": -0.057642934672964476,
+      "cagr": -0.09510114784535129,
+      "maxDD": 0.14642402729833714,
+      "minEquity": 9423.570653270355,
+      "totalTrades": 50,
+      "avgContracts": 1,
+      "calendarDays": 217
+    }
+  },
+  {
+    "configLabel": "nc+slAct2d_sl2.5x",
+    "mechanism": "nc_sl_active_days",
+    "params": {
+      "creditStopLossMultiple": 2.5,
+      "slActiveDays": 2,
+      "missingChainExitAfterDays": 999
+    },
+    "isSharpe": 1.0731173729278844,
+    "oosSharpe": 1.0878685928877005,
+    "holdoutSharpe": -0.41923351519703295,
+    "oosWinRate": 80.22727272727272,
+    "oosMaxDD": 17.41209196070853,
+    "oosTotalPnl": 10332.763437359925,
+    "holdoutTotalPnl": -756.8851346354354,
+    "wfEfficiency": 1.0137461384299176,
+    "grade": "C",
+    "tradeCount": 440,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 398,
+      "STOP_LOSS": 42
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.2529199226925685,
+        "oosSharpe": 3.189722473467439,
+        "oosWR": 88.46153846153845,
+        "oosMaxDD": 1.925501508659513,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": 1.1343484643222297,
+        "oosSharpe": 0.6974731176158936,
+        "oosWR": 84,
+        "oosMaxDD": 7.296989158591451,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": 1.602486662410775,
+        "oosSharpe": 2.8326374811860893,
+        "oosWR": 86.95652173913044,
+        "oosMaxDD": 3.743748275261965,
+        "oosTradeCount": 23
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 1.6190973981598462,
+        "oosSharpe": 0.5988535718807897,
+        "oosWR": 76,
+        "oosMaxDD": 12.116156638416578,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": 1.4289570501183297,
+        "oosSharpe": 0.7289681499585455,
+        "oosWR": 80.55555555555556,
+        "oosMaxDD": 8.71054379481079,
+        "oosTradeCount": 36
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": 0.9496075801804506,
+        "oosSharpe": -0.7306910014441962,
+        "oosWR": 73.33333333333333,
+        "oosMaxDD": 15.41744525580231,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.49669906679348647,
+        "oosSharpe": -1.4386053003339683,
+        "oosWR": 50,
+        "oosMaxDD": 11.592075552217613,
+        "oosTradeCount": 12
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -0.9153282940299061,
+        "oosSharpe": 0.642241803874642,
+        "oosWR": 75,
+        "oosMaxDD": 11.170464527676062,
+        "oosTradeCount": 28
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -0.798298660668947,
+        "oosSharpe": 4.75797633976977,
+        "oosWR": 84.31372549019608,
+        "oosMaxDD": 2.2375201901176123,
+        "oosTradeCount": 51
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 2.2170711685004387,
+        "oosSharpe": 1.8566258048388182,
+        "oosWR": 82.5,
+        "oosMaxDD": 6.798786899048635,
+        "oosTradeCount": 40
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 3.3234851774891663,
+        "oosSharpe": 1.224001087733641,
+        "oosWR": 81.63265306122449,
+        "oosMaxDD": 11.11430097507384,
+        "oosTradeCount": 49
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 2.427575558806745,
+        "oosSharpe": 0.02891883194076746,
+        "oosWR": 75.55555555555556,
+        "oosMaxDD": 9.76429319738907,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.7177445986724502,
+        "oosSharpe": 2.1306663427449033,
+        "oosWR": 88.57142857142857,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 35
+      }
+    ],
+    "oosDetailed": {
+      "totalTrades": 440,
+      "winners": 353,
+      "losers": 87,
+      "winRate": 80.22727272727272,
+      "totalPnl": 10332.763437359925,
+      "avgPnlPct": 2.860437258042945,
+      "profitFactor": 1.3902259802835413,
+      "sharpe": 1.4853844297586907,
+      "maxDrawdown": 2.4321129721201507,
+      "avgHoldDays": 3.2409090909090907,
+      "avgEntryDelta": 0.2993802842460246,
+      "avgEntryDTE": 4.4409090909090905,
+      "avgCapitalPerTrade": 838.7283226561976,
+      "totalCapitalDeployed": 369040.46196872694,
+      "returnOnCapital": 2.7998998760833818,
+      "avgWinPnl": 104.28239604522456,
+      "avgLossPnl": -304.355429501199,
+      "expectancy": 23.483553266727156,
+      "byExit": {
+        "EXPIRATION": 398,
+        "STOP_LOSS": 42
+      }
+    },
+    "holdoutDetailed": {
+      "totalTrades": 50,
+      "winners": 37,
+      "losers": 13,
+      "winRate": 74,
+      "totalPnl": -756.8851346354354,
+      "avgPnlPct": -1.6932330107958047,
+      "profitFactor": 0.862785901613316,
+      "sharpe": -0.5904598564734732,
+      "maxDrawdown": 1.912086793291779,
+      "avgHoldDays": 3.26,
+      "avgEntryDelta": 0.3009010638260131,
+      "avgEntryDTE": 4.48,
+      "avgCapitalPerTrade": 866.4920024757902,
+      "totalCapitalDeployed": 43324.60012378951,
+      "returnOnCapital": -1.7470100877395756,
+      "avgWinPnl": 128.627122805981,
+      "avgLossPnl": -424.314513727441,
+      "expectancy": -15.137702692708729,
+      "byExit": {
+        "EXPIRATION": 44,
+        "STOP_LOSS": 5,
+        "PROFIT_TARGET": 1
+      }
+    },
+    "oosGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 23918.841518528265,
+      "totalReturn": 1.3918841518528264,
+      "cagr": 0.14320438318604656,
+      "maxDD": 0.25029237478395655,
+      "minEquity": 10000,
+      "totalTrades": 440,
+      "avgContracts": 1.4545454545454546,
+      "calendarDays": 2380
+    },
+    "holdoutGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 9243.11486536456,
+      "totalReturn": -0.07568851346354404,
+      "cagr": -0.12407657690977558,
+      "maxDD": 0.17307695254548439,
+      "minEquity": 9243.11486536456,
+      "totalTrades": 50,
+      "avgContracts": 1,
+      "calendarDays": 217
+    }
+  },
+  {
+    "configLabel": "nc+slAct3d_sl2.5x",
+    "mechanism": "nc_sl_active_days",
+    "params": {
+      "creditStopLossMultiple": 2.5,
+      "slActiveDays": 3,
+      "missingChainExitAfterDays": 999
+    },
+    "isSharpe": 1.2589797870616506,
+    "oosSharpe": 1.1963985322504174,
+    "holdoutSharpe": -0.27255742525440396,
+    "oosWinRate": 80.09049773755656,
+    "oosMaxDD": 16.33942100047425,
+    "oosTotalPnl": 10884.618712707805,
+    "holdoutTotalPnl": -549.1219845916763,
+    "wfEfficiency": 0.9502920893136081,
+    "grade": "C",
+    "tradeCount": 442,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 396,
+      "STOP_LOSS": 46
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.014665226178160655,
+        "oosSharpe": 3.189722473467439,
+        "oosWR": 88.46153846153845,
+        "oosMaxDD": 1.925501508659513,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": 1.4629279432243252,
+        "oosSharpe": 1.7396203308235085,
+        "oosWR": 84,
+        "oosMaxDD": 4.228881308410532,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": 2.2687748759883544,
+        "oosSharpe": 2.8326374811860893,
+        "oosWR": 86.95652173913044,
+        "oosMaxDD": 3.743748275261965,
+        "oosTradeCount": 23
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 2.1004657176836528,
+        "oosSharpe": 1.4946894443798853,
+        "oosWR": 77.77777777777779,
+        "oosMaxDD": 8.492503256435738,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": 1.9990720427082385,
+        "oosSharpe": 0.7289681499585455,
+        "oosWR": 80.55555555555556,
+        "oosMaxDD": 8.71054379481079,
+        "oosTradeCount": 36
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": 1.4273920182683408,
+        "oosSharpe": -0.7306910014441962,
+        "oosWR": 73.33333333333333,
+        "oosMaxDD": 15.41744525580231,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.49669906679348647,
+        "oosSharpe": -1.4386053003339683,
+        "oosWR": 50,
+        "oosMaxDD": 11.592075552217613,
+        "oosTradeCount": 12
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -0.9153282940299061,
+        "oosSharpe": 0.642241803874642,
+        "oosWR": 75,
+        "oosMaxDD": 11.170464527676062,
+        "oosTradeCount": 28
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -0.798298660668947,
+        "oosSharpe": 4.75797633976977,
+        "oosWR": 84.31372549019608,
+        "oosMaxDD": 2.2375201901176123,
+        "oosTradeCount": 51
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 2.2170711685004387,
+        "oosSharpe": 1.8566258048388182,
+        "oosWR": 82.5,
+        "oosMaxDD": 6.798786899048635,
+        "oosTradeCount": 40
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 3.3234851774891663,
+        "oosSharpe": 0.8568859612485831,
+        "oosWR": 79.59183673469387,
+        "oosMaxDD": 11.487011697181577,
+        "oosTradeCount": 49
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 2.2630816310821884,
+        "oosSharpe": 0.02891883194076746,
+        "oosWR": 75.55555555555556,
+        "oosMaxDD": 9.76429319738907,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.536059770940282,
+        "oosSharpe": 2.1306663427449033,
+        "oosWR": 88.57142857142857,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 35
+      }
+    ],
+    "oosDetailed": {
+      "totalTrades": 442,
+      "winners": 354,
+      "losers": 88,
+      "winRate": 80.09049773755656,
+      "totalPnl": 10884.618712707805,
+      "avgPnlPct": 3.009306046855539,
+      "profitFactor": 1.4188451532921287,
+      "sharpe": 1.5929193782589204,
+      "maxDrawdown": 2.4100134885166997,
+      "avgHoldDays": 3.2217194570135748,
+      "avgEntryDelta": 0.2994348379600442,
+      "avgEntryDTE": 4.429864253393665,
+      "avgCapitalPerTrade": 838.9553136242226,
+      "totalCapitalDeployed": 370818.2486219064,
+      "returnOnCapital": 2.935297481490987,
+      "avgWinPnl": 104.15772007535492,
+      "avgLossPnl": -295.3092522041797,
+      "expectancy": 24.625834191646682,
+      "byExit": {
+        "EXPIRATION": 396,
+        "STOP_LOSS": 46
+      }
+    },
+    "holdoutDetailed": {
+      "totalTrades": 50,
+      "winners": 37,
+      "losers": 13,
+      "winRate": 74,
+      "totalPnl": -549.1219845916763,
+      "avgPnlPct": -1.197254681835941,
+      "profitFactor": 0.8965545760800679,
+      "sharpe": -0.42858103648096624,
+      "maxDrawdown": 1.706742031020956,
+      "avgHoldDays": 3.24,
+      "avgEntryDelta": 0.3009010638260131,
+      "avgEntryDTE": 4.48,
+      "avgCapitalPerTrade": 866.4920024757902,
+      "totalCapitalDeployed": 43324.60012378951,
+      "returnOnCapital": -1.2674600181483355,
+      "avgWinPnl": 128.627122805981,
+      "avgLossPnl": -408.3327329548442,
+      "expectancy": -10.982439691833548,
+      "byExit": {
+        "EXPIRATION": 43,
+        "STOP_LOSS": 6,
+        "PROFIT_TARGET": 1
+      }
+    },
+    "oosGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 24876.65844431358,
+      "totalReturn": 1.487665844431358,
+      "cagr": 0.15011369465894497,
+      "maxDD": 0.2362571233723063,
+      "minEquity": 10000,
+      "totalTrades": 442,
+      "avgContracts": 1.5135746606334841,
+      "calendarDays": 2380
+    },
+    "holdoutGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 9450.87801540832,
+      "totalReturn": -0.05491219845916803,
+      "cagr": -0.09068316190810932,
+      "maxDD": 0.1544896970925944,
+      "minEquity": 9450.87801540832,
+      "totalTrades": 50,
+      "avgContracts": 1,
+      "calendarDays": 217
+    }
+  },
+  {
+    "configLabel": "nc+slAct5d_sl2.5x",
+    "mechanism": "nc_sl_active_days",
+    "params": {
+      "creditStopLossMultiple": 2.5,
+      "slActiveDays": 5,
+      "missingChainExitAfterDays": 999
+    },
+    "isSharpe": 1.2589797870616506,
+    "oosSharpe": 1.1963985322504174,
+    "holdoutSharpe": -0.27255742525440396,
+    "oosWinRate": 80.09049773755656,
+    "oosMaxDD": 16.33942100047425,
+    "oosTotalPnl": 10884.618712707805,
+    "holdoutTotalPnl": -549.1219845916763,
+    "wfEfficiency": 0.9502920893136081,
+    "grade": "C",
+    "tradeCount": 442,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 396,
+      "STOP_LOSS": 46
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.014665226178160655,
+        "oosSharpe": 3.189722473467439,
+        "oosWR": 88.46153846153845,
+        "oosMaxDD": 1.925501508659513,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": 1.4629279432243252,
+        "oosSharpe": 1.7396203308235085,
+        "oosWR": 84,
+        "oosMaxDD": 4.228881308410532,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": 2.2687748759883544,
+        "oosSharpe": 2.8326374811860893,
+        "oosWR": 86.95652173913044,
+        "oosMaxDD": 3.743748275261965,
+        "oosTradeCount": 23
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 2.1004657176836528,
+        "oosSharpe": 1.4946894443798853,
+        "oosWR": 77.77777777777779,
+        "oosMaxDD": 8.492503256435738,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": 1.9990720427082385,
+        "oosSharpe": 0.7289681499585455,
+        "oosWR": 80.55555555555556,
+        "oosMaxDD": 8.71054379481079,
+        "oosTradeCount": 36
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": 1.4273920182683408,
+        "oosSharpe": -0.7306910014441962,
+        "oosWR": 73.33333333333333,
+        "oosMaxDD": 15.41744525580231,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.49669906679348647,
+        "oosSharpe": -1.4386053003339683,
+        "oosWR": 50,
+        "oosMaxDD": 11.592075552217613,
+        "oosTradeCount": 12
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -0.9153282940299061,
+        "oosSharpe": 0.642241803874642,
+        "oosWR": 75,
+        "oosMaxDD": 11.170464527676062,
+        "oosTradeCount": 28
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -0.798298660668947,
+        "oosSharpe": 4.75797633976977,
+        "oosWR": 84.31372549019608,
+        "oosMaxDD": 2.2375201901176123,
+        "oosTradeCount": 51
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 2.2170711685004387,
+        "oosSharpe": 1.8566258048388182,
+        "oosWR": 82.5,
+        "oosMaxDD": 6.798786899048635,
+        "oosTradeCount": 40
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 3.3234851774891663,
+        "oosSharpe": 0.8568859612485831,
+        "oosWR": 79.59183673469387,
+        "oosMaxDD": 11.487011697181577,
+        "oosTradeCount": 49
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 2.2630816310821884,
+        "oosSharpe": 0.02891883194076746,
+        "oosWR": 75.55555555555556,
+        "oosMaxDD": 9.76429319738907,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.536059770940282,
+        "oosSharpe": 2.1306663427449033,
+        "oosWR": 88.57142857142857,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 35
+      }
+    ],
+    "oosDetailed": {
+      "totalTrades": 442,
+      "winners": 354,
+      "losers": 88,
+      "winRate": 80.09049773755656,
+      "totalPnl": 10884.618712707805,
+      "avgPnlPct": 3.009306046855539,
+      "profitFactor": 1.4188451532921287,
+      "sharpe": 1.5929193782589204,
+      "maxDrawdown": 2.4100134885166997,
+      "avgHoldDays": 3.2217194570135748,
+      "avgEntryDelta": 0.2994348379600442,
+      "avgEntryDTE": 4.429864253393665,
+      "avgCapitalPerTrade": 838.9553136242226,
+      "totalCapitalDeployed": 370818.2486219064,
+      "returnOnCapital": 2.935297481490987,
+      "avgWinPnl": 104.15772007535492,
+      "avgLossPnl": -295.3092522041797,
+      "expectancy": 24.625834191646682,
+      "byExit": {
+        "EXPIRATION": 396,
+        "STOP_LOSS": 46
+      }
+    },
+    "holdoutDetailed": {
+      "totalTrades": 50,
+      "winners": 37,
+      "losers": 13,
+      "winRate": 74,
+      "totalPnl": -549.1219845916763,
+      "avgPnlPct": -1.197254681835941,
+      "profitFactor": 0.8965545760800679,
+      "sharpe": -0.42858103648096624,
+      "maxDrawdown": 1.706742031020956,
+      "avgHoldDays": 3.24,
+      "avgEntryDelta": 0.3009010638260131,
+      "avgEntryDTE": 4.48,
+      "avgCapitalPerTrade": 866.4920024757902,
+      "totalCapitalDeployed": 43324.60012378951,
+      "returnOnCapital": -1.2674600181483355,
+      "avgWinPnl": 128.627122805981,
+      "avgLossPnl": -408.3327329548442,
+      "expectancy": -10.982439691833548,
+      "byExit": {
+        "EXPIRATION": 43,
+        "STOP_LOSS": 6,
+        "PROFIT_TARGET": 1
+      }
+    },
+    "oosGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 24876.65844431358,
+      "totalReturn": 1.487665844431358,
+      "cagr": 0.15011369465894497,
+      "maxDD": 0.2362571233723063,
+      "minEquity": 10000,
+      "totalTrades": 442,
+      "avgContracts": 1.5135746606334841,
+      "calendarDays": 2380
+    },
+    "holdoutGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 9450.87801540832,
+      "totalReturn": -0.05491219845916803,
+      "cagr": -0.09068316190810932,
+      "maxDD": 0.1544896970925944,
+      "minEquity": 9450.87801540832,
+      "totalTrades": 50,
+      "avgContracts": 1,
+      "calendarDays": 217
+    }
+  },
+  {
+    "configLabel": "nc+ml40",
+    "mechanism": "nc_max_loss_fine",
+    "params": {
+      "creditMaxLossStopPct": 0.4,
+      "missingChainExitAfterDays": 999
+    },
+    "isSharpe": 0.8948689418425737,
+    "oosSharpe": 0.9656867270682212,
+    "holdoutSharpe": -0.2926677783787644,
+    "oosWinRate": 82.66978922716628,
+    "oosMaxDD": 18.909651649475993,
+    "oosTotalPnl": 9949.50241154924,
+    "holdoutTotalPnl": -608.3623051158162,
+    "wfEfficiency": 1.079137605423908,
+    "grade": "C",
+    "tradeCount": 427,
+    "holdoutTradeCount": 49,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 408,
+      "MAX_LOSS_STOP": 19
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.7337263423159274,
+        "oosSharpe": 2.9469780198105484,
+        "oosWR": 91.66666666666666,
+        "oosMaxDD": 2.257889804267804,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": 0.42179483378288163,
+        "oosSharpe": 0.981000897588382,
+        "oosWR": 87.5,
+        "oosMaxDD": 7.126333650110071,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": 1.6816518244022285,
+        "oosSharpe": 2.758628447166222,
+        "oosWR": 86.36363636363636,
+        "oosMaxDD": 3.743748275261965,
+        "oosTradeCount": 22
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 1.6944873753497824,
+        "oosSharpe": 0.11746552791562077,
+        "oosWR": 76.92307692307693,
+        "oosMaxDD": 14.218578963565404,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": 0.9472614090559669,
+        "oosSharpe": 0.5919468962911018,
+        "oosWR": 82.85714285714286,
+        "oosMaxDD": 11.964387917505777,
+        "oosTradeCount": 35
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": 0.5734526915045969,
+        "oosSharpe": -0.7313452692034801,
+        "oosWR": 75,
+        "oosMaxDD": 15.626110185661638,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.42307811673490603,
+        "oosSharpe": -1.5858803918627382,
+        "oosWR": 54.54545454545454,
+        "oosMaxDD": 12.714570809641629,
+        "oosTradeCount": 11
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -0.9806733367047822,
+        "oosSharpe": 0.7508167253841435,
+        "oosWR": 80.76923076923077,
+        "oosMaxDD": 11.170464527676062,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -0.718754721812374,
+        "oosSharpe": 4.267506356466933,
+        "oosWR": 88,
+        "oosMaxDD": 5.257930876096339,
+        "oosTradeCount": 50
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 2.1290564482899144,
+        "oosSharpe": 1.715572765962825,
+        "oosWR": 84.61538461538461,
+        "oosMaxDD": 6.497652850310606,
+        "oosTradeCount": 39
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 3.0439039132182333,
+        "oosSharpe": 1.0970008551512143,
+        "oosWR": 82.97872340425532,
+        "oosMaxDD": 11.218552560674262,
+        "oosTradeCount": 47
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 2.247908600466939,
+        "oosSharpe": 0.07759769498939023,
+        "oosWR": 79.54545454545455,
+        "oosMaxDD": 10.978062860533594,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.9038554319810932,
+        "oosSharpe": 2.1306663427449033,
+        "oosWR": 88.57142857142857,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 35
+      }
+    ],
+    "oosDetailed": {
+      "totalTrades": 427,
+      "winners": 353,
+      "losers": 74,
+      "winRate": 82.66978922716628,
+      "totalPnl": 9949.50241154924,
+      "avgPnlPct": 2.8247882396286697,
+      "profitFactor": 1.3729651443858157,
+      "sharpe": 1.3100946366988349,
+      "maxDrawdown": 2.5771839672795167,
+      "avgHoldDays": 3.3723653395784545,
+      "avgEntryDelta": 0.299186269856132,
+      "avgEntryDTE": 4.4637002341920375,
+      "avgCapitalPerTrade": 839.0208576672608,
+      "totalCapitalDeployed": 358261.90622392035,
+      "returnOnCapital": 2.7771588993139047,
+      "avgWinPnl": 103.75712313439763,
+      "avgLossPnl": -360.49678452558254,
+      "expectancy": 23.30094241580624,
+      "byExit": {
+        "EXPIRATION": 408,
+        "MAX_LOSS_STOP": 19
+      }
+    },
+    "holdoutDetailed": {
+      "totalTrades": 49,
+      "winners": 38,
+      "losers": 11,
+      "winRate": 77.55102040816327,
+      "totalPnl": -608.3623051158162,
+      "avgPnlPct": -1.386779240547645,
+      "profitFactor": 0.8883609148908184,
+      "sharpe": -0.4531474513111087,
+      "maxDrawdown": 1.6315006236545555,
+      "avgHoldDays": 3.326530612244898,
+      "avgEntryDelta": 0.3010051420855982,
+      "avgEntryDTE": 4.448979591836735,
+      "avgCapitalPerTrade": 866.9742225943904,
+      "totalCapitalDeployed": 42481.73690712513,
+      "returnOnCapital": -1.4320561008271304,
+      "avgWinPnl": 127.39485068268861,
+      "avgLossPnl": -495.3969664598167,
+      "expectancy": -12.415557247261589,
+      "byExit": {
+        "EXPIRATION": 44,
+        "MAX_LOSS_STOP": 5
+      }
+    },
+    "oosGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 22881.418932832996,
+      "totalReturn": 1.2881418932832995,
+      "cagr": 0.1354513990640953,
+      "maxDD": 0.26314524609186823,
+      "minEquity": 10000,
+      "totalTrades": 427,
+      "avgContracts": 1.4098360655737705,
+      "calendarDays": 2380
+    },
+    "holdoutGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 9391.637694884183,
+      "totalReturn": -0.06083623051158174,
+      "cagr": -0.10025641309865574,
+      "maxDD": 0.1493164772006743,
+      "minEquity": 9391.637694884183,
+      "totalTrades": 49,
+      "avgContracts": 1,
+      "calendarDays": 217
+    }
+  },
+  {
+    "configLabel": "nc+ml60",
+    "mechanism": "nc_max_loss_fine",
+    "params": {
+      "creditMaxLossStopPct": 0.6,
+      "missingChainExitAfterDays": 999
+    },
+    "isSharpe": 0.9263660037726061,
+    "oosSharpe": 1.0013170918182688,
+    "holdoutSharpe": -0.7584759175175831,
+    "oosWinRate": 83.1353919239905,
+    "oosMaxDD": 17.452848721683218,
+    "oosTotalPnl": 10654.811473585687,
+    "holdoutTotalPnl": -1290.8917348498514,
+    "wfEfficiency": 1.0809087204629984,
+    "grade": "C",
+    "tradeCount": 421,
+    "holdoutTradeCount": 49,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 413,
+      "MAX_LOSS_STOP": 8
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.7337263423159274,
+        "oosSharpe": 2.9469780198105484,
+        "oosWR": 91.66666666666666,
+        "oosMaxDD": 2.257889804267804,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": 0.42179483378288163,
+        "oosSharpe": 0.981000897588382,
+        "oosWR": 87.5,
+        "oosMaxDD": 7.126333650110071,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": 1.6816518244022285,
+        "oosSharpe": 3.0909148638274275,
+        "oosWR": 85.71428571428571,
+        "oosMaxDD": 3.743748275261965,
+        "oosTradeCount": 21
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 1.895579727097093,
+        "oosSharpe": -0.21432752836910385,
+        "oosWR": 76,
+        "oosMaxDD": 17.58455864332428,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": 0.8787651680696641,
+        "oosSharpe": 0.5389290368575862,
+        "oosWR": 82.85714285714286,
+        "oosMaxDD": 12.229909054538336,
+        "oosTradeCount": 35
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": 0.3744163303191786,
+        "oosSharpe": 0.23091438980857437,
+        "oosWR": 79.06976744186046,
+        "oosMaxDD": 11.615621823789914,
+        "oosTradeCount": 43
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.8439757107127325,
+        "oosSharpe": -1.5858803918627382,
+        "oosWR": 54.54545454545454,
+        "oosMaxDD": 12.714570809641629,
+        "oosTradeCount": 11
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -0.353476565636403,
+        "oosSharpe": 0.9785406778952417,
+        "oosWR": 80.76923076923077,
+        "oosMaxDD": 13.352615604479823,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -0.4482669262560314,
+        "oosSharpe": 4.267506356466933,
+        "oosWR": 88,
+        "oosMaxDD": 5.257930876096339,
+        "oosTradeCount": 50
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 2.120798378570971,
+        "oosSharpe": 0.6531354512472934,
+        "oosWR": 84.21052631578947,
+        "oosMaxDD": 12.216314008375091,
+        "oosTradeCount": 38
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 2.4851847151217616,
+        "oosSharpe": 1.4463873037641546,
+        "oosWR": 84.44444444444444,
+        "oosMaxDD": 9.771469494831527,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.7993921113172804,
+        "oosSharpe": 0.07759769498939023,
+        "oosWR": 79.54545454545455,
+        "oosMaxDD": 10.978062860533594,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 1.076669083858449,
+        "oosSharpe": 2.1306663427449033,
+        "oosWR": 88.57142857142857,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 35
+      }
+    ],
+    "oosDetailed": {
+      "totalTrades": 421,
+      "winners": 350,
+      "losers": 71,
+      "winRate": 83.1353919239905,
+      "totalPnl": 10654.811473585687,
+      "avgPnlPct": 3.0596527863885012,
+      "profitFactor": 1.4167238483728002,
+      "sharpe": 1.3498890470626668,
+      "maxDrawdown": 2.084084253802123,
+      "avgHoldDays": 3.4346793349168645,
+      "avgEntryDelta": 0.29925716484262294,
+      "avgEntryDTE": 4.484560570071259,
+      "avgCapitalPerTrade": 838.3960432447294,
+      "totalCapitalDeployed": 352964.7342060311,
+      "returnOnCapital": 3.018661764482767,
+      "avgWinPnl": 103.4938575783241,
+      "avgLossPnl": -360.11322082855963,
+      "expectancy": 25.308340792365087,
+      "byExit": {
+        "EXPIRATION": 413,
+        "MAX_LOSS_STOP": 8
+      }
+    },
+    "holdoutDetailed": {
+      "totalTrades": 49,
+      "winners": 38,
+      "losers": 11,
+      "winRate": 77.55102040816327,
+      "totalPnl": -1290.8917348498514,
+      "avgPnlPct": -3.0372353178387956,
+      "profitFactor": 0.7894200396867639,
+      "sharpe": -0.9565318932692742,
+      "maxDrawdown": 2.1476127021701803,
+      "avgHoldDays": 3.36734693877551,
+      "avgEntryDelta": 0.3010028396812521,
+      "avgEntryDTE": 4.428571428571429,
+      "avgCapitalPerTrade": 867.0093727767802,
+      "totalCapitalDeployed": 42483.45926606223,
+      "returnOnCapital": -3.03857491162702,
+      "avgWinPnl": 127.34952544750166,
+      "avgLossPnl": -557.2885183504468,
+      "expectancy": -26.34472928265005,
+      "byExit": {
+        "EXPIRATION": 45,
+        "MAX_LOSS_STOP": 4
+      }
+    },
+    "oosGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 23886.62977350503,
+      "totalReturn": 1.3886629773505028,
+      "cagr": 0.14296797693813756,
+      "maxDD": 0.23759114027094852,
+      "minEquity": 10000,
+      "totalTrades": 421,
+      "avgContracts": 1.482185273159145,
+      "calendarDays": 2380
+    },
+    "holdoutGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 8709.108265150146,
+      "totalReturn": -0.12908917348498544,
+      "cagr": -0.2075626606544061,
+      "maxDD": 0.19920103135499495,
+      "minEquity": 8709.108265150146,
+      "totalTrades": 49,
+      "avgContracts": 1,
+      "calendarDays": 217
+    }
+  },
+  {
+    "configLabel": "nc+ds75",
+    "mechanism": "nc_delta_stop",
+    "params": {
+      "creditDeltaStop": 0.75,
+      "missingChainExitAfterDays": 999
+    },
+    "isSharpe": 1.0680060117518158,
+    "oosSharpe": 1.0505429234416706,
+    "holdoutSharpe": -0.2926677783787644,
+    "oosWinRate": 82.36658932714617,
+    "oosMaxDD": 17.72877689377498,
+    "oosTotalPnl": 10579.2246890709,
+    "holdoutTotalPnl": -608.3623051158162,
+    "wfEfficiency": 0.9836488857572055,
+    "grade": "C",
+    "tradeCount": 431,
+    "holdoutTradeCount": 49,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 404,
+      "DELTA_STOP": 27
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.2562586568969864,
+        "oosSharpe": 2.9534280641840787,
+        "oosWR": 91.66666666666666,
+        "oosMaxDD": 2.2395059801759243,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": 1.276930883956611,
+        "oosSharpe": 0.981000897588382,
+        "oosWR": 87.5,
+        "oosMaxDD": 7.126333650110071,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": 1.684482814077511,
+        "oosSharpe": 2.758628447166222,
+        "oosWR": 86.36363636363636,
+        "oosMaxDD": 3.743748275261965,
+        "oosTradeCount": 22
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 1.6944873753497824,
+        "oosSharpe": 0.6882321433562922,
+        "oosWR": 77.77777777777779,
+        "oosMaxDD": 11.540392948190036,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": 1.35792984651039,
+        "oosSharpe": 0.5919468962911018,
+        "oosWR": 82.85714285714286,
+        "oosMaxDD": 11.964387917505777,
+        "oosTradeCount": 35
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": 0.8868778003045984,
+        "oosSharpe": -0.6754978534658822,
+        "oosWR": 73.33333333333333,
+        "oosMaxDD": 14.981005349502425,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.4670393652314349,
+        "oosSharpe": -1.5858803918627382,
+        "oosWR": 54.54545454545454,
+        "oosMaxDD": 12.714570809641629,
+        "oosTradeCount": 11
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -0.9535490141448102,
+        "oosSharpe": 0.7508167253841435,
+        "oosWR": 80.76923076923077,
+        "oosMaxDD": 11.170464527676062,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -0.718754721812374,
+        "oosSharpe": 4.267506356466933,
+        "oosWR": 88,
+        "oosMaxDD": 5.257930876096339,
+        "oosTradeCount": 50
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 2.1290564482899144,
+        "oosSharpe": 1.8532529732072258,
+        "oosWR": 85,
+        "oosMaxDD": 6.497652850310606,
+        "oosTradeCount": 40
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 3.1054122508346818,
+        "oosSharpe": 1.0468854663222233,
+        "oosWR": 81.25,
+        "oosMaxDD": 11.301077428216919,
+        "oosTradeCount": 48
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 2.33574282531596,
+        "oosSharpe": 0.07759769498939023,
+        "oosWR": 79.54545454545455,
+        "oosMaxDD": 10.978062860533594,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.8746809357568902,
+        "oosSharpe": 2.1306663427449033,
+        "oosWR": 88.57142857142857,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 35
+      }
+    ],
+    "oosDetailed": {
+      "totalTrades": 431,
+      "winners": 355,
+      "losers": 76,
+      "winRate": 82.36658932714617,
+      "totalPnl": 10579.2246890709,
+      "avgPnlPct": 2.976107049812871,
+      "profitFactor": 1.4045747721774133,
+      "sharpe": 1.415547957990028,
+      "maxDrawdown": 2.4961738027121934,
+      "avgHoldDays": 3.3341067285382833,
+      "avgEntryDelta": 0.2994544338562096,
+      "avgEntryDTE": 4.443155452436195,
+      "avgCapitalPerTrade": 838.549029729876,
+      "totalCapitalDeployed": 361414.63181357656,
+      "returnOnCapital": 2.927171109809365,
+      "avgWinPnl": 103.45978069481029,
+      "avgLossPnl": -344.06575602087815,
+      "expectancy": 24.545764939839685,
+      "byExit": {
+        "EXPIRATION": 404,
+        "DELTA_STOP": 27
+      }
+    },
+    "holdoutDetailed": {
+      "totalTrades": 49,
+      "winners": 38,
+      "losers": 11,
+      "winRate": 77.55102040816327,
+      "totalPnl": -608.3623051158162,
+      "avgPnlPct": -1.386779240547645,
+      "profitFactor": 0.8883609148908184,
+      "sharpe": -0.4531474513111087,
+      "maxDrawdown": 1.6315006236545555,
+      "avgHoldDays": 3.326530612244898,
+      "avgEntryDelta": 0.3010051420855982,
+      "avgEntryDTE": 4.448979591836735,
+      "avgCapitalPerTrade": 866.9742225943904,
+      "totalCapitalDeployed": 42481.73690712513,
+      "returnOnCapital": -1.4320561008271304,
+      "avgWinPnl": 127.39485068268861,
+      "avgLossPnl": -495.3969664598167,
+      "expectancy": -12.415557247261589,
+      "byExit": {
+        "EXPIRATION": 43,
+        "DELTA_STOP": 6
+      }
+    },
+    "oosGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 24043.428315813526,
+      "totalReturn": 1.4043428315813526,
+      "cagr": 0.144116212511475,
+      "maxDD": 0.24598031539768245,
+      "minEquity": 10000,
+      "totalTrades": 431,
+      "avgContracts": 1.4779582366589328,
+      "calendarDays": 2380
+    },
+    "holdoutGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 9391.637694884183,
+      "totalReturn": -0.06083623051158174,
+      "cagr": -0.10025641309865574,
+      "maxDD": 0.1493164772006743,
+      "minEquity": 9391.637694884183,
+      "totalTrades": 49,
+      "avgContracts": 1,
+      "calendarDays": 217
+    }
+  },
+  {
+    "configLabel": "nc+ds85",
+    "mechanism": "nc_delta_stop",
+    "params": {
+      "creditDeltaStop": 0.85,
+      "missingChainExitAfterDays": 999
+    },
+    "isSharpe": 1.098246590171669,
+    "oosSharpe": 1.0402412810123305,
+    "holdoutSharpe": -0.7584759175175831,
+    "oosWinRate": 83.41232227488152,
+    "oosMaxDD": 16.474065633095023,
+    "oosTotalPnl": 11047.13270467041,
+    "holdoutTotalPnl": -1290.8917348498514,
+    "wfEfficiency": 0.9471837111278701,
+    "grade": "C",
+    "tradeCount": 422,
+    "holdoutTradeCount": 49,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 411,
+      "DELTA_STOP": 11
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.19155785295288566,
+        "oosSharpe": 2.9469780198105484,
+        "oosWR": 91.66666666666666,
+        "oosMaxDD": 2.257889804267804,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": 1.3437460554259313,
+        "oosSharpe": 0.981000897588382,
+        "oosWR": 87.5,
+        "oosMaxDD": 7.126333650110071,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": 1.6816518244022285,
+        "oosSharpe": 3.0909148638274275,
+        "oosWR": 85.71428571428571,
+        "oosMaxDD": 3.743748275261965,
+        "oosTradeCount": 21
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 1.895579727097093,
+        "oosSharpe": -0.21432752836910385,
+        "oosWR": 76,
+        "oosMaxDD": 17.58455864332428,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": 0.8787651680696641,
+        "oosSharpe": 0.5389290368575862,
+        "oosWR": 82.85714285714286,
+        "oosMaxDD": 12.229909054538336,
+        "oosTradeCount": 35
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": 0.3744163303191786,
+        "oosSharpe": 0.23091438980857437,
+        "oosWR": 79.06976744186046,
+        "oosMaxDD": 11.615621823789914,
+        "oosTradeCount": 43
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.8439757107127325,
+        "oosSharpe": -1.5858803918627382,
+        "oosWR": 54.54545454545454,
+        "oosMaxDD": 12.714570809641629,
+        "oosTradeCount": 11
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -0.353476565636403,
+        "oosSharpe": 1.1692219944142448,
+        "oosWR": 84.61538461538461,
+        "oosMaxDD": 12.06339313565992,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -0.37150385230815025,
+        "oosSharpe": 4.267506356466933,
+        "oosWR": 88,
+        "oosMaxDD": 5.257930876096339,
+        "oosTradeCount": 50
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 2.245529073234184,
+        "oosSharpe": 1.224291081691314,
+        "oosWR": 84.21052631578947,
+        "oosMaxDD": 9.752380409534481,
+        "oosTradeCount": 38
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 2.808678010359256,
+        "oosSharpe": 1.3153124752274645,
+        "oosWR": 84.78260869565217,
+        "oosMaxDD": 10.997977538200567,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 2.110684548325669,
+        "oosSharpe": 0.07759769498939023,
+        "oosWR": 79.54545454545455,
+        "oosMaxDD": 10.978062860533594,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 1.0107174951831992,
+        "oosSharpe": 2.1306663427449033,
+        "oosWR": 88.57142857142857,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 35
+      }
+    ],
+    "oosDetailed": {
+      "totalTrades": 422,
+      "winners": 352,
+      "losers": 70,
+      "winRate": 83.41232227488152,
+      "totalPnl": 11047.13270467041,
+      "avgPnlPct": 3.1603104269581364,
+      "profitFactor": 1.4368101012875774,
+      "sharpe": 1.411377376093313,
+      "maxDrawdown": 2.149638653926482,
+      "avgHoldDays": 3.424170616113744,
+      "avgEntryDelta": 0.29917805380551443,
+      "avgEntryDTE": 4.481042654028436,
+      "avgCapitalPerTrade": 838.5581811398964,
+      "totalCapitalDeployed": 353871.55244103627,
+      "returnOnCapital": 3.1217916864089084,
+      "avgWinPnl": 103.231825490664,
+      "avgLossPnl": -361.29242668633293,
+      "expectancy": 26.17803958452705,
+      "byExit": {
+        "EXPIRATION": 411,
+        "DELTA_STOP": 11
+      }
+    },
+    "holdoutDetailed": {
+      "totalTrades": 49,
+      "winners": 38,
+      "losers": 11,
+      "winRate": 77.55102040816327,
+      "totalPnl": -1290.8917348498514,
+      "avgPnlPct": -3.0372353178387956,
+      "profitFactor": 0.7894200396867639,
+      "sharpe": -0.9565318932692742,
+      "maxDrawdown": 2.1476127021701803,
+      "avgHoldDays": 3.36734693877551,
+      "avgEntryDelta": 0.3010028396812521,
+      "avgEntryDTE": 4.428571428571429,
+      "avgCapitalPerTrade": 867.0093727767802,
+      "totalCapitalDeployed": 42483.45926606223,
+      "returnOnCapital": -3.03857491162702,
+      "avgWinPnl": 127.34952544750166,
+      "avgLossPnl": -557.2885183504468,
+      "expectancy": -26.34472928265005,
+      "byExit": {
+        "EXPIRATION": 44,
+        "DELTA_STOP": 5
+      }
+    },
+    "oosGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 26000.93504057405,
+      "totalReturn": 1.6000935040574051,
+      "cagr": 0.15794213463034001,
+      "maxDD": 0.23731564929738536,
+      "minEquity": 10000,
+      "totalTrades": 422,
+      "avgContracts": 1.5402843601895735,
+      "calendarDays": 2380
+    },
+    "holdoutGrowth": {
+      "startEquity": 10000,
+      "finalEquity": 8709.108265150146,
+      "totalReturn": -0.12908917348498544,
+      "cagr": -0.2075626606544061,
+      "maxDD": 0.19920103135499495,
+      "minEquity": 8709.108265150146,
+      "totalTrades": 49,
+      "avgContracts": 1,
+      "calendarDays": 217
+    }
+  }
+]

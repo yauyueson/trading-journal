@@ -1,0 +1,3162 @@
+[
+  {
+    "configLabel": "ph25-50_none",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.25,
+      "tp2": 0.5,
+      "afterTP1SL": -1
+    },
+    "isSharpe": -0.3790124081726961,
+    "oosSharpe": 0.023420183047623565,
+    "holdoutSharpe": -1.3481955889189334,
+    "oosWinRate": 71.39737991266377,
+    "oosMaxDD": 51.51022518709698,
+    "oosTotalPnl": -1171.1172529403682,
+    "holdoutTotalPnl": -2110.109414058728,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 458,
+    "holdoutTradeCount": 53,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 349,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 23
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.8356761646018394,
+        "oosSharpe": 0.4618964337914306,
+        "oosWR": 50,
+        "oosMaxDD": 3.207966345325701,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.400515913186115,
+        "oosSharpe": -1.2250430457670247,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.255238089862141,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8049450604684215,
+        "oosSharpe": 1.67805502547994,
+        "oosWR": 64,
+        "oosMaxDD": 3.8827004922430084,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.27288681525119846,
+        "oosSharpe": -1.5329371424622646,
+        "oosWR": 70.37037037037037,
+        "oosMaxDD": 25.131065177829793,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.5896972677433269,
+        "oosSharpe": -0.5109203119596291,
+        "oosWR": 63.888888888888886,
+        "oosMaxDD": 12.789402884933729,
+        "oosTradeCount": 36
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.807205043733014,
+        "oosSharpe": -0.9523491869481636,
+        "oosWR": 73.33333333333333,
+        "oosMaxDD": 16.649919913229507,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": -0.2215230715491997,
+        "oosSharpe": -1.837584366927827,
+        "oosWR": 60,
+        "oosMaxDD": 13.895270444990757,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.3060534254309515,
+        "oosSharpe": -0.7000006336903213,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.65426984234889,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6250947487927552,
+        "oosSharpe": 3.0295835581502115,
+        "oosWR": 79.24528301886792,
+        "oosMaxDD": 5.435100946555896,
+        "oosTradeCount": 53
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.5733567943635242,
+        "oosSharpe": -0.20901956430146237,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.58433595705565,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.3302746233992815,
+        "oosSharpe": 1.0973252675218987,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.323259844843133,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 0.9767624692010295,
+        "oosSharpe": -0.605551254589273,
+        "oosWR": 77.27272727272727,
+        "oosMaxDD": 15.806908039743844,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5102686870455396,
+        "oosSharpe": 1.5697518224590776,
+        "oosWR": 85.36585365853658,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 41
+      }
+    ]
+  },
+  {
+    "configLabel": "ph25-50_be",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.25,
+      "tp2": 0.5,
+      "afterTP1SL": 0
+    },
+    "isSharpe": -0.23587923115768075,
+    "oosSharpe": 0.048377951788427555,
+    "holdoutSharpe": -1.3481955889189334,
+    "oosWinRate": 73.13432835820896,
+    "oosMaxDD": 45.98138993214885,
+    "oosTotalPnl": -688.5307991074369,
+    "holdoutTotalPnl": -2110.109414058728,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 469,
+    "holdoutTradeCount": 53,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 342,
+      "NO_CHAIN": 87,
+      "PROFIT_TARGET_2": 22,
+      "SL_BREAKEVEN": 18
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.3104141140652683,
+        "oosSharpe": 0.4618964337914306,
+        "oosWR": 50,
+        "oosMaxDD": 3.207966345325701,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.0993701648440763,
+        "oosSharpe": -1.2250430457670247,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.255238089862141,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8049450604684215,
+        "oosSharpe": 2.330345372607345,
+        "oosWR": 73.07692307692307,
+        "oosMaxDD": 3.8827004922430084,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.6455865502667023,
+        "oosSharpe": -1.5140969841437348,
+        "oosWR": 71.42857142857143,
+        "oosMaxDD": 24.94636813246538,
+        "oosTradeCount": 28
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.3617316094839089,
+        "oosSharpe": 0.05443780913039134,
+        "oosWR": 68.42105263157895,
+        "oosMaxDD": 11.046178226294188,
+        "oosTradeCount": 38
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.5533713239426116,
+        "oosSharpe": -1.0547675642051761,
+        "oosWR": 75.55555555555556,
+        "oosMaxDD": 16.398993710563932,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": -0.003683641426197745,
+        "oosSharpe": -1.837584366927827,
+        "oosWR": 60,
+        "oosMaxDD": 13.895270444990757,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.3706720133152765,
+        "oosSharpe": -0.7000006336903213,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.65426984234889,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6250947487927552,
+        "oosSharpe": 3.19772605369051,
+        "oosWR": 81.81818181818183,
+        "oosMaxDD": 5.435100946555896,
+        "oosTradeCount": 55
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.5649465968295785,
+        "oosSharpe": -0.20767123152908526,
+        "oosWR": 76.19047619047619,
+        "oosMaxDD": 16.58433595705565,
+        "oosTradeCount": 42
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.4511357014817163,
+        "oosSharpe": 1.0601366206673652,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.350068905943267,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.0635840982306701,
+        "oosSharpe": -0.7652465048060566,
+        "oosWR": 79.16666666666666,
+        "oosMaxDD": 17.62871380384899,
+        "oosTradeCount": 48
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.3375997244799997,
+        "oosSharpe": 1.5697518224590776,
+        "oosWR": 85.36585365853658,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 41
+      }
+    ]
+  },
+  {
+    "configLabel": "ph25-50_lock25",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.25,
+      "tp2": 0.5,
+      "afterTP1SL": 0.25
+    },
+    "isSharpe": -0.19383794326160406,
+    "oosSharpe": 0.07802518207404181,
+    "holdoutSharpe": -1.3481955889189334,
+    "oosWinRate": 73.19148936170212,
+    "oosMaxDD": 44.163963813642994,
+    "oosTotalPnl": -270.2172866548399,
+    "holdoutTotalPnl": -2110.109414058728,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 470,
+    "holdoutTradeCount": 53,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 342,
+      "NO_CHAIN": 87,
+      "PROFIT_TARGET_2": 22,
+      "SL_BREAKEVEN": 19
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.2427278388382128,
+        "oosSharpe": 0.4618964337914306,
+        "oosWR": 50,
+        "oosMaxDD": 3.207966345325701,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.0682695440684848,
+        "oosSharpe": -1.2250430457670247,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.255238089862141,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8049450604684215,
+        "oosSharpe": 2.3959455678106893,
+        "oosWR": 73.07692307692307,
+        "oosMaxDD": 3.8827004922430084,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.6802356072464908,
+        "oosSharpe": -1.3950720436220094,
+        "oosWR": 72.41379310344827,
+        "oosMaxDD": 24.547356946148014,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.31513273716597195,
+        "oosSharpe": 0.08953568115317093,
+        "oosWR": 68.42105263157895,
+        "oosMaxDD": 11.01509976863173,
+        "oosTradeCount": 38
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.48156976351003183,
+        "oosSharpe": -1.0096761887778039,
+        "oosWR": 75.55555555555556,
+        "oosMaxDD": 16.185668307592294,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.07882181506717058,
+        "oosSharpe": -1.837584366927827,
+        "oosWR": 60,
+        "oosMaxDD": 13.895270444990757,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.3430661841659735,
+        "oosSharpe": -0.7000006336903213,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.65426984234889,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6250947487927552,
+        "oosSharpe": 3.3088377841887393,
+        "oosWR": 81.81818181818183,
+        "oosMaxDD": 5.435100946555896,
+        "oosTradeCount": 55
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.6051114781526477,
+        "oosSharpe": -0.19159445090805424,
+        "oosWR": 76.19047619047619,
+        "oosMaxDD": 16.58433595705565,
+        "oosTradeCount": 42
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.5236408990641668,
+        "oosSharpe": 1.0807753938573177,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.336848656752691,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.0913904015253435,
+        "oosSharpe": -0.7108603433887686,
+        "oosWR": 79.16666666666666,
+        "oosMaxDD": 17.349962774374244,
+        "oosTradeCount": 48
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.3817124135531804,
+        "oosSharpe": 1.5697518224590776,
+        "oosWR": 85.36585365853658,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 41
+      }
+    ]
+  },
+  {
+    "configLabel": "ph25-60_none",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.25,
+      "tp2": 0.6,
+      "afterTP1SL": -1
+    },
+    "isSharpe": -0.35746319673445276,
+    "oosSharpe": 0.03381472094574037,
+    "holdoutSharpe": -1.1290905986761255,
+    "oosWinRate": 71.58590308370044,
+    "oosMaxDD": 52.16976697030458,
+    "oosTotalPnl": -1031.1585992715522,
+    "holdoutTotalPnl": -1797.1204023892763,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 454,
+    "holdoutTradeCount": 53,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 349,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 19
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.7238575515390118,
+        "oosSharpe": 0.4618964337914306,
+        "oosWR": 50,
+        "oosMaxDD": 3.207966345325701,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.349597186161185,
+        "oosSharpe": -1.2250430457670247,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.255238089862141,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8049450604684215,
+        "oosSharpe": 1.8180991387275325,
+        "oosWR": 66.66666666666666,
+        "oosMaxDD": 3.8800150284561923,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.34813309460375547,
+        "oosSharpe": -1.6043101885657645,
+        "oosWR": 69.23076923076923,
+        "oosMaxDD": 25.8165282418473,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.595559376666378,
+        "oosSharpe": -0.5027271107200834,
+        "oosWR": 63.888888888888886,
+        "oosMaxDD": 12.71765597615834,
+        "oosTradeCount": 36
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.837465753576262,
+        "oosSharpe": -0.9984236545928007,
+        "oosWR": 72.72727272727273,
+        "oosMaxDD": 16.669994610068915,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": -0.24227193434875152,
+        "oosSharpe": -1.837584366927827,
+        "oosWR": 60,
+        "oosMaxDD": 13.895270444990757,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.3351303169884179,
+        "oosSharpe": -0.6891020834596135,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.65426984234889,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6183894758289803,
+        "oosSharpe": 3.1244654779188994,
+        "oosWR": 80.76923076923077,
+        "oosMaxDD": 5.405417238788908,
+        "oosTradeCount": 52
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.6100412789216262,
+        "oosSharpe": -0.1831161663427954,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.504464110536972,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.3899914940635454,
+        "oosSharpe": 1.1125239771375501,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.313231296908938,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 0.9937469446968484,
+        "oosSharpe": -0.5982609035655206,
+        "oosWR": 77.27272727272727,
+        "oosMaxDD": 15.793327592937697,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5182822857437464,
+        "oosSharpe": 1.6317501156726921,
+        "oosWR": 85.36585365853658,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 41
+      }
+    ]
+  },
+  {
+    "configLabel": "ph25-60_be",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.25,
+      "tp2": 0.6,
+      "afterTP1SL": 0
+    },
+    "isSharpe": -0.22177783652520283,
+    "oosSharpe": 0.05542015752497195,
+    "holdoutSharpe": -1.1290905986761255,
+    "oosWinRate": 73.17596566523605,
+    "oosMaxDD": 46.91344530736375,
+    "oosTotalPnl": -608.7903591574702,
+    "holdoutTotalPnl": -1797.1204023892763,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 466,
+    "holdoutTradeCount": 53,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 342,
+      "NO_CHAIN": 87,
+      "PROFIT_TARGET_2": 19,
+      "SL_BREAKEVEN": 18
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.1933976732921192,
+        "oosSharpe": 0.4618964337914306,
+        "oosWR": 50,
+        "oosMaxDD": 3.207966345325701,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.0474185574728496,
+        "oosSharpe": -1.2250430457670247,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.255238089862141,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8049450604684215,
+        "oosSharpe": 2.3454125964826407,
+        "oosWR": 73.07692307692307,
+        "oosMaxDD": 3.8800150284561923,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.6535585649332258,
+        "oosSharpe": -1.5853610284886557,
+        "oosWR": 70.37037037037037,
+        "oosMaxDD": 25.631831196482892,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.4037708518972583,
+        "oosSharpe": 0.06307399114511633,
+        "oosWR": 68.42105263157895,
+        "oosMaxDD": 10.9769387751623,
+        "oosTradeCount": 38
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.5842564952497774,
+        "oosSharpe": -1.101070000072156,
+        "oosWR": 75,
+        "oosMaxDD": 16.418184960163217,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": -0.02475366392919279,
+        "oosSharpe": -1.837584366927827,
+        "oosWR": 60,
+        "oosMaxDD": 13.895270444990757,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.3997573386345188,
+        "oosSharpe": -0.6891020834596135,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.65426984234889,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6183894758289803,
+        "oosSharpe": 3.2960309078466117,
+        "oosWR": 83.33333333333334,
+        "oosMaxDD": 5.405417238788908,
+        "oosTradeCount": 54
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.6019005781199057,
+        "oosSharpe": -0.18175874590251842,
+        "oosWR": 76.19047619047619,
+        "oosMaxDD": 16.504464110536972,
+        "oosTradeCount": 42
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.511976319045051,
+        "oosSharpe": 1.0753703169057416,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.339975689613528,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.0808912673738953,
+        "oosSharpe": -0.7584092887812328,
+        "oosWR": 79.16666666666666,
+        "oosMaxDD": 17.54152650692367,
+        "oosTradeCount": 48
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.34525051247340255,
+        "oosSharpe": 1.6317501156726921,
+        "oosWR": 85.36585365853658,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 41
+      }
+    ]
+  },
+  {
+    "configLabel": "ph25-60_lock25",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.25,
+      "tp2": 0.6,
+      "afterTP1SL": 0.25
+    },
+    "isSharpe": -0.17701221030935962,
+    "oosSharpe": 0.0871061282940515,
+    "holdoutSharpe": -1.1290905986761255,
+    "oosWinRate": 73.29059829059828,
+    "oosMaxDD": 44.793274052403085,
+    "oosTotalPnl": -157.71426305730316,
+    "holdoutTotalPnl": -1797.1204023892763,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 468,
+    "holdoutTradeCount": 53,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 342,
+      "NO_CHAIN": 87,
+      "PROFIT_TARGET_2": 19,
+      "SL_BREAKEVEN": 20
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.130114476498598,
+        "oosSharpe": 0.4618964337914306,
+        "oosWR": 50,
+        "oosMaxDD": 3.207966345325701,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.0161779991415811,
+        "oosSharpe": -1.2250430457670247,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.255238089862141,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8049450604684215,
+        "oosSharpe": 2.4110789927943777,
+        "oosWR": 73.07692307692307,
+        "oosMaxDD": 3.8800150284561923,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.6882140559533405,
+        "oosSharpe": -1.4651271335915548,
+        "oosWR": 71.42857142857143,
+        "oosMaxDD": 25.232820010165508,
+        "oosTradeCount": 28
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.3569779807113617,
+        "oosSharpe": 0.09819157410004158,
+        "oosWR": 68.42105263157895,
+        "oosMaxDD": 10.946055122916382,
+        "oosTradeCount": 38
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.5124286895557496,
+        "oosSharpe": -1.0225632467105024,
+        "oosWR": 75.55555555555556,
+        "oosMaxDD": 16.153986082685968,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.07693026086211813,
+        "oosSharpe": -1.837584366927827,
+        "oosWR": 60,
+        "oosMaxDD": 13.895270444990757,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.3517507887407363,
+        "oosSharpe": -0.6891020834596135,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.65426984234889,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6183894758289803,
+        "oosSharpe": 3.4070581726209364,
+        "oosWR": 83.33333333333334,
+        "oosMaxDD": 5.405417238788908,
+        "oosTradeCount": 54
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.6418470154929625,
+        "oosSharpe": -0.16567638722271594,
+        "oosWR": 76.19047619047619,
+        "oosMaxDD": 16.504464110536972,
+        "oosTradeCount": 42
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.584525643888417,
+        "oosSharpe": 1.096032598928232,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.326787356043267,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.1087470211333577,
+        "oosSharpe": -0.7040246903085424,
+        "oosWR": 79.16666666666666,
+        "oosMaxDD": 17.26327004115004,
+        "oosTradeCount": 48
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.38936173959355747,
+        "oosSharpe": 1.6317501156726921,
+        "oosWR": 85.36585365853658,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 41
+      }
+    ]
+  },
+  {
+    "configLabel": "ph25-70_none",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.25,
+      "tp2": 0.7,
+      "afterTP1SL": -1
+    },
+    "isSharpe": -0.31960586264074337,
+    "oosSharpe": 0.05104136038445244,
+    "holdoutSharpe": -0.784221391512717,
+    "oosWinRate": 71.68141592920354,
+    "oosMaxDD": 49.17580338588886,
+    "oosTotalPnl": -717.6744280132932,
+    "holdoutTotalPnl": -1227.5569082487295,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 452,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 350,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 16
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.62731834643087,
+        "oosSharpe": 0.4618964337914306,
+        "oosWR": 50,
+        "oosMaxDD": 3.207966345325701,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.2981532137629388,
+        "oosSharpe": -1.2250430457670247,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.255238089862141,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8049450604684215,
+        "oosSharpe": 1.832903415566878,
+        "oosWR": 66.66666666666666,
+        "oosMaxDD": 3.877333276895566,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.3561913598423484,
+        "oosSharpe": -1.5982957350789966,
+        "oosWR": 69.23076923076923,
+        "oosMaxDD": 25.746367585952324,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.5867052302228583,
+        "oosSharpe": -0.1757694639453215,
+        "oosWR": 65.71428571428571,
+        "oosMaxDD": 9.734399124292112,
+        "oosTradeCount": 35
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.6955477159908124,
+        "oosSharpe": -0.9922558851693183,
+        "oosWR": 72.72727272727273,
+        "oosMaxDD": 16.61415543399467,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": -0.0792661438361065,
+        "oosSharpe": -1.837584366927827,
+        "oosWR": 60,
+        "oosMaxDD": 13.895270444990757,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.3313150167678587,
+        "oosSharpe": -0.6781529894601507,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.65426984234889,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6116069422981358,
+        "oosSharpe": 3.14029448749439,
+        "oosWR": 80.76923076923077,
+        "oosMaxDD": 5.40080742362334,
+        "oosTradeCount": 52
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.620553956115871,
+        "oosSharpe": -0.1571384810160406,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.424709242650657,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.4121381465493343,
+        "oosSharpe": 1.0832240669545483,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.337799976938783,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 0.988267422115593,
+        "oosSharpe": -0.5909522910566634,
+        "oosWR": 77.27272727272727,
+        "oosMaxDD": 15.779770461282103,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5028305708251908,
+        "oosSharpe": 1.6163942676358967,
+        "oosWR": 85,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 40
+      }
+    ]
+  },
+  {
+    "configLabel": "ph25-70_be",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.25,
+      "tp2": 0.7,
+      "afterTP1SL": 0
+    },
+    "isSharpe": -0.1884376737476474,
+    "oosSharpe": 0.07045089002204788,
+    "holdoutSharpe": -0.784221391512717,
+    "oosWinRate": 73.27586206896551,
+    "oosMaxDD": 44.66515208163897,
+    "oosTotalPnl": -367.35888751597315,
+    "holdoutTotalPnl": -1227.5569082487295,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 464,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 342,
+      "NO_CHAIN": 87,
+      "PROFIT_TARGET_2": 16,
+      "SL_BREAKEVEN": 19
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.0917621268743927,
+        "oosSharpe": 0.4618964337914306,
+        "oosWR": 50,
+        "oosMaxDD": 3.207966345325701,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -0.9949835190741386,
+        "oosSharpe": -1.2250430457670247,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.255238089862141,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8049450604684215,
+        "oosSharpe": 2.3602604476243534,
+        "oosWR": 73.07692307692307,
+        "oosMaxDD": 3.877333276895566,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.6614934124392499,
+        "oosSharpe": -1.579344868186212,
+        "oosWR": 70.37037037037037,
+        "oosMaxDD": 25.561670540587915,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.3947416762212031,
+        "oosSharpe": 0.34734927086274825,
+        "oosWR": 70.27027027027027,
+        "oosMaxDD": 8.79033723585938,
+        "oosTradeCount": 37
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.47887270877816707,
+        "oosSharpe": -1.0948952263419995,
+        "oosWR": 75,
+        "oosMaxDD": 16.36157701289942,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.10857298497865653,
+        "oosSharpe": -1.837584366927827,
+        "oosWR": 60,
+        "oosMaxDD": 13.895270444990757,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.3959513915652288,
+        "oosSharpe": -0.6781529894601507,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.65426984234889,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6116069422981358,
+        "oosSharpe": 3.3125171029392666,
+        "oosWR": 83.33333333333334,
+        "oosMaxDD": 5.40080742362334,
+        "oosTradeCount": 54
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.6124882284053313,
+        "oosSharpe": -0.1557720844019107,
+        "oosWR": 76.19047619047619,
+        "oosMaxDD": 16.424709242650657,
+        "oosTradeCount": 42
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.53450542339875,
+        "oosSharpe": 1.0457149009954623,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.364702938207685,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.0759182527328024,
+        "oosSharpe": -0.7515524446132622,
+        "oosWR": 79.16666666666666,
+        "oosMaxDD": 17.45433920999832,
+        "oosTradeCount": 48
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.33019536460548127,
+        "oosSharpe": 1.6163942676358967,
+        "oosWR": 85,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 40
+      }
+    ]
+  },
+  {
+    "configLabel": "ph25-70_lock25",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.25,
+      "tp2": 0.7,
+      "afterTP1SL": 0.25
+    },
+    "isSharpe": -0.14202041053465703,
+    "oosSharpe": 0.10458309813962362,
+    "holdoutSharpe": -0.784221391512717,
+    "oosWinRate": 73.39055793991416,
+    "oosMaxDD": 42.38737433099439,
+    "oosTotalPnl": 101.73038348838486,
+    "holdoutTotalPnl": -1227.5569082487295,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 466,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 342,
+      "NO_CHAIN": 87,
+      "PROFIT_TARGET_2": 16,
+      "SL_BREAKEVEN": 21
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.0328492257736828,
+        "oosSharpe": 0.4618964337914306,
+        "oosWR": 50,
+        "oosMaxDD": 3.207966345325701,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -0.9636084483782135,
+        "oosSharpe": -1.2250430457670247,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.255238089862141,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8049450604684215,
+        "oosSharpe": 2.425984867592035,
+        "oosWR": 73.07692307692307,
+        "oosMaxDD": 3.877333276895566,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.6961528518265785,
+        "oosSharpe": -1.4591419922396025,
+        "oosWR": 71.42857142857143,
+        "oosMaxDD": 25.162659354270527,
+        "oosTradeCount": 28
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.347927869487626,
+        "oosSharpe": 0.4085519384808901,
+        "oosWR": 70.27027027027027,
+        "oosMaxDD": 8.592993979728305,
+        "oosTradeCount": 37
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.3960642345144551,
+        "oosSharpe": -1.0163739867858723,
+        "oosWR": 75.55555555555556,
+        "oosMaxDD": 16.09769005103244,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.22479501131362783,
+        "oosSharpe": -1.837584366927827,
+        "oosWR": 60,
+        "oosMaxDD": 13.895270444990757,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.3479316787751314,
+        "oosSharpe": -0.6781529894601507,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.65426984234889,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6116069422981358,
+        "oosSharpe": 3.423560007563994,
+        "oosWR": 83.33333333333334,
+        "oosMaxDD": 5.40080742362334,
+        "oosTradeCount": 54
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.6523867700479421,
+        "oosSharpe": -0.139685912059776,
+        "oosWR": 76.19047619047619,
+        "oosMaxDD": 16.424709242650657,
+        "oosTradeCount": 42
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.6070281974552885,
+        "oosSharpe": 1.0665070322386159,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.351436346550543,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.1039438160907997,
+        "oosSharpe": -0.6971707305149856,
+        "oosWR": 79.16666666666666,
+        "oosMaxDD": 17.176577307925804,
+        "oosTradeCount": 48
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.37436147601088865,
+        "oosSharpe": 1.6163942676358967,
+        "oosWR": 85,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 40
+      }
+    ]
+  },
+  {
+    "configLabel": "ph30-50_none",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.3,
+      "tp2": 0.5,
+      "afterTP1SL": -1
+    },
+    "isSharpe": -0.28461620988305913,
+    "oosSharpe": 0.058319385213782764,
+    "holdoutSharpe": -1.2945524084280067,
+    "oosWinRate": 71.33479212253829,
+    "oosMaxDD": 48.91949408258209,
+    "oosTotalPnl": -655.8685738631282,
+    "holdoutTotalPnl": -2033.6763744553887,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 457,
+    "holdoutTradeCount": 53,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 349,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 22
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.4471831366165409,
+        "oosSharpe": 0.47499158178808304,
+        "oosWR": 50,
+        "oosMaxDD": 3.1898289485473947,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.0012088640943229,
+        "oosSharpe": -1.3841325559396476,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.688585231249728,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.9049595633935962,
+        "oosSharpe": 1.7440012909380957,
+        "oosWR": 64,
+        "oosMaxDD": 3.8769911754018906,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.21343906010749256,
+        "oosSharpe": -1.3831432868646611,
+        "oosWR": 70.37037037037037,
+        "oosMaxDD": 24.349080198319122,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.4762429153171922,
+        "oosSharpe": -0.4900203749032623,
+        "oosWR": 63.888888888888886,
+        "oosMaxDD": 12.658011431037183,
+        "oosTradeCount": 36
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.7227600867293473,
+        "oosSharpe": -0.8150708697559704,
+        "oosWR": 73.33333333333333,
+        "oosMaxDD": 15.99376675413773,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": -0.14119891009251181,
+        "oosSharpe": -1.8306679556664982,
+        "oosWR": 60,
+        "oosMaxDD": 13.858232260495305,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.2108533431461568,
+        "oosSharpe": -0.6766162671353964,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.60551037346245,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6077002907803701,
+        "oosSharpe": 2.96174166519462,
+        "oosWR": 79.24528301886792,
+        "oosMaxDD": 5.429023351531422,
+        "oosTradeCount": 53
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.6234268173974157,
+        "oosSharpe": -0.14044630181771456,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.51712808249972,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.3897212086862443,
+        "oosSharpe": 1.1455800444988686,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.143159066239079,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.0328989326825502,
+        "oosSharpe": -0.572977479113591,
+        "oosWR": 77.27272727272727,
+        "oosMaxDD": 15.717160319295667,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5526103628165666,
+        "oosSharpe": 1.587239743883631,
+        "oosWR": 85,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 40
+      }
+    ]
+  },
+  {
+    "configLabel": "ph30-50_be",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.3,
+      "tp2": 0.5,
+      "afterTP1SL": 0
+    },
+    "isSharpe": -0.12856329585296425,
+    "oosSharpe": 0.09348385373431421,
+    "holdoutSharpe": -1.2945524084280067,
+    "oosWinRate": 73.11827956989248,
+    "oosMaxDD": 42.236998539733,
+    "oosTotalPnl": -68.89712531473509,
+    "holdoutTotalPnl": -2033.6763744553887,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 465,
+    "holdoutTradeCount": 53,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 344,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 21,
+      "SL_BREAKEVEN": 14
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.8868151367867422,
+        "oosSharpe": 0.47499158178808304,
+        "oosWR": 50,
+        "oosMaxDD": 3.1898289485473947,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -0.6688634106728812,
+        "oosSharpe": -1.3841325559396476,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.688585231249728,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.9049595633935962,
+        "oosSharpe": 2.3956393282834356,
+        "oosWR": 73.07692307692307,
+        "oosMaxDD": 3.8769911754018906,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.5807760555940248,
+        "oosSharpe": -1.3831432868646611,
+        "oosWR": 70.37037037037037,
+        "oosMaxDD": 24.349080198319122,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.2610106100392291,
+        "oosSharpe": 0.07687646837264601,
+        "oosWR": 68.42105263157895,
+        "oosMaxDD": 11.00141741897922,
+        "oosTradeCount": 38
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.4770372118793948,
+        "oosSharpe": -0.7597579847861191,
+        "oosWR": 77.77777777777779,
+        "oosMaxDD": 15.517921120970534,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.16161263314870042,
+        "oosSharpe": -1.8306679556664982,
+        "oosWR": 60,
+        "oosMaxDD": 13.858232260495305,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.1762574447735104,
+        "oosSharpe": -0.6766162671353964,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.60551037346245,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6077002907803701,
+        "oosSharpe": 3.015489414984224,
+        "oosWR": 81.48148148148148,
+        "oosMaxDD": 5.429023351531422,
+        "oosTradeCount": 54
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.597784834393554,
+        "oosSharpe": -0.14044630181771456,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.51712808249972,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.4716525532169853,
+        "oosSharpe": 1.1085060257655865,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.169330506060064,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.1195368598878739,
+        "oosSharpe": -0.7316291863981781,
+        "oosWR": 79.16666666666666,
+        "oosMaxDD": 17.406510022990922,
+        "oosTradeCount": 48
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.3799578859960494,
+        "oosSharpe": 1.587239743883631,
+        "oosWR": 85,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 40
+      }
+    ]
+  },
+  {
+    "configLabel": "ph30-50_lock25",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.3,
+      "tp2": 0.5,
+      "afterTP1SL": 0.25
+    },
+    "isSharpe": -0.09402215470327827,
+    "oosSharpe": 0.11802999296321363,
+    "holdoutSharpe": -1.2945524084280067,
+    "oosWinRate": 73.17596566523605,
+    "oosMaxDD": 40.91680211115905,
+    "oosTotalPnl": 266.52170894120457,
+    "holdoutTotalPnl": -2033.6763744553887,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 466,
+    "holdoutTradeCount": 53,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 344,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 21,
+      "SL_BREAKEVEN": 15
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.8150834703391732,
+        "oosSharpe": 0.47499158178808304,
+        "oosWR": 50,
+        "oosMaxDD": 3.1898289485473947,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -0.6352644841136353,
+        "oosSharpe": -1.3841325559396476,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.688585231249728,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.9049595633935962,
+        "oosSharpe": 2.4610186566136183,
+        "oosWR": 73.07692307692307,
+        "oosMaxDD": 3.8769911754018906,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.6147310244245021,
+        "oosSharpe": -1.3061763760444711,
+        "oosWR": 71.42857142857143,
+        "oosMaxDD": 24.349080198319122,
+        "oosTradeCount": 28
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.24122146160503233,
+        "oosSharpe": 0.11204069418124334,
+        "oosWR": 68.42105263157895,
+        "oosMaxDD": 10.970493321553029,
+        "oosTradeCount": 38
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.4254766939355902,
+        "oosSharpe": -0.7284568109799996,
+        "oosWR": 77.77777777777779,
+        "oosMaxDD": 15.329597379020903,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.23521404375144253,
+        "oosSharpe": -1.8306679556664982,
+        "oosWR": 60,
+        "oosMaxDD": 13.858232260495305,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.1566978172715119,
+        "oosSharpe": -0.6766162671353964,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.60551037346245,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6077002907803701,
+        "oosSharpe": 3.100303915076034,
+        "oosWR": 81.48148148148148,
+        "oosMaxDD": 5.429023351531422,
+        "oosTradeCount": 54
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.6288065131034984,
+        "oosSharpe": -0.14044630181771456,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.51712808249972,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.521643347559373,
+        "oosSharpe": 1.1292257654656017,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.15642473065782,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.1395846686858966,
+        "oosSharpe": -0.6770618650702678,
+        "oosWR": 79.16666666666666,
+        "oosMaxDD": 17.129791268306295,
+        "oosTradeCount": 48
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.4241361727715789,
+        "oosSharpe": 1.587239743883631,
+        "oosWR": 85,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 40
+      }
+    ]
+  },
+  {
+    "configLabel": "ph30-60_none",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.3,
+      "tp2": 0.6,
+      "afterTP1SL": -1
+    },
+    "isSharpe": -0.2636419387390277,
+    "oosSharpe": 0.06788371237891795,
+    "holdoutSharpe": -1.0755422499454403,
+    "oosWinRate": 71.52317880794702,
+    "oosMaxDD": 49.598296046037795,
+    "oosTotalPnl": -525.7051638899045,
+    "holdoutTotalPnl": -1720.687362785937,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 453,
+    "holdoutTradeCount": 53,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 349,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 18
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.3389466230272173,
+        "oosSharpe": 0.47499158178808304,
+        "oosWR": 50,
+        "oosMaxDD": 3.1898289485473947,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -0.951611498008108,
+        "oosSharpe": -1.3841325559396476,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.688585231249728,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.9049595633935962,
+        "oosSharpe": 1.8844977008484196,
+        "oosWR": 66.66666666666666,
+        "oosMaxDD": 3.874313600765633,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.2873728971460931,
+        "oosSharpe": -1.4532902568123929,
+        "oosWR": 69.23076923076923,
+        "oosMaxDD": 25.034543262336616,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.481302420587461,
+        "oosSharpe": -0.48180611078923385,
+        "oosWR": 63.888888888888886,
+        "oosMaxDD": 12.586264522261795,
+        "oosTradeCount": 36
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.7531456638370263,
+        "oosSharpe": -0.860114957028193,
+        "oosWR": 72.72727272727273,
+        "oosMaxDD": 16.010771194528235,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": -0.16149341063582903,
+        "oosSharpe": -1.8306679556664982,
+        "oosWR": 60,
+        "oosMaxDD": 13.858232260495305,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.2395467718461481,
+        "oosSharpe": -0.6656878649955902,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.60551037346245,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6009595187937329,
+        "oosSharpe": 3.050353392929264,
+        "oosWR": 80.76923076923077,
+        "oosMaxDD": 5.399405811126488,
+        "oosTradeCount": 52
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.65926590285637,
+        "oosSharpe": -0.11462290077169489,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.43733472499971,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.4474893080165891,
+        "oosSharpe": 1.1607849346642691,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.133368940540642,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.0498687755973948,
+        "oosSharpe": -0.5656905100428551,
+        "oosWR": 77.27272727272727,
+        "oosMaxDD": 15.703706495262848,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5606233829053123,
+        "oosSharpe": 1.6393133829327244,
+        "oosWR": 85,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 40
+      }
+    ]
+  },
+  {
+    "configLabel": "ph30-60_be",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.3,
+      "tp2": 0.6,
+      "afterTP1SL": 0
+    },
+    "isSharpe": -0.1149728414594857,
+    "oosSharpe": 0.0993822311870191,
+    "holdoutSharpe": -1.0755422499454403,
+    "oosWinRate": 73.16017316017316,
+    "oosMaxDD": 43.175203451696056,
+    "oosTotalPnl": 1.0480709396332202,
+    "holdoutTotalPnl": -1720.687362785937,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 462,
+    "holdoutTradeCount": 53,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 344,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 18,
+      "SL_BREAKEVEN": 14
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.7732121301074547,
+        "oosSharpe": 0.47499158178808304,
+        "oosWR": 50,
+        "oosMaxDD": 3.1898289485473947,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -0.6180039817360241,
+        "oosSharpe": -1.3841325559396476,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.688585231249728,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.9049595633935962,
+        "oosSharpe": 2.41063719748094,
+        "oosWR": 73.07692307692307,
+        "oosMaxDD": 3.874313600765633,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.5885866173393409,
+        "oosSharpe": -1.4532902568123929,
+        "oosWR": 69.23076923076923,
+        "oosMaxDD": 25.034543262336616,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.30240436231686957,
+        "oosSharpe": 0.08552207742599399,
+        "oosWR": 68.42105263157895,
+        "oosMaxDD": 10.93224173383778,
+        "oosTradeCount": 38
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.50794106053853,
+        "oosSharpe": -0.8047595490557993,
+        "oosWR": 77.27272727272727,
+        "oosMaxDD": 15.53276079049464,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.14128260898318815,
+        "oosSharpe": -1.8306679556664982,
+        "oosWR": 60,
+        "oosMaxDD": 13.858232260495305,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.204963786124027,
+        "oosSharpe": -0.6656878649955902,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.60551037346245,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6009595187937329,
+        "oosSharpe": 3.1048492180643055,
+        "oosWR": 83.01886792452831,
+        "oosMaxDD": 5.399405811126488,
+        "oosTradeCount": 53
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.6337208293951966,
+        "oosSharpe": -0.11462290077169489,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.43733472499971,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.5297784717582126,
+        "oosSharpe": 1.1237469592690512,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.159477387999903,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.1368206595970969,
+        "oosSharpe": -0.7247976149651845,
+        "oosWR": 79.16666666666666,
+        "oosMaxDD": 17.31956661703105,
+        "oosTradeCount": 48
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.3876082769638856,
+        "oosSharpe": 1.6393133829327244,
+        "oosWR": 85,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 40
+      }
+    ]
+  },
+  {
+    "configLabel": "ph30-60_lock25",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.3,
+      "tp2": 0.6,
+      "afterTP1SL": 0.25
+    },
+    "isSharpe": -0.07776224125158311,
+    "oosSharpe": 0.12611508893971435,
+    "holdoutSharpe": -1.0755422499454403,
+    "oosWinRate": 73.27586206896551,
+    "oosMaxDD": 41.55073299647748,
+    "oosTotalPnl": 369.22948884314644,
+    "holdoutTotalPnl": -1720.687362785937,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 464,
+    "holdoutTradeCount": 53,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 344,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 18,
+      "SL_BREAKEVEN": 16
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.7060351467627561,
+        "oosSharpe": 0.47499158178808304,
+        "oosWR": 50,
+        "oosMaxDD": 3.1898289485473947,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -0.584244959786121,
+        "oosSharpe": -1.3841325559396476,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.688585231249728,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.9049595633935962,
+        "oosSharpe": 2.476076622695946,
+        "oosWR": 73.07692307692307,
+        "oosMaxDD": 3.874313600765633,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.6225447962737397,
+        "oosSharpe": -1.3753929005893337,
+        "oosWR": 70.37037037037037,
+        "oosMaxDD": 25.034543262336616,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.2825942707107616,
+        "oosSharpe": 0.12070481401551178,
+        "oosWR": 68.42105263157895,
+        "oosMaxDD": 10.901512083685551,
+        "oosTradeCount": 38
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.4563128709258487,
+        "oosSharpe": -0.74051162400966,
+        "oosWR": 77.77777777777779,
+        "oosMaxDD": 15.297178702818412,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.23361362759507914,
+        "oosSharpe": -1.8306679556664982,
+        "oosWR": 60,
+        "oosMaxDD": 13.858232260495305,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.1650068696386584,
+        "oosSharpe": -0.6656878649955902,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.60551037346245,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.6009595187937329,
+        "oosSharpe": 3.1895859403991373,
+        "oosWR": 83.01886792452831,
+        "oosMaxDD": 5.399405811126488,
+        "oosTradeCount": 53
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.6645780136257113,
+        "oosSharpe": -0.11462290077169489,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.43733472499971,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.5797768875667784,
+        "oosSharpe": 1.1444898276878945,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.146602700883394,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.1569061501044435,
+        "oosSharpe": -0.6702322965839436,
+        "oosWR": 79.16666666666666,
+        "oosMaxDD": 17.04333967081324,
+        "oosTradeCount": 48
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.4317845885751431,
+        "oosSharpe": 1.6393133829327244,
+        "oosWR": 85,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 40
+      }
+    ]
+  },
+  {
+    "configLabel": "ph30-70_none",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.3,
+      "tp2": 0.7,
+      "afterTP1SL": -1
+    },
+    "isSharpe": -0.22591490889989055,
+    "oosSharpe": 0.0858478976274649,
+    "holdoutSharpe": -0.7306873195981192,
+    "oosWinRate": 71.61862527716187,
+    "oosMaxDD": 46.59410526703318,
+    "oosTotalPnl": -222.01623632724014,
+    "holdoutTotalPnl": -1154.5618370673224,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 451,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 350,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 15
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.2432353986044646,
+        "oosSharpe": 0.47499158178808304,
+        "oosWR": 50,
+        "oosMaxDD": 3.1898289485473947,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -0.9015748598346668,
+        "oosSharpe": -1.3841325559396476,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.688585231249728,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.9049595633935962,
+        "oosSharpe": 1.8992526873981548,
+        "oosWR": 66.66666666666666,
+        "oosMaxDD": 3.871639722014976,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.2952899054098416,
+        "oosSharpe": -1.4472722890332523,
+        "oosWR": 69.23076923076923,
+        "oosMaxDD": 24.96438260644164,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.47244143995345245,
+        "oosSharpe": -0.15355412061313187,
+        "oosWR": 65.71428571428571,
+        "oosMaxDD": 9.603007670395568,
+        "oosTradeCount": 35
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.6096504219629342,
+        "oosSharpe": -0.8540438377651755,
+        "oosWR": 72.72727272727273,
+        "oosMaxDD": 15.955188881413843,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.0013009368156663773,
+        "oosSharpe": -1.8306679556664982,
+        "oosWR": 60,
+        "oosMaxDD": 13.858232260495305,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.2357558902778807,
+        "oosSharpe": -0.6547108961623643,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.60551037346245,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.5941426725080368,
+        "oosSharpe": 3.064968295789156,
+        "oosWR": 80.76923076923077,
+        "oosMaxDD": 5.394806239155795,
+        "oosTradeCount": 52
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.6695398765419066,
+        "oosSharpe": -0.08873614630047995,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.357658188405285,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.468776666490232,
+        "oosSharpe": 1.1318273921637179,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.157353424515355,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.0447180468763058,
+        "oosSharpe": -0.5583861347800559,
+        "oosWR": 77.27272727272727,
+        "oosMaxDD": 15.690275684365993,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5452409987025012,
+        "oosSharpe": 1.6142276430859175,
+        "oosWR": 84.61538461538461,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 39
+      }
+    ]
+  },
+  {
+    "configLabel": "ph30-70_be",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.3,
+      "tp2": 0.7,
+      "afterTP1SL": 0
+    },
+    "isSharpe": -0.0814909383522384,
+    "oosSharpe": 0.11498510108033255,
+    "holdoutSharpe": -0.7306873195981192,
+    "oosWinRate": 73.26086956521739,
+    "oosMaxDD": 40.920642235988815,
+    "oosTotalPnl": 232.68429888553638,
+    "holdoutTotalPnl": -1154.5618370673224,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 460,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 344,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 15,
+      "SL_BREAKEVEN": 15
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.6717153435436153,
+        "oosSharpe": 0.47499158178808304,
+        "oosWR": 50,
+        "oosMaxDD": 3.1898289485473947,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -0.5667524612753827,
+        "oosSharpe": -1.3841325559396476,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.688585231249728,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.9049595633935962,
+        "oosSharpe": 2.425406670923432,
+        "oosWR": 73.07692307692307,
+        "oosMaxDD": 3.871639722014976,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.5963645815191555,
+        "oosSharpe": -1.4472722890332523,
+        "oosWR": 69.23076923076923,
+        "oosMaxDD": 24.96438260644164,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.2933722962526886,
+        "oosSharpe": 0.37142760821414056,
+        "oosWR": 70.27027027027027,
+        "oosMaxDD": 8.747653942630656,
+        "oosTradeCount": 37
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.40081921901976547,
+        "oosSharpe": -0.7986839059678695,
+        "oosWR": 77.27272727272727,
+        "oosMaxDD": 15.477197849696786,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.2772421018936744,
+        "oosSharpe": -1.8306679556664982,
+        "oosWR": 60,
+        "oosMaxDD": 13.858232260495305,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.201167234980135,
+        "oosSharpe": -0.6547108961623643,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.60551037346245,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.5941426725080368,
+        "oosSharpe": 3.1196054133185314,
+        "oosWR": 83.01886792452831,
+        "oosMaxDD": 5.394806239155795,
+        "oosTradeCount": 53
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.6440141302896596,
+        "oosSharpe": -0.08873614630047995,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.357658188405285,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.5511538839159176,
+        "oosSharpe": 1.0944379685473415,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.183616329972791,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.1321705119001904,
+        "oosSharpe": -0.7179472158775715,
+        "oosWR": 79.16666666666666,
+        "oosMaxDD": 17.23262321107114,
+        "oosTradeCount": 48
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.3726013828755235,
+        "oosSharpe": 1.6142276430859175,
+        "oosWR": 84.61538461538461,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 39
+      }
+    ]
+  },
+  {
+    "configLabel": "ph30-70_lock25",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.3,
+      "tp2": 0.7,
+      "afterTP1SL": 0.25
+    },
+    "isSharpe": -0.04272194903350861,
+    "oosSharpe": 0.14389182929278205,
+    "holdoutSharpe": -0.7306873195981192,
+    "oosWinRate": 73.37662337662337,
+    "oosMaxDD": 39.13763917674737,
+    "oosTotalPnl": 618.8788916932385,
+    "holdoutTotalPnl": -1154.5618370673224,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 462,
+    "holdoutTradeCount": 50,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 344,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 15,
+      "SL_BREAKEVEN": 17
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -0.6089901410560014,
+        "oosSharpe": 0.47499158178808304,
+        "oosWR": 50,
+        "oosMaxDD": 3.1898289485473947,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -0.5328392608204577,
+        "oosSharpe": -1.3841325559396476,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.688585231249728,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.9049595633935962,
+        "oosSharpe": 2.4908980328584684,
+        "oosWR": 73.07692307692307,
+        "oosMaxDD": 3.871639722014976,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.6303236184589374,
+        "oosSharpe": -1.3694081898928279,
+        "oosWR": 70.37037037037037,
+        "oosMaxDD": 24.96438260644164,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.2735385675481063,
+        "oosSharpe": 0.43271370003796356,
+        "oosWR": 70.27027027027027,
+        "oosMaxDD": 8.550611897968496,
+        "oosTradeCount": 37
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.33883392935060636,
+        "oosSharpe": -0.7344286739701511,
+        "oosWR": 77.77777777777779,
+        "oosMaxDD": 15.24184765799136,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.38362955572344537,
+        "oosSharpe": -1.8306679556664982,
+        "oosWR": 60,
+        "oosMaxDD": 13.858232260495305,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.1612025049098493,
+        "oosSharpe": -0.6547108961623643,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.60551037346245,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.5941426725080368,
+        "oosSharpe": 3.2043467125824496,
+        "oosWR": 83.01886792452831,
+        "oosMaxDD": 5.394806239155795,
+        "oosTradeCount": 53
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.6748342117133228,
+        "oosSharpe": -0.08873614630047995,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.357658188405285,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.6011218750474596,
+        "oosSharpe": 1.1153107908280833,
+        "oosWR": 80.43478260869566,
+        "oosMaxDD": 8.170665413858428,
+        "oosTradeCount": 46
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.1523765974549487,
+        "oosSharpe": -0.6633852222038615,
+        "oosWR": 79.16666666666666,
+        "oosMaxDD": 16.956888073320147,
+        "oosTradeCount": 48
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.4168354437529281,
+        "oosSharpe": 1.6142276430859175,
+        "oosWR": 84.61538461538461,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 39
+      }
+    ]
+  },
+  {
+    "configLabel": "ph50-60_none",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.5,
+      "tp2": 0.6,
+      "afterTP1SL": -1
+    },
+    "isSharpe": -0.16653795287004503,
+    "oosSharpe": 0.1735419819263413,
+    "holdoutSharpe": -0.8698761672511245,
+    "oosWinRate": 72.03579418344519,
+    "oosMaxDD": 43.20788402157144,
+    "oosTotalPnl": 986.7773614798305,
+    "holdoutTotalPnl": -1427.1790164111098,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 447,
+    "holdoutTradeCount": 52,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 351,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 10
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.5129199704438463,
+        "oosSharpe": 0.5603751420651524,
+        "oosWR": 50,
+        "oosMaxDD": 3.167078753885951,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.0860989551827853,
+        "oosSharpe": -1.3360449524722464,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.616678162718495,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8493984231478651,
+        "oosSharpe": 2.001000866151038,
+        "oosWR": 66.66666666666666,
+        "oosMaxDD": 3.8398975140507012,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.35038397941041494,
+        "oosSharpe": -1.182442330031011,
+        "oosWR": 69.23076923076923,
+        "oosMaxDD": 23.570481651790413,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.2762516097637685,
+        "oosSharpe": -0.3503983274104918,
+        "oosWR": 65.71428571428571,
+        "oosMaxDD": 12.05709917271852,
+        "oosTradeCount": 35
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.5238608748806546,
+        "oosSharpe": -0.7426579583578892,
+        "oosWR": 75,
+        "oosMaxDD": 15.236295782039665,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": -0.014383069832491494,
+        "oosSharpe": -1.8025165677501591,
+        "oosWR": 60,
+        "oosMaxDD": 13.710079522513494,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.160918666108075,
+        "oosSharpe": -0.50307832357639,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.351400927050758,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.4911378246317373,
+        "oosSharpe": 3.5037824925164722,
+        "oosWR": 80.76923076923077,
+        "oosMaxDD": 5.359359757379146,
+        "oosTradeCount": 52
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.9298834375651134,
+        "oosSharpe": -0.039565978812933916,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.169308224928425,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.7418811950809168,
+        "oosSharpe": 1.3109564345211933,
+        "oosWR": 80,
+        "oosMaxDD": 7.095155242906655,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.1802655209906747,
+        "oosSharpe": -0.6385629292965826,
+        "oosWR": 76.74418604651163,
+        "oosMaxDD": 16.741315379015862,
+        "oosTradeCount": 43
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5475618736335176,
+        "oosSharpe": 1.8039775016416704,
+        "oosWR": 89.1891891891892,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 37
+      }
+    ]
+  },
+  {
+    "configLabel": "ph50-60_be",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.5,
+      "tp2": 0.6,
+      "afterTP1SL": 0
+    },
+    "isSharpe": -0.13822308181399778,
+    "oosSharpe": 0.18252609700979378,
+    "holdoutSharpe": -0.8698761672511245,
+    "oosWinRate": 72.54464285714286,
+    "oosMaxDD": 42.95364112557022,
+    "oosTotalPnl": 1115.7703761589257,
+    "holdoutTotalPnl": -1427.1790164111098,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 448,
+    "holdoutTradeCount": 52,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 346,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 10,
+      "SL_BREAKEVEN": 6
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.501917791771657,
+        "oosSharpe": 0.5603751420651524,
+        "oosWR": 50,
+        "oosMaxDD": 3.167078753885951,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.07280338776941,
+        "oosSharpe": -1.3360449524722464,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.616678162718495,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8493984231478651,
+        "oosSharpe": 2.170773404047481,
+        "oosWR": 68,
+        "oosMaxDD": 3.8398975140507012,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.456593335595885,
+        "oosSharpe": -1.182442330031011,
+        "oosWR": 69.23076923076923,
+        "oosMaxDD": 23.570481651790413,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.21071528891767513,
+        "oosSharpe": -0.4343336169781688,
+        "oosWR": 65.71428571428571,
+        "oosMaxDD": 12.705290978220745,
+        "oosTradeCount": 35
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.5649005680711805,
+        "oosSharpe": -0.6868766324729727,
+        "oosWR": 77.27272727272727,
+        "oosMaxDD": 14.760186629195154,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": -0.02401337617324492,
+        "oosSharpe": -1.8025165677501591,
+        "oosWR": 60,
+        "oosMaxDD": 13.710079522513494,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.1258410698319659,
+        "oosSharpe": -0.50307832357639,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.351400927050758,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.4911378246317373,
+        "oosSharpe": 3.618962062539683,
+        "oosWR": 82.6923076923077,
+        "oosMaxDD": 5.359359757379146,
+        "oosTradeCount": 52
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.9298834375651134,
+        "oosSharpe": -0.039565978812933916,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.169308224928425,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.8581924381251387,
+        "oosSharpe": 1.274206744379052,
+        "oosWR": 80,
+        "oosMaxDD": 7.117903666898695,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.2693067696041034,
+        "oosSharpe": -0.6385629292965826,
+        "oosWR": 76.74418604651163,
+        "oosMaxDD": 16.741315379015862,
+        "oosTradeCount": 43
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5298516858425243,
+        "oosSharpe": 1.8039775016416704,
+        "oosWR": 89.1891891891892,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 37
+      }
+    ]
+  },
+  {
+    "configLabel": "ph50-60_lock25",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.5,
+      "tp2": 0.6,
+      "afterTP1SL": 0.25
+    },
+    "isSharpe": -0.12236053811156612,
+    "oosSharpe": 0.19188148352089995,
+    "holdoutSharpe": -0.8698761672511245,
+    "oosWinRate": 72.60579064587974,
+    "oosMaxDD": 42.12926486086126,
+    "oosTotalPnl": 1247.6142869903804,
+    "holdoutTotalPnl": -1427.1790164111098,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 449,
+    "holdoutTradeCount": 52,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 346,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 10,
+      "SL_BREAKEVEN": 7
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.4672390659791468,
+        "oosSharpe": 0.5603751420651524,
+        "oosWR": 50,
+        "oosMaxDD": 3.167078753885951,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.06154367309259,
+        "oosSharpe": -1.3360449524722464,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.616678162718495,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8493984231478651,
+        "oosSharpe": 2.202966113280234,
+        "oosWR": 68,
+        "oosMaxDD": 3.8398975140507012,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.47409005342391913,
+        "oosSharpe": -1.182442330031011,
+        "oosWR": 69.23076923076923,
+        "oosMaxDD": 23.570481651790413,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.200338284680147,
+        "oosSharpe": -0.4151343973524495,
+        "oosWR": 65.71428571428571,
+        "oosMaxDD": 12.525923706282278,
+        "oosTradeCount": 35
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.5558347056476378,
+        "oosSharpe": -0.6224360002616688,
+        "oosWR": 77.77777777777779,
+        "oosMaxDD": 14.528619057819961,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.01970740701831095,
+        "oosSharpe": -1.8025165677501591,
+        "oosWR": 60,
+        "oosMaxDD": 13.710079522513494,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.0856423869394296,
+        "oosSharpe": -0.50307832357639,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.351400927050758,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.4911378246317373,
+        "oosSharpe": 3.638093745241115,
+        "oosWR": 82.6923076923077,
+        "oosMaxDD": 5.359359757379146,
+        "oosTradeCount": 52
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.9298834375651134,
+        "oosSharpe": -0.039565978812933916,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.169308224928425,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.8682895177541512,
+        "oosSharpe": 1.2952750684822583,
+        "oosWR": 80,
+        "oosMaxDD": 7.106685907893338,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.289584630066884,
+        "oosSharpe": -0.6385629292965826,
+        "oosWR": 76.74418604651163,
+        "oosMaxDD": 16.741315379015862,
+        "oosTradeCount": 43
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5388923228398153,
+        "oosSharpe": 1.8039775016416704,
+        "oosWR": 89.1891891891892,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 37
+      }
+    ]
+  },
+  {
+    "configLabel": "ph50-70_none",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.5,
+      "tp2": 0.7,
+      "afterTP1SL": -1
+    },
+    "isSharpe": -0.1500157665221658,
+    "oosSharpe": 0.17912373063659823,
+    "holdoutSharpe": -0.5307507097716007,
+    "oosWinRate": 72.03579418344519,
+    "oosMaxDD": 43.056512087955554,
+    "oosTotalPnl": 1066.1604961129456,
+    "holdoutTotalPnl": -882.1256565289058,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 447,
+    "holdoutTradeCount": 49,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 351,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 10
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.4219939472560532,
+        "oosSharpe": 0.5603751420651524,
+        "oosWR": 50,
+        "oosMaxDD": 3.167078753885951,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.0400076657795603,
+        "oosSharpe": -1.3360449524722464,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.616678162718495,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8493984231478651,
+        "oosSharpe": 2.0147909239342576,
+        "oosWR": 66.66666666666666,
+        "oosMaxDD": 3.8372709131020386,
+        "oosTradeCount": 24
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.3580631379310991,
+        "oosSharpe": -1.1763472265615356,
+        "oosWR": 69.23076923076923,
+        "oosMaxDD": 23.500320995895432,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.26732914441348665,
+        "oosSharpe": -0.3503983274104918,
+        "oosWR": 65.71428571428571,
+        "oosMaxDD": 12.05709917271852,
+        "oosTradeCount": 35
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.5207240546440205,
+        "oosSharpe": -0.7365566082106377,
+        "oosWR": 75,
+        "oosMaxDD": 15.180903329459671,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": -0.011159619317793785,
+        "oosSharpe": -1.8025165677501591,
+        "oosWR": 60,
+        "oosMaxDD": 13.710079522513494,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.157091892699176,
+        "oosSharpe": -0.49201718931905536,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.351400927050758,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.4842191831639016,
+        "oosSharpe": 3.5181387865369884,
+        "oosWR": 80.76923076923077,
+        "oosMaxDD": 5.354828131532105,
+        "oosTradeCount": 52
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.9400085005930509,
+        "oosSharpe": -0.013573743437026569,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.08994408201013,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.7628804905705822,
+        "oosSharpe": 1.3109564345211933,
+        "oosWR": 80,
+        "oosMaxDD": 7.095155242906655,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.193204962905451,
+        "oosSharpe": -0.6385629292965826,
+        "oosWR": 76.74418604651163,
+        "oosMaxDD": 16.741315379015862,
+        "oosTradeCount": 43
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5475618736335176,
+        "oosSharpe": 1.8196487006637962,
+        "oosWR": 89.1891891891892,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 37
+      }
+    ]
+  },
+  {
+    "configLabel": "ph50-70_be",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.5,
+      "tp2": 0.7,
+      "afterTP1SL": 0
+    },
+    "isSharpe": -0.12182053164719236,
+    "oosSharpe": 0.18816303011157295,
+    "holdoutSharpe": -0.5307507097716007,
+    "oosWinRate": 72.54464285714286,
+    "oosMaxDD": 42.803893068206925,
+    "oosTotalPnl": 1195.1535107920404,
+    "holdoutTotalPnl": -882.1256565289058,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 448,
+    "holdoutTradeCount": 49,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 346,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 10,
+      "SL_BREAKEVEN": 6
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.4118516675364357,
+        "oosSharpe": 0.5603751420651524,
+        "oosWR": 50,
+        "oosMaxDD": 3.167078753885951,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.0276940698045773,
+        "oosSharpe": -1.3360449524722464,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.616678162718495,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8493984231478651,
+        "oosSharpe": 2.1844465624018126,
+        "oosWR": 68,
+        "oosMaxDD": 3.8372709131020386,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.46417717112099066,
+        "oosSharpe": -1.1763472265615356,
+        "oosWR": 69.23076923076923,
+        "oosMaxDD": 23.500320995895432,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.20175063637058774,
+        "oosSharpe": -0.4343336169781688,
+        "oosWR": 65.71428571428571,
+        "oosMaxDD": 12.705290978220745,
+        "oosTradeCount": 35
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.5617498543906346,
+        "oosSharpe": -0.6807748704507744,
+        "oosWR": 77.27272727272727,
+        "oosMaxDD": 14.704813416835,
+        "oosTradeCount": 44
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": -0.020782354695920963,
+        "oosSharpe": -1.8025165677501591,
+        "oosWR": 60,
+        "oosMaxDD": 13.710079522513494,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.1220108011900278,
+        "oosSharpe": -0.49201718931905536,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.351400927050758,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.4842191831639016,
+        "oosSharpe": 3.633472162070938,
+        "oosWR": 82.6923076923077,
+        "oosMaxDD": 5.354828131532105,
+        "oosTradeCount": 52
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.9400085005930509,
+        "oosSharpe": -0.013573743437026569,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.08994408201013,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.8792567216340912,
+        "oosSharpe": 1.274206744379052,
+        "oosWR": 80,
+        "oosMaxDD": 7.117903666898695,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.2824959996957928,
+        "oosSharpe": -0.6385629292965826,
+        "oosWR": 76.74418604651163,
+        "oosMaxDD": 16.741315379015862,
+        "oosTradeCount": 43
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5298516858425243,
+        "oosSharpe": 1.8196487006637962,
+        "oosWR": 89.1891891891892,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 37
+      }
+    ]
+  },
+  {
+    "configLabel": "ph50-70_lock25",
+    "mechanism": "phased_tp",
+    "params": {
+      "tp1": 0.5,
+      "tp2": 0.7,
+      "afterTP1SL": 0.25
+    },
+    "isSharpe": -0.10626444482381371,
+    "oosSharpe": 0.1975571862025512,
+    "holdoutSharpe": -0.5307507097716007,
+    "oosWinRate": 72.60579064587974,
+    "oosMaxDD": 41.980300888990776,
+    "oosTotalPnl": 1326.9974216234953,
+    "holdoutTotalPnl": -882.1256565289058,
+    "wfEfficiency": 0,
+    "grade": "F",
+    "tradeCount": 449,
+    "holdoutTradeCount": 49,
+    "exitTypeBreakdown": {
+      "EXPIRATION": 346,
+      "NO_CHAIN": 86,
+      "PROFIT_TARGET_2": 10,
+      "SL_BREAKEVEN": 7
+    },
+    "windowDetails": [
+      {
+        "windowIdx": 0,
+        "trainSharpe": -1.3812552342079747,
+        "oosSharpe": 0.5603751420651524,
+        "oosWR": 50,
+        "oosMaxDD": 3.167078753885951,
+        "oosTradeCount": 34
+      },
+      {
+        "windowIdx": 1,
+        "trainSharpe": -1.0163831989538747,
+        "oosSharpe": -1.3360449524722464,
+        "oosWR": 48.275862068965516,
+        "oosMaxDD": 8.616678162718495,
+        "oosTradeCount": 29
+      },
+      {
+        "windowIdx": 2,
+        "trainSharpe": -0.8493984231478651,
+        "oosSharpe": 2.2166527535857496,
+        "oosWR": 68,
+        "oosMaxDD": 3.8372709131020386,
+        "oosTradeCount": 25
+      },
+      {
+        "windowIdx": 3,
+        "trainSharpe": 0.4816709007335225,
+        "oosSharpe": -1.1763472265615356,
+        "oosWR": 69.23076923076923,
+        "oosMaxDD": 23.500320995895432,
+        "oosTradeCount": 26
+      },
+      {
+        "windowIdx": 4,
+        "trainSharpe": -0.19136259532403774,
+        "oosSharpe": -0.4151343973524495,
+        "oosWR": 65.71428571428571,
+        "oosMaxDD": 12.525923706282278,
+        "oosTradeCount": 35
+      },
+      {
+        "windowIdx": 5,
+        "trainSharpe": -0.5526817586124827,
+        "oosSharpe": -0.616329741791733,
+        "oosWR": 77.77777777777779,
+        "oosMaxDD": 14.47347616372599,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 6,
+        "trainSharpe": 0.02293046025902816,
+        "oosSharpe": -1.8025165677501591,
+        "oosWR": 60,
+        "oosMaxDD": 13.710079522513494,
+        "oosTradeCount": 10
+      },
+      {
+        "windowIdx": 7,
+        "trainSharpe": -1.0818059331074465,
+        "oosSharpe": -0.49201718931905536,
+        "oosWR": 74.07407407407408,
+        "oosMaxDD": 16.351400927050758,
+        "oosTradeCount": 27
+      },
+      {
+        "windowIdx": 8,
+        "trainSharpe": -1.4842191831639016,
+        "oosSharpe": 3.6526241613973447,
+        "oosWR": 82.6923076923077,
+        "oosMaxDD": 5.354828131532105,
+        "oosTradeCount": 52
+      },
+      {
+        "windowIdx": 9,
+        "trainSharpe": 0.9400085005930509,
+        "oosSharpe": -0.013573743437026569,
+        "oosWR": 75.60975609756098,
+        "oosMaxDD": 16.08994408201013,
+        "oosTradeCount": 41
+      },
+      {
+        "windowIdx": 10,
+        "trainSharpe": 1.8893608904847763,
+        "oosSharpe": 1.2952750684822583,
+        "oosWR": 80,
+        "oosMaxDD": 7.106685907893338,
+        "oosTradeCount": 45
+      },
+      {
+        "windowIdx": 11,
+        "trainSharpe": 1.3028054688978101,
+        "oosSharpe": -0.6385629292965826,
+        "oosWR": 76.74418604651163,
+        "oosMaxDD": 16.741315379015862,
+        "oosTradeCount": 43
+      },
+      {
+        "windowIdx": 12,
+        "trainSharpe": 0.5388923228398153,
+        "oosSharpe": 1.8196487006637962,
+        "oosWR": 89.1891891891892,
+        "oosMaxDD": 9.415759229894418,
+        "oosTradeCount": 37
+      }
+    ]
+  }
+]

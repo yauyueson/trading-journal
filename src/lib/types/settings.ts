@@ -41,6 +41,9 @@ export interface CreditSpreadConfig {
   dteMax: number;
   dtePeak: number;
   profitTarget: number;
+  stopLossMultiple?: number;
+  trailingActivatePct?: number;
+  trailingFloorPct?: number;
   ivRankMin: number;
   timeStopDTE: number;
   maxPositions: number;
@@ -109,12 +112,15 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   creditSpread: {
     dte5: {
       signalPreset: 'ema',
-      defaultDelta: 0.25,
+      defaultDelta: 0.30,
       defaultWidth: 10,
       dteMin: 2,
       dteMax: 7,
       dtePeak: 5,
       profitTarget: 1.0,
+      stopLossMultiple: 2.5,
+      trailingActivatePct: 0.50,
+      trailingFloorPct: 0.50,
       ivRankMin: 0,
       timeStopDTE: 0,
       maxPositions: 1,

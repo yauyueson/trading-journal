@@ -101,6 +101,9 @@ export interface EntrySignal {
   smvVol?: number;       // ORATS smoothed vol
   // Direction confidence (0-100) from calcDirConfidence
   dirConfidence?: number;
+  // Per-ticker delta overrides (for multi-ticker studies with different deltas)
+  configuredDelta?: number;
+  configuredLongDelta?: number;
 }
 
 export interface SimConfig {

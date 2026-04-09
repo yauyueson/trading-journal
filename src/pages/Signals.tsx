@@ -99,58 +99,27 @@ export const SignalsPage: React.FC = () => {
           return { close: row?.lastClose ?? 0, e21: d?.ema21 ?? 0, e34: d?.ema34 ?? 0, e55: d?.ema55 ?? 0 };
         };
 
+        // WFA-validated bull-only signals: QQQ (Sharpe 1.29), SPY (0.85), IWM (0.76)
+        // Exit: SL 2.5x credit, trailing lock 50/50, hold-to-expiry
+        // Bears disabled: QQQ (15 trades/6yr), SPY (Grade D), IWM (negative Sharpe)
+        const bullCriteria = (row: typeof scanner.signals[0] | undefined) => {
+          const { close, e34 } = getEMAs(row);
+          const pass = close > e34 && e34 > 0;
+          return [
+            { label: 'close > EMA34', pass, value: `$${close.toFixed(2)} ${pass ? '>' : '\u2264'} $${e34.toFixed(2)}` },
+          ];
+        };
+
         const DTE5_SIGNALS = [
           { ticker: 'QQQ', side: 'bull' as const, spread: 'sp30/20', label: 'Bull Put', recommended: true,
-            note: 'Primary strategy — Sharpe 0.69 standalone',
-            criteria: (row: typeof scanner.signals[0] | undefined) => {
-              const { close, e34 } = getEMAs(row);
-              const pass = close > e34 && e34 > 0;
-              return [
-                { label: 'close > EMA34', pass, value: `$${close.toFixed(2)} ${pass ? '>' : '≤'} $${e34.toFixed(2)}` },
-              ];
-            }},
-          { ticker: 'QQQ', side: 'bear' as const, spread: 'sp40/30', label: 'Bear Call', recommended: true,
-            note: '~3 trades/yr — tight proximity filter',
-            criteria: (row: typeof scanner.signals[0] | undefined) => {
-              const { close, e21, e34, e55 } = getEMAs(row);
-              const tripleAligned = e21 > 0 && e21 < e34 && e34 < e55;
-              const belowE21 = close < e21 && e21 > 0;
-              const proxDist = e21 > 0 ? Math.abs(close - e21) / e21 : 1;
-              const proxPass = belowE21 && proxDist <= 0.01;
-              return [
-                { label: 'EMA21 < EMA34 < EMA55', pass: tripleAligned, value: `${e21.toFixed(1)} ${tripleAligned ? '<' : '≥'} ${e34.toFixed(1)} ${tripleAligned ? '<' : '≥'} ${e55.toFixed(1)}` },
-                { label: 'close < EMA21', pass: belowE21, value: `$${close.toFixed(2)} ${belowE21 ? '<' : '≥'} $${e21.toFixed(2)}` },
-                { label: 'within 1% of EMA21', pass: proxPass, value: `${(proxDist * 100).toFixed(1)}% ${proxPass ? '≤' : '>'} 1%` },
-              ];
-            }},
-          { ticker: 'SPY', side: 'bear' as const, spread: 'sp40/30', label: 'Bear Call', recommended: true,
-            note: 'Primary bear engine — 114 trades, Sharpe 0.56',
-            criteria: (row: typeof scanner.signals[0] | undefined) => {
-              const { close, e21, e34, e55 } = getEMAs(row);
-              const tripleAligned = e21 > 0 && e21 < e34 && e34 < e55;
-              const belowE21 = close < e21 && e21 > 0;
-              const proxDist = e21 > 0 ? Math.abs(close - e21) / e21 : 1;
-              const proxPass = belowE21 && proxDist <= 0.05;
-              return [
-                { label: 'EMA21 < EMA34 < EMA55', pass: tripleAligned, value: `${e21.toFixed(1)} ${tripleAligned ? '<' : '≥'} ${e34.toFixed(1)} ${tripleAligned ? '<' : '≥'} ${e55.toFixed(1)}` },
-                { label: 'close < EMA21', pass: belowE21, value: `$${close.toFixed(2)} ${belowE21 ? '<' : '≥'} $${e21.toFixed(2)}` },
-                { label: 'within 5% of EMA21', pass: proxPass, value: `${(proxDist * 100).toFixed(1)}% ${proxPass ? '≤' : '>'} 5%` },
-              ];
-            }},
-          { ticker: 'IWM', side: 'bear' as const, spread: 'sp15/05', label: 'Bear Call', recommended: false,
-            note: 'Diversifier — Sharpe 0.58, adds hedging value',
-            criteria: (row: typeof scanner.signals[0] | undefined) => {
-              const { close, e21, e34, e55 } = getEMAs(row);
-              const tripleAligned = e21 > 0 && e21 < e34 && e34 < e55;
-              const belowE21 = close < e21 && e21 > 0;
-              const proxDist = e21 > 0 ? Math.abs(close - e21) / e21 : 1;
-              const proxPass = belowE21 && proxDist <= 0.03;
-              return [
-                { label: 'EMA21 < EMA34 < EMA55', pass: tripleAligned, value: `${e21.toFixed(1)} ${tripleAligned ? '<' : '≥'} ${e34.toFixed(1)} ${tripleAligned ? '<' : '≥'} ${e55.toFixed(1)}` },
-                { label: 'close < EMA21', pass: belowE21, value: `$${close.toFixed(2)} ${belowE21 ? '<' : '≥'} $${e21.toFixed(2)}` },
-                { label: 'within 3% of EMA21', pass: proxPass, value: `${(proxDist * 100).toFixed(1)}% ${proxPass ? '≤' : '>'} 3%` },
-              ];
-            }},
+            note: 'WFA validated \u2014 OOS Sharpe 1.29, Holdout +0.18',
+            criteria: bullCriteria },
+          { ticker: 'SPY', side: 'bull' as const, spread: 'sp30/20', label: 'Bull Put', recommended: true,
+            note: 'WFA validated \u2014 OOS Sharpe 0.85, Holdout +0.13',
+            criteria: bullCriteria },
+          { ticker: 'IWM', side: 'bull' as const, spread: 'sp30/20', label: 'Bull Put', recommended: true,
+            note: 'WFA validated \u2014 OOS Sharpe 0.76, Holdout +1.42',
+            criteria: bullCriteria },
         ];
 
         return (
@@ -159,7 +128,7 @@ export const SignalsPage: React.FC = () => {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h1 className="text-lg font-semibold">Signals</h1>
-                <p className="text-xs text-text-tertiary mt-0.5">DTE5 EMA gate · hold-to-expiry · $10K equity</p>
+                <p className="text-xs text-text-tertiary mt-0.5">DTE5 Bull Put · EMA34 gate · SL 2.5x · TL 50/50 · $1K live</p>
               </div>
               <button
                 onClick={() => { scanner.clearCache(); scanner.scan(techOptions, ['QQQ', 'SPY', 'IWM'], '1D'); }}
@@ -171,8 +140,8 @@ export const SignalsPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Two columns: Bull (left) | Bear (right) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+            {/* Bull signals — QQQ, SPY, IWM (WFA-validated) */}
+            <div className="grid grid-cols-1 gap-6">
 
               {/* ── BULL column ── */}
               <div>
@@ -230,61 +199,7 @@ export const SignalsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* ── BEAR column ── */}
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-1 h-4 rounded-full bg-rose-400" />
-                  <span className="text-sm font-semibold text-rose-400">Bear Call</span>
-                  <span className="text-xs text-text-tertiary">· EMA21 &lt; EMA34 &lt; EMA55 · Close &lt; EMA21</span>
-                </div>
-                <div className="space-y-3">
-                  {DTE5_SIGNALS.filter(s => s.side === 'bear').map((sig, idx) => {
-                    const row = scanner.signals.find(s => s.ticker === sig.ticker);
-                    const close = row?.lastClose ?? 0;
-                    const criteria = sig.criteria(row);
-                    const allPass = criteria.every(c => c.pass);
-                    return (
-                      <div
-                        key={idx}
-                        className={`rounded-xl p-4 border transition-all duration-150 ${
-                          allPass ? 'border-rose-500/20 bg-rose-500/[0.04] cursor-pointer hover:bg-rose-500/[0.07]' : 'border-white/[0.06] bg-white/[0.02]'
-                        }`}
-                        onClick={allPass ? () => setPickerSignal({ ticker: sig.ticker, side: 'bear', spread: sig.spread }) : undefined}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base font-bold">{sig.ticker}</span>
-                            <span className="text-xs text-text-tertiary font-mono">{sig.spread}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-text-secondary font-mono">${close.toFixed(2)}</span>
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide uppercase ${
-                              allPass ? 'bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/20' : 'bg-white/[0.04] text-text-tertiary ring-1 ring-white/[0.06]'
-                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${allPass ? 'bg-rose-400' : 'bg-text-tertiary/30'}`} />
-                              {allPass ? 'Active' : 'Off'}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="space-y-1 mb-2">
-                          {criteria.map((c, ci) => (
-                            <div key={ci} className="flex items-center gap-1.5 text-[11px]">
-                              <span className={c.pass ? 'text-rose-400' : 'text-text-tertiary'}>{c.pass ? '✓' : '✗'}</span>
-                              <span className={c.pass ? 'text-text-secondary' : 'text-text-tertiary'}>{c.value}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <div className={`text-[11px] font-semibold ${allPass ? 'text-rose-400' : 'text-text-tertiary'}`}>
-                          {allPass ? 'Tap to open spread →' : (() => {
-                            const failing = criteria.filter(c => !c.pass);
-                            return `Waiting — ${failing.map(c => c.label).join(', ')} not met`;
-                          })()}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              {/* Bears disabled per WFA Phase 7: QQQ (15 trades/6yr), SPY (Grade D), IWM (negative Sharpe) */}
             </div>
 
             {/* Entry timing */}

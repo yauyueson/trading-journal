@@ -1,6 +1,6 @@
 {
-  "version": "2026-03-31",
-  "source": "DTE5 bull+bear validated. Bull: QQQ sp30/20 EMA34 (Sharpe ~0.69). Bear: triple EMA21<34<55 + proximity + rally filter. Combined Sharpe ~0.99.",
+  "version": "2026-04-08",
+  "source": "DTE5 WFA TP/SL study (90 configs, 6 phases + Phase 7 multi-ticker). Champion: nc+sl2.5x+tl50-50. QQQ bull Sharpe 1.29, SPY bull 0.85, IWM bull 0.76. All holdouts positive. Bears killed.",
   "profiles": {
     "dte5": {
       "signalPreset": "ema",
@@ -11,6 +11,9 @@
       "dteMax": 7,
       "dtePeak": 5,
       "profitTarget": 1.0,
+      "stopLossMultiple": 2.5,
+      "trailingActivatePct": 0.50,
+      "trailingFloorPct": 0.50,
       "ivRankMin": 0,
       "timeStopDTE": 0,
       "maxPositions": 1,
@@ -20,24 +23,23 @@
       "minScore": 0,
       "minDirConfidence": 0,
       "tickers": ["QQQ", "SPY", "IWM"],
-      "direction": "both",
+      "direction": "bull",
       "trendEMA": 34,
-      "bearRegime": {
-        "ema1": 21,
-        "ema2": 34,
-        "ema3": 55
-      },
       "tickerConfigs": {
         "QQQ": {
-          "bull": { "delta": 0.30, "longDelta": 0.20, "ema": 34 },
-          "bear": { "delta": 0.40, "longDelta": 0.30, "proximity": { "ema": 21, "tolerance": 0.01 }, "recommended": true, "note": "Only ~3 trades/yr but positive edge" }
+          "bull": { "delta": 0.30, "longDelta": 0.20, "ema": 34, "validated": true, "oosSharpe": 1.29, "holdoutSharpe": 0.18 }
         },
         "SPY": {
-          "bear": { "delta": 0.40, "longDelta": 0.30, "proximity": { "ema": 21, "tolerance": 0.05 }, "recommended": true, "note": "Primary bear engine — 114 trades, Sharpe 0.56" }
+          "bull": { "delta": 0.30, "longDelta": 0.20, "ema": 34, "validated": true, "oosSharpe": 0.85, "holdoutSharpe": 0.13 }
         },
         "IWM": {
-          "bear": { "delta": 0.15, "longDelta": 0.05, "proximity": { "ema": 21, "tolerance": 0.03 }, "rallyFilter": 0.08, "recommended": false, "note": "Diversifier — Sharpe 0.58, 119 trades, adds hedging value" }
+          "bull": { "delta": 0.30, "longDelta": 0.20, "ema": 34, "validated": true, "oosSharpe": 0.76, "holdoutSharpe": 1.42 }
         }
+      },
+      "disabledConfigs": {
+        "QQQ-bear": { "reason": "Only 15 trades in 6yr — insufficient sample", "oosSharpe": 0.00 },
+        "SPY-bear": { "reason": "Grade D, no holdout trades, marginal edge", "oosSharpe": 0.40 },
+        "IWM-bear": { "reason": "Negative Sharpe with sp15/05", "oosSharpe": -0.83 }
       }
     },
     "swing": {

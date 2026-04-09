@@ -19,6 +19,12 @@ export interface StrategyProfile {
   spreadWidths: number[];
   defaultWidth: number;
   profitTarget: number;
+  /** Credit multiple SL — close at market if spread cost >= N x entry credit. 0 = disabled. */
+  stopLossMultiple: number;
+  /** Trailing lock activation — lock profit floor when unrealized profit reaches N% of max. 0 = disabled. */
+  trailingActivatePct: number;
+  /** Trailing lock floor — floor level as N% of TP target profit. Only active after activation. */
+  trailingFloorPct: number;
   ivRankMin: number;
   timeStopDTE: number;
   dteOptions: { label: string; val: number; text: string }[];
@@ -53,13 +59,16 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     spreadWidths: [10],
     defaultWidth: 10,
     profitTarget: 1.0,        // hold-to-expiry = 100% of credit
+    stopLossMultiple: 2.5,    // close at market if spread cost >= 2.5x entry credit
+    trailingActivatePct: 0.50, // lock profit when 50% of max profit reached
+    trailingFloorPct: 0.50,   // floor at 50% of TP target (locks half the gains)
     ivRankMin: 0,             // no IV rank filter (EMA34 gate replaces)
     timeStopDTE: 0,           // hold-to-expiry, no time stop
     dteOptions: [
       { label: 'DTE5', val: 5, text: '2-7d' },
     ],
     widthOptions: [{ label: '$10', val: 10 }],
-    subtitle: 'QQQ Only \u2022 Bull Put \u2022 Delta 30/20 \u2022 DTE 5 \u2022 Hold-to-Expiry',
+    subtitle: 'QQQ Only \u2022 Bull Put \u2022 Delta 30/20 \u2022 DTE 5 \u2022 SL 2.5x \u2022 TL 50/50',
     signalPreset: 'ema',
     maxPerTicker: 1,
     maxPositions: 1,
@@ -81,6 +90,9 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     spreadWidths: [5, 10, 15, 20],
     defaultWidth: 20,
     profitTarget: 0.40,
+    stopLossMultiple: 0,
+    trailingActivatePct: 0,
+    trailingFloorPct: 0,
     ivRankMin: 0,
     timeStopDTE: 3,
     dteOptions: [
@@ -116,6 +128,9 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     spreadWidths: [2.5, 5, 10],
     defaultWidth: 10,
     profitTarget: 0.50,
+    stopLossMultiple: 0,
+    trailingActivatePct: 0,
+    trailingFloorPct: 0,
     ivRankMin: 20,
     timeStopDTE: 1,
     dteOptions: [
