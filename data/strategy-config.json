@@ -1,6 +1,6 @@
 {
   "version": "2026-04-08",
-  "source": "DTE5 WFA TP/SL study (90 configs, 6 phases + Phase 7 multi-ticker). Champion: nc+sl2.5x+tl50-50. QQQ bull Sharpe 1.29, SPY bull 0.85, IWM bull 0.76. All holdouts positive. Bears killed.",
+  "source": "DTE5 WFA study (198 configs, 8 phases). Production: ema55 QQQ bull + SL 2.5x + TL 50/50. OOS Sharpe 1.44, Holdout +0.84, CAGR 18.7%, MaxDD 11.8%. $1K live test.",
   "profiles": {
     "dte5": {
       "signalPreset": "ema",
@@ -22,19 +22,19 @@
       "rvolGate": 0,
       "minScore": 0,
       "minDirConfidence": 0,
-      "tickers": ["QQQ", "SPY", "IWM"],
+      "tickers": ["QQQ"],
       "direction": "bull",
-      "trendEMA": 34,
+      "trendEMA": 55,
       "tickerConfigs": {
         "QQQ": {
-          "bull": { "delta": 0.30, "longDelta": 0.20, "ema": 34, "validated": true, "oosSharpe": 1.29, "holdoutSharpe": 0.18 }
-        },
-        "SPY": {
-          "bull": { "delta": 0.30, "longDelta": 0.20, "ema": 34, "validated": true, "oosSharpe": 0.85, "holdoutSharpe": 0.13 }
-        },
-        "IWM": {
-          "bull": { "delta": 0.30, "longDelta": 0.20, "ema": 34, "validated": true, "oosSharpe": 0.76, "holdoutSharpe": 1.42 }
+          "bull": { "delta": 0.30, "longDelta": 0.20, "ema": 55, "validated": true, "oosSharpe": 1.44, "holdoutSharpe": 0.84 }
         }
+      },
+      "phase8Alternatives": {
+        "no_gate-QQQ-bull": { "oosSharpe": 1.50, "holdoutSharpe": 1.01, "maxDD": "17.1%", "cagr": "24.5%", "note": "Best OOS but higher drawdown risk" },
+        "ema34-QQQ-bull": { "oosSharpe": 1.29, "holdoutSharpe": 0.18, "maxDD": "15.0%", "cagr": "17.3%", "note": "Previous champion" },
+        "no_gate-IWM-bull": { "oosSharpe": 1.30, "holdoutSharpe": 2.01, "maxDD": "11.9%", "cagr": "17.3%", "note": "Best holdout, add after QQQ proven live" },
+        "ema55-IWM-bull": { "oosSharpe": 0.71, "holdoutSharpe": 1.97, "maxDD": "9.2%", "cagr": "7.8%", "note": "Lowest drawdown overall" }
       },
       "disabledConfigs": {
         "QQQ-bear": { "reason": "Only 15 trades in 6yr — insufficient sample", "oosSharpe": 0.00 },

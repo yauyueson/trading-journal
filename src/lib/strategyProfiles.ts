@@ -68,7 +68,7 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
       { label: 'DTE5', val: 5, text: '2-7d' },
     ],
     widthOptions: [{ label: '$10', val: 10 }],
-    subtitle: 'QQQ Only \u2022 Bull Put \u2022 Delta 30/20 \u2022 DTE 5 \u2022 SL 2.5x \u2022 TL 50/50',
+    subtitle: 'QQQ Only \u2022 Bull Put \u2022 Delta 30/20 \u2022 DTE 5 \u2022 EMA55 \u2022 SL 2.5x \u2022 TL 50/50',
     signalPreset: 'ema',
     maxPerTicker: 1,
     maxPositions: 1,

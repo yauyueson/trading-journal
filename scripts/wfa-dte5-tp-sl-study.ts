@@ -120,6 +120,7 @@ interface TickerData {
   ema21: number[];
   ema34: number[];
   ema55: number[];
+  emas: Map<number, number[]>; // period → full EMA series (8, 13, 21, 34, 55)
   regimeByDate: Map<string, RegimeData>;
 }
 
@@ -155,9 +156,12 @@ async function fetchTickerData(ticker: string): Promise<TickerData> {
   const dateToIdx = new Map(candles.map((c, i) => [c.date, i]));
 
   const closes = candles.map(c => c.close);
-  const ema21 = computeEMASeries(closes, 21);
-  const ema34 = computeEMASeries(closes, 34);
-  const ema55 = computeEMASeries(closes, 55);
+  const emaPeriods = [8, 13, 21, 34, 55];
+  const emas = new Map<number, number[]>();
+  for (const p of emaPeriods) emas.set(p, computeEMASeries(closes, p));
+  const ema21 = emas.get(21)!;
+  const ema34 = emas.get(34)!;
+  const ema55 = emas.get(55)!;
 
   // Compute contango and VRP per date
   // VRP = IV30² - HV20² (using hv20d since ORATS doesn't provide hv30d)
@@ -191,7 +195,7 @@ async function fetchTickerData(ticker: string): Promise<TickerData> {
     });
   }
 
-  return { ticker, candles, ivRanks, dateToIdx, ema21, ema34, ema55, regimeByDate };
+  return { ticker, candles, ivRanks, dateToIdx, ema21, ema34, ema55, emas, regimeByDate };
 }
 
 // ── DTE5 Signal Generation ───────────────────────────────
@@ -697,6 +701,129 @@ function buildPhase7Configs(): ConfigDef[] {
   return configs;
 }
 
+// ── Phase 8: EMA Gate & Stack Sweep ──────────────────────
+
+interface EMAGate {
+  label: string;
+  direction: 'bull' | 'bear';
+  stack: number[];  // EMAs in order — bull: close > ema[0] > ema[1] > ...; bear: close < ema[0] < ema[1] < ...
+  proximityPct?: number;  // bear only: close must be within N% of ema[0]
+}
+
+const BULL_GATES: EMAGate[] = [
+  { label: 'no_gate', direction: 'bull', stack: [] },
+  { label: 'ema13', direction: 'bull', stack: [13] },
+  { label: 'ema21', direction: 'bull', stack: [21] },
+  { label: 'ema34', direction: 'bull', stack: [34] },
+  { label: 'ema55', direction: 'bull', stack: [55] },
+  { label: 'stack_8>21', direction: 'bull', stack: [8, 21] },
+  { label: 'stack_21>34', direction: 'bull', stack: [21, 34] },
+  { label: 'stack_8>21>34', direction: 'bull', stack: [8, 21, 34] },
+  { label: 'stack_21>34>55', direction: 'bull', stack: [21, 34, 55] },
+  { label: 'stack_8>21>34>55', direction: 'bull', stack: [8, 21, 34, 55] },
+];
+
+const BEAR_PROX: Record<string, number> = { QQQ: 0.01, SPY: 0.05, IWM: 0.03 };
+
+const BEAR_GATES: EMAGate[] = [
+  { label: 'bear_ema21', direction: 'bear', stack: [21] },
+  { label: 'bear_ema34', direction: 'bear', stack: [34] },
+  { label: 'bear_ema55', direction: 'bear', stack: [55] },
+  { label: 'bear_21<34', direction: 'bear', stack: [21, 34] },
+  { label: 'bear_34<55', direction: 'bear', stack: [34, 55] },
+  { label: 'bear_21<34<55', direction: 'bear', stack: [21, 34, 55] },
+  { label: 'bear_21<34<55_prox', direction: 'bear', stack: [21, 34, 55], proximityPct: -1 }, // -1 = use per-ticker
+  { label: 'bear_8<21<34<55', direction: 'bear', stack: [8, 21, 34, 55] },
+];
+
+function generateSignalsForGate(
+  td: TickerData,
+  gate: EMAGate,
+  ticker: string,
+): EntrySignal[] {
+  const signals: EntrySignal[] = [];
+  const tickerCfg = DTE5_TICKER_CONFIGS[ticker as keyof typeof DTE5_TICKER_CONFIGS];
+  const minIdx = 55; // need at least 55 bars for longest EMA
+
+  for (let i = minIdx; i < td.candles.length; i++) {
+    const c = td.candles[i];
+    if (c.date < DTE5_PARAMS.startDate || c.date > DTE5_PARAMS.endDate) continue;
+    const close = c.close;
+
+    if (gate.direction === 'bull') {
+      // Bull: close > ema[stack[0]] > ema[stack[1]] > ...
+      const bullCfg = 'bull' in tickerCfg ? tickerCfg.bull : null;
+      if (!bullCfg) continue;
+
+      let pass = true;
+      if (gate.stack.length === 0) {
+        pass = true; // no_gate — every day
+      } else {
+        // close > first EMA
+        const firstEma = td.emas.get(gate.stack[0]);
+        if (!firstEma || firstEma[i] <= 0 || close <= firstEma[i]) { pass = false; }
+        // Each EMA > next EMA
+        if (pass) {
+          for (let s = 0; s < gate.stack.length - 1; s++) {
+            const emaA = td.emas.get(gate.stack[s])!;
+            const emaB = td.emas.get(gate.stack[s + 1])!;
+            if (emaA[i] <= emaB[i]) { pass = false; break; }
+          }
+        }
+      }
+
+      if (pass) {
+        const regime = td.regimeByDate.get(c.date);
+        signals.push({
+          ticker, date: c.date, direction: 'CALL', score: 50,
+          ivRank: td.ivRanks[i] ?? undefined,
+          vrp: regime?.vrp, contango: regime?.contango,
+          vrpPct: regime?.vrpPct, contangoPct: regime?.contangoPct,
+          configuredDelta: bullCfg.delta,
+          configuredLongDelta: bullCfg.longDelta,
+        });
+      }
+    } else {
+      // Bear: close < ema[stack[0]] < ema[stack[1]] < ...
+      const bearCfg = 'bear' in tickerCfg ? tickerCfg.bear : null;
+      if (!bearCfg) continue;
+
+      let pass = true;
+      const firstEma = td.emas.get(gate.stack[0]);
+      if (!firstEma || firstEma[i] <= 0 || close >= firstEma[i]) { pass = false; }
+      // Each EMA < next EMA (downtrend alignment)
+      if (pass) {
+        for (let s = 0; s < gate.stack.length - 1; s++) {
+          const emaA = td.emas.get(gate.stack[s])!;
+          const emaB = td.emas.get(gate.stack[s + 1])!;
+          if (emaA[i] >= emaB[i]) { pass = false; break; }
+        }
+      }
+      // Proximity check
+      if (pass && gate.proximityPct != null) {
+        const proxPct = gate.proximityPct === -1 ? (BEAR_PROX[ticker] ?? 0.03) : gate.proximityPct;
+        const proxEmaVal = firstEma![i];
+        const proxDist = Math.abs(close - proxEmaVal) / proxEmaVal;
+        if (proxDist > proxPct) pass = false;
+      }
+
+      if (pass) {
+        const regime = td.regimeByDate.get(c.date);
+        signals.push({
+          ticker, date: c.date, direction: 'PUT', score: 50,
+          ivRank: td.ivRanks[i] ?? undefined,
+          vrp: regime?.vrp, contango: regime?.contango,
+          vrpPct: regime?.vrpPct, contangoPct: regime?.contangoPct,
+          configuredDelta: bearCfg.delta,
+          configuredLongDelta: bearCfg.longDelta,
+        });
+      }
+    }
+  }
+
+  return signals;
+}
+
 function buildPhase3Configs(): ConfigDef[] {
   const configs: ConfigDef[] = [];
   const tp1Values = [0.25, 0.30, 0.50];
@@ -910,22 +1037,29 @@ function buildDetailedMetrics(trades: OptionTrade[]): DetailedMetrics {
 
 // ── Worker Pool ──────────────────────────────────────────
 
+let _workerBundleCached = false;
+const _workerBundlePath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.wfa-dte5-tp-sl-worker.mjs');
+
 async function runConfigsViaWorkers(
   configs: ConfigDef[],
   signals: EntrySignal[],
   allTradingDates: string[],
   selectionWindows: Array<{ trainStart: string; trainEnd: string; oosStart: string; oosEnd: string }>,
   holdoutWindows: Array<{ trainStart: string; trainEnd: string; oosStart: string; oosEnd: string }>,
+  maxWorkers?: number,
 ): Promise<StudyResult[]> {
-  const numWorkers = Math.max(1, Math.min(os.cpus().length - 2, configs.length));
-  console.log(`\n  Spawning ${numWorkers} workers for ${configs.length} configs...`);
+  const numWorkers = Math.max(1, Math.min(maxWorkers ?? (os.cpus().length - 2), configs.length));
+  if (numWorkers > 2) console.log(`\n  Spawning ${numWorkers} workers for ${configs.length} configs...`);
 
   const workerSrc = path.resolve(__dirname, 'wfa-dte5-tp-sl-worker.ts');
-  const workerBundle = path.resolve(__dirname, '.wfa-dte5-tp-sl-worker.mjs');
-  execSync(
-    `npx esbuild ${workerSrc} --bundle --platform=node --format=esm --outfile=${workerBundle} --external:better-sqlite3 --packages=external`,
-    { cwd: path.resolve(__dirname, '..'), stdio: 'pipe' },
-  );
+  const workerBundle = _workerBundlePath;
+  if (!_workerBundleCached) {
+    execSync(
+      `npx esbuild ${workerSrc} --bundle --platform=node --format=esm --outfile=${workerBundle} --external:better-sqlite3 --packages=external`,
+      { cwd: path.resolve(__dirname, '..'), stdio: 'pipe' },
+    );
+    _workerBundleCached = true;
+  }
 
   const executionConfig: PortfolioExecutionConfig = {
     maxPositions: DTE5_PARAMS.maxPositions,
@@ -1403,6 +1537,7 @@ async function main() {
   const runPhase4 = phaseArg === '4' || phaseArg === 'all';
   const runPhase5 = phaseArg === '5' || phaseArg === 'all';
   const runPhase7 = phaseArg === '7';
+  const runPhase8 = phaseArg === '8';
   const tickerFilter = args.find((_, i, a) => a[i - 1] === '--ticker') ?? null;
   const dirFilter = args.find((_, i, a) => a[i - 1] === '--direction') ?? null;
 
@@ -1616,6 +1751,262 @@ async function main() {
     const outFile = `phase7-${comboLabel.toLowerCase()}.json`;
     fs.writeFileSync(path.join(outDir, outFile), JSON.stringify(phase7Results, null, 2));
     console.log(`\n  Phase 7 saved to ${outDir}/${outFile}`);
+  }
+
+  // Phase 8: EMA Gate & Stack Sweep
+  if (runPhase8) {
+    console.log('\n  Phase 8: EMA Gate & Stack Sweep');
+    console.log(`  Bull gates: ${BULL_GATES.length} | Bear gates: ${BEAR_GATES.length} | Tickers: QQQ, SPY, IWM`);
+
+    const tickers = ['QQQ', 'SPY', 'IWM'];
+    const allGates = [...BULL_GATES, ...BEAR_GATES];
+
+    interface Phase8Row {
+      gate: string;
+      ticker: string;
+      direction: string;
+      signals: number;
+      champion: StudyResult | null;
+      baseline: StudyResult | null;
+    }
+    const phase8Rows: Phase8Row[] = [];
+    let batchIdx = 0;
+    const totalBatches = allGates.length * tickers.length;
+
+    // Build ALL work items with per-combo signal overrides, then dispatch
+    // to a SINGLE persistent worker pool — avoids SQLite SIGSEGV from
+    // repeated worker creation/destruction.
+    interface P8ConfigDef extends ConfigDef {
+      _gate: string;
+      _ticker: string;
+      _direction: string;
+      _signals: EntrySignal[];
+    }
+    const allP8Configs: P8ConfigDef[] = [];
+    const NC = 999;
+
+    for (const gate of allGates) {
+      for (const ticker of tickers) {
+        batchIdx++;
+        const sigs = generateSignalsForGate(tickerDataMap.get(ticker)!, gate, ticker);
+        process.stdout.write(`  [${batchIdx}/${totalBatches}] ${gate.label} ${ticker} (${gate.direction}) — ${sigs.length} sigs\n`);
+
+        if (sigs.length < 10) {
+          phase8Rows.push({ gate: gate.label, ticker, direction: gate.direction, signals: sigs.length, champion: null, baseline: null });
+          continue;
+        }
+
+        allP8Configs.push({
+          label: `champ|${gate.label}|${ticker}`,
+          mechanism: 'champion',
+          params: {},
+          apply: (base) => ({ ...base, creditProfitTarget: 1.0, creditStopLossMultiple: 2.5,
+            trailingActivatePct: 0.50, trailingFloorPct: 0.50, missingChainExitAfterDays: NC }),
+          _gate: gate.label, _ticker: ticker, _direction: gate.direction, _signals: sigs,
+        });
+        allP8Configs.push({
+          label: `base|${gate.label}|${ticker}`,
+          mechanism: 'baseline_nc',
+          params: {},
+          apply: (base) => ({ ...base, creditProfitTarget: 1.0, creditStopLossMultiple: 100,
+            missingChainExitAfterDays: NC }),
+          _gate: gate.label, _ticker: ticker, _direction: gate.direction, _signals: sigs,
+        });
+      }
+    }
+
+    console.log(`\n  Dispatching ${allP8Configs.length} configs to worker pool...`);
+
+    // Use a custom dispatch that passes overrideSignals per work item
+    const workerSrc = path.resolve(__dirname, 'wfa-dte5-tp-sl-worker.ts');
+    const workerBundle = _workerBundlePath;
+    if (!_workerBundleCached) {
+      execSync(
+        `npx esbuild ${workerSrc} --bundle --platform=node --format=esm --outfile=${workerBundle} --external:better-sqlite3 --packages=external`,
+        { cwd: path.resolve(__dirname, '..'), stdio: 'pipe' },
+      );
+      _workerBundleCached = true;
+    }
+
+    const executionConfig: PortfolioExecutionConfig = {
+      maxPositions: DTE5_PARAMS.maxPositions,
+      maxPerTicker: DTE5_PARAMS.maxPerTicker,
+      startingCapital: DTE5_PARAMS.startingCapital,
+    };
+
+    // Single pool with empty initial signals — each work item carries its own
+    const numWorkers = Math.max(1, Math.min(os.cpus().length - 2, allP8Configs.length));
+    console.log(`  Spawning ${numWorkers} workers...`);
+    const p8Workers = await Promise.all(
+      Array.from({ length: numWorkers }, () =>
+        new Promise<Worker>((resolve, reject) => {
+          const w = new Worker(workerBundle, {
+            workerData: { signals: [], allTradingDates, executionConfig, startingCapital: DTE5_PARAMS.startingCapital },
+          });
+          w.once('message', (msg) => msg?.type === 'ready' ? resolve(w) : reject(new Error('Worker init failed')));
+          w.once('error', reject);
+        }),
+      ),
+    );
+    console.log(`  ${numWorkers} workers ready.`);
+
+    const baseConfig: SimConfig = {
+      ...DEFAULT_CREDIT_CONFIG,
+      creditShortDelta: 0.30,
+      creditSpreadWidth: 10,
+      creditDTERange: [2, 7] as [number, number],
+      creditProfitTarget: 1.0,
+      creditStopLossMultiple: 100,
+      creditTimeStopDTE: 0,
+      minIVRank: 0,
+      fillMode: 'mid',
+      slippage: { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: false },
+    };
+
+    const p8WorkItems = allP8Configs.map((def, idx) => ({
+      type: 'eval' as const,
+      id: idx,
+      configLabel: def.label,
+      mechanism: def.mechanism,
+      simConfig: def.apply(baseConfig),
+      selectionWindows,
+      holdoutWindows,
+      overrideSignals: def._signals,
+    }));
+
+    interface P8WorkerResult {
+      id: number;
+      configLabel: string;
+      mechanism: string;
+      selectionResults: any[];
+      allOOSTrades: any[];
+      holdoutTrades: any[];
+      error?: string;
+    }
+
+    const p8WorkerResults: P8WorkerResult[] = new Array(p8WorkItems.length);
+    let p8NextIdx = 0;
+    let p8Completed = 0;
+
+    await new Promise<void>((resolve, reject) => {
+      const onMessage = (worker: Worker) => (msg: any) => {
+        if (!msg || msg.type !== 'result') return;
+        p8WorkerResults[msg.id] = msg;
+        p8Completed++;
+        process.stdout.write(`\r  Evaluating: ${p8Completed}/${p8WorkItems.length} configs...`);
+        if (p8Completed === p8WorkItems.length) { process.stdout.write('\n'); resolve(); return; }
+        const next = p8WorkItems[p8NextIdx++];
+        if (next) worker.postMessage(next);
+      };
+      for (const worker of p8Workers) { worker.on('message', onMessage(worker)); worker.on('error', reject); }
+      for (const worker of p8Workers) { const next = p8WorkItems[p8NextIdx++]; if (!next) break; worker.postMessage(next); }
+    });
+
+    // Terminate workers
+    for (const w of p8Workers) w.postMessage({ type: 'exit' });
+    await new Promise(r => setTimeout(r, 200));
+    await Promise.all(p8Workers.map(w => w.terminate()));
+
+    // Process results into phase8Rows
+    const selStart = selectionWindows[0]?.oosStart ?? DTE5_PARAMS.startDate;
+    const selEnd = selectionWindows[selectionWindows.length - 1]?.oosEnd ?? DTE5_PARAMS.endDate;
+    const holdStart = holdoutWindows[0]?.oosStart ?? DTE5_PARAMS.startDate;
+    const holdEnd = holdoutWindows[holdoutWindows.length - 1]?.oosEnd ?? DTE5_PARAMS.endDate;
+
+    // Group results by gate×ticker
+    const grouped = new Map<string, { champion?: StudyResult; baseline?: StudyResult }>();
+    for (let ci = 0; ci < allP8Configs.length; ci++) {
+      const def = allP8Configs[ci];
+      const wr = p8WorkerResults[ci];
+      if (!wr || wr.error) continue;
+
+      const oosMetrics = computePortfolioDailyMetrics(wr.allOOSTrades, allTradingDates, selStart, selEnd, DTE5_PARAMS.startingCapital);
+      const holdMetrics = computePortfolioDailyMetrics(wr.holdoutTrades, allTradingDates, holdStart, holdEnd, DTE5_PARAMS.startingCapital);
+      const oosAnalytics = computeOptionAnalytics(wr.allOOSTrades);
+      const avgTrainSharpe = wr.selectionResults.length > 0
+        ? wr.selectionResults.reduce((s: number, w: any) => s + w.trainSharpe, 0) / wr.selectionResults.length : 0;
+      const wfEfficiency = avgTrainSharpe >= 0.1 ? oosMetrics.sharpe / avgTrainSharpe : 0;
+      const { grade } = computeGrade(wr.selectionResults, 150, oosMetrics.sharpe);
+      const exitTypeBreakdown: Record<string, number> = {};
+      for (const t of wr.allOOSTrades) exitTypeBreakdown[t.exitType] = (exitTypeBreakdown[t.exitType] ?? 0) + 1;
+
+      const result: StudyResult = {
+        configLabel: def.label, mechanism: def.mechanism, params: def.params,
+        isSharpe: avgTrainSharpe, oosSharpe: oosMetrics.sharpe, holdoutSharpe: holdMetrics.sharpe,
+        oosWinRate: oosAnalytics.winRate, oosMaxDD: oosMetrics.maxDrawdownPct,
+        oosTotalPnl: wr.allOOSTrades.reduce((s: number, t: any) => s + t.pnl, 0),
+        holdoutTotalPnl: wr.holdoutTrades.reduce((s: number, t: any) => s + t.pnl, 0),
+        wfEfficiency, grade, tradeCount: wr.allOOSTrades.length, holdoutTradeCount: wr.holdoutTrades.length,
+        exitTypeBreakdown, windowDetails: wr.selectionResults,
+        oosDetailed: buildDetailedMetrics(wr.allOOSTrades), holdoutDetailed: buildDetailedMetrics(wr.holdoutTrades),
+        oosGrowth: simulatePortfolioGrowth(wr.allOOSTrades, DTE5_PARAMS.startingCapital),
+        holdoutGrowth: simulatePortfolioGrowth(wr.holdoutTrades, DTE5_PARAMS.startingCapital),
+      };
+
+      const key = `${def._gate}|${def._ticker}`;
+      if (!grouped.has(key)) grouped.set(key, {});
+      const g = grouped.get(key)!;
+      if (def.mechanism === 'champion') g.champion = result;
+      else g.baseline = result;
+    }
+
+    // Convert grouped results to phase8Rows
+    for (const [key, g] of grouped) {
+      const [gate, ticker] = key.split('|');
+      const dir = allGates.find(gg => gg.label === gate)?.direction ?? 'bull';
+      const sigCount = allP8Configs.find(c => c._gate === gate && c._ticker === ticker)?._signals.length ?? 0;
+      phase8Rows.push({ gate, ticker, direction: dir, signals: sigCount, champion: g.champion ?? null, baseline: g.baseline ?? null });
+    }
+
+    // Print consolidated results
+    console.log(`\n\n${'═'.repeat(180)}`);
+    console.log('  PHASE 8: EMA GATE & STACK SWEEP — CHAMPION CONFIG (nc+sl2.5x+tl50-50)');
+    console.log(`${'═'.repeat(180)}`);
+    console.log('  ' +
+      'Gate'.padEnd(22) + 'Ticker'.padEnd(6) + 'Dir'.padEnd(6) +
+      'Sigs'.padStart(6) +
+      'OOS SR'.padStart(8) + 'Hold SR'.padStart(8) +
+      'WR%'.padStart(7) + 'MaxDD%'.padStart(8) + 'Trades'.padStart(8) + 'HoldTr'.padStart(8) +
+      'Grade'.padStart(7) +
+      'OOS PnL'.padStart(10) + 'Hold PnL'.padStart(10) +
+      '$10K→'.padStart(10) + 'CAGR%'.padStart(8) +
+      '  vs base'.padStart(10),
+    );
+    console.log('  ' + '─'.repeat(176));
+
+    const sorted = [...phase8Rows].filter(r => r.champion).sort((a, b) => (b.champion?.oosSharpe ?? -99) - (a.champion?.oosSharpe ?? -99));
+    for (const row of sorted) {
+      const c = row.champion!;
+      const b = row.baseline;
+      const delta = b ? (c.oosSharpe - b.oosSharpe).toFixed(2) : '—';
+      const marker = c.oosSharpe >= 1.0 && c.holdoutSharpe > 0 ? ' ★' : '';
+      console.log('  ' +
+        row.gate.padEnd(22) + row.ticker.padEnd(6) + row.direction.padEnd(6) +
+        String(row.signals).padStart(6) +
+        c.oosSharpe.toFixed(2).padStart(8) + c.holdoutSharpe.toFixed(2).padStart(8) +
+        `${c.oosWinRate.toFixed(1)}%`.padStart(7) + `${c.oosMaxDD.toFixed(1)}%`.padStart(8) +
+        String(c.tradeCount).padStart(8) + String(c.holdoutTradeCount).padStart(8) +
+        c.grade.padStart(7) +
+        `${c.oosTotalPnl >= 0 ? '+' : ''}$${(Math.abs(c.oosTotalPnl) / 1000).toFixed(1)}k`.padStart(10) +
+        `${c.holdoutDetailed.totalPnl >= 0 ? '+' : ''}$${Math.abs(c.holdoutDetailed.totalPnl).toFixed(0)}`.padStart(10) +
+        `$${(c.oosGrowth.finalEquity / 1000).toFixed(1)}k`.padStart(10) +
+        `${(c.oosGrowth.cagr * 100).toFixed(1)}%`.padStart(8) +
+        ('+' + delta).padStart(10) +
+        marker,
+      );
+    }
+
+    // Print skipped combos
+    const skipped = phase8Rows.filter(r => !r.champion);
+    if (skipped.length > 0) {
+      console.log(`\n  Skipped (< 10 signals): ${skipped.map(r => `${r.gate}/${r.ticker}(${r.signals})`).join(', ')}`);
+    }
+
+    // Save full results
+    const outDir = path.resolve(__dirname, '../backtesting history/credit-spread/reports/dte5-tp-sl-study');
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'phase8-ema-sweep.json'), JSON.stringify(phase8Rows, null, 2));
+    console.log(`\n  Phase 8 saved to ${outDir}/phase8-ema-sweep.json`);
   }
 
   // Generate README (include all available results)

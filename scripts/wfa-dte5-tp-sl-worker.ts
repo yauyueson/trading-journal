@@ -46,6 +46,8 @@ interface WorkItem {
   phasedConfig?: PhasedTPConfig;
   selectionWindows: Array<{ trainStart: string; trainEnd: string; oosStart: string; oosEnd: string }>;
   holdoutWindows: Array<{ trainStart: string; trainEnd: string; oosStart: string; oosEnd: string }>;
+  /** Override signals for this work item (for Phase 8 where each gate has different signals) */
+  overrideSignals?: EntrySignal[];
 }
 
 export interface PhasedTPConfig {
@@ -442,14 +444,16 @@ function evaluateOnWindows(
   config: SimConfig,
   windows: Array<{ trainStart: string; trainEnd: string; oosStart: string; oosEnd: string }>,
   evaluator: TradeEvaluator,
+  overrideSignals?: EntrySignal[],
 ): { results: WindowResult[]; allOOSTrades: OptionTrade[] } {
+  const effectiveSignals = overrideSignals ?? signals;
   const results: WindowResult[] = [];
   const allOOSTrades: OptionTrade[] = [];
 
   for (let i = 0; i < windows.length; i++) {
     const w = windows[i];
 
-    const trainSigs = signals.filter(s => s.date >= w.trainStart && s.date <= w.trainEnd);
+    const trainSigs = effectiveSignals.filter(s => s.date >= w.trainStart && s.date <= w.trainEnd);
     const trainConfigured: ConfiguredSignal[] = trainSigs.map(s => ({ signal: s, config }));
     const trainTrades = evaluateConfiguredSignalsWithConstraints(
       trainConfigured, executionConfig, allTradingDates, w.trainEnd, evaluator,
@@ -458,7 +462,7 @@ function evaluateOnWindows(
       trainTrades, allTradingDates, w.trainStart, w.trainEnd, startingCapital,
     );
 
-    const oosSigs = signals.filter(s => s.date >= w.oosStart && s.date <= w.oosEnd);
+    const oosSigs = effectiveSignals.filter(s => s.date >= w.oosStart && s.date <= w.oosEnd);
     const oosConfigured: ConfiguredSignal[] = oosSigs.map(s => ({ signal: s, config }));
     const oosTrades = evaluateConfiguredSignalsWithConstraints(
       oosConfigured, executionConfig, allTradingDates, w.oosEnd, evaluator,
@@ -495,8 +499,8 @@ parentPort!.on('message', (msg: WorkItem | { type: 'exit' }) => {
         ? makeDTE5PhasedEvaluator(msg.phasedConfig)
         : makeDTE5Evaluator();
 
-      const { results: selectionResults, allOOSTrades } = evaluateOnWindows(msg.simConfig, msg.selectionWindows, evaluator);
-      const { allOOSTrades: holdoutTrades } = evaluateOnWindows(msg.simConfig, msg.holdoutWindows, evaluator);
+      const { results: selectionResults, allOOSTrades } = evaluateOnWindows(msg.simConfig, msg.selectionWindows, evaluator, msg.overrideSignals);
+      const { allOOSTrades: holdoutTrades } = evaluateOnWindows(msg.simConfig, msg.holdoutWindows, evaluator, msg.overrideSignals);
 
       parentPort!.postMessage({
         type: 'result',

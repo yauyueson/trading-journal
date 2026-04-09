@@ -57,7 +57,7 @@ export const SignalsPage: React.FC = () => {
     hasSeededWatchlist.current = true;
 
     if (activeBoard === 'dte5') {
-      const dte5Tickers = ['QQQ', 'SPY', 'IWM'];
+      const dte5Tickers = ['QQQ'];
       scanner.setTickers(dte5Tickers);
       scanner.scan(techOptions, dte5Tickers, '1D');
     } else {
@@ -78,7 +78,7 @@ export const SignalsPage: React.FC = () => {
     if (!hasSeededWatchlist.current) return; // don't scan before initial seed
     scanner.clearCache();
     if (activeBoard === 'dte5') {
-      const dte5Tickers = ['QQQ', 'SPY', 'IWM'];
+      const dte5Tickers = ['QQQ'];
       scanner.setTickers(dte5Tickers);
       scanner.scan(techOptions, dte5Tickers, '1D');
     } else {
@@ -99,27 +99,18 @@ export const SignalsPage: React.FC = () => {
           return { close: row?.lastClose ?? 0, e21: d?.ema21 ?? 0, e34: d?.ema34 ?? 0, e55: d?.ema55 ?? 0 };
         };
 
-        // WFA-validated bull-only signals: QQQ (Sharpe 1.29), SPY (0.85), IWM (0.76)
+        // Phase 8 validated: ema55 QQQ bull — Sharpe 1.44, Holdout +0.84, MaxDD 11.8%
         // Exit: SL 2.5x credit, trailing lock 50/50, hold-to-expiry
-        // Bears disabled: QQQ (15 trades/6yr), SPY (Grade D), IWM (negative Sharpe)
-        const bullCriteria = (row: typeof scanner.signals[0] | undefined) => {
-          const { close, e34 } = getEMAs(row);
-          const pass = close > e34 && e34 > 0;
-          return [
-            { label: 'close > EMA34', pass, value: `$${close.toFixed(2)} ${pass ? '>' : '\u2264'} $${e34.toFixed(2)}` },
-          ];
-        };
-
         const DTE5_SIGNALS = [
           { ticker: 'QQQ', side: 'bull' as const, spread: 'sp30/20', label: 'Bull Put', recommended: true,
-            note: 'WFA validated \u2014 OOS Sharpe 1.29, Holdout +0.18',
-            criteria: bullCriteria },
-          { ticker: 'SPY', side: 'bull' as const, spread: 'sp30/20', label: 'Bull Put', recommended: true,
-            note: 'WFA validated \u2014 OOS Sharpe 0.85, Holdout +0.13',
-            criteria: bullCriteria },
-          { ticker: 'IWM', side: 'bull' as const, spread: 'sp30/20', label: 'Bull Put', recommended: true,
-            note: 'WFA validated \u2014 OOS Sharpe 0.76, Holdout +1.42',
-            criteria: bullCriteria },
+            note: 'Phase 8 validated \u2014 OOS Sharpe 1.44, Holdout +0.84, MaxDD 11.8%',
+            criteria: (row: typeof scanner.signals[0] | undefined) => {
+              const { close, e55 } = getEMAs(row);
+              const pass = close > e55 && e55 > 0;
+              return [
+                { label: 'close > EMA55', pass, value: `$${close.toFixed(2)} ${pass ? '>' : '\u2264'} $${e55.toFixed(2)}` },
+              ];
+            }},
         ];
 
         return (
@@ -128,10 +119,10 @@ export const SignalsPage: React.FC = () => {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h1 className="text-lg font-semibold">Signals</h1>
-                <p className="text-xs text-text-tertiary mt-0.5">DTE5 Bull Put · EMA34 gate · SL 2.5x · TL 50/50 · $1K live</p>
+                <p className="text-xs text-text-tertiary mt-0.5">DTE5 Bull Put · QQQ · EMA55 gate · SL 2.5x · TL 50/50 · $1K live</p>
               </div>
               <button
-                onClick={() => { scanner.clearCache(); scanner.scan(techOptions, ['QQQ', 'SPY', 'IWM'], '1D'); }}
+                onClick={() => { scanner.clearCache(); scanner.scan(techOptions, ['QQQ'], '1D'); }}
                 disabled={scanner.loading}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/[0.05] border border-white/[0.08] text-text-secondary hover:text-text-primary hover:bg-white/[0.08] disabled:opacity-50 transition-all duration-150"
               >

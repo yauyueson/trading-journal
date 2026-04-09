@@ -424,18 +424,12 @@ async function sendShortTermDiscord(signals, totalScanned, date) {
 // All bears killed: QQQ bear (15 trades/6yr), SPY bear (Grade D), IWM bear (negative Sharpe)
 
 async function checkDTE5Signal(today) {
-    // Multi-ticker bull-only DTE5 signal check
-    // Bull: close > EMA34 (QQQ, SPY, IWM — all WFA-validated)
+    // QQQ bull-only DTE5 signal check
+    // Bull: close > EMA55 (Phase 8 validated: Sharpe 1.44, Holdout +0.84, MaxDD 11.8%)
     // Exit: SL 2.5x credit, trailing lock 50/50, hold-to-expiry
     const TICKER_CONFIGS = {
         QQQ: {
-            bull: { ema: 34, spread: 'sp30/20', delta: 0.30, longDelta: 0.20 },
-        },
-        SPY: {
-            bull: { ema: 34, spread: 'sp30/20', delta: 0.30, longDelta: 0.20 },
-        },
-        IWM: {
-            bull: { ema: 34, spread: 'sp30/20', delta: 0.30, longDelta: 0.20 },
+            bull: { ema: 55, spread: 'sp30/20', delta: 0.30, longDelta: 0.20 },
         },
     };
 
@@ -468,10 +462,11 @@ async function checkDTE5Signal(today) {
 
             // ── BULL CHECK (QQQ, SPY, IWM — WFA-validated) ──
             if (cfg.bull) {
-                const bullEma = cfg.bull.ema === 34 ? e34 : e21;
+                const bullEmaPeriod = cfg.bull.ema || 55;
+                const bullEma = bullEmaPeriod === 55 ? e55 : bullEmaPeriod === 34 ? e34 : e21;
                 const bullPass = lastClose > bullEma;
                 const criteria = {
-                    'close > EMA34': { pass: bullPass, value: `$${lastClose.toFixed(2)} ${bullPass ? '>' : '≤'} $${bullEma.toFixed(2)}` },
+                    [`close > EMA${bullEmaPeriod}`]: { pass: bullPass, value: `$${lastClose.toFixed(2)} ${bullPass ? '>' : '≤'} $${bullEma.toFixed(2)}` },
                     'no active position': { pass: !hasActivePosition, value: hasActivePosition ? 'blocked' : 'clear' },
                 };
                 const fired = bullPass && !hasActivePosition;
@@ -480,7 +475,7 @@ async function checkDTE5Signal(today) {
                     await supabaseUpsert('signal_history', [{
                         ticker, date: today, timeframe: '1D', score: 100,
                         direction: 'CALL', setup: 'DTE5_BULL_PUT', confidence: 100, status: 'GO',
-                        components: JSON.stringify({ strategy: 'dte5', side: 'bull', ema34: e34.toFixed(2), close: lastClose.toFixed(2), open: lastOpen.toFixed(2), gate: 'close > EMA34' }),
+                        components: JSON.stringify({ strategy: 'dte5', side: 'bull', [`ema${bullEmaPeriod}`]: bullEma.toFixed(2), close: lastClose.toFixed(2), open: lastOpen.toFixed(2), gate: `close > EMA${bullEmaPeriod}` }),
                     }]);
                 }
 
