@@ -61,7 +61,7 @@ All in `api/` as ESM `.js` files. Key routes:
 - `cron-trade-outcomes.js` (30s) — daily MFE/MAE computation (21:35 UTC weekdays, external cron)
 - `cron-iv.js` (120s) — IV backfill (Vercel cron, 22:00 UTC weekdays via `vercel.json`)
 - `backtest-data.js` (15s) — unified backtest endpoint (`?type=candles` or `?type=iv`)
-- `check-alerts.js` (60s) — stop loss/target price alerts → Discord webhook
+- `check-alerts.js` (60s) — DTE5: SL 2.5x credit alert + trailing lock 50% profit notification → Discord webhook. Non-DTE5: legacy 1.5x SL / 0.5x TP.
 - `daily-recap.js` (60s) — daily summary → Discord
 
 Cron routes verify `CRON_SECRET` via `Authorization: Bearer` header. Non-cron routes have no auth guard (single-user app, RLS at Supabase layer).
@@ -78,12 +78,22 @@ Data clients: `lib/orats-client.js` (ORATS), `lib/tiingo-client.js` (Tiingo)
 
 Located in `src/lib/backtest/`:
 - `engine.ts` — core simulation + V4 quality gates
-- `option-sim.ts` — credit spread simulator (BSM on ORATS chains), `DELTA_STOP` exit, bid/ask fills
-- `chain-cache.ts` — SQLite cache for ORATS chain data, `findContractDirect()` O(1) PK lookup
+- `option-sim.ts` — credit spread simulator (BSM on ORATS chains), all exit types (`PROFIT_TARGET`, `STOP_LOSS`, `MAX_LOSS_STOP`, `DELTA_STOP`, `TRAILING_LOCK`, `TIME_STOP`, `EXPIRATION`, `NO_CHAIN`), bid/ask fills. `SimConfig` defines all strategy parameters. `EntrySignal` carries per-signal delta/regime data.
+- `credit-spread-exit.ts` — exit logic module: `computeCreditSpreadThresholds()`, `resolveTriggeredCreditExitCost()`, `buildCreditSpreadTrade()`. Conservative SL pricing uses market spread cost, not threshold (gamma can gap past SL at DTE 2-7).
+- `chain-cache.ts` — SQLite cache for ORATS chain data, `findContractDirect()` O(1) PK lookup, `findSpreadStrikes()` for delta-targeted spreads
 - `bsm-pricing.ts` — BSM pricing, delta, O-U IV evolution, rolling HV
-- `wfa-options.ts` — rolling window WFA engine
+- `wfa-options.ts` — rolling window WFA engine, `buildWFAWindows()`, `evaluateConfiguredSignalsWithConstraints()`, `computePortfolioDailyMetrics()`
 - `slippage.ts` — dynamic slippage model
 - `portfolio-stress.ts` — correlated drawdown using dailyMtM
+
+### WFA Study Scripts
+
+Located in `scripts/`:
+- `wfa-dte5-tp-sl-study.ts` — Main DTE5 TP/SL study orchestrator (8 phases, 198 configs). CLI: `npx tsx scripts/wfa-dte5-tp-sl-study.ts --phase 1|2a|2b|3|3r|4|5|7|8`
+- `wfa-dte5-tp-sl-worker.ts` — Worker thread for DTE5 study. Supports per-signal delta (`signal.configuredDelta`), all exit mechanisms, override signals per work item.
+- `wfa-pipeline-swing.ts` / `wfa-pipeline-short.ts` — Archived swing/short-term pipelines (retired strategies)
+
+Study results go in `backtesting history/credit-spread/reports/dte5-tp-sl-study/` with phase JSON files + README.
 
 ### Risk Sizing
 
@@ -99,12 +109,15 @@ Test environment: jsdom with globals enabled. Setup file: `src/test/setup.ts`.
 
 ## Critical Rules
 
+- **Backtest trust gotchas**: Before making any claim about a strategy's performance, read `docs/backtest-trust-gotchas.md`. It catalogues every simulator bug and trap that has produced fake results in this project. Any new gotcha found must be added there. The runner enforces `MAX_SANE_OOS_SHARPE = 3.0` — anything higher is almost always a structural bug.
 - **Scoring parity**: `oss-core.ts` ↔ `scoring.cjs` must match. Run `npx vitest run tests/scoring-parity.test.ts` after any scoring change.
-- **All tests must pass**: 695+ tests. Never merge with failures.
+- **All tests must pass**: 743+ tests. Never merge with failures.
 - **Backtesting reports**: Must go in `backtesting history/credit-spread/reports/<study-name>/`. Each study folder gets a `README.md` plus data outputs. Never scatter results across `data/`, `scripts/`, or project root.
 - **ESLint**: Lints only `src/**/*.{ts,tsx}`. Ignores `api/`, `lib/`, `*.cjs`. Max 25 warnings.
 - **API route pattern**: `api/strategy-recommend.js` uses raw `fetch()` for Supabase REST (env: `SUPABASE_URL`/`SUPABASE_ANON_KEY`). `api/cron-iv.js` uses `@supabase/supabase-js` createClient.
 - **Paper trading**: Positions have `is_paper` boolean. Paper and live positions coexist; filter via the portfolio's paper/live toggle.
+- **Strategy config consistency**: When changing strategy parameters (EMA gate, SL, TL, tickers), update ALL of: `data/strategy-config.json`, `src/lib/strategyProfiles.ts`, `api/cron-signal-scan.js`, `api/check-alerts.js`, `src/pages/Signals.tsx`, `src/pages/Dashboard.tsx`, `lib/_shared/strategyConfig.js`, `src/lib/types/settings.ts`, and `CLAUDE.md`. Run `npx tsc --noEmit && npm run build` to verify.
+- **ORATS data quirk**: `orats_iv_cache.hv30d` is always NULL — ORATS `/hist/cores` doesn't provide `clsHv30d` (skips from 20d to 60d). Use `hv20d` for VRP computation (IV30² - HV20²).
 
 ## Env Vars
 

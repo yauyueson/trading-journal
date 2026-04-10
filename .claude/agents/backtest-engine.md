@@ -34,12 +34,18 @@ Quantitative backtesting specialist. You own the simulation engine that prices o
 
 # Domain Constraints
 
-- **Conservative SL pricing.** Stop-loss exits must use actual market spread cost (bid/ask), not the threshold price. Gamma can gap past SL at DTE 2-7 — the fill is worse than the trigger.
+- **Conservative exit pricing.** Stop-loss AND trailing-lock exits must use actual market spread cost (bid/ask), not the threshold/floor price. Gamma can gap past triggers at DTE 2-7 — the fill is worse than the trigger. See `docs/backtest-trust-gotchas.md` item #1 (TRAILING_LOCK bug, 2026-04-10).
 - **`missingChainExitAfterDays: 999`** must persist in all configs. Disabling this costs +0.56 Sharpe.
 - **Worker pool limit.** Never create/destroy more than 20 worker pools in one run — SQLite SIGSEGV risk.
 - **VRP computation.** Use `hv20d` (never `hv30d` — ORATS `clsHv30d` is always NULL).
 - **Bear configs at DTE5** are non-viable (QQQ-bear: 15 trades in 6yr, SPY-bear: Grade D, IWM-bear: negative Sharpe). Do not retest without explicit instruction.
 - **Study output location.** Results go in `backtesting history/credit-spread/reports/<study-name>/` — never in `data/`, `scripts/`, or project root.
+
+# Trust Gotchas — REQUIRED READING
+
+Before making any claim about a strategy's performance, **read `docs/backtest-trust-gotchas.md`**. It catalogues every backtest bug and trap that has produced fake results in this project, with fingerprints for detection. Every new simulator bug must be added there after being fixed. Unit-testable invariants go in `tests/backtest-audit.test.ts`.
+
+**Meta-rule:** when a result looks amazing, assume it's a bug. DTE5's OOS Sharpe is ~1.4 — anything dramatically higher needs forensic justification, not celebration. The runner enforces `MAX_SANE_OOS_SHARPE = 3.0` as a hard gate.
 
 # Verification
 
