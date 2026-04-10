@@ -202,6 +202,7 @@ describe('simulateCreditSpread TRAILING_LOCK', () => {
     // trailingFloorPct=0.25 → floor at profit 0.075 → spread cost 0.925
     // Day 1: spread cost 0.80 → profit=0.20, activates floor (0.20 >= 0.15)
     // Day 2: spread cost 0.95 → profit=0.05, below floor (0.95 > 0.925) → TRAILING_LOCK
+    // Exit price = market cost 0.95 (NOT floor 0.925) — conservative fill
     findContractDirectMock.mockImplementation((_ticker, date, strike) => {
       if (date === '2024-01-03') {
         return strike === 100
@@ -233,7 +234,7 @@ describe('simulateCreditSpread TRAILING_LOCK', () => {
     expect(trade).not.toBeNull();
     expect(trade?.exitType).toBe('TRAILING_LOCK');
     expect(trade?.exitDate).toBe('2024-01-04');
-    expect(trade?.exitPrice).toBeCloseTo(0.925, 6);
+    expect(trade?.exitPrice).toBeCloseTo(0.95, 6);
   });
 
   it('does not trigger trailing lock if profit never reaches activation', async () => {

@@ -178,11 +178,14 @@ describe('resolveTriggeredCreditExitCost', () => {
     expect(resolveTriggeredCreditExitCost('MAX_LOSS_STOP', 9.0, thresholds)).toBe(Infinity);
   });
 
-  it('TRAILING_LOCK returns floor cost', () => {
-    expect(resolveTriggeredCreditExitCost('TRAILING_LOCK', 0.30, thresholds, { trailingFloorCost: 0.25 })).toBe(0.25);
+  it('TRAILING_LOCK returns market cost, not floor (conservative fill)', () => {
+    // The floor is the trigger level, not the fill level. Once the market
+    // has moved past the floor, a resting limit at the floor cannot fill.
+    // Same principle as STOP_LOSS — exit at whatever the market offers.
+    expect(resolveTriggeredCreditExitCost('TRAILING_LOCK', 0.30, thresholds, { trailingFloorCost: 0.25 })).toBe(0.30);
   });
 
-  it('TRAILING_LOCK falls back to currentSpreadCost', () => {
+  it('TRAILING_LOCK ignores trailingFloorCost option', () => {
     expect(resolveTriggeredCreditExitCost('TRAILING_LOCK', 0.30, thresholds)).toBe(0.30);
   });
 

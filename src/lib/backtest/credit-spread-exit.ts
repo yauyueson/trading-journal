@@ -152,7 +152,12 @@ export function resolveTriggeredCreditExitCost(
     case 'MAX_LOSS_STOP':
       return thresholds.maxLossStopCost;
     case 'TRAILING_LOCK':
-      return clampSpreadCloseCost(opts.trailingFloorCost ?? currentSpreadCost, thresholds.actualWidth);
+      // Exit at market, NOT at the floor. The floor is the trigger level,
+      // not the fill level — a limit order at the floor cannot fill once the
+      // market has moved past it. Same conservative principle as STOP_LOSS.
+      // (The trailingFloorCost param is retained for backward compatibility
+      //  with callers but no longer consulted.)
+      return clampSpreadCloseCost(currentSpreadCost, thresholds.actualWidth);
     case 'PROFIT_TARGET_2':
     case 'SL_BREAKEVEN':
       return clampSpreadCloseCost(opts.overrideThresholdCost ?? currentSpreadCost, thresholds.actualWidth);
