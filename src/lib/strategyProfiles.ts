@@ -158,15 +158,6 @@ export function getProfile(strategy: StrategyType): StrategyProfile {
   return STRATEGY_PROFILES[strategy];
 }
 
-/** Merge live config values (from Supabase) with UI metadata from STRATEGY_PROFILES */
-export function getMergedProfile(
-  strategy: StrategyType,
-  liveConfig?: Partial<Record<StrategyType, Partial<StrategyProfile>>>
-): StrategyProfile {
-  const base = STRATEGY_PROFILES[strategy];
-  if (!liveConfig) return base;
-  return { ...base, ...liveConfig[strategy] };
-}
 
 /** Derive the strategy type from a selected DTE value */
 export function deriveStrategyFromDte(dteVal: number): StrategyType {

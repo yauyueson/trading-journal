@@ -200,28 +200,27 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         }
     };
 
+    /** Compute trade profile from result + recommendation (used by watchlist, open position, and regime card) */
+    const computeTradeProfile = (rec: Recommendation) => {
+        if (!result) return { profile: '', isCredit: false, ivRegime: 'flat' as const, delta: 0.3, gt: 0 };
+        const isSpreadType = isSpread(rec);
+        const isCredit = result.recommendedStrategy === 'CREDIT_SPREAD' || result.regime.mode === 'CREDIT';
+        const ivRegime = (result.regime.mode === 'CREDIT' ? 'backwardation' : result.regime.mode === 'DEBIT' ? 'contango' : 'flat') as 'contango' | 'backwardation' | 'flat';
+        const delta = isSpreadType
+            ? Math.abs((rec as SpreadRecommendation).shortLeg?.delta || 0.3)
+            : Math.abs((rec as SingleLegRecommendation).delta || 0.3);
+        const gt = !isSpreadType && (rec as SingleLegRecommendation).gamma != null
+            ? ((rec as SingleLegRecommendation).gamma || 0) / Math.max(Math.abs((rec as SingleLegRecommendation).theta || 1), 0.001)
+            : 0;
+        const profile = classifyTradeProfile({ isCredit, ivRegime, ivRank: result.regime.ivRank, dte: result.context.targetDte, gtRatio: gt, delta });
+        return { profile, isCredit, ivRegime, delta, gt };
+    };
+
     const handleAddToWatchlist = async (rec: Recommendation) => {
         if (!onAddToWatchlist || !result) return;
 
         const isSpreadType = isSpread(rec);
-
-        // Compute trade profile at entry (retrospective categorization)
-        const entryIsCredit = result.recommendedStrategy === 'CREDIT_SPREAD' || result.regime.mode === 'CREDIT';
-        const entryIvRegime = result.regime.mode === 'CREDIT' ? 'backwardation' : result.regime.mode === 'DEBIT' ? 'contango' : 'flat';
-        const entryDelta = isSpreadType
-            ? Math.abs((rec as SpreadRecommendation).shortLeg?.delta || 0.3)
-            : Math.abs((rec as SingleLegRecommendation).delta || 0.3);
-        const entryGT = !isSpreadType && (rec as SingleLegRecommendation).gamma != null
-            ? ((rec as SingleLegRecommendation).gamma || 0) / Math.max(Math.abs((rec as SingleLegRecommendation).theta || 1), 0.001)
-            : 0;
-        const entryTradeProfile = classifyTradeProfile({
-            isCredit: entryIsCredit,
-            ivRegime: entryIvRegime as 'contango' | 'backwardation' | 'flat',
-            ivRank: result.regime.ivRank,
-            dte: result.context.targetDte,
-            gtRatio: entryGT,
-            delta: entryDelta,
-        });
+        const { profile: entryTradeProfile, ivRegime: entryIvRegime } = computeTradeProfile(rec);
         const entryIvRegimeEntry = entryIvRegime;
         const entryIvRank = result.regime.ivRank != null ? result.regime.ivRank : undefined;
 
@@ -277,24 +276,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
         setOpenPosSubmitting(true);
 
         const isSpreadType = isSpread(rec);
-
-        // Reuse same trade profile logic as watchlist
-        const entryIsCredit = result.recommendedStrategy === 'CREDIT_SPREAD' || result.regime.mode === 'CREDIT';
-        const entryIvRegime = result.regime.mode === 'CREDIT' ? 'backwardation' : result.regime.mode === 'DEBIT' ? 'contango' : 'flat';
-        const entryDelta = isSpreadType
-            ? Math.abs((rec as SpreadRecommendation).shortLeg?.delta || 0.3)
-            : Math.abs((rec as SingleLegRecommendation).delta || 0.3);
-        const entryGT = !isSpreadType && (rec as SingleLegRecommendation).gamma != null
-            ? ((rec as SingleLegRecommendation).gamma || 0) / Math.max(Math.abs((rec as SingleLegRecommendation).theta || 1), 0.001)
-            : 0;
-        const entryTradeProfile = classifyTradeProfile({
-            isCredit: entryIsCredit,
-            ivRegime: entryIvRegime as 'contango' | 'backwardation' | 'flat',
-            ivRank: result.regime.ivRank,
-            dte: result.context.targetDte,
-            gtRatio: entryGT,
-            delta: entryDelta,
-        });
+        const { profile: entryTradeProfile, ivRegime: entryIvRegime } = computeTradeProfile(rec);
 
         let legs: PositionLeg[] | undefined = undefined;
         if (isSpreadType) {
@@ -636,26 +618,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
                     {/* Regime Card */}
                     {(() => {
-                        // Compute Trade Profile from result + user inputs
-                        const isCredit = result.recommendedStrategy === 'CREDIT_SPREAD' || result.regime.mode === 'CREDIT';
-                        const ivRegime = result.regime.mode === 'CREDIT' ? 'backwardation' : result.regime.mode === 'DEBIT' ? 'contango' : 'flat';
                         const recs = (result.strategies.TARGET_STRATEGY as Recommendation[]) || [];
                         const topRec = recs[0];
-                        const topDelta = topRec
-                            ? isSpread(topRec) ? Math.abs((topRec as SpreadRecommendation).shortLeg?.delta || 0.3)
-                                : Math.abs((topRec as SingleLegRecommendation).delta || 0.3)
-                            : 0.3;
-                        const topGT = topRec && !isSpread(topRec) && (topRec as SingleLegRecommendation).gamma != null
-                            ? ((topRec as SingleLegRecommendation).gamma || 0) / Math.max(Math.abs((topRec as SingleLegRecommendation).theta || 1), 0.001)
-                            : 0;
-                        const tradeProfile = classifyTradeProfile({
-                            isCredit,
-                            ivRegime: ivRegime as 'contango' | 'backwardation' | 'flat',
-                            ivRank: result.regime.ivRank,
-                            dte: result.context.targetDte,
-                            gtRatio: topGT,
-                            delta: topDelta,
-                        });
+                        const { profile: tradeProfile } = topRec ? computeTradeProfile(topRec) : { profile: '' };
                         const profileColors: Record<string, string> = {
                             'Gamma Burst': 'bg-purple-500/15 text-purple-300 border-purple-500/30',
                             'Delta Trend': 'bg-blue-500/15 text-blue-300 border-blue-500/30',

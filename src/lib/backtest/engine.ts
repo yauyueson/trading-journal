@@ -54,14 +54,6 @@ export function classifyEntryQuality(d8: number): { quality: EntryQuality; eqNor
   return                     { quality: 'CHASING',    eqNorm: -0.40 };
 }
 
-function entryQualityToNorm(eq: EntryQuality): number {
-  switch (eq) {
-    case 'OPTIMAL': return 0.75;
-    case 'ACCEPTABLE': return 0.25;
-    case 'MARGINAL': return -0.10;
-    case 'CHASING': return -0.40;
-  }
-}
 
 function scoreTier(score: number): Tier {
   if (score >= 90) return 'S';
@@ -374,7 +366,8 @@ export function runBacktestFull(
       let eqNorm: number;
       if (ps.entryContext) {
         quality = ps.entryContext;
-        eqNorm = entryQualityToNorm(quality);
+        const eqMap: Record<EntryQuality, number> = { OPTIMAL: 0.75, ACCEPTABLE: 0.25, MARGINAL: -0.10, CHASING: -0.40 };
+        eqNorm = eqMap[quality];
       } else {
         ({ quality, eqNorm } = classifyEntryQuality(ps.d8));
       }

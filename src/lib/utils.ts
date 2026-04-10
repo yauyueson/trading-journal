@@ -39,7 +39,6 @@ export const daysUntil = (d: string): number => {
     return Math.ceil((target.getTime() - today.getTime()) / 86400000);
 };
 
-export const daysSince = (d: string): number => Math.ceil((new Date().getTime() - new Date(d).getTime()) / 86400000);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _env = (import.meta as any).env ?? {};
@@ -47,12 +46,6 @@ export const SUPABASE_URL: string = _env.VITE_SUPABASE_URL ?? '';
 export const SUPABASE_KEY: string = _env.VITE_SUPABASE_ANON_KEY ?? '';
 export const CONTRACT_MULTIPLIER = 100;
 
-export const STRATEGIES = [
-    'Auto-Select Strategy',
-    'Long Call', 'Long Put',
-    'Debit Call Spread', 'Debit Put Spread',
-    'Credit Call Spread', 'Credit Put Spread',
-];
 
 /** Check if a position type is a credit strategy (Credit spreads, Short positions). */
 export function isCreditStrategy(positionType: string): boolean {
