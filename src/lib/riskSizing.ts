@@ -330,9 +330,11 @@ export function getDTE5Sizing(
     riskPct = 0.10,
 ): { maxContracts: number; riskDollars: number; riskPct: number; warning: string | null } {
     const riskBudget = capitalBase * riskPct;
-    const contracts = Math.max(1, Math.floor(riskBudget / maxRiskPerContract));
+    const contracts = maxRiskPerContract > 0 ? Math.floor(riskBudget / maxRiskPerContract) : 0;
     const riskDollars = maxRiskPerContract * contracts;
     const actualRiskPct = capitalBase > 0 ? (riskDollars / capitalBase) * 100 : 0;
-    const warning = actualRiskPct > 50 ? `${actualRiskPct.toFixed(0)}% of capital at risk per trade` : null;
+    const warning = contracts === 0
+        ? `Risk per contract ($${maxRiskPerContract.toFixed(0)}) exceeds budget ($${riskBudget.toFixed(0)}) — skip this trade`
+        : actualRiskPct > 50 ? `${actualRiskPct.toFixed(0)}% of capital at risk per trade` : null;
     return { maxContracts: contracts, riskDollars, riskPct: actualRiskPct, warning };
 }

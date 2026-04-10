@@ -95,7 +95,7 @@ export function DashboardPage() {
 
   const computeSize = useCallback((spread: SpreadRecommendation) => {
     const riskPerContract = spread.maxRisk * CONTRACT_MULTIPLIER;
-    const contracts = riskPerContract > 0 ? Math.max(1, Math.floor(maxRiskDollars / riskPerContract)) : 1;
+    const contracts = riskPerContract > 0 ? Math.floor(maxRiskDollars / riskPerContract) : 0;
     const maxLoss = contracts * riskPerContract;
     const credit = spread.netCredit ?? 0;
     const maxProfit = credit * contracts * CONTRACT_MULTIPLIER;

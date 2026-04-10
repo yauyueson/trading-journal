@@ -159,7 +159,27 @@ export default async function handler(req, res) {
         const longMid = findOptionMid(chain, ticker,
           (longLegDef.expiration || '').slice(0, 10), longLegDef.strike, longLegDef.type || 'Put');
 
-        if (shortMid == null || longMid == null) continue;
+        if (shortMid == null || longMid == null) {
+          // Alert that pricing data is unavailable — SL monitoring is blind
+          try {
+            await fetch(webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              signal: AbortSignal.timeout(5000),
+              body: JSON.stringify({
+                content: null,
+                embeds: [{
+                  title: '⚠️ Pricing Unavailable',
+                  description: `**${ticker}** spread — cannot fetch option mid prices. SL/TL monitoring skipped this cycle.`,
+                  color: 0xf59e0b,
+                  footer: { text: 'Trading Journal · Check ORATS status' },
+                  timestamp: new Date().toISOString(),
+                }],
+              }),
+            });
+          } catch (_) { /* best-effort */ }
+          continue;
+        }
 
         // Determine strategy direction from position type (not strategy_type which is swing/shortTerm)
         const posType = (pos.type || '').toLowerCase();
@@ -229,6 +249,7 @@ export default async function handler(req, res) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(spreadBody),
+            signal: AbortSignal.timeout(5000),
           });
           if (discordRes.ok) {
             sent++;
@@ -299,6 +320,7 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(5000),
       });
 
       if (discordRes.ok) {
@@ -341,6 +363,7 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(5000),
       });
 
       if (discordRes.ok) {

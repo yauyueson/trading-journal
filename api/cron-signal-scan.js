@@ -664,28 +664,9 @@ export default async function handler(req, res) {
     // Sort signals by score descending
     signals.sort((a, b) => b.score - a.score);
 
-    // 130M candle cache top-up (keeps short-term signal board warm)
-    let topUp130M = { topped: 0, skipped: 0, failed: 0 };
-    try {
-        topUp130M = await topUp130MCandles(today);
-    } catch (err) {
-        console.warn('[signal-scan/130M] Top-up failed:', err.message);
-    }
-
-    // Send swing Discord
-    await sendDiscord(signals, scanned, today);
-
-    // ── Short-Term 130M Signal Scan ──────────────────────────────────────
-    let stResult = { signals: [], scanned: 0, errors: [] };
-    try {
-        stResult = await scanShortTermSignals(config, today);
-        console.log(`[signal-scan/ST] Done: ${stResult.scanned} scanned, ${stResult.signals.length} signals`);
-        await sendShortTermDiscord(stResult.signals, stResult.scanned, today);
-    } catch (stErr) {
-        console.warn('[signal-scan/ST] Short-term scan failed:', stErr.message);
-    }
-
     // ── DTE5 Signal Check (multi-ticker bull + bear) ────────────────────
+    // Run FIRST — this is the active live strategy. Must complete before
+    // timeout risk from 130M top-up or retired short-term scan.
     let dte5Result = [];
     try {
         dte5Result = await checkDTE5Signal(today);
@@ -701,7 +682,6 @@ export default async function handler(req, res) {
             `select=id,ticker,legs,expiration&status=eq.active&strategy_type=eq.dte5&expiration=lte.${today}`);
         if (expiredDTE5?.length > 0) {
             for (const pos of expiredDTE5) {
-                // Close the expired position
                 const url = process.env.SUPABASE_URL;
                 const key = process.env.SUPABASE_ANON_KEY;
                 if (url && key) {
@@ -716,7 +696,6 @@ export default async function handler(req, res) {
                     }
                 }
 
-                // Determine OTM/ITM
                 const legs = pos.legs || [];
                 const shortLeg = legs.find(l => l.side === 'short');
                 const shortStrike = shortLeg?.strike;
@@ -729,7 +708,6 @@ export default async function handler(req, res) {
 
                 console.log(`[DTE5] Auto-closed expired: ${pos.ticker} ${spreadDesc} (${itm ? 'ITM' : 'OTM'})`);
 
-                // Discord alert
                 const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
                 if (webhookUrl) {
                     await fetch(webhookUrl, {
@@ -751,6 +729,27 @@ export default async function handler(req, res) {
         }
     } catch (expErr) {
         console.warn('[DTE5] Expiration auto-close failed:', expErr.message);
+    }
+
+    // Send swing Discord
+    await sendDiscord(signals, scanned, today);
+
+    // 130M candle cache top-up (keeps short-term signal board warm)
+    let topUp130M = { topped: 0, skipped: 0, failed: 0 };
+    try {
+        topUp130M = await topUp130MCandles(today);
+    } catch (err) {
+        console.warn('[signal-scan/130M] Top-up failed:', err.message);
+    }
+
+    // ── Short-Term 130M Signal Scan (retired strategy — low priority) ────
+    let stResult = { signals: [], scanned: 0, errors: [] };
+    try {
+        stResult = await scanShortTermSignals(config, today);
+        console.log(`[signal-scan/ST] Done: ${stResult.scanned} scanned, ${stResult.signals.length} signals`);
+        await sendShortTermDiscord(stResult.signals, stResult.scanned, today);
+    } catch (stErr) {
+        console.warn('[signal-scan/ST] Short-term scan failed:', stErr.message);
     }
 
     // Time stop monitoring (strategy-aware: shortTerm=1 DTE, swing=3 DTE, dte5=hold-to-expiry)
