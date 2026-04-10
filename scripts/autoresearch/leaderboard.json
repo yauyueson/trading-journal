@@ -1,0 +1,48 @@
+[
+  {
+    "strategyName": "momentum-dte60-90-ts14-v1",
+    "timestamp": "2026-04-10T19:20:43.422Z",
+    "oosSharpe": 0.6116934252003258,
+    "oosMaxDD": 28.14010608058659,
+    "oosWinRate": 80.42763157894737,
+    "oosTrades": 608,
+    "oosTotalPnl": 5333.930226284195,
+    "combinedSharpe": 0.6728341512688326,
+    "correlationWithDTE5": 0.41491059926762264,
+    "combinedMaxDD": 19.963954599858937,
+    "holdoutSharpe": 0.8924573387091141,
+    "holdoutTrades": 54,
+    "oosSpyIR": -0.651010366656295,
+    "oosSpyExcessReturn": -0.0998246377434689,
+    "holdoutSpyIR": -0.3765157196224365,
+    "holdoutSpyExcessReturn": -0.03215125714174198,
+    "avgTrainSharpe": 0.5512116958323638,
+    "wfEfficiency": 1.1097250472463773,
+    "passesMinTrades": true,
+    "passesMaxDD": true,
+    "passesWFA": true,
+    "passesHoldout": true,
+    "passesHoldoutOrIR": true,
+    "passesSanity": true,
+    "isValid": true,
+    "holdoutOOSRatio": 1.458994492897876,
+    "bootstrapSharpe95CI": [
+      -0.1888331017737935,
+      1.38573464492612
+    ],
+    "bootstrapSignificant": false,
+    "attemptNumber": 1,
+    "deflatedSharpe": 0.6116934252003258,
+    "exitTypeBreakdown": {
+      "PROFIT_TARGET": 235,
+      "TRAILING_LOCK": 246,
+      "STOP_LOSS": 56,
+      "EXPIRATION": 57,
+      "TIME_STOP": 4,
+      "NO_CHAIN": 10
+    },
+    "signalsGenerated": 15443,
+    "signalsSkippedNoChain": 14781,
+    "elapsedMs": 3409
+  }
+]

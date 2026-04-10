@@ -344,7 +344,27 @@ Every item on this page is a real bug or trap that has produced fake results in 
 
 ---
 
-### 22. Stale 1D candle cache serving yesterday's prices
+### 22. Bash ARG_MAX exceeded when passing growing journal as prompt arg
+**Fixed:** 2026-04-10 (run-overnight.sh)
+**File:** `scripts/autoresearch/run-overnight.sh`
+
+**What happened:** The autoresearch loop passed the full prompt (leaderboard + journal + strategy.ts + instructions) to `claude -p` as a command-line argument via `$(cat "$PROMPT_FILE")`. macOS `ARG_MAX` is ~256KB. After 4-13 iterations the journal grew past that limit, and every subsequent iteration failed instantly with `Argument list too long`. The shell script kept looping — each failed iteration "completed" in ~2 seconds with the error message captured as the claude output, and the journal never got updated, which masked the failure (it looked like the loop was still running).
+
+**How it was discovered:** The run-log showed `You've hit your limit · resets 2pm` for iterations 14-50, but the agent was supposed to be running sonnet. Investigation revealed the actual error was ARG_MAX, which the bash pipeline silently masked under the usage-limit line returned by claude.
+
+**Fingerprint:**
+- Long-running loop where iterations suddenly complete in <5 seconds each
+- Error messages like "Argument list too long" in the run log
+- Leaderboard stops growing while the loop keeps "iterating"
+- Any pattern where `claude -p "$(cat BIG_FILE)"` or `command -arg "$(big_content)"` accumulates content over time
+
+**Prevention:**
+- Pipe content via stdin: `cat file | claude -p` instead of `claude -p "$(cat file)"`
+- If the CLI supports a `--input-file` flag, use that
+- For any long-running loop that passes accumulated context, stress-test at 5x expected size
+- The meta-lesson: **any bash pattern that accumulates content will eventually exceed ARG_MAX.** Default to stdin pipes or file references.
+
+### 23. Stale 1D candle cache serving yesterday's prices
 **Where:** `api/backtest-data.js` — `getCached1DCandles` (fixed 2026-03-30, commit 7332ad9)
 
 **What:** The 1D candle cache returned Supabase `stock_candles` rows without checking if the data was current. Signal scans and backtests using the 1D path silently ran on yesterday's (or older) closing prices while the 130M path correctly fetched live data. Signals generated with stale data then matched signals generated with fresh data in end-of-day comparisons, creating apparent — but fake — consistency.

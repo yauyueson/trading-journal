@@ -16,6 +16,10 @@ data/*.json
 data/cache/
 data/runs/
 scripts/.*.mjs
+scripts/autoresearch/.*.mjs
+scripts/autoresearch/run-log.txt
+scripts/autoresearch/leaderboard.pre-*.json
+.iter*_entry_tmp.md
 chain-cache.db
 .worktrees/
 .vscode/
