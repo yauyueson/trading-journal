@@ -141,8 +141,9 @@ export default async function handler(req, res) {
       // Handle 2-leg spreads (credit and debit)
       if (legs.length === 2) {
         const posTxns = txnsByPos[pos.id] || [];
-        const netTxn = posTxns.find(t => t.price != null);
-        const entryNet = netTxn ? Math.abs(netTxn.price) : 0;
+        const openTxn = posTxns.find(t => t.type === 'Open' && t.price != null)
+          || posTxns.find(t => t.price != null);
+        const entryNet = openTxn ? Math.abs(openTxn.price) : 0;
         if (!entryNet) continue;
 
         const ticker = (pos.ticker || '').toUpperCase();
@@ -224,12 +225,16 @@ export default async function handler(req, res) {
           }],
         };
         try {
-          await fetch(webhookUrl, {
+          const discordRes = await fetch(webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(spreadBody),
           });
-          sent++;
+          if (discordRes.ok) {
+            sent++;
+          } else {
+            console.warn('Discord spread alert failed:', discordRes.status, await discordRes.text());
+          }
         } catch (discordErr) {
           console.warn('Discord spread alert failed:', discordErr.message);
         }

@@ -41,10 +41,10 @@ export const daysUntil = (d: string): number => {
 
 export const daysSince = (d: string): number => Math.ceil((new Date().getTime() - new Date(d).getTime()) / 86400000);
 
-// Use a simplified constant for now. 
-// In a real app we might put this in .env, but for migration parity we keep it here or env.
-export const SUPABASE_URL = 'https://irejefxhgetulqmxponl.supabase.co';
-export const SUPABASE_KEY = 'sb_publishable_STPE7Kl1Pnlwm6a-mCa-9g_U7hvret6';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _env = (import.meta as any).env ?? {};
+export const SUPABASE_URL: string = _env.VITE_SUPABASE_URL ?? '';
+export const SUPABASE_KEY: string = _env.VITE_SUPABASE_ANON_KEY ?? '';
 export const CONTRACT_MULTIPLIER = 100;
 
 export const STRATEGIES = [

@@ -705,11 +705,15 @@ export default async function handler(req, res) {
                 const url = process.env.SUPABASE_URL;
                 const key = process.env.SUPABASE_ANON_KEY;
                 if (url && key) {
-                    await fetch(`${url}/rest/v1/positions?id=eq.${pos.id}`, {
+                    const patchRes = await fetch(`${url}/rest/v1/positions?id=eq.${pos.id}`, {
                         method: 'PATCH',
                         headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
                         body: JSON.stringify({ status: 'closed', closed_at: pos.expiration, exit_type: 'TIME' }),
                     });
+                    if (!patchRes.ok) {
+                        console.error(`[signal-scan/DTE5] Auto-close PATCH failed for ${pos.id}:`, patchRes.status);
+                        continue;
+                    }
                 }
 
                 // Determine OTM/ITM

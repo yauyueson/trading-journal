@@ -205,10 +205,10 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    const { job = 'snapshot', manual } = req.query;
+    const { job = 'snapshot' } = req.query;
     const cronSecret = process.env.CRON_SECRET;
     const authHeader = req.headers['authorization'];
-    if (cronSecret && manual !== '1' && authHeader !== `Bearer ${cronSecret}`) {
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
