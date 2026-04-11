@@ -42,7 +42,7 @@ const {
   evaluatorMode,
 } = workerData as WorkerInitData;
 
-initDB();
+initDB(undefined, /* readonly= */ true);
 
 // ── Chain Lookup for Custom Evaluators ───────────────────
 
@@ -305,6 +305,18 @@ function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
 
     const dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
 
+    // Trailing lock state for LEAP
+    // Activate when gain >= trailingActivatePct * (entryPrice * leapProfitTarget)
+    // Floor: trail peak, exit if price drops trailingFloorPct below peak
+    const trailActivatePct = config.trailingActivatePct ?? null;
+    const trailFloorPct = config.trailingFloorPct ?? null;
+    let trailActive = false;
+    let trailPeak = 0;
+    let trailFloor = 0;
+    const trailActivatePrice = (trailActivatePct != null)
+      ? entryPrice + entryPrice * config.leapProfitTarget * trailActivatePct
+      : Infinity;
+
     for (const checkDate of monitorDates) {
       // O(1) direct PK lookup — critical for daily monitoring on long-dated options
       const current = findContractDirect(signal.ticker, checkDate, entry.row.strike, entry.row.expir_date, optionType);
@@ -319,8 +331,24 @@ function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
       const exitHalfSpread = (current.ask > 0 && current.bid > 0) ? (current.ask - current.bid) / 2 : currentMid * 0.01;
       const currentExitPrice = currentMid - exitHalfSpread;
 
+      // Update trailing lock state
+      if (trailActivatePct != null && trailFloorPct != null) {
+        if (!trailActive && currentExitPrice >= trailActivatePrice) {
+          trailActive = true;
+          trailPeak = currentExitPrice;
+          trailFloor = currentExitPrice * (1 - trailFloorPct);
+        }
+        if (trailActive) {
+          if (currentExitPrice > trailPeak) {
+            trailPeak = currentExitPrice;
+            trailFloor = currentExitPrice * (1 - trailFloorPct);
+          }
+        }
+      }
+
       let exitType: OptionExitType | null = null;
-      if (currentExitPrice >= tpPrice) exitType = 'PROFIT_TARGET';
+      if (trailActive && currentExitPrice < trailFloor) exitType = 'TRAILING_LOCK';
+      else if (currentExitPrice >= tpPrice) exitType = 'PROFIT_TARGET';
       else if (currentExitPrice <= slPrice) exitType = 'STOP_LOSS';
       else if (currentDTE <= config.leapTimeStopDTE) exitType = 'TIME_STOP';
 

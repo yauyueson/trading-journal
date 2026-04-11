@@ -470,7 +470,7 @@ async function main() {
   const simConfig = strategy.buildConfig(strategy.tickers[0], 'CALL');
 
   // 8. Bundle and spawn worker pool (8 cores)
-  const NUM_WORKERS = 8;
+  const NUM_WORKERS = 4;  // reduced from 8 — 8-worker segfault with EMA55 filter iterations
   const workerSrc = path.resolve(__dirname, 'worker.ts');
   const workerBundle = path.resolve(__dirname, '.autoresearch-worker.mjs');
   execSync(

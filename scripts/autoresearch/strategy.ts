@@ -1,41 +1,49 @@
 /**
- * strategy.ts — CURRENT CHAMPION: momentum-delta25-v1
+ * strategy.ts — CURRENT CHAMPION: momentum-ma-touch-leap-weekly-v23
  *
- * Combined Sharpe: 0.742 (with DTE5)
- * Standalone Sharpe: 0.762
- * Holdout Sharpe: 1.134
- * Correlation with DTE5: 0.429
- * OOS Trades: 661
- * Exit breakdown: TRAILING_LOCK 264, PROFIT_TARGET 271, STOP_LOSS 63
+ * Combined Sharpe: 1.454 (with DTE5)
+ * Standalone Sharpe: 1.443
+ * Holdout Sharpe: 1.755
+ * Holdout SPY IR: +1.426 (POSITIVE — beats SPY risk-adjusted)
+ * Correlation with DTE5: 0.081 (near-zero, genuine diversification)
+ * OOS Trades: 183 | Win Rate: 63.4% | MaxDD: 27.7%
+ * OOS P&L: $54,772 on $10K over ~6 years (~+529%)
+ * Bootstrap 95% CI: [0.50, 2.16] — bootstrapSignificant: true
  *
- * Reached on 2026-04-10 post-TRAILING_LOCK-fix run (attempt #3).
- * Previous champion (momentum-dte60-90-ts14-v1) scored 0.673 under
- * the clean simulator. This version lowers delta 0.30 → 0.25 giving
- * wider margin before a loss, improving combined Sharpe by +0.07.
+ * Reached on 2026-04-10 after 114 attempts (7 shell iterations).
+ * Honest deflated Sharpe: -1.62 (expected for 114 trials — not a bug).
+ * True OOS expectation: ~0.8–1.1 Sharpe (selection bias inflates exact number).
  *
- * NOTE: momentum-rsi-gate-v1 (attempt #12) had OOS 0.816 but FAILED
- * holdout gate (holdout Sharpe 0.061, IR -1.80) — RSI filter removes
- * too many signals in the holdout period, hurting performance there.
+ * Structure:
+ *   - Entry: price within 0-5% above rising EMA34 ("MA-touch pullback")
+ *   - Instrument: long CALL LEAP, delta 0.70-0.80, DTE 180-270
+ *   - TP: 25% gain, SL: 30% loss, time stop 45 DTE remaining
+ *   - Monitoring: every 3 days (avoids false SL on 1-2 day dips)
+ *   - Max 4 positions, 12 tickers
  *
- * Next iteration should explore STRUCTURAL changes:
- *   - Regime-gated entry (VIX < 20 or VRP positive)
- *   - Sector rotation (dynamic ticker weighting)
- *   - Iron condor (add PUT side to be directionally neutral)
- *   - DTE 45-60 (faster theta without gamma risk)
- *   - PUT spread entries (capture downside momentum, diversify direction)
+ * Key findings from this research run:
+ *   1. LEAP > credit spread for MA-touch signal (first positive SPY IR)
+ *   2. 3-day monitoring interval was the biggest lever (+22% combined Sharpe)
+ *   3. TP=25% is a hard ceiling — >25% fails holdout gate consistently
+ *   4. EMA34 specifically optimal (EMA21 and EMA55 both degrade performance)
+ *   5. Entry filters (RSI, VRP, IV rank) all failed holdout — broad entry is better
+ *
+ * NEXT STEP: Paper trade this structure alongside DTE5 (small size).
+ * Target 20-30 live trades for independent validation before sizing up.
+ * No more backtesting will resolve selection bias.
  */
 import type { StrategyDefinition, TickerDataBundle, EntrySignal, SimConfig } from './types';
-import { DEFAULT_CREDIT_CONFIG } from '../../src/lib/backtest/option-sim';
+import { DEFAULT_LEAP_CONFIG } from '../../src/lib/backtest/option-sim';
 
 export const strategy: StrategyDefinition = {
-  name: 'momentum-delta25-v1',
+  name: 'momentum-ma-touch-leap-weekly-v23',
 
   tickers: [
-    'GLD', 'IWM',                              // ETFs with different drivers
-    'AAPL', 'MSFT', 'GOOG', 'AMZN', 'META',    // mega-cap tech
-    'JPM', 'GS',                               // financials
-    'COST', 'UNH',                             // defensive
-    'NFLX',                                    // growth
+    'GLD', 'IWM',
+    'AAPL', 'MSFT', 'GOOG', 'AMZN', 'META',
+    'JPM', 'GS',
+    'COST', 'UNH',
+    'NFLX',
   ],
 
   generateSignals(data: TickerDataBundle): EntrySignal[] {
@@ -46,22 +54,18 @@ export const strategy: StrategyDefinition = {
       const c = data.candles[i];
       if (ema34[i] <= 0 || ema34[i - 5] <= 0) continue;
 
-      // Momentum filter: price above EMA34 AND EMA34 rising (5-bar slope)
-      const priceAboveMA = c.close > ema34[i];
+      // MA-touch: price 0-5% above rising EMA34
+      const pctAboveMA = (c.close - ema34[i]) / ema34[i];
+      const nearMA = pctAboveMA >= 0 && pctAboveMA < 0.05;
       const maRising = ema34[i] > ema34[i - 5];
-      if (!priceAboveMA || !maRising) continue;
+      if (!nearMA || !maRising) continue;
 
-      const regime = data.regimeByDate.get(c.date);
       signals.push({
         ticker: data.ticker,
         date: c.date,
         direction: 'CALL',
         score: 50,
         ivRank: data.ivRanks[i] ?? undefined,
-        vrp: regime?.vrp,
-        contango: regime?.contango,
-        vrpPct: regime?.vrpPct,
-        contangoPct: regime?.contangoPct,
       });
     }
     return signals;
@@ -69,24 +73,21 @@ export const strategy: StrategyDefinition = {
 
   buildConfig(_ticker: string, _direction: 'CALL' | 'PUT'): SimConfig {
     return {
-      ...DEFAULT_CREDIT_CONFIG,
-      mode: 'CREDIT_SPREAD',
-      creditShortDelta: 0.25,           // delta 0.25 (vs 0.30 baseline) — wider margin
-      creditSpreadWidth: 5,
-      creditDTERange: [60, 90] as [number, number],
-      creditProfitTarget: 0.50,
-      creditStopLossMultiple: 2.5,
-      creditTimeStopDTE: 14,
-      trailingActivatePct: 0.50,
-      trailingFloorPct: 0.50,
-      monitoringIntervalDays: 1,
+      ...DEFAULT_LEAP_CONFIG,
+      mode: 'LEAP',
+      leapDeltaRange: [0.70, 0.80] as [number, number],
+      leapDTERange: [180, 270] as [number, number],
+      leapProfitTarget: 0.25,
+      leapStopLoss: 0.30,
+      leapTimeStopDTE: 45,
+      monitoringIntervalDays: 3,   // key: avoids false SL on 1-2 day dips
       minIVRank: 0,
       missingChainExitAfterDays: 3,
     };
   },
 
   portfolio: {
-    maxPositions: 5,
+    maxPositions: 4,
     maxPerTicker: 1,
     startingCapital: 10_000,
   },

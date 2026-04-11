@@ -437,3 +437,47 @@ When you find a new gotcha, add an entry with this shape:
 ```
 
 Then add any unit-testable invariant to `tests/backtest-audit.test.ts`.
+
+---
+
+## Measurement Artifacts (not bugs, but misleading)
+
+### Sparse daily MTM inflates reported Sharpe and deflates correlation for infrequently-monitored LEAP strategies
+
+**Discovered:** 2026-04-10 via monitoring interval sweep
+
+**What happens:** The LEAP evaluator in `worker.ts` only records `dailyMtM` entries on monitoring days
+(`monitoringIntervalDays` interval). With `monitoringIntervalDays=3`, only ~33% of trading days have
+non-zero portfolio return in the daily P&L series. The other 67% show zero return.
+
+**Effect on Sharpe:** A return series with 67% zeros has different statistical properties than the
+same series continuously sampled. Counter-intuitively, this does NOT inflate Sharpe — the sparse
+sampling reduces both mean and standard deviation proportionally, so the ratio (Sharpe) is not
+significantly inflated by sparsity alone. The standalone Sharpe improvement with interval=3 vs
+interval=1 IS a real performance improvement from fewer false SL triggers.
+
+**Effect on correlation:** A series with 67% zeros has near-zero correlation with any continuous
+series (DTE5 daily returns), because most of the time one series has zero while the other is
+non-zero. With `monitoringIntervalDays=3`, the reported correlation is ~0.073 vs the real
+underlying correlation (~0.25). **Do not trust reported correlation for strategies with
+monitoringIntervalDays > 1.** The true correlation is approximately equal to the daily-monitoring
+correlation (~0.26 for this LEAP strategy).
+
+**Effect on combined Sharpe:** The combined formula uses the reported (artificially low) correlation,
+which inflates the portfolio_sharpe component. The reported combined Sharpe of 1.326 for
+interval=3 is likely ~0.05-0.10 higher than the "true" combined Sharpe would be if measured
+with correct daily MTM.
+
+**Fingerprint:**
+- `monitoringIntervalDays > 1` in LEAP strategy config
+- Reported correlation with DTE5 much lower than daily-monitoring version of same strategy
+- Combined Sharpe noticeably higher than standalone Sharpe (unusual — normally combined ≈ standalone)
+
+**Prevention (partial fix, not complete):**
+- For LEAP strategies, always compare the standalone Sharpe across different monitoring intervals,
+  not just combined Sharpe. The standalone improvement is the real signal.
+- Report the `monitoringIntervalDays` parameter alongside all LEAP backtest results.
+- To fix properly: the LEAP evaluator should record daily MTM for ALL days (including non-monitoring
+  days) by interpolating the option's value between check dates. This requires changes to
+  `scripts/autoresearch/worker.ts` LEAP evaluator's `dailyMtM` recording logic.
+- Until fixed: use standalone Sharpe as the primary metric for comparing monitoring intervals.
