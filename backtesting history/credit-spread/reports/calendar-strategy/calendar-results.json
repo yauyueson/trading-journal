@@ -1,0 +1,721 @@
+{
+  "generatedAt": "2026-04-07T03:08:54.906Z",
+  "methodology": "TRUE WFA",
+  "configGridSize": 264,
+  "perTicker": {
+    "QQQ": {
+      "oosSharpe": -0.26183848702637613,
+      "oosCagr": -4.362001947770821,
+      "oosMaxDD": 40.741368354161956,
+      "oosTrades": 106,
+      "finalEquity": 6994.00000000004,
+      "windows": [
+        {
+          "testStart": "2018-01-03",
+          "testEnd": "2018-07-03",
+          "startEq": 10000,
+          "endEq": 10803.499999999993,
+          "pnl": 803.4999999999931,
+          "trades": 3,
+          "selectedConfig": 245,
+          "trainSharpe": 0.605340590629669
+        },
+        {
+          "testStart": "2018-07-05",
+          "testEnd": "2019-01-03",
+          "startEq": 10803.499999999993,
+          "endEq": 10681.49999999999,
+          "pnl": -122.00000000000196,
+          "trades": 4,
+          "selectedConfig": 79,
+          "trainSharpe": 1.8595943801253838
+        },
+        {
+          "testStart": "2019-01-04",
+          "testEnd": "2019-07-05",
+          "startEq": 10681.49999999999,
+          "endEq": 10681.49999999999,
+          "pnl": 8.526512829121202e-14,
+          "trades": 2,
+          "selectedConfig": 87,
+          "trainSharpe": 1.6796081509562526
+        },
+        {
+          "testStart": "2019-07-08",
+          "testEnd": "2020-01-03",
+          "startEq": 10681.49999999999,
+          "endEq": 10511.499999999996,
+          "pnl": -169.99999999999508,
+          "trades": 8,
+          "selectedConfig": 53,
+          "trainSharpe": 0.7104425143947148
+        },
+        {
+          "testStart": "2020-01-06",
+          "testEnd": "2020-07-06",
+          "startEq": 10511.499999999996,
+          "endEq": 10511.499999999996,
+          "pnl": 0,
+          "trades": 0,
+          "selectedConfig": 133,
+          "trainSharpe": 1.9300441898340015
+        },
+        {
+          "testStart": "2020-07-07",
+          "testEnd": "2021-01-04",
+          "startEq": 10511.499999999996,
+          "endEq": 10640.49999999999,
+          "pnl": 128.99999999999477,
+          "trades": 4,
+          "selectedConfig": 167,
+          "trainSharpe": 2.213739733817325
+        },
+        {
+          "testStart": "2021-01-05",
+          "testEnd": "2021-07-06",
+          "startEq": 10640.49999999999,
+          "endEq": 10265.49999999999,
+          "pnl": -374.99999999999915,
+          "trades": 31,
+          "selectedConfig": 56,
+          "trainSharpe": 1.110461594021761
+        },
+        {
+          "testStart": "2021-07-07",
+          "testEnd": "2022-01-03",
+          "startEq": 10265.49999999999,
+          "endEq": 10186.49999999999,
+          "pnl": -79.0000000000008,
+          "trades": 4,
+          "selectedConfig": 223,
+          "trainSharpe": 1.1557380890704978
+        },
+        {
+          "testStart": "2022-01-04",
+          "testEnd": "2022-07-06",
+          "startEq": 10186.49999999999,
+          "endEq": 11588.000000000005,
+          "pnl": 1401.5000000000143,
+          "trades": 11,
+          "selectedConfig": 4,
+          "trainSharpe": 0.8535005359822693
+        },
+        {
+          "testStart": "2022-07-07",
+          "testEnd": "2023-01-04",
+          "startEq": 11588.000000000005,
+          "endEq": 11025.000000000018,
+          "pnl": -562.9999999999877,
+          "trades": 21,
+          "selectedConfig": 24,
+          "trainSharpe": 1.3314755722724527
+        },
+        {
+          "testStart": "2023-01-05",
+          "testEnd": "2023-07-07",
+          "startEq": 11025.000000000018,
+          "endEq": 9740.000000000018,
+          "pnl": -1284.9999999999995,
+          "trades": 3,
+          "selectedConfig": 122,
+          "trainSharpe": 1.3047561294234211
+        },
+        {
+          "testStart": "2023-07-10",
+          "testEnd": "2024-01-05",
+          "startEq": 9740.000000000018,
+          "endEq": 8275.000000000031,
+          "pnl": -1464.9999999999875,
+          "trades": 5,
+          "selectedConfig": 219,
+          "trainSharpe": 1.8020448404676153
+        },
+        {
+          "testStart": "2024-01-08",
+          "testEnd": "2024-07-09",
+          "startEq": 8275.000000000031,
+          "endEq": 7509.000000000031,
+          "pnl": -766.0000000000002,
+          "trades": 6,
+          "selectedConfig": 90,
+          "trainSharpe": 1.665934133552789
+        },
+        {
+          "testStart": "2024-07-10",
+          "testEnd": "2025-01-07",
+          "startEq": 7509.000000000031,
+          "endEq": 7509.000000000031,
+          "pnl": 0,
+          "trades": 0,
+          "selectedConfig": 145,
+          "trainSharpe": 1.080454365292879
+        },
+        {
+          "testStart": "2025-01-08",
+          "testEnd": "2025-07-11",
+          "startEq": 7509.000000000031,
+          "endEq": 6994.00000000004,
+          "pnl": -514.9999999999909,
+          "trades": 4,
+          "selectedConfig": 223,
+          "trainSharpe": 2.292881286722941
+        },
+        {
+          "testStart": "2025-07-14",
+          "testEnd": "2026-01-09",
+          "startEq": 6994.00000000004,
+          "endEq": 6994.00000000004,
+          "pnl": 0,
+          "trades": 0,
+          "selectedConfig": 77,
+          "trainSharpe": 1.5362631651654342
+        }
+      ]
+    },
+    "SPY": {
+      "oosSharpe": 0.18225728513171782,
+      "oosCagr": 1.684742042554288,
+      "oosMaxDD": 39.97818791946267,
+      "oosTrades": 188,
+      "finalEquity": 11433.140000000058,
+      "windows": [
+        {
+          "testStart": "2018-01-03",
+          "testEnd": "2018-07-03",
+          "startEq": 10000,
+          "endEq": 10560.99999999999,
+          "pnl": 560.9999999999903,
+          "trades": 10,
+          "selectedConfig": 31,
+          "trainSharpe": 1.7157221973747123
+        },
+        {
+          "testStart": "2018-07-05",
+          "testEnd": "2019-01-03",
+          "startEq": 10560.99999999999,
+          "endEq": 8526.999999999989,
+          "pnl": -2034.0000000000011,
+          "trades": 11,
+          "selectedConfig": 153,
+          "trainSharpe": 1.7300025084831112
+        },
+        {
+          "testStart": "2019-01-04",
+          "testEnd": "2019-07-05",
+          "startEq": 8526.999999999989,
+          "endEq": 7807.000000000005,
+          "pnl": -719.9999999999842,
+          "trades": 1,
+          "selectedConfig": 209,
+          "trainSharpe": 2.08353575935721
+        },
+        {
+          "testStart": "2019-07-08",
+          "testEnd": "2020-01-03",
+          "startEq": 7807.000000000005,
+          "endEq": 8498.00000000001,
+          "pnl": 691.0000000000052,
+          "trades": 32,
+          "selectedConfig": 88,
+          "trainSharpe": 1.6100154272478189
+        },
+        {
+          "testStart": "2020-01-06",
+          "testEnd": "2020-07-06",
+          "startEq": 8498.00000000001,
+          "endEq": 8272.000000000011,
+          "pnl": -225.99999999999875,
+          "trades": 2,
+          "selectedConfig": 251,
+          "trainSharpe": 1.686407641740749
+        },
+        {
+          "testStart": "2020-07-07",
+          "testEnd": "2021-01-04",
+          "startEq": 8272.000000000011,
+          "endEq": 8057.00000000001,
+          "pnl": -215.00000000000068,
+          "trades": 13,
+          "selectedConfig": 232,
+          "trainSharpe": 2.502936394905633
+        },
+        {
+          "testStart": "2021-01-05",
+          "testEnd": "2021-07-06",
+          "startEq": 8057.00000000001,
+          "endEq": 8873.000000000004,
+          "pnl": 815.9999999999941,
+          "trades": 14,
+          "selectedConfig": 256,
+          "trainSharpe": 1.8498727971244184
+        },
+        {
+          "testStart": "2021-07-07",
+          "testEnd": "2022-01-03",
+          "startEq": 8873.000000000004,
+          "endEq": 8703.000000000004,
+          "pnl": -169.99999999999926,
+          "trades": 12,
+          "selectedConfig": 256,
+          "trainSharpe": 1.519964754114251
+        },
+        {
+          "testStart": "2022-01-04",
+          "testEnd": "2022-07-06",
+          "startEq": 8703.000000000004,
+          "endEq": 7681.140000000005,
+          "pnl": -1021.8599999999992,
+          "trades": 5,
+          "selectedConfig": 256,
+          "trainSharpe": 1.3166029968754462
+        },
+        {
+          "testStart": "2022-07-07",
+          "testEnd": "2023-01-04",
+          "startEq": 7681.140000000005,
+          "endEq": 8087.140000000005,
+          "pnl": 406.0000000000004,
+          "trades": 5,
+          "selectedConfig": 206,
+          "trainSharpe": 0.7364494400736
+        },
+        {
+          "testStart": "2023-01-05",
+          "testEnd": "2023-07-07",
+          "startEq": 8087.140000000005,
+          "endEq": 8211.140000000001,
+          "pnl": 123.99999999999659,
+          "trades": 9,
+          "selectedConfig": 52,
+          "trainSharpe": 2.0965606488277837
+        },
+        {
+          "testStart": "2023-07-10",
+          "testEnd": "2024-01-05",
+          "startEq": 8211.140000000001,
+          "endEq": 8311.140000000003,
+          "pnl": 100.0000000000015,
+          "trades": 6,
+          "selectedConfig": 82,
+          "trainSharpe": 2.1203051578831817
+        },
+        {
+          "testStart": "2024-01-08",
+          "testEnd": "2024-07-09",
+          "startEq": 8311.140000000003,
+          "endEq": 8123.140000000004,
+          "pnl": -187.99999999999918,
+          "trades": 4,
+          "selectedConfig": 84,
+          "trainSharpe": 1.9569466294611757
+        },
+        {
+          "testStart": "2024-07-10",
+          "testEnd": "2025-01-07",
+          "startEq": 8123.140000000004,
+          "endEq": 8968.140000000072,
+          "pnl": 845.0000000000689,
+          "trades": 34,
+          "selectedConfig": 16,
+          "trainSharpe": 1.4864643804489868
+        },
+        {
+          "testStart": "2025-01-08",
+          "testEnd": "2025-07-11",
+          "startEq": 8968.140000000072,
+          "endEq": 12014.140000000058,
+          "pnl": 3045.9999999999845,
+          "trades": 27,
+          "selectedConfig": 16,
+          "trainSharpe": 1.665315959291011
+        },
+        {
+          "testStart": "2025-07-14",
+          "testEnd": "2026-01-09",
+          "startEq": 12014.140000000058,
+          "endEq": 11433.140000000058,
+          "pnl": -581.0000000000002,
+          "trades": 3,
+          "selectedConfig": 180,
+          "trainSharpe": 1.6424487311066742
+        }
+      ]
+    },
+    "IWM": {
+      "oosSharpe": 0.11655758723490096,
+      "oosCagr": 0.4850233079287669,
+      "oosMaxDD": 26.52059399866193,
+      "oosTrades": 166,
+      "finalEquity": 10395.496093749996,
+      "windows": [
+        {
+          "testStart": "2018-01-03",
+          "testEnd": "2018-07-03",
+          "startEq": 10000,
+          "endEq": 11211.50000000002,
+          "pnl": 1211.50000000002,
+          "trades": 21,
+          "selectedConfig": 128,
+          "trainSharpe": 1.6873343962790968
+        },
+        {
+          "testStart": "2018-07-05",
+          "testEnd": "2019-01-03",
+          "startEq": 11211.50000000002,
+          "endEq": 11422.496093750022,
+          "pnl": 210.9960937500009,
+          "trades": 6,
+          "selectedConfig": 148,
+          "trainSharpe": 1.1525927619857268
+        },
+        {
+          "testStart": "2019-01-04",
+          "testEnd": "2019-07-05",
+          "startEq": 11422.496093750022,
+          "endEq": 11892.49609375003,
+          "pnl": 470.0000000000065,
+          "trades": 4,
+          "selectedConfig": 35,
+          "trainSharpe": 1.608510858724677
+        },
+        {
+          "testStart": "2019-07-08",
+          "testEnd": "2020-01-03",
+          "startEq": 11892.49609375003,
+          "endEq": 12427.496093750013,
+          "pnl": 534.9999999999843,
+          "trades": 4,
+          "selectedConfig": 148,
+          "trainSharpe": 0.9785386277819961
+        },
+        {
+          "testStart": "2020-01-06",
+          "testEnd": "2020-07-06",
+          "startEq": 12427.496093750013,
+          "endEq": 10965.496093750016,
+          "pnl": -1461.999999999997,
+          "trades": 8,
+          "selectedConfig": 169,
+          "trainSharpe": 1.7328687443926445
+        },
+        {
+          "testStart": "2020-07-07",
+          "testEnd": "2021-01-04",
+          "startEq": 10965.496093750016,
+          "endEq": 9921.496093750016,
+          "pnl": -1043.9999999999998,
+          "trades": 4,
+          "selectedConfig": 254,
+          "trainSharpe": 2.138754154058373
+        },
+        {
+          "testStart": "2021-01-05",
+          "testEnd": "2021-07-06",
+          "startEq": 9921.496093750016,
+          "endEq": 10619.496093750005,
+          "pnl": 697.9999999999894,
+          "trades": 24,
+          "selectedConfig": 32,
+          "trainSharpe": 2.2007316702109243
+        },
+        {
+          "testStart": "2021-07-07",
+          "testEnd": "2022-01-03",
+          "startEq": 10619.496093750005,
+          "endEq": 10761.496093750002,
+          "pnl": 141.99999999999665,
+          "trades": 8,
+          "selectedConfig": 173,
+          "trainSharpe": 2.685733474121035
+        },
+        {
+          "testStart": "2022-01-04",
+          "testEnd": "2022-07-06",
+          "startEq": 10761.496093750002,
+          "endEq": 10634.496093750002,
+          "pnl": -127.00000000000011,
+          "trades": 12,
+          "selectedConfig": 249,
+          "trainSharpe": 1.9769198221115585
+        },
+        {
+          "testStart": "2022-07-07",
+          "testEnd": "2023-01-04",
+          "startEq": 10634.496093750002,
+          "endEq": 11888.496093750007,
+          "pnl": 1254.0000000000057,
+          "trades": 8,
+          "selectedConfig": 246,
+          "trainSharpe": 2.0247019051000255
+        },
+        {
+          "testStart": "2023-01-05",
+          "testEnd": "2023-07-07",
+          "startEq": 11888.496093750007,
+          "endEq": 13668.49609375001,
+          "pnl": 1780.0000000000018,
+          "trades": 12,
+          "selectedConfig": 177,
+          "trainSharpe": 2.0138322392661605
+        },
+        {
+          "testStart": "2023-07-10",
+          "testEnd": "2024-01-05",
+          "startEq": 13668.49609375001,
+          "endEq": 11942.49609375001,
+          "pnl": -1725.9999999999993,
+          "trades": 10,
+          "selectedConfig": 177,
+          "trainSharpe": 3.321409838125298
+        },
+        {
+          "testStart": "2024-01-08",
+          "testEnd": "2024-07-09",
+          "startEq": 11942.49609375001,
+          "endEq": 13615.49609374999,
+          "pnl": 1672.9999999999823,
+          "trades": 26,
+          "selectedConfig": 88,
+          "trainSharpe": 1.7270637040656998
+        },
+        {
+          "testStart": "2024-07-10",
+          "testEnd": "2025-01-07",
+          "startEq": 13615.49609374999,
+          "endEq": 12019.496093749989,
+          "pnl": -1596.0000000000023,
+          "trades": 9,
+          "selectedConfig": 58,
+          "trainSharpe": 2.2292966153283875
+        },
+        {
+          "testStart": "2025-01-08",
+          "testEnd": "2025-07-11",
+          "startEq": 12019.496093749989,
+          "endEq": 12726.496093749987,
+          "pnl": 706.9999999999985,
+          "trades": 5,
+          "selectedConfig": 55,
+          "trainSharpe": 2.630102131241572
+        },
+        {
+          "testStart": "2025-07-14",
+          "testEnd": "2026-01-09",
+          "startEq": 12726.496093749987,
+          "endEq": 10395.496093749996,
+          "pnl": -2330.99999999999,
+          "trades": 5,
+          "selectedConfig": 207,
+          "trainSharpe": 1.9175051045350375
+        }
+      ]
+    }
+  },
+  "iwmSidewaysOnly": {
+    "oosSharpe": -0.19504331812422418,
+    "oosCagr": -3.755615604771101,
+    "oosMaxDD": 27.85502929687539,
+    "oosTrades": 91,
+    "finalEquity": 7357.49707031246,
+    "windows": [
+      {
+        "testStart": "2018-01-03",
+        "testEnd": "2018-07-03",
+        "startEq": 10000,
+        "endEq": 8223.49999999998,
+        "pnl": -1776.5000000000198,
+        "trades": 3,
+        "selectedConfig": 175,
+        "trainSharpe": 0.8895559694404139
+      },
+      {
+        "testStart": "2018-07-05",
+        "testEnd": "2019-01-03",
+        "startEq": 8223.49999999998,
+        "endEq": 8360.49707031248,
+        "pnl": 136.99707031250068,
+        "trades": 6,
+        "selectedConfig": 110,
+        "trainSharpe": 1.1525927619857268
+      },
+      {
+        "testStart": "2019-01-04",
+        "testEnd": "2019-07-05",
+        "startEq": 8360.49707031248,
+        "endEq": 8698.497070312485,
+        "pnl": 338.00000000000483,
+        "trades": 4,
+        "selectedConfig": 25,
+        "trainSharpe": 1.608510858724677
+      },
+      {
+        "testStart": "2019-07-08",
+        "testEnd": "2020-01-03",
+        "startEq": 8698.497070312485,
+        "endEq": 9029.497070312475,
+        "pnl": 330.99999999998954,
+        "trades": 4,
+        "selectedConfig": 110,
+        "trainSharpe": 0.9785386277819961
+      },
+      {
+        "testStart": "2020-01-06",
+        "testEnd": "2020-07-06",
+        "startEq": 9029.497070312475,
+        "endEq": 8222.497070312464,
+        "pnl": -807.00000000001,
+        "trades": 2,
+        "selectedConfig": 162,
+        "trainSharpe": 1.5355378252701524
+      },
+      {
+        "testStart": "2020-07-07",
+        "testEnd": "2021-01-04",
+        "startEq": 8222.497070312464,
+        "endEq": 7494.497070312464,
+        "pnl": -727.9999999999998,
+        "trades": 4,
+        "selectedConfig": 190,
+        "trainSharpe": 2.138754154058373
+      },
+      {
+        "testStart": "2021-01-05",
+        "testEnd": "2021-07-06",
+        "startEq": 7494.497070312464,
+        "endEq": 8274.497070312462,
+        "pnl": 779.9999999999981,
+        "trades": 7,
+        "selectedConfig": 113,
+        "trainSharpe": 1.5730137966182363
+      },
+      {
+        "testStart": "2021-07-07",
+        "testEnd": "2022-01-03",
+        "startEq": 8274.497070312462,
+        "endEq": 8170.497070312459,
+        "pnl": -104.000000000003,
+        "trades": 8,
+        "selectedConfig": 129,
+        "trainSharpe": 2.685733474121035
+      },
+      {
+        "testStart": "2022-01-04",
+        "testEnd": "2022-07-06",
+        "startEq": 8170.497070312459,
+        "endEq": 7671.497070312456,
+        "pnl": -499.00000000000284,
+        "trades": 8,
+        "selectedConfig": 123,
+        "trainSharpe": 1.666293584538459
+      },
+      {
+        "testStart": "2022-07-07",
+        "testEnd": "2023-01-04",
+        "startEq": 7671.497070312456,
+        "endEq": 8555.49707031246,
+        "pnl": 884.0000000000042,
+        "trades": 8,
+        "selectedConfig": 184,
+        "trainSharpe": 2.0247019051000255
+      },
+      {
+        "testStart": "2023-01-05",
+        "testEnd": "2023-07-07",
+        "startEq": 8555.49707031246,
+        "endEq": 9357.49707031246,
+        "pnl": 802.0000000000008,
+        "trades": 6,
+        "selectedConfig": 184,
+        "trainSharpe": 1.9816891073299743
+      },
+      {
+        "testStart": "2023-07-10",
+        "testEnd": "2024-01-05",
+        "startEq": 9357.49707031246,
+        "endEq": 9512.497070312458,
+        "pnl": 154.99999999999739,
+        "trades": 3,
+        "selectedConfig": 190,
+        "trainSharpe": 1.444699063793349
+      },
+      {
+        "testStart": "2024-01-08",
+        "testEnd": "2024-07-09",
+        "startEq": 9512.497070312458,
+        "endEq": 9627.497070312456,
+        "pnl": 114.99999999999812,
+        "trades": 9,
+        "selectedConfig": 190,
+        "trainSharpe": 1.3817806057001536
+      },
+      {
+        "testStart": "2024-07-10",
+        "testEnd": "2025-01-07",
+        "startEq": 9627.497070312456,
+        "endEq": 8600.497070312455,
+        "pnl": -1027.000000000002,
+        "trades": 9,
+        "selectedConfig": 42,
+        "trainSharpe": 2.2292966153283875
+      },
+      {
+        "testStart": "2025-01-08",
+        "testEnd": "2025-07-11",
+        "startEq": 8600.497070312455,
+        "endEq": 8996.497070312453,
+        "pnl": 395.9999999999991,
+        "trades": 5,
+        "selectedConfig": 41,
+        "trainSharpe": 2.630102131241572
+      },
+      {
+        "testStart": "2025-07-14",
+        "testEnd": "2026-01-09",
+        "startEq": 8996.497070312453,
+        "endEq": 7357.49707031246,
+        "pnl": -1638.9999999999925,
+        "trades": 5,
+        "selectedConfig": 155,
+        "trainSharpe": 1.9175051045350375
+      }
+    ]
+  },
+  "portfolioCombos": [
+    {
+      "label": "QQQ bull only",
+      "sharpe": 0.6868110849338305,
+      "cagr": 18.529769684346675,
+      "maxDD": 39.615749525616614,
+      "finalEquity": 39069.00000000016,
+      "minEquity": 6963.5000000000055,
+      "trades": 552
+    },
+    {
+      "label": "QQQ bull + all 3 bear",
+      "sharpe": 0.9847257559498925,
+      "cagr": 39.92418304473646,
+      "maxDD": 47.945406634678946,
+      "finalEquity": 147753.86000000042,
+      "minEquity": 6976.000000000003,
+      "trades": 809
+    },
+    {
+      "label": "BB + IWM calendar (all-regime)",
+      "sharpe": 1.5938675568569822,
+      "cagr": 40.00302511745248,
+      "maxDD": 46.31702728127913,
+      "finalEquity": 148149.3560937504,
+      "minEquity": 5706.500000000028,
+      "trades": 975
+    },
+    {
+      "label": "BB + IWM calendar (sw-only)",
+      "sharpe": 1.5390218217876719,
+      "cagr": 39.64138958925629,
+      "maxDD": 63.448766603415585,
+      "finalEquity": 145111.3570703129,
+      "minEquity": 3852.4999999999973,
+      "trades": 900
+    }
+  ]
+}

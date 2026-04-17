@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Working Principles
+
+Adapted from [andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills). Bias toward caution over speed; use judgment on trivial tasks.
+
+1. **Think before coding.** State assumptions explicitly. If multiple interpretations exist, present them — don't pick silently. If something is unclear, stop and ask.
+2. **Simplicity first.** Minimum code that solves the problem. No speculative abstractions, configurability, or error handling for impossible scenarios. If 200 lines could be 50, rewrite.
+3. **Surgical changes.** Every changed line must trace to the user's request. Don't refactor adjacent code, reformat, or delete pre-existing dead code unless asked. Match existing style.
+4. **Goal-driven execution.** Convert tasks to verifiable goals ("Fix bug" → "Write failing test, make it pass"). For multi-step work, state a brief plan with a verify step per item so you can loop without re-asking.
+
 ## Build & Dev Commands
 
 ```bash

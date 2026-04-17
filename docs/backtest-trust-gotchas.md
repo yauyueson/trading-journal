@@ -402,7 +402,7 @@ These are not bugs — they are process failures that let bugs through.
 If you iterate on a strategy based on holdout feedback (even indirectly — "this config has holdout Sharpe X"), you have turned holdout into another optimization target. Real holdout is a write-once gate: one run, accept or reject, never revisit. The runner hides exact holdout Sharpe for this reason (shows PASS/FAIL only).
 
 ### Deflated Sharpe over many attempts
-After N attempts of random strategies, the expected maximum Sharpe from pure noise is `sqrt(2 * ln(N))`. For 100 attempts that's ~3.0. The `computeDeflatedSharpe` function in `runner.ts` subtracts this — a deflated Sharpe < 0 means the result is indistinguishable from noise even if raw Sharpe is 2+.
+After N attempts, the expected maximum Sharpe from noise depends on the standard error of the Sharpe estimator (from bootstrap CI), not just N. The `computeDeflatedSharpe` function in `runner.ts` uses Gumbel EVT for E[max of N standard normals], scaled by bootstrap SE. A deflated Sharpe < 0 means the result is indistinguishable from luck. **Prior bug (fixed 2026-04-15)**: the old formula used `sqrt(2 * ln(N))` without SE scaling, producing E[max] ≈ 3.3 instead of ≈ 0.9 — catastrophically over-penalizing.
 
 ### Bootstrap CI for time series needs block bootstrap
 I.i.d. bootstrap understates CI width for daily returns because it ignores autocorrelation. Use block bootstrap with block size ~sqrt(n). Already implemented in `bootstrapSharpeCI`.

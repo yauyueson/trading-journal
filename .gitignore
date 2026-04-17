@@ -19,6 +19,16 @@ scripts/.*.mjs
 scripts/autoresearch/.*.mjs
 scripts/autoresearch/run-log.txt
 scripts/autoresearch/leaderboard.pre-*.json
+scripts/autoresearch/data-cache.json
+scripts/autoresearch/journal-phase*.md
+scripts/autoresearch/*.contaminated
+data/*.contaminated
+scripts/autoresearch/campaign-a-logs/
+scripts/autoresearch/chain-skip-diagnostic.json
+scripts/autoresearch/h4-ts105-contribution.json
+scripts/autoresearch/screen-results.json
+scripts/autoresearch/campaign-trades-*.json
+.superpowers/
 .iter*_entry_tmp.md
 chain-cache.db
 .worktrees/
