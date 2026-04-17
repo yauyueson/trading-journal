@@ -6,7 +6,7 @@ import { MobileTabBar } from '../components/MobileTabBar';
 import { useRealtimeInvalidation } from '../hooks/useRealtimeInvalidation';
 import { Settings, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseReady, supabaseInitError } from '../lib/supabase';
 
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -17,9 +17,17 @@ function LoginForm() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!supabaseReady) {
+      setError('Supabase client is not configured for this deployment.');
+      return;
+    }
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setError(error.message);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) setError(error.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    }
     setLoading(false);
   };
 
@@ -49,6 +57,21 @@ function LoginForm() {
   );
 }
 
+function StartupErrorScreen({ message }: { message: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="w-full max-w-xl rounded-2xl border border-red-500/20 bg-black/30 p-6 sm:p-8">
+        <h2 className="text-xl font-bold mb-3">App failed to start</h2>
+        <p className="text-sm text-text-secondary mb-4">{message}</p>
+        <p className="text-sm text-text-secondary">
+          For Vercel, make sure both <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code>
+          are set in the project environment, then redeploy so Vite can bake them into the client bundle.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function AppLayout() {
   const { authLoading, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
@@ -62,6 +85,14 @@ export function AppLayout() {
         <div className="spinner"></div>
       </div>
     );
+  }
+
+  // Reserve the fatal startup screen for build-time config errors only
+  // (missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). Runtime auth errors
+  // like a transient getSession() rejection fall through to LoginForm so the
+  // user can retry instead of being trapped on a dead-end screen.
+  if (supabaseInitError && !isAuthenticated) {
+    return <StartupErrorScreen message={supabaseInitError.message} />;
   }
 
   if (!isAuthenticated) return <LoginForm />;

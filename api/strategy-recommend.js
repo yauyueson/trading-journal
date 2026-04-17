@@ -60,8 +60,13 @@ async function ensureScoring() {
 // =============================================================================
 // DATA FETCHING UTILITIES
 // =============================================================================
-// RV (Realized Volatility): prefer ORATS cores (orHv30d), fallback to manual
-// computation from Tiingo candles: log returns → population variance (÷N) → annualize (sqrt(252)*100).
+// RV (Realized Volatility): computed from Tiingo daily closes — log returns → population
+// variance (÷N) → annualize (sqrt(252)*100).
+//
+// NOTE: ORATS /hist/cores does NOT provide a 30-day HV (skips from clsHv20d to clsHv60d
+// — see docs/backtest-trust-gotchas.md #13). The orHv30d/clsHv30d fields exist in the
+// schema but are always null. Do not reintroduce them as a primary source — they will
+// silently fail and the Tiingo fallback will run anyway, producing misleading log messages.
 //
 // NOTE (F13 — Forensic Audit v1.1): We use ÷N (population variance), not ÷N-1
 // (Bessel correction). This is consistent with market convention — most vol desks,
@@ -1213,11 +1218,9 @@ export default async function handler(req, res) {
                 tkOver: oratsCores.tkOver ?? 0,               // takeover flag (0 or 1)
             } : {};
             if (oratsCores) {
-                // RV30
-                if (oratsCores.orHv30d || oratsCores.clsHv30d) {
-                    rv30 = ((oratsCores.orHv30d ?? oratsCores.clsHv30d) * 100); // decimal → %
-                    console.log(`[RV30 ORATS] ${upperTicker}: ${rv30.toFixed(2)}% (from cores)`);
-                }
+                // NOTE: ORATS cores does NOT provide HV30 (orHv30d/clsHv30d are always null
+                // — see docs/backtest-trust-gotchas.md #13). RV30 is computed from Tiingo
+                // daily closes below. Do not reintroduce an ORATS HV30 path here.
                 // Earnings: daysToNextErn is a pre-computed integer
                 if (oratsCores.daysToNextErn != null && oratsCores.daysToNextErn >= 0) {
                     daysUntilEarnings = oratsCores.daysToNextErn;

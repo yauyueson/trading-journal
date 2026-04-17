@@ -1,6 +1,6 @@
 // src/context/AppSettingsContext.tsx
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseReady } from '../lib/supabase';
 import { AppSettings, DEFAULT_APP_SETTINGS } from '../lib/types/settings';
 import type { StrategyType } from '../lib/strategyProfiles';
 
@@ -75,6 +75,10 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setIsLoading(false);
       return;
     }
+    if (!supabaseReady) {
+      setIsLoading(false);
+      return;
+    }
     supabase
       .from('app_settings')
       .select('settings')
@@ -122,6 +126,7 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
     setSettings(next);
     saveToStorage(next);
+    if (!supabaseReady) return;
     await supabase
       .from('app_settings')
       .upsert({ id: 1, settings: next, updated_at: new Date().toISOString() });

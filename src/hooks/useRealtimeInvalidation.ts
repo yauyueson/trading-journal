@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseReady } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 
 /**
@@ -11,6 +11,8 @@ export function useRealtimeInvalidation() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    if (!supabaseReady) return;
+
     const posSub = supabase
       .channel('rq-positions')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'positions' }, () => {
