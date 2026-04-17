@@ -1,109 +1,256 @@
 /**
- * best-strategy.ts — RESEARCH CHAMPION (2026-04-10 session)
+ * Campaign A — Regime Gate test on d65-tp40 champion
  *
- * Champion: momentum-ma-touch-leap-weekly-v2 (monitoringIntervalDays=3)
- * Combined Sharpe: 1.326 | Standalone: 1.274 | Corr w/ DTE5: 0.073
- * MaxDD: 32.6% | WR: 61.5% | Trades: 169 | Holdout: 0.873 / IR 0.560
+ * Pre-registered in .prompts/campaign-a-regime-gate-preregistration.md (2026-04-16).
  *
- * BREAKTHROUGH DISCOVERY: monitoring interval matters enormously.
+ * Base strategy: d65-tp40 (deep ITM LEAP CALL, champion under bid/ask fills).
+ * Test: add one of 6 pre-registered regime gates, evaluate under a WFA split
+ *       that puts 2024-01-22 → 2026-02-27 entirely in holdout (holdoutCount=5).
  *
- * The key insight: daily monitoring catches brief option drops (<30%) that recover within
- * 1-2 days and triggers false SL exits. Checking every 3 days avoids these false triggers.
+ * Run via:
+ *   GATE=<name> AUTORESEARCH_LEADERBOARD_SUFFIX=campaign-a \
+ *     npx tsx scripts/autoresearch/runner.ts
  *
- * Interval sweep (MA-touch, EMA34, LEAP [0.70,0.80] delta, DTE [180,270], TP=25%, SL=30%):
- * - interval=1 (daily):  combined=1.090, standalone=1.076, corr=0.260, MaxDD=31.8%, trades=206
- * - interval=2 (2-day):  combined=1.261, standalone=1.211, corr=0.109, MaxDD=24.5%, trades=191
- * - interval=3 (3-day):  combined=1.326, standalone=1.274, corr=0.073, MaxDD=32.6%, trades=169  ← PEAK
- * - interval=5 (weekly): combined=1.218, standalone=1.121, corr=0.035, MaxDD=26.0%, trades=153
- * - interval=7 (7-day):  combined=1.260, standalone=1.166, corr=0.031, MaxDD=33.9%, trades=136
- *
- * ⚠️ MEASUREMENT ARTIFACT WARNING: The low correlation values (0.073 for interval=3) are
- * partially a MEASUREMENT ARTIFACT. When monitoring is every 3 days, the daily MTM records
- * only have non-zero entries on check days (~33% of days). The other 67% of days show zero
- * portfolio return, which dilutes the measured correlation with DTE5. The TRUE correlation
- * during the holding period is likely ~0.200-0.250 (between daily's 0.260 and the reported
- * 0.073). The standalone Sharpe improvement (1.076 → 1.274) IS genuine — it reflects real
- * performance improvement from avoiding false SL triggers. The combined Sharpe of 1.326 is
- * likely inflated by ~0.05-0.10 due to the correlation artifact.
- *
- * ⚠️ CONFIRMED DEAD ENDS (this session, building on interval=3 champion):
- * - TP=30/35/40%: holdout failure — 25% TP is the hard constraint
- * - SL=25%: MORE SL hits (64) than SL=30% (49) with interval=3 — counterproductive
- * - Band=8%: MaxDD 45.8% — weaker signals beyond 5% above EMA34
- * - maxPos=5: combined 1.322 ≈ champion, MaxDD 26.9% — statistically tied, safer
- * - Bounce + interval=3: combined 1.162 valid but sparse (118 trades)
- * - EMA55 touch + interval=3: MaxDD 50.6%, WR 56.3% — EMA34 is specifically optimal
- * - Dip-buy (all variants): too sparse, MaxDD spikes
- * - Delta < 0.70: more leverage → higher SL sensitivity → MaxDD spikes
- *
- * PREVIOUS CHAMPION (before interval discovery):
- * momentum-ma-touch-leap-v2: combined=1.090, interval=1
+ * GATE values: none, ticker_ema200, breadth, spy_extension, contango_tight,
+ *              rv_regime, trend_age
  */
-import type { StrategyDefinition, TickerDataBundle, EntrySignal, SimConfig } from './types';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import type { StrategyDefinition, TickerDataBundle, MarketContext, EntrySignal, SimConfig } from './types';
 import { DEFAULT_LEAP_CONFIG } from '../../src/lib/backtest/option-sim';
 
-export const strategy: StrategyDefinition = {
-  name: 'momentum-ma-touch-leap-weekly-v2',
+// ── Gate dispatch ──────────────────────────────────────────
+const GATE = (process.env.GATE || 'none').toLowerCase();
+const VALID_GATES = new Set([
+  'none', 'ticker_ema200', 'breadth', 'spy_extension',
+  'contango_tight', 'rv_regime', 'trend_age',
+]);
+if (!VALID_GATES.has(GATE)) {
+  throw new Error(`Invalid GATE=${GATE}. Must be one of: ${[...VALID_GATES].join(', ')}`);
+}
+console.log(`[strategy.ts] Campaign A — GATE=${GATE}`);
 
-  tickers: [
-    'GLD', 'IWM',
-    'AAPL', 'MSFT', 'GOOG', 'AMZN', 'META',
-    'JPM', 'GS',
-    'COST', 'UNH',
-    'NFLX',
-  ],
+// ── Campaign ticker list (d65-tp40 champion set) ──────────
+const CAMPAIGN_TICKERS = [
+  'GLD', 'IWM', 'AAPL', 'MSFT', 'GOOG', 'AMZN', 'META',
+  'JPM', 'GS', 'COST', 'UNH', 'NFLX', 'NVDA', 'TSLA',
+];
 
-  generateSignals(data: TickerDataBundle): EntrySignal[] {
-    const signals: EntrySignal[] = [];
-    const ema34 = data.emas.get(34)!;
+// ── EMA helper (matches runner) ───────────────────────────
+function computeEMA(closes: number[], period: number): number[] {
+  const out = new Array(closes.length).fill(0);
+  if (closes.length < period) return out;
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += closes[i];
+  out[period - 1] = sum / period;
+  const k = 2 / (period + 1);
+  for (let i = period; i < closes.length; i++) out[i] = closes[i] * k + out[i - 1] * (1 - k);
+  return out;
+}
 
-    for (let i = 40; i < data.candles.length; i++) {
-      const c = data.candles[i];
-      if (ema34[i] <= 0 || ema34[i - 5] <= 0) continue;
-
-      // MA-touch: price 0-5% above rising EMA34
-      const pctAboveMA = (c.close - ema34[i]) / ema34[i];
-      const nearMA = pctAboveMA >= 0 && pctAboveMA < 0.05;
-      const maRising = ema34[i] > ema34[i - 5];
-      if (!nearMA || !maRising) continue;
-
-      signals.push({
-        ticker: data.ticker,
-        date: c.date,
-        direction: 'CALL',
-        score: 50,
-        ivRank: data.ivRanks[i] ?? undefined,
+// ── Pre-compute breadth (Gate 2) from the local data cache ─
+// Breadth = fraction of CAMPAIGN_TICKERS with close > EMA200 on each date.
+// Computed once at module load; generateSignals consults it per-entry.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+let breadthByDate: Map<string, number> = new Map();
+let hv20PctByTickerDate: Map<string, Map<string, number>> = new Map();
+{
+  const cachePath = path.resolve(__dirname, 'data-cache.json');
+  if (fs.existsSync(cachePath)) {
+    const cache = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+    // Breadth: for each date present across watchlist, count ticker closes > ema200
+    const perTickerAboveEma: Array<{ dateToAbove: Map<string, boolean>; dateToHv20: Map<string, number | null> }> = [];
+    const allDateSet = new Set<string>();
+    for (const t of CAMPAIGN_TICKERS) {
+      const td = cache.tickers[t];
+      if (!td) continue;
+      const closes: number[] = td.candles.map((c: any) => c.close);
+      const ema200 = computeEMA(closes, 200);
+      const dateToAbove = new Map<string, boolean>();
+      for (let i = 0; i < td.candles.length; i++) {
+        const d = td.candles[i].date;
+        allDateSet.add(d);
+        if (ema200[i] > 0) dateToAbove.set(d, closes[i] > ema200[i]);
+      }
+      // Also stash hv20 percentile for Gate 5
+      const ivRows = td.iv || [];
+      const hv20Series: Array<number | null> = td.candles.map((c: any) => {
+        const row = ivRows.find((r: any) => r.date === c.date);
+        return row && row.hv20 != null && Number.isFinite(row.hv20) ? row.hv20 : null;
       });
+      const hv20Pct = new Map<string, number>();
+      for (let i = 0; i < hv20Series.length; i++) {
+        const v = hv20Series[i];
+        if (v == null) continue;
+        const startI = Math.max(0, i - 252);
+        const window = hv20Series.slice(startI, i + 1).filter((x): x is number => x != null);
+        if (window.length < 60) continue;
+        const pct = (window.filter(x => x <= v).length / window.length) * 100;
+        hv20Pct.set(td.candles[i].date, pct);
+      }
+      hv20PctByTickerDate.set(t, hv20Pct);
+      perTickerAboveEma.push({ dateToAbove, dateToHv20: new Map() });
     }
-    return signals;
-  },
+    const sortedDates = [...allDateSet].sort();
+    for (const d of sortedDates) {
+      let have = 0, above = 0;
+      for (const row of perTickerAboveEma) {
+        const v = row.dateToAbove.get(d);
+        if (v === undefined) continue;
+        have++;
+        if (v) above++;
+      }
+      if (have > 0) breadthByDate.set(d, above / have);
+    }
+    console.log(`[strategy.ts] Pre-computed breadth for ${breadthByDate.size} dates across ${perTickerAboveEma.length} tickers`);
+  } else {
+    console.warn(`[strategy.ts] data-cache.json not found at ${cachePath} — Gate 2 (breadth) will be disabled`);
+  }
+}
 
-  buildConfig(_ticker: string, _direction: 'CALL' | 'PUT'): SimConfig {
-    return {
-      ...DEFAULT_LEAP_CONFIG,
-      mode: 'LEAP',
-      leapDeltaRange: [0.70, 0.80] as [number, number],
-      leapDTERange: [180, 270] as [number, number],
-      leapProfitTarget: 0.25,
-      leapStopLoss: 0.30,
-      leapTimeStopDTE: 45,
-      monitoringIntervalDays: 3,  // OPTIMAL: avoids false SL triggers from 1-2 day noise dips
-      minIVRank: 0,
-      missingChainExitAfterDays: 3,
-    };
-  },
+// ── Gate parameters (pre-registered) ──────────────────────
+const BREADTH_MIN = 0.60;
+const SPY_EXTENSION_MAX = 0.10;   // reject when SPY > EMA200 × 1.10
+const CONTANGO_PCT_TIGHT = 30;     // default was 48
+const HV20_PCT_MAX = 25;           // bottom quartile realized vol
+const MAX_TREND_AGE_DAYS = 120;
+
+// ── Gate filter: returns true if signal PASSES gate ───────
+function gateAllows(
+  ticker: string,
+  date: string,
+  i: number,
+  candles: { date: string; close: number }[],
+  ema34: number[],
+  ema200: number[],
+  spy: { close: number; ema200: number } | undefined,
+): boolean {
+  switch (GATE) {
+    case 'none':
+      return true;
+
+    case 'ticker_ema200':
+      return ema200[i] > 0 && candles[i].close > ema200[i];
+
+    case 'breadth': {
+      const b = breadthByDate.get(date);
+      return b !== undefined && b >= BREADTH_MIN;
+    }
+
+    case 'spy_extension': {
+      if (!spy || spy.ema200 <= 0) return false;
+      return spy.close / spy.ema200 <= (1 + SPY_EXTENSION_MAX);
+    }
+
+    case 'contango_tight':
+      // handled inline via stricter contangoPct ceiling — allow here
+      return true;
+
+    case 'rv_regime': {
+      const m = hv20PctByTickerDate.get(ticker);
+      if (!m) return false;
+      const p = m.get(date);
+      return p !== undefined && p <= HV20_PCT_MAX;
+    }
+
+    case 'trend_age': {
+      // Age = days since last close < ema34. Scan backward from i.
+      let age = 0;
+      for (let j = i; j >= 0; j--) {
+        if (ema34[j] <= 0) break;
+        if (candles[j].close < ema34[j]) break;
+        age++;
+      }
+      return age <= MAX_TREND_AGE_DAYS;
+    }
+
+    default:
+      return true;
+  }
+}
+
+// ── Strategy definition ───────────────────────────────────
+export const strategy: StrategyDefinition = {
+  name: `d65-tp40-gate-${GATE}`,
+  tickers: CAMPAIGN_TICKERS,
 
   portfolio: {
-    maxPositions: 3,
+    maxPositions: 4,
     maxPerTicker: 1,
-    startingCapital: 10_000,
+    startingCapital: 10000,
   },
 
   wfa: {
     trainWindowDays: 252,
     forwardStepDays: 126,
     purgeGapDays: 10,
-    mode: 'rolling',
-    holdoutCount: 2,
+    mode: 'rolling' as const,
+    // holdoutCount=5 puts holdout = 2024-01-22 -> 2026-02-27 (5 windows).
+    // This covers the 45-loss streak (Jan 2025+). Selection ends 2024-01-19.
+    holdoutCount: 5,
+  },
+
+  buildConfig(_ticker: string, _direction: 'CALL' | 'PUT'): SimConfig {
+    // d65-tp40 champion parameters (the current best under bid/ask fills)
+    return {
+      ...DEFAULT_LEAP_CONFIG,
+      mode: 'LEAP' as const,
+      leapDeltaRange: [0.65, 0.80] as [number, number],
+      leapDTERange: [180, 270] as [number, number],
+      leapProfitTarget: 0.40,
+      leapStopLoss: 0.30,
+      leapTimeStopDTE: 105,
+      monitoringIntervalDays: 1,
+    };
+  },
+
+  generateSignals(data: TickerDataBundle, market: MarketContext): EntrySignal[] {
+    const signals: EntrySignal[] = [];
+    const ema8 = data.emas.get(8)!;
+    const ema13 = data.emas.get(13)!;
+    const ema34 = data.emas.get(34)!;
+    const ema55 = data.emas.get(55)!;
+    const ema200 = data.emas.get(200)!;
+    const n = data.candles.length;
+
+    // Gate 4 re-parameterizes contangoPct threshold. Default stays at 48.
+    const contangoMax = GATE === 'contango_tight' ? CONTANGO_PCT_TIGHT : 48;
+
+    for (let i = 60; i < n; i++) {
+      const c = data.candles[i];
+
+      // Validity guards (identical to champion)
+      if (ema8[i] <= 0 || ema13[i] <= 0) continue;
+      if (ema34[i] <= 0 || ema34[i - 5] <= 0) continue;
+      if (ema55[i] <= 0) continue;
+      if (ema200[i] <= 0) continue;
+
+      const spy = market.spyByDate.get(c.date);
+      if (!spy || !spy.ema200 || spy.ema200 <= 0) continue;
+
+      // Baseline d65-tp40 gates
+      if (spy.close <= spy.ema200) continue;            // SPY > EMA200
+      if (c.close <= ema55[i]) continue;                // ticker > EMA55
+      if (!(ema8[i] > ema13[i] && ema34[i] > ema34[i - 5])) continue;  // short-term momentum + EMA34 rising
+
+      const pct = (c.close - ema34[i]) / ema34[i];
+      if (!(pct >= 0 && pct < 0.05)) continue;          // 0-5% band above EMA34 (champion's 0-5%)
+
+      const regime = data.regimeByDate.get(c.date);
+      if (regime && regime.contangoPct !== undefined && regime.contangoPct >= contangoMax) continue;
+
+      // Campaign A gate
+      if (!gateAllows(data.ticker, c.date, i, data.candles, ema34, ema200, spy)) continue;
+
+      signals.push({
+        ticker: data.ticker,
+        date: c.date,
+        direction: 'CALL',
+        score: Math.round(100 - pct * 1000),   // proximity score (closer to EMA34 = higher)
+      });
+    }
+
+    return signals;
   },
 };

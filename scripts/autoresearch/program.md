@@ -67,14 +67,14 @@ AAPL, AMD, AMZN, AVGO, BA, COIN, COST, GLD, GOOG, GS, HOOD, IWM, JPM, LULU, META
 1. OOS Sharpe > 0 (must survive walk-forward)
 2. Min 100 OOS trades (statistical validity)
 3. MaxDD < 35%
-4. Holdout Sharpe >= 0 (unseen data must not be negative)
+4. Holdout gate: PASS (requires holdout Sharpe >= 0.3 OR holdout SPY IR >= 0.3)
 
 ## Overfitting Defenses (shown in output)
 
 The runner tracks several overfitting metrics. Pay attention to these:
 
-- **Holdout gate**: Pass/fail on data the strategy never trained on. Exact holdout Sharpe is hidden to prevent you from implicitly optimizing for it.
-- **Holdout/OOS ratio**: How much the edge survives to holdout. Want > 0.5. Below 0.3 = likely overfit.
+- **Holdout gate**: Pass/fail on data the strategy never trained on. Exact holdout Sharpe/IR/ratio are hidden to prevent you from implicitly optimizing for them.
+- **Holdout stability**: `STABLE/WEAK/DEGRADED` label derived from holdout vs OOS performance. The numeric ratio is hidden to prevent back-calculation.
 - **Bootstrap 95% CI**: If the lower bound is > 0, the Sharpe is statistically significant. If CI includes 0, the edge may be noise.
 - **Deflated Sharpe**: Adjusts for the number of strategies you've tried (multiple testing). After 50+ attempts, a raw Sharpe of 0.5 might be noise — the deflated Sharpe accounts for this. Want > 0.
 - **WF Efficiency**: OOS Sharpe / train Sharpe. Close to 1.0 = robust. Below 0.3 = overfit to training data.
