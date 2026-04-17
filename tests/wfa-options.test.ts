@@ -416,7 +416,7 @@ describe('WFA position carry', () => {
 });
 
 describe('Deterministic execution ordering', () => {
-  it('uses date, then ticker, then direction when capacity is limited', () => {
+  it('uses date, then score (desc), then ticker when capacity is limited', () => {
     const constrainedEvaluator: TradeEvaluator = (signal) => ({
       ticker: signal.ticker, mode: 'CREDIT_SPREAD', direction: signal.direction,
       entryDate: signal.date, entrySignalScore: signal.score,
@@ -441,9 +441,48 @@ describe('Deterministic execution ordering', () => {
       constrainedEvaluator,
     );
 
+    // Highest score (84) wins: SPY CALL executes before QQQ CALL (82) and SPY PUT (80)
     expect(trades).toHaveLength(1);
-    expect(trades[0].ticker).toBe('QQQ');
+    expect(trades[0].ticker).toBe('SPY');
     expect(trades[0].direction).toBe('CALL');
+  });
+
+  it('alternates direction tie-break preference across dates for same ticker and score', () => {
+    const constrainedEvaluator: TradeEvaluator = (signal) => ({
+      ticker: signal.ticker, mode: 'CREDIT_SPREAD', direction: signal.direction,
+      entryDate: signal.date, entrySignalScore: signal.score,
+      strike: 470, expiry: '2024-02-16', entryDTE: 45, entryPrice: 1.0,
+      entryDelta: -0.30, entryIV: 0.20, entryStockPrice: 480,
+      spreadWidth: 10, maxProfit: 1.0, maxLoss: 9.0,
+      exitDate: '2024-12-20', exitPrice: 0.30, exitDTE: 7, exitStockPrice: 485,
+      exitType: 'PROFIT_TARGET', pnl: 70, pnlPct: 0.078, holdDays: 30,
+    } as OptionTrade);
+
+    const firstDayTrades = evaluateConfiguredSignalsWithConstraints(
+      [
+        { signal: { ticker: 'SPY', date: '2023-06-01', direction: 'CALL' as const, score: 80 }, config: DEFAULT_CREDIT_CONFIG },
+        { signal: { ticker: 'SPY', date: '2023-06-01', direction: 'PUT' as const, score: 80 }, config: DEFAULT_CREDIT_CONFIG },
+      ],
+      { maxPositions: 1, maxPerTicker: 1, startingCapital: 100_000 },
+      allDates,
+      '2024-12-31',
+      constrainedEvaluator,
+    );
+
+    const secondDayTrades = evaluateConfiguredSignalsWithConstraints(
+      [
+        { signal: { ticker: 'SPY', date: '2023-06-02', direction: 'CALL' as const, score: 80 }, config: DEFAULT_CREDIT_CONFIG },
+        { signal: { ticker: 'SPY', date: '2023-06-02', direction: 'PUT' as const, score: 80 }, config: DEFAULT_CREDIT_CONFIG },
+      ],
+      { maxPositions: 1, maxPerTicker: 1, startingCapital: 100_000 },
+      allDates,
+      '2024-12-31',
+      constrainedEvaluator,
+    );
+
+    expect(firstDayTrades).toHaveLength(1);
+    expect(secondDayTrades).toHaveLength(1);
+    expect(firstDayTrades[0].direction).not.toBe(secondDayTrades[0].direction);
   });
 });
 

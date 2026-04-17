@@ -67,7 +67,7 @@ export interface CreditSpreadTradeBuildParams {
   overrideNetPnlPct?: number;
 }
 
-export const DEFAULT_MISSING_CHAIN_EXIT_AFTER_DAYS = 3;
+export const DEFAULT_MISSING_CHAIN_EXIT_AFTER_DAYS = 999;
 export const CREDIT_SPREAD_LEG_COUNT = 2;
 
 export function resolveActualSpreadWidth(spread: SpreadLike): number {
@@ -81,6 +81,18 @@ export function resolveActualSpreadWidth(spread: SpreadLike): number {
 export function clampSpreadCloseCost(cost: number, actualWidth: number): number {
   if (!Number.isFinite(cost)) return Math.max(0, actualWidth);
   return Math.min(Math.max(0, cost), Math.max(0, actualWidth));
+}
+
+/**
+ * Upper-cap a spread cost at its width without flooring negative values.
+ *
+ * Use this for theoretical/BSM mark-to-market where small negative values can
+ * occur due to numerical artifacts and should not be flattened to 0 (which
+ * distorts the MtM signal), while still enforcing the defined-risk upper bound.
+ */
+export function capSpreadCloseCostUpper(cost: number, actualWidth: number): number {
+  if (!Number.isFinite(cost)) return Math.max(0, actualWidth);
+  return Math.min(cost, Math.max(0, actualWidth));
 }
 
 export function computeCreditSpreadThresholds(
@@ -148,9 +160,11 @@ export function resolveTriggeredCreditExitCost(
     case 'PROFIT_TARGET':
       return thresholds.tpCost;
     case 'STOP_LOSS':
-      return thresholds.slCost;
+      // Trigger thresholds are NOT fill prices. If the stop is triggered,
+      // the market is already at/through the threshold.
+      return clampSpreadCloseCost(currentSpreadCost, thresholds.actualWidth);
     case 'MAX_LOSS_STOP':
-      return thresholds.maxLossStopCost;
+      return clampSpreadCloseCost(currentSpreadCost, thresholds.actualWidth);
     case 'TRAILING_LOCK':
       // Exit at market, NOT at the floor. The floor is the trigger level,
       // not the fill level — a limit order at the floor cannot fill once the

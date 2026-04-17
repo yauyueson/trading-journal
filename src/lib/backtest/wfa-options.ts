@@ -118,7 +118,7 @@ interface OpenPositionState {
   riskCapital: number;
 }
 
-interface PortfolioConstraintState {
+export interface PortfolioConstraintState {
   openPositions: OpenPositionState[];
   openCountByTicker: Map<string, number>;
   openRiskCapital: number;
@@ -181,21 +181,35 @@ function capitalAtRisk(trade: OptionTrade): number {
   return Math.max(0, trade.entryPrice * 100);
 }
 
-function directionSortValue(direction: EntrySignal['direction']): number {
-  return direction === 'CALL' ? 0 : 1;
+function stableParity(text: string): number {
+  let parity = 0;
+  for (let index = 0; index < text.length; index++) {
+    parity = (parity + text.charCodeAt(index)) & 1;
+  }
+  return parity;
+}
+
+function directionSortValue(signal: EntrySignal): number {
+  // Avoid a permanent bullish/bearish ordering bias under portfolio constraints.
+  // We alternate the preferred direction by (date,ticker) bucket so tie-breaks
+  // stay deterministic without always giving CALLs first slot access.
+  const preferCallFirst = stableParity(`${signal.date}|${signal.ticker}`) === 0;
+  return signal.direction === (preferCallFirst ? 'CALL' : 'PUT') ? 0 : 1;
 }
 
 function compareSignalExecutionOrder(a: EntrySignal, b: EntrySignal): number {
   return a.date.localeCompare(b.date) ||
+    (b.score ?? 0) - (a.score ?? 0) ||  // higher score wins within same date
     a.ticker.localeCompare(b.ticker) ||
-    directionSortValue(a.direction) - directionSortValue(b.direction);
+    directionSortValue(a) - directionSortValue(b) ||
+    a.direction.localeCompare(b.direction);
 }
 
 function compareConfiguredSignalExecutionOrder(a: ConfiguredSignal, b: ConfiguredSignal): number {
   return compareSignalExecutionOrder(a.signal, b.signal);
 }
 
-function createConstraintState(): PortfolioConstraintState {
+export function createConstraintState(): PortfolioConstraintState {
   return {
     openPositions: [],
     openCountByTicker: new Map(),

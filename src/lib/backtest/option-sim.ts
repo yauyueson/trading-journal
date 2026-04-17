@@ -36,7 +36,19 @@ import { applyFill, applySpreadFill } from './slippage';
 // ── Types ────────────────────────────────────────────────
 
 export type OptionMode = 'LEAP' | 'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SWING_LONG_OPTION';
-export type OptionExitType = 'PROFIT_TARGET' | 'STOP_LOSS' | 'TIME_STOP' | 'SIGNAL_REVERSAL' | 'EXPIRATION' | 'NO_CHAIN' | 'PROFIT_TARGET_2' | 'SL_BREAKEVEN' | 'DELTA_STOP' | 'MAX_LOSS_STOP' | 'TRAILING_LOCK';
+export type OptionExitType =
+  | 'PROFIT_TARGET'
+  | 'STOP_LOSS'
+  | 'TIME_STOP'
+  | 'SIGNAL_REVERSAL'
+  | 'EXPIRATION'
+  | 'FORCE_CLOSE'
+  | 'NO_CHAIN'
+  | 'PROFIT_TARGET_2'
+  | 'SL_BREAKEVEN'
+  | 'DELTA_STOP'
+  | 'MAX_LOSS_STOP'
+  | 'TRAILING_LOCK';
 
 export interface OptionTrade {
   ticker: string;
@@ -104,6 +116,15 @@ export interface EntrySignal {
   // Per-ticker delta overrides (for multi-ticker studies with different deltas)
   configuredDelta?: number;
   configuredLongDelta?: number;
+  // Pre-computed invalidation dates for signal-based exits
+  invalidation?: {
+    macroBreakDate?: string;      // first date SPY < EMA200
+    trendBreakDate?: string;      // first date close < EMA55
+    momentumBreakDate?: string;   // first date EMA8 < EMA13
+    macro3dBreakDate?: string;    // 3 consecutive days SPY < EMA200
+    trend3dBreakDate?: string;    // 3 consecutive days close < EMA55
+    momentum3dBreakDate?: string; // 3 consecutive days EMA8 < EMA13
+  };
 }
 
 export interface SimConfig {
@@ -193,6 +214,11 @@ export interface SimConfig {
   swingLongMinOI?: number;               // min open interest on selected contract
   swingLongMaxBidAskSpreadPct?: number;  // max bid-ask spread as % of mid
   swingLongRiskBudgetPct?: number;       // fraction of capital risked per trade
+  // Signal invalidation exit — exit at market when entry conditions break
+  signalInvalidation?: {
+    type: 'macro' | 'trend' | 'momentum' | 'any';
+    graceDays?: number; // 0 = immediate, 3 = 3-day confirmation
+  };
 }
 
 export const DEFAULT_LEAP_CONFIG: SimConfig = {
@@ -210,8 +236,11 @@ export const DEFAULT_LEAP_CONFIG: SimConfig = {
   creditTimeStopDTE: 5,
   monitoringIntervalDays: 1,
   minIVRank: 0,
-  fillMode: 'mid' as FillMode,
-  slippage: { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: false },
+  // Trust default: realistic fills (bid/ask + dynamic impact), not mid.
+  fillMode: 'bidask' as FillMode,
+  slippage: { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: true },
+  // Safeguard: force-close after 3 consecutive missing-chain days so the boundary
+  // date never lands on sparse coverage and marks the position at intrinsic.
   missingChainExitAfterDays: 3,
   commissionPerLeg: 0,
 };
@@ -239,8 +268,8 @@ export const DEFAULT_SHORT_CREDIT_CONFIG: SimConfig = {
   creditTimeStopDTE: 1,         // Close 1 day before expiry (pin risk)
   monitoringIntervalDays: 1,    // Daily monitoring (essential for short DTE)
   minIVRank: 20,                // WFA validated: iv20
-  fillMode: 'mid' as FillMode,
-  slippage: { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: false },
+  fillMode: 'bidask' as FillMode,
+  slippage: { ...DEFAULT_DYNAMIC_SLIPPAGE, enabled: true },
 };
 
 // DEFAULT_DEBIT_CONFIG and DEFAULT_SWING_LONG_OPTION_CONFIG removed 2026-03-30
@@ -374,8 +403,22 @@ export async function simulateLeap(
     }
 
     if (exitType) {
-      return buildLeapResult(signal, entry, checkDate, currentPrice, currentDTE,
-        current.row.stock_price, exitType, dailyMtM);
+      return buildLeapTrade(
+        signal,
+        entry,
+        entryPrice,
+        checkDate,
+        currentPrice,
+        currentDTE,
+        current.row.stock_price,
+        exitType,
+        dailyMtM,
+        {
+          entrySlippage: config.fillMode === 'bidask' && config.slippage.enabled ? (entryPrice - entry.mid) : 0,
+          exitSlippage: config.fillMode === 'bidask' && config.slippage.enabled ? (current.mid - currentPrice) : 0,
+          fillMode: config.fillMode,
+        },
+      );
     }
   }
 
@@ -386,8 +429,16 @@ export async function simulateLeap(
     const current = findContract(chain, entry.row.strike, entry.row.expir_date, optionType);
     // At expiry: intrinsic value
     let exitPrice: number;
+    let exitSlippage = 0;
     if (current) {
-      exitPrice = current.mid;
+      if (config.fillMode === 'bidask' && config.slippage.enabled) {
+        const fill = applyFill('bidask', current.mid, current.bid, current.ask, 'sell',
+          config.slippage, current.oi, current.row.dte);
+        exitPrice = fill.fillPrice;
+        exitSlippage = fill.slippage;
+      } else {
+        exitPrice = current.mid;
+      }
     } else {
       // Compute intrinsic value as fallback
       const lastChain = chain.length > 0 ? chain[0].stock_price : entry.row.stock_price;
@@ -396,19 +447,43 @@ export async function simulateLeap(
         : Math.max(0, entry.row.strike - lastChain);
     }
 
-    return buildLeapResult(signal, entry, lastDate, exitPrice,
-      current?.row.dte ?? 0, current?.row.stock_price ?? entry.row.stock_price, 'EXPIRATION', dailyMtM);
+    return buildLeapTrade(
+      signal,
+      entry,
+      entryPrice,
+      lastDate,
+      exitPrice,
+      current?.row.dte ?? 0,
+      current?.row.stock_price ?? entry.row.stock_price,
+      'EXPIRATION',
+      dailyMtM,
+      {
+        entrySlippage: config.fillMode === 'bidask' && config.slippage.enabled ? (entryPrice - entry.mid) : 0,
+        exitSlippage,
+        fillMode: config.fillMode,
+      },
+    );
   }
 
   return null;
 }
 
-function buildLeapResult(
-  signal: EntrySignal, entry: StrikeMatch, exitDate: string,
-  exitPrice: number, exitDTE: number, exitStockPrice: number, exitType: OptionExitType,
+export function buildLeapTrade(
+  signal: EntrySignal,
+  entry: StrikeMatch,
+  entryPrice: number,
+  exitDate: string,
+  exitPrice: number,
+  exitDTE: number,
+  exitStockPrice: number,
+  exitType: OptionExitType,
   dailyMtM?: { date: string; spreadMid: number; unrealizedPnl: number }[],
+  opts: {
+    entrySlippage?: number;
+    exitSlippage?: number;
+    fillMode?: FillMode;
+  } = {},
 ): OptionTrade {
-  const entryPrice = entry.mid;
   const pnl = (exitPrice - entryPrice) * 100;
   const pnlPct = (exitPrice - entryPrice) / entryPrice;
   const holdDays = Math.round(
@@ -438,6 +513,9 @@ function buildLeapResult(
     holdDays,
     ivRank: signal.ivRank,
     dailyMtM,
+    entrySlippage: opts.entrySlippage,
+    exitSlippage: opts.exitSlippage,
+    fillMode: opts.fillMode,
   };
 }
 
@@ -902,7 +980,72 @@ export async function simulateCreditSpreadPhased(
   );
   if (!spread || spread.netCredit <= 0) return null;
 
-  const entryCredit = spread.netCredit;
+  // --- ORATS liquidity & Greeks filters (mirror simulateCreditSpread) ---
+  if (config.maxBidAskSpreadPct != null && config.maxBidAskSpreadPct !== Infinity) {
+    const shortSpreadPct = spread.short.mid > 0.10
+      ? (spread.short.ask - spread.short.bid) / spread.short.mid : 0;
+    if (shortSpreadPct > config.maxBidAskSpreadPct) return null;
+  }
+
+  if (config.minShortOI != null && config.minShortOI > 0) {
+    if (spread.short.oi < config.minShortOI) return null;
+  }
+
+  if (config.maxGammaThetaRatio != null && config.maxGammaThetaRatio !== Infinity) {
+    const theta = Math.abs(spread.short.row.theta);
+    if (theta > 0.001) {
+      const ratio = spread.short.row.gamma / theta;
+      if (ratio > config.maxGammaThetaRatio) return null;
+    }
+  }
+
+  if (config.maxIVSkew != null && config.maxIVSkew !== Infinity) {
+    const skew = Math.abs(spread.short.iv - spread.long.iv);
+    if (skew > config.maxIVSkew) return null;
+  }
+
+  const grossEntryCredit = spread.netCredit;
+  const { entryCommission, exitCommission } = resolveCreditSpreadCommissions(config);
+  let entryCredit = spread.netCredit;
+  let entrySlippage = 0;
+  if (config.fillMode === 'bidask' && config.slippage.enabled) {
+    if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
+      const spreadFill = applySpreadFill(
+        'bidask',
+        { ...spread.short, dte: spread.short.row.dte },
+        { ...spread.long, dte: spread.long.row.dte },
+        'open',
+        config.slippage,
+      );
+      entryCredit = spreadFill.fillPrice;
+      entrySlippage = spreadFill.slippage;
+    } else {
+      const shortFill = applyFill(
+        'bidask',
+        spread.short.mid,
+        spread.short.bid,
+        spread.short.ask,
+        'sell',
+        config.slippage,
+        spread.short.oi,
+        spread.short.row.dte,
+      );
+      const longFill = applyFill(
+        'bidask',
+        spread.long.mid,
+        spread.long.bid,
+        spread.long.ask,
+        'buy',
+        config.slippage,
+        spread.long.oi,
+        spread.long.row.dte,
+      );
+      entryCredit = shortFill.fillPrice - longFill.fillPrice;
+      entrySlippage = shortFill.slippage + longFill.slippage;
+    }
+    if (entryCredit <= 0) return null;
+  }
+
   const thresholds = computeCreditSpreadThresholds(config, spread, entryCredit);
   const tp1Cost = clampSpreadCloseCost(
     thresholds.boundedEntryCredit * (1 - phasedConfig.tp1),
@@ -924,7 +1067,9 @@ export async function simulateCreditSpreadPhased(
 
   // Phase tracking
   let phase: 'FULL' | 'HALF' = 'FULL';
-  let halfPnl = 0;             // P&L from the first half (set when TP1 hit)
+  let halfGrossPnl = 0;        // Gross P&L from the first half (set when TP1 hit)
+  let halfNetPnl = 0;          // Net P&L before commissions from the first half
+  let totalExitSlippage = 0;   // Weighted total exit slippage across both half-closes
   let missingChainState = createMissingChainState();
   let lastValidSpreadCost: number | null = null;
   let lastKnownStockPrice = spread.short.row.stock_price;
@@ -974,12 +1119,18 @@ export async function simulateCreditSpreadPhased(
           ),
           thresholds,
         );
-        const secondHalfPnl = phase === 'HALF'
-          ? (thresholds.boundedEntryCredit - noChainCost) * 0.5 * 100
+        const secondHalfGrossPnl = phase === 'HALF'
+          ? (grossEntryCredit - noChainCost) * 0.5 * 100
           : 0;
+        const secondHalfNetPnl = phase === 'HALF'
+          ? (entryCredit - noChainCost) * 0.5 * 100
+          : 0;
+        const totalGrossPnl = phase === 'HALF'
+          ? halfGrossPnl + secondHalfGrossPnl
+          : (grossEntryCredit - noChainCost) * 100;
         const totalPnl = phase === 'HALF'
-          ? halfPnl + secondHalfPnl
-          : (thresholds.boundedEntryCredit - noChainCost) * 100;
+          ? halfNetPnl + secondHalfNetPnl - entryCommission - exitCommission
+          : (entryCredit - noChainCost) * 100 - entryCommission - exitCommission;
         return buildCreditResult(
           signal,
           spread,
@@ -990,9 +1141,17 @@ export async function simulateCreditSpreadPhased(
           lastResortStockPrice(spread.short.row.stock_price, monitoringStockPrice ?? lastKnownStockPrice),
           'NO_CHAIN',
           {
+            grossEntryCredit,
+            grossExitSpreadCost: noChainCost,
             overrideNetPnl: totalPnl,
+            overrideGrossPnl: totalGrossPnl,
             overrideNetPnlPct: thresholds.maxLoss > 0 ? totalPnl / (thresholds.maxLoss * 100) : 0,
             dailyMtM,
+            entrySlippage,
+            exitSlippage: totalExitSlippage,
+            entryCommission,
+            exitCommission,
+            fillMode: config.fillMode,
           },
         );
       }
@@ -1001,10 +1160,49 @@ export async function simulateCreditSpreadPhased(
     const resolvedShortLeg = shortLeg!;
     const resolvedLongLeg = longLeg!;
 
-    const currentSpreadCost = clampSpreadCloseCost(
+    const grossCurrentSpreadCost = clampSpreadCloseCost(
       resolvedShortLeg.mid - resolvedLongLeg.mid,
       thresholds.actualWidth,
     );
+    let currentSpreadCost = grossCurrentSpreadCost;
+    let exitSlippageAmount = 0;
+    if (config.fillMode === 'bidask' && config.slippage.enabled) {
+      if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
+        const spreadFill = applySpreadFill(
+          'bidask',
+          { ...resolvedShortLeg, dte: resolvedShortLeg.row.dte },
+          { ...resolvedLongLeg, dte: resolvedLongLeg.row.dte },
+          'close',
+          config.slippage,
+        );
+        currentSpreadCost = spreadFill.fillPrice;
+        exitSlippageAmount = spreadFill.slippage;
+      } else {
+        const shortClose = applyFill(
+          'bidask',
+          resolvedShortLeg.mid,
+          resolvedShortLeg.bid,
+          resolvedShortLeg.ask,
+          'buy',
+          config.slippage,
+          resolvedShortLeg.oi,
+          resolvedShortLeg.row.dte,
+        );
+        const longClose = applyFill(
+          'bidask',
+          resolvedLongLeg.mid,
+          resolvedLongLeg.bid,
+          resolvedLongLeg.ask,
+          'sell',
+          config.slippage,
+          resolvedLongLeg.oi,
+          resolvedLongLeg.row.dte,
+        );
+        currentSpreadCost = shortClose.fillPrice - longClose.fillPrice;
+        exitSlippageAmount = shortClose.slippage + longClose.slippage;
+      }
+    }
+    currentSpreadCost = clampSpreadCloseCost(currentSpreadCost, thresholds.actualWidth);
     const currentDTE = resolvedShortLeg.row.dte;
     lastValidSpreadCost = currentSpreadCost;
 
@@ -1014,79 +1212,155 @@ export async function simulateCreditSpreadPhased(
       spreadMid: currentSpreadCost,
       unrealizedPnl: phase === 'FULL'
         ? (entryCredit - currentSpreadCost) * 100
-        : halfPnl + (entryCredit - currentSpreadCost) * 0.5 * 100,
+        : halfNetPnl + (entryCredit - currentSpreadCost) * 0.5 * 100,
     });
 
     if (phase === 'FULL') {
       // Check TP1 (close half)
-      if (currentSpreadCost <= tp1Cost) {
+      if (grossCurrentSpreadCost <= tp1Cost) {
         phase = 'HALF';
-        halfPnl = (thresholds.boundedEntryCredit - tp1Cost) * 0.5 * 100;
+        const tp1ExitCost = clampSpreadCloseCost(tp1Cost + exitSlippageAmount, thresholds.actualWidth);
+        halfGrossPnl = (grossEntryCredit - tp1Cost) * 0.5 * 100;
+        halfNetPnl = (entryCredit - tp1ExitCost) * 0.5 * 100;
+        totalExitSlippage += exitSlippageAmount * 0.5;
         // (date/type tracked by phase state)
         continue;  // keep monitoring the remaining half
       }
 
       // Check original SL (full position)
-      if (currentSpreadCost >= thresholds.slCost) {
-        const exitCost = resolveTriggeredCreditExitCost('STOP_LOSS', currentSpreadCost, thresholds);
-        const pnl = (thresholds.boundedEntryCredit - exitCost) * 100;
+      if (grossCurrentSpreadCost >= thresholds.slCost) {
+        const grossExitCost = resolveTriggeredCreditExitCost('STOP_LOSS', grossCurrentSpreadCost, thresholds);
+        const exitCost = clampSpreadCloseCost(grossExitCost + exitSlippageAmount, thresholds.actualWidth);
+        const grossPnl = (grossEntryCredit - grossExitCost) * 100;
+        const pnl = (entryCredit - exitCost) * 100 - entryCommission - exitCommission;
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, exitCost,
           currentDTE, resolvedShortLeg.row.stock_price, 'STOP_LOSS',
-          { overrideNetPnl: pnl, overrideNetPnlPct: thresholds.maxLoss > 0 ? pnl / (thresholds.maxLoss * 100) : 0, dailyMtM },
+          {
+            grossEntryCredit,
+            grossExitSpreadCost: grossExitCost,
+            dailyMtM,
+            entrySlippage,
+            exitSlippage: exitSlippageAmount,
+            entryCommission,
+            exitCommission,
+            fillMode: config.fillMode,
+            overrideGrossPnl: grossPnl,
+            overrideNetPnl: pnl,
+            overrideNetPnlPct: thresholds.maxLoss > 0 ? pnl / (thresholds.maxLoss * 100) : 0,
+          },
         );
       }
 
       // Check time stop (full position)
       if (currentDTE <= config.creditTimeStopDTE) {
-        const exitCost = resolveTriggeredCreditExitCost('TIME_STOP', currentSpreadCost, thresholds);
-        const pnl = (thresholds.boundedEntryCredit - exitCost) * 100;
+        const grossExitCost = resolveTriggeredCreditExitCost('TIME_STOP', grossCurrentSpreadCost, thresholds);
+        const exitCost = clampSpreadCloseCost(grossExitCost + exitSlippageAmount, thresholds.actualWidth);
+        const grossPnl = (grossEntryCredit - grossExitCost) * 100;
+        const pnl = (entryCredit - exitCost) * 100 - entryCommission - exitCommission;
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, exitCost,
           currentDTE, resolvedShortLeg.row.stock_price, 'TIME_STOP',
-          { overrideNetPnl: pnl, overrideNetPnlPct: thresholds.maxLoss > 0 ? pnl / (thresholds.maxLoss * 100) : 0, dailyMtM },
+          {
+            grossEntryCredit,
+            grossExitSpreadCost: grossExitCost,
+            dailyMtM,
+            entrySlippage,
+            exitSlippage: exitSlippageAmount,
+            entryCommission,
+            exitCommission,
+            fillMode: config.fillMode,
+            overrideGrossPnl: grossPnl,
+            overrideNetPnl: pnl,
+            overrideNetPnlPct: thresholds.maxLoss > 0 ? pnl / (thresholds.maxLoss * 100) : 0,
+          },
         );
       }
     } else {
       // phase === 'HALF' — remaining half with breakeven SL
 
       // Check TP2 (close remaining half)
-      if (currentSpreadCost <= tp2Cost) {
-        const exitCost = resolveTriggeredCreditExitCost('PROFIT_TARGET_2', currentSpreadCost, thresholds, {
+      if (grossCurrentSpreadCost <= tp2Cost) {
+        const grossExitCost = resolveTriggeredCreditExitCost('PROFIT_TARGET_2', grossCurrentSpreadCost, thresholds, {
           overrideThresholdCost: tp2Cost,
         });
-        const secondHalfPnl = (thresholds.boundedEntryCredit - exitCost) * 0.5 * 100;
-        const totalPnl = halfPnl + secondHalfPnl;
+        const exitCost = clampSpreadCloseCost(grossExitCost + exitSlippageAmount, thresholds.actualWidth);
+        const secondHalfGrossPnl = (grossEntryCredit - grossExitCost) * 0.5 * 100;
+        const secondHalfNetPnl = (entryCredit - exitCost) * 0.5 * 100;
+        const totalGrossPnl = halfGrossPnl + secondHalfGrossPnl;
+        const totalPnl = halfNetPnl + secondHalfNetPnl - entryCommission - exitCommission;
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, exitCost,
           currentDTE, resolvedShortLeg.row.stock_price, 'PROFIT_TARGET_2',
-          { overrideNetPnl: totalPnl, overrideNetPnlPct: thresholds.maxLoss > 0 ? totalPnl / (thresholds.maxLoss * 100) : 0, dailyMtM },
+          {
+            grossEntryCredit,
+            grossExitSpreadCost: grossExitCost,
+            dailyMtM,
+            entrySlippage,
+            exitSlippage: totalExitSlippage + (exitSlippageAmount * 0.5),
+            entryCommission,
+            exitCommission,
+            fillMode: config.fillMode,
+            overrideGrossPnl: totalGrossPnl,
+            overrideNetPnl: totalPnl,
+            overrideNetPnlPct: thresholds.maxLoss > 0 ? totalPnl / (thresholds.maxLoss * 100) : 0,
+          },
         );
       }
 
       // Check after-TP1 SL on remaining half
-      if (phasedConfig.afterTP1SL >= 0 && currentSpreadCost >= afterTP1SLCost) {
-        const exitCost = resolveTriggeredCreditExitCost('SL_BREAKEVEN', currentSpreadCost, thresholds, {
+      if (phasedConfig.afterTP1SL >= 0 && grossCurrentSpreadCost >= afterTP1SLCost) {
+        const grossExitCost = resolveTriggeredCreditExitCost('SL_BREAKEVEN', grossCurrentSpreadCost, thresholds, {
           overrideThresholdCost: afterTP1SLCost,
         });
-        const secondHalfPnl = (thresholds.boundedEntryCredit - exitCost) * 0.5 * 100;
-        const totalPnl = halfPnl + secondHalfPnl;
+        const exitCost = clampSpreadCloseCost(grossExitCost + exitSlippageAmount, thresholds.actualWidth);
+        const secondHalfGrossPnl = (grossEntryCredit - grossExitCost) * 0.5 * 100;
+        const secondHalfNetPnl = (entryCredit - exitCost) * 0.5 * 100;
+        const totalGrossPnl = halfGrossPnl + secondHalfGrossPnl;
+        const totalPnl = halfNetPnl + secondHalfNetPnl - entryCommission - exitCommission;
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, exitCost,
           currentDTE, resolvedShortLeg.row.stock_price, 'SL_BREAKEVEN',
-          { overrideNetPnl: totalPnl, overrideNetPnlPct: thresholds.maxLoss > 0 ? totalPnl / (thresholds.maxLoss * 100) : 0, dailyMtM },
+          {
+            grossEntryCredit,
+            grossExitSpreadCost: grossExitCost,
+            dailyMtM,
+            entrySlippage,
+            exitSlippage: totalExitSlippage + (exitSlippageAmount * 0.5),
+            entryCommission,
+            exitCommission,
+            fillMode: config.fillMode,
+            overrideGrossPnl: totalGrossPnl,
+            overrideNetPnl: totalPnl,
+            overrideNetPnlPct: thresholds.maxLoss > 0 ? totalPnl / (thresholds.maxLoss * 100) : 0,
+          },
         );
       }
 
       // Check time stop (remaining half)
       if (currentDTE <= config.creditTimeStopDTE) {
-        const exitCost = resolveTriggeredCreditExitCost('TIME_STOP', currentSpreadCost, thresholds);
-        const secondHalfPnl = (thresholds.boundedEntryCredit - exitCost) * 0.5 * 100;
-        const totalPnl = halfPnl + secondHalfPnl;
+        const grossExitCost = resolveTriggeredCreditExitCost('TIME_STOP', grossCurrentSpreadCost, thresholds);
+        const exitCost = clampSpreadCloseCost(grossExitCost + exitSlippageAmount, thresholds.actualWidth);
+        const secondHalfGrossPnl = (grossEntryCredit - grossExitCost) * 0.5 * 100;
+        const secondHalfNetPnl = (entryCredit - exitCost) * 0.5 * 100;
+        const totalGrossPnl = halfGrossPnl + secondHalfGrossPnl;
+        const totalPnl = halfNetPnl + secondHalfNetPnl - entryCommission - exitCommission;
         return buildCreditResult(
           signal, spread, entryCredit, checkDate, exitCost,
           currentDTE, resolvedShortLeg.row.stock_price, 'TIME_STOP',
-          { overrideNetPnl: totalPnl, overrideNetPnlPct: thresholds.maxLoss > 0 ? totalPnl / (thresholds.maxLoss * 100) : 0, dailyMtM },
+          {
+            grossEntryCredit,
+            grossExitSpreadCost: grossExitCost,
+            dailyMtM,
+            entrySlippage,
+            exitSlippage: totalExitSlippage + (exitSlippageAmount * 0.5),
+            entryCommission,
+            exitCommission,
+            fillMode: config.fillMode,
+            overrideGrossPnl: totalGrossPnl,
+            overrideNetPnl: totalPnl,
+            overrideNetPnlPct: thresholds.maxLoss > 0 ? totalPnl / (thresholds.maxLoss * 100) : 0,
+          },
         );
       }
     }
@@ -1110,41 +1384,109 @@ export async function simulateCreditSpreadPhased(
     }
     const fallbackStockPrice = shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? chain?.[0]?.stock_price;
 
+    let grossCurrentSpreadCost: number;
     let currentSpreadCost: number;
+    let exitSlippageAmount = 0;
     if (shortLeg && longLeg) {
-      currentSpreadCost = clampSpreadCloseCost(shortLeg.mid - longLeg.mid, thresholds.actualWidth);
+      grossCurrentSpreadCost = clampSpreadCloseCost(shortLeg.mid - longLeg.mid, thresholds.actualWidth);
+      if (config.fillMode === 'bidask' && config.slippage.enabled) {
+        if ((config.slippage.executionStyle ?? 'combo') === 'combo') {
+          const spreadFill = applySpreadFill(
+            'bidask',
+            { ...shortLeg, dte: shortLeg.row.dte },
+            { ...longLeg, dte: longLeg.row.dte },
+            'close',
+            config.slippage,
+          );
+          currentSpreadCost = clampSpreadCloseCost(spreadFill.fillPrice, thresholds.actualWidth);
+          exitSlippageAmount = spreadFill.slippage;
+        } else {
+          const shortClose = applyFill(
+            'bidask',
+            shortLeg.mid,
+            shortLeg.bid,
+            shortLeg.ask,
+            'buy',
+            config.slippage,
+            shortLeg.oi,
+            shortLeg.row.dte,
+          );
+          const longClose = applyFill(
+            'bidask',
+            longLeg.mid,
+            longLeg.bid,
+            longLeg.ask,
+            'sell',
+            config.slippage,
+            longLeg.oi,
+            longLeg.row.dte,
+          );
+          currentSpreadCost = clampSpreadCloseCost(shortClose.fillPrice - longClose.fillPrice, thresholds.actualWidth);
+          exitSlippageAmount = shortClose.slippage + longClose.slippage;
+        }
+      } else {
+        currentSpreadCost = grossCurrentSpreadCost;
+      }
     } else {
       const stockPrice = lastResortStockPrice(
         spread.short.row.stock_price,
         fallbackStockPrice ?? lastKnownStockPrice,
       );
-      currentSpreadCost = computeIntrinsicSpreadCloseCost(
+      grossCurrentSpreadCost = computeIntrinsicSpreadCloseCost(
         optionType,
         spread.short.row.strike,
         spread.long.row.strike,
         stockPrice,
         thresholds.actualWidth,
       );
+      currentSpreadCost = grossCurrentSpreadCost;
     }
 
     if (phase === 'HALF') {
-      const secondHalfPnl = (thresholds.boundedEntryCredit - currentSpreadCost) * 0.5 * 100;
-      const totalPnl = halfPnl + secondHalfPnl;
+      const secondHalfGrossPnl = (grossEntryCredit - grossCurrentSpreadCost) * 0.5 * 100;
+      const secondHalfNetPnl = (entryCredit - currentSpreadCost) * 0.5 * 100;
+      const totalGrossPnl = halfGrossPnl + secondHalfGrossPnl;
+      const totalPnl = halfNetPnl + secondHalfNetPnl - entryCommission - exitCommission;
       return buildCreditResult(
         signal, spread, entryCredit, lastDate, currentSpreadCost,
         shortLeg?.row.dte ?? longLeg?.row.dte ?? chain?.[0]?.dte ?? 0,
         lastResortStockPrice(spread.short.row.stock_price, fallbackStockPrice ?? lastKnownStockPrice),
         'EXPIRATION',
-        { overrideNetPnl: totalPnl, overrideNetPnlPct: thresholds.maxLoss > 0 ? totalPnl / (thresholds.maxLoss * 100) : 0, dailyMtM },
+        {
+          grossEntryCredit,
+          grossExitSpreadCost: grossCurrentSpreadCost,
+          dailyMtM,
+          entrySlippage,
+          exitSlippage: totalExitSlippage + (exitSlippageAmount * 0.5),
+          entryCommission,
+          exitCommission,
+          fillMode: config.fillMode,
+          overrideGrossPnl: totalGrossPnl,
+          overrideNetPnl: totalPnl,
+          overrideNetPnlPct: thresholds.maxLoss > 0 ? totalPnl / (thresholds.maxLoss * 100) : 0,
+        },
       );
     } else {
-      const pnl = (thresholds.boundedEntryCredit - currentSpreadCost) * 100;
+      const grossPnl = (grossEntryCredit - grossCurrentSpreadCost) * 100;
+      const pnl = (entryCredit - currentSpreadCost) * 100 - entryCommission - exitCommission;
       return buildCreditResult(
         signal, spread, entryCredit, lastDate, currentSpreadCost,
         shortLeg?.row.dte ?? longLeg?.row.dte ?? chain?.[0]?.dte ?? 0,
         lastResortStockPrice(spread.short.row.stock_price, fallbackStockPrice ?? lastKnownStockPrice),
         'EXPIRATION',
-        { overrideNetPnl: pnl, overrideNetPnlPct: thresholds.maxLoss > 0 ? pnl / (thresholds.maxLoss * 100) : 0, dailyMtM },
+        {
+          grossEntryCredit,
+          grossExitSpreadCost: grossCurrentSpreadCost,
+          dailyMtM,
+          entrySlippage,
+          exitSlippage: exitSlippageAmount,
+          entryCommission,
+          exitCommission,
+          fillMode: config.fillMode,
+          overrideGrossPnl: grossPnl,
+          overrideNetPnl: pnl,
+          overrideNetPnlPct: thresholds.maxLoss > 0 ? pnl / (thresholds.maxLoss * 100) : 0,
+        },
       );
     }
   }
@@ -1204,7 +1546,49 @@ export function projectTradesToGrossPnlView(trades: OptionTrade[]): OptionTrade[
   return trades.map(projectTradeToGrossPnlView);
 }
 
-export function computeOptionAnalytics(trades: OptionTrade[]): OptionSimAnalytics {
+function countWeekdaysInclusive(startDate: string, endDate: string): number {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start > end) return 0;
+
+  let businessDays = 0;
+  for (const cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    const day = cursor.getUTCDay();
+    if (day !== 0 && day !== 6) businessDays++;
+  }
+  return businessDays;
+}
+
+function hasDenseDailyCoverage(observedDates: string[]): boolean {
+  if (observedDates.length < 2) return false;
+  const expectedDays = countWeekdaysInclusive(observedDates[0], observedDates[observedDates.length - 1]);
+  if (expectedDays <= 0) return false;
+  return observedDates.length / expectedDays >= 0.8;
+}
+
+/**
+ * Options for computeOptionAnalytics.
+ *
+ * Pass `allTradingDates` to compute Sharpe/DD on the FULL trading calendar
+ * (zero-PnL days padded for flat sessions). This is the correct behavior for
+ * any strategy with `monitoringIntervalDays > 1` or sparse signal coverage —
+ * see Codex finding T3-1 in .prompts/codex-trust-followups.md.
+ *
+ * Without `allTradingDates`, the function builds the calendar from observed
+ * MtM/exit dates only (sparse-coverage fallback). This drops real flat days
+ * and inflates annualized Sharpe; preserved for back-compat with legacy callers.
+ */
+export interface ComputeOptionAnalyticsOptions {
+  /** Full trading calendar. When provided, drives Sharpe/DD on padded zero days. */
+  allTradingDates?: string[];
+  /** Restrict calendar to [start, end] inclusive. Defaults to min/max trade date. */
+  range?: { start: string; end: string };
+}
+
+export function computeOptionAnalytics(
+  trades: OptionTrade[],
+  opts: ComputeOptionAnalyticsOptions = {},
+): OptionSimAnalytics {
   if (trades.length === 0) {
     return {
       mode: 'LEAP', totalTrades: 0, winners: 0, losers: 0, winRate: 0,
@@ -1259,16 +1643,40 @@ export function computeOptionAnalytics(trades: OptionTrade[]): OptionSimAnalytic
   });
   const totalCapitalDeployed = capitalPerTrade.reduce((s, c) => s + c, 0);
   const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
-  const dailyDates = [...new Set(
-    trades.flatMap(t => [
+
+  // Build the daily date axis. When `allTradingDates` is supplied, use the full
+  // trading calendar (clipped to range); otherwise fall back to observed dates
+  // from MtM/exit (legacy sparse behavior — drops flat days).
+  let dailyDates: string[] = [];
+  let usingFullCalendar = false;
+  if (opts.allTradingDates && opts.allTradingDates.length > 0) {
+    const observedDates = trades.flatMap(t => [
       ...(t.dailyMtM?.map(m => m.date.slice(0, 10)) ?? []),
       t.exitDate.slice(0, 10),
-    ]),
-  )].sort();
+      t.entryDate.slice(0, 10),
+    ]).sort();
+    const rangeStart = opts.range?.start ?? observedDates[0];
+    const rangeEnd = opts.range?.end ?? observedDates[observedDates.length - 1];
+    dailyDates = opts.allTradingDates
+      .map(d => d.slice(0, 10))
+      .filter(d => d >= rangeStart && d <= rangeEnd);
+    usingFullCalendar = dailyDates.length > 0;
+  }
+  if (!usingFullCalendar) {
+    dailyDates = [...new Set(
+      trades.flatMap(t => [
+        ...(t.dailyMtM?.map(m => m.date.slice(0, 10)) ?? []),
+        t.exitDate.slice(0, 10),
+      ]),
+    )].sort();
+  }
 
   let dailyPortfolioSharpe: number | undefined;
   let dailyMtMDrawdownPct: number | undefined;
-  if (dailyDates.length > 0 && trades.some(t => (t.dailyMtM?.length ?? 0) > 0)) {
+  const hasDailyMtM = trades.some(t => (t.dailyMtM?.length ?? 0) > 0);
+  // When the full calendar is supplied we already have dense coverage by
+  // construction; skip the heuristic check that gates the legacy path.
+  if (hasDailyMtM && (usingFullCalendar || hasDenseDailyCoverage(dailyDates))) {
     const dateIdx = new Map<string, number>(dailyDates.map((d, i) => [d, i]));
     const dailyPnl = new Array<number>(dailyDates.length).fill(0);
 

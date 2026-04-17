@@ -322,9 +322,73 @@ function sampleCombinations(n: number, k: number, count: number, rng: () => numb
 
 // ── 3. Block Bootstrap ──────────────────────────────────
 
+export interface BlockBootstrapOpts {
+  /**
+   * Daily portfolio returns. When provided, the Sharpe CI is computed by
+   * block-bootstrapping THESE values — which is the statistically correct
+   * thing to do, because real autocorrelation lives in daily returns, not
+   * in trade-level pnlPct sorted by exit date.
+   *
+   * Without this, Sharpe CI falls back to trade-level resampling, which
+   * understates uncertainty (autocorrelation between consecutive trades is
+   * not preserved correctly when blocks are exit-sorted). The other CIs
+   * (maxDD, totalReturn, winRate) are correctly computed at trade level
+   * regardless.
+   *
+   * See Codex finding T3-2 in .prompts/codex-trust-followups.md.
+   */
+  dailyReturns?: number[];
+}
+
+/**
+ * Block bootstrap CI on Sharpe of a daily-return series. Preserves temporal
+ * autocorrelation by resampling contiguous blocks (block size ~ sqrt(n) by
+ * default). This is the statistically correct way to bootstrap Sharpe.
+ */
+export function blockBootstrapSharpeCI(
+  dailyReturns: number[],
+  nResamples: number = 10_000,
+  blockSize?: number,
+  seed: number = 42,
+): BootstrapCI {
+  const n = dailyReturns.length;
+  const block = Math.max(2, blockSize ?? Math.round(Math.sqrt(Math.max(1, n))));
+
+  if (n < block * 2) {
+    const sharpe = annualizedSharpeFromDailyReturns(dailyReturns);
+    return { ci5: sharpe, ci50: sharpe, ci95: sharpe };
+  }
+
+  const rng = createRng(seed);
+  const nBlocks = Math.ceil(n / block);
+  const sharpes: number[] = [];
+
+  for (let r = 0; r < nResamples; r++) {
+    const resampled: number[] = [];
+    for (let b = 0; b < nBlocks; b++) {
+      const startIdx = Math.floor(rng() * (n - block + 1));
+      for (let j = 0; j < block && startIdx + j < n; j++) {
+        resampled.push(dailyReturns[startIdx + j]);
+      }
+    }
+    sharpes.push(annualizedSharpeFromDailyReturns(resampled));
+  }
+
+  return percentiles(sharpes);
+}
+
+function annualizedSharpeFromDailyReturns(returns: number[]): number {
+  if (returns.length < 2) return 0;
+  const avg = returns.reduce((s, r) => s + r, 0) / returns.length;
+  const variance = returns.reduce((s, r) => s + (r - avg) ** 2, 0) / Math.max(1, returns.length - 1);
+  const sd = Math.sqrt(variance);
+  return sd > 1e-12 ? (avg / sd) * Math.sqrt(252) : 0;
+}
+
 /**
  * Block bootstrap with resampling for confidence intervals.
- * Preserves temporal autocorrelation within blocks.
+ * Preserves temporal autocorrelation within blocks (when `opts.dailyReturns`
+ * is supplied — see `BlockBootstrapOpts.dailyReturns`).
  */
 export function blockBootstrap(
   trades: OptionTrade[],
@@ -332,18 +396,22 @@ export function blockBootstrap(
   blockSize: number = 5,
   startingCapital: number = 100_000,
   seed: number = 42,
+  opts: BlockBootstrapOpts = {},
 ): BootstrapResult {
   const sorted = [...trades].sort((a, b) => a.exitDate.localeCompare(b.exitDate));
   const n = sorted.length;
 
   if (n < blockSize * 2) {
     const analytics = quickAnalytics(sorted, startingCapital);
+    const sharpeCI = opts.dailyReturns && opts.dailyReturns.length >= 4
+      ? blockBootstrapSharpeCI(opts.dailyReturns, nResamples, undefined, seed)
+      : { ci5: analytics.sharpe, ci50: analytics.sharpe, ci95: analytics.sharpe };
     return {
-      sharpe: { ci5: analytics.sharpe, ci50: analytics.sharpe, ci95: analytics.sharpe },
+      sharpe: sharpeCI,
       maxDD: { ci5: analytics.maxDD, ci50: analytics.maxDD, ci95: analytics.maxDD },
       totalReturn: { ci5: analytics.totalReturn, ci50: analytics.totalReturn, ci95: analytics.totalReturn },
       winRate: { ci5: analytics.winRate, ci50: analytics.winRate, ci95: analytics.winRate },
-      nResamples: 0,
+      nResamples: opts.dailyReturns ? nResamples : 0,
       blockSize,
     };
   }
@@ -373,8 +441,14 @@ export function blockBootstrap(
     winRates.push(analytics.winRate);
   }
 
+  // Sharpe CI: prefer daily-return block bootstrap when available (autocorrelation
+  // in trade-level Sharpe is not preserved correctly by exit-sorted resampling).
+  const sharpeCI = opts.dailyReturns && opts.dailyReturns.length >= blockSize * 2
+    ? blockBootstrapSharpeCI(opts.dailyReturns, nResamples, undefined, seed)
+    : percentiles(sharpes);
+
   return {
-    sharpe: percentiles(sharpes),
+    sharpe: sharpeCI,
     maxDD: percentiles(maxDDs),
     totalReturn: percentiles(totalReturns),
     winRate: percentiles(winRates),

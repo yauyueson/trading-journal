@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { applyFill } from '../src/lib/backtest/slippage';
 import { DEFAULT_DYNAMIC_SLIPPAGE } from '../src/lib/backtest/types';
 import type { SpreadMatch } from '../src/lib/backtest/chain-cache';
+import { buildLeapTrade, DEFAULT_CREDIT_CONFIG, DEFAULT_LEAP_CONFIG, DEFAULT_SHORT_CREDIT_CONFIG } from '../src/lib/backtest/option-sim';
 
 describe('dailyMtM population', () => {
   it('OptionTrade.dailyMtM has one entry per monitoring day', () => {
@@ -16,6 +17,59 @@ describe('dailyMtM population', () => {
     expect(mockMtM).toHaveLength(3);
     expect(mockMtM[0].date).toBe('2024-01-03');
     expect(mockMtM[2].unrealizedPnl).toBe(-10);
+  });
+});
+
+describe('LEAP fills are reflected in realized P&L', () => {
+  it('uses filled entryPrice (not mid) for pnl/pnlPct', () => {
+    const signal = { ticker: 'SPY', date: '2024-01-02', direction: 'CALL' as const, score: 80 };
+    const entry = {
+      row: { strike: 450, expir_date: '2024-12-20', dte: 352, stock_price: 480 },
+      mid: 10,
+      bid: 9.5,
+      ask: 10.5,
+      iv: 0.25,
+      delta: 0.75,
+    } as any;
+
+    // Buyer gets a worse-than-mid fill
+    const filledEntryPrice = 11;
+    const exitPrice = 12;
+
+    const trade = buildLeapTrade(
+      signal as any,
+      entry,
+      filledEntryPrice,
+      '2024-02-02',
+      exitPrice,
+      300,
+      490,
+      'PROFIT_TARGET',
+      undefined,
+      { entrySlippage: filledEntryPrice - entry.mid, fillMode: 'bidask' },
+    );
+
+    expect(trade.entryPrice).toBe(filledEntryPrice);
+    expect(trade.pnl).toBeCloseTo((exitPrice - filledEntryPrice) * 100, 8);
+    expect(trade.pnlPct).toBeCloseTo((exitPrice - filledEntryPrice) / filledEntryPrice, 10);
+    expect(trade.entrySlippage).toBeCloseTo(1, 10);
+    expect(trade.fillMode).toBe('bidask');
+  });
+});
+
+describe('Trust defaults', () => {
+  it('default option sim configs use bid/ask fills + slippage', () => {
+    expect(DEFAULT_LEAP_CONFIG.fillMode).toBe('bidask');
+    expect(DEFAULT_LEAP_CONFIG.slippage.enabled).toBe(true);
+    expect(DEFAULT_CREDIT_CONFIG.fillMode).toBe('bidask');
+    expect(DEFAULT_CREDIT_CONFIG.slippage.enabled).toBe(true);
+    expect(DEFAULT_SHORT_CREDIT_CONFIG.fillMode).toBe('bidask');
+    expect(DEFAULT_SHORT_CREDIT_CONFIG.slippage.enabled).toBe(true);
+  });
+
+  it('default missing-chain exit safeguard forces close after 3 missing days', () => {
+    expect(DEFAULT_CREDIT_CONFIG.missingChainExitAfterDays).toBe(3);
+    expect(DEFAULT_LEAP_CONFIG.missingChainExitAfterDays).toBe(3);
   });
 });
 

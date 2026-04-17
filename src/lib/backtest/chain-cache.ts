@@ -108,18 +108,18 @@ async function fetchORATSHistStrikes(
 let _db: Database.Database | null = null;
 let _findContractStmt: Database.Statement | null = null;
 
-export function initDB(dbPath?: string): Database.Database {
+export function initDB(dbPath?: string, readonly = false): Database.Database {
   if (_db) return _db;
 
   const resolvedPath = dbPath || path.resolve(process.cwd(), 'data', 'option-chains.sqlite');
   const dir = path.dirname(resolvedPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-  _db = new Database(resolvedPath);
-  _db.pragma('journal_mode = WAL');
-  _db.pragma('synchronous = NORMAL');
-
-  _db.exec(`
+  _db = new Database(resolvedPath, readonly ? { readonly: true } : undefined);
+  if (!readonly) {
+    _db.pragma('journal_mode = WAL');
+    _db.pragma('synchronous = NORMAL');
+    _db.exec(`
     CREATE TABLE IF NOT EXISTS option_chains (
       ticker TEXT NOT NULL,
       trade_date TEXT NOT NULL,
@@ -147,8 +147,8 @@ export function initDB(dbPath?: string): Database.Database {
     );
   `);
 
-  // v2: ORATS cores cache for VRP, contango, slope, smvVol
-  _db.exec(`
+    // v2: ORATS cores cache for VRP, contango, slope, smvVol
+    _db.exec(`
     CREATE TABLE IF NOT EXISTS orats_cores_cache (
       ticker TEXT NOT NULL,
       trade_date TEXT NOT NULL,
@@ -165,6 +165,7 @@ export function initDB(dbPath?: string): Database.Database {
       PRIMARY KEY (ticker, trade_date)
     );
   `);
+  } // end if (!readonly)
 
   return _db;
 }

@@ -77,6 +77,11 @@ const signal: EntrySignal = {
   ivRank: 50,
 };
 
+const MID_FILLS = {
+  fillMode: 'mid' as const,
+  slippage: { ...DEFAULT_CREDIT_CONFIG.slippage, enabled: false },
+};
+
 describe('simulateCreditSpread MAX_LOSS_STOP', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -108,6 +113,7 @@ describe('simulateCreditSpread MAX_LOSS_STOP', () => {
       'token', signal,
       {
         ...DEFAULT_CREDIT_CONFIG,
+        ...MID_FILLS,
         useDirectLookup: true,
         creditSpreadWidth: 5,
         creditMaxLossStopPct: 0.50,
@@ -120,9 +126,9 @@ describe('simulateCreditSpread MAX_LOSS_STOP', () => {
     expect(trade).not.toBeNull();
     expect(trade?.exitType).toBe('MAX_LOSS_STOP');
     expect(trade?.exitDate).toBe('2024-01-04');
-    expect(trade?.exitPrice).toBeCloseTo(3.0, 6);
-    expect(trade?.pnl).toBeCloseTo(-200, 6);
-    expect(trade?.pnlPct).toBeCloseTo(-0.5, 6);
+    expect(trade?.exitPrice).toBeCloseTo(3.5, 6);
+    expect(trade?.pnl).toBeCloseTo(-250, 6);
+    expect(trade?.pnlPct).toBeCloseTo(-0.625, 6);
   });
 
   it('does not trigger MAX_LOSS_STOP when disabled (undefined)', async () => {
@@ -144,6 +150,7 @@ describe('simulateCreditSpread MAX_LOSS_STOP', () => {
       'token', signal,
       {
         ...DEFAULT_CREDIT_CONFIG,
+        ...MID_FILLS,
         useDirectLookup: true,
         creditSpreadWidth: 5,
         // creditMaxLossStopPct not set → disabled
@@ -172,6 +179,7 @@ describe('simulateCreditSpread MAX_LOSS_STOP', () => {
       'token', signal,
       {
         ...DEFAULT_CREDIT_CONFIG,
+        ...MID_FILLS,
         useDirectLookup: true,
         creditSpreadWidth: 10,
         creditMaxLossStopPct: 0.50,
@@ -182,10 +190,10 @@ describe('simulateCreditSpread MAX_LOSS_STOP', () => {
     );
 
     expect(trade?.exitType).toBe('MAX_LOSS_STOP');
-    expect(trade?.exitPrice).toBeCloseTo(3.0, 6);
+    expect(trade?.exitPrice).toBeCloseTo(3.5, 6);
     expect(trade?.spreadWidth).toBe(5);
     expect(trade?.maxLoss).toBeCloseTo(4, 6);
-    expect(trade?.pnlPct).toBeCloseTo(-0.5, 6);
+    expect(trade?.pnlPct).toBeCloseTo(-0.625, 6);
   });
 });
 
@@ -221,6 +229,7 @@ describe('simulateCreditSpread TRAILING_LOCK', () => {
       'token', signal,
       {
         ...DEFAULT_CREDIT_CONFIG,
+        ...MID_FILLS,
         useDirectLookup: true,
         creditProfitTarget: 0.30,
         trailingActivatePct: 0.50,
@@ -260,6 +269,7 @@ describe('simulateCreditSpread TRAILING_LOCK', () => {
       'token', signal,
       {
         ...DEFAULT_CREDIT_CONFIG,
+        ...MID_FILLS,
         useDirectLookup: true,
         creditProfitTarget: 0.30,
         trailingActivatePct: 0.75,
@@ -293,6 +303,7 @@ describe('simulateCreditSpread TRAILING_LOCK', () => {
       'token', signal,
       {
         ...DEFAULT_CREDIT_CONFIG,
+        ...MID_FILLS,
         useDirectLookup: true,
         creditProfitTarget: 0.30,
         trailingActivatePct: 0.50,
@@ -336,6 +347,7 @@ describe('simulateCreditSpreadPhased threshold pricing', () => {
       signal,
       {
         ...DEFAULT_CREDIT_CONFIG,
+        ...MID_FILLS,
         useDirectLookup: true,
         creditStopLossMultiple: 100,
         creditTimeStopDTE: 0,
@@ -350,6 +362,60 @@ describe('simulateCreditSpreadPhased threshold pricing', () => {
     expect(trade?.exitPrice).toBeCloseTo(1.0, 6);
     expect(trade?.pnl).toBeCloseTo(15, 6);
     expect(trade?.pnlPct).toBeCloseTo(15 / 400, 6);
+  });
+
+  it('applies worse bid/ask economics than mid on the same phased path', async () => {
+    findContractDirectMock.mockImplementation((_ticker, date, strike) => {
+      if (date === '2024-01-03') {
+        return strike === 100
+          ? makeLeg(date, 9, 100, 0.90, -0.15)
+          : makeLeg(date, 9, 95, 0.30, -0.08);
+      }
+      if (date === '2024-01-04') {
+        return strike === 100
+          ? makeLeg(date, 8, 100, 1.45, -0.35)
+          : makeLeg(date, 8, 95, 0.40, -0.08);
+      }
+      return null;
+    });
+
+    const midTrade = await simulateCreditSpreadPhased(
+      'token',
+      signal,
+      {
+        ...DEFAULT_CREDIT_CONFIG,
+        ...MID_FILLS,
+        useDirectLookup: true,
+        creditStopLossMultiple: 100,
+        creditTimeStopDTE: 0,
+      },
+      { tp1: 0.30, tp2: 0.50, afterTP1SL: 0 },
+      allTradingDates,
+      '2024-01-05',
+    );
+
+    const realisticTrade = await simulateCreditSpreadPhased(
+      'token',
+      signal,
+      {
+        ...DEFAULT_CREDIT_CONFIG,
+        useDirectLookup: true,
+        creditStopLossMultiple: 100,
+        creditTimeStopDTE: 0,
+      },
+      { tp1: 0.30, tp2: 0.50, afterTP1SL: 0 },
+      allTradingDates,
+      '2024-01-05',
+    );
+
+    expect(midTrade).not.toBeNull();
+    expect(realisticTrade).not.toBeNull();
+    expect(realisticTrade?.entryPrice).toBeLessThan(midTrade!.entryPrice);
+    expect(realisticTrade?.exitPrice).toBeGreaterThan(midTrade!.exitPrice);
+    expect(realisticTrade?.pnl).toBeLessThan(midTrade!.pnl);
+    expect(realisticTrade?.entrySlippage).toBeGreaterThan(0);
+    expect(realisticTrade?.exitSlippage).toBeGreaterThan(0);
+    expect(realisticTrade?.fillMode).toBe('bidask');
   });
 });
 
@@ -375,6 +441,7 @@ describe('simulateCreditSpread expiration fallback and missing chains', () => {
       signal,
       {
         ...DEFAULT_CREDIT_CONFIG,
+        ...MID_FILLS,
         useDirectLookup: false,
         creditStopLossMultiple: 100,
         creditTimeStopDTE: 0,
@@ -400,6 +467,7 @@ describe('simulateCreditSpread expiration fallback and missing chains', () => {
       signal,
       {
         ...DEFAULT_CREDIT_CONFIG,
+        ...MID_FILLS,
         useDirectLookup: true,
         creditStopLossMultiple: 100,
         creditTimeStopDTE: 0,
@@ -431,6 +499,7 @@ describe('simulateCreditSpread expiration fallback and missing chains', () => {
       signal,
       {
         ...DEFAULT_CREDIT_CONFIG,
+        ...MID_FILLS,
         useDirectLookup: true,
         creditStopLossMultiple: 100,
         creditTimeStopDTE: 0,

@@ -85,6 +85,11 @@ describe('simulateCreditSpread creditDeltaStop', () => {
     ivRank: 50,
   };
 
+  const MID_FILLS = {
+    fillMode: 'mid' as const,
+    slippage: { ...DEFAULT_CREDIT_CONFIG.slippage, enabled: false },
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     fetchHistoricalChainMock.mockResolvedValue([makeRow('2024-01-02', 10)]);
@@ -111,6 +116,7 @@ describe('simulateCreditSpread creditDeltaStop', () => {
       signal,
       {
         ...DEFAULT_CREDIT_CONFIG,
+        ...MID_FILLS,
         useDirectLookup: true,
         creditDeltaStop: 0.65,
         creditStopLossMultiple: 100, // ensure SL does not trigger first
@@ -146,6 +152,7 @@ describe('simulateCreditSpread creditDeltaStop', () => {
       signal,
       {
         ...DEFAULT_CREDIT_CONFIG,
+        ...MID_FILLS,
         useDirectLookup: true,
         creditDeltaStop: 0, // treated as disabled
         creditStopLossMultiple: 100,

@@ -109,7 +109,8 @@ export function mechanicalPutSellBenchmark(
   const {
     startingCapital = 100_000,
     maxPositions = 10,
-    fillMode = 'mid',
+    // Trust default: realistic fills (bid/ask + dynamic impact). 'mid' is debug-only.
+    fillMode = 'bidask',
     intervalDays = 5,
     delta = 0.35,
     spreadWidth = 15,
@@ -205,7 +206,8 @@ export function randomEntryBenchmark(
   const {
     startingCapital = 100_000,
     maxPositions = 10,
-    fillMode = 'mid',
+    // Trust default: realistic fills (bid/ask + dynamic impact). 'mid' is debug-only.
+    fillMode = 'bidask',
     nSimulations = 10,
     signalsPerSim = 100,
     delta = 0.35,

@@ -16,6 +16,7 @@ import type { DynamicSlippageConfig } from './types';
 import { bsmPrice, bsmDelta, ouIVEvolution } from './bsm-pricing';
 import {
   buildCreditSpreadTrade,
+  capSpreadCloseCostUpper,
   clampSpreadCloseCost,
   computeCreditSpreadThresholds,
   computeIntrinsicSpreadCloseCost,
@@ -209,7 +210,8 @@ export function evaluateCreditSpread4H(
   const dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
   let lastCalibratedDate = signal.date;
 
-  for (const candle of holdingCandles) {
+  for (let candleIdx = 0; candleIdx < holdingCandles.length; candleIdx++) {
+    const candle = holdingCandles[candleIdx];
     // Compute fractional days elapsed
     // A 4H bar at 13:30 on day T+3 → daysElapsed ≈ 3 + (4/6.5) ≈ 3.62
     const barTimestamp = candle.timestamp;
@@ -223,14 +225,25 @@ export function evaluateCreditSpread4H(
       entryDTE, daysElapsed, isCall, r,
     );
 
-    let grossCurrentSpreadCost = clampSpreadCloseCost(bsm.spreadCost, thresholds.actualWidth);
+    // BSM MTM is theoretical: enforce the defined-risk upper bound without
+    // flattening small negative values (see docs/backtest-trust-gotchas.md #5).
+    let grossCurrentSpreadCost = capSpreadCloseCostUpper(bsm.spreadCost, thresholds.actualWidth);
     let currentSpreadCost = grossCurrentSpreadCost;
     let currentShortDelta = bsm.shortDelta;
     let exitSlippage = 0;
 
-    // Daily calibration: on last bar of each day, try to snap to real chain
+    // Daily calibration: snap to real chain at the LAST intraday bar of each day.
+    //
+    // FIXED: previously fired when `barDate !== lastCalibratedDate`, which triggered
+    // on the FIRST bar of each new day. Real option chains are EOD snapshots, so
+    // calibrating on the first bar injected the day's settlement chain into intraday
+    // exits — a within-day lookahead. Now we only calibrate when the next candle has
+    // a different date (or this is the final candle), which corresponds to the last
+    // bar of the trading day for any intraday resolution (4H, 1H, 30m, etc.).
     const barDate = candle.date;
-    if ((config.dailyCalibration ?? true) && barDate !== lastCalibratedDate) {
+    const nextCandle = holdingCandles[candleIdx + 1];
+    const isLastBarOfDay = !nextCandle || nextCandle.date !== barDate;
+    if ((config.dailyCalibration ?? true) && isLastBarOfDay && barDate !== lastCalibratedDate) {
       const shortLeg = chainAccess.findContract(
         signal.ticker, barDate, spread.short.row.strike, expiryDate, optionType,
       );
@@ -282,10 +295,11 @@ export function evaluateCreditSpread4H(
     }
 
     // Record mark-to-market
+    const mtmCostForPnl = clampSpreadCloseCost(currentSpreadCost, thresholds.actualWidth);
     dailyMtM.push({
       date: candle.datetime,
       spreadMid: currentSpreadCost,
-      unrealizedPnl: (entryCredit - currentSpreadCost) * 100,
+      unrealizedPnl: (entryCredit - mtmCostForPnl) * 100,
     });
 
     // Check DTE

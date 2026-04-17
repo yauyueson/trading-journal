@@ -17,7 +17,7 @@ import type {
 import { DEFAULT_WFA_V2_CONFIG } from './wfa-v2-types';
 import type { OptionTrade, SimConfig, EntrySignal, SignalPresetKey } from './option-sim';
 import { computeOptionAnalytics } from './option-sim';
-import { buildWFAWindows } from './wfa-options';
+import { buildWFAWindows, computePortfolioDailyMetrics } from './wfa-options';
 import type { WindowDef, TradeEvaluator } from './wfa-options';
 import { buildParameterSpace, runTPE, generateGrid, paramsToSimConfig } from './wfa-v2-optimizer';
 import { computeDSR, computePBO, blockBootstrap, permutationTest, benjaminiHochberg, computeParameterStability } from './wfa-v2-stats';
@@ -99,7 +99,7 @@ export function runWFAv2(
     const simConfig = paramsToSimConfig(params, profile);
     const trialId = trialCounter++;
     const result = evaluateAllWindows(
-      trialId, simConfig, params, windowDefs, deps, config,
+      trialId, simConfig, params, windowDefs, deps, config, wfaEndDate,
     );
     trialResults.push(result);
     return result.wfEfficiency > 0
@@ -154,12 +154,24 @@ export function runWFAv2(
   const pbo = computePBO(perWindowReturns, config.cscvBlocks, config.maxCscvCombinations);
   log('stats', `PBO: ${pbo.pbo.toFixed(3)} (${pbo.nCombinations} combinations)`);
 
-  // Block bootstrap
+  // Block bootstrap.
+  // Derive daily portfolio returns so the Sharpe CI uses the statistically
+  // correct block bootstrap on daily returns (preserves autocorrelation).
+  // See Codex finding T3-2 in .prompts/codex-trust-followups.md.
+  const oosDailyMetrics = computePortfolioDailyMetrics(
+    bestTrial.oosTrades,
+    deps.allTradingDates,
+    bestTrial.windows[0]?.oosStart ?? config.startDate,
+    wfaEndDate,
+    config.startingCapital,
+  );
   const bootstrap = blockBootstrap(
     bestTrial.oosTrades,
     config.bootstrapResamples,
     5,
     config.startingCapital,
+    42,
+    { dailyReturns: oosDailyMetrics.dailyReturns },
   );
   log('stats', `Bootstrap Sharpe CI: [${bootstrap.sharpe.ci5.toFixed(2)}, ${bootstrap.sharpe.ci95.toFixed(2)}]`);
 
@@ -325,7 +337,8 @@ function evaluateAllWindows(
   params: Record<string, number | string | boolean>,
   windowDefs: WindowDef[],
   deps: OrchestratorDeps,
-  config: WFAv2Config,
+  _config: WFAv2Config,
+  wfaEndDate: string,
 ): TrialAggResult {
   const presetKey = simConfig.signalWeightPreset ?? 'ema';
   const allSignals = deps.signalsByPreset.get(presetKey) ?? [];
@@ -348,11 +361,14 @@ function evaluateAllWindows(
     }
     const trainAnalytics = computeOptionAnalytics(trainTrades);
 
-    // OOS evaluation with portfolio constraints
+    // OOS evaluation with portfolio constraints.
+    // Cap maxDate at wfaEndDate (pre-holdout boundary) so trade lifecycles cannot
+    // bleed PnL from the holdout period into selection metrics.
+    // (See docs/backtest-trust-gotchas.md / Codex finding T2-2.)
     const oosSignals = allSignals.filter(s => s.date >= w.oosStart && s.date <= w.oosEnd);
     const oosTrades = evaluateWithConstraints(
       oosSignals, simConfig, maxPositions, maxPerTicker,
-      deps.evaluator, deps.allTradingDates, config.endDate,
+      deps.evaluator, deps.allTradingDates, wfaEndDate,
     );
 
     const oosAnalytics = computeOptionAnalytics(oosTrades);

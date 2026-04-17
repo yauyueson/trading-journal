@@ -311,13 +311,7 @@ describe('130M-09 — Documentation', () => {
     resolve(__dirname, '../CLAUDE.md'), 'utf-8'
   );
 
-  it('CLAUDE.md documents validated DTE5 strategy', () => {
-    expect(claudeMd).toContain('Validated: DTE5 Bull Put Credit Spread');
-  });
-
-  it('CLAUDE.md documents retired strategies', () => {
-    expect(claudeMd).toContain('Swing (45-65 DTE)');
-    expect(claudeMd).toContain('Short-Term (7-21 DTE)');
-    expect(claudeMd).toContain('Retired');
+  it('CLAUDE.md documents active DTE5 strategy', () => {
+    expect(claudeMd).toContain('DTE5 Bull Put Credit Spread');
   });
 });

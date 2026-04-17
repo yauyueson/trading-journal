@@ -21,7 +21,7 @@ import type { WFAv2Window, StatsResult, HoldoutResult } from './wfa-v2-types';
 import type { PeriodMultiplier } from './intraday-signals';
 import type { EvalResult } from './wfa-v2-ranking';
 
-import { buildWFAWindows } from './wfa-options';
+import { buildWFAWindows, computePortfolioDailyMetrics } from './wfa-options';
 import { computeOptionAnalytics } from './option-sim';
 import { computeDSR, computePBO, blockBootstrap, permutationTest, benjaminiHochberg, computeParameterStability } from './wfa-v2-stats';
 import { buildRegimeLookup, computeRegimeMetrics } from './wfa-v2-regime';
@@ -147,7 +147,10 @@ export function runWFAv3(
         const tickerCount = openPositions.filter(t => t.ticker === signal.ticker).length;
         if (tickerCount >= maxPerTicker) continue;
 
-        const trade = deps.evaluator(signal, simConfig, deps.allTradingDates, config.endDate);
+        // Cap maxDate at wfaEndDate (pre-holdout boundary) so trade lifecycles cannot
+        // bleed PnL from the holdout period into selection metrics.
+        // (See docs/backtest-trust-gotchas.md / Codex finding T2-2.)
+        const trade = deps.evaluator(signal, simConfig, deps.allTradingDates, wfaEndDate);
         if (trade) {
           oosTrades.push(trade);
           openPositions.push(trade);
@@ -247,7 +250,29 @@ export function finalize(
 
   const dsr = computeDSR(bestTrial.oosSharpe, trialResults.length, oosReturns);
   const pbo = computePBO(perWindowReturns, config.cscvBlocks, config.maxCscvCombinations);
-  const bootstrap = blockBootstrap(bestTrial.oosTrades, config.bootstrapResamples, 5, config.startingCapital);
+  // Derive daily portfolio returns so the Sharpe CI uses the statistically
+  // correct block bootstrap on daily returns (preserves autocorrelation).
+  // See Codex finding T3-2 in .prompts/codex-trust-followups.md.
+  // wfaEndDate = trading day immediately before holdoutStart.
+  const holdoutIdx = deps.allTradingDates.indexOf(holdoutStart);
+  const wfaEndDate = holdoutIdx > 0
+    ? deps.allTradingDates[holdoutIdx - 1]
+    : config.endDate;
+  const oosDailyMetrics = computePortfolioDailyMetrics(
+    bestTrial.oosTrades,
+    deps.allTradingDates,
+    bestTrial.windows[0]?.oosStart ?? config.startDate,
+    wfaEndDate,
+    config.startingCapital,
+  );
+  const bootstrap = blockBootstrap(
+    bestTrial.oosTrades,
+    config.bootstrapResamples,
+    5,
+    config.startingCapital,
+    42,
+    { dailyReturns: oosDailyMetrics.dailyReturns },
+  );
   const permResult = permutationTest(bestTrial.oosTrades, 5000, config.startingCapital);
 
   const numericParams = [

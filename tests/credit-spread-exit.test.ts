@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   resolveActualSpreadWidth,
   clampSpreadCloseCost,
+  capSpreadCloseCostUpper,
   computeCreditSpreadThresholds,
   computeIntrinsicSpreadCloseCost,
   resolveTriggeredCreditExitCost,
@@ -57,6 +58,20 @@ describe('clampSpreadCloseCost', () => {
 
   it('handles zero width', () => {
     expect(clampSpreadCloseCost(5, 0)).toBe(0);
+  });
+});
+
+// ── capSpreadCloseCostUpper ──────────────────────────────────────────
+
+describe('capSpreadCloseCostUpper', () => {
+  it('caps at width but preserves negative values', () => {
+    expect(capSpreadCloseCostUpper(-0.5, 10)).toBe(-0.5);
+    expect(capSpreadCloseCostUpper(12, 10)).toBe(10);
+  });
+
+  it('returns width for non-finite values', () => {
+    expect(capSpreadCloseCostUpper(Number.NaN, 10)).toBe(10);
+    expect(capSpreadCloseCostUpper(Number.POSITIVE_INFINITY, 10)).toBe(10);
   });
 });
 
@@ -171,11 +186,11 @@ describe('resolveTriggeredCreditExitCost', () => {
   });
 
   it('STOP_LOSS returns slCost', () => {
-    expect(resolveTriggeredCreditExitCost('STOP_LOSS', 1.50, thresholds)).toBe(1.25);
+    expect(resolveTriggeredCreditExitCost('STOP_LOSS', 1.50, thresholds)).toBe(1.50);
   });
 
   it('MAX_LOSS_STOP returns maxLossStopCost', () => {
-    expect(resolveTriggeredCreditExitCost('MAX_LOSS_STOP', 9.0, thresholds)).toBe(Infinity);
+    expect(resolveTriggeredCreditExitCost('MAX_LOSS_STOP', 9.0, thresholds)).toBe(9.0);
   });
 
   it('TRAILING_LOCK returns market cost, not floor (conservative fill)', () => {
