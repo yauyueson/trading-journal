@@ -176,7 +176,10 @@ export interface RunResult {
   combinedMaxDD: number;
   // Holdout validation
   holdoutSharpe: number;
-  holdoutTrades: number;
+  holdoutTrades: number;             // legacy alias for newHoldoutTrades
+  newHoldoutTrades?: number;         // trades entered during the holdout window
+  carriedHoldoutTrades?: number;     // selection-entered trades with in-holdout dailyMtM
+  passesHoldoutNewEntries?: boolean; // newHoldoutTrades >= MIN_NEW_HOLDOUT_TRADES (catches carry-only passes)
   // SPY Information Ratio — market-regime-neutral alpha check
   // IR = (strategy returns - SPY returns) mean / stdev × sqrt(252)
   // A strategy with IR > 0 beats SPY on risk-adjusted basis even in bad markets.

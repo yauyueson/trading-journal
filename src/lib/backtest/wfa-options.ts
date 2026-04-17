@@ -318,6 +318,10 @@ export function computePortfolioDailyMetrics(
   startDate: string,
   endDate: string,
   startingCapital: number,
+  // Seed equity and peak when measuring a window that follows prior P&L
+  // (e.g. holdout when carried selection positions straddle the boundary).
+  // Defaults to startingCapital for single-window / selection use.
+  initialEquity?: number,
 ): PortfolioDailyMetrics {
   const dates = allTradingDates.filter(d => d >= startDate && d <= endDate);
   if (dates.length === 0) {
@@ -353,8 +357,9 @@ export function computePortfolioDailyMetrics(
 
   const dailyReturns: number[] = [];
   const equityCurve: { date: string; equity: number }[] = [];
-  let equity = startingCapital;
-  let peak = startingCapital;
+  const baseEquity = initialEquity ?? startingCapital;
+  let equity = baseEquity;
+  let peak = baseEquity;
   let maxDD = 0;
 
   for (let i = 0; i < dates.length; i++) {

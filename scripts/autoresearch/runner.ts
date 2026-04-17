@@ -494,7 +494,10 @@ const HOLDOUT_DERIVED_FIELDS = [
   'holdoutOOSRatio',
   'passesHoldout',
   'passesHoldoutOrIR',
+  'passesHoldoutNewEntries',
   'holdoutTrades',
+  'newHoldoutTrades',
+  'carriedHoldoutTrades',
   'isValid',
 ] as const;
 
@@ -926,9 +929,19 @@ async function main() {
     // the holdout window AND holdout-entered trades. computePortfolioDailyMetrics
     // filters by date range, so only in-holdout dailyMtM entries contribute —
     // selection dates are naturally excluded.
+    //
+    // Seed holdout equity/peak from the selection-ending portfolio value so
+    // returns are measured against the capital the strategy actually brought
+    // into the unseen window. Without this seed, returns would be divided by
+    // startingCapital instead of the carried equity, distorting Sharpe/MaxDD
+    // whenever selection P&L was non-zero.
     const holdoutTradesUnion = [...workerResult.allOOSTrades, ...workerResult.holdoutTrades];
+    const selectionEndEquity = oosMetrics.equityCurve.length > 0
+      ? oosMetrics.equityCurve[oosMetrics.equityCurve.length - 1].equity
+      : strategy.portfolio.startingCapital;
     const holdoutMetrics = computePortfolioDailyMetrics(
-      holdoutTradesUnion, allTradingDates, holdoutStart, holdoutEnd, strategy.portfolio.startingCapital,
+      holdoutTradesUnion, allTradingDates, holdoutStart, holdoutEnd,
+      strategy.portfolio.startingCapital, selectionEndEquity,
     );
 
     const avgTrainSharpe = workerResult.selectionResults.length > 0
@@ -1021,10 +1034,21 @@ async function main() {
     const passesHoldoutIR = holdoutSpyIRResult.ir >= MIN_HOLDOUT_METRIC;
     const passesHoldoutOrIR = passesHoldoutAbsolute || passesHoldoutIR;
     const passesSanity = oosMetrics.sharpe <= MAX_SANE_OOS_SHARPE;
+    // Separate carry (selection-entered, live during holdout) from new (entered
+    // inside holdout). A strategy that stops generating signals after the
+    // boundary can otherwise pass the Sharpe/IR gate on a single carried LEAP
+    // without ever demonstrating it works on the unseen regime.
+    const newHoldoutTrades = workerResult.holdoutTrades.length;
+    const carriedHoldoutTrades = workerResult.allOOSTrades.filter(t => {
+      if (!t.dailyMtM || t.dailyMtM.length === 0) return false;
+      return t.dailyMtM.some(m => m.date >= holdoutStart && m.date <= holdoutEnd);
+    }).length;
+    const MIN_NEW_HOLDOUT_TRADES = 1;
+    const passesHoldoutNewEntries = newHoldoutTrades >= MIN_NEW_HOLDOUT_TRADES;
     // Search-time validity: holdout-blind. Agents see this.
     const isValidForSearch = passesMinTrades && passesMaxDD && passesWFA && passesSanity && passesDeltaGates;
-    // Overall validity: includes holdout gate. Full leaderboard only — stripped from agent-visible file.
-    const isValid = isValidForSearch && passesHoldoutOrIR;
+    // Overall validity: includes holdout gate + new-entries guard. Full leaderboard only — stripped from agent-visible file.
+    const isValid = isValidForSearch && passesHoldoutOrIR && passesHoldoutNewEntries;
 
     const exitTypeBreakdown: Record<string, number> = {};
     for (const t of workerResult.allOOSTrades) {
@@ -1046,6 +1070,9 @@ async function main() {
       combinedMaxDD,
       holdoutSharpe: holdoutMetrics.sharpe,
       holdoutTrades: workerResult.holdoutTrades.length,
+      newHoldoutTrades,
+      carriedHoldoutTrades,
+      passesHoldoutNewEntries,
       oosSpyIR: oosSpyIRResult.ir,
       oosSpyExcessReturn: oosSpyIRResult.excessReturn,
       holdoutSpyIR: holdoutSpyIRResult.ir,
