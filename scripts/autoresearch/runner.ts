@@ -905,7 +905,9 @@ async function main() {
     let baselineWorkerResult: WorkResult | null = null;
     if (blWorker) {
       try {
-        baselineWorkerResult = await evalOnWorker(blWorker, vi, simConfig, selectionWindows, holdoutWindows);
+        baselineWorkerResult = await evalOnWorker(
+          blWorker, vi, simConfig, selectionWindows, holdoutWindows, variant.putSimConfig,
+        );
         if (baselineWorkerResult.error) {
           console.log(`  Baseline error: ${baselineWorkerResult.error}`);
           baselineWorkerResult = null;
@@ -920,8 +922,13 @@ async function main() {
       workerResult.allOOSTrades, allTradingDates, selectionStart, selectionEnd, strategy.portfolio.startingCapital,
     );
     const oosAnalytics = computeOptionAnalytics(workerResult.allOOSTrades);
+    // Holdout metrics include BOTH selection-entered trades that survive into
+    // the holdout window AND holdout-entered trades. computePortfolioDailyMetrics
+    // filters by date range, so only in-holdout dailyMtM entries contribute —
+    // selection dates are naturally excluded.
+    const holdoutTradesUnion = [...workerResult.allOOSTrades, ...workerResult.holdoutTrades];
     const holdoutMetrics = computePortfolioDailyMetrics(
-      workerResult.holdoutTrades, allTradingDates, holdoutStart, holdoutEnd, strategy.portfolio.startingCapital,
+      holdoutTradesUnion, allTradingDates, holdoutStart, holdoutEnd, strategy.portfolio.startingCapital,
     );
 
     const avgTrainSharpe = workerResult.selectionResults.length > 0

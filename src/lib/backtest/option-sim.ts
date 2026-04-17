@@ -384,11 +384,12 @@ export async function simulateLeap(
       currentPrice = current.mid;
     }
 
-    // Record daily mark-to-market
+    // Record daily mark-to-market at fair value (mid). currentPrice (with
+    // exit slippage) is reserved for actual close pricing downstream.
     dailyMtM.push({
       date: checkDate,
-      spreadMid: currentPrice,
-      unrealizedPnl: (currentPrice - entryPrice) * 100,
+      spreadMid: current.mid,
+      unrealizedPnl: (current.mid - entryPrice) * 100,
     });
 
     // Check exit conditions
@@ -748,11 +749,14 @@ export async function simulateCreditSpread(
     const currentDTE = resolvedShortLeg.row.dte;
     lastValidSpreadCost = currentSpreadCost;
 
-    // Record daily mark-to-market
+    // Record daily mark-to-market at fair value (mid). Exit slippage is
+    // realized only when the trade actually closes — baking it into every
+    // monitoring day would double-count it and systematically depress
+    // daily Sharpe / inflate MaxDD under bid/ask fills.
     dailyMtM.push({
       date: checkDate,
-      spreadMid: currentSpreadCost,
-      unrealizedPnl: (entryCredit - currentSpreadCost) * 100,
+      spreadMid: grossCurrentSpreadCost,
+      unrealizedPnl: (entryCredit - grossCurrentSpreadCost) * 100,
     });
 
     let exitType: OptionExitType | null = null;
@@ -1206,13 +1210,14 @@ export async function simulateCreditSpreadPhased(
     const currentDTE = resolvedShortLeg.row.dte;
     lastValidSpreadCost = currentSpreadCost;
 
-    // Record daily mark-to-market (phase-aware)
+    // Record daily mark-to-market at fair value (phase-aware). Same
+    // reasoning as the standard path: slippage applies only on actual close.
     dailyMtM.push({
       date: checkDate,
-      spreadMid: currentSpreadCost,
+      spreadMid: grossCurrentSpreadCost,
       unrealizedPnl: phase === 'FULL'
-        ? (entryCredit - currentSpreadCost) * 100
-        : halfNetPnl + (entryCredit - currentSpreadCost) * 0.5 * 100,
+        ? (entryCredit - grossCurrentSpreadCost) * 100
+        : halfNetPnl + (entryCredit - grossCurrentSpreadCost) * 0.5 * 100,
     });
 
     if (phase === 'FULL') {

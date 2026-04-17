@@ -548,8 +548,19 @@ parentPort!.on('message', (msg: WorkItem | { type: 'exit' }) => {
     try {
       const evaluator = makeStandardEvaluator(msg.simConfig);
       const putEvaluator = msg.putSimConfig ? makeStandardEvaluator(msg.putSimConfig) : undefined;
-      const { results: selectionResults, allOOSTrades } = evaluateOnWindows(msg.simConfig, msg.selectionWindows, evaluator, msg.putSimConfig, putEvaluator);
-      const { allOOSTrades: holdoutTrades } = evaluateOnWindows(msg.simConfig, msg.holdoutWindows, evaluator, msg.putSimConfig, putEvaluator);
+      // Evaluate selection + holdout in a single pass so portfolio carry state
+      // and the OOS maxDate span the entire selection/holdout range. Splitting
+      // the call resets carry at the boundary and truncates dailyMtM at the
+      // last selection window end, dropping any selection-entered trade's
+      // in-holdout P&L (e.g. a 180-270 DTE LEAP opened late in selection).
+      const combinedWindows = [...msg.selectionWindows, ...msg.holdoutWindows];
+      const { results: allResults, allOOSTrades: allTrades } = evaluateOnWindows(
+        msg.simConfig, combinedWindows, evaluator, msg.putSimConfig, putEvaluator,
+      );
+      const selectionResults = allResults.slice(0, msg.selectionWindows.length);
+      const firstHoldoutStart = msg.holdoutWindows[0]?.oosStart;
+      const allOOSTrades  = firstHoldoutStart ? allTrades.filter(t => t.entryDate <  firstHoldoutStart) : allTrades;
+      const holdoutTrades = firstHoldoutStart ? allTrades.filter(t => t.entryDate >= firstHoldoutStart) : [];
 
       parentPort!.postMessage({
         type: 'result',
