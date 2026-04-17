@@ -187,6 +187,27 @@ Every item on this page is a real bug or trap that has produced fake results in 
 
 ---
 
+### 24. Daily MtM writes executable close cost, not fair value
+**Fixed:** 2026-04-17 (commit `131b6a3`)
+**File:** `src/lib/backtest/option-sim.ts` — three `dailyMtM.push()` sites (standard credit, phased credit, LEAP)
+
+**What happened:** The daily MtM series recorded `currentSpreadCost` / `currentPrice` — the liquidation price after bid/ask impact and slippage model — as the day's mark. With `fillMode: 'bidask'` on by default and dynamic slippage enabled, this baked *hypothetical* exit slippage into every monitoring day. Day-over-day return calculations then reflected both fair-value drift AND the constant drag of "what would it cost to close today?". The slippage cost was effectively double-counted: once in every daily mark, and again in the actual exit.
+
+**How it was discovered:** Codex P1 finding, review round 6. Not exploited into a fake champion, but systematically depressed daily Sharpe and inflated MaxDD for any credit-spread / LEAP run with bid/ask fills.
+
+**Fingerprint:**
+- `fillMode: 'bidask'` with slippage enabled
+- Credit-spread or LEAP backtests where daily Sharpe looks modestly worse than trade-level stats suggest
+- MaxDD notably larger than the largest individual realized loss
+- Equity curve has visible "drag" on monitoring days even when underlying isn't moving
+
+**Prevention:**
+- MtM now uses `grossCurrentSpreadCost` (credit) and `current.mid` (LEAP) — fair-value prices without slippage.
+- `currentSpreadCost` / `currentPrice` (with slippage) are reserved for the actual exit computation downstream.
+- Rule of thumb for any future exit model: slippage is realized once, at entry or exit. Daily MtM is a mark, not a liquidation estimate.
+
+---
+
 ## Known Traps (not bugs, but easy to fall into)
 
 ### 11. IV rank filter that starves the strategy
@@ -231,17 +252,32 @@ Every item on this page is a real bug or trap that has produced fake results in 
 
 ---
 
-### 14. `missingChainExitAfterDays` disabled
+### 14. `missingChainExitAfterDays` — two-way tradeoff, default is `3`
 **Where:** `SimConfig.missingChainExitAfterDays`
+**Current default:** `3` (set in `DEFAULT_LEAP_CONFIG`, commit `9eecb4c`, 2026-04-17)
 
-**What:** When chain data is missing for a trade date, the sim either holds the position (intended) or exits immediately (bug). Setting this to a low value (1-3 days) causes premature exits during sparse data windows, losing +0.56 Sharpe.
+**Two directions of trouble:**
 
-**Fingerprint:**
+Setting it **too low (1-3)** causes premature exits during sparse data windows. The original finding (pre-2026-04) measured a +0.56 Sharpe loss when a sparse-chain stretch triggered repeated NO_CHAIN exits that would have recovered.
+
+Setting it **too high (999)** effectively disables the safeguard. With 999, a position's boundary force-close (end of OOS window, time stop, or expiry) that lands on a missing-chain day marks at *intrinsic value* instead of the last tradable price. For credit spreads that's the worst-case floor; for LEAPs the P&L can be arbitrarily distorted.
+
+**Why the current default is `3`:** Codex adversarial review (2026-04-17) flagged the 999 behavior as materially worse than the occasional premature-exit cost. `3` is a compromise: patient enough to weather 1-2-day chain outages, strict enough that boundary force-close rarely lands on sparse coverage. Studies that genuinely need the patient behavior (e.g. `scripts/wfa-dte5-tp-sl-study.ts`) override explicitly.
+
+**Fingerprint (low-value failure mode):**
 - NO_CHAIN exit type dominates (>10%)
 - Dates with missing chain data cluster in early period
 - Same strategy produces very different Sharpe on different date ranges
 
-**Prevention:** Keep `missingChainExitAfterDays: 999` in all configs. Per `backtest-engine.md` domain constraints.
+**Fingerprint (high-value failure mode):**
+- Boundary-date exits (TIME_STOP, EXPIRATION, end-of-window force-close) price at spread-width for credit spreads or zero for LEAPs
+- Last-valid-price vs actual-exit-price gap large on a small fraction of trades
+- Impossible-looking P&L on the trade's last day
+
+**Prevention:**
+- `DEFAULT_LEAP_CONFIG.missingChainExitAfterDays: 3` — reviewed and intentional.
+- `tests/option-sim-fills.test.ts` asserts `DEFAULT_CREDIT_CONFIG.missingChainExitAfterDays === 3`.
+- Studies overriding to 999 must document the reason in the study script header.
 
 ---
 
@@ -378,6 +414,167 @@ Every item on this page is a real bug or trap that has produced fake results in 
 
 ---
 
+### Baseline correctness (delta-gate comparator)
+
+The runner's delta gate compares a strategy against a "naive baseline" (same SimConfig, periodic entry, no timing). If the baseline is mis-specified, the gate rejects or accepts variants against a wrong benchmark and the entire search is contaminated.
+
+### 25. Naive baseline hard-coded to CALL direction
+**Fixed:** 2026-04-17 (commit `c16733b`)
+**File:** `scripts/autoresearch/runner.ts` — `generateNaiveSignals()`
+
+**What:** `generateNaiveSignals()` used to emit only `direction: 'CALL'` entries. For a PUT credit-spread strategy (e.g. IWM 30-DTE bull puts) or a mixed CALL/PUT harness, the delta gate then compared PUT P&L against a bullish long-call comparator — completely wrong market exposure.
+
+**Fingerprint:**
+- Strategy generates PUT signals (check `allSignals.filter(s => s.direction === 'PUT').length`)
+- Baseline Sharpe wildly different from strategy Sharpe on the same simConfig
+- `passesDeltaSpyIR` result implausible given known strategy direction
+
+**Prevention:** Runner now computes `naiveDirection` from the strategy's signal mix (majority vote) and passes it to `generateNaiveSignals()`. Any future strategy with mixed directions should audit the baseline direction decision before trusting delta metrics.
+
+---
+
+### 26. Delta gate fails open when baseline is unavailable
+**Fixed:** 2026-04-17 (commits `c16733b`, `9eecb4c`)
+**File:** `scripts/autoresearch/runner.ts` — delta gate evaluation
+
+**What:** If the baseline worker errored out or produced < 20 trades (sparse chains, worker crash), the code left `baselineSpyIR` / `baselineMaxDD` / `baselineCorrelation` undefined — and the original code treated `undefined` delta metrics as **passing** the gate. Result: a worker failure silently promoted any strategy as "beats the baseline" without evidence.
+
+**Fingerprint:**
+- `baselineTrades` in the RunResult is undefined or 0
+- `passesDeltaGates === true` alongside missing delta* numerics
+- Strategies validated with zero baseline comparison still showing up as valid
+
+**Prevention:**
+- Fail closed by default: `passesDeltaSpyIR = deltaSpyIR != null ? deltaSpyIR > 0 : false` (and sibling gates).
+- `SCREEN_MODE` intentionally skips the baseline worker → gates pass on the understanding that screen is triage, not validation; but any non-screen run with missing baseline fails the validity gate.
+
+---
+
+### 27. Baseline worker evaluated with CALL config only, ignoring `variant.putSimConfig`
+**Fixed:** 2026-04-17 (commit `131b6a3`)
+**File:** `scripts/autoresearch/runner.ts` — `evalOnWorker(blWorker, ..., variant.putSimConfig)`
+
+**What:** After `configVariants` gained separate CALL / PUT configs (hybrid strategies), the strategy worker correctly received both via `evalOnWorker(stratWorker, ..., variant.putSimConfig)`. The baseline worker call was never updated — it always received CALL config only. For a PUT-direction baseline (after fix #25), trades were priced with the strategy's CALL params (wrong delta, DTE, profit target, etc.).
+
+**Fingerprint:**
+- Strategy has `hasSeparatePutConfig === true` (distinct `buildConfig('CALL')` vs `buildConfig('PUT')`)
+- Baseline trades show parameters matching CALL spec even though direction is PUT
+- Delta gates fluctuate unexpectedly when CALL and PUT configs are close vs far apart
+
+**Prevention:** Baseline `evalOnWorker` call now mirrors strategy call: `evalOnWorker(blWorker, vi, simConfig, selWindows, holdoutWindows, variant.putSimConfig)`. Any future baseline variant added to the runner must forward all direction-specific configs.
+
+---
+
+### Window / carry accounting (selection → holdout)
+
+When positions live longer than a single WFA window (LEAPs, long-DTE spreads), carry semantics across window boundaries are critical. Get them wrong and holdout metrics diverge silently from what the strategy actually did.
+
+### 28. Carry state resets at the selection/holdout boundary
+**Fixed:** 2026-04-17 (commit `131b6a3`)
+**File:** `scripts/autoresearch/worker.ts` — `evaluateOnWindows` + single-call unification
+
+**What:** Originally `evaluateOnWindows` was called twice — once for selection windows, once for holdout windows. Inside the function, `oosState = createConstraintState()` reinitialized carry on each invocation; `oosMaxDate` was also set to the *last window in the current call's list*. A 180-DTE LEAP opened in the last selection window got truncated at selection end, and its in-holdout dailyMtM never existed.
+
+**Fingerprint:**
+- Strategy has DTE significantly longer than `forwardStepDays`
+- `workerResult.holdoutTrades` count implausibly low (the strategy "went dark" at the boundary)
+- Holdout Sharpe sensitive to whether a late-selection entry fired
+
+**Prevention:**
+- Worker now evaluates `[...selectionWindows, ...holdoutWindows]` in a single `evaluateOnWindows` call, then splits trades by entry date.
+- Carry state (`oosState`) and `oosMaxDate` span the full range.
+- Runner computes holdout metrics on `[...allOOSTrades, ...holdoutTrades]` union so selection-entered trades' in-holdout MtM contributes (date filter inside `computePortfolioDailyMetrics` restricts contribution to holdout days).
+
+---
+
+### 29. Holdout metrics seeded with `startingCapital` instead of carried equity
+**Fixed:** 2026-04-17 (commit `f41a0b9`)
+**File:** `src/lib/backtest/wfa-options.ts` — `computePortfolioDailyMetrics(..., initialEquity?)`
+
+**What:** Once fix #28 unioned carried trades into holdout metrics, a new bug emerged: `computePortfolioDailyMetrics` always seeded `equity = startingCapital` and `peak = startingCapital`. Returns were computed as `dailyPnl / prevEquity`, so a carried trade's in-holdout P&L was divided by the *starting* capital rather than the actual equity the strategy brought into holdout (e.g., $10k base but $13k after selection). Sharpe scale was wrong; MaxDD peak started from the wrong base.
+
+**Fingerprint:**
+- Selection Sharpe high → selection-end equity significantly above starting capital
+- Holdout Sharpe magnitude looks off vs per-trade P&L distribution
+- MaxDD computed from a peak that doesn't match the equity curve's actual peak at holdout start
+
+**Prevention:**
+- `computePortfolioDailyMetrics` accepts optional `initialEquity` parameter (defaults to `startingCapital` for backward compat).
+- Runner derives `selectionEndEquity = oosMetrics.equityCurve[last].equity` and passes it to the holdout metrics call.
+- Selection metrics still seed from `startingCapital` (correct — selection starts fresh).
+
+---
+
+### 30. Holdout gate passes on carry-only trades (zero new holdout entries)
+**Fixed:** 2026-04-17 (commit `f41a0b9`)
+**File:** `scripts/autoresearch/runner.ts` — `passesHoldoutNewEntries` gate
+
+**What:** With carried selection trades scoring in holdout metrics, a strategy that stops generating signals after the boundary can still pass the holdout Sharpe/IR gate on a single lucky carried LEAP's in-holdout P&L. The gate passes without the strategy ever demonstrating it works on the unseen regime — exactly the opposite of what holdout is for.
+
+**Fingerprint:**
+- `newHoldoutTrades === 0` but `passesHoldoutOrIR === true`
+- Strategy's signal count drops to zero in the holdout date range
+- A single `carriedHoldoutTrades` entry carries the whole gate
+
+**Prevention:**
+- RunResult now reports both `newHoldoutTrades` (entered inside holdout) and `carriedHoldoutTrades` (selection-entered, live during holdout).
+- `passesHoldoutNewEntries = newHoldoutTrades >= 1` — strict minimum: the strategy must take at least one new bet under the unseen regime.
+- `isValid = isValidForSearch && passesHoldoutOrIR && passesHoldoutNewEntries`. Carry-only passes are rejected.
+- `HOLDOUT_DERIVED_FIELDS` strips the new fields from the agent-visible leaderboard (no leakage).
+
+---
+
+### 31. `loadLeaderboard()` falling back to stripped agent-visible file
+**Fixed:** 2026-04-17 (commit `c16733b`)
+**File:** `scripts/autoresearch/runner.ts` — `loadLeaderboard()`
+
+**What:** `data/leaderboard-full*.json` is gitignored (`data/*.json`), but `scripts/autoresearch/leaderboard*.json` is committed. Fresh clones have only the stripped (agent-visible) file. The old loader fell back to the stripped path when fullPath was missing — which meant historical entries lost `isValid` and all holdout fields. `leaderboard.filter(e => e.isValid)` then returned `[]`, and any newly "valid for search" run was crowned champion even if historical runs scored higher.
+
+**Fingerprint:**
+- Fresh clone or fresh campaign suffix
+- Champion selection picks a run with combinedSharpe below known historical leaders
+- `leaderboard.filter(e => e.isValid)` length drops after a clone
+
+**Prevention:**
+- Loader only reads `fullPath`; returns `[]` if missing (treat as no history).
+- One-time migration block at runner startup rewrites stripped → full when fullPath absent. Runs for all suffixes (not only the primary).
+- `backfillIsValidForSearch()` preserves ranking eligibility for pre-split historical entries.
+
+---
+
+### 32. `configVariants.overrides` shallow-merged — nested fields silently dropped
+**Fixed:** 2026-04-17 (commit `58f9b25`)
+**File:** `scripts/autoresearch/runner.ts` — `mergeConfigOverrides()`
+
+**What:** `{ ...baseSimConfig, ...v.overrides }` is a top-level spread: any nested object in `overrides` replaces the whole sibling field. A variant like `overrides: { signalInvalidation: { graceDays: 3 } }` silently wiped `signalInvalidation.type`; `overrides: { slippage: { enabled: false } }` wiped the rest of the `DynamicSlippageConfig`. The variant was then evaluated on a materially different config than its author intended.
+
+**Fingerprint:**
+- Variant name includes a nested parameter tweak (e.g. `*-grace3`, `*-noSlippage`)
+- Running the variant produces results inconsistent with a flat-parameter equivalent
+- `signalInvalidation.type` or `slippage.executionStyle` unexpectedly `undefined` in a variant's effective config
+
+**Prevention:** `mergeConfigOverrides()` does two-level merge for the two SimConfig fields that are objects (`signalInvalidation`, `slippage`). All other fields are primitives/arrays where replacement is correct. Any new object-valued SimConfig field must be added to the helper.
+
+---
+
+### 33. Strategy precomputation gated on local cache file
+**Fixed:** 2026-04-17 (commit `c16733b`)
+**File:** `scripts/autoresearch/strategy.ts` — `prepare()` hook fallback; `scripts/autoresearch/types.ts` — `StrategyDefinition.prepare?`
+
+**What:** Campaign A's strategy module loaded `data-cache.json` at import time to build `breadthByDate` and `hv20PctByTickerDate` maps. If the file was missing (e.g., cacheless Supabase path, different machine), both maps stayed empty and the `breadth` / `rv_regime` gates silently rejected every signal. The strategy looked broken, but actually the machine setup was broken.
+
+**Fingerprint:**
+- Campaign A with GATE=breadth or GATE=rv_regime produces 0 signals
+- Module-level log says "data-cache.json not found — gate disabled"
+- Strategy works on one machine (where cache exists) but not another
+
+**Prevention:**
+- `StrategyDefinition.prepare?(tickerDataMap, market)` hook on the strategy interface. Runner calls it once before `generateSignals`, passing the loaded tickerDataMap.
+- Campaign A's `prepare` rebuilds breadth + hv20 percentile from the in-memory bundle when the cache path hasn't already populated the maps.
+- `TickerDataBundle.hv20` surfaces the raw hv20 series so precomputation doesn't need the full IV cache.
+
+---
+
 ## Sanity bounds (auto-enforced)
 
 Any backtest result that violates these should be treated as a bug until proven otherwise:
@@ -407,8 +604,106 @@ After N attempts, the expected maximum Sharpe from noise depends on the standard
 ### Bootstrap CI for time series needs block bootstrap
 I.i.d. bootstrap understates CI width for daily returns because it ignores autocorrelation. Use block bootstrap with block size ~sqrt(n). Already implemented in `bootstrapSharpeCI`.
 
+### Bootstrap CI must start at the first OOS day, not `config.startDate`
+**Fixed:** 2026-04-17 (commit `9eecb4c`)
+**Files:** `src/lib/backtest/wfa-v2-orchestrator.ts`, `wfa-v3-orchestrator.ts`
+
+`computePortfolioDailyMetrics` was called with `config.startDate` (WFA start) as the range start before handing `dailyReturns` to `blockBootstrap`. `bestTrial.oosTrades` only exist from the first OOS window onward, so the training-only prefix was injected as a long stretch of zero returns — deflating variance and biasing the Sharpe CI downward. Fixed to `bestTrial.windows[0]?.oosStart ?? config.startDate`. Any future stat computed over OOS trades must use an OOS-aligned date range.
+
 ### Structural bugs pass all statistical checks
 Holdout, bootstrap, and deflated Sharpe all assume the simulator is trustworthy. **None of them caught the TRAILING_LOCK bug** because the bug produces consistent fake profits across all time periods. The only defense against structural bugs is sanity bounds + code review + adversarial testing.
+
+---
+
+## Research & Search Discipline
+
+Bugs in this section are not in the simulator — they're in the *search process* sitting on top of the simulator. An agent-driven search loop optimizing against a leaky gate is just as corrupting as a miscoded payoff, and is harder to notice because no single run looks wrong.
+
+### 34. Holdout gate boolean leaks into agent-visible leaderboard
+**Fixed:** 2026-04-17 (commit `c16733b`)
+**Files:** `scripts/autoresearch/runner.ts` — `isValidForSearch` / `isValid` split; `HOLDOUT_DERIVED_FIELDS`
+
+**What:** The original `isValid = passesMinTrades && passesMaxDD && passesWFA && passesHoldoutOrIR && passesSanity && passesDeltaGates` combined selection-only gates with the holdout gate, and was left visible in the agent-facing leaderboard. Over N iterations the agent can observe which of its edits passed/failed the holdout gate as a boolean and implicitly optimize toward holdout-pass — precisely what pre-registered holdout is meant to prevent.
+
+**How it was discovered:** Codex adversarial review after Campaign E (2026-04-17). 10 iterations of agent-driven edits were run against a leaderboard that included `isValid`. Entire campaign had to be invalidated.
+
+**Fingerprint:**
+- Any boolean in the agent-visible leaderboard whose computation reaches into holdout-window metrics
+- Agent's journal references "passing validity" even when it can't see holdout numerics
+- Valid count climbing over iterations without obvious selection-window improvements
+
+**Prevention:**
+- Split into `isValidForSearch` (selection-only, agent-visible) and `isValid` (includes holdout, stripped from agent file).
+- `HOLDOUT_DERIVED_FIELDS` extended to strip `isValid`, `holdoutTrades`, `holdoutSharpe`, `holdoutSpyIR`, and other holdout-derived booleans/numerics from the agent-visible leaderboard.
+- `__BEGIN_REVIEWER_ONLY__ … __END_REVIEWER_ONLY__` sentinel blocks in runner stdout wrap all holdout feedback; overnight shells strip them before passing the log to the next iteration's prompt.
+
+---
+
+### 35. Post-hoc incumbent selection violating the pre-reg decision rule
+**Fixed:** process (2026-04-17) — Campaign D v2 results doc + Campaign E reset
+
+**What:** Campaign D's pre-registration said "pick the highest selection combinedSharpe that passes validity." The strict winner was `d65-sl35-ts105` at 1.188. The originally-published recommendation was `d65-tp40-ts150` at 1.180 (runner-up), justified by "robustness-weighted reading" — a rule *not* in the pre-reg. Campaign E was then seeded from that post-hoc incumbent, contaminating all 10 of its iterations.
+
+**Fingerprint:**
+- Any sentence in a results doc of the form "the strict winner is X but we recommend Y because..."
+- Downstream campaigns baselined on the "recommended" (non-strict) variant
+- Results doc gets a v2 revision that reverts to the strict winner
+
+**Prevention:**
+- If post-hoc reasoning produces a different pick than the pre-reg rule, that's either: (a) a new hypothesis requiring a fresh pre-reg, or (b) a rule violation. Never both at once in the same results doc.
+- Any variant used as a downstream incumbent must match the strict pre-reg winner exactly, or the downstream work must be classified as exploratory and not adopted.
+
+---
+
+### 36. Exact holdout numerics carried into agent-seeded journal
+**Fixed:** 2026-04-17 (commits `c16733b`, `58f9b25`)
+**Files:** `scripts/autoresearch/journal-campaign-e.md` (wiped); shell sentinel strip in `run-*-overnight.sh`
+
+**What:** The journal that seeded Campaign E's first iteration contained a table with `Hldt Sharpe` and `Hldt IR` columns for prior Campaign D variants. Even though the code-level leaderboard correctly stripped holdout fields, the hand-authored seed leaked the same numbers through a different channel.
+
+**Fingerprint:**
+- Any `.md` file shipped to the agent that tabulates per-variant numerics from the holdout window
+- Phrases like "holdout Sharpe = X" or "passes on holdout IR" in seed content
+- Agent's first-iteration output references specific holdout values the search shouldn't know
+
+**Prevention:**
+- Seed journals must only reference selection-window metrics.
+- When documenting prior results in an agent-facing file, use PASS/FAIL tokens, never numerics.
+- Shell orchestration strips reviewer-only sentinel blocks from the prior-iteration output before appending to the next prompt.
+
+---
+
+### 37. Post-hoc threshold reclassification ("treat-as-valid")
+**Fixed:** process (2026-04-17) — Campaign E audit
+
+**What:** Campaign E's first iteration ran without `AUTORESEARCH_MIN_OOS_TRADES=60` exported (shell env oversight). When results came back with many `isValid: false` entries reasoned out as "trades < 100", a journal note was appended instructing the agent to reinterpret 60-99-trade variants as valid for ranking. That's a rule change applied after seeing results — exactly what pre-registration is meant to prevent.
+
+**Fingerprint:**
+- Any post-run journal edit that changes how prior results are classified
+- Thresholds described in the pre-reg but re-justified mid-campaign
+- "Treat X as Y" instructions appearing in the loop's prompt memory
+
+**Prevention:**
+- Any threshold discovered to be wrong mid-campaign invalidates the campaign. Don't patch in flight.
+- Shell scripts export all validity thresholds (`AUTORESEARCH_MIN_OOS_TRADES`, etc.) before iteration 1 starts, and fail loudly if an env var is missing.
+
+---
+
+### 38. Deflated-Sharpe attempt counter resets per campaign
+**Fixed:** 2026-04-17 (commit `c16733b`)
+**File:** `scripts/autoresearch/runner.ts` — `data/attempts-global.json` ledger
+
+**What:** The original attempt counter was per-`AUTORESEARCH_LEADERBOARD_SUFFIX`. Each campaign (A / C / D / E / Option 3) had its own counter that started at 1 — so Deflated Sharpe was computed against tiny N. The true serial search across all campaigns was in the hundreds of attempts; the reported deflated Sharpe materially understated p-hacking risk.
+
+**Fingerprint:**
+- `attemptNumber` field in the RunResult is small (< 50) despite many prior campaigns
+- Deflated Sharpe close to raw Sharpe (tiny penalty) on a run that's part of a long serial search
+- New campaign suffix starts with `attemptNumber: 1`
+
+**Prevention:**
+- Global `data/attempts-global.json` ledger persists across all runner invocations regardless of suffix.
+- `incrementGlobalAttempts()` writes to this ledger; `attemptNumber` is read from the global count, not the local leaderboard length.
+- Any future per-campaign isolation (new suffixes) must continue to increment the global counter.
 
 ---
 
