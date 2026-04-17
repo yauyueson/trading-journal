@@ -31,9 +31,22 @@ export interface TickerDataBundle {
   ticker: string;
   candles: BacktestCandle[];
   ivRanks: (number | null)[];
+  /** Raw 20-day historical vol per candle index, aligned to candles[]. Optional. */
+  hv20?: (number | null)[];
   dateToIdx: Map<string, number>;
-  emas: Map<number, number[]>;   // period (8,13,21,34,55) → full EMA series
+  emas: Map<number, number[]>;   // period (8,13,21,34,55,200) → full EMA series
   regimeByDate: Map<string, RegimeData>;
+}
+
+// ── MarketContext ──────────────────────────────────────
+
+/**
+ * Market-level data passed to generateSignals() alongside per-ticker data.
+ * Enables cross-asset regime gates (e.g., "don't enter when SPY < EMA200").
+ */
+export interface MarketContext {
+  /** SPY daily closes indexed by date */
+  spyByDate: Map<string, { close: number; ema200: number }>;
 }
 
 // ── ChainLookup ─────────────────────────────────────────
@@ -66,11 +79,23 @@ export interface StrategyDefinition {
   tickers: string[];
 
   /**
+   * Optional: one-time precomputation hook invoked by the runner before
+   * the per-ticker generateSignals loop. Receives the full tickerDataMap so
+   * strategies can build cross-ticker derived data (e.g. breadth, relative-
+   * vol percentile) without needing the serialized data-cache.json on disk.
+   * Called exactly once per runner invocation.
+   */
+  prepare?(tickerDataMap: Map<string, TickerDataBundle>, market: MarketContext): void;
+
+  /**
    * Generate entry signals from pre-loaded ticker data.
    * Called once per ticker. The agent puts all custom entry logic here.
    * Return EntrySignal[] — can be any combination of CALL/PUT directions.
+   *
+   * `market` provides SPY data for cross-asset regime gates
+   * (e.g., skip entries when SPY < EMA200).
    */
-  generateSignals(data: TickerDataBundle): EntrySignal[];
+  generateSignals(data: TickerDataBundle, market: MarketContext): EntrySignal[];
 
   /**
    * Build the SimConfig for evaluation.
@@ -115,6 +140,23 @@ export interface StrategyDefinition {
     mode: 'rolling' | 'anchored';
     holdoutCount?: number;      // default 2
   };
+
+  /**
+   * Optional: config variants for batch evaluation in a single run.
+   * Each variant overrides specific SimConfig fields from buildConfig().
+   * The runner evaluates all variants (reusing loaded data + signals).
+   * Use with `--screen` flag for fast triage before full evaluation.
+   */
+  configVariants?: ConfigVariant[];
+}
+
+// ── ConfigVariant ──────────────────────────────────────
+
+export interface ConfigVariant {
+  /** Human-readable variant name (shown in results table) */
+  name: string;
+  /** SimConfig field overrides — merged with base buildConfig() output */
+  overrides: Partial<SimConfig>;
 }
 
 // ── RunResult ───────────────────────────────────────────
@@ -148,13 +190,14 @@ export interface RunResult {
   avgTrainSharpe: number;
   wfEfficiency: number;
   // Validity checks
-  passesMinTrades: boolean;
-  passesMaxDD: boolean;
-  passesWFA: boolean;
-  passesHoldout: boolean;             // holdout Sharpe >= 0 (absolute)
-  passesHoldoutOrIR: boolean;         // holdout Sharpe >= 0 OR holdout SPY IR >= 0 (beat market)
-  passesSanity: boolean;              // OOS Sharpe <= 3.0 (catches simulator bugs)
-  isValid: boolean;
+	  passesMinTrades: boolean;
+	  passesMaxDD: boolean;
+	  passesWFA: boolean;
+	  passesHoldout: boolean;             // holdout Sharpe >= 0 (absolute)
+	  passesHoldoutOrIR: boolean;         // holdout Sharpe >= 0.3 OR holdout SPY IR >= 0.3
+	  passesSanity: boolean;              // OOS Sharpe <= 3.0 (catches simulator bugs)
+	  isValidForSearch: boolean;          // selection-only validity — agent-visible (no holdout leakage)
+	  isValid: boolean;                   // includes holdout gate — stripped from agent leaderboard; for human/post-hoc analysis only
   // Overfitting diagnostics
   holdoutOOSRatio: number;           // holdoutSharpe / oosSharpe — closer to 1.0 = less overfit
   bootstrapSharpe95CI: [number, number];  // 95% CI on standalone OOS Sharpe
@@ -164,7 +207,27 @@ export interface RunResult {
   // Diagnostics
   exitTypeBreakdown: Record<string, number>;
   signalsGenerated: number;         // total signals before WFA filtering
-  signalsSkippedNoChain: number;    // signals skipped due to missing chain data (from worker)
+  // NOTE: legacy/misnamed — this is "signals that did not become trades" across
+  // selection + holdout (includes training-window signals, constraint rejects, and
+  // true chain misses). See runner.ts where it is computed.
+  signalsSkippedNoChain: number;
+  // Naive baseline comparison (always-long, no signal timing)
+  // Baseline uses same SimConfig but periodic entry (every N days) to test
+  // whether signal timing adds alpha beyond leveraged beta.
+  baselineOosSharpe?: number;
+  baselineMaxDD?: number;
+  baselineCorrelation?: number;     // baseline correlation with DTE5
+  baselineSpyIR?: number;
+  baselineTrades?: number;
+  // Delta metrics: strategy minus baseline (positive IR = strategy better,
+  // negative MaxDD/corr = strategy better)
+  deltaSpyIR?: number;
+  deltaMaxDD?: number;              // negative = strategy has lower drawdown
+  deltaCorrelation?: number;        // negative = strategy has lower DTE5 correlation
+  passesDeltaSpyIR?: boolean;       // deltaSpyIR > 0
+  passesDeltaMaxDD?: boolean;       // deltaMaxDD <= 0
+  passesDeltaCorr?: boolean;        // deltaCorrelation <= 0
+  passesDeltaGates?: boolean;       // all three delta gates pass
   errorMessage?: string;
   elapsedMs: number;
 }
@@ -204,6 +267,9 @@ export interface WorkItem {
   type: 'eval';
   id: number;
   simConfig: SimConfig;
+  /** Optional separate config for PUT-direction signals. If present, PUT signals
+   *  use putSimConfig and CALL signals use simConfig. Enables hybrid CALL/PUT strategies. */
+  putSimConfig?: SimConfig;
   selectionWindows: WindowDef[];
   holdoutWindows: WindowDef[];
 }

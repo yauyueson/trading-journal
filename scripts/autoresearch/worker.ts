@@ -23,8 +23,11 @@ import {
 } from '../../src/lib/backtest/option-sim';
 import {
   evaluateConfiguredSignalsWithConstraints,
+  evaluateConfiguredSignalsWithState,
+  createConstraintState,
   computePortfolioDailyMetrics,
   type PortfolioExecutionConfig,
+  type PortfolioConstraintState,
   type TradeEvaluator,
   type ConfiguredSignal,
 } from '../../src/lib/backtest/wfa-options';
@@ -200,7 +203,7 @@ function makeCreditSpreadEvaluator(config: SimConfig): TradeEvaluator {
       }
     }
 
-    // Expiration
+    // Expiration / forced close at evaluation horizon
     const lastDate = monitorDates[monitorDates.length - 1];
     if (!lastDate) return null;
     const shortLeg = findContractDirect(signal.ticker, lastDate, spread.short.row.strike, spread.short.row.expir_date, optionType);
@@ -213,10 +216,11 @@ function makeCreditSpreadEvaluator(config: SimConfig): TradeEvaluator {
       const stockPrice = shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? fallbackChain[0]?.stock_price ?? spread.short.row.stock_price;
       finalCost = computeIntrinsicSpreadCloseCost(optionType, spread.short.row.strike, spread.long.row.strike, stockPrice, thresholds.actualWidth);
     }
+    const endExitType: OptionExitType = maxDate < spread.short.row.expir_date ? 'FORCE_CLOSE' : 'EXPIRATION';
     return buildTrade(signal, spread, entryCredit, lastDate, finalCost,
       shortLeg?.row.dte ?? longLeg?.row.dte ?? fallbackChain[0]?.dte ?? 0,
       shortLeg?.row.stock_price ?? longLeg?.row.stock_price ?? fallbackChain[0]?.stock_price ?? spread.short.row.stock_price,
-      'EXPIRATION', dailyMtM, shortLeg?.delta);
+      endExitType, dailyMtM, shortLeg?.delta);
   };
 }
 
@@ -291,6 +295,7 @@ function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
     const slPrice = entryPrice * (1 - config.leapStopLoss);
 
     const monitorEnd = entry.row.expir_date < maxDate ? entry.row.expir_date : maxDate;
+    const forcedClose = maxDate < entry.row.expir_date;
     const startIdx = allDates.indexOf(signal.date);
     if (startIdx < 0) return null;
 
@@ -317,10 +322,33 @@ function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
       ? entryPrice + entryPrice * config.leapProfitTarget * trailActivatePct
       : Infinity;
 
+    const missingExitAfter = config.missingChainExitAfterDays ?? Number.POSITIVE_INFINITY;
+    let missingStreak = 0;
+    let lastKnownExitPrice: number | null = null;
     for (const checkDate of monitorDates) {
       // O(1) direct PK lookup — critical for daily monitoring on long-dated options
       const current = findContractDirect(signal.ticker, checkDate, entry.row.strike, entry.row.expir_date, optionType);
-      if (!current) continue;
+      if (!current || current.mid <= 0) {
+        missingStreak++;
+        if (missingExitAfter !== Infinity && missingExitAfter > 0 && missingStreak >= missingExitAfter) {
+          // Best-effort forced exit when the chain is missing for too long.
+          // Prefer the last known executable exit price; otherwise use intrinsic.
+          let exitPrice: number;
+          if (lastKnownExitPrice != null) {
+            exitPrice = lastKnownExitPrice;
+          } else {
+            const fallbackChain = getCachedChain(signal.ticker, checkDate);
+            const lastStock = fallbackChain.length > 0 ? fallbackChain[0].stock_price : entry.row.stock_price;
+            exitPrice = optionType === 'Call'
+              ? Math.max(0, lastStock - entry.row.strike)
+              : Math.max(0, entry.row.strike - lastStock);
+          }
+          return buildLeapTrade(signal, entry, optionType, entryPrice, checkDate, exitPrice,
+            0, entry.row.stock_price, 'NO_CHAIN', dailyMtM);
+        }
+        continue;
+      }
+      missingStreak = 0;
 
       // Mark-to-market at mid (fair value), but exit fills at bid (seller's cost)
       const currentMid = current.mid;
@@ -330,6 +358,7 @@ function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
       // Exit price accounts for spread: seller receives below mid
       const exitHalfSpread = (current.ask > 0 && current.bid > 0) ? (current.ask - current.bid) / 2 : currentMid * 0.01;
       const currentExitPrice = currentMid - exitHalfSpread;
+      lastKnownExitPrice = currentExitPrice;
 
       // Update trailing lock state
       if (trailActivatePct != null && trailFloorPct != null) {
@@ -350,7 +379,25 @@ function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
       if (trailActive && currentExitPrice < trailFloor) exitType = 'TRAILING_LOCK';
       else if (currentExitPrice >= tpPrice) exitType = 'PROFIT_TARGET';
       else if (currentExitPrice <= slPrice) exitType = 'STOP_LOSS';
-      else if (currentDTE <= config.leapTimeStopDTE) exitType = 'TIME_STOP';
+      else if (config.signalInvalidation && signal.invalidation) {
+        const inv = signal.invalidation;
+        const grace = config.signalInvalidation.graceDays ?? 0;
+        const typ = config.signalInvalidation.type;
+        let invalidDate: string | undefined;
+        if (typ === 'macro') invalidDate = grace >= 3 ? inv.macro3dBreakDate : inv.macroBreakDate;
+        else if (typ === 'trend') invalidDate = grace >= 3 ? inv.trend3dBreakDate : inv.trendBreakDate;
+        else if (typ === 'momentum') invalidDate = grace >= 3 ? inv.momentum3dBreakDate : inv.momentumBreakDate;
+        else if (typ === 'any') {
+          const dates = [
+            grace >= 3 ? inv.macro3dBreakDate : inv.macroBreakDate,
+            grace >= 3 ? inv.trend3dBreakDate : inv.trendBreakDate,
+            grace >= 3 ? inv.momentum3dBreakDate : inv.momentumBreakDate,
+          ].filter(Boolean) as string[];
+          invalidDate = dates.length > 0 ? dates.sort()[0] : undefined;
+        }
+        if (invalidDate && checkDate >= invalidDate) exitType = 'SIGNAL_REVERSAL';
+      }
+      if (!exitType && currentDTE <= config.leapTimeStopDTE) exitType = 'TIME_STOP';
 
       if (exitType) {
         return buildLeapTrade(signal, entry, optionType, entryPrice, checkDate, currentExitPrice, currentDTE,
@@ -358,7 +405,7 @@ function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
       }
     }
 
-    // Close at last monitoring date
+    // Close at last monitoring date (expiry or evaluation horizon)
     const lastDate = monitorDates[monitorDates.length - 1];
     if (!lastDate) return null;
     const current = findContractDirect(signal.ticker, lastDate, entry.row.strike, entry.row.expir_date, optionType);
@@ -375,8 +422,9 @@ function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
         ? Math.max(0, lastStock - entry.row.strike)
         : Math.max(0, entry.row.strike - lastStock);
     }
+    const endExitType: OptionExitType = forcedClose ? 'FORCE_CLOSE' : 'EXPIRATION';
     return buildLeapTrade(signal, entry, optionType, entryPrice, lastDate, exitPrice,
-      current?.row.dte ?? 0, current?.row.stock_price ?? entry.row.stock_price, 'EXPIRATION', dailyMtM);
+      current?.row.dte ?? 0, current?.row.stock_price ?? entry.row.stock_price, endExitType, dailyMtM);
   };
 }
 
@@ -419,29 +467,59 @@ function evaluateOnWindows(
   config: SimConfig,
   windows: WindowDef[],
   evaluator: TradeEvaluator,
+  putConfig?: SimConfig,
+  putEvaluator?: TradeEvaluator,
 ): { results: WindowResult[]; allOOSTrades: OptionTrade[] } {
   const results: WindowResult[] = [];
   const allOOSTrades: OptionTrade[] = [];
 
+  // Helper: pick config/evaluator based on signal direction
+  const configFor  = (s: EntrySignal) => (s.direction === 'PUT' && putConfig)  ? putConfig  : config;
+  const evalFor    = (s: EntrySignal) => (s.direction === 'PUT' && putEvaluator) ? putEvaluator : evaluator;
+
+  // Determine the final maxDate for OOS — positions can live until the last window ends.
+  // This prevents truncating 180-270 DTE LEAPs at window boundaries.
+  const oosMaxDate = windows.length > 0
+    ? windows[windows.length - 1].oosEnd
+    : allTradingDates[allTradingDates.length - 1];
+
+  // Carry portfolio state across OOS windows so positions survive boundaries.
+  let oosState: PortfolioConstraintState = createConstraintState();
+
   for (let i = 0; i < windows.length; i++) {
     const w = windows[i];
 
+    // Training: independent per window (no carry — correct for optimization)
     const trainSigs = signals.filter(s => s.date >= w.trainStart && s.date <= w.trainEnd);
-    const trainConfigured: ConfiguredSignal[] = trainSigs.map(s => ({ signal: s, config }));
+    const trainConfigured: ConfiguredSignal[] = trainSigs.map(s => ({ signal: s, config: configFor(s) }));
+    const trainEvaluatorMixed = trainConfigured.length > 0 && putConfig
+      ? (sig: EntrySignal, cfg: SimConfig, dates: string[], maxDate: string, lookup: ChainLookup) =>
+          evalFor(sig)(sig, cfg, dates, maxDate, lookup)
+      : evaluator;
     const trainTrades = evaluateConfiguredSignalsWithConstraints(
-      trainConfigured, executionConfig, allTradingDates, w.trainEnd, evaluator,
+      trainConfigured, executionConfig, allTradingDates, w.trainEnd, trainEvaluatorMixed,
     );
     const trainMetrics = computePortfolioDailyMetrics(
       trainTrades, allTradingDates, w.trainStart, w.trainEnd, startingCapital,
     );
 
+    // OOS: carry state across windows, maxDate = final window end
     const oosSigs = signals.filter(s => s.date >= w.oosStart && s.date <= w.oosEnd);
-    const oosConfigured: ConfiguredSignal[] = oosSigs.map(s => ({ signal: s, config }));
-    const oosTrades = evaluateConfiguredSignalsWithConstraints(
-      oosConfigured, executionConfig, allTradingDates, w.oosEnd, evaluator,
+    const oosConfigured: ConfiguredSignal[] = oosSigs.map(s => ({ signal: s, config: configFor(s) }));
+    const oosEvaluatorMixed = oosConfigured.length > 0 && putConfig
+      ? (sig: EntrySignal, cfg: SimConfig, dates: string[], maxDate: string, lookup: ChainLookup) =>
+          evalFor(sig)(sig, cfg, dates, maxDate, lookup)
+      : evaluator;
+    const oosExecution = evaluateConfiguredSignalsWithState(
+      oosConfigured, executionConfig, allTradingDates, oosMaxDate, oosEvaluatorMixed, oosState,
     );
+    const oosTrades = oosExecution.trades;
+    oosState = oosExecution.state;
+
+    // Per-window OOS metrics should include carried positions (MtM) from prior windows.
+    const cumulativeTrades = allOOSTrades.concat(oosTrades);
     const oosMetrics = computePortfolioDailyMetrics(
-      oosTrades, allTradingDates, w.oosStart, w.oosEnd, startingCapital,
+      cumulativeTrades, allTradingDates, w.oosStart, w.oosEnd, startingCapital,
     );
     const oosAnalytics = computeOptionAnalytics(oosTrades);
 
@@ -469,8 +547,9 @@ parentPort!.on('message', (msg: WorkItem | { type: 'exit' }) => {
   if (msg.type === 'eval') {
     try {
       const evaluator = makeStandardEvaluator(msg.simConfig);
-      const { results: selectionResults, allOOSTrades } = evaluateOnWindows(msg.simConfig, msg.selectionWindows, evaluator);
-      const { allOOSTrades: holdoutTrades } = evaluateOnWindows(msg.simConfig, msg.holdoutWindows, evaluator);
+      const putEvaluator = msg.putSimConfig ? makeStandardEvaluator(msg.putSimConfig) : undefined;
+      const { results: selectionResults, allOOSTrades } = evaluateOnWindows(msg.simConfig, msg.selectionWindows, evaluator, msg.putSimConfig, putEvaluator);
+      const { allOOSTrades: holdoutTrades } = evaluateOnWindows(msg.simConfig, msg.holdoutWindows, evaluator, msg.putSimConfig, putEvaluator);
 
       parentPort!.postMessage({
         type: 'result',
