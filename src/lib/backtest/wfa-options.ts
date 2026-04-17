@@ -322,6 +322,11 @@ export function computePortfolioDailyMetrics(
   // (e.g. holdout when carried selection positions straddle the boundary).
   // Defaults to startingCapital for single-window / selection use.
   initialEquity?: number,
+  // Peak equity at the window boundary. Separate from initialEquity because
+  // selection can end below an earlier peak — if we seeded peak = equity,
+  // any continuing drawdown in the window would be measured from the
+  // depressed boundary equity, not the true carried peak.
+  initialPeak?: number,
 ): PortfolioDailyMetrics {
   const dates = allTradingDates.filter(d => d >= startDate && d <= endDate);
   if (dates.length === 0) {
@@ -331,10 +336,23 @@ export function computePortfolioDailyMetrics(
   const dateIdx = new Map<string, number>(dates.map((d, i) => [d, i]));
   const dailyPnl = new Array<number>(dates.length).fill(0);
 
+  const windowStart = dates[0];
+
   for (const trade of trades) {
     let contributed = 0;
+    // For a trade carried into the window (entry < windowStart), only the
+    // in-window P&L change should count. preWindowUnrealized captures the
+    // trade's unrealized P&L at the moment just before the window starts, so
+    // the exit-day residual subtracts it and doesn't re-book selection-period
+    // gains/losses as window-local P&L.
+    let preWindowUnrealized = 0;
 
     if (trade.dailyMtM && trade.dailyMtM.length > 0) {
+      for (const mtm of trade.dailyMtM) {
+        if (mtm.date < windowStart) preWindowUnrealized = mtm.unrealizedPnl;
+        else break;
+      }
+
       let prevUnrealized = 0;
       for (const mtm of trade.dailyMtM) {
         const day = mtm.date.slice(0, 10);
@@ -348,7 +366,7 @@ export function computePortfolioDailyMetrics(
       }
     }
 
-    const residual = trade.pnl - contributed;
+    const residual = trade.pnl - preWindowUnrealized - contributed;
     if (Math.abs(residual) > 1e-9) {
       const exitIdx = dateIdx.get(trade.exitDate.slice(0, 10));
       if (exitIdx !== undefined) dailyPnl[exitIdx] += residual;
@@ -358,9 +376,10 @@ export function computePortfolioDailyMetrics(
   const dailyReturns: number[] = [];
   const equityCurve: { date: string; equity: number }[] = [];
   const baseEquity = initialEquity ?? startingCapital;
+  const basePeak = initialPeak ?? baseEquity;
   let equity = baseEquity;
-  let peak = baseEquity;
-  let maxDD = 0;
+  let peak = basePeak;
+  let maxDD = peak > 0 ? Math.max(0, (peak - equity) / peak) : 0;
 
   for (let i = 0; i < dates.length; i++) {
     const prevEquity = equity;

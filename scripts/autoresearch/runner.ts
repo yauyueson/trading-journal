@@ -939,9 +939,16 @@ async function main() {
     const selectionEndEquity = oosMetrics.equityCurve.length > 0
       ? oosMetrics.equityCurve[oosMetrics.equityCurve.length - 1].equity
       : strategy.portfolio.startingCapital;
+    // Peak is the max equity reached during selection — not necessarily the
+    // selection-end equity if selection ended in a drawdown. Carrying the
+    // true peak into holdout ensures continuing drawdowns are measured
+    // against the real high-water mark, not a depressed boundary.
+    const selectionPeak = oosMetrics.equityCurve.length > 0
+      ? oosMetrics.equityCurve.reduce((m, e) => e.equity > m ? e.equity : m, strategy.portfolio.startingCapital)
+      : strategy.portfolio.startingCapital;
     const holdoutMetrics = computePortfolioDailyMetrics(
       holdoutTradesUnion, allTradingDates, holdoutStart, holdoutEnd,
-      strategy.portfolio.startingCapital, selectionEndEquity,
+      strategy.portfolio.startingCapital, selectionEndEquity, selectionPeak,
     );
 
     const avgTrainSharpe = workerResult.selectionResults.length > 0
@@ -1039,10 +1046,15 @@ async function main() {
     // boundary can otherwise pass the Sharpe/IR gate on a single carried LEAP
     // without ever demonstrating it works on the unseen regime.
     const newHoldoutTrades = workerResult.holdoutTrades.length;
-    const carriedHoldoutTrades = workerResult.allOOSTrades.filter(t => {
-      if (!t.dailyMtM || t.dailyMtM.length === 0) return false;
-      return t.dailyMtM.some(m => m.date >= holdoutStart && m.date <= holdoutEnd);
-    }).length;
+    // Carry = selection-entered trade whose life overlaps the holdout window.
+    // Use date-range overlap (entryDate < holdoutStart && exitDate >= holdoutStart)
+    // rather than dailyMtM presence: sparse monitoring, missing-chain gaps, or
+    // early exits can move holdout P&L through the residual path even when no
+    // in-holdout MtM entry exists. allOOSTrades already filters entryDate <
+    // holdoutStart, so the overlap check reduces to exitDate >= holdoutStart.
+    const carriedHoldoutTrades = workerResult.allOOSTrades.filter(t =>
+      t.exitDate >= holdoutStart,
+    ).length;
     const MIN_NEW_HOLDOUT_TRADES = 1;
     const passesHoldoutNewEntries = newHoldoutTrades >= MIN_NEW_HOLDOUT_TRADES;
     // Search-time validity: holdout-blind. Agents see this.
