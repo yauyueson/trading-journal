@@ -22,6 +22,19 @@ import {
   type EntrySignal, type SimConfig, type OptionTrade, type OptionExitType,
 } from '../../src/lib/backtest/option-sim';
 import {
+  buildLeapTrade,
+  checkLeapExitType,
+  computeIntrinsicValue,
+  computeLeapEntryPrice,
+  computeLeapExitPrice,
+  computeLeapThresholds,
+  createLeapMissingChainState,
+  createLeapTrailState,
+  incrementLeapMissingChain,
+  resetLeapMissingChain,
+  updateLeapTrailState,
+} from '../../src/lib/backtest/leap-exit';
+import {
   evaluateConfiguredSignalsWithConstraints,
   evaluateConfiguredSignalsWithState,
   createConstraintState,
@@ -276,7 +289,7 @@ function buildTrade(
 
 function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
   return (signal, _config, allDates, maxDate) => {
-    // IV rank filter (want low IV for buying options)
+    // IV-rank gate (matches option-sim.simulateLeap)
     if (config.maxIVRank != null && signal.ivRank != null && signal.ivRank > config.maxIVRank) return null;
 
     const entryChain = getCachedChain(signal.ticker, signal.date);
@@ -287,12 +300,9 @@ function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
     const entry = findStrikeByDelta(entryChain, targetDelta, optionType, config.leapDTERange);
     if (!entry || entry.mid <= 0) return null;
 
-    // Realistic fill: buyer pays ask (or mid + half-spread as conservative estimate)
-    // Deep ITM LEAPs are illiquid — mid fills overstate performance
-    const halfSpread = (entry.ask > 0 && entry.bid > 0) ? (entry.ask - entry.bid) / 2 : entry.mid * 0.01;
-    const entryPrice = entry.mid + halfSpread; // pay above mid (buyer's cost)
-    const tpPrice = entryPrice * (1 + config.leapProfitTarget);
-    const slPrice = entryPrice * (1 - config.leapStopLoss);
+    // Entry pricing (shared helper — honors config.fillMode + dynamic slippage)
+    const { entryPrice, entrySlippage } = computeLeapEntryPrice(entry, config);
+    const thresholds = computeLeapThresholds(entryPrice, config);
 
     const monitorEnd = entry.row.expir_date < maxDate ? entry.row.expir_date : maxDate;
     const forcedClose = maxDate < entry.row.expir_date;
@@ -309,156 +319,75 @@ function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
     }
 
     const dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
+    let trail = createLeapTrailState();
+    let missing = createLeapMissingChainState();
 
-    // Trailing lock state for LEAP
-    // Activate when gain >= trailingActivatePct * (entryPrice * leapProfitTarget)
-    // Floor: trail peak, exit if price drops trailingFloorPct below peak
-    const trailActivatePct = config.trailingActivatePct ?? null;
-    const trailFloorPct = config.trailingFloorPct ?? null;
-    let trailActive = false;
-    let trailPeak = 0;
-    let trailFloor = 0;
-    const trailActivatePrice = (trailActivatePct != null)
-      ? entryPrice + entryPrice * config.leapProfitTarget * trailActivatePct
-      : Infinity;
-
-    const missingExitAfter = config.missingChainExitAfterDays ?? Number.POSITIVE_INFINITY;
-    let missingStreak = 0;
-    let lastKnownExitPrice: number | null = null;
     for (const checkDate of monitorDates) {
-      // O(1) direct PK lookup — critical for daily monitoring on long-dated options
       const current = findContractDirect(signal.ticker, checkDate, entry.row.strike, entry.row.expir_date, optionType);
       if (!current || current.mid <= 0) {
-        missingStreak++;
-        if (missingExitAfter !== Infinity && missingExitAfter > 0 && missingStreak >= missingExitAfter) {
-          // Best-effort forced exit when the chain is missing for too long.
-          // Prefer the last known executable exit price; otherwise use intrinsic.
+        const step = incrementLeapMissingChain(missing, config);
+        missing = step.state;
+        if (step.forceExitNow) {
           let exitPrice: number;
-          if (lastKnownExitPrice != null) {
-            exitPrice = lastKnownExitPrice;
+          if (missing.lastKnownExitPrice != null) {
+            exitPrice = missing.lastKnownExitPrice;
           } else {
             const fallbackChain = getCachedChain(signal.ticker, checkDate);
             const lastStock = fallbackChain.length > 0 ? fallbackChain[0].stock_price : entry.row.stock_price;
-            exitPrice = optionType === 'Call'
-              ? Math.max(0, lastStock - entry.row.strike)
-              : Math.max(0, entry.row.strike - lastStock);
+            exitPrice = computeIntrinsicValue(lastStock, entry.row.strike, optionType);
           }
-          return buildLeapTrade(signal, entry, optionType, entryPrice, checkDate, exitPrice,
-            0, entry.row.stock_price, 'NO_CHAIN', dailyMtM);
+          return buildLeapTrade(
+            signal, entry, entryPrice, checkDate, exitPrice,
+            0, entry.row.stock_price, 'NO_CHAIN', dailyMtM,
+            { entrySlippage, exitSlippage: 0, fillMode: config.fillMode },
+          );
         }
         continue;
       }
-      missingStreak = 0;
 
-      // Mark-to-market at mid (fair value), but exit fills at bid (seller's cost)
-      const currentMid = current.mid;
-      const currentDTE = current.row.dte;
-      // Use mid for MtM tracking (fair value for portfolio metrics)
-      dailyMtM.push({ date: checkDate, spreadMid: currentMid, unrealizedPnl: (currentMid - entryPrice) * 100 });
-      // Exit price accounts for spread: seller receives below mid
-      const exitHalfSpread = (current.ask > 0 && current.bid > 0) ? (current.ask - current.bid) / 2 : currentMid * 0.01;
-      const currentExitPrice = currentMid - exitHalfSpread;
-      lastKnownExitPrice = currentExitPrice;
+      // MtM at fair value (mid). Exit pricing (below) applies slippage.
+      dailyMtM.push({ date: checkDate, spreadMid: current.mid, unrealizedPnl: (current.mid - entryPrice) * 100 });
 
-      // Update trailing lock state
-      if (trailActivatePct != null && trailFloorPct != null) {
-        if (!trailActive && currentExitPrice >= trailActivatePrice) {
-          trailActive = true;
-          trailPeak = currentExitPrice;
-          trailFloor = currentExitPrice * (1 - trailFloorPct);
-        }
-        if (trailActive) {
-          if (currentExitPrice > trailPeak) {
-            trailPeak = currentExitPrice;
-            trailFloor = currentExitPrice * (1 - trailFloorPct);
-          }
-        }
-      }
+      const { exitPrice: currentExitPrice, exitSlippage } = computeLeapExitPrice(current, config);
+      missing = resetLeapMissingChain(currentExitPrice);
 
-      let exitType: OptionExitType | null = null;
-      if (trailActive && currentExitPrice < trailFloor) exitType = 'TRAILING_LOCK';
-      else if (currentExitPrice >= tpPrice) exitType = 'PROFIT_TARGET';
-      else if (currentExitPrice <= slPrice) exitType = 'STOP_LOSS';
-      else if (config.signalInvalidation && signal.invalidation) {
-        const inv = signal.invalidation;
-        const grace = config.signalInvalidation.graceDays ?? 0;
-        const typ = config.signalInvalidation.type;
-        let invalidDate: string | undefined;
-        if (typ === 'macro') invalidDate = grace >= 3 ? inv.macro3dBreakDate : inv.macroBreakDate;
-        else if (typ === 'trend') invalidDate = grace >= 3 ? inv.trend3dBreakDate : inv.trendBreakDate;
-        else if (typ === 'momentum') invalidDate = grace >= 3 ? inv.momentum3dBreakDate : inv.momentumBreakDate;
-        else if (typ === 'any') {
-          const dates = [
-            grace >= 3 ? inv.macro3dBreakDate : inv.macroBreakDate,
-            grace >= 3 ? inv.trend3dBreakDate : inv.trendBreakDate,
-            grace >= 3 ? inv.momentum3dBreakDate : inv.momentumBreakDate,
-          ].filter(Boolean) as string[];
-          invalidDate = dates.length > 0 ? dates.sort()[0] : undefined;
-        }
-        if (invalidDate && checkDate >= invalidDate) exitType = 'SIGNAL_REVERSAL';
-      }
-      if (!exitType && currentDTE <= config.leapTimeStopDTE) exitType = 'TIME_STOP';
+      trail = updateLeapTrailState(trail, currentExitPrice, thresholds);
 
+      const exitType = checkLeapExitType(
+        currentExitPrice, thresholds, current.row.dte, trail, signal, config, checkDate,
+      );
       if (exitType) {
-        return buildLeapTrade(signal, entry, optionType, entryPrice, checkDate, currentExitPrice, currentDTE,
-          current.row.stock_price, exitType, dailyMtM);
+        return buildLeapTrade(
+          signal, entry, entryPrice, checkDate, currentExitPrice,
+          current.row.dte, current.row.stock_price, exitType, dailyMtM,
+          { entrySlippage, exitSlippage, fillMode: config.fillMode },
+        );
       }
     }
 
-    // Close at last monitoring date (expiry or evaluation horizon)
+    // Close at last monitoring date
     const lastDate = monitorDates[monitorDates.length - 1];
     if (!lastDate) return null;
-    const current = findContractDirect(signal.ticker, lastDate, entry.row.strike, entry.row.expir_date, optionType);
+    const lastCurrent = findContractDirect(signal.ticker, lastDate, entry.row.strike, entry.row.expir_date, optionType);
     let exitPrice: number;
-    if (current) {
-      // Seller receives bid side
-      const hs = (current.ask > 0 && current.bid > 0) ? (current.ask - current.bid) / 2 : current.mid * 0.01;
-      exitPrice = current.mid - hs;
+    let exitSlippage = 0;
+    if (lastCurrent) {
+      const pricing = computeLeapExitPrice(lastCurrent, config);
+      exitPrice = pricing.exitPrice;
+      exitSlippage = pricing.exitSlippage;
     } else {
-      // Fallback to intrinsic value
       const fallbackChain = getCachedChain(signal.ticker, lastDate);
       const lastStock = fallbackChain.length > 0 ? fallbackChain[0].stock_price : entry.row.stock_price;
-      exitPrice = optionType === 'Call'
-        ? Math.max(0, lastStock - entry.row.strike)
-        : Math.max(0, entry.row.strike - lastStock);
+      exitPrice = computeIntrinsicValue(lastStock, entry.row.strike, optionType);
     }
     const endExitType: OptionExitType = forcedClose ? 'FORCE_CLOSE' : 'EXPIRATION';
-    return buildLeapTrade(signal, entry, optionType, entryPrice, lastDate, exitPrice,
-      current?.row.dte ?? 0, current?.row.stock_price ?? entry.row.stock_price, endExitType, dailyMtM);
+    return buildLeapTrade(
+      signal, entry, entryPrice, lastDate, exitPrice,
+      lastCurrent?.row.dte ?? 0, lastCurrent?.row.stock_price ?? entry.row.stock_price,
+      endExitType, dailyMtM,
+      { entrySlippage, exitSlippage, fillMode: config.fillMode },
+    );
   };
-}
-
-function buildLeapTrade(
-  signal: EntrySignal, entry: StrikeMatch, optionType: 'Call' | 'Put',
-  entryPrice: number, exitDate: string, exitPrice: number,
-  exitDTE: number, exitStockPrice: number, exitType: OptionExitType,
-  dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[],
-): OptionTrade {
-  const pnl = (exitPrice - entryPrice) * 100;
-  return {
-    ticker: signal.ticker,
-    mode: 'LEAP',
-    direction: signal.direction,
-    entryDate: signal.date,
-    entrySignalScore: signal.score,
-    strike: entry.row.strike,
-    expiry: entry.row.expir_date,
-    entryDTE: entry.row.dte,
-    entryPrice,
-    entryDelta: entry.delta,
-    entryIV: entry.iv,
-    entryStockPrice: entry.row.stock_price,
-    exitDate,
-    exitPrice,
-    exitDTE,
-    exitStockPrice,
-    exitType,
-    pnl,
-    pnlPct: entryPrice > 0 ? pnl / (entryPrice * 100) : 0,
-    holdDays: Math.round((new Date(exitDate).getTime() - new Date(signal.date).getTime()) / 86400000),
-    ivRank: signal.ivRank,
-    dailyMtM,
-  } as OptionTrade;
 }
 
 // ── Evaluate Config on Windows ──────────────────────────

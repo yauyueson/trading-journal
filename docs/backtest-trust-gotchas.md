@@ -727,6 +727,34 @@ Bugs in this section are not in the simulator — they're in the *search process
 
 ---
 
+### 40. Autoresearch LEAP simulator forked from canonical simulator
+**Fixed:** 2026-04-18 (post-Codex-adversarial-review on Campaign E-Clean)
+**Files:** `src/lib/backtest/leap-exit.ts` (new, shared); `src/lib/backtest/option-sim.ts` `simulateLeap`; `scripts/autoresearch/worker.ts` `makeLeapEvaluator`
+
+**What:** The autoresearch `worker.ts` had a bespoke `makeLeapEvaluator` that was a strict superset of the canonical `option-sim.ts simulateLeap`, with four material differences:
+1. **Fill model** — worker used a simple half-spread (`entryPrice = mid + (ask-bid)/2`), ignoring `config.fillMode` and the dynamic slippage model in `slippage.ts`. Option-sim honored `applyFill` with OI/DTE impact.
+2. **Missing-chain behavior** — worker tracked a streak and forced a `NO_CHAIN` exit after `config.missingChainExitAfterDays`. Option-sim silently continued, accumulating gaps until monitoring ended.
+3. **Exit feature set** — worker supported `TRAILING_LOCK`, `SIGNAL_REVERSAL`, and `FORCE_CLOSE` vs `EXPIRATION` distinction. Option-sim had only `PROFIT_TARGET` / `STOP_LOSS` / `TIME_STOP` / `EXPIRATION`.
+4. **Chain I/O** — worker was sync (`getCachedChain`, `findContractDirect`), option-sim was async (`fetchHistoricalChain`, `findContract`). Structural; does not change logic.
+
+**Why it mattered:** Autoresearch campaigns validated the worker fork, not the canonical simulator referenced by `/scripts/*.ts` research scripts. Campaign E-Clean's `ceC-sl35-ts150-tp50` winner reported combined Sharpe 1.392 under the fork; re-running under the unified simulator dropped it to 1.280. The 0.113-combined-Sharpe delta was a pure fill-model artifact — worker's half-spread undercharged slippage vs the dynamic `applyFill`. Variants with extended TS (ts150) were most affected because they accumulate more days of fill cost.
+
+**How it was discovered:** Codex adversarial review, Finding #1, on Campaign E-Clean (2026-04-18): *"Autoresearch LEAP results are not produced by the shared simulator the campaign is supposed to validate."*
+
+**Fingerprint:**
+- Two simulator paths that claim to implement the same strategy family but have diverging fill logic
+- Feature set of one path is a strict superset of the other (asymmetric duplication)
+- Reruns under the "other" path produce materially different headline numbers
+- Unit tests exercise only one of the two paths
+
+**Prevention:**
+- Extract pure-logic helpers into a shared module (`src/lib/backtest/leap-exit.ts`). Both simulator entry points call the same functions for threshold computation, fill pricing, trailing-lock state, missing-chain tracking, signal-invalidation detection, and exit-type determination.
+- Async and sync entry points can remain separate (that's a chain-I/O wrapping difference), but all decision logic lives in one place.
+- Unit tests cover the helpers directly (`tests/leap-exit.test.ts`) — 18 tests covering fill pricing, thresholds, trailing lock, missing-chain state, signal invalidation, intrinsic value fallback.
+- Any future "convenience" reimplementation of LEAP logic in a script must instead import from `leap-exit.ts` or be refused at review.
+
+---
+
 ## Appendix: adding a new gotcha
 
 When you find a new gotcha, add an entry with this shape:
