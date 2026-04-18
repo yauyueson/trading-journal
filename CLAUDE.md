@@ -147,7 +147,15 @@ Migrations in `supabase/migrations/` as raw SQL (no ORM).
 
 ## Ticker Watchlist
 
-SPY, QQQ, GOOGL, JPM, META, TSLA, MSFT, NFLX, AAPL, NVDA, AMD, COST, IREN, BA, AMZN, HOOD, CRWV, COIN, MSTR, PLTR, AVGO, LULU, UBER, GS, UNH, IWM, GLD
+**Research universe (30 tradable tickers, expanded 2026-04-18):**
+- Core (12): IWM, AAPL, MSFT, GOOG, AMZN, META, JPM, GS, COST, NFLX, NVDA, TSLA
+- Growth (9): AMD, AVGO, BA, COIN, HOOD, LULU, MSTR, PLTR, UBER
+- Dow (1): CRM
+- AI / growth / hot (8): ORCL, CRWD, SHOP, PANW, ANET, VRT, ARM, NOW
+
+**Benchmarks (MarketContext, not tradable):** SPY, QQQ
+
+**Legacy (retained in cache for reproducibility, not in active universe):** GLD, UNH, IREN, CRWV, GOOGL
 
 ## Multi-AI Team Protocol
 

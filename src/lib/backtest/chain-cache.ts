@@ -93,12 +93,20 @@ async function fetchORATSHistStrikes(
   const url = `${ORATS_BASE}/hist/strikes?${params}`;
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
 
+  _apiCallCount++;
+
+  // 404 is a legitimate "no data available" from ORATS for (ticker, date)
+  // — typical for pre-IPO dates or tickers where ORATS coverage starts later
+  // than the stock's actual trading history (e.g., VRT pre-2020, UBER pre-2020).
+  // Treat as empty result rather than throwing, so the caller can log rows=0
+  // and avoid retrying.
+  if (res.status === 404) return [];
+
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`ORATS hist/strikes ${res.status}: ${text}`);
   }
 
-  _apiCallCount++;
   const json = await res.json();
   return json.data || [];
 }
@@ -269,6 +277,123 @@ export async function fetchHistoricalChain(
   const chainRows = rawRows.map(mapORATSRow);
   insertRows(chainRows);
   return chainRows;
+}
+
+/**
+ * Batch-fetch historical chains for multiple tickers on a single date.
+ * ORATS `/hist/strikes` accepts `ticker=A,B,C` and returns rows for all of
+ * them in one call. This function:
+ *   1. Skips tickers that are already cached for the date (per fetch_log).
+ *   2. Sends ONE ORATS call for the missing tickers.
+ *   3. Groups the response rows by ticker, inserts each group, and writes
+ *      a fetch_log entry per ticker (even for tickers that returned 0 rows,
+ *      to avoid retry).
+ *
+ * Use from prefetch scripts to dramatically reduce API call count when
+ * populating the chain cache across many tickers for the same date range.
+ * (One call per date instead of one call per (ticker, date) pair.)
+ *
+ * Returns a Map<ticker, ChainRow[]> covering the requested tickers.
+ */
+/**
+ * ORATS multi-ticker hist/strikes response hard-caps at ~2050 rows per call.
+ * If a batch's total response would exceed that, trailing tickers are silently
+ * dropped from the response (appearing as 0 rows). To guarantee completeness,
+ * we split the batch whenever we detect the cap has been hit.
+ */
+const ORATS_RESPONSE_ROW_CAP = 2050;
+
+export async function fetchHistoricalChainsBatch(
+  token: string,
+  tickers: string[],
+  date: string,
+  deltaRange?: [number, number],
+  dteRange?: [number, number],
+): Promise<Map<string, ChainRow[]>> {
+  const result = new Map<string, ChainRow[]>();
+  const missing: string[] = [];
+
+  for (const t of tickers) {
+    const upper = t.toUpperCase();
+    if (isCached(upper, date)) {
+      result.set(upper, getCachedChain(upper, date));
+    } else {
+      missing.push(upper);
+    }
+  }
+
+  if (missing.length === 0) return result;
+
+  await fetchMissingWithSplit(token, missing, date, deltaRange, dteRange, result);
+  return result;
+}
+
+async function fetchMissingWithSplit(
+  token: string,
+  missing: string[],
+  date: string,
+  deltaRange: [number, number] | undefined,
+  dteRange: [number, number] | undefined,
+  result: Map<string, ChainRow[]>,
+): Promise<void> {
+  if (missing.length === 0) return;
+
+  const tickersCsv = missing.join(',');
+  const rawRows = await fetchORATSHistStrikes(token, tickersCsv, date, deltaRange, dteRange);
+
+  const byTicker = new Map<string, ChainRow[]>();
+  for (const raw of rawRows) {
+    const row = mapORATSRow(raw);
+    const rt = row.ticker.toUpperCase();
+    if (!byTicker.has(rt)) byTicker.set(rt, []);
+    byTicker.get(rt)!.push(row);
+  }
+
+  // Truncation heuristic: if response is at/near the cap AND one or more
+  // requested tickers returned 0 rows, we've hit the ORATS truncation. The
+  // returned tickers' data is still valid (they came back complete); the
+  // zero-row tickers need to be retried via a split batch.
+  const likelyTruncated = rawRows.length >= ORATS_RESPONSE_ROW_CAP && byTicker.size < missing.length;
+
+  if (likelyTruncated && missing.length > 1) {
+    // Tickers we got data for: commit now.
+    const received: string[] = [];
+    const dropped: string[] = [];
+    for (const t of missing) {
+      if (byTicker.has(t)) received.push(t);
+      else dropped.push(t);
+    }
+    // Insert received tickers' rows
+    for (const t of received) {
+      const rows = byTicker.get(t)!;
+      insertRows(rows);
+      result.set(t, rows);
+    }
+    // Recurse on the dropped tickers, splitting if >1
+    if (dropped.length === 1) {
+      // Single dropped ticker — query on its own
+      await fetchMissingWithSplit(token, dropped, date, deltaRange, dteRange, result);
+    } else {
+      // Halve the batch
+      const mid = Math.ceil(dropped.length / 2);
+      await fetchMissingWithSplit(token, dropped.slice(0, mid), date, deltaRange, dteRange, result);
+      await fetchMissingWithSplit(token, dropped.slice(mid), date, deltaRange, dteRange, result);
+    }
+    return;
+  }
+
+  // No truncation: commit every requested ticker (log 0-rows where legitimate).
+  const db = initDB();
+  const logInsert = db.prepare('INSERT OR REPLACE INTO fetch_log (ticker, trade_date, rows_fetched) VALUES (?, ?, ?)');
+  for (const t of missing) {
+    const rows = byTicker.get(t) ?? [];
+    if (rows.length > 0) {
+      insertRows(rows);
+    } else {
+      logInsert.run(t, date, 0);
+    }
+    result.set(t, rows);
+  }
 }
 
 /**

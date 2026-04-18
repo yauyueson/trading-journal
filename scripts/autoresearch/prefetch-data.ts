@@ -28,12 +28,19 @@ const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_
 const DATA_START = '2017-01-01';
 const DATA_END = '2026-02-28';
 
-// All tickers the agent can use + SPY for benchmark
+// All tickers the agent can use + SPY/QQQ for benchmark.
+// Expanded 2026-04-18 from 25 → 34 tickers (30 tradable + SPY + QQQ + legacy GLD/UNH
+// kept for Campaign E-Clean reproducibility; future strategies may drop them).
 const ALL_TICKERS = [
-  'AAPL', 'AMD', 'AMZN', 'AVGO', 'BA', 'COIN', 'COST',
-  'GLD', 'GOOG', 'GS', 'HOOD', 'IWM', 'JPM', 'LULU',
-  'META', 'MSFT', 'MSTR', 'NFLX', 'NVDA', 'PLTR',
-  'QQQ', 'SPY', 'TSLA', 'UBER', 'UNH',
+  // Campaign E-Clean kept (12) + SPY/QQQ benchmarks
+  'AAPL', 'AMZN', 'COST', 'GOOG', 'GS', 'IWM', 'JPM',
+  'META', 'MSFT', 'NFLX', 'NVDA', 'TSLA', 'QQQ', 'SPY',
+  // Already-cached growth names (9)
+  'AMD', 'AVGO', 'BA', 'COIN', 'HOOD', 'LULU', 'MSTR', 'PLTR', 'UBER',
+  // Legacy tickers (Campaign E-Clean removed but kept in cache)
+  'GLD', 'UNH',
+  // 2026-04-18 expansion — Dow (1) + AI / growth / hot (8)
+  'CRM', 'ORCL', 'CRWD', 'SHOP', 'PANW', 'ANET', 'VRT', 'ARM', 'NOW',
 ];
 
 async function supabaseGet(table: string, query: string): Promise<any[]> {
