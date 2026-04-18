@@ -203,7 +203,9 @@ export interface RunResult {
 	  passesMaxDD: boolean;
 	  passesWFA: boolean;
 	  passesHoldout: boolean;             // holdout Sharpe >= 0 (absolute)
-	  passesHoldoutOrIR: boolean;         // holdout Sharpe >= 0.3 OR holdout SPY IR >= 0.3
+	  passesHoldoutOrIR: boolean;         // (legacy, diagnostic only) holdout Sharpe >= 0.3 OR holdout SPY IR >= 0.3 — disjunction was too permissive
+	  passesHoldoutIRFloor?: boolean;     // holdout SPY IR >= 0 (non-negative IR floor)
+	  passesHoldoutAndIR?: boolean;       // holdout Sharpe >= 0.3 AND holdout SPY IR >= 0 — the live gate wired into `isValid`
 	  passesSanity: boolean;              // OOS Sharpe <= 3.0 (catches simulator bugs)
 	  isValidForSearch: boolean;          // selection-only validity — agent-visible (no holdout leakage)
 	  isValid: boolean;                   // includes holdout gate — stripped from agent leaderboard; for human/post-hoc analysis only

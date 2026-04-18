@@ -494,6 +494,8 @@ const HOLDOUT_DERIVED_FIELDS = [
   'holdoutOOSRatio',
   'passesHoldout',
   'passesHoldoutOrIR',
+  'passesHoldoutIRFloor',
+  'passesHoldoutAndIR',
   'passesHoldoutNewEntries',
   'holdoutTrades',
   'newHoldoutTrades',
@@ -1045,7 +1047,15 @@ async function main() {
     const MIN_HOLDOUT_METRIC = 0.3;
     const passesHoldoutAbsolute = holdoutMetrics.sharpe >= MIN_HOLDOUT_METRIC;
     const passesHoldoutIR = holdoutSpyIRResult.ir >= MIN_HOLDOUT_METRIC;
+    // Legacy disjunctive gate — too permissive: accepts a winner with deeply
+    // negative IR as long as raw Sharpe is above 0.3. Kept as diagnostic field
+    // only; no longer wired into `isValid`. See gotcha #41.
     const passesHoldoutOrIR = passesHoldoutAbsolute || passesHoldoutIR;
+    // Tighter gate (Codex Finding #3, 2026-04-18): require non-negative holdout
+    // SPY IR in addition to positive absolute holdout Sharpe. Blocks adopting a
+    // strategy that materially loses to SPY on the unseen regime.
+    const passesHoldoutIRFloor = holdoutSpyIRResult.ir >= 0;
+    const passesHoldoutAndIR = passesHoldoutAbsolute && passesHoldoutIRFloor;
     const passesSanity = oosMetrics.sharpe <= MAX_SANE_OOS_SHARPE;
     // Separate carry (selection-entered, live during holdout) from new (entered
     // inside holdout). A strategy that stops generating signals after the
@@ -1066,7 +1076,9 @@ async function main() {
     // Search-time validity: holdout-blind. Agents see this.
     const isValidForSearch = passesMinTrades && passesMaxDD && passesWFA && passesSanity && passesDeltaGates;
     // Overall validity: includes holdout gate + new-entries guard. Full leaderboard only — stripped from agent-visible file.
-    const isValid = isValidForSearch && passesHoldoutOrIR && passesHoldoutNewEntries;
+    // Gate now uses `passesHoldoutAndIR` (Sharpe ≥ 0.3 AND IR ≥ 0), NOT the legacy
+    // disjunctive `passesHoldoutOrIR`. See runner.ts comment on `passesHoldoutAndIR` and gotcha #41.
+    const isValid = isValidForSearch && passesHoldoutAndIR && passesHoldoutNewEntries;
 
     const exitTypeBreakdown: Record<string, number> = {};
     for (const t of workerResult.allOOSTrades) {
@@ -1097,7 +1109,7 @@ async function main() {
       holdoutSpyExcessReturn: holdoutSpyIRResult.excessReturn,
       avgTrainSharpe,
       wfEfficiency,
-      passesMinTrades, passesMaxDD, passesWFA, passesHoldout, passesHoldoutOrIR, passesSanity, isValid, isValidForSearch,
+      passesMinTrades, passesMaxDD, passesWFA, passesHoldout, passesHoldoutOrIR, passesHoldoutIRFloor, passesHoldoutAndIR, passesSanity, isValid, isValidForSearch,
       holdoutOOSRatio,
       bootstrapSharpe95CI: bootstrapCI,
       bootstrapSignificant,

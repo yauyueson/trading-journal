@@ -3,7 +3,7 @@
 **Pre-registration:** [.prompts/campaign-e-clean-preregistration.md](../../.prompts/campaign-e-clean-preregistration.md) (frozen in commit `f1e9657`, 2026-04-17)
 **Sweep v1 (forked worker LEAP evaluator):** 2026-04-17
 **Sweep v2 (unified simulator after gotcha #40 fixed):** 2026-04-18
-**Adoption decision:** PENDING (winner clears the pre-registered bar under both simulators; user still deciding on Finding #3 holdout gate)
+**Adoption decision:** **DO NOT ADOPT** under tightened holdout gate (Finding #3 resolved 2026-04-18, gotcha #41). The entire d65 LEAP family — incumbent included — underperforms SPY in the 2024-2026 holdout window and fails the new `holdoutSharpe ≥ 0.3 AND holdoutSpyIR ≥ 0` rule.
 
 ---
 
@@ -64,7 +64,26 @@ Applying the rule to the v2 (unified-simulator) leaderboard:
 - Deflated Sharpe (N=35 unique variants): 0.502 — positive.
 - Bootstrap 95% CI lower bound: [not regenerated under v2 yet; v1 was 0.789].
 
-**Under the strict pre-registered rule, adoption of `ceC-sl35-ts150-tp50` is defensible.**
+**Under the strict pre-registered rule alone, adoption of `ceC-sl35-ts150-tp50` would be defensible.**
+
+### 4a. Overridden by Finding #3 (tightened holdout gate), 2026-04-18
+
+After adopting the tightened gate (`holdoutSharpe ≥ 0.3 AND holdoutSpyIR ≥ 0`, gotcha #41), retroactive application to the v2 leaderboard shows **every variant fails**:
+
+| Variant | Holdout Sharpe | Holdout IR | Old gate | New gate |
+|---|---:|---:|---|---|
+| ceC-sl35-ts150-tp50 | 0.84 | **-0.613** | PASS | **FAIL** |
+| ceC-sl35-ts150     | 1.05 | **-0.414** | PASS | **FAIL** |
+| ceC-inc (incumbent) | 0.89 | **-0.293** | PASS | **FAIL** |
+| ceC-sl33-ts105     | 0.49 | **-0.828** | FAIL | **FAIL** |
+| ceC-sl33-ts150     | 0.70 | **-0.466** | PASS | **FAIL** |
+| ceC-ema3d-noNT-sl35-ts150 | 1.29 | **-0.097** | PASS | **FAIL** |
+| ceC-ema3d-noNT-sl33-ts150 | 0.44 | **-0.624** | FAIL | **FAIL** |
+| ceC-ema3d-noNT-inc | 0.84 | **-0.045** | PASS | **FAIL** |
+
+Every variant has negative holdout SPY IR — the entire d65 LEAP family underperforms SPY on risk-adjusted basis in the 2024–2026 holdout. No adoption is defensible under the tightened rule, including the prior-adopted Campaign D incumbent `d65-sl35-ts105`.
+
+**Revised conclusion:** `ceC-sl35-ts150-tp50` is NOT adopted. The d65 LEAP family as a whole does not demonstrate alpha over SPY in the holdout. Any future adoption in this space must either (a) show a positive holdout IR under the tightened rule, or (b) pre-register a stated justification for a different benchmark.
 
 ## 5. Caveats not covered by the pre-reg
 

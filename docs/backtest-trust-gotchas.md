@@ -727,6 +727,27 @@ Bugs in this section are not in the simulator — they're in the *search process
 
 ---
 
+### 41. Disjunctive holdout gate (`Sharpe ≥ 0.3 OR IR ≥ 0.3`) is too permissive
+**Fixed:** 2026-04-18 (post-Codex-adversarial-review on Campaign E-Clean)
+**File:** `scripts/autoresearch/runner.ts` — `isValid` wiring; `scripts/autoresearch/types.ts` — RunResult
+
+**What:** The original holdout gate was a disjunction: `passesHoldoutOrIR = holdoutSharpe >= 0.3 || holdoutSpyIR >= 0.3`. `isValid` used this, allowing a variant with deeply negative holdout SPY IR to pass as long as its raw holdout Sharpe was ≥ 0.3. The original rationale was leniency in bad markets (low raw Sharpe everywhere, so IR is the alpha signal), but the inverse case — raw Sharpe decent, IR deeply negative — means the strategy is making money slower than passive SPY on the unseen window. That's a market-regime risk the gate was supposed to catch.
+
+**How it was discovered:** Codex adversarial review, Finding #3, on Campaign E-Clean (2026-04-18): *"The adoption gate still greenlights a strategy that materially loses to SPY on unseen data."* The Campaign E-Clean v2 winner `ceC-sl35-ts150-tp50` had holdout Sharpe 0.84 but SPY IR **-0.613** — passed the old gate, failed the tightened gate. Retroactive application revealed that *every* Campaign E-Clean variant, including the incumbent, fails the tightened gate: the entire d65 LEAP family underperforms SPY in the 2024-2026 holdout.
+
+**Fingerprint:**
+- Any variant passing `passesHoldoutOrIR` with negative `holdoutSpyIR`
+- Adoption decision lands on a strategy that loses to passive benchmark on the unseen window
+- `holdoutSpyExcessReturn` is negative for the nominated winner
+
+**Prevention:**
+- `runner.ts` now computes `passesHoldoutAndIR = holdoutSharpe >= 0.3 && holdoutSpyIR >= 0`. `isValid` uses this strict conjunction.
+- `passesHoldoutOrIR` is kept as a diagnostic field (for comparison to prior results) but is no longer wired into the adoption path.
+- Both new gate fields (`passesHoldoutIRFloor`, `passesHoldoutAndIR`) are added to `HOLDOUT_DERIVED_FIELDS` and stripped from the agent-visible leaderboard.
+- **Policy change, not just code change**: future pre-registrations must cite the new rule (`holdoutSharpe ≥ 0.3 AND holdoutSpyIR ≥ 0`) unless a specific weaker rule is justified in writing. A strategy that underperforms SPY on holdout should never be a champion.
+
+---
+
 ### 40. Autoresearch LEAP simulator forked from canonical simulator
 **Fixed:** 2026-04-18 (post-Codex-adversarial-review on Campaign E-Clean)
 **Files:** `src/lib/backtest/leap-exit.ts` (new, shared); `src/lib/backtest/option-sim.ts` `simulateLeap`; `scripts/autoresearch/worker.ts` `makeLeapEvaluator`
