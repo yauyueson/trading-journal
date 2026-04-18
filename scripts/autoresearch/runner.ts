@@ -819,8 +819,14 @@ async function main() {
   const variants: Array<{ name: string; simConfig: SimConfig; putSimConfig?: SimConfig }> = [
     { name: strategy.name, simConfig: baseSimConfig, putSimConfig: hasSeparatePutConfig ? basePutSimConfig : undefined },
   ];
+  const seenVariantNames = new Set<string>([strategy.name]);
   if (strategy.configVariants) {
     for (const v of strategy.configVariants) {
+      if (seenVariantNames.has(v.name)) {
+        console.warn(`⚠️  Skipping duplicate configVariant "${v.name}" — base strategy is always evaluated as variant 1; do not re-declare the incumbent as an empty-override variant.`);
+        continue;
+      }
+      seenVariantNames.add(v.name);
       const callCfg = mergeConfigOverrides(baseSimConfig, v.overrides);
       const putCfg  = hasSeparatePutConfig ? mergeConfigOverrides(basePutSimConfig, v.overrides) : undefined;
       variants.push({ name: v.name, simConfig: callCfg, putSimConfig: putCfg });

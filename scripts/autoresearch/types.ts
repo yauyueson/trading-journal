@@ -144,7 +144,13 @@ export interface StrategyDefinition {
   /**
    * Optional: config variants for batch evaluation in a single run.
    * Each variant overrides specific SimConfig fields from buildConfig().
-   * The runner evaluates all variants (reusing loaded data + signals).
+   *
+   * The runner evaluates the base strategy as variant 1, THEN appends each
+   * configVariant. Do NOT add an explicit empty-override entry for the
+   * incumbent — the runner will detect the name collision and skip it with
+   * a warning. If you need a sanity-anchor reproduction of the base, use
+   * configVariants only for strict overrides.
+   *
    * Use with `--screen` flag for fast triage before full evaluation.
    */
   configVariants?: ConfigVariant[];

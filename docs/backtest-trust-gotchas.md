@@ -707,6 +707,26 @@ Bugs in this section are not in the simulator — they're in the *search process
 
 ---
 
+### 39. ConfigVariants empty-override incumbent creates silent duplicates
+**Fixed:** 2026-04-18 (post-Codex-adversarial-review on Campaign E-Clean)
+**File:** `scripts/autoresearch/runner.ts` — name-collision dedup in `variants` construction; `scripts/autoresearch/types.ts` — JSDoc on `configVariants`
+
+**What:** `runner.ts` always evaluates the base strategy as variant 1, then appends every `configVariant`. If a strategy file includes an explicit empty-override entry that reuses `strategy.name` (intended as a "sanity anchor reproduction of the incumbent"), the runner evaluates it twice. Results are identical (useful reproducibility check) but the leaderboard silently acquires extra rows, the global attempt counter over-increments, and any pre-registered variant count no longer matches the observed grid.
+
+**How it was discovered:** Codex adversarial review of Campaign E-Clean (2026-04-18). The pre-reg declared 8 variants across two strategy files; the sweep produced 10 leaderboard entries because each strategy file had one empty-override `{ name: '<strategy.name>', overrides: {} }` entry in its `configVariants`. Evidence: two exact-match pairs of rows (1.194/1.194 for `ceC-inc`, 0.866/0.866 for `ceC-ema3d-noNT-inc`). Ranking and winner unchanged, but the deflated Sharpe's N was 37 when the intended N was 35.
+
+**Fingerprint:**
+- Pre-reg declares N variants, sweep produces N+k rows (k = number of strategy files with empty-override incumbents)
+- Two adjacent rows in the full leaderboard with identical floats across combined/standalone/MaxDD/trade count (reproducibility is fine by itself, but unannounced dup is the flag)
+- Global attempt counter increments faster than the count of unique variants under test
+
+**Prevention:**
+- `runner.ts` now tracks a `Set<string>` of seen variant names (seeded with `strategy.name`) and skips any `configVariant` whose name collides, emitting a warning.
+- `types.ts` JSDoc on `configVariants` explicitly states: "The runner evaluates the base strategy as variant 1, THEN appends each configVariant. Do NOT add an explicit empty-override entry for the incumbent."
+- When reporting post-sweep results, re-verify `len(data) == 1 + len(strategy.configVariants - duplicates)` per strategy file, and flag in the results write-up if it doesn't match the pre-reg.
+
+---
+
 ## Appendix: adding a new gotcha
 
 When you find a new gotcha, add an entry with this shape:
