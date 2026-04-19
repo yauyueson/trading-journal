@@ -40,6 +40,39 @@ export function bsmPrice(
 }
 
 /**
+ * Verify put-call parity holds for a single (S, K, T, σ, r) point.
+ *
+ * Parity: C − P = S − K·e^{-rT}. Rearranged: residual = C − P − (S − K·e^{-rT}).
+ * A correct BSM formula produces residual ~ 0 modulo numerical noise.
+ *
+ * This is a PROPERTY validator intended for tests, not a runtime check.
+ * Calling it in production would double the cost of every BSM price; the
+ * engine is already anchored to QuantLib via tests/bsm-quantlib-parity.test.ts.
+ *
+ * @param tolerance maximum |residual|. Default 1e-8 — tighter than the A&S
+ *   erf approximation's 1.5e-7 error because parity is an algebraic
+ *   identity that (unlike absolute pricing) cancels the approximation
+ *   error in most terms.
+ */
+export function checkPutCallParity(
+  S: number, K: number, T: number, sigma: number, r: number, tolerance = 1e-8,
+): { ok: true; residual: number } | { ok: false; residual: number; reason: string } {
+  const call = bsmPrice(S, K, T, sigma, r, true);
+  const put = bsmPrice(S, K, T, sigma, r, false);
+  const expected = S - K * Math.exp(-r * T);
+  const residual = call - put - expected;
+  if (Math.abs(residual) > tolerance) {
+    return {
+      ok: false,
+      residual,
+      reason: `put-call parity violation at S=${S} K=${K} T=${T} σ=${sigma} r=${r}: ` +
+        `residual=${residual.toExponential(3)} (tolerance ${tolerance.toExponential(1)}).`,
+    };
+  }
+  return { ok: true, residual };
+}
+
+/**
  * BSM delta.
  * Call δ = N(d1), Put δ = N(d1) - 1.
  */
