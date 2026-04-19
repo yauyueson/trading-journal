@@ -6,8 +6,18 @@
  */
 
 /**
- * Normal CDF approximation using Abramowitz & Stegun rational approximation.
- * Maximum error: 7.5e-8. Accurate enough for options pricing purposes.
+ * Normal CDF via Abramowitz & Stegun rational erf approximation (7.1.26),
+ * using N(x) = 0.5 · (1 + erf(x/√2)). Max error on erf is 1.5e-7; CDF
+ * accuracy is within that.
+ *
+ * Phase 0.c.8 (2026-04-19): this function previously mixed 7.1.26 erf
+ * coefficients with a 26.2.17-style direct-CDF form (using exp(-x²/2) and
+ * dividing by √(2π)). The result was N(0) = 0.601 (vs. correct 0.5) and
+ * N(1) = 0.897 (vs. 0.8413) — every BSM price/delta in the project was
+ * materially wrong. The project's internal-parity tests (put-call, delta
+ * reciprocal) passed because those identities hold for ANY consistent-
+ * but-wrong CDF. The bug was first detected by the QuantLib grid fixture
+ * in tests/bsm-quantlib-parity.test.ts.
  */
 export function normCDF(x: number): number {
     if (x < -8) return 0;
@@ -19,11 +29,12 @@ export function normCDF(x: number): number {
     const a5 =  1.061405429;
     const p  =  0.3275911;
     const sign = x < 0 ? -1 : 1;
-    const absX = Math.abs(x);
+    // Scale |x| by 1/√2 so the A&S 7.1.26 polynomial approximates erf(|x|/√2).
+    const absX = Math.abs(x) / Math.SQRT2;
     const t = 1.0 / (1.0 + p * absX);
     const poly = t * (a1 + t * (a2 + t * (a3 + t * (a4 + t * a5))));
-    const cdf = 1.0 - poly * Math.exp(-absX * absX / 2) / Math.sqrt(2 * Math.PI);
-    return 0.5 * (1.0 + sign * (2 * cdf - 1));
+    const erf = 1.0 - poly * Math.exp(-absX * absX);
+    return 0.5 * (1.0 + sign * erf);
 }
 
 /**
