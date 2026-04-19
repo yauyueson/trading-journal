@@ -215,6 +215,22 @@ export interface RunResult {
   bootstrapSignificant: boolean;     // is lower bound of CI > 0?
   attemptNumber: number;             // which attempt this is (for multiple testing awareness)
   deflatedSharpe: number;            // Sharpe adjusted for multiple testing (Bailey-López de Prado)
+  // Pre-registration audit trail (Phase 0.a.1 / Codex re-review Finding 2).
+  // Captured once per run by scripts/autoresearch/lib/pre-reg-gate.ts.
+  // Persisted in BOTH full and agent-visible leaderboards so the audit
+  // survives console-log loss. `preRegBypassed=true` means the run skipped
+  // the committed-pre-reg check via AUTORESEARCH_PREREG_BYPASS="<reason>".
+  preRegBypassed?: boolean;
+  preRegBypassReason?: string;
+  preRegBlockHash?: string;       // sha256 of the Pre-Registration markdown block; undefined on bypass
+  preRegGitSha?: string | null;   // git commit for .handoff/current.md; undefined on bypass
+  preRegHoldoutWindowHash?: string; // canonical sha256:<64hex>; undefined on bypass
+  // Adoption-gate provenance (Codex round-3 Finding 3). Records which version
+  // of config/adoption-gates.json and which env-var overrides were in effect
+  // when this row was written — required for post-hoc compliance audits.
+  adoptionGatesRawHash?: string;        // sha256 of config/adoption-gates.json as loaded
+  adoptionGatesEffectiveHash?: string;  // raw + env-overrides, for full provenance
+  adoptionGatesOverrides?: Array<{ envVar: string; target: string; value: number }>;
   // Diagnostics
   exitTypeBreakdown: Record<string, number>;
   signalsGenerated: number;         // total signals before WFA filtering

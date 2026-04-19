@@ -29,6 +29,12 @@ import type {
   MarketContext, ConfigVariant,
 } from './types';
 import type { SimConfig } from '../../src/lib/backtest/option-sim';
+import {
+  loadAdoptionGates, assertGatesUnchanged, assertGateConfigTracked,
+  formatGatesSummary, type LoadedGates,
+} from './lib/adoption-gates';
+import { validatePreRegOrBypass, formatPreRegSummary } from './lib/pre-reg-gate';
+import { acquireRunnerLock, LockHeldError, type AcquiredLock } from './lib/file-lock';
 
 // ── Config ──────────────────────────────────────────────
 
@@ -37,16 +43,16 @@ const SUPABASE_KEY = () => process.env.VITE_SUPABASE_ANON_KEY || process.env.SUP
 
 const DATA_START = '2017-01-01';
 const DATA_END = '2026-02-28';
-// MIN_OOS_TRADES can be overridden via AUTORESEARCH_MIN_OOS_TRADES (used by
-// Campaign A which shortens the selection window and needs a prorated minimum).
-const MIN_OOS_TRADES = process.env.AUTORESEARCH_MIN_OOS_TRADES
-  ? parseInt(process.env.AUTORESEARCH_MIN_OOS_TRADES, 10)
-  : 100;
-const MAX_OOS_DD = 45;
-const MIN_HOLDOUT_SHARPE = 0;       // holdout must be non-negative
-const MAX_SANE_OOS_SHARPE = 3.0;    // anything above this is suspicious — simulator bug likely
-const BOOTSTRAP_ITERATIONS = 1000;  // for CI estimation
-const NAIVE_BASELINE_INTERVAL = 5;  // buy every N trading days (no signal logic)
+
+// Adoption gates moved to config/adoption-gates.json per Phase 0.a.2 of the
+// 2026-04-18 foundation rebuild. Runner loads the file, hashes it, and refuses
+// to continue if the hash changes mid-campaign. Access them via the `GATES`
+// module-scope handle populated in main().
+let GATES: LoadedGates | null = null;
+function gates(): LoadedGates {
+  if (!GATES) throw new Error('Adoption gates accessed before main() loaded them.');
+  return GATES;
+}
 
 // ── Supabase Helper ─────────────────────────────────────
 
@@ -416,7 +422,7 @@ function computeCombinedMetrics(
  * autocorrelation structure in daily returns — unlike i.i.d. bootstrap
  * which understates CI width for serially correlated time series.
  */
-function bootstrapSharpeCI(dailyReturns: number[], iterations = BOOTSTRAP_ITERATIONS): [number, number] {
+function bootstrapSharpeCI(dailyReturns: number[], iterations = gates().gates.bootstrapIterations): [number, number] {
   if (dailyReturns.length < 30) return [0, 0];
 
   const n = dailyReturns.length;
@@ -677,6 +683,116 @@ async function main() {
   const startMs = Date.now();
   console.log('=== Autoresearch Runner ===\n');
 
+  // 0pre. Acquire cross-process lock on the runner's writable artifacts
+  //       (leaderboard-*.json, attempts-global.json). Without this, two
+  //       runner processes started near-simultaneously can silently lose
+  //       one process's RunResult row and undercount the global attempt
+  //       counter — Codex round-3 Finding 2, 2026-04-18.
+  let runnerLock: AcquiredLock;
+  try {
+    const repoRoot = path.resolve(__dirname, '../..');
+    const suffixLbl = process.env.AUTORESEARCH_LEADERBOARD_SUFFIX
+      ? `campaign=${process.env.AUTORESEARCH_LEADERBOARD_SUFFIX}`
+      : 'primary';
+    runnerLock = acquireRunnerLock(repoRoot, `runner:${suffixLbl}`);
+    console.log(`Acquired runner lock at ${runnerLock.lockPath}\n`);
+  } catch (err) {
+    if (err instanceof LockHeldError) {
+      console.error(`\nFATAL: ${err.message}`);
+      console.error(`Wait for the other runner to finish, or kill pid ${err.held.pid} if it's stuck.`);
+      console.error(`If you are certain no runner is active, delete ${err.lockPath} and retry.`);
+    } else {
+      console.error(`\nFATAL: could not acquire runner lock: ${(err as Error).message}`);
+    }
+    process.exit(1);
+  }
+
+  // Install removable crash handlers so the lock is released even if
+  // main() throws in the middle. Codex round-5 + round-6 Finding 2: all
+  // listeners (incl. 'exit') are named closures and removed in the finally
+  // block below, so sequential same-pid invocations don't leak.
+  const onUncaught = (e: unknown): void => {
+    console.error('[uncaughtException]', e);
+    runnerLock.release();
+    process.exit(1);
+  };
+  const onUnhandled = (e: unknown): void => {
+    console.error('[unhandledRejection]', e);
+    runnerLock.release();
+    process.exit(1);
+  };
+  const onExit = (): void => {
+    // Defensive: if we ever reach process-exit with the lock still held
+    // (e.g. test killed us), release it. Normal-path release happens in
+    // the `finally` below.
+    runnerLock.release();
+  };
+  process.on('uncaughtException', onUncaught);
+  process.on('unhandledRejection', onUnhandled);
+  process.on('exit', onExit);
+
+  try {
+  // 0a. Load adoption gates (Phase 0.a.2 of 2026-04-18 foundation rebuild).
+  //     Hardcoded gate constants were moved to config/adoption-gates.json.
+  //     The file is hashed here; gates().assertGatesUnchanged() re-checks the
+  //     hash at end of main() so mid-campaign edits abort the run.
+  //     The file is ALSO required to be tracked+clean in git — stamping the
+  //     hash of an unrecoverable local file into the leaderboard would make
+  //     the audit meaningless. Codex round-6 Finding 1.
+  try {
+    GATES = loadAdoptionGates();
+    assertGateConfigTracked(GATES);
+  } catch (err) {
+    console.error(`\nFATAL: ${(err as Error).message}`);
+    console.error('Cannot start autoresearch without valid adoption gates configuration.');
+    process.exit(1);
+  }
+  console.log(formatGatesSummary(GATES));
+
+  // 0b. Pre-registration gate (Phase 0.a.1).
+  //     Every autoresearch run must reference a committed Pre-Registration block
+  //     in .handoff/current.md (hypothesis, config grid, decision rule, adoption
+  //     threshold, holdout window hash). Set AUTORESEARCH_PREREG_BYPASS="<reason>"
+  //     to skip this (reason is logged and counts as a declared trial).
+  //     Env overrides on gates must be declared in the pre-reg block.
+  //     git-clean requirement is not opt-outable in production — the only way to
+  //     run against a dirty .handoff/current.md is the explicit BYPASS flow above
+  //     (Codex adversarial-review Finding 1, 2026-04-18).
+  const declaredEnvOverrides = GATES.envOverrides.map(o => o.envVar);
+  const preRegOutcome = validatePreRegOrBypass({
+    requireGitClean: true,
+    envOverridesRequired: declaredEnvOverrides,
+  });
+  if (!preRegOutcome.ok) {
+    console.error(`\nFATAL: Pre-registration gate blocked the run.`);
+    console.error(`Reason: ${preRegOutcome.reason}`);
+    if (preRegOutcome.hint) console.error(`Hint:   ${preRegOutcome.hint}`);
+    console.error('');
+    console.error('See .handoff/TEAM.md "Pre-Registration Convention" or the 2026-04-18 foundation rebuild plan.');
+    process.exit(1);
+  }
+  console.log('');
+  console.log(formatPreRegSummary(preRegOutcome));
+  console.log('');
+
+  // Pre-registration audit metadata persisted onto every leaderboard entry
+  // produced during this run (Codex re-review Finding 2, 2026-04-18).
+  const preRegAudit = preRegOutcome.bypassed
+    ? {
+        preRegBypassed: true as const,
+        preRegBypassReason: preRegOutcome.bypassReason,
+        preRegBlockHash: undefined,
+        preRegGitSha: undefined,
+        preRegHoldoutWindowHash: undefined,
+      }
+    : {
+        preRegBypassed: false as const,
+        preRegBypassReason: undefined,
+        preRegBlockHash: preRegOutcome.block.blockHash,
+        preRegGitSha: preRegOutcome.gitSha,
+        preRegHoldoutWindowHash: preRegOutcome.block.holdoutWindowHash,
+      };
+
   // 0. One-time migration: if leaderboard-full*.json doesn't exist but leaderboard*.json does,
   //    copy full data there and rewrite leaderboard*.json with holdout metrics stripped.
   //    Runs for the default suffix AND for any campaign suffix — the full file
@@ -871,7 +987,7 @@ async function main() {
   let blWorker: Worker | null = null;
   const putCount = allSignals.filter(s => s.direction === 'PUT').length;
   const naiveDirection: 'CALL' | 'PUT' = putCount > allSignals.length / 2 ? 'PUT' : 'CALL';
-  const naiveSignals = generateNaiveSignals(tickerDataMap, NAIVE_BASELINE_INTERVAL, naiveDirection);
+  const naiveSignals = generateNaiveSignals(tickerDataMap, gates().gates.naiveBaselineIntervalDays, naiveDirection);
   if (!SCREEN_MODE) {
     try {
       blWorker = await spawnOneWorker(workerBundle, {
@@ -1018,6 +1134,12 @@ async function main() {
     // 12. Overfitting defenses
     const bootstrapCI = bootstrapSharpeCI(oosMetrics.dailyReturns);
     const bootstrapSignificant = bootstrapCI[0] > 0;
+    // Verify the gate config is still unchanged BEFORE incrementing the
+    // global attempt counter. Codex round-7 Finding 2 (2026-04-18): if gates
+    // are edited mid-run, the counter was advancing even though the runner
+    // would abort at save time with no leaderboard row, drifting the
+    // multiple-testing ledger and deflated-Sharpe denominator.
+    assertGatesUnchanged(gates());
     // attemptNumber uses the GLOBAL ledger (all campaigns combined), not the
     // per-suffix leaderboard. Previously per-campaign counts reset when
     // AUTORESEARCH_LEADERBOARD_SUFFIX changed, which under-penalized deflated
@@ -1040,13 +1162,13 @@ async function main() {
     //
     // Adversarial review finding (Codex, 2026-04-17) — prior `isValid`
     // embedded `passesHoldoutOrIR`, leaking holdout outcome to the search loop.
-    const passesMinTrades = workerResult.allOOSTrades.length >= MIN_OOS_TRADES;
-    const passesMaxDD = oosMetrics.maxDrawdownPct <= MAX_OOS_DD;
+    const g = gates().gates;
+    const passesMinTrades = workerResult.allOOSTrades.length >= g.minOosTrades;
+    const passesMaxDD = oosMetrics.maxDrawdownPct <= g.maxOosDrawdownPct;
     const passesWFA = oosMetrics.sharpe > 0;
-    const passesHoldout = holdoutMetrics.sharpe >= MIN_HOLDOUT_SHARPE;
-    const MIN_HOLDOUT_METRIC = 0.3;
-    const passesHoldoutAbsolute = holdoutMetrics.sharpe >= MIN_HOLDOUT_METRIC;
-    const passesHoldoutIR = holdoutSpyIRResult.ir >= MIN_HOLDOUT_METRIC;
+    const passesHoldout = holdoutMetrics.sharpe >= g.minHoldoutSharpe;
+    const passesHoldoutAbsolute = holdoutMetrics.sharpe >= g.minHoldoutMetric;
+    const passesHoldoutIR = holdoutSpyIRResult.ir >= g.minHoldoutMetric;
     // Legacy disjunctive gate — too permissive: accepts a winner with deeply
     // negative IR as long as raw Sharpe is above 0.3. Kept as diagnostic field
     // only; no longer wired into `isValid`. See gotcha #41.
@@ -1054,9 +1176,9 @@ async function main() {
     // Tighter gate (Codex Finding #3, 2026-04-18): require non-negative holdout
     // SPY IR in addition to positive absolute holdout Sharpe. Blocks adopting a
     // strategy that materially loses to SPY on the unseen regime.
-    const passesHoldoutIRFloor = holdoutSpyIRResult.ir >= 0;
+    const passesHoldoutIRFloor = holdoutSpyIRResult.ir >= g.minHoldoutIrFloor;
     const passesHoldoutAndIR = passesHoldoutAbsolute && passesHoldoutIRFloor;
-    const passesSanity = oosMetrics.sharpe <= MAX_SANE_OOS_SHARPE;
+    const passesSanity = oosMetrics.sharpe <= g.maxSaneOosSharpe;
     // Separate carry (selection-entered, live during holdout) from new (entered
     // inside holdout). A strategy that stops generating signals after the
     // boundary can otherwise pass the Sharpe/IR gate on a single carried LEAP
@@ -1071,8 +1193,7 @@ async function main() {
     const carriedHoldoutTrades = workerResult.allOOSTrades.filter(t =>
       t.exitDate >= holdoutStart,
     ).length;
-    const MIN_NEW_HOLDOUT_TRADES = 1;
-    const passesHoldoutNewEntries = newHoldoutTrades >= MIN_NEW_HOLDOUT_TRADES;
+    const passesHoldoutNewEntries = newHoldoutTrades >= g.minNewHoldoutTrades;
     // Search-time validity: holdout-blind. Agents see this.
     const isValidForSearch = passesMinTrades && passesMaxDD && passesWFA && passesSanity && passesDeltaGates;
     // Overall validity: includes holdout gate + new-entries guard. Full leaderboard only — stripped from agent-visible file.
@@ -1120,11 +1241,22 @@ async function main() {
       signalsSkippedNoChain: allSignals.length - workerResult.allOOSTrades.length - workerResult.holdoutTrades.length,
       baselineOosSharpe, baselineMaxDD, baselineCorrelation, baselineSpyIR, baselineTrades,
       deltaSpyIR, deltaMaxDD, deltaCorrelation, passesDeltaSpyIR, passesDeltaMaxDD, passesDeltaCorr, passesDeltaGates,
+      preRegBypassed: preRegAudit.preRegBypassed,
+      preRegBypassReason: preRegAudit.preRegBypassReason,
+      preRegBlockHash: preRegAudit.preRegBlockHash,
+      preRegGitSha: preRegAudit.preRegGitSha,
+      preRegHoldoutWindowHash: preRegAudit.preRegHoldoutWindowHash,
+      adoptionGatesRawHash: gates().rawHash,
+      adoptionGatesEffectiveHash: gates().effectiveHash,
+      adoptionGatesOverrides: gates().envOverrides.map(o => ({ envVar: o.envVar, target: o.target, value: o.parsed })),
       elapsedMs,
     };
 
-    // Update leaderboard (skip in screen mode)
+    // Update leaderboard (skip in screen mode).
+    // Re-hash adoption gates config before persisting — refuse to write if the
+    // file changed mid-campaign (Phase 0.a.2 immutability check).
     if (!SCREEN_MODE) {
+      assertGatesUnchanged(gates());
       leaderboard.push(runResult);
       saveLeaderboard(leaderboard);
     }
@@ -1240,6 +1372,15 @@ async function main() {
 
   // Cleanup temp bundle
   try { fs.unlinkSync(strategyBundle); } catch {}
+  } finally {
+    // Happy-path teardown — Codex round-6 Finding 2. Release the lock and
+    // remove every process-level handler main() installed, so sequential
+    // same-pid invocations don't accumulate listeners.
+    runnerLock.release();
+    process.off('uncaughtException', onUncaught);
+    process.off('unhandledRejection', onUnhandled);
+    process.off('exit', onExit);
+  }
 }
 
 // ── Output Formatting ───────────────────────────────────
@@ -1250,11 +1391,12 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
   // Status line is SEARCH-VALIDITY ONLY (no holdout feedback). Holdout outcomes
   // appear only in the reviewer-only block below, which the agent-facing shells
   // strip before including the output in the next iteration's prompt.
+  const g2 = gates().gates;
   const invalidReasons = [
-    !r.passesMinTrades && `${r.oosTrades} trades < ${MIN_OOS_TRADES} min`,
-    !r.passesMaxDD && `MaxDD ${r.oosMaxDD.toFixed(1)}% > ${MAX_OOS_DD}% limit`,
+    !r.passesMinTrades && `${r.oosTrades} trades < ${g2.minOosTrades} min`,
+    !r.passesMaxDD && `MaxDD ${r.oosMaxDD.toFixed(1)}% > ${g2.maxOosDrawdownPct}% limit`,
     !r.passesWFA && `OOS Sharpe ${r.oosSharpe.toFixed(3)} <= 0`,
-    !r.passesSanity && `OOS Sharpe ${r.oosSharpe.toFixed(3)} > ${MAX_SANE_OOS_SHARPE} (sanity bound — simulator bug likely)`,
+    !r.passesSanity && `OOS Sharpe ${r.oosSharpe.toFixed(3)} > ${g2.maxSaneOosSharpe} (sanity bound — simulator bug likely)`,
     !r.passesDeltaGates && 'delta gates: signal timing does not beat naive baseline',
   ].filter(Boolean);
   const status = r.isValidForSearch ? 'VALID_FOR_SEARCH' : `INVALID_FOR_SEARCH (${invalidReasons.join(', ')})`;

@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "description": "Canonical adoption gates for autoresearch runner. Changes to this file MUST go through a git PR. Runner hashes this file at start and refuses to continue if the hash changes mid-campaign.",
+  "lastModified": "2026-04-18",
+  "lastModifier": "yauyueson",
+  "rationale": "Extracted from runner.ts inline constants per Phase 0.a.2 of the 2026-04-18 foundation rebuild (calm-weaving-wilkinson plan). Gate values reproduce the prior in-code defaults verbatim.",
+  "gates": {
+    "minOosTrades": 100,
+    "maxOosDrawdownPct": 45,
+    "minHoldoutSharpe": 0,
+    "maxSaneOosSharpe": 3.0,
+    "minHoldoutMetric": 0.3,
+    "minHoldoutIrFloor": 0,
+    "minNewHoldoutTrades": 1,
+    "bootstrapIterations": 1000,
+    "naiveBaselineIntervalDays": 5
+  },
+  "environmentOverrides": {
+    "AUTORESEARCH_MIN_OOS_TRADES": {
+      "overrides": "minOosTrades",
+      "reason": "Diagnostics / smoke tests with shortened selection windows need a prorated minimum",
+      "mustBeDeclaredInPreReg": true
+    }
+  }
+}
