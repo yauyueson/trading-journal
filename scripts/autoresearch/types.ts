@@ -255,6 +255,13 @@ export interface RunResult {
   // skip-mode rows cannot be sealed even though the row still carries
   // synthetic `passesHoldoutAndIR` values derived from selection data.
   holdoutEvaluated?: boolean;
+  // Phase 0.b.6 dataset-manifest provenance. The Pre-Registration block's
+  // "Holdout Window Hash" is now semantically bound to config/dataset-
+  // manifest.json: runner refuses when the two disagree. The manifest hash
+  // and version are stamped onto every row so post-hoc audits can correlate
+  // the row's declared date range with committed manifest history.
+  datasetManifestHash?: string | null;
+  datasetManifestVersion?: number;
   // Diagnostics
   exitTypeBreakdown: Record<string, number>;
   signalsGenerated: number;         // total signals before WFA filtering

@@ -33,6 +33,10 @@ import {
   loadAdoptionGates, assertGatesUnchanged, assertGateConfigTracked,
   formatGatesSummary, type LoadedGates,
 } from './lib/adoption-gates';
+import {
+  loadDatasetManifest, assertManifestConfigTracked, assertManifestUnchanged,
+  windowFallsInHoldout, formatManifestSummary, type LoadedManifest,
+} from './lib/dataset-manifest';
 import { validatePreRegOrBypass, formatPreRegSummary } from './lib/pre-reg-gate';
 import { acquireRunnerLock, LockHeldError, type AcquiredLock } from './lib/file-lock';
 import { appendTrial } from './lib/trial-ledger';
@@ -703,6 +707,32 @@ async function main() {
   }
   console.log(formatGatesSummary(GATES));
 
+  // 0a2. Dataset manifest (Phase 0.b.6). Declares the dataset + holdout
+  //      date range. Its sha256 is what the Pre-Registration block's
+  //      "Holdout Window Hash" must match — closes the semantic-binding
+  //      gap that pre-reg-gate.ts previously flagged with a TODO comment.
+  let MANIFEST: LoadedManifest;
+  try {
+    MANIFEST = loadDatasetManifest();
+    assertManifestConfigTracked(MANIFEST);
+  } catch (err) {
+    console.error(`\nFATAL: ${(err as Error).message}`);
+    console.error('Cannot start autoresearch without valid dataset manifest.');
+    process.exit(1);
+  }
+  console.log(formatManifestSummary(MANIFEST));
+
+  // Phase 0.b.6 round-2: the module-level DATA_START / DATA_END constants
+  // feed the Supabase fetchers. They must match the manifest or the fetch
+  // paths would silently load a different range than the manifest claims.
+  // Refactoring the loaders to be manifest-driven is larger scope — this
+  // runtime assertion is the cheap defense.
+  if (DATA_START !== MANIFEST.manifest.dataStartDate || DATA_END !== MANIFEST.manifest.dataEndDate) {
+    console.error(`\nFATAL: runner.ts DATA_START/DATA_END constants (${DATA_START} / ${DATA_END}) do not match the committed manifest (${MANIFEST.manifest.dataStartDate} / ${MANIFEST.manifest.dataEndDate}).`);
+    console.error(`Update scripts/autoresearch/runner.ts so the constants equal config/dataset-manifest.json's dataStartDate/dataEndDate, then commit both.`);
+    process.exit(1);
+  }
+
   // 0b. Pre-registration gate (Phase 0.a.1).
   //     Every autoresearch run must reference a committed Pre-Registration block
   //     in .handoff/current.md (hypothesis, config grid, decision rule, adoption
@@ -746,6 +776,21 @@ async function main() {
         preRegGitSha: preRegOutcome.gitSha,
         preRegHoldoutWindowHash: preRegOutcome.block.holdoutWindowHash,
       };
+
+  // Phase 0.b.6 semantic binding: the pre-reg block's "Holdout Window Hash"
+  // must match the committed dataset manifest's sha256. Placeholder hashes
+  // (e.g. sha256:0000...0000) no longer pass — the operator must use the
+  // current manifest hash. Bypassed runs don't have a block to check.
+  if (!preRegOutcome.bypassed) {
+    const expected = `sha256:${MANIFEST.rawHash}`;
+    if (preRegOutcome.block.holdoutWindowHash !== expected) {
+      console.error(`\nFATAL: Pre-Registration "Holdout Window Hash" does not match the committed dataset manifest.`);
+      console.error(`  pre-reg:  ${preRegOutcome.block.holdoutWindowHash}`);
+      console.error(`  manifest: ${expected}`);
+      console.error(`Either update the Pre-Registration block to the current manifest hash, or commit a new manifest.`);
+      process.exit(1);
+    }
+  }
 
   // 0. One-time migration: if leaderboard-full*.json doesn't exist but leaderboard*.json does,
   //    copy full data there and rewrite leaderboard*.json with holdout metrics stripped.
@@ -941,6 +986,59 @@ async function main() {
     console.log(`AUTORESEARCH_SKIP_HOLDOUT=1 — holdout evaluation disabled (discipline mode).`);
   }
   console.log(`WFA: ${selectionWindows.length} selection + ${holdoutWindows.length} holdout windows\n`);
+
+  // Phase 0.b.6 data-bounds check: the loaded dataset must actually fit
+  // within AND reach the manifest's declared [dataStartDate, dataEndDate]
+  // range. Codex round-1 F1: metadata-only binding wasn't enough — a
+  // vendor backfill, corrected early history, truncated feed, or stale
+  // cache could all change WFA outcomes while the manifest hash passed.
+  // Round 2 F1 (post-ship): also require the data to REACH the declared
+  // boundaries, not just stay inside them. Otherwise a stale cache could
+  // silently evaluate less than declared while passing the hash check.
+  if (allTradingDates.length === 0) {
+    console.error(`\nFATAL: loaded zero trading dates. The dataset is empty.`);
+    process.exit(1);
+  }
+  const firstDate = allTradingDates[0];
+  const lastDate = allTradingDates[allTradingDates.length - 1];
+  // Bounds: no data outside the declared range.
+  if (firstDate < MANIFEST.manifest.dataStartDate) {
+    console.error(`\nFATAL: loaded data starts at ${firstDate}, BEFORE manifest dataStartDate ${MANIFEST.manifest.dataStartDate}.`);
+    console.error(`Vendor backfill or an earlier fetch has expanded the dataset. Update config/dataset-manifest.json (bump dataStartDate) and re-run.`);
+    process.exit(1);
+  }
+  if (lastDate > MANIFEST.manifest.dataEndDate) {
+    console.error(`\nFATAL: loaded data ends at ${lastDate}, AFTER manifest dataEndDate ${MANIFEST.manifest.dataEndDate}.`);
+    console.error(`Rolling-forward data has extended past the declared range. Update config/dataset-manifest.json (bump dataEndDate) and re-run.`);
+    process.exit(1);
+  }
+  // Coverage: data must reach at least to the end of the declared holdout
+  // and must include at least one trading day on/before the declared
+  // holdout start (pre-holdout history for the WFA training windows).
+  if (lastDate < MANIFEST.manifest.holdoutEndDate) {
+    console.error(`\nFATAL: loaded data ends at ${lastDate}, BEFORE manifest holdoutEndDate ${MANIFEST.manifest.holdoutEndDate}.`);
+    console.error(`The dataset does not reach the declared holdout end — a stale cache or truncated feed. Refresh the data (or bump the manifest) and re-run.`);
+    process.exit(1);
+  }
+  if (firstDate > MANIFEST.manifest.holdoutStartDate) {
+    console.error(`\nFATAL: loaded data starts at ${firstDate}, AFTER manifest holdoutStartDate ${MANIFEST.manifest.holdoutStartDate}.`);
+    console.error(`The dataset has no pre-holdout history — WFA training windows cannot form. Refresh the data or adjust the manifest.`);
+    process.exit(1);
+  }
+
+  // Phase 0.b.6 holdout-range check: when holdout is live, every generated
+  // holdout window must fall within the manifest's declared holdout range.
+  // Catches the case where `allTradingDates` drifted (new candles, rolled-
+  // forward data) and the WFA-sliced window no longer matches the manifest.
+  if (holdoutWindows.length > 0) {
+    for (const w of holdoutWindows) {
+      if (!windowFallsInHoldout(w.oosStart, w.oosEnd, MANIFEST.manifest)) {
+        console.error(`\nFATAL: computed holdout window [${w.oosStart}..${w.oosEnd}] falls outside manifest range [${MANIFEST.manifest.holdoutStartDate}..${MANIFEST.manifest.holdoutEndDate}].`);
+        console.error(`This usually means the underlying candle data has shifted since the manifest was written. Update and commit config/dataset-manifest.json, then update the Pre-Registration block's Holdout Window Hash, then re-run.`);
+        process.exit(1);
+      }
+    }
+  }
 
   if (selectionWindows.length === 0) {
     printErrorResult(strategy.name, 'No WFA windows generated. Check date range and window params.', startMs);
@@ -1159,6 +1257,7 @@ async function main() {
     // would abort at save time with no leaderboard row, drifting the
     // multiple-testing ledger and deflated-Sharpe denominator.
     assertGatesUnchanged(gates());
+    assertManifestUnchanged(MANIFEST);
     // attemptNumber uses the GLOBAL ledger (all campaigns combined), not the
     // per-suffix leaderboard. Previously per-campaign counts reset when
     // AUTORESEARCH_LEADERBOARD_SUFFIX changed, which under-penalized deflated
@@ -1292,14 +1391,22 @@ async function main() {
       strategyBlobSha,
       repoGitSha,
       holdoutEvaluated: holdoutWindows.length > 0,
+      // Phase 0.b.6 dataset-manifest provenance. Seal ceremony refuses rows
+      // whose datasetManifestHash doesn't match the current committed
+      // manifest — prevents sealing a row produced under an old manifest
+      // under a newer one.
+      datasetManifestHash: MANIFEST.rawHash,
+      datasetManifestVersion: MANIFEST.manifest.manifestVersion,
       elapsedMs,
     };
 
     // Update leaderboard (skip in screen mode).
-    // Re-hash adoption gates config before persisting — refuse to write if the
-    // file changed mid-campaign (Phase 0.a.2 immutability check).
+    // Re-hash adoption gates config AND dataset manifest before persisting —
+    // refuse to write if either file changed mid-campaign (Phase 0.a.2 / 0.b.6
+    // immutability checks).
     if (!SCREEN_MODE) {
       assertGatesUnchanged(gates());
+      assertManifestUnchanged(MANIFEST);
       leaderboard.push(runResult);
       saveLeaderboard(leaderboard);
 

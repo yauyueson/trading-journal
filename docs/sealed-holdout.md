@@ -68,6 +68,13 @@ Going forward, seals count. The current window continues to be usable — it is 
 
 **Mid-run provenance tampering is not defended.** The runner captures `strategyGitSha`/`strategyBlobSha`/`repoGitSha` at a single point in time (just after esbuild bundles the strategy). An operator could, in principle, edit a source file, let the runner finish, revert the edit before committing, and produce a row whose SHAs are "clean" even though the bundled code was not. The seal accepts that row because the ancestor + blob checks all match. Closing this hole properly requires running the entire evaluation in an isolated worktree/snapshot. We chose to document it rather than block shipping Phase 0.a.5. In the solo-operator context this policy is written for, the operator is the trusted party; self-tampering is out of scope. Future work may close it.
 
+**Dataset manifest binding is date-range only (Phase 0.b.6 scope).** `config/dataset-manifest.json` declares four dates — `dataStartDate`, `dataEndDate`, `holdoutStartDate`, `holdoutEndDate` — and the runner verifies the loaded data stays within AND reaches these boundaries on the union of ticker dates. What the runner does NOT yet verify:
+
+1. **Per-series coverage.** `allTradingDates` is the UNION of every ticker's candle dates. A single ticker covering the full range masks per-ticker truncation: another ticker with only 2023-onwards data still passes the check, even though its signals contribute nothing to the earlier years. Same applies to `spyBenchmark` and `marketContext.spyByDate` — both are loaded without a per-series manifest check. (Codex Phase 0.b.6 round-3 F1.)
+2. **Interior gaps.** The runner verifies only the first and last trading date against the manifest. A missing month or quarter inside the range would compress the WFA windows silently. Detecting this needs either a canonical trading-calendar file or a committed date-set hash per series. (Codex Phase 0.b.6 round-3 F2.)
+
+Both are deferred to Phase 0.b.7 (data-file fingerprints + cache warm-state isolation). The protocol from 0.b.6 forward correctly binds the pre-reg hash to a specific date range + stops backfills/roll-forwards/truncation-past-holdout-end — but a deliberately crafted partial dataset (per-ticker short, interior gap) can still slip past until 0.b.7 lands. Operators evaluating real candidates should visually inspect the per-ticker candle counts printed at runner startup ("  TICKER: N candles") until the automatic check ships.
+
 ## Researcher discipline
 
 - **During search:** do not open `data/leaderboard-full*.json`. If you need to inspect why a variant failed selection, look at the agent-visible leaderboard (`scripts/autoresearch/leaderboard*.json`) — it is deliberately stripped of holdout-outcome fields.

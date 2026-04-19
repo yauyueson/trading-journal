@@ -33,6 +33,7 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { validatePreRegOrBypass } from './pre-reg-gate';
+import { loadDatasetManifest } from './dataset-manifest';
 import type { RunResult } from '../types';
 
 export interface SealArgs {
@@ -312,15 +313,30 @@ export function sealHoldout(args: SealArgs): SealOutcome {
   }
 
   // Filter on fields that uniquely identify the evaluated code:
-  // strategyName + strategyBlobSha + preRegBlockHash. The repoGitSha is
+  // strategyName + strategyBlobSha + preRegBlockHash + has-manifest-hash
+  // (excluding pre-0.b.6 rows which lack the field). The repoGitSha is
   // verified separately via ancestor-with-audit-only-diff, because
   // committing the audit-row file itself advances HEAD.
-  const matches = rows.filter(({ row }) =>
+  //
+  // Pre-0.b.6 rows (datasetManifestHash == null) are deliberately skipped
+  // rather than rejected-as-first-match. Codex round-1 F2 (Phase 0.b.6):
+  // a stale null-hash first row would otherwise make any downstream run
+  // permanently unsealable under the same pre-reg/blob identity.
+  const baseMatches = rows.filter(({ row }) =>
     row.strategyName === args.strategyName
     && row.strategyBlobSha === currentStrategyBlobSha
     && row.preRegBlockHash === args.preRegHash,
   );
+  const matches = baseMatches.filter(({ row }) => row.datasetManifestHash != null);
   if (matches.length === 0) {
+    // Distinguish "no identity match at all" from "only pre-0.b.6 rows matched".
+    if (baseMatches.length > 0) {
+      return {
+        ok: false,
+        reason: `All ${baseMatches.length} row(s) matching strategyName="${args.strategyName}" + current strategy blob + preRegBlockHash were produced before Phase 0.b.6 (no datasetManifestHash). Re-run the runner to append a row stamped with the current manifest.`,
+        hint: 'Pre-0.b.6 rows cannot be sealed. Run the runner once more under the current code to append a properly-stamped row, then seal.',
+      };
+    }
     const byName = rows.filter(r => r.row.strategyName === args.strategyName);
     if (byName.length === 0) {
       return {
@@ -395,6 +411,30 @@ export function sealHoldout(args: SealArgs): SealOutcome {
     return {
       ok: false,
       reason: `Audit row was produced from strategy commit ${row.strategyGitSha.slice(0, 10)} but the current strategy file is at ${currentStrategyGitSha.slice(0, 10)}. Re-run the runner.`,
+    };
+  }
+
+  // Phase 0.b.6 content check: the row must have been produced against the
+  // same dataset manifest currently committed. Mismatches mean the operator
+  // changed dates/range after the row was produced.
+  let currentManifestHash = '';
+  try {
+    currentManifestHash = loadDatasetManifest({ repoRoot: args.repoRoot }).rawHash;
+  } catch (err) {
+    return { ok: false, reason: `Dataset manifest load failed: ${(err as Error).message}` };
+  }
+  if (!row.datasetManifestHash) {
+    return {
+      ok: false,
+      reason: `Audit row has no datasetManifestHash — the runner that produced it predates Phase 0.b.6 binding.`,
+      hint: 'Re-run the runner so the row is stamped with the current manifest hash.',
+    };
+  }
+  if (row.datasetManifestHash !== currentManifestHash) {
+    return {
+      ok: false,
+      reason: `Audit row was produced against dataset manifest ${row.datasetManifestHash.slice(0, 10)} but the current manifest is ${currentManifestHash.slice(0, 10)}. ` +
+        `The manifest changed after the row was produced — re-run the runner against the current manifest.`,
     };
   }
 

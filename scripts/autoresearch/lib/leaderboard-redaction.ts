@@ -120,6 +120,9 @@ export const AGENT_VISIBLE_FIELDS = [
   // Audit provenance, not holdout — safe for the agent.
   'repoGitSha',
   'strategyBlobSha',
+  // Phase 0.b.6: dataset-manifest provenance. Audit-only; safe for agent.
+  'datasetManifestHash',
+  'datasetManifestVersion',
   // Diagnostics
   'exitTypeBreakdown',
   'signalsGenerated',

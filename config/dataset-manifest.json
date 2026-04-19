@@ -1,0 +1,9 @@
+{
+  "manifestVersion": 1,
+  "dataStartDate": "2017-01-01",
+  "dataEndDate": "2026-02-28",
+  "holdoutStartDate": "2024-01-22",
+  "holdoutEndDate": "2026-02-28",
+  "generatedAt": "2026-04-19T10:30:00Z",
+  "notes": "Initial dataset manifest for Phase 0.b.6 (semantic holdout binding). The current holdout window is 'burned' per docs/sealed-holdout.md; this manifest anchors the binding going forward. Update via scripts/update-dataset-manifest.ts --bump when rolling forward."
+}

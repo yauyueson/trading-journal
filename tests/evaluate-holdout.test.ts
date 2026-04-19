@@ -32,10 +32,31 @@ function sh(cmd: string, cwd: string): string {
 function initRepo(root: string): void {
   fs.mkdirSync(path.join(root, '.handoff'), { recursive: true });
   fs.mkdirSync(path.join(root, 'docs/audit-rows'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'config'), { recursive: true });
   sh('git init -q -b main', root);
   sh('git config user.email "test@example.com"', root);
   sh('git config user.name "Test"', root);
   sh('git config commit.gpgsign false', root);
+}
+
+/** Commit a valid dataset-manifest.json (Phase 0.b.6 seal dependency). */
+function writeManifestCommitted(root: string): string {
+  const m = {
+    manifestVersion: 1,
+    dataStartDate: '2017-01-01',
+    dataEndDate: '2026-02-28',
+    holdoutStartDate: '2024-01-22',
+    holdoutEndDate: '2026-02-28',
+    generatedAt: '2026-04-19T10:30:00Z',
+    notes: 'test manifest',
+  };
+  const raw = JSON.stringify(m, null, 2);
+  fs.writeFileSync(path.join(root, 'config/dataset-manifest.json'), raw);
+  sh('git add config/dataset-manifest.json', root);
+  sh('git commit -q -m "manifest"', root);
+  // Return the sha256 hex so tests can stamp the matching hash onto rows.
+  const crypto = require('crypto');
+  return crypto.createHash('sha256').update(raw).digest('hex');
 }
 
 function buildPreRegMarkdown(): string {
@@ -95,6 +116,7 @@ interface RowOverrides {
   passesHoldoutIRFloor?: boolean;
   isValid?: boolean;
   holdoutSharpe?: number;
+  datasetManifestHash?: string | null;
 }
 
 function buildRow(opts: RowOverrides & { strategyName: string; preRegBlockHash: string }) {
@@ -146,6 +168,8 @@ function buildRow(opts: RowOverrides & { strategyName: string; preRegBlockHash: 
     strategyBlobSha: opts.strategyBlobSha,
     repoGitSha: opts.repoGitSha,
     holdoutEvaluated: opts.holdoutEvaluated ?? true,
+    datasetManifestHash: opts.datasetManifestHash === undefined ? 'PLACEHOLDER_MANIFEST_HASH' : opts.datasetManifestHash,
+    datasetManifestVersion: 1,
     exitTypeBreakdown: {},
     signalsGenerated: 100,
     signalsSkippedNoChain: 0,
@@ -194,13 +218,14 @@ describe('sealHoldout (JSONL + strong identity)', () => {
   let tmpRoot: string;
   let blockHash: string;
   let strategy: { sha: string; blob: string; head: string };
+  let manifestHash: string;
 
-  // Base setup: committed pre-reg + committed strategy + empty repo (no
-  // audit row yet). Each test commits the rows it needs. This keeps the
-  // append-only history clean — no test truncates or rewrites.
+  // Base setup: committed pre-reg + committed strategy + committed manifest +
+  // empty audit file. Each test commits the rows it needs.
   beforeEach(() => {
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'seal-'));
     initRepo(tmpRoot);
+    manifestHash = writeManifestCommitted(tmpRoot);
     writePreRegCommitted(tmpRoot);
     blockHash = extractBlockHash(tmpRoot);
     strategy = writeStrategyCommitted(tmpRoot);
@@ -212,6 +237,7 @@ describe('sealHoldout (JSONL + strong identity)', () => {
       strategyGitSha: strategy.sha,
       strategyBlobSha: strategy.blob,
       repoGitSha: strategy.head,
+      datasetManifestHash: manifestHash,
     });
   }
 
@@ -295,6 +321,7 @@ describe('sealHoldout (JSONL + strong identity)', () => {
       strategyGitSha: strategy.sha,
       strategyBlobSha: strategy.blob,
       repoGitSha: strategy.head,
+      datasetManifestHash: manifestHash,
     });
     const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'not-found', preRegHash: blockHash });
     expect(out.ok).toBe(false);
@@ -338,6 +365,7 @@ describe('sealHoldout (JSONL + strong identity)', () => {
       strategyBlobSha: strategy.blob,
       repoGitSha: strategy.head,
       holdoutEvaluated: false,
+      datasetManifestHash: manifestHash,
     });
     const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
     expect(out.ok).toBe(false);
@@ -354,6 +382,7 @@ describe('sealHoldout (JSONL + strong identity)', () => {
       passesHoldoutAndIR: false,
       passesHoldoutIRFloor: false,
       isValid: false,
+      datasetManifestHash: manifestHash,
     });
     const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
     expect(out.ok).toBe(true);
@@ -380,6 +409,7 @@ describe('sealHoldout (JSONL + strong identity)', () => {
       passesHoldoutAndIR: false,
       passesHoldoutIRFloor: false,
       isValid: false,
+      datasetManifestHash: manifestHash,
     });
     const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
     expect(out.ok).toBe(true);
@@ -395,6 +425,7 @@ describe('sealHoldout (JSONL + strong identity)', () => {
       strategyGitSha: null,
       strategyBlobSha: strategy.blob,
       repoGitSha: strategy.head,
+      datasetManifestHash: manifestHash,
     });
     const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
     expect(out.ok).toBe(false);
@@ -408,10 +439,37 @@ describe('sealHoldout (JSONL + strong identity)', () => {
       strategyGitSha: strategy.sha,
       strategyBlobSha: strategy.blob,
       repoGitSha: null,
+      datasetManifestHash: manifestHash,
     });
     const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
     expect(out.ok).toBe(false);
     if (!out.ok) expect(out.reason).toMatch(/repo HEAD|repoGitSha/i);
+  });
+
+  // Phase 0.b.6 regression
+  it('refuses when the matched row was produced against a different dataset manifest', () => {
+    commitAuditRow(tmpRoot, blockHash, {
+      strategyGitSha: strategy.sha,
+      strategyBlobSha: strategy.blob,
+      repoGitSha: strategy.head,
+      datasetManifestHash: 'deadbeef'.repeat(8),
+    });
+    const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toMatch(/dataset manifest/i);
+  });
+
+  // Phase 0.b.6 regression: pre-0.b.6 rows have no datasetManifestHash.
+  it('refuses when the matched row has no datasetManifestHash (pre-Phase-0.b.6 row)', () => {
+    commitAuditRow(tmpRoot, blockHash, {
+      strategyGitSha: strategy.sha,
+      strategyBlobSha: strategy.blob,
+      repoGitSha: strategy.head,
+      datasetManifestHash: null,
+    });
+    const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toMatch(/no datasetManifestHash|predates Phase 0\.b\.6/i);
   });
 
   it('refuses when AUTORESEARCH_PREREG_BYPASS is set', () => {
@@ -453,6 +511,7 @@ describe('sealHoldout (JSONL + strong identity)', () => {
       repoGitSha: strategy.head,
       passesHoldoutAndIR: true,
       holdoutSharpe: 9.99,
+      datasetManifestHash: manifestHash,
     });
     // Prepend the forged row in a docs-only commit.
     fs.writeFileSync(path.join(tmpRoot, rel), JSON.stringify(forgedRow) + '\n' + original);
@@ -472,6 +531,7 @@ describe('sealHoldout (JSONL + strong identity)', () => {
       strategyBlobSha: strategy.blob,
       repoGitSha: strategy.head,
       holdoutSharpe: 0.2,
+      datasetManifestHash: manifestHash,
     });
     // Reorder (swap lines 1 and 2) in a later docs-only commit.
     const content = fs.readFileSync(path.join(tmpRoot, rel), 'utf-8');

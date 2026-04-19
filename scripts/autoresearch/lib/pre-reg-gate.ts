@@ -209,8 +209,10 @@ export function validatePreRegOrBypass(opts: {
     sectionValues[heading] = v;
   }
 
-  // Format-check the Holdout Window Hash (Codex Finding 3). Semantic check
-  // against a committed dataset manifest is deferred to Phase 0.b.6.
+  // Format-check the Holdout Window Hash (Codex Finding 3). Semantic binding
+  // to a committed dataset manifest was established in Phase 0.b.6 and is
+  // enforced by the runner (see scripts/autoresearch/lib/dataset-manifest.ts
+  // and runner.ts). This step is just the first gate (format only).
   const rawHoldoutHash = sectionValues['Holdout Window Hash'];
   const normalizedHoldoutHash = normalizeHoldoutWindowHash(rawHoldoutHash);
   if (!normalizedHoldoutHash) {
