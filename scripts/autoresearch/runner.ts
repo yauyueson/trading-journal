@@ -35,6 +35,7 @@ import {
 } from './lib/adoption-gates';
 import { validatePreRegOrBypass, formatPreRegSummary } from './lib/pre-reg-gate';
 import { acquireRunnerLock, LockHeldError, type AcquiredLock } from './lib/file-lock';
+import { appendTrial } from './lib/trial-ledger';
 
 // ── Config ──────────────────────────────────────────────
 
@@ -566,36 +567,12 @@ function leaderboardSuffix(): string {
   return s ? `-${s}` : '';
 }
 
-// Global attempt counter across ALL campaigns — fixes Codex adversarial finding
-// (high #5): per-campaign leaderboards reset deflatedSharpe's N, understating the
-// true serial search burden. This counter persists across every runner invocation
-// regardless of suffix, so deflated Sharpe reflects the real multiple-testing surface.
-function globalAttemptsPath(): string {
-  return path.resolve(__dirname, '../../data/attempts-global.json');
-}
-function loadGlobalAttempts(): number {
-  const p = globalAttemptsPath();
-  if (!fs.existsSync(p)) return 0;
-  try {
-    const data = JSON.parse(fs.readFileSync(p, 'utf-8'));
-    return typeof data.count === 'number' ? data.count : 0;
-  } catch {
-    return 0;
-  }
-}
-function incrementGlobalAttempts(delta: number, source: string): number {
-  const p = globalAttemptsPath();
-  const prev = loadGlobalAttempts();
-  const next = prev + delta;
-  try {
-    fs.writeFileSync(p, JSON.stringify({
-      count: next,
-      lastSource: source,
-      lastUpdated: new Date().toISOString(),
-    }, null, 2));
-  } catch { /* best-effort */ }
-  return next;
-}
+// Global attempt counter across ALL campaigns — fixes Codex adversarial
+// finding (high #5): per-campaign leaderboards reset deflatedSharpe's N,
+// understating the true serial search burden. The counter now lives inside
+// the Phase 0.a.3 trial ledger (scripts/autoresearch/lib/trial-ledger.ts)
+// along with per-trial return vectors used to compute N_eff. The count
+// persists across every runner invocation regardless of suffix.
 
 function leaderboardPaths(): { fullPath: string; agentPath: string } {
   const suf = leaderboardSuffix();
@@ -1144,8 +1121,26 @@ async function main() {
     // per-suffix leaderboard. Previously per-campaign counts reset when
     // AUTORESEARCH_LEADERBOARD_SUFFIX changed, which under-penalized deflated
     // Sharpe for serial searches across campaigns.
+    //
+    // Phase 0.a.3 (2026-04-18): we now record the OOS return vector alongside
+    // the attempt counter. `scripts/compute-effective-trials.ts` reads these
+    // to compute N_eff via participation ratio — the correct denominator for
+    // Deflated Sharpe when many trials are correlated (e.g. adjacent grid
+    // points). See scripts/autoresearch/lib/trial-ledger.ts for math.
     const localAttempt = leaderboard.length + 1;
-    const globalAttempt = incrementGlobalAttempts(1, `${leaderboardSuffix() || 'primary'}:${variant.name}`);
+    const trialSource = `${leaderboardSuffix() || 'primary'}:${variant.name}`;
+    const appended = appendTrial({
+      source: trialSource,
+      strategyName: variant.name,
+      leaderboardSuffix: leaderboardSuffix() || '',
+      oosSharpe: oosMetrics.sharpe,
+      oosTrades: workerResult.allOOSTrades.length,
+      oosDates: oosMetrics.equityCurve.map(e => e.date),
+      oosDailyReturns: oosMetrics.dailyReturns,
+      adoptionGatesEffectiveHash: gates().effectiveHash,
+      preRegBlockHash: preRegAudit.preRegBlockHash,
+    });
+    const globalAttempt = appended.ordinal;
     const attemptNumber = globalAttempt;
     const sharpeSE = bootstrapCI[1] > bootstrapCI[0] ? (bootstrapCI[1] - bootstrapCI[0]) / (2 * 1.96) : 1;
     const deflatedSharpe = computeDeflatedSharpe(oosMetrics.sharpe, attemptNumber, sharpeSE);
