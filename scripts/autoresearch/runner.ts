@@ -36,6 +36,7 @@ import {
 import { validatePreRegOrBypass, formatPreRegSummary } from './lib/pre-reg-gate';
 import { acquireRunnerLock, LockHeldError, type AcquiredLock } from './lib/file-lock';
 import { appendTrial } from './lib/trial-ledger';
+import { stripHoldoutMetrics } from './lib/leaderboard-redaction';
 
 // ── Config ──────────────────────────────────────────────
 
@@ -488,33 +489,9 @@ function computeDeflatedSharpe(observedSharpe: number, numAttempts: number, shar
 // The exact holdout Sharpe, IR, and ratio are the fields that leak. Boolean gate
 // results (passesHoldout, passesHoldoutOrIR, isValid) are safe to keep.
 
-// Fields removed from agent-visible leaderboard to prevent holdout leakage
-// into the iterative search loop. `isValid` was previously left visible but
-// combined with `passesHoldoutOrIR`, leaking the holdout gate as a boolean —
-// adversarial review (Codex, 2026-04-17) flagged this as critical leakage.
-// Now we strip every holdout-derived field and the overall isValid; the
-// agent sees only `isValidForSearch` (selection-only validity).
-const HOLDOUT_DERIVED_FIELDS = [
-  'holdoutSharpe',
-  'holdoutSpyIR',
-  'holdoutSpyExcessReturn',
-  'holdoutOOSRatio',
-  'passesHoldout',
-  'passesHoldoutOrIR',
-  'passesHoldoutIRFloor',
-  'passesHoldoutAndIR',
-  'passesHoldoutNewEntries',
-  'holdoutTrades',
-  'newHoldoutTrades',
-  'carriedHoldoutTrades',
-  'isValid',
-] as const;
-
-function stripHoldoutMetrics(entry: RunResult): object {
-  const result = { ...entry } as Record<string, unknown>;
-  for (const f of HOLDOUT_DERIVED_FIELDS) delete result[f];
-  return result;
-}
+// Holdout-redaction constant + stripping function moved to
+// ./lib/leaderboard-redaction.ts in Phase 0.a.4 so tests can import them
+// without pulling the runner's worker/backtest graph.
 
 // Apply a ConfigVariant's overrides onto a base SimConfig without losing nested
 // sibling fields. SimConfig has two object-valued fields (`signalInvalidation`,
