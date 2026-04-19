@@ -112,6 +112,14 @@ export const AGENT_VISIBLE_FIELDS = [
   'adoptionGatesRawHash',
   'adoptionGatesEffectiveHash',
   'adoptionGatesOverrides',
+  // Phase 0.a.5: strategy-file git SHA at run time. Audit provenance, not
+  // a holdout outcome — safe for the agent. (`holdoutEvaluated` is stripped
+  // by the regex guard because its name contains "holdout".)
+  'strategyGitSha',
+  // Phase 0.a.5 round-2: repo HEAD SHA and strategy blob SHA at run time.
+  // Audit provenance, not holdout — safe for the agent.
+  'repoGitSha',
+  'strategyBlobSha',
   // Diagnostics
   'exitTypeBreakdown',
   'signalsGenerated',

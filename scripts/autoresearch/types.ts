@@ -231,6 +231,30 @@ export interface RunResult {
   adoptionGatesRawHash?: string;        // sha256 of config/adoption-gates.json as loaded
   adoptionGatesEffectiveHash?: string;  // raw + env-overrides, for full provenance
   adoptionGatesOverrides?: Array<{ envVar: string; target: string; value: number }>;
+  // Phase 0.a.5 provenance: binds each row to the exact strategy commit that
+  // produced it, so the seal ceremony can refuse a stale row claimed under a
+  // later commit. `strategyGitSha = null` means the strategy file was dirty
+  // or untracked at run time — the seal refuses such rows.
+  strategyGitSha?: string | null;
+  // Phase 0.a.5 round-2 provenance (Codex F1): also bind the FULL repo state
+  // at run time, not just the single strategy file's commit. `repoGitSha =
+  // null` means the working tree had any uncommitted change when the runner
+  // started. The seal refuses null or mismatched values. This catches drift
+  // in imported helpers (e.g. src/lib/backtest/option-sim.ts) that the
+  // strategy file's last-touch commit cannot detect.
+  repoGitSha?: string | null;
+  // Phase 0.a.5 round-2 provenance (Codex F1): git-blob SHA of the strategy
+  // file content. Distinct strategy contents produce distinct blobs even if
+  // committed in the same repo commit. Seal requires this to equal the
+  // current strategy file's blob, preventing "point at a different clean
+  // file touched in the same commit" confusion.
+  strategyBlobSha?: string | null;
+  // Phase 0.a.5 skip-holdout marker: `false` means the runner was invoked
+  // with AUTORESEARCH_SKIP_HOLDOUT=1 and produced no real holdout evaluation.
+  // The seal ceremony refuses any row with `holdoutEvaluated !== true`, so
+  // skip-mode rows cannot be sealed even though the row still carries
+  // synthetic `passesHoldoutAndIR` values derived from selection data.
+  holdoutEvaluated?: boolean;
   // Diagnostics
   exitTypeBreakdown: Record<string, number>;
   signalsGenerated: number;         // total signals before WFA filtering

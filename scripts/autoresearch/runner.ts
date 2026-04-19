@@ -801,6 +801,9 @@ async function main() {
   const strategySrc = path.resolve(__dirname, strategyFilename);
   const bestStrategyFilename = `best-${strategyFilename}`;
   const strategyBundle = path.resolve(__dirname, `.autoresearch-${strategyFilename.replace(/\.ts$/, '')}.mjs`);
+
+  const strategyRelFromRoot = path.relative(path.resolve(__dirname, '../..'), strategySrc);
+  const repoRootForGit = path.resolve(__dirname, '../..');
   console.log(`Bundling ${strategyFilename}...`);
   try {
     execSync(
@@ -822,6 +825,58 @@ async function main() {
     process.exit(1);
   }
   console.log(`Strategy: "${strategy.name}", tickers: [${strategy.tickers.join(', ')}]\n`);
+
+  // Phase 0.a.5 provenance: capture AFTER esbuild completes so SHAs reflect
+  // the exact source state that was bundled. (If the operator edits a source
+  // file between here and here, esbuild already wrote the bundle — the worker
+  // uses that bundle, not the current file.) Three stamps:
+  //   - strategyGitSha: last commit that touched the strategy file.
+  //   - strategyBlobSha: content hash of the strategy file (git hash-object).
+  //   - repoGitSha: HEAD of the whole repo, null if the working tree is dirty.
+  // Codex round-4 note: a determined adversary could edit+revert a source
+  // file during the runner run; the bundle captures the edit but the SHAs
+  // see only the reverted state. This is documented in docs/sealed-holdout.md
+  // and considered out-of-scope for solo-operator trust. A future phase may
+  // isolate execution in a temp worktree to close it entirely.
+  const strategyGitSha: string | null = (() => {
+    try {
+      const dirty = execSync(`git status --porcelain -- "${strategyRelFromRoot}"`, { cwd: repoRootForGit, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      if (dirty.length > 0) return null;
+      const sha = execSync(`git log -n 1 --format=%H -- "${strategyRelFromRoot}"`, { cwd: repoRootForGit, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      return sha || null;
+    } catch {
+      return null;
+    }
+  })();
+  const strategyBlobSha: string | null = (() => {
+    try {
+      const sha = execSync(`git hash-object "${strategyRelFromRoot}"`, { cwd: repoRootForGit, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      return sha || null;
+    } catch {
+      return null;
+    }
+  })();
+  const repoGitSha: string | null = (() => {
+    try {
+      const dirty = execSync(`git status --porcelain`, { cwd: repoRootForGit, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      if (dirty.length > 0) return null;
+      const head = execSync(`git rev-parse HEAD`, { cwd: repoRootForGit, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      return head || null;
+    } catch {
+      return null;
+    }
+  })();
+  if (!strategyGitSha) {
+    console.warn(`  (strategy file is untracked or dirty — produced rows will be unsealable: ${strategyRelFromRoot})`);
+  } else {
+    console.log(`Strategy git SHA: ${strategyGitSha.slice(0, 10)}`);
+  }
+  if (!repoGitSha) {
+    console.warn(`  (working tree has uncommitted changes — produced rows will be unsealable)`);
+  } else {
+    console.log(`Repo HEAD:        ${repoGitSha.slice(0, 10)}`);
+  }
+  if (strategyBlobSha) console.log(`Strategy blob:    ${strategyBlobSha.slice(0, 10)}\n`);
 
   // 4. Load ticker data (parallel — local cache = instant, Supabase = parallel fetch)
   console.log('Loading ticker data...');
@@ -863,7 +918,13 @@ async function main() {
 
   // 6. Build WFA windows
   const wfa = strategy.wfa;
-  const holdoutCount = wfa.holdoutCount ?? 2;
+  // AUTORESEARCH_SKIP_HOLDOUT=1 (Phase 0.a.5): the disciplined-researcher
+  // opt-out. When set, the runner evaluates on selection windows only and
+  // emits empty holdout metrics. Produces audit rows that the seal ceremony
+  // will refuse (no holdout data to seal), forcing a deliberate re-run
+  // before promotion. Default off → preserves existing audit-file workflow.
+  const skipHoldout = ['1', 'true', 'yes'].includes(String(process.env.AUTORESEARCH_SKIP_HOLDOUT ?? '').toLowerCase());
+  const holdoutCount = skipHoldout ? 0 : (wfa.holdoutCount ?? 2);
   const wfaStartDate = allTradingDates.find(d => d >= '2018-01-01') ?? allTradingDates[0];
   const allWindows = buildWFAWindows(allTradingDates, {
     trainWindowDays: wfa.trainWindowDays,
@@ -873,8 +934,12 @@ async function main() {
     startDate: wfaStartDate,
     endDate: allTradingDates[allTradingDates.length - 1],
   });
-  const selectionWindows = allWindows.slice(0, -holdoutCount);
-  const holdoutWindows = allWindows.slice(-holdoutCount);
+  // Guard the slice(0, -0) footgun: -0 collapses to 0 → slice(0, 0) returns [].
+  const selectionWindows = holdoutCount === 0 ? [...allWindows] : allWindows.slice(0, -holdoutCount);
+  const holdoutWindows = holdoutCount === 0 ? [] : allWindows.slice(-holdoutCount);
+  if (skipHoldout) {
+    console.log(`AUTORESEARCH_SKIP_HOLDOUT=1 — holdout evaluation disabled (discipline mode).`);
+  }
   console.log(`WFA: ${selectionWindows.length} selection + ${holdoutWindows.length} holdout windows\n`);
 
   if (selectionWindows.length === 0) {
@@ -1221,6 +1286,12 @@ async function main() {
       adoptionGatesRawHash: gates().rawHash,
       adoptionGatesEffectiveHash: gates().effectiveHash,
       adoptionGatesOverrides: gates().envOverrides.map(o => ({ envVar: o.envVar, target: o.target, value: o.parsed })),
+      // Phase 0.a.5 provenance: binds this row to strategy + repo state and
+      // records whether holdout was actually evaluated. Seal reads all three.
+      strategyGitSha,
+      strategyBlobSha,
+      repoGitSha,
+      holdoutEvaluated: holdoutWindows.length > 0,
       elapsedMs,
     };
 
@@ -1231,6 +1302,18 @@ async function main() {
       assertGatesUnchanged(gates());
       leaderboard.push(runResult);
       saveLeaderboard(leaderboard);
+
+      // Phase 0.a.5: append each non-bypassed RunResult as one line in
+      // docs/audit-rows/<blockHash>.jsonl. The seal ceremony reads FROM
+      // this tracked file after the operator commits it — appending (not
+      // overwriting) so earlier rows are preserved in git history, closing
+      // the "silent overwrite" hole Codex flagged in round 2 (Finding 2).
+      if (!preRegAudit.preRegBypassed && preRegAudit.preRegBlockHash) {
+        const rowsDir = path.resolve(__dirname, '../../docs/audit-rows');
+        fs.mkdirSync(rowsDir, { recursive: true });
+        const rowPath = path.join(rowsDir, `${preRegAudit.preRegBlockHash}.jsonl`);
+        fs.appendFileSync(rowPath, JSON.stringify(runResult) + '\n');
+      }
     }
     allVariantResults.push(runResult);
 
