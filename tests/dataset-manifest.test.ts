@@ -15,6 +15,7 @@ import {
   assertManifestUnchanged,
   windowFallsInHoldout,
   recomputeRawHash,
+  resolveTickerStart,
   type DatasetManifest,
 } from '../scripts/autoresearch/lib/dataset-manifest';
 
@@ -52,13 +53,66 @@ function writeManifestCommitted(root: string, override?: Partial<DatasetManifest
 }
 
 describe('validateManifestRanges', () => {
-  it('accepts a well-formed manifest', () => {
+  it('accepts a well-formed v1 manifest', () => {
     expect(() => validateManifestRanges(defaultManifest())).not.toThrow();
   });
 
-  it('rejects manifestVersion != 1', () => {
-    const m = { ...defaultManifest(), manifestVersion: 2 };
+  it('accepts a v2 manifest with a tickers map', () => {
+    const m: DatasetManifest = {
+      ...defaultManifest(),
+      manifestVersion: 2,
+      tickers: { COIN: { dataStart: '2021-04-14' } },
+    };
+    expect(() => validateManifestRanges(m)).not.toThrow();
+  });
+
+  it('rejects manifestVersion outside [1, 2]', () => {
+    const m = { ...defaultManifest(), manifestVersion: 3 };
     expect(() => validateManifestRanges(m)).toThrow(/manifestVersion/);
+  });
+
+  it('rejects tickers map on a v1 manifest', () => {
+    const m: DatasetManifest = {
+      ...defaultManifest(),
+      tickers: { COIN: { dataStart: '2021-04-14' } },
+    };
+    expect(() => validateManifestRanges(m)).toThrow(/requires manifestVersion 2/);
+  });
+
+  it('rejects non-ISO ticker dataStart', () => {
+    const m: DatasetManifest = {
+      ...defaultManifest(),
+      manifestVersion: 2,
+      tickers: { COIN: { dataStart: '2021/04/14' } },
+    };
+    expect(() => validateManifestRanges(m)).toThrow(/COIN/);
+  });
+
+  it('rejects ticker dataStart before manifest dataStartDate', () => {
+    const m: DatasetManifest = {
+      ...defaultManifest(),
+      manifestVersion: 2,
+      tickers: { COIN: { dataStart: '2016-01-01' } },
+    };
+    expect(() => validateManifestRanges(m)).toThrow(/COIN.*before/);
+  });
+
+  it('rejects ticker dataStart after holdoutStartDate', () => {
+    const m: DatasetManifest = {
+      ...defaultManifest(),
+      manifestVersion: 2,
+      tickers: { COIN: { dataStart: '2025-01-01' } },
+    };
+    expect(() => validateManifestRanges(m)).toThrow(/COIN.*after/);
+  });
+
+  it('rejects implausible ticker symbol', () => {
+    const m: DatasetManifest = {
+      ...defaultManifest(),
+      manifestVersion: 2,
+      tickers: { 'lowercase': { dataStart: '2021-04-14' } },
+    };
+    expect(() => validateManifestRanges(m)).toThrow(/tickers key/);
   });
 
   it('rejects non-ISO date', () => {
@@ -193,6 +247,36 @@ describe('assertManifestUnchanged', () => {
     const loaded = loadDatasetManifest({ repoRoot: tmpRoot });
     const current = recomputeRawHash(loaded);
     expect(current).toBe(loaded.rawHash);
+  });
+});
+
+describe('resolveTickerStart', () => {
+  it('returns manifest dataStartDate for unlisted ticker', () => {
+    const m: DatasetManifest = { ...defaultManifest(), manifestVersion: 2, tickers: {} };
+    expect(resolveTickerStart('AAPL', m)).toBe(m.dataStartDate);
+  });
+
+  it('returns the override for a listed ticker', () => {
+    const m: DatasetManifest = {
+      ...defaultManifest(),
+      manifestVersion: 2,
+      tickers: { COIN: { dataStart: '2021-04-14' } },
+    };
+    expect(resolveTickerStart('COIN', m)).toBe('2021-04-14');
+  });
+
+  it('returns manifest dataStartDate when override has no dataStart', () => {
+    const m: DatasetManifest = {
+      ...defaultManifest(),
+      manifestVersion: 2,
+      tickers: { COIN: {} },
+    };
+    expect(resolveTickerStart('COIN', m)).toBe(m.dataStartDate);
+  });
+
+  it('tolerates missing tickers map (v1 manifest)', () => {
+    const m = defaultManifest();
+    expect(resolveTickerStart('AAPL', m)).toBe(m.dataStartDate);
   });
 });
 

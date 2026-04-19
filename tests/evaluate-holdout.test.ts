@@ -117,6 +117,8 @@ interface RowOverrides {
   isValid?: boolean;
   holdoutSharpe?: number;
   datasetManifestHash?: string | null;
+  /** Omit entirely from the written row (simulates pre-0.b.7 rows). */
+  omitTickerCoverageHash?: boolean;
 }
 
 function buildRow(opts: RowOverrides & { strategyName: string; preRegBlockHash: string }) {
@@ -169,7 +171,8 @@ function buildRow(opts: RowOverrides & { strategyName: string; preRegBlockHash: 
     repoGitSha: opts.repoGitSha,
     holdoutEvaluated: opts.holdoutEvaluated ?? true,
     datasetManifestHash: opts.datasetManifestHash === undefined ? 'PLACEHOLDER_MANIFEST_HASH' : opts.datasetManifestHash,
-    datasetManifestVersion: 1,
+    datasetManifestVersion: 2,
+    ...(opts.omitTickerCoverageHash ? {} : { tickerCoverageHash: 'a'.repeat(64) }),
     exitTypeBreakdown: {},
     signalsGenerated: 100,
     signalsSkippedNoChain: 0,
@@ -469,7 +472,21 @@ describe('sealHoldout (JSONL + strong identity)', () => {
     });
     const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
     expect(out.ok).toBe(false);
-    if (!out.ok) expect(out.reason).toMatch(/no datasetManifestHash|predates Phase 0\.b\.6/i);
+    if (!out.ok) expect(out.reason).toMatch(/no datasetManifestHash|predates Phase 0\.b\.6|before Phase 0\.b\.6/i);
+  });
+
+  // Phase 0.b.7 regression: pre-0.b.7 rows have no tickerCoverageHash.
+  it('refuses when the matched row has no tickerCoverageHash (pre-Phase-0.b.7 row)', () => {
+    commitAuditRow(tmpRoot, blockHash, {
+      strategyGitSha: strategy.sha,
+      strategyBlobSha: strategy.blob,
+      repoGitSha: strategy.head,
+      datasetManifestHash: manifestHash,
+      omitTickerCoverageHash: true,
+    });
+    const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toMatch(/tickerCoverageHash|predates Phase 0\.b\.7/i);
   });
 
   it('refuses when AUTORESEARCH_PREREG_BYPASS is set', () => {

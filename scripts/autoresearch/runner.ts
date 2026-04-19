@@ -37,6 +37,9 @@ import {
   loadDatasetManifest, assertManifestConfigTracked, assertManifestUnchanged,
   windowFallsInHoldout, formatManifestSummary, type LoadedManifest,
 } from './lib/dataset-manifest';
+import {
+  validatePerSeriesCoverage, summarizeTickerSeries, type TickerSeriesSummary,
+} from './lib/series-validation';
 import { validatePreRegOrBypass, formatPreRegSummary } from './lib/pre-reg-gate';
 import { acquireRunnerLock, LockHeldError, type AcquiredLock } from './lib/file-lock';
 import { appendTrial } from './lib/trial-ledger';
@@ -934,6 +937,31 @@ async function main() {
   );
   const tickerDataMap = new Map<string, TickerDataBundle>(tickerEntries);
 
+  // Phase 0.b.7 per-series coverage check. Runs BEFORE signal generation
+  // so a truncated ticker can't silently contribute zero signals while
+  // other tickers' coverage masks the gap in the union-based bounds check.
+  // Closes Codex Phase 0.b.6 round-3 F1.
+  //
+  // Round-1 fix (Codex 0.b.7 F1+F2): pass the full marketContext SPY date
+  // list so coverage is validated against candle dates (not the benchmark's
+  // return dates, which are one trading day later), and cross-check the
+  // two SPY sources on their full date sequences.
+  const perTickerSeries: Record<string, TickerSeriesSummary> = {};
+  for (const [ticker, data] of tickerDataMap) {
+    perTickerSeries[ticker] = summarizeTickerSeries(data.candles);
+  }
+  const marketCtxDates = [...marketContext.spyByDate.keys()].sort();
+  const coverage = validatePerSeriesCoverage(
+    perTickerSeries, spyBenchmark.dates, marketCtxDates, MANIFEST.manifest,
+  );
+  if (!coverage.ok) {
+    console.error(`\nFATAL: per-series dataset check failed — ${coverage.reason}`);
+    if (coverage.hint) console.error(`Hint: ${coverage.hint}`);
+    process.exit(1);
+  }
+  const tickerCoverageHash = coverage.tickerCoverageHash;
+  console.log(`Ticker coverage hash: ${tickerCoverageHash.slice(0, 12)}...`);
+
   // 5. Generate signals
   // Invoke strategy.prepare() if defined, so strategies that need cross-ticker
   // derived data (e.g. breadth, rv_regime) can build it from the loaded
@@ -1015,8 +1043,13 @@ async function main() {
   // Coverage: data must reach at least to the end of the declared holdout
   // and must include at least one trading day on/before the declared
   // holdout start (pre-holdout history for the WFA training windows).
-  if (lastDate < MANIFEST.manifest.holdoutEndDate) {
-    console.error(`\nFATAL: loaded data ends at ${lastDate}, BEFORE manifest holdoutEndDate ${MANIFEST.manifest.holdoutEndDate}.`);
+  // BOUNDARY_SLACK_DAYS of weekend/holiday tolerance (Codex 0.b.7 round-2)
+  // because manifest dates may be calendar boundaries that fall on non-
+  // trading days.
+  const BOUNDARY_SLACK_MS = 10 * 86400 * 1000;
+  const slackBefore = (dateStr: string) => new Date(new Date(`${dateStr}T00:00:00Z`).getTime() - BOUNDARY_SLACK_MS).toISOString().slice(0, 10);
+  if (lastDate < slackBefore(MANIFEST.manifest.holdoutEndDate)) {
+    console.error(`\nFATAL: loaded data ends at ${lastDate}, more than 10 days before manifest holdoutEndDate ${MANIFEST.manifest.holdoutEndDate}.`);
     console.error(`The dataset does not reach the declared holdout end — a stale cache or truncated feed. Refresh the data (or bump the manifest) and re-run.`);
     process.exit(1);
   }
@@ -1397,6 +1430,9 @@ async function main() {
       // under a newer one.
       datasetManifestHash: MANIFEST.rawHash,
       datasetManifestVersion: MANIFEST.manifest.manifestVersion,
+      // Phase 0.b.7 per-series coverage hash. Seal refuses if a row's hash
+      // doesn't match current ticker-cache state.
+      tickerCoverageHash,
       elapsedMs,
     };
 

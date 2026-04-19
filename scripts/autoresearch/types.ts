@@ -262,6 +262,12 @@ export interface RunResult {
   // the row's declared date range with committed manifest history.
   datasetManifestHash?: string | null;
   datasetManifestVersion?: number;
+  // Phase 0.b.7: sha256 of the per-ticker coverage summary
+  // (ticker:first..last:count for each strategy ticker, canonicalized).
+  // Lets the seal ceremony refuse rows produced against a different ticker
+  // cache state than what's currently loaded. Closes Codex round-3 F1
+  // (per-series truncation masked by union-based bounds check).
+  tickerCoverageHash?: string | null;
   // Diagnostics
   exitTypeBreakdown: Record<string, number>;
   signalsGenerated: number;         // total signals before WFA filtering

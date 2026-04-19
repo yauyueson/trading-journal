@@ -123,6 +123,8 @@ export const AGENT_VISIBLE_FIELDS = [
   // Phase 0.b.6: dataset-manifest provenance. Audit-only; safe for agent.
   'datasetManifestHash',
   'datasetManifestVersion',
+  // Phase 0.b.7: per-series coverage hash. Audit provenance, not holdout.
+  'tickerCoverageHash',
   // Diagnostics
   'exitTypeBreakdown',
   'signalsGenerated',

@@ -438,6 +438,20 @@ export function sealHoldout(args: SealArgs): SealOutcome {
     };
   }
 
+  // Phase 0.b.7 content check: the row's per-ticker coverage hash must
+  // still be present. The seal cannot recompute it at this layer (no
+  // access to the ticker cache), so we enforce "non-null" here and trust
+  // the runner's write-time invariant. A future extension could compare
+  // against a committed coverage snapshot — for now, null-hash rows are
+  // pre-0.b.7 and unsealable; any non-null row passed the runner's check.
+  if (row.tickerCoverageHash == null) {
+    return {
+      ok: false,
+      reason: `Audit row has no tickerCoverageHash — the runner that produced it predates Phase 0.b.7 (per-series coverage).`,
+      hint: 'Re-run the runner so the row is stamped with a coverage hash, then commit the new audit line.',
+    };
+  }
+
   // 8. Compose and write the seal.
   const passes = Boolean(row.passesHoldoutAndIR);
   const utcDate = now.toISOString().slice(0, 10);

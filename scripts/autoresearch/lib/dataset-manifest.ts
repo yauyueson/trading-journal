@@ -17,6 +17,13 @@ import crypto from 'crypto';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'child_process';
 
+export interface DatasetManifestTickerOverride {
+  /** Earliest trading date this ticker is required to have data for.
+   *  Must fall in [manifest.dataStartDate, manifest.holdoutStartDate].
+   *  Used for tickers that IPO'd after the manifest's dataStartDate. */
+  dataStart?: string;
+}
+
 export interface DatasetManifest {
   manifestVersion: number;
   dataStartDate: string;       // YYYY-MM-DD
@@ -25,6 +32,9 @@ export interface DatasetManifest {
   holdoutEndDate: string;      // YYYY-MM-DD
   generatedAt: string;         // ISO timestamp (informational)
   notes?: string;
+  /** Phase 0.b.7: per-ticker dataStart overrides for post-IPO tickers.
+   *  Tickers not listed here must span the full manifest dataStartDate. */
+  tickers?: Record<string, DatasetManifestTickerOverride>;
 }
 
 export interface LoadedManifest {
@@ -52,8 +62,8 @@ function isIsoDate(s: unknown): s is string {
 }
 
 export function validateManifestRanges(m: DatasetManifest): void {
-  if (m.manifestVersion !== 1) {
-    throw new Error(`dataset-manifest: unsupported manifestVersion ${m.manifestVersion} (expected 1)`);
+  if (m.manifestVersion !== 1 && m.manifestVersion !== 2) {
+    throw new Error(`dataset-manifest: unsupported manifestVersion ${m.manifestVersion} (expected 1 or 2)`);
   }
   for (const field of ['dataStartDate', 'dataEndDate', 'holdoutStartDate', 'holdoutEndDate'] as const) {
     if (!isIsoDate(m[field])) {
@@ -72,6 +82,38 @@ export function validateManifestRanges(m: DatasetManifest): void {
   if (m.holdoutEndDate > m.dataEndDate) {
     throw new Error(`dataset-manifest: holdoutEndDate (${m.holdoutEndDate}) is after dataEndDate (${m.dataEndDate}).`);
   }
+  // Phase 0.b.7: per-ticker overrides. Each dataStart must be a valid ISO
+  // date inside [manifest.dataStartDate, manifest.holdoutStartDate]. Outside
+  // that range makes no sense (before → no constraint; after → ticker has
+  // no pre-holdout history, WFA training would fail).
+  if (m.tickers) {
+    if (m.manifestVersion !== 2) {
+      throw new Error(`dataset-manifest: "tickers" map requires manifestVersion 2, got ${m.manifestVersion}.`);
+    }
+    for (const [symbol, override] of Object.entries(m.tickers)) {
+      if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(symbol)) {
+        throw new Error(`dataset-manifest: tickers key ${JSON.stringify(symbol)} is not a plausible symbol.`);
+      }
+      if (override.dataStart !== undefined) {
+        if (!isIsoDate(override.dataStart)) {
+          throw new Error(`dataset-manifest: tickers.${symbol}.dataStart=${JSON.stringify(override.dataStart)} is not a valid YYYY-MM-DD date.`);
+        }
+        if (override.dataStart < m.dataStartDate) {
+          throw new Error(`dataset-manifest: tickers.${symbol}.dataStart (${override.dataStart}) is before manifest dataStartDate (${m.dataStartDate}); remove the override.`);
+        }
+        if (override.dataStart > m.holdoutStartDate) {
+          throw new Error(`dataset-manifest: tickers.${symbol}.dataStart (${override.dataStart}) is after manifest holdoutStartDate (${m.holdoutStartDate}); ticker would have no pre-holdout history for WFA training.`);
+        }
+      }
+    }
+  }
+}
+
+/** Resolve the effective first required trading date for a ticker. Returns
+ *  the per-ticker override if present, else the manifest's dataStartDate. */
+export function resolveTickerStart(ticker: string, m: DatasetManifest): string {
+  const override = m.tickers?.[ticker]?.dataStart;
+  return override ?? m.dataStartDate;
 }
 
 export function loadDatasetManifest(opts?: { repoRoot?: string }): LoadedManifest {
