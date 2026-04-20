@@ -582,7 +582,7 @@ Any backtest result that violates these should be treated as a bug until proven 
 | Metric | Sanity bound | Enforced in |
 |---|---|---|
 | OOS Sharpe on 8yr data | ≤ 3.0 | `scripts/autoresearch/runner.ts` — `MAX_SANE_OOS_SHARPE` |
-| Standalone MaxDD on 8yr data | > 2% | (manual check — add if violated again) |
+| Standalone MaxDD on 8yr data | ≥ 2% | `runner.ts` — `passesSanityMaxDD` gate, wired into `isValid` via `passesSanity` (Phase 1.c, 2026-04-20) |
 | Per-trade edge as % of max profit | < 95% | (manual check — add if violated again) |
 | Win rate on credit spreads | < 85% | (varies by delta, but > 90% at delta > 0.30 is suspect) |
 | Holdout/OOS ratio | ≥ 0.5 and ≤ 2.0 | `runner.ts` — `passesStability` gate, wired into `isValid` (Phase 1.b, 2026-04-20) |

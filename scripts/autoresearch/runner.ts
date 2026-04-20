@@ -1347,7 +1347,16 @@ async function main() {
     // strategy that materially loses to SPY on the unseen regime.
     const passesHoldoutIRFloor = holdoutSpyIRResult.ir >= g.minHoldoutIrFloor;
     const passesHoldoutAndIR = passesHoldoutAbsolute && passesHoldoutIRFloor;
-    const passesSanity = oosMetrics.sharpe <= g.maxSaneOosSharpe;
+    // Phase 1.c: two-sided sanity on OOS metrics.
+    //   Upper Sharpe bound catches impossibly-good backtests (typical
+    //   simulator bugs: double-count premium, phantom expiration profits).
+    //   Lower MaxDD bound catches silently-swallowed losses
+    //   (TRAILING_LOCK fingerprint: 8yr MaxDD < 2%). Both together catch
+    //   "the result is too clean to be real" — the defining symptom of
+    //   every simulator bug in docs/backtest-trust-gotchas.md section 1-2.
+    const passesSanitySharpe = oosMetrics.sharpe <= g.maxSaneOosSharpe;
+    const passesSanityMaxDD = oosMetrics.maxDrawdownPct >= g.minSaneOosDrawdownPct;
+    const passesSanity = passesSanitySharpe && passesSanityMaxDD;
     // Separate carry (selection-entered, live during holdout) from new (entered
     // inside holdout). A strategy that stops generating signals after the
     // boundary can otherwise pass the Sharpe/IR gate on a single carried LEAP
@@ -1603,7 +1612,11 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
     !r.passesMinTrades && `${r.oosTrades} trades < ${g2.minOosTrades} min`,
     !r.passesMaxDD && `MaxDD ${r.oosMaxDD.toFixed(1)}% > ${g2.maxOosDrawdownPct}% limit`,
     !r.passesWFA && `OOS Sharpe ${r.oosSharpe.toFixed(3)} <= 0`,
-    !r.passesSanity && `OOS Sharpe ${r.oosSharpe.toFixed(3)} > ${g2.maxSaneOosSharpe} (sanity bound — simulator bug likely)`,
+    !r.passesSanity && (
+      r.oosSharpe > g2.maxSaneOosSharpe
+        ? `OOS Sharpe ${r.oosSharpe.toFixed(3)} > ${g2.maxSaneOosSharpe} (sanity bound — simulator bug likely)`
+        : `OOS MaxDD ${r.oosMaxDD.toFixed(2)}% < ${g2.minSaneOosDrawdownPct}% (sanity bound — losses may be silently swallowed, TRAILING_LOCK fingerprint)`
+    ),
     !r.passesDeltaGates && 'delta gates: signal timing does not beat naive baseline',
   ].filter(Boolean);
   const status = r.isValidForSearch ? 'VALID_FOR_SEARCH' : `INVALID_FOR_SEARCH (${invalidReasons.join(', ')})`;

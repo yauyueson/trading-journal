@@ -7,6 +7,7 @@ import { execSync } from 'child_process';
 export interface AdoptionGates {
   minOosTrades: number;
   maxOosDrawdownPct: number;
+  minSaneOosDrawdownPct: number;    // Phase 1.c: lower-bound sanity. OOS MaxDD below this is a simulator-bug fingerprint (TRAILING_LOCK class).
   minHoldoutSharpe: number;
   maxSaneOosSharpe: number;
   minHoldoutMetric: number;
@@ -64,7 +65,8 @@ export function loadAdoptionGates(opts?: { repoRoot?: string }): LoadedGates {
     throw new Error(`adoption-gates: unsupported config version ${parsed.version} (expected 1)`);
   }
   const required: (keyof AdoptionGates)[] = [
-    'minOosTrades', 'maxOosDrawdownPct', 'minHoldoutSharpe', 'maxSaneOosSharpe',
+    'minOosTrades', 'maxOosDrawdownPct', 'minSaneOosDrawdownPct',
+    'minHoldoutSharpe', 'maxSaneOosSharpe',
     'minHoldoutMetric', 'minHoldoutIrFloor', 'minNewHoldoutTrades',
     'bootstrapIterations', 'naiveBaselineIntervalDays',
   ];
@@ -126,6 +128,18 @@ export function validateGateRanges(g: AdoptionGates): void {
   // Percentage in (0, 100].
   if (!(g.maxOosDrawdownPct > 0) || g.maxOosDrawdownPct > 100) {
     throw new Error(`adoption-gates: gates.maxOosDrawdownPct=${g.maxOosDrawdownPct} must be in (0, 100].`);
+  }
+  // Phase 1.c: minSaneOosDrawdownPct — lower bound on 8yr+ MaxDD.
+  // A drawdown below ~2% over 8 years almost always means the simulator
+  // is swallowing losses (TRAILING_LOCK fingerprint). Allow small values
+  // for legitimately-low-vol use (e.g., 0.5% for short backtests) but
+  // forbid zero/negative (always-a-bug indicator). Cap at the upper
+  // bound so users can't accidentally invert the pair.
+  if (!(g.minSaneOosDrawdownPct >= 0) || g.minSaneOosDrawdownPct >= g.maxOosDrawdownPct) {
+    throw new Error(
+      `adoption-gates: gates.minSaneOosDrawdownPct=${g.minSaneOosDrawdownPct} must be in ` +
+      `[0, ${g.maxOosDrawdownPct}) (i.e. below the max-accept bound).`,
+    );
   }
   // Positive real.
   if (!(g.maxSaneOosSharpe > 0)) {

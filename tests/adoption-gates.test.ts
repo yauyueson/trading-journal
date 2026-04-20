@@ -26,6 +26,7 @@ const SAMPLE_GATES = {
   gates: {
     minOosTrades: 100,
     maxOosDrawdownPct: 45,
+    minSaneOosDrawdownPct: 2.0,
     minHoldoutSharpe: 0,
     maxSaneOosSharpe: 3.0,
     minHoldoutMetric: 0.3,
@@ -189,6 +190,20 @@ describe('validateGateRanges', () => {
 
   it('accepts negative minHoldoutIrFloor (research flexibility)', () => {
     expect(() => validateGateRanges({ ...baseGates, minHoldoutIrFloor: -0.1 })).not.toThrow();
+  });
+
+  // Phase 1.c: minSaneOosDrawdownPct — lower-bound sanity for TRAILING_LOCK-class bugs.
+  it('rejects negative minSaneOosDrawdownPct (would silently accept simulator bugs)', () => {
+    expect(() => validateGateRanges({ ...baseGates, minSaneOosDrawdownPct: -0.5 })).toThrow(/minSaneOosDrawdownPct/);
+  });
+
+  it('rejects minSaneOosDrawdownPct >= maxOosDrawdownPct (pair inverted — catches misconfig)', () => {
+    expect(() => validateGateRanges({ ...baseGates, minSaneOosDrawdownPct: 45 })).toThrow(/minSaneOosDrawdownPct/);
+    expect(() => validateGateRanges({ ...baseGates, minSaneOosDrawdownPct: 50 })).toThrow(/minSaneOosDrawdownPct/);
+  });
+
+  it('accepts minSaneOosDrawdownPct = 0 (research flexibility — disables the gate)', () => {
+    expect(() => validateGateRanges({ ...baseGates, minSaneOosDrawdownPct: 0 })).not.toThrow();
   });
 
   it('validation fires inside loadAdoptionGates when env override pushes a value out of range', () => {
