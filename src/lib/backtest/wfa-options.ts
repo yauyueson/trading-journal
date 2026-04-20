@@ -178,6 +178,13 @@ function capitalAtRisk(trade: OptionTrade): number {
   if (trade.mode === 'CREDIT_SPREAD') {
     return Math.max(0, (trade.maxLoss ?? trade.entryPrice) * 100);
   }
+  // BUY_WRITE: capital = stock notional (shares × entry spot), not premium.
+  // See computeOptionAnalytics() for rationale.
+  if (trade.mode === 'BUY_WRITE') {
+    const stockEntry = trade.stockLeg?.entryPrice ?? trade.entryStockPrice ?? 0;
+    const shares = trade.stockLeg?.shares ?? 100;
+    return Math.max(0, stockEntry * shares);
+  }
   return Math.max(0, trade.entryPrice * 100);
 }
 

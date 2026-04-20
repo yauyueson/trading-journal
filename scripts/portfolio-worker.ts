@@ -86,6 +86,19 @@ parentPort!.on('message', async (msg: TradeGenWorkItem | { type: 'exit' }) => {
   const item = msg as TradeGenWorkItem;
 
   try {
+    // BUY_WRITE is a benchmark-replication mode (Phase 0.c.9 BXM) and is
+    // not supposed to be dispatched through the portfolio pipeline.
+    // Without this guard the call below would fall through to
+    // simulateCreditSpread and silently produce credit-spread trades
+    // instead of covered-call trades, corrupting any backtest launched
+    // via portfolio-sim.ts with mode='BUY_WRITE'.
+    if (item.config.mode === 'BUY_WRITE') {
+      throw new Error(
+        "BUY_WRITE requires simulateBuyWrite — not dispatchable via portfolio-worker. " +
+        "Call simulateBuyWrite directly from the CBOE replication script.",
+      );
+    }
+
     const trades: TradeSummary[] = [];
     const maxPerTicker = item.maxPerTicker || 1;
 

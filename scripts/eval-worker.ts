@@ -65,6 +65,18 @@ parentPort!.on('message', async (msg: EvalWorkItem | { type: 'exit' }) => {
   const item = msg as EvalWorkItem;
 
   try {
+    // Guard BUY_WRITE up front, outside the signal loop. Dispatching it
+    // here would fall through to simulateCreditSpread; if a tier happens
+    // to produce zero filtered signals the loop never runs and the worker
+    // would silently report a successful zero-trade result instead of the
+    // intended error (Codex round-5 P3).
+    if (item.config.mode === 'BUY_WRITE') {
+      throw new Error(
+        "BUY_WRITE requires simulateBuyWrite — not dispatchable via eval-worker. " +
+        "BUY_WRITE is a benchmark-replication mode; call simulateBuyWrite directly from a replication script.",
+      );
+    }
+
     const trades: OptionTrade[] = [];
 
     for (const ts of allSignals) {
