@@ -28,3 +28,9 @@ SPY is used instead of SPX because our ORATS chain cache covers SPY. Small drift
 - Underlying tracking error (SPY ≈ SPX but not exact)
 - Dividend timing (SPY dividends aren't continuous; BXM methodology reinvests)
 - Fill differences (our `simulateBuyWrite` uses mid-fill + dynamic slippage; BXM uses a formulaic "first-after-3rd-Friday" settlement).
+
+### Methodology note on dividends (Phase 0.c.9.B)
+
+CBOE BXM is a **total-return index** — dividends are reinvested implicitly. Our replication runs `simulateBuyWrite` without a `dividendSchedule`, which means the stock leg's P&L is the raw price-return of SPY. The ORATS `stock_price` we read IS the raw market close (not dividend-adjusted), so the short call partially offsets the ex-date price drop via its own delta-weighted decline, but the net effect is still price-return-biased by a fraction of SPY's yield.
+
+Empirically, the 2017-2026 replication shows a small positive drift (rep > BXM by ~0.37%/yr) rather than the negative drift a missing-dividends hypothesis alone would predict. That tells us the dividend gap is partially offset by other methodology differences (SPY-vs-SPX tracking, fill model, strike selection). Adding a proper ex-date `dividendSchedule` is a valid future refinement for apples-to-apples comparison; not adding one is acceptable for Phase 0.c.9.B because correlation 0.9665 already well exceeds the 0.85 acceptance bar set for this phase.
