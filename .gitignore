@@ -13,6 +13,7 @@ data/*.sqlite-wal
 data/*.json
 !data/strategy-config.json
 !data/dte5-dashboard.json
+!data/bxm-replication-results.json
 data/cache/
 data/runs/
 scripts/.*.mjs
