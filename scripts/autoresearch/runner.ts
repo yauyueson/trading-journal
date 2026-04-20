@@ -1363,12 +1363,21 @@ async function main() {
       t.exitDate >= holdoutStart,
     ).length;
     const passesHoldoutNewEntries = newHoldoutTrades >= g.minNewHoldoutTrades;
+    // Phase 1.b: holdout/OOS stability gate. The ratio reveals whether
+    // holdout performance is consistent with OOS (ratio ~1) or diverges
+    // wildly. Ratio < 0.5 → overfit to selection window. Ratio > 2.0 →
+    // holdout "too good," usually data snooping or pre-reg-rule bending.
+    // Previously documented as "manual check" in backtest-trust-gotchas.md;
+    // now a hard gate in `isValid`. Held OUT of `isValidForSearch` to keep
+    // agents holdout-blind; stripped from agent-visible leaderboard below.
+    const passesStability = holdoutOOSRatio >= 0.5 && holdoutOOSRatio <= 2.0;
     // Search-time validity: holdout-blind. Agents see this.
     const isValidForSearch = passesMinTrades && passesMaxDD && passesWFA && passesSanity && passesDeltaGates;
-    // Overall validity: includes holdout gate + new-entries guard. Full leaderboard only — stripped from agent-visible file.
-    // Gate now uses `passesHoldoutAndIR` (Sharpe ≥ 0.3 AND IR ≥ 0), NOT the legacy
+    // Overall validity: includes holdout gate + new-entries guard + stability.
+    // Full leaderboard only — stripped from agent-visible file.
+    // Gate uses `passesHoldoutAndIR` (Sharpe ≥ 0.3 AND IR ≥ 0), NOT the legacy
     // disjunctive `passesHoldoutOrIR`. See runner.ts comment on `passesHoldoutAndIR` and gotcha #41.
-    const isValid = isValidForSearch && passesHoldoutAndIR && passesHoldoutNewEntries;
+    const isValid = isValidForSearch && passesHoldoutAndIR && passesHoldoutNewEntries && passesStability;
 
     const exitTypeBreakdown: Record<string, number> = {};
     for (const t of workerResult.allOOSTrades) {
@@ -1399,7 +1408,7 @@ async function main() {
       holdoutSpyExcessReturn: holdoutSpyIRResult.excessReturn,
       avgTrainSharpe,
       wfEfficiency,
-      passesMinTrades, passesMaxDD, passesWFA, passesHoldout, passesHoldoutOrIR, passesHoldoutIRFloor, passesHoldoutAndIR, passesSanity, isValid, isValidForSearch,
+      passesMinTrades, passesMaxDD, passesWFA, passesHoldout, passesHoldoutOrIR, passesHoldoutIRFloor, passesHoldoutAndIR, passesSanity, passesStability, isValid, isValidForSearch,
       holdoutOOSRatio,
       bootstrapSharpe95CI: bootstrapCI,
       bootstrapSignificant,
@@ -1652,7 +1661,8 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
   console.log('--- Holdout Evaluation (do NOT feed to search agent) ---');
   console.log(`Holdout Sharpe gate: ${r.passesHoldout ? 'PASS' : 'FAIL'} (Sharpe ${r.holdoutSharpe.toFixed(3)}, ${r.holdoutTrades} trades)`);
   console.log(`Holdout-or-IR gate: ${r.passesHoldoutOrIR ? 'PASS' : 'FAIL'} (IR ${r.holdoutSpyIR.toFixed(3)}, excess ${(r.holdoutSpyExcessReturn * 100).toFixed(2)}%/yr)`);
-  console.log(`Holdout stability: ${holdoutStability} (ratio ${r.holdoutOOSRatio.toFixed(2)})`);
+  const stabilityGate = r.passesStability === false ? 'FAIL' : r.passesStability === true ? 'PASS' : 'n/a';
+  console.log(`Holdout stability: ${holdoutStability} (ratio ${r.holdoutOOSRatio.toFixed(2)}, gate ${stabilityGate} — bounds [0.5, 2.0])`);
   console.log(`Overall validity (search+holdout): ${r.isValid ? 'VALID' : 'INVALID'}`);
   console.log(`True champion verdict: ${isNewChampion ? 'NEW CHAMPION' : 'NOT CHAMPION'}`);
   console.log('__END_REVIEWER_ONLY__');

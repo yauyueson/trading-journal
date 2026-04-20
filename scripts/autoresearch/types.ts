@@ -207,6 +207,7 @@ export interface RunResult {
 	  passesHoldoutIRFloor?: boolean;     // holdout SPY IR >= 0 (non-negative IR floor)
 	  passesHoldoutAndIR?: boolean;       // holdout Sharpe >= 0.3 AND holdout SPY IR >= 0 — the live gate wired into `isValid`
 	  passesSanity: boolean;              // OOS Sharpe <= 3.0 (catches simulator bugs)
+	  passesStability?: boolean;          // holdoutOOSRatio ∈ [0.5, 2.0] — catches overfit (ratio <0.5) and data-snoop/lucky (ratio >2.0). Phase 1.b.
 	  isValidForSearch: boolean;          // selection-only validity — agent-visible (no holdout leakage)
 	  isValid: boolean;                   // includes holdout gate — stripped from agent leaderboard; for human/post-hoc analysis only
   // Overfitting diagnostics

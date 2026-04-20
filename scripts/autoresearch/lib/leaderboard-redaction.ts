@@ -53,6 +53,9 @@ export const HOLDOUT_DERIVED_FIELDS = [
   'passesHoldoutIRFloor',
   'passesHoldoutAndIR',
   'passesHoldoutNewEntries',
+  // Phase 1.b — `passesStability` embeds holdoutOOSRatio (which embeds
+  // holdoutSharpe), so same leak concern as the other holdout booleans.
+  'passesStability',
   'holdoutTrades',
   'newHoldoutTrades',
   'carriedHoldoutTrades',
