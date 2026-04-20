@@ -30,9 +30,16 @@ import {
   type EntrySignal,
   type SimConfig,
 } from '../src/lib/backtest/option-sim';
+import { initDB } from '../src/lib/backtest/chain-cache';
 
 const RESULTS_PATH = path.resolve(process.cwd(), 'data/bxm-replication-results.json');
-const CACHE_PATH = path.resolve(process.cwd(), 'data/option-chains.sqlite');
+// Phase 1.a: prefer the committed BXM-test fixture DB so CI can actually
+// run the live simulator regression (data/option-chains.sqlite is
+// gitignored). Fall back to the full cache when the fixture is absent —
+// local-only dev runs against live data still work.
+const FIXTURE_PATH = path.resolve(process.cwd(), 'data/fixtures/bxm-live-test.sqlite');
+const FULL_CACHE_PATH = path.resolve(process.cwd(), 'data/option-chains.sqlite');
+const CACHE_PATH = fs.existsSync(FIXTURE_PATH) ? FIXTURE_PATH : FULL_CACHE_PATH;
 const RESULTS_EXIST = fs.existsSync(RESULTS_PATH);
 const CACHE_EXISTS = fs.existsSync(CACHE_PATH);
 
@@ -112,6 +119,10 @@ describe.skipIf(!CACHE_EXISTS || !RESULTS_EXIST)(
       'simulateBuyWrite reproduces snapshot P&L on a 2023 sub-window',
       { timeout: 120_000 },
       async (ctx) => {
+        // Route simulateBuyWrite's chain lookups at the fixture (or full
+        // cache). initDB is idempotent within a process — first call wins
+        // — so this must happen BEFORE anything else touches the DB.
+        initDB(CACHE_PATH, true);
         // Dynamic import keeps the test cheap when skipped (no SQLite).
         const Database = (await import('better-sqlite3')).default;
         const db = new Database(CACHE_PATH, { readonly: true });
