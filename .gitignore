@@ -34,3 +34,12 @@ scripts/autoresearch/campaign-trades-*.json
 chain-cache.db
 .worktrees/
 .vscode/
+
+# Claude Code per-machine / per-session state. The IDE auto-appends Bash
+# approvals and other ephemeral tool-use permissions to settings.local.json
+# during a session; tracking the file would let those leak into the repo.
+# The shared counterpart `.claude/settings.json` stays committed for team
+# configuration. `scheduled_tasks.lock` is a runtime lock file, never
+# meaningful across sessions.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
