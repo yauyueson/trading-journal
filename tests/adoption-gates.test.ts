@@ -27,6 +27,7 @@ const SAMPLE_GATES = {
     minOosTrades: 100,
     maxOosDrawdownPct: 45,
     minSaneOosDrawdownPct: 2.0,
+    maxSanePerTradeEdge: 0.95,
     minHoldoutSharpe: 0,
     maxSaneOosSharpe: 3.0,
     minHoldoutMetric: 0.3,
@@ -204,6 +205,21 @@ describe('validateGateRanges', () => {
 
   it('accepts minSaneOosDrawdownPct = 0 (research flexibility — disables the gate)', () => {
     expect(() => validateGateRanges({ ...baseGates, minSaneOosDrawdownPct: 0 })).not.toThrow();
+  });
+
+  // Phase 1.d: maxSanePerTradeEdge
+  it('rejects maxSanePerTradeEdge <= 0 (would reject all positive-mean strategies)', () => {
+    expect(() => validateGateRanges({ ...baseGates, maxSanePerTradeEdge: 0 })).toThrow(/maxSanePerTradeEdge/);
+    expect(() => validateGateRanges({ ...baseGates, maxSanePerTradeEdge: -0.1 })).toThrow(/maxSanePerTradeEdge/);
+  });
+
+  it('rejects maxSanePerTradeEdge > 1.0 (physically impossible — grossPnl clamped at maxProfit)', () => {
+    expect(() => validateGateRanges({ ...baseGates, maxSanePerTradeEdge: 1.01 })).toThrow(/maxSanePerTradeEdge/);
+    expect(() => validateGateRanges({ ...baseGates, maxSanePerTradeEdge: 2.0 })).toThrow(/maxSanePerTradeEdge/);
+  });
+
+  it('accepts maxSanePerTradeEdge = 1.0 (upper bound, disables gate)', () => {
+    expect(() => validateGateRanges({ ...baseGates, maxSanePerTradeEdge: 1.0 })).not.toThrow();
   });
 
   it('validation fires inside loadAdoptionGates when env override pushes a value out of range', () => {

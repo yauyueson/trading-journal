@@ -99,6 +99,11 @@ export const AGENT_VISIBLE_FIELDS = [
   'passesMaxDD',
   'passesWFA',
   'passesSanity',
+  // Phase 1.d: mean grossPnl/maxProfit across OOS credit-spread trades.
+  // OOS-only — safe to expose to the search loop. Useful as a search
+  // signal too: agents can rule out configs trending near the sanity
+  // ceiling before they burn a full evaluation.
+  'meanPerTradeEdge',
   'isValidForSearch',
   // Overfitting diagnostics (selection-period only)
   'bootstrapSharpe95CI',

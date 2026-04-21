@@ -1347,16 +1347,35 @@ async function main() {
     // strategy that materially loses to SPY on the unseen regime.
     const passesHoldoutIRFloor = holdoutSpyIRResult.ir >= g.minHoldoutIrFloor;
     const passesHoldoutAndIR = passesHoldoutAbsolute && passesHoldoutIRFloor;
-    // Phase 1.c: two-sided sanity on OOS metrics.
-    //   Upper Sharpe bound catches impossibly-good backtests (typical
-    //   simulator bugs: double-count premium, phantom expiration profits).
-    //   Lower MaxDD bound catches silently-swallowed losses
-    //   (TRAILING_LOCK fingerprint: 8yr MaxDD < 2%). Both together catch
-    //   "the result is too clean to be real" — the defining symptom of
-    //   every simulator bug in docs/backtest-trust-gotchas.md section 1-2.
+    // Phase 1.c/d: three-pronged sanity on OOS metrics. All three are
+    // designed to catch the "result is too clean to be real" simulator-bug
+    // fingerprint documented in docs/backtest-trust-gotchas.md §1-2.
+    //   Upper Sharpe: impossibly-good aggregate (double-count premium,
+    //     phantom expiration profits).
+    //   Lower MaxDD: losses silently swallowed (TRAILING_LOCK class) —
+    //     8yr MaxDD < 2% is almost always a bug.
+    //   Per-trade edge: mean(grossPnl/maxProfit) across credit-spread
+    //     trades near 1.0 means the simulator books near-max-profit on
+    //     every trade, which is physically impossible across a mix of
+    //     winners and losers. Real strategies have a handful of SL-hit
+    //     losers that pull the mean well below 0.9 even at delta 0.20.
+    //     Only computed for strategies with ≥ 20 credit-spread trades in
+    //     OOS — below that the sample is too noisy to gate on mean.
     const passesSanitySharpe = oosMetrics.sharpe <= g.maxSaneOosSharpe;
     const passesSanityMaxDD = oosMetrics.maxDrawdownPct >= g.minSaneOosDrawdownPct;
-    const passesSanity = passesSanitySharpe && passesSanityMaxDD;
+    // Per-trade edge: only CREDIT_SPREAD mode has a bounded maxProfit.
+    // LEAP/BUY_WRITE trades carry no such ceiling and trivially pass.
+    const csOosTrades = workerResult.allOOSTrades.filter(
+      t => t.mode === 'CREDIT_SPREAD' && (t.maxProfit ?? 0) > 0,
+    );
+    const oosPerTradeEdges = csOosTrades.map(t =>
+      ((t.grossPnl ?? t.pnl) / ((t.maxProfit ?? 1) * 100)),
+    );
+    const meanPerTradeEdge = oosPerTradeEdges.length > 0
+      ? oosPerTradeEdges.reduce((s, e) => s + e, 0) / oosPerTradeEdges.length
+      : 0;
+    const passesSanityEdge = csOosTrades.length < 20 || meanPerTradeEdge < g.maxSanePerTradeEdge;
+    const passesSanity = passesSanitySharpe && passesSanityMaxDD && passesSanityEdge;
     // Separate carry (selection-entered, live during holdout) from new (entered
     // inside holdout). A strategy that stops generating signals after the
     // boundary can otherwise pass the Sharpe/IR gate on a single carried LEAP
@@ -1418,6 +1437,7 @@ async function main() {
       avgTrainSharpe,
       wfEfficiency,
       passesMinTrades, passesMaxDD, passesWFA, passesHoldout, passesHoldoutOrIR, passesHoldoutIRFloor, passesHoldoutAndIR, passesSanity, passesStability, isValid, isValidForSearch,
+      meanPerTradeEdge: oosPerTradeEdges.length > 0 ? meanPerTradeEdge : undefined,
       holdoutOOSRatio,
       bootstrapSharpe95CI: bootstrapCI,
       bootstrapSignificant,
@@ -1615,7 +1635,9 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
     !r.passesSanity && (
       r.oosSharpe > g2.maxSaneOosSharpe
         ? `OOS Sharpe ${r.oosSharpe.toFixed(3)} > ${g2.maxSaneOosSharpe} (sanity bound — simulator bug likely)`
-        : `OOS MaxDD ${r.oosMaxDD.toFixed(2)}% < ${g2.minSaneOosDrawdownPct}% (sanity bound — losses may be silently swallowed, TRAILING_LOCK fingerprint)`
+      : r.oosMaxDD < g2.minSaneOosDrawdownPct
+        ? `OOS MaxDD ${r.oosMaxDD.toFixed(2)}% < ${g2.minSaneOosDrawdownPct}% (sanity bound — losses may be silently swallowed, TRAILING_LOCK fingerprint)`
+        : `Mean per-trade edge ${(r.meanPerTradeEdge ?? 0).toFixed(3)} ≥ ${g2.maxSanePerTradeEdge} (sanity bound — near-max-profit on every trade is a TRAILING_LOCK fingerprint)`
     ),
     !r.passesDeltaGates && 'delta gates: signal timing does not beat naive baseline',
   ].filter(Boolean);

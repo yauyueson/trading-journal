@@ -3,11 +3,12 @@
   "description": "Canonical adoption gates for autoresearch runner. Changes to this file MUST go through a git PR. Runner hashes this file at start and refuses to continue if the hash changes mid-campaign.",
   "lastModified": "2026-04-20",
   "lastModifier": "yauyueson",
-  "rationale": "Phase 1.c (2026-04-20): added minSaneOosDrawdownPct=2.0 lower-bound sanity gate. Catches TRAILING_LOCK-class simulator bugs where losses are silently swallowed (fingerprint: 8yr MaxDD <2%). Previously on the 'manual check' list in docs/backtest-trust-gotchas.md; moved to enforced. Prior basis (Phase 0.a.2 2026-04-18): extracted from runner.ts inline constants.",
+  "rationale": "Phase 1.c/d (2026-04-20): added minSaneOosDrawdownPct=2.0 (8yr MaxDD <2% is TRAILING_LOCK fingerprint) and maxSanePerTradeEdge=0.95 (mean credit-spread edge near 1.0 is the same bug class, spotted at per-trade granularity). Both were on 'manual check' in docs/backtest-trust-gotchas.md; moved to enforced gates. Prior basis (Phase 0.a.2 2026-04-18): extracted from runner.ts inline constants.",
   "gates": {
     "minOosTrades": 100,
     "maxOosDrawdownPct": 45,
     "minSaneOosDrawdownPct": 2.0,
+    "maxSanePerTradeEdge": 0.95,
     "minHoldoutSharpe": 0,
     "maxSaneOosSharpe": 3.0,
     "minHoldoutMetric": 0.3,

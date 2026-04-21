@@ -8,6 +8,7 @@ export interface AdoptionGates {
   minOosTrades: number;
   maxOosDrawdownPct: number;
   minSaneOosDrawdownPct: number;    // Phase 1.c: lower-bound sanity. OOS MaxDD below this is a simulator-bug fingerprint (TRAILING_LOCK class).
+  maxSanePerTradeEdge: number;      // Phase 1.d: cap on mean(grossPnl / maxProfit) for credit spreads. Mean near 1.0 = bug (TRAILING_LOCK-style fill-at-threshold).
   minHoldoutSharpe: number;
   maxSaneOosSharpe: number;
   minHoldoutMetric: number;
@@ -66,6 +67,7 @@ export function loadAdoptionGates(opts?: { repoRoot?: string }): LoadedGates {
   }
   const required: (keyof AdoptionGates)[] = [
     'minOosTrades', 'maxOosDrawdownPct', 'minSaneOosDrawdownPct',
+    'maxSanePerTradeEdge',
     'minHoldoutSharpe', 'maxSaneOosSharpe',
     'minHoldoutMetric', 'minHoldoutIrFloor', 'minNewHoldoutTrades',
     'bootstrapIterations', 'naiveBaselineIntervalDays',
@@ -139,6 +141,19 @@ export function validateGateRanges(g: AdoptionGates): void {
     throw new Error(
       `adoption-gates: gates.minSaneOosDrawdownPct=${g.minSaneOosDrawdownPct} must be in ` +
       `[0, ${g.maxOosDrawdownPct}) (i.e. below the max-accept bound).`,
+    );
+  }
+  // Phase 1.d: maxSanePerTradeEdge — cap on mean(grossPnl/maxProfit)
+  // across credit-spread trades. A value near 1.0 means every trade
+  // closed at essentially max profit — losers should drag the mean
+  // well below that; its absence is the TRAILING_LOCK fingerprint.
+  // Bounds: (0, 1.0]. ≤ 0 would reject any positive-mean strategy
+  // (nonsense); > 1.0 is impossible since grossPnl is clamped at
+  // maxProfit per contract.
+  if (!(g.maxSanePerTradeEdge > 0) || g.maxSanePerTradeEdge > 1.0) {
+    throw new Error(
+      `adoption-gates: gates.maxSanePerTradeEdge=${g.maxSanePerTradeEdge} must be in (0, 1.0]. ` +
+      `Values above 1.0 are physically impossible (grossPnl is clamped at maxProfit).`,
     );
   }
   // Positive real.
