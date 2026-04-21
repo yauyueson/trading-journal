@@ -669,29 +669,6 @@ async function main() {
   process.on('exit', onExit);
 
   try {
-  // 0.DSR. Phase 2.k/2.l boot-time DSR migration — runs FIRST, before any
-  //     gate / manifest / pre-reg guard that could early-exit. External
-  //     consumers (analyze-*.ts, search-loop agent) read the leaderboard
-  //     JSON directly on disk; if the runner dies on a dirty pre-reg or
-  //     missing manifest, those consumers would keep seeing Phase 2.g-era
-  //     mixed-schema rows until the operator fixes the guard. Running the
-  //     migration up-front makes the on-disk files clean regardless of
-  //     whether the rest of main() succeeds. Codex round-25 (2026-04-20).
-  {
-    const { fullPath, agentPath } = leaderboardPaths();
-    if (fs.existsSync(fullPath)) {
-      const raw = JSON.parse(fs.readFileSync(fullPath, 'utf-8')) as RunResult[];
-      if (leaderboardNeedsDsrMigration(raw)) {
-        const migrated = raw.map(backfillIsValidForSearch).map(normalizeDsrSchema);
-        fs.writeFileSync(fullPath, JSON.stringify(migrated, null, 2));
-        fs.writeFileSync(agentPath, JSON.stringify(migrated.map(stripHoldoutMetrics), null, 2));
-        const suffixLabel = leaderboardSuffix() || '(primary)';
-        console.log(`Migrated ${migrated.length} ${suffixLabel} leaderboard entries → Phase 2.i DSR schema (Codex r25)`);
-        console.log('');
-      }
-    }
-  }
-
   // 0a. Load adoption gates (Phase 0.a.2 of 2026-04-18 foundation rebuild).
   //     Hardcoded gate constants were moved to config/adoption-gates.json.
   //     The file is hashed here; gates().assertGatesUnchanged() re-checks the
@@ -813,9 +790,30 @@ async function main() {
       console.log('');
     }
   }
-  // 0a. Phase 2.k/2.l DSR migration moved earlier — see section 0.DSR
-  //     near the top of main(). Kept inline comment to make the
-  //     relocation obvious in git blame.
+  // 0a. Phase 2.k boot-time DSR migration. Runs AFTER adoption-gate /
+  //     dataset-manifest / pre-reg guards have passed, so a failed
+  //     startup NEVER mutates tracked leaderboard files (Codex
+  //     round-26 Finding 1 — earlier 2.l placement left repo dirty
+  //     on failed guards, poisoning subsequent runs' repoGitSha
+  //     audit stamp). Trade-off: when the runner can't start,
+  //     external consumers keep reading Phase 2.g mixed-schema rows
+  //     until the operator fixes the guard. Acceptable vs. the audit-
+  //     stamp regression the early-migration path caused.
+  //     Idempotent via `leaderboardNeedsDsrMigration()` precheck.
+  {
+    const { fullPath, agentPath } = leaderboardPaths();
+    if (fs.existsSync(fullPath)) {
+      const raw = JSON.parse(fs.readFileSync(fullPath, 'utf-8')) as RunResult[];
+      if (leaderboardNeedsDsrMigration(raw)) {
+        const migrated = raw.map(backfillIsValidForSearch).map(normalizeDsrSchema);
+        fs.writeFileSync(fullPath, JSON.stringify(migrated, null, 2));
+        fs.writeFileSync(agentPath, JSON.stringify(migrated.map(stripHoldoutMetrics), null, 2));
+        const suffixLabel = leaderboardSuffix() || '(primary)';
+        console.log(`Migrated ${migrated.length} ${suffixLabel} leaderboard entries → Phase 2.i DSR schema`);
+        console.log('');
+      }
+    }
+  }
   if (leaderboardSuffix()) {
     console.log(`CAMPAIGN MODE: leaderboard suffix="${leaderboardSuffix()}" — isolated from primary leaderboard\n`);
   }
