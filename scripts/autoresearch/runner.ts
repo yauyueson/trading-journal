@@ -45,6 +45,7 @@ import { acquireRunnerLock, LockHeldError, type AcquiredLock } from './lib/file-
 import { appendTrial } from './lib/trial-ledger';
 import { stripHoldoutMetrics } from './lib/leaderboard-redaction';
 import { computeEffectiveSampleSize } from './lib/effective-sample-size';
+import { bootstrapSharpeCI as bootstrapSharpeCILib } from './lib/bootstrap-sharpe';
 
 // ── Config ──────────────────────────────────────────────
 
@@ -426,44 +427,12 @@ function computeCombinedMetrics(
 
 // ── Overfitting Defenses ────────────────────────────────
 
-/**
- * Block bootstrap 95% confidence interval on Sharpe ratio.
- * Uses overlapping block bootstrap (block size ~sqrt(n)) to preserve
- * autocorrelation structure in daily returns — unlike i.i.d. bootstrap
- * which understates CI width for serially correlated time series.
- */
+// Phase 2.b: `bootstrapSharpeCI` extracted to
+// `./lib/bootstrap-sharpe.ts` so coverage-validation tests can import it
+// without dragging in the whole runner graph. The runner's only behavior
+// change is the imported name below.
 function bootstrapSharpeCI(dailyReturns: number[], iterations = gates().gates.bootstrapIterations): [number, number] {
-  if (dailyReturns.length < 30) return [0, 0];
-
-  const n = dailyReturns.length;
-  const blockSize = Math.max(5, Math.floor(Math.sqrt(n))); // ~15 for 252 days
-  const sharpes: number[] = [];
-
-  for (let i = 0; i < iterations; i++) {
-    // Block bootstrap: sample contiguous blocks with replacement
-    const resampled: number[] = [];
-    while (resampled.length < n) {
-      const startIdx = Math.floor(Math.random() * (n - blockSize + 1));
-      for (let j = 0; j < blockSize && resampled.length < n; j++) {
-        resampled.push(dailyReturns[startIdx + j]);
-      }
-    }
-
-    let sum = 0, sumSq = 0;
-    for (let j = 0; j < n; j++) {
-      sum += resampled[j];
-      sumSq += resampled[j] * resampled[j];
-    }
-    const mean = sum / n;
-    const variance = sumSq / n - mean * mean;
-    const std = Math.sqrt(Math.max(0, variance));
-    sharpes.push(std > 0 ? (mean / std) * Math.sqrt(252) : 0);
-  }
-
-  sharpes.sort((a, b) => a - b);
-  const lo = sharpes[Math.floor(iterations * 0.025)];
-  const hi = sharpes[Math.floor(iterations * 0.975)];
-  return [lo, hi];
+  return bootstrapSharpeCILib(dailyReturns, iterations);
 }
 
 /**
