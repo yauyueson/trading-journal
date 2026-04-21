@@ -192,32 +192,43 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
     // (ticker, trade_date, dteRange) tuple. NULL dte_min/dte_max means the
     // fetch requested no filter = full chain. Multiple rows per
     // (ticker, trade_date) accumulate as strategies with different DTE
-    // windows touch the same date. UNIQUE prevents dupes on repeat calls.
+    // windows touch the same date.
     //
-    // Migration: always backfill from fetch_log on open. Two defenses:
-    //   1. Correlated `NOT EXISTS` with `IS` (null-safe equality) keeps
-    //      the backfill idempotent for both range rows and NULL/NULL rows
-    //      across sequential initDB calls (Codex round-17 Finding 1).
-    //   2. `INSERT OR IGNORE` tolerates UNIQUE-constraint races between
-    //      concurrent workers that start up against the same legacy cache
-    //      (Codex round-18 Finding 1). Without it, the loser worker would
-    //      abort with SQLITE_CONSTRAINT_UNIQUE during initDB.
+    // Uniqueness is enforced by a COALESCE-based expression index rather
+    // than the plain table UNIQUE, because SQLite's natural UNIQUE treats
+    // two NULLs as DISTINCT — so concurrent workers racing on a fresh
+    // full-fetch could otherwise both insert `(NULL, NULL)` rows and both
+    // pass. Coalescing NULL to -1 (outside any real DTE) makes the index
+    // key null-safe; `INSERT OR IGNORE` then reliably dedupes both range
+    // rows and full-range rows (Codex round-21 / Phase 1.m, 2026-04-20).
     //
-    // NULL/NULL rows aren't protected by the UNIQUE constraint (SQLite
-    // treats NULLs as distinct), so a concurrent race on an empty interval
-    // table COULD insert two NULL/NULL rows. That's harmless — isCovered
-    // reports the same result either way, and the NOT EXISTS prevents
-    // further growth on subsequent opens.
+    // The correlated `NOT EXISTS` with `IS` below remains as a cheap
+    // same-worker idempotency check across sequential initDB opens
+    // (avoids constraint violations noisy in logs even when they'd be
+    // silently ignored).
     _db.exec(`
       CREATE TABLE IF NOT EXISTS fetch_log_intervals (
         ticker TEXT NOT NULL,
         trade_date TEXT NOT NULL,
         dte_min INTEGER,
         dte_max INTEGER,
-        fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (ticker, trade_date, dte_min, dte_max)
+        fetched_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       CREATE INDEX IF NOT EXISTS idx_fli_lookup ON fetch_log_intervals(ticker, trade_date);
+    `);
+    // Phase 1.m migration: a 1.h-era DB created before the COALESCE
+    // expression index may already hold duplicate NULL/NULL rows from
+    // the concurrent race described above. Dedupe (keep the earliest
+    // rowid per key) before creating the unique index, or the index
+    // creation would fail on existing duplicates.
+    _db.exec(`
+      DELETE FROM fetch_log_intervals
+      WHERE rowid NOT IN (
+        SELECT MIN(rowid) FROM fetch_log_intervals
+        GROUP BY ticker, trade_date, COALESCE(dte_min, -1), COALESCE(dte_max, -1)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_fli_unique_coalesced
+        ON fetch_log_intervals(ticker, trade_date, COALESCE(dte_min, -1), COALESCE(dte_max, -1));
       INSERT OR IGNORE INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max)
       SELECT fl.ticker, fl.trade_date, fl.dte_min, fl.dte_max
       FROM fetch_log fl
@@ -445,19 +456,20 @@ function upsertFetchLog(
   ).run(ticker, date, nextRowsFetched, nextMin, nextMax);
 
   // Authoritative coverage record. Absent from pre-1.h readonly fixtures.
-  // Two defenses against dupe rows:
-  //   1. Codex round-17 Finding 1: SQLite UNIQUE treats NULLs as distinct,
-  //      so a bare `INSERT OR IGNORE` is not idempotent for full-fetch
-  //      rows. Guard with explicit NOT EXISTS using `IS` for null-safe
-  //      equality, so same-worker sequential full fetches don't grow the
-  //      table.
-  //   2. Codex round-18 Finding 1: cross-worker races. If two workers
-  //      concurrently observe a missing non-NULL interval, both pass the
-  //      NOT EXISTS check and both try to INSERT — UNIQUE would make the
-  //      loser crash with SQLITE_CONSTRAINT. `INSERT OR IGNORE` turns
-  //      that crash into a silent skip. NULL rows under concurrent race
-  //      may still insert twice (UNIQUE doesn't dedupe NULLs) but that's
-  //      harmless — isCovered reports identically either way.
+  // Three defenses against dupe rows, now complete:
+  //   1. Codex round-17 Finding 1: explicit NOT EXISTS using `IS` for
+  //      null-safe equality — cheap same-worker idempotency check so
+  //      sequential full fetches don't churn the table or log noisy
+  //      constraint violations.
+  //   2. Codex round-18 Finding 1: cross-worker non-NULL races. `INSERT
+  //      OR IGNORE` catches the UNIQUE violation silently so a loser
+  //      worker doesn't abort with SQLITE_CONSTRAINT.
+  //   3. Codex round-21 / Phase 1.m (2026-04-20): the COALESCE expression
+  //      index on (ticker, trade_date, COALESCE(dte_min,-1),
+  //      COALESCE(dte_max,-1)) enforces NULL-safe uniqueness — a
+  //      concurrent race on a full-range fetch (dte_min=dte_max=NULL)
+  //      now also dedupes via `INSERT OR IGNORE` instead of silently
+  //      bloating the table.
   if (_hasIntervalTable) {
     const intervalMin = fullFetch ? null : dteRange![0];
     const intervalMax = fullFetch ? null : dteRange![1];

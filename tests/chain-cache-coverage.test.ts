@@ -485,6 +485,88 @@ describe('chain-cache DTE-range coverage (Phase 1.g)', () => {
     expect(nullCount.n).toBe(1);
   });
 
+  it('COALESCE unique index dedupes raw concurrent NULL/NULL inserts (Codex r21 / Phase 1.m)', async () => {
+    // Simulate two workers racing on a full-fetch INSERT. Each one
+    // observes an empty interval table (or gets past NOT EXISTS). With
+    // the old natural UNIQUE (which treats NULLs as distinct) both
+    // INSERTs would land. The COALESCE expression index catches the
+    // second one via INSERT OR IGNORE.
+    const db = new Database(dbPath);
+    // Populate a row directly, then attempt a second NULL/NULL insert
+    // WITHOUT the NOT EXISTS guard (simulating the race condition).
+    db.prepare(`
+      INSERT OR IGNORE INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max)
+      VALUES (?, ?, NULL, NULL)
+    `).run('SPY', '2024-01-02');
+    db.prepare(`
+      INSERT OR IGNORE INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max)
+      VALUES (?, ?, NULL, NULL)
+    `).run('SPY', '2024-01-02');
+    db.prepare(`
+      INSERT OR IGNORE INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max)
+      VALUES (?, ?, NULL, NULL)
+    `).run('SPY', '2024-01-02');
+    const cnt = db.prepare(
+      'SELECT COUNT(*) AS n FROM fetch_log_intervals WHERE ticker=? AND trade_date=? AND dte_min IS NULL AND dte_max IS NULL',
+    ).get('SPY', '2024-01-02') as { n: number };
+    db.close();
+    expect(cnt.n).toBe(1);
+  });
+
+  it('migration dedupes pre-existing NULL/NULL duplicates before creating the unique index (Codex r21 / Phase 1.m)', async () => {
+    // A 1.h-era DB may already carry duplicate NULL/NULL rows from the
+    // race window before Phase 1.m. The migration must dedupe them
+    // BEFORE creating the UNIQUE expression index (or the index creation
+    // would error on existing dupes).
+    closeDB();
+    fs.rmSync(dbPath, { force: true });
+
+    const raw = new Database(dbPath);
+    raw.exec(`
+      CREATE TABLE fetch_log (
+        ticker TEXT NOT NULL,
+        trade_date TEXT NOT NULL,
+        rows_fetched INTEGER,
+        dte_min INTEGER,
+        dte_max INTEGER,
+        fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (ticker, trade_date)
+      );
+      CREATE TABLE fetch_log_intervals (
+        ticker TEXT NOT NULL,
+        trade_date TEXT NOT NULL,
+        dte_min INTEGER,
+        dte_max INTEGER,
+        fetched_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    // Pre-populate with duplicate NULL/NULL rows (the race scenario).
+    raw.prepare('INSERT INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max) VALUES (?,?,?,?)')
+      .run('SPY', '2024-01-02', null, null);
+    raw.prepare('INSERT INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max) VALUES (?,?,?,?)')
+      .run('SPY', '2024-01-02', null, null);
+    raw.prepare('INSERT INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max) VALUES (?,?,?,?)')
+      .run('SPY', '2024-01-02', null, null);
+    // Plus one genuine range row that should survive.
+    raw.prepare('INSERT INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max) VALUES (?,?,?,?)')
+      .run('SPY', '2024-01-03', 25, 40);
+    raw.close();
+
+    // Re-open — migration runs, dedupes, creates the unique index.
+    initDB(dbPath);
+
+    const ro = new Database(dbPath, { readonly: true });
+    const nullRows = ro.prepare(
+      'SELECT COUNT(*) AS n FROM fetch_log_intervals WHERE ticker=? AND trade_date=? AND dte_min IS NULL AND dte_max IS NULL',
+    ).get('SPY', '2024-01-02') as { n: number };
+    const rangeRows = ro.prepare(
+      'SELECT COUNT(*) AS n FROM fetch_log_intervals WHERE ticker=? AND trade_date=? AND dte_min=? AND dte_max=?',
+    ).get('SPY', '2024-01-03', 25, 40) as { n: number };
+    ro.close();
+    expect(nullRows.n).toBe(1); // three dupes → deduped to one
+    expect(rangeRows.n).toBe(1); // genuine row survived
+  });
+
   it('treats legacy NULL/NULL entries as full-coverage hits for backward compat', async () => {
     // Simulate an entry inserted by a pre-Phase-1.g cache: rows in
     // option_chains but fetch_log has NULL dte_min/dte_max.
