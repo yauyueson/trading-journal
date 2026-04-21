@@ -20,7 +20,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { config as dotenvConfig } from 'dotenv';
 import Database from 'better-sqlite3';
-import { fetchHistoricalChain, initDB, closeDB, getApiCallCount, resetApiCallCount } from '../src/lib/backtest/chain-cache';
+import { fetchHistoricalChain, initDB, closeDB, getApiCallCount, resetApiCallCount, clearFetchLogEntries } from '../src/lib/backtest/chain-cache';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: path.resolve(__dirname, '../.env') });
@@ -97,10 +97,12 @@ async function main() {
 
     if (needsRetry.length === 0) continue;
 
-    // Delete the 0-row fetch_log entries so fetchHistoricalChain will retry
-    const deleteStmt = db.prepare('DELETE FROM fetch_log WHERE ticker = ? AND trade_date = ?');
-    const tx = db.transaction((dates: string[]) => { for (const d of dates) deleteStmt.run(ticker, d); });
-    tx(needsRetry);
+    // Clear BOTH fetch_log AND fetch_log_intervals so isCovered returns
+    // false on the retry. Phase 1.h moved coverage authority to the
+    // interval list — deleting fetch_log alone is no longer enough.
+    for (const d of needsRetry) {
+      clearFetchLogEntries(ticker, d);
+    }
 
     let fetched = 0;
     let emptyAgain = 0;

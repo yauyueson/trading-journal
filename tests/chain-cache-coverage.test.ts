@@ -28,6 +28,7 @@ import {
   getCachedChain,
   getApiCallCount,
   resetApiCallCount,
+  clearFetchLogEntries,
 } from '../src/lib/backtest/chain-cache';
 
 interface OratsRow {
@@ -279,6 +280,92 @@ describe('chain-cache DTE-range coverage (Phase 1.g)', () => {
     expect(intervals).toContainEqual({ dte_min: 25, dte_max: 40 });
     expect(flRow.dte_min).toBeNull();
     expect(flRow.dte_max).toBeNull();
+  });
+
+  it('backfills fetch_log_intervals from existing fetch_log on first upgrade (Codex r15 F1)', async () => {
+    // Simulate a pre-Phase-1.h DB state: fetch_log has a 1.g envelope row,
+    // no fetch_log_intervals table. Easiest way is to close our current DB,
+    // craft one by hand, then re-open through initDB so the migration runs.
+    closeDB();
+    fs.rmSync(dbPath, { force: true });
+
+    const raw = new Database(dbPath);
+    raw.exec(`
+      CREATE TABLE fetch_log (
+        ticker TEXT NOT NULL,
+        trade_date TEXT NOT NULL,
+        rows_fetched INTEGER,
+        dte_min INTEGER,
+        dte_max INTEGER,
+        fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (ticker, trade_date)
+      );
+    `);
+    raw.prepare('INSERT INTO fetch_log (ticker, trade_date, rows_fetched, dte_min, dte_max) VALUES (?,?,?,?,?)')
+      .run('SPY', '2024-01-02', 50, 25, 40);
+    raw.prepare('INSERT INTO fetch_log (ticker, trade_date, rows_fetched, dte_min, dte_max) VALUES (?,?,?,?,?)')
+      .run('SPY', '2024-01-03', 200, null, null);  // legacy full-coverage
+    raw.close();
+
+    // Re-open via initDB — this runs the Phase 1.h migration.
+    initDB(dbPath);
+
+    const ro = new Database(dbPath, { readonly: true });
+    const intervals = ro.prepare(
+      'SELECT ticker, trade_date, dte_min, dte_max FROM fetch_log_intervals ORDER BY trade_date, dte_min IS NULL DESC',
+    ).all() as { ticker: string; trade_date: string; dte_min: number | null; dte_max: number | null }[];
+    ro.close();
+    expect(intervals).toEqual([
+      { ticker: 'SPY', trade_date: '2024-01-02', dte_min: 25, dte_max: 40 },
+      { ticker: 'SPY', trade_date: '2024-01-03', dte_min: null, dte_max: null },
+    ]);
+
+    // Coverage check: 1.g envelope entry still hits for its range.
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-02', undefined, [25, 40]);
+    expect(getApiCallCount()).toBe(0);
+
+    // Legacy NULL/NULL entry still hits for anything.
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-03', undefined, [2, 7]);
+    expect(getApiCallCount()).toBe(0);
+  });
+
+  it('clearFetchLogEntries wipes both tables so recovery retries re-fetch (Codex r15 F2)', async () => {
+    // Populate cache with a zero-row fetch (simulating a truncated response).
+    fetchSpy.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: async () => makeOratsResponse([]),
+    } as unknown as Response);
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-02', undefined, [60, 330]);
+    expect(getApiCallCount()).toBe(1);
+
+    // Second call on the same range HITS the cached empty interval.
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-02', undefined, [60, 330]);
+    expect(getApiCallCount()).toBe(1);
+
+    // Repair flow: clear both tables; next call re-fetches.
+    clearFetchLogEntries('SPY', '2024-01-02');
+    fetchSpy.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: async () => makeOratsResponse([makeOratsRow('SPY', '2024-01-02', 90, 450)]),
+    } as unknown as Response);
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-02', undefined, [60, 330]);
+    expect(getApiCallCount()).toBe(2);
+
+    // Verify cleared BOTH tables by inspecting the DB.
+    const db = new Database(dbPath, { readonly: true });
+    const flCount = db.prepare(
+      'SELECT COUNT(*) AS n FROM fetch_log WHERE ticker=? AND trade_date=?',
+    ).get('SPY', '2024-01-02') as { n: number };
+    // fetch_log now has the new successful fetch.
+    expect(flCount.n).toBe(1);
+    // fetch_log_intervals should have exactly ONE row — the new [60, 330]
+    // entry. The stale empty-range interval from before the clear was
+    // removed.
+    const intervalCount = db.prepare(
+      'SELECT COUNT(*) AS n FROM fetch_log_intervals WHERE ticker=? AND trade_date=?',
+    ).get('SPY', '2024-01-02') as { n: number };
+    db.close();
+    expect(intervalCount.n).toBe(1);
   });
 
   it('treats legacy NULL/NULL entries as full-coverage hits for backward compat', async () => {

@@ -167,21 +167,6 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
       fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (ticker, trade_date)
     );
-
-    -- Phase 1.h: per-fetch interval list. Each row records one fetched
-    -- (ticker, trade_date, dteRange) tuple. NULL dte_min/dte_max means the
-    -- fetch requested no filter = full chain. Multiple rows per
-    -- (ticker, trade_date) accumulate as strategies with different DTE
-    -- windows touch the same date. UNIQUE prevents dupes on repeat calls.
-    CREATE TABLE IF NOT EXISTS fetch_log_intervals (
-      ticker TEXT NOT NULL,
-      trade_date TEXT NOT NULL,
-      dte_min INTEGER,
-      dte_max INTEGER,
-      fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE (ticker, trade_date, dte_min, dte_max)
-    );
-    CREATE INDEX IF NOT EXISTS idx_fli_lookup ON fetch_log_intervals(ticker, trade_date);
   `);
 
     // Phase 1.g migration (2026-04-20) — add dte_min/dte_max to pre-existing
@@ -190,6 +175,9 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
     // keep NULL/NULL, which is treated as "full coverage" for backward
     // compatibility with prefetched caches. Going forward, explicit fetches
     // stamp the range they requested.
+    //
+    // Must run BEFORE the Phase 1.h backfill below, which reads these
+    // columns.
     for (const col of ['dte_min', 'dte_max']) {
       try {
         _db.exec(`ALTER TABLE fetch_log ADD COLUMN ${col} INTEGER`);
@@ -198,6 +186,39 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
         // or from the CREATE statement above. Anything else re-throws.
         if (!/duplicate column name/i.test((err as Error).message)) throw err;
       }
+    }
+
+    // Phase 1.h: per-fetch interval list. Each row records one fetched
+    // (ticker, trade_date, dteRange) tuple. NULL dte_min/dte_max means the
+    // fetch requested no filter = full chain. Multiple rows per
+    // (ticker, trade_date) accumulate as strategies with different DTE
+    // windows touch the same date. UNIQUE prevents dupes on repeat calls.
+    //
+    // Migration: detect whether the table existed BEFORE the CREATE. If it
+    // was just created and an older 1.g fetch_log already has rows, backfill
+    // their envelopes into the interval list. Without the backfill, on the
+    // first upgrade run `isCovered` would report every previously-cached
+    // partial range as a miss and re-fetch through ORATS — burning a lot of
+    // quota. Codex round-15 Finding 1 (2026-04-20).
+    const hadIntervalsBeforeCreate = !!_db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='fetch_log_intervals'",
+    ).get();
+    _db.exec(`
+      CREATE TABLE IF NOT EXISTS fetch_log_intervals (
+        ticker TEXT NOT NULL,
+        trade_date TEXT NOT NULL,
+        dte_min INTEGER,
+        dte_max INTEGER,
+        fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (ticker, trade_date, dte_min, dte_max)
+      );
+      CREATE INDEX IF NOT EXISTS idx_fli_lookup ON fetch_log_intervals(ticker, trade_date);
+    `);
+    if (!hadIntervalsBeforeCreate) {
+      _db.exec(`
+        INSERT OR IGNORE INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max)
+        SELECT ticker, trade_date, dte_min, dte_max FROM fetch_log
+      `);
     }
   } // end if (!readonly) for the WAL + schema block
 
@@ -253,6 +274,33 @@ export function closeDB(): void {
   _fetchLogHasDteCols = false;
   _hasIntervalTable = false;
   if (_db) { _db.close(); _db = null; }
+}
+
+/**
+ * Delete both `fetch_log` and `fetch_log_intervals` rows for a (ticker,
+ * date) pair in a single transaction.
+ *
+ * Codex round-15 Finding 2 (2026-04-20): recovery workflows like
+ * `scripts/repair-truncated-chains.ts` used to delete from `fetch_log`
+ * alone and rely on `isCached` returning false to trigger a retry. After
+ * Phase 1.h the interval list is authoritative, so repair flows must
+ * clear BOTH tables or `isCovered` keeps hitting the stale empty
+ * interval and short-circuits the retry.
+ *
+ * Safe no-op when either table is absent or the pair has no rows.
+ */
+export function clearFetchLogEntries(
+  ticker: string,
+  trade_date: string,
+): void {
+  const db = initDB();
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM fetch_log WHERE ticker = ? AND trade_date = ?').run(ticker, trade_date);
+    if (_hasIntervalTable) {
+      db.prepare('DELETE FROM fetch_log_intervals WHERE ticker = ? AND trade_date = ?').run(ticker, trade_date);
+    }
+  });
+  tx();
 }
 
 // ── Cache Operations ─────────────────────────────────────
