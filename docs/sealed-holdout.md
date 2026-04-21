@@ -2,6 +2,7 @@
 
 **Adopted:** 2026-04-19 (Phase 0.a.5 of the foundation rebuild).
 **Applies to:** every autoresearch campaign going forward.
+**Companion:** [docs/holdout-refresh-policy.md](holdout-refresh-policy.md) — governs when the holdout WINDOW itself gets rotated; this doc governs how a SINGLE CANDIDATE is sealed against the current window.
 
 ## What this policy is for
 
