@@ -46,6 +46,7 @@ import { appendTrial } from './lib/trial-ledger';
 import { stripHoldoutMetrics } from './lib/leaderboard-redaction';
 import { computeEffectiveSampleSize } from './lib/effective-sample-size';
 import { bootstrapSharpeCI as bootstrapSharpeCILib } from './lib/bootstrap-sharpe';
+import { computeMertensSharpeSE } from './lib/mertens-sharpe-se';
 
 // ── Config ──────────────────────────────────────────────
 
@@ -1293,6 +1294,17 @@ async function main() {
     // enough to capture typical credit-spread trade-life autocorrelation.
     const nOosDaily = oosMetrics.dailyReturns.length;
     const nEffOosDaily = computeEffectiveSampleSize(oosMetrics.dailyReturns, 20);
+    // Phase 2.c: closed-form Mertens SE on the annualized Sharpe, using
+    // N_eff as the effective sample size. Diagnostic — gives a second
+    // independent estimate of the Sharpe SE that can be compared against
+    // the bootstrap-CI-derived SE. Large divergence between the two is a
+    // signal that either the bootstrap is under-covering (e.g. strong
+    // autocorrelation beyond what block bootstrap handles) or the
+    // parametric SE is biased by extreme higher moments.
+    const mertens = computeMertensSharpeSE(oosMetrics.dailyReturns, nEffOosDaily, 252);
+    const mertensSharpeSE = mertens.annualizedSe;
+    const mertensSkewness = mertens.skewness;
+    const mertensKurtosis = mertens.kurtosis;
     const holdoutOOSRatio = oosMetrics.sharpe > 0.01 ? holdoutMetrics.sharpe / oosMetrics.sharpe : 0;
 
     // 13. Validity checks
@@ -1449,6 +1461,9 @@ async function main() {
       deflatedSharpe,
       nEffOosDaily,
       nOosDaily,
+      mertensSharpeSE,
+      mertensSkewness,
+      mertensKurtosis,
       exitTypeBreakdown,
       signalsGenerated: allSignals.length,
       signalsSkippedNoChain: allSignals.length - workerResult.allOOSTrades.length - workerResult.holdoutTrades.length,
@@ -1685,6 +1700,18 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
     const ratio = r.nEffOosDaily / r.nOosDaily;
     const flag = ratio < 0.3 ? ' ⚠ very autocorrelated' : ratio < 0.6 ? ' (moderately autocorrelated)' : '';
     console.log(`N_eff(OOS daily): ${r.nEffOosDaily.toFixed(0)} of ${r.nOosDaily} days (ratio ${ratio.toFixed(2)})${flag}`);
+  }
+  if (r.mertensSharpeSE != null) {
+    // Compare Mertens SE against the bootstrap-CI-derived SE.
+    // Large ratio (> 1.5 or < 0.67) = model-spec disagreement worth flagging.
+    const bootSE = (r.bootstrapSharpe95CI[1] - r.bootstrapSharpe95CI[0]) / (2 * 1.96);
+    const disagree = bootSE > 0 && (r.mertensSharpeSE / bootSE > 1.5 || r.mertensSharpeSE / bootSE < 0.67);
+    const skewTxt = r.mertensSkewness != null ? `skew ${r.mertensSkewness.toFixed(2)}` : '';
+    const kurtTxt = r.mertensKurtosis != null ? `kurt ${r.mertensKurtosis.toFixed(2)}` : '';
+    console.log(
+      `Mertens Sharpe SE: ${r.mertensSharpeSE.toFixed(3)} vs bootstrap SE ${bootSE.toFixed(3)}` +
+      `${disagree ? ' ⚠ disagrees' : ''} (${[skewTxt, kurtTxt].filter(Boolean).join(', ')})`
+    );
   }
   console.log(`WF Efficiency: ${r.wfEfficiency.toFixed(2)} (avg train: ${r.avgTrainSharpe.toFixed(3)})`);
   console.log('');

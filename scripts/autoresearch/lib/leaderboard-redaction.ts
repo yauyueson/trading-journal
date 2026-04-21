@@ -115,6 +115,13 @@ export const AGENT_VISIBLE_FIELDS = [
   // search-loop agent.
   'nEffOosDaily',
   'nOosDaily',
+  // Phase 2.c: Mertens closed-form Sharpe SE + higher moments. Same
+  // selection-period OOS provenance as `bootstrapSharpe95CI` — safe to
+  // expose. Useful search-loop signal (extreme kurtosis or skew flags
+  // fat-tailed/asymmetric return streams the bootstrap may mis-calibrate).
+  'mertensSharpeSE',
+  'mertensSkewness',
+  'mertensKurtosis',
   // Pre-registration audit trail
   'preRegBypassed',
   'preRegBypassReason',

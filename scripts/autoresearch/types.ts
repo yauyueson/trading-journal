@@ -223,6 +223,15 @@ export interface RunResult {
   // can second-guess the bootstrap CI / deflated Sharpe. Agent-visible.
   nEffOosDaily?: number;
   nOosDaily?: number;                // raw length for context (days with P&L attribution)
+  // Phase 2.c (2026-04-20) — Mertens closed-form SE on the annualized
+  // Sharpe, using N_eff as the effective sample size and the OOS
+  // returns' own skew/kurtosis. Independent second estimate of the SE
+  // to sanity-check the bootstrap CI. Large disagreement with
+  // (bootstrapSharpe95CI[1]-[0])/(2*1.96) flags model mis-specification.
+  // Agent-visible.
+  mertensSharpeSE?: number;
+  mertensSkewness?: number;
+  mertensKurtosis?: number;          // raw kurtosis (3 = normal)
   // Pre-registration audit trail (Phase 0.a.1 / Codex re-review Finding 2).
   // Captured once per run by scripts/autoresearch/lib/pre-reg-gate.ts.
   // Persisted in BOTH full and agent-visible leaderboards so the audit
