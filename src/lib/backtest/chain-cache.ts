@@ -115,6 +115,11 @@ async function fetchORATSHistStrikes(
 
 let _db: Database.Database | null = null;
 let _findContractStmt: Database.Statement | null = null;
+// Phase 1.g: whether fetch_log carries the dte_min/dte_max columns.
+// For writable DBs the migration in initDB ensures this is true. For
+// readonly DBs (committed fixtures pre-dating Phase 1.g) this stays false,
+// and isCovered falls back to the legacy "any entry = covered" check.
+let _fetchLogHasDteCols = false;
 
 export function initDB(dbPath?: string, readonly = false): Database.Database {
   if (_db) return _db;
@@ -150,10 +155,44 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
       ticker TEXT NOT NULL,
       trade_date TEXT NOT NULL,
       rows_fetched INTEGER,
+      dte_min INTEGER,
+      dte_max INTEGER,
       fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (ticker, trade_date)
     );
   `);
+
+    // Phase 1.g migration (2026-04-20) — add dte_min/dte_max to pre-existing
+    // fetch_log so that cache reads can tell whether a previous fetch covered
+    // the requested DTE range. Legacy rows (inserted before this migration)
+    // keep NULL/NULL, which is treated as "full coverage" for backward
+    // compatibility with prefetched caches. Going forward, explicit fetches
+    // stamp the range they requested.
+    for (const col of ['dte_min', 'dte_max']) {
+      try {
+        _db.exec(`ALTER TABLE fetch_log ADD COLUMN ${col} INTEGER`);
+      } catch (err) {
+        // "duplicate column name" — column already exists from a prior run
+        // or from the CREATE statement above. Anything else re-throws.
+        if (!/duplicate column name/i.test((err as Error).message)) throw err;
+      }
+    }
+  } // end if (!readonly) for the WAL + schema block
+
+  // Detect Phase 1.g columns on whatever DB we're attached to (works for
+  // both readonly fixtures and writable caches). If absent, isCovered falls
+  // back to the legacy "entry exists ⇒ covered" check so pre-1.g fixtures
+  // keep working.
+  {
+    const cols = _db.prepare('PRAGMA table_info(fetch_log)').all() as { name: string }[];
+    const names = new Set(cols.map(c => c.name));
+    _fetchLogHasDteCols = names.has('dte_min') && names.has('dte_max');
+  }
+
+  // Re-open the closing brace for the original WAL-guard so the existing
+  // orats_cores_cache block runs inside the write path (it used to share
+  // the same `if (!readonly)`). Keep that path intact.
+  if (!readonly) {
 
     // v2: ORATS cores cache for VRP, contango, slope, smvVol
     _db.exec(`
@@ -180,18 +219,110 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
 
 export function closeDB(): void {
   _findContractStmt = null;
+  _fetchLogHasDteCols = false;
   if (_db) { _db.close(); _db = null; }
 }
 
 // ── Cache Operations ─────────────────────────────────────
 
-function isCached(ticker: string, date: string): boolean {
+/**
+ * Coverage check: does `fetch_log` have an entry for (ticker, date) that
+ * covers `requestedRange`?
+ *
+ * Semantics:
+ *  - No entry → false (need to fetch).
+ *  - Entry with (NULL, NULL) → true for ANY request. This keeps backward
+ *    compatibility with caches populated before Phase 1.g, which never
+ *    stamped a DTE range. Going forward new fetches stamp their range.
+ *  - Entry with [a, b] AND no requestedRange (caller wants full chain) →
+ *    false. A partial fetch doesn't satisfy "give me everything."
+ *  - Entry with [a, b] AND requestedRange [c, d] → true iff a ≤ c AND b ≥ d
+ *    (cached range fully encloses requested).
+ *
+ * Known limitation: if two disjoint fetches merged into a union envelope
+ * (e.g., [5,10] then [60,330] → stamped as [5,330]), coverage lies for
+ * gaps like [20,50]. This codebase almost never does disjoint fetches for
+ * the same (ticker, date), so we accept the simpler single-interval model.
+ */
+function isCovered(
+  ticker: string,
+  date: string,
+  requestedRange?: [number, number],
+): boolean {
+  const db = initDB();
+  if (!_fetchLogHasDteCols) {
+    // Legacy DB (typically a committed readonly fixture that predates the
+    // Phase 1.g migration). Fall back to presence-only check — safe because
+    // such fixtures were built by full fetches that we trusted as complete.
+    const row = db.prepare('SELECT 1 FROM fetch_log WHERE ticker = ? AND trade_date = ?').get(ticker, date);
+    return !!row;
+  }
+  const row = db.prepare(
+    'SELECT dte_min, dte_max FROM fetch_log WHERE ticker = ? AND trade_date = ?',
+  ).get(ticker, date) as { dte_min: number | null; dte_max: number | null } | undefined;
+  if (!row) return false;
+  const legacyFullCoverage = row.dte_min == null && row.dte_max == null;
+  if (legacyFullCoverage) return true;
+  if (!requestedRange) return false;
+  const [reqMin, reqMax] = requestedRange;
+  const cachedMin = row.dte_min ?? Number.NEGATIVE_INFINITY;
+  const cachedMax = row.dte_max ?? Number.POSITIVE_INFINITY;
+  return cachedMin <= reqMin && cachedMax >= reqMax;
+}
+
+// Backward-compat alias for callers that only need "did we ever fetch this
+// (ticker, date) pair" regardless of DTE coverage. Equivalent to
+// `isCovered(..., undefined)` when the pair was fetched with a legacy
+// (NULL, NULL) entry, OR truthy when any entry exists. Prefer `isCovered`
+// in new code.
+function hasFetchLogEntry(ticker: string, date: string): boolean {
   const db = initDB();
   const row = db.prepare('SELECT 1 FROM fetch_log WHERE ticker = ? AND trade_date = ?').get(ticker, date);
   return !!row;
 }
 
-function insertRows(rows: ChainRow[]): void {
+/**
+ * Upsert a fetch_log row, merging the DTE range with any pre-existing entry
+ * as a union envelope (min-of-mins, max-of-maxes). A legacy NULL entry stays
+ * NULL (full coverage — don't narrow it accidentally). A fresh full-range
+ * fetch (range undefined) stays NULL.
+ */
+function upsertFetchLog(
+  db: Database.Database,
+  ticker: string,
+  date: string,
+  rowsFetched: number,
+  dteRange: [number, number] | undefined,
+): void {
+  const existing = db.prepare(
+    'SELECT dte_min, dte_max FROM fetch_log WHERE ticker = ? AND trade_date = ?',
+  ).get(ticker, date) as { dte_min: number | null; dte_max: number | null } | undefined;
+
+  let nextMin: number | null;
+  let nextMax: number | null;
+  if (!dteRange) {
+    // Fresh full-range fetch — covers anything.
+    nextMin = null;
+    nextMax = null;
+  } else if (!existing) {
+    nextMin = dteRange[0];
+    nextMax = dteRange[1];
+  } else if (existing.dte_min == null && existing.dte_max == null) {
+    // Existing entry claims full coverage (legacy NULL or prior full fetch).
+    // A new partial fetch shouldn't downgrade that claim.
+    nextMin = null;
+    nextMax = null;
+  } else {
+    nextMin = Math.min(existing.dte_min ?? dteRange[0], dteRange[0]);
+    nextMax = Math.max(existing.dte_max ?? dteRange[1], dteRange[1]);
+  }
+
+  db.prepare(
+    'INSERT OR REPLACE INTO fetch_log (ticker, trade_date, rows_fetched, dte_min, dte_max) VALUES (?, ?, ?, ?, ?)',
+  ).run(ticker, date, rowsFetched, nextMin, nextMax);
+}
+
+function insertRows(rows: ChainRow[], dteRange?: [number, number]): void {
   const db = initDB();
   const insert = db.prepare(`
     INSERT OR REPLACE INTO option_chains
@@ -201,7 +332,6 @@ function insertRows(rows: ChainRow[]): void {
      delta, gamma, theta, vega)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  const logInsert = db.prepare('INSERT OR REPLACE INTO fetch_log (ticker, trade_date, rows_fetched) VALUES (?, ?, ?)');
 
   const doInsert = db.transaction((r: ChainRow[]) => {
     for (const row of r) {
@@ -213,7 +343,7 @@ function insertRows(rows: ChainRow[]): void {
       );
     }
     if (r.length > 0) {
-      logInsert.run(r[0].ticker, r[0].trade_date, r.length);
+      upsertFetchLog(db, r[0].ticker, r[0].trade_date, r.length, dteRange);
     }
   });
 
@@ -260,23 +390,28 @@ export async function fetchHistoricalChain(
   deltaRange?: [number, number],
   dteRange?: [number, number],
 ): Promise<ChainRow[]> {
-  // Check cache first
-  if (isCached(ticker, date)) {
+  // Coverage-aware cache check: only a HIT if the prior fetch's DTE range
+  // encloses the requested one (or was a full fetch). Otherwise we'd
+  // silently return a chain that's missing the DTEs the caller needs.
+  if (isCovered(ticker, date, dteRange)) {
     return getCachedChain(ticker, date);
   }
 
   // Fetch from ORATS
   const rawRows = await fetchORATSHistStrikes(token, ticker, date, deltaRange, dteRange);
   if (rawRows.length === 0) {
-    // Log empty fetch so we don't retry
+    // Log empty fetch so we don't retry. Stamp the range we tried, so a
+    // later call with a different range still triggers a fetch.
     const db = initDB();
-    db.prepare('INSERT OR REPLACE INTO fetch_log (ticker, trade_date, rows_fetched) VALUES (?, ?, 0)').run(ticker, date);
+    upsertFetchLog(db, ticker, date, 0, dteRange);
     return [];
   }
 
   const chainRows = rawRows.map(mapORATSRow);
-  insertRows(chainRows);
-  return chainRows;
+  insertRows(chainRows, dteRange);
+  // Return all cached rows for (ticker, date) so the caller sees any
+  // pre-existing coverage unioned with what we just fetched.
+  return getCachedChain(ticker, date);
 }
 
 /**
@@ -315,7 +450,7 @@ export async function fetchHistoricalChainsBatch(
 
   for (const t of tickers) {
     const upper = t.toUpperCase();
-    if (isCached(upper, date)) {
+    if (isCovered(upper, date, dteRange)) {
       result.set(upper, getCachedChain(upper, date));
     } else {
       missing.push(upper);
@@ -366,7 +501,7 @@ async function fetchMissingWithSplit(
     // Insert received tickers' rows
     for (const t of received) {
       const rows = byTicker.get(t)!;
-      insertRows(rows);
+      insertRows(rows, dteRange);
       result.set(t, rows);
     }
     // Recurse on the dropped tickers, splitting if >1
@@ -384,13 +519,12 @@ async function fetchMissingWithSplit(
 
   // No truncation: commit every requested ticker (log 0-rows where legitimate).
   const db = initDB();
-  const logInsert = db.prepare('INSERT OR REPLACE INTO fetch_log (ticker, trade_date, rows_fetched) VALUES (?, ?, ?)');
   for (const t of missing) {
     const rows = byTicker.get(t) ?? [];
     if (rows.length > 0) {
-      insertRows(rows);
+      insertRows(rows, dteRange);
     } else {
-      logInsert.run(t, date, 0);
+      upsertFetchLog(db, t, date, 0, dteRange);
     }
     result.set(t, rows);
   }
@@ -416,7 +550,12 @@ export function getCachedChainFiltered(
   deltaRange?: [number, number],
   dteRange?: [number, number],
 ): ChainRow[] {
-  if (!isCached(ticker, date)) return [];
+  // Read-only: return [] for any untouched (ticker, date). The final
+  // row-level DTE filter below catches the case where the cached range
+  // doesn't cover the requested range — we just skip rows outside it,
+  // and the caller sees an empty result exactly as they would have from
+  // a missing cache.
+  if (!hasFetchLogEntry(ticker, date)) return [];
   const rows = getCachedChain(ticker, date);
   return rows.filter(r => {
     if (deltaRange && (r.delta < deltaRange[0] || r.delta > deltaRange[1])) return false;
@@ -561,7 +700,10 @@ export async function prefetchDates(
 ): Promise<number> {
   let fetched = 0;
   for (let i = 0; i < dates.length; i++) {
-    if (!isCached(ticker, dates[i])) {
+    // prefetchDates has no DTE argument — fetch full chain, so the
+    // "already fetched at all" check is sufficient (`fetchHistoricalChain`
+    // stamps the legacy NULL/NULL range, satisfying future coverage checks).
+    if (!hasFetchLogEntry(ticker, dates[i])) {
       await fetchHistoricalChain(token, ticker, dates[i], deltaRange);
       fetched++;
       // Rate limiting: pause briefly between calls
@@ -584,10 +726,12 @@ export async function fetchMultiTickerChain(
 ): Promise<Map<string, ChainRow[]>> {
   const result = new Map<string, ChainRow[]>();
 
-  // Check which tickers need fetching
+  // Check which tickers need fetching. fetchMultiTickerChain doesn't
+  // take a DTE range so it always fetches full — legacy full-coverage
+  // entries satisfy via `isCovered(..., undefined)`.
   const needed: string[] = [];
   for (const t of tickers) {
-    if (isCached(t, date)) {
+    if (isCovered(t, date, undefined)) {
       result.set(t, getCachedChain(t, date));
     } else {
       needed.push(t);
@@ -612,15 +756,14 @@ export async function fetchMultiTickerChain(
     byTicker.get(t)!.push(row);
   }
 
+  const db = initDB();
   for (const t of needed) {
     const rows = byTicker.get(t) || [];
     const chainRows = rows.map(mapORATSRow);
     if (chainRows.length > 0) {
-      insertRows(chainRows);
+      insertRows(chainRows, undefined);
     } else {
-      // Log empty fetch
-      const db = initDB();
-      db.prepare('INSERT OR REPLACE INTO fetch_log (ticker, trade_date, rows_fetched) VALUES (?, ?, 0)').run(t, date);
+      upsertFetchLog(db, t, date, 0, undefined);
     }
     result.set(t, chainRows);
   }
@@ -642,10 +785,13 @@ export async function prefetchAll(
 ): Promise<number> {
   let apiCalls = 0;
 
-  // Find dates that need any fetching
+  // Find dates that need any fetching. No DTE range at this level, so
+  // a prior fetch_log entry (any range) means "we tried this date" —
+  // fetchMultiTickerChain will still re-fetch tickers whose entries
+  // aren't covered, so this is just a pre-filter.
   const datesToFetch: string[] = [];
   for (const date of dates) {
-    const allCached = tickers.every(t => isCached(t, date));
+    const allCached = tickers.every(t => hasFetchLogEntry(t, date));
     if (!allCached) datesToFetch.push(date);
   }
 
