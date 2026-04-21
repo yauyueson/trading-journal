@@ -35,6 +35,8 @@ const SAMPLE_GATES = {
     minNewHoldoutTrades: 1,
     bootstrapIterations: 1000,
     naiveBaselineIntervalDays: 5,
+    minStabilityHoldoutOosRatio: 0.5,
+    maxStabilityHoldoutOosRatio: 2.0,
   },
   environmentOverrides: {},
 };
@@ -220,6 +222,31 @@ describe('validateGateRanges', () => {
 
   it('accepts maxSanePerTradeEdge = 1.0 (upper bound, disables gate)', () => {
     expect(() => validateGateRanges({ ...baseGates, maxSanePerTradeEdge: 1.0 })).not.toThrow();
+  });
+
+  // Codex round-12 Finding 2: stability-ratio bounds must be hashed.
+  it('rejects minStabilityHoldoutOosRatio <= 0', () => {
+    expect(() => validateGateRanges({ ...baseGates, minStabilityHoldoutOosRatio: 0 })).toThrow(/minStabilityHoldoutOosRatio/);
+    expect(() => validateGateRanges({ ...baseGates, minStabilityHoldoutOosRatio: -0.1 })).toThrow(/minStabilityHoldoutOosRatio/);
+  });
+
+  it('rejects maxStabilityHoldoutOosRatio <= minStabilityHoldoutOosRatio (inverted pair)', () => {
+    expect(() => validateGateRanges({
+      ...baseGates, minStabilityHoldoutOosRatio: 2.0, maxStabilityHoldoutOosRatio: 0.5,
+    })).toThrow(/maxStabilityHoldoutOosRatio/);
+    expect(() => validateGateRanges({
+      ...baseGates, minStabilityHoldoutOosRatio: 1.0, maxStabilityHoldoutOosRatio: 1.0,
+    })).toThrow(/maxStabilityHoldoutOosRatio/);
+  });
+
+  it('rejects non-finite maxStabilityHoldoutOosRatio', () => {
+    expect(() => validateGateRanges({ ...baseGates, maxStabilityHoldoutOosRatio: Infinity })).toThrow(/maxStabilityHoldoutOosRatio/);
+  });
+
+  it('accepts asymmetric-but-valid stability pair (research flexibility)', () => {
+    expect(() => validateGateRanges({
+      ...baseGates, minStabilityHoldoutOosRatio: 0.25, maxStabilityHoldoutOosRatio: 3.0,
+    })).not.toThrow();
   });
 
   it('validation fires inside loadAdoptionGates when env override pushes a value out of range', () => {

@@ -1365,12 +1365,28 @@ async function main() {
     const passesSanityMaxDD = oosMetrics.maxDrawdownPct >= g.minSaneOosDrawdownPct;
     // Per-trade edge: only CREDIT_SPREAD mode has a bounded maxProfit.
     // LEAP/BUY_WRITE trades carry no such ceiling and trivially pass.
+    //
+    // Codex round-12 Finding 1 (2026-04-20): numerator and denominator must
+    // be on the same fill basis. `maxProfit` is stored as the net entry
+    // credit, but `grossPnl` is clamped against the GROSS entry credit
+    // (= net + entrySlippage). Under default bid/ask slippage, any trade
+    // closing at max profit yields `grossPnl / (maxProfit * 100) > 1.0`,
+    // which would falsely trip `passesSanityEdge` for legitimate runs.
+    // Reconstruct the gross max profit from stored trade fields so the
+    // ratio stays bounded at 1.0 regardless of slippage magnitude.
     const csOosTrades = workerResult.allOOSTrades.filter(
       t => t.mode === 'CREDIT_SPREAD' && (t.maxProfit ?? 0) > 0,
     );
-    const oosPerTradeEdges = csOosTrades.map(t =>
-      ((t.grossPnl ?? t.pnl) / ((t.maxProfit ?? 1) * 100)),
-    );
+    const oosPerTradeEdges = csOosTrades.map(t => {
+      if (t.grossPnl != null) {
+        // Gross basis: grossPnl is clamped at grossEntryCredit*100 where
+        // grossEntryCredit = netEntryCredit + entrySlippage (both positive).
+        const grossMaxProfit = (t.maxProfit ?? 0) + (t.entrySlippage ?? 0);
+        return grossMaxProfit > 0 ? t.grossPnl / (grossMaxProfit * 100) : 0;
+      }
+      // Net basis fallback for trades missing grossPnl (legacy/cached rows).
+      return t.pnl / ((t.maxProfit ?? 1) * 100);
+    });
     const meanPerTradeEdge = oosPerTradeEdges.length > 0
       ? oosPerTradeEdges.reduce((s, e) => s + e, 0) / oosPerTradeEdges.length
       : 0;
@@ -1393,12 +1409,17 @@ async function main() {
     const passesHoldoutNewEntries = newHoldoutTrades >= g.minNewHoldoutTrades;
     // Phase 1.b: holdout/OOS stability gate. The ratio reveals whether
     // holdout performance is consistent with OOS (ratio ~1) or diverges
-    // wildly. Ratio < 0.5 → overfit to selection window. Ratio > 2.0 →
-    // holdout "too good," usually data snooping or pre-reg-rule bending.
-    // Previously documented as "manual check" in backtest-trust-gotchas.md;
-    // now a hard gate in `isValid`. Held OUT of `isValidForSearch` to keep
-    // agents holdout-blind; stripped from agent-visible leaderboard below.
-    const passesStability = holdoutOOSRatio >= 0.5 && holdoutOOSRatio <= 2.0;
+    // wildly. Ratio below min → overfit to selection window. Ratio above
+    // max → holdout "too good," usually data snooping or pre-reg-rule
+    // bending. Previously documented as "manual check" in
+    // backtest-trust-gotchas.md; now a hard gate in `isValid`. Bounds live
+    // in the hashed adoption-gates config so changes trip
+    // adoptionGatesRawHash (Codex round-12 Finding 2, 2026-04-20). Held OUT
+    // of `isValidForSearch` to keep agents holdout-blind; stripped from
+    // agent-visible leaderboard below.
+    const passesStability =
+      holdoutOOSRatio >= g.minStabilityHoldoutOosRatio &&
+      holdoutOOSRatio <= g.maxStabilityHoldoutOosRatio;
     // Search-time validity: holdout-blind. Agents see this.
     const isValidForSearch = passesMinTrades && passesMaxDD && passesWFA && passesSanity && passesDeltaGates;
     // Overall validity: includes holdout gate + new-entries guard + stability.

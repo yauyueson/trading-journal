@@ -16,6 +16,14 @@ export interface AdoptionGates {
   minNewHoldoutTrades: number;
   bootstrapIterations: number;
   naiveBaselineIntervalDays: number;
+  // Phase 1.b: holdout/OOS stability ratio bounds. Sharpe(holdout)/Sharpe(OOS)
+  // outside [min, max] flags overfit-to-selection (ratio < min) or
+  // data-snooping / pre-reg drift (ratio > max). Hashed here so adoption
+  // policy changes trip `adoptionGatesRawHash`. Codex round-12 Finding 2
+  // (2026-04-20): previously hardcoded 0.5/2.0 in runner.ts bypassed the
+  // audit hash.
+  minStabilityHoldoutOosRatio: number;
+  maxStabilityHoldoutOosRatio: number;
 }
 
 export interface GateEnvOverrideSpec {
@@ -71,6 +79,7 @@ export function loadAdoptionGates(opts?: { repoRoot?: string }): LoadedGates {
     'minHoldoutSharpe', 'maxSaneOosSharpe',
     'minHoldoutMetric', 'minHoldoutIrFloor', 'minNewHoldoutTrades',
     'bootstrapIterations', 'naiveBaselineIntervalDays',
+    'minStabilityHoldoutOosRatio', 'maxStabilityHoldoutOosRatio',
   ];
   for (const k of required) {
     if (typeof parsed.gates[k] !== 'number' || !Number.isFinite(parsed.gates[k])) {
@@ -163,6 +172,24 @@ export function validateGateRanges(g: AdoptionGates): void {
   // Non-negative real (holdout threshold — zero means "any positive Sharpe").
   if (!(g.minHoldoutMetric >= 0)) {
     throw new Error(`adoption-gates: gates.minHoldoutMetric=${g.minHoldoutMetric} must be >= 0. A negative threshold would silently relax the adoption bar.`);
+  }
+  // Phase 1.b stability bounds — hashed here so adoption policy changes
+  // trip adoptionGatesRawHash. Min must be > 0 and strictly less than max
+  // (else the gate either accepts nothing or can't invert). Max must be
+  // finite and > min. Ratio of 1.0 is the "perfect stability" midpoint;
+  // a sensible pair straddles it (e.g., 0.5 and 2.0).
+  if (!(g.minStabilityHoldoutOosRatio > 0)) {
+    throw new Error(
+      `adoption-gates: gates.minStabilityHoldoutOosRatio=${g.minStabilityHoldoutOosRatio} must be > 0. ` +
+      `A non-positive floor would accept wildly divergent holdout Sharpe as "stable."`,
+    );
+  }
+  if (!Number.isFinite(g.maxStabilityHoldoutOosRatio) ||
+      g.maxStabilityHoldoutOosRatio <= g.minStabilityHoldoutOosRatio) {
+    throw new Error(
+      `adoption-gates: gates.maxStabilityHoldoutOosRatio=${g.maxStabilityHoldoutOosRatio} must be ` +
+      `a finite number strictly greater than minStabilityHoldoutOosRatio=${g.minStabilityHoldoutOosRatio}.`,
+    );
   }
   // Unconstrained reals: minHoldoutSharpe and minHoldoutIrFloor are allowed
   // any finite value, since research scenarios can legitimately set them
