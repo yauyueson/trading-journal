@@ -513,6 +513,41 @@ function backfillIsValidForSearch(entry: RunResult): RunResult {
   return { ...entry, isValidForSearch: computed } as RunResult;
 }
 
+/**
+ * Phase 2.i migration: normalize Phase 2.g rows to the Phase 2.i schema.
+ *
+ * Phase 2.g (commit b418a51) briefly made `deflatedSharpe` Mertens-SE-
+ * driven and moved the historical bootstrap value to a new field
+ * `deflatedSharpeBootstrap`. Phase 2.i (Codex round-22) reverted that
+ * promotion because downstream analyses compare `deflatedSharpe > 0`
+ * and sort by it across rows. Continuing an existing leaderboard past
+ * the revert would mix two formulas under the same field name — the
+ * exact problem the revert was supposed to fix — UNLESS we normalize
+ * on load.
+ *
+ * Detection: a row wrote by Phase 2.g carries a `deflatedSharpeBootstrap`
+ * field. In that row, `deflatedSharpe` is the Mertens-based value.
+ * We swap them so the normalized row matches the 2.i schema:
+ *   deflatedSharpe        ← deflatedSharpeBootstrap (bootstrap-SE-based)
+ *   deflatedSharpeMertens ← deflatedSharpe (Mertens-SE-based)
+ *   deflatedSharpeBootstrap dropped
+ * Idempotent: rows lacking `deflatedSharpeBootstrap` are returned
+ * unchanged.
+ */
+function normalizeDsrSchema(entry: RunResult): RunResult {
+  const e = entry as unknown as Record<string, unknown>;
+  if (!('deflatedSharpeBootstrap' in e)) return entry;
+  const bsValue = e.deflatedSharpeBootstrap;
+  const mertensValue = e.deflatedSharpe;
+  const out = { ...entry } as Record<string, unknown>;
+  if (typeof bsValue === 'number') out.deflatedSharpe = bsValue;
+  if (typeof mertensValue === 'number' && out.deflatedSharpeMertens == null) {
+    out.deflatedSharpeMertens = mertensValue;
+  }
+  delete out.deflatedSharpeBootstrap;
+  return out as unknown as RunResult;
+}
+
 // Optional suffix for leaderboard files — lets a campaign run in isolation
 // (e.g. AUTORESEARCH_LEADERBOARD_SUFFIX=campaign-a writes to
 // leaderboard-campaign-a.json / leaderboard-full-campaign-a.json).
@@ -547,7 +582,7 @@ function loadLeaderboard(): RunResult[] {
   const { fullPath } = leaderboardPaths();
   if (!fs.existsSync(fullPath)) return [];
   const raw = JSON.parse(fs.readFileSync(fullPath, 'utf-8')) as RunResult[];
-  return raw.map(backfillIsValidForSearch);
+  return raw.map(backfillIsValidForSearch).map(normalizeDsrSchema);
 }
 
 function saveLeaderboard(entries: RunResult[]) {
@@ -775,7 +810,7 @@ async function main() {
     const { fullPath, agentPath } = leaderboardPaths();
     if (!fs.existsSync(fullPath) && fs.existsSync(agentPath)) {
       const raw = JSON.parse(fs.readFileSync(agentPath, 'utf-8')) as RunResult[];
-      const existing = raw.map(backfillIsValidForSearch);
+      const existing = raw.map(backfillIsValidForSearch).map(normalizeDsrSchema);
       fs.writeFileSync(fullPath, JSON.stringify(existing, null, 2));
       fs.writeFileSync(agentPath, JSON.stringify(existing.map(stripHoldoutMetrics), null, 2));
       const backfilled = existing.length - raw.filter(e => typeof (e as unknown as { isValidForSearch?: unknown }).isValidForSearch === 'boolean').length;

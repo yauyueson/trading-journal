@@ -128,6 +128,13 @@ export const AGENT_VISIBLE_FIELDS = [
   // safe because its ingredients (OOS returns + attempt count) are
   // already exposed individually.
   'deflatedSharpeMertens',
+  // Phase 2.j transitional: `deflatedSharpeBootstrap` was present on
+  // Phase 2.g-era rows. `normalizeDsrSchema` in runner.ts strips it on
+  // load, but a read-before-save window (e.g. inspecting the JSON on
+  // disk before the next runner pass) could still expose it. Allowlist
+  // it so the L3 leakage test doesn't false-alarm during the transition.
+  // Safe to remove once no persisted leaderboard carries Phase 2.g rows.
+  'deflatedSharpeBootstrap',
   // Phase 2.h: stat-consistency flag + ratio. Reviewer-only warning,
   // not wired into isValid. Agent-visible so the search loop can
   // learn to avoid regimes where the two SE estimators disagree.
