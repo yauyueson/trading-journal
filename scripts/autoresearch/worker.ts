@@ -93,6 +93,16 @@ function makeStandardEvaluator(config: SimConfig): TradeEvaluator {
     return makeLeapEvaluator(config);
   }
 
+  // BUY_WRITE is a benchmark-replication mode (Phase 0.c.9 BXM) and is
+  // not supposed to be swept through autoresearch. Fail loud rather than
+  // silently emit zero trades.
+  if (config.mode === 'BUY_WRITE') {
+    throw new Error(
+      "BUY_WRITE requires simulateBuyWrite — not dispatchable via autoresearch worker. " +
+      "Call simulateBuyWrite directly from the CBOE replication script.",
+    );
+  }
+
   // Fallback: null (no trade)
   return () => null;
 }

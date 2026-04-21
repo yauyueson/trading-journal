@@ -11,7 +11,7 @@
 import { normCDF } from '../bsm';
 
 /**
- * Full Black-Scholes-Merton option pricing.
+ * Full Black-Scholes-Merton option pricing with optional dividend yield.
  *
  * @param S     Current underlying price
  * @param K     Strike price
@@ -19,10 +19,22 @@ import { normCDF } from '../bsm';
  * @param sigma Implied volatility as annualized decimal (0.30 = 30%)
  * @param r     Risk-free rate as decimal (0.04 = 4%)
  * @param isCall true for call, false for put
+ * @param q     Dividend yield as annualized continuous decimal (0.014 = 1.4% SPY).
+ *              Optional, default 0. Added in Phase 0.c.9 for BXM replication —
+ *              SPY pays ~1.4%, and ignoring it biases prices and deltas.
+ *              All pre-Phase-0.c.9 callers rely on the q=0 default and keep
+ *              their existing behavior.
  * @returns Option theoretical value (premium per share)
+ *
+ * Formula (Merton 1973 generalization):
+ *   d1 = (ln(S/K) + (r − q + 0.5σ²)·T) / (σ·√T)
+ *   d2 = d1 − σ·√T
+ *   C  = S·e^{−qT}·N(d1) − K·e^{−rT}·N(d2)
+ *   P  = K·e^{−rT}·N(−d2) − S·e^{−qT}·N(−d1)
+ *   Parity: C − P = S·e^{−qT} − K·e^{−rT}.
  */
 export function bsmPrice(
-  S: number, K: number, T: number, sigma: number, r: number, isCall: boolean
+  S: number, K: number, T: number, sigma: number, r: number, isCall: boolean, q: number = 0,
 ): number {
   if (T <= 0) {
     return isCall ? Math.max(0, S - K) : Math.max(0, K - S);
@@ -30,21 +42,62 @@ export function bsmPrice(
   if (sigma <= 0 || S <= 0 || K <= 0) return 0;
 
   const sqrtT = Math.sqrt(T);
-  const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
+  const d1 = (Math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
   const d2 = d1 - sigma * sqrtT;
   const discountK = K * Math.exp(-r * T);
+  const discountS = S * Math.exp(-q * T);
 
   return isCall
-    ? S * normCDF(d1) - discountK * normCDF(d2)
-    : discountK * normCDF(-d2) - S * normCDF(-d1);
+    ? discountS * normCDF(d1) - discountK * normCDF(d2)
+    : discountK * normCDF(-d2) - discountS * normCDF(-d1);
 }
 
 /**
- * BSM delta.
- * Call δ = N(d1), Put δ = N(d1) - 1.
+ * Verify put-call parity holds for a single (S, K, T, σ, r) point.
+ *
+ * Parity: C − P = S − K·e^{-rT}. Rearranged: residual = C − P − (S − K·e^{-rT}).
+ * A correct BSM formula produces residual ~ 0 modulo numerical noise.
+ *
+ * This is a PROPERTY validator intended for tests, not a runtime check.
+ * Calling it in production would double the cost of every BSM price; the
+ * engine is already anchored to QuantLib via tests/bsm-quantlib-parity.test.ts.
+ *
+ * @param tolerance maximum |residual|. Default 1e-8 is achievable at q=0,
+ *   where the identity N(x)+N(−x)=1 cancels the A&S erf approximation
+ *   error (1.5e-7) through the ds·N(d1) − ds·N(−d1) structure exactly.
+ *   For q>0 the cancellation imperfectly tracks the approximation and
+ *   residuals can reach ~1e-7 at S~100. Callers with q>0 should pass a
+ *   tolerance of ~1e-6.
+ */
+export function checkPutCallParity(
+  S: number, K: number, T: number, sigma: number, r: number, tolerance = 1e-8, q: number = 0,
+): { ok: true; residual: number } | { ok: false; residual: number; reason: string } {
+  const call = bsmPrice(S, K, T, sigma, r, true, q);
+  const put = bsmPrice(S, K, T, sigma, r, false, q);
+  // Merton-generalized parity: C − P = S·e^{−qT} − K·e^{−rT}.
+  const expected = S * Math.exp(-q * T) - K * Math.exp(-r * T);
+  const residual = call - put - expected;
+  if (Math.abs(residual) > tolerance) {
+    return {
+      ok: false,
+      residual,
+      reason: `put-call parity violation at S=${S} K=${K} T=${T} σ=${sigma} r=${r} q=${q}: ` +
+        `residual=${residual.toExponential(3)} (tolerance ${tolerance.toExponential(1)}).`,
+    };
+  }
+  return { ok: true, residual };
+}
+
+/**
+ * BSM delta with optional dividend yield.
+ *
+ * With q > 0:
+ *   d1 = (ln(S/K) + (r − q + 0.5σ²)·T) / (σ·√T)
+ *   Call δ = e^{−qT}·N(d1), Put δ = e^{−qT}·(N(d1) − 1).
+ * With q = 0 (default): reduces to the standard form.
  */
 export function bsmDelta(
-  S: number, K: number, T: number, sigma: number, r: number, isCall: boolean
+  S: number, K: number, T: number, sigma: number, r: number, isCall: boolean, q: number = 0,
 ): number {
   if (T <= 0) {
     if (isCall) return S > K ? 1 : S < K ? 0 : 0.5;
@@ -53,8 +106,9 @@ export function bsmDelta(
   if (sigma <= 0 || S <= 0 || K <= 0) return isCall ? 0.5 : -0.5;
 
   const sqrtT = Math.sqrt(T);
-  const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
-  return isCall ? normCDF(d1) : normCDF(d1) - 1;
+  const d1 = (Math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
+  const eqT = Math.exp(-q * T);
+  return isCall ? eqT * normCDF(d1) : eqT * (normCDF(d1) - 1);
 }
 
 /**

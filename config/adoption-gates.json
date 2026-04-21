@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "description": "Canonical adoption gates for autoresearch runner. Changes to this file MUST go through a git PR. Runner hashes this file at start and refuses to continue if the hash changes mid-campaign.",
+  "lastModified": "2026-04-20",
+  "lastModifier": "yauyueson",
+  "rationale": "Phase 1.c/d (2026-04-20): added minSaneOosDrawdownPct=2.0 (8yr MaxDD <2% is TRAILING_LOCK fingerprint) and maxSanePerTradeEdge=0.95 (mean credit-spread edge near 1.0 is the same bug class, spotted at per-trade granularity). Both were on 'manual check' in docs/backtest-trust-gotchas.md; moved to enforced gates. Codex round-12 Finding 2 (2026-04-20): stability-ratio bounds moved out of runner.ts inline constants into hashed config — ratio 0.5..2.0 catches overfit-to-selection (<0.5) and data-snooping/pre-reg-drift (>2.0). Phase 2.h (2026-04-20): added maxStatConsistencyRatio — symmetric ratio between bootstrap-SE and Mertens-SE estimators; originally a soft flag at 2.5x. Phase 2.n (2026-04-20) promoted it to a hard gate wired into isValid; raised threshold to 5.0x so legitimately fat-tailed strategies aren't auto-rejected (at 5x the gate only trips on pathological disagreement). Prior basis (Phase 0.a.2 2026-04-18): extracted from runner.ts inline constants.",
+  "gates": {
+    "minOosTrades": 100,
+    "maxOosDrawdownPct": 45,
+    "minSaneOosDrawdownPct": 2.0,
+    "maxSanePerTradeEdge": 0.95,
+    "minHoldoutSharpe": 0,
+    "maxSaneOosSharpe": 3.0,
+    "minHoldoutMetric": 0.3,
+    "minHoldoutIrFloor": 0,
+    "minNewHoldoutTrades": 1,
+    "bootstrapIterations": 1000,
+    "naiveBaselineIntervalDays": 5,
+    "minStabilityHoldoutOosRatio": 0.5,
+    "maxStabilityHoldoutOosRatio": 2.0,
+    "maxStatConsistencyRatio": 5.0
+  },
+  "environmentOverrides": {
+    "AUTORESEARCH_MIN_OOS_TRADES": {
+      "overrides": "minOosTrades",
+      "reason": "Diagnostics / smoke tests with shortened selection windows need a prorated minimum",
+      "mustBeDeclaredInPreReg": true
+    }
+  }
+}

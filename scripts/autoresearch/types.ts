@@ -206,7 +206,9 @@ export interface RunResult {
 	  passesHoldoutOrIR: boolean;         // (legacy, diagnostic only) holdout Sharpe >= 0.3 OR holdout SPY IR >= 0.3 — disjunction was too permissive
 	  passesHoldoutIRFloor?: boolean;     // holdout SPY IR >= 0 (non-negative IR floor)
 	  passesHoldoutAndIR?: boolean;       // holdout Sharpe >= 0.3 AND holdout SPY IR >= 0 — the live gate wired into `isValid`
-	  passesSanity: boolean;              // OOS Sharpe <= 3.0 (catches simulator bugs)
+	  passesSanity: boolean;              // OOS Sharpe <= 3.0, OOS MaxDD >= 2%, per-trade edge < 0.95 (catches simulator bugs; Phase 1.c/d)
+	  meanPerTradeEdge?: number;          // mean(grossPnl/maxProfit) across credit-spread OOS trades. Phase 1.d diagnostic; NaN/absent when < 20 CS trades.
+	  passesStability?: boolean;          // holdoutOOSRatio ∈ [0.5, 2.0] — catches overfit (ratio <0.5) and data-snoop/lucky (ratio >2.0). Phase 1.b.
 	  isValidForSearch: boolean;          // selection-only validity — agent-visible (no holdout leakage)
 	  isValid: boolean;                   // includes holdout gate — stripped from agent leaderboard; for human/post-hoc analysis only
   // Overfitting diagnostics
@@ -214,7 +216,90 @@ export interface RunResult {
   bootstrapSharpe95CI: [number, number];  // 95% CI on standalone OOS Sharpe
   bootstrapSignificant: boolean;     // is lower bound of CI > 0?
   attemptNumber: number;             // which attempt this is (for multiple testing awareness)
-  deflatedSharpe: number;            // Sharpe adjusted for multiple testing (Bailey-López de Prado)
+  deflatedSharpe: number;            // Sharpe adjusted for multiple testing (Bailey-López de Prado). SE input = bootstrap-CI width. Mertens-SE companion lives at `deflatedSharpeMertens`. Phase 2.i (2026-04-20) reverted the Phase 2.g swap after Codex round-22 flagged downstream schema incompatibility.
+  // Phase 2.a (2026-04-20) — Newey-West effective sample size of the OOS
+  // daily-return series. Diagnostic only, not a gate. Reveals when daily
+  // returns are strongly autocorrelated (N_eff << N) so a human reviewer
+  // can second-guess the bootstrap CI / deflated Sharpe. Agent-visible.
+  nEffOosDaily?: number;
+  nOosDaily?: number;                // raw length for context (days with P&L attribution)
+  // Phase 2.c (2026-04-20) — Mertens closed-form SE on the annualized
+  // Sharpe, using N_eff as the effective sample size and the OOS
+  // returns' own skew/kurtosis. Independent second estimate of the SE
+  // to sanity-check the bootstrap CI. Large disagreement with
+  // (bootstrapSharpe95CI[1]-[0])/(2*1.96) flags model mis-specification.
+  // Agent-visible.
+  mertensSharpeSE?: number;
+  mertensSkewness?: number;
+  mertensKurtosis?: number;          // raw kurtosis (3 = normal)
+  // Phase 2.e / 2.i (2026-04-20) — deflated Sharpe computed with the
+  // Mertens closed-form SE (N_eff-adjusted, skew/kurtosis-corrected)
+  // rather than the bootstrap-CI-width SE. Diagnostic companion to
+  // `deflatedSharpe`; neither is wired into any gate. Operators who
+  // prefer a Mertens-authoritative fleet view should sort/filter on
+  // this field in new analysis code. Agent-visible.
+  deflatedSharpeMertens?: number;
+  // Phase 2.h (2026-04-20) — ratio of the larger to the smaller of the
+  // two Sharpe SE estimators (bootstrap vs Mertens). Symmetric ≥ 1.
+  // `passesStatConsistency` is true when the ratio is within
+  // `maxStatConsistencyRatio` (default 2.5). Warning-only — NOT wired
+  // into isValid. `undefined` when Mertens SE is unavailable. Agent-
+  // visible.
+  statConsistencyRatio?: number;
+  passesStatConsistency?: boolean;
+  // Pre-registration audit trail (Phase 0.a.1 / Codex re-review Finding 2).
+  // Captured once per run by scripts/autoresearch/lib/pre-reg-gate.ts.
+  // Persisted in BOTH full and agent-visible leaderboards so the audit
+  // survives console-log loss. `preRegBypassed=true` means the run skipped
+  // the committed-pre-reg check via AUTORESEARCH_PREREG_BYPASS="<reason>".
+  preRegBypassed?: boolean;
+  preRegBypassReason?: string;
+  preRegBlockHash?: string;       // sha256 of the Pre-Registration markdown block; undefined on bypass
+  preRegGitSha?: string | null;   // git commit for .handoff/current.md; undefined on bypass
+  preRegHoldoutWindowHash?: string; // canonical sha256:<64hex>; undefined on bypass
+  // Adoption-gate provenance (Codex round-3 Finding 3). Records which version
+  // of config/adoption-gates.json and which env-var overrides were in effect
+  // when this row was written — required for post-hoc compliance audits.
+  adoptionGatesRawHash?: string;        // sha256 of config/adoption-gates.json as loaded
+  adoptionGatesEffectiveHash?: string;  // raw + env-overrides, for full provenance
+  adoptionGatesOverrides?: Array<{ envVar: string; target: string; value: number }>;
+  // Phase 0.a.5 provenance: binds each row to the exact strategy commit that
+  // produced it, so the seal ceremony can refuse a stale row claimed under a
+  // later commit. `strategyGitSha = null` means the strategy file was dirty
+  // or untracked at run time — the seal refuses such rows.
+  strategyGitSha?: string | null;
+  // Phase 0.a.5 round-2 provenance (Codex F1): also bind the FULL repo state
+  // at run time, not just the single strategy file's commit. `repoGitSha =
+  // null` means the working tree had any uncommitted change when the runner
+  // started. The seal refuses null or mismatched values. This catches drift
+  // in imported helpers (e.g. src/lib/backtest/option-sim.ts) that the
+  // strategy file's last-touch commit cannot detect.
+  repoGitSha?: string | null;
+  // Phase 0.a.5 round-2 provenance (Codex F1): git-blob SHA of the strategy
+  // file content. Distinct strategy contents produce distinct blobs even if
+  // committed in the same repo commit. Seal requires this to equal the
+  // current strategy file's blob, preventing "point at a different clean
+  // file touched in the same commit" confusion.
+  strategyBlobSha?: string | null;
+  // Phase 0.a.5 skip-holdout marker: `false` means the runner was invoked
+  // with AUTORESEARCH_SKIP_HOLDOUT=1 and produced no real holdout evaluation.
+  // The seal ceremony refuses any row with `holdoutEvaluated !== true`, so
+  // skip-mode rows cannot be sealed even though the row still carries
+  // synthetic `passesHoldoutAndIR` values derived from selection data.
+  holdoutEvaluated?: boolean;
+  // Phase 0.b.6 dataset-manifest provenance. The Pre-Registration block's
+  // "Holdout Window Hash" is now semantically bound to config/dataset-
+  // manifest.json: runner refuses when the two disagree. The manifest hash
+  // and version are stamped onto every row so post-hoc audits can correlate
+  // the row's declared date range with committed manifest history.
+  datasetManifestHash?: string | null;
+  datasetManifestVersion?: number;
+  // Phase 0.b.7: sha256 of the per-ticker coverage summary
+  // (ticker:first..last:count for each strategy ticker, canonicalized).
+  // Lets the seal ceremony refuse rows produced against a different ticker
+  // cache state than what's currently loaded. Closes Codex round-3 F1
+  // (per-series truncation masked by union-based bounds check).
+  tickerCoverageHash?: string | null;
   // Diagnostics
   exitTypeBreakdown: Record<string, number>;
   signalsGenerated: number;         // total signals before WFA filtering

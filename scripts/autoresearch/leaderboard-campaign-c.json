@@ -10,7 +10,6 @@
     "combinedSharpe": 1.0791723830654,
     "correlationWithDTE5": 0.20798817937366734,
     "combinedMaxDD": 16.629038269152044,
-    "holdoutTrades": 51,
     "oosSpyIR": 0.6391230323173805,
     "oosSpyExcessReturn": 0.1862677257129971,
     "avgTrainSharpe": 1.057996554756667,
@@ -18,10 +17,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": true,
     "bootstrapSharpe95CI": [
       0.47329530554512833,
       1.9431889594892446

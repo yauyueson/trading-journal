@@ -29,6 +29,29 @@ import type {
   MarketContext, ConfigVariant,
 } from './types';
 import type { SimConfig } from '../../src/lib/backtest/option-sim';
+import {
+  loadAdoptionGates, assertGatesUnchanged, assertGateConfigTracked,
+  formatGatesSummary, type LoadedGates,
+} from './lib/adoption-gates';
+import {
+  loadDatasetManifest, assertManifestConfigTracked, assertManifestUnchanged,
+  windowFallsInHoldout, formatManifestSummary, type LoadedManifest,
+} from './lib/dataset-manifest';
+import {
+  validatePerSeriesCoverage, summarizeTickerSeries, type TickerSeriesSummary,
+} from './lib/series-validation';
+import { validatePreRegOrBypass, formatPreRegSummary } from './lib/pre-reg-gate';
+import { acquireRunnerLock, LockHeldError, type AcquiredLock } from './lib/file-lock';
+import { appendTrial } from './lib/trial-ledger';
+import { stripHoldoutMetrics } from './lib/leaderboard-redaction';
+import { computeEffectiveSampleSize } from './lib/effective-sample-size';
+import { bootstrapSharpeCI as bootstrapSharpeCILib } from './lib/bootstrap-sharpe';
+import { computeMertensSharpeSE } from './lib/mertens-sharpe-se';
+import { normalizeDsrSchema, leaderboardNeedsDsrMigration } from './lib/normalize-dsr-schema';
+import {
+  applyCurrentStatConsistencyGate,
+  leaderboardNeedsStatConsistencyRegrade,
+} from './lib/stat-consistency-regrade';
 
 // ── Config ──────────────────────────────────────────────
 
@@ -37,16 +60,16 @@ const SUPABASE_KEY = () => process.env.VITE_SUPABASE_ANON_KEY || process.env.SUP
 
 const DATA_START = '2017-01-01';
 const DATA_END = '2026-02-28';
-// MIN_OOS_TRADES can be overridden via AUTORESEARCH_MIN_OOS_TRADES (used by
-// Campaign A which shortens the selection window and needs a prorated minimum).
-const MIN_OOS_TRADES = process.env.AUTORESEARCH_MIN_OOS_TRADES
-  ? parseInt(process.env.AUTORESEARCH_MIN_OOS_TRADES, 10)
-  : 100;
-const MAX_OOS_DD = 45;
-const MIN_HOLDOUT_SHARPE = 0;       // holdout must be non-negative
-const MAX_SANE_OOS_SHARPE = 3.0;    // anything above this is suspicious — simulator bug likely
-const BOOTSTRAP_ITERATIONS = 1000;  // for CI estimation
-const NAIVE_BASELINE_INTERVAL = 5;  // buy every N trading days (no signal logic)
+
+// Adoption gates moved to config/adoption-gates.json per Phase 0.a.2 of the
+// 2026-04-18 foundation rebuild. Runner loads the file, hashes it, and refuses
+// to continue if the hash changes mid-campaign. Access them via the `GATES`
+// module-scope handle populated in main().
+let GATES: LoadedGates | null = null;
+function gates(): LoadedGates {
+  if (!GATES) throw new Error('Adoption gates accessed before main() loaded them.');
+  return GATES;
+}
 
 // ── Supabase Helper ─────────────────────────────────────
 
@@ -410,44 +433,12 @@ function computeCombinedMetrics(
 
 // ── Overfitting Defenses ────────────────────────────────
 
-/**
- * Block bootstrap 95% confidence interval on Sharpe ratio.
- * Uses overlapping block bootstrap (block size ~sqrt(n)) to preserve
- * autocorrelation structure in daily returns — unlike i.i.d. bootstrap
- * which understates CI width for serially correlated time series.
- */
-function bootstrapSharpeCI(dailyReturns: number[], iterations = BOOTSTRAP_ITERATIONS): [number, number] {
-  if (dailyReturns.length < 30) return [0, 0];
-
-  const n = dailyReturns.length;
-  const blockSize = Math.max(5, Math.floor(Math.sqrt(n))); // ~15 for 252 days
-  const sharpes: number[] = [];
-
-  for (let i = 0; i < iterations; i++) {
-    // Block bootstrap: sample contiguous blocks with replacement
-    const resampled: number[] = [];
-    while (resampled.length < n) {
-      const startIdx = Math.floor(Math.random() * (n - blockSize + 1));
-      for (let j = 0; j < blockSize && resampled.length < n; j++) {
-        resampled.push(dailyReturns[startIdx + j]);
-      }
-    }
-
-    let sum = 0, sumSq = 0;
-    for (let j = 0; j < n; j++) {
-      sum += resampled[j];
-      sumSq += resampled[j] * resampled[j];
-    }
-    const mean = sum / n;
-    const variance = sumSq / n - mean * mean;
-    const std = Math.sqrt(Math.max(0, variance));
-    sharpes.push(std > 0 ? (mean / std) * Math.sqrt(252) : 0);
-  }
-
-  sharpes.sort((a, b) => a - b);
-  const lo = sharpes[Math.floor(iterations * 0.025)];
-  const hi = sharpes[Math.floor(iterations * 0.975)];
-  return [lo, hi];
+// Phase 2.b: `bootstrapSharpeCI` extracted to
+// `./lib/bootstrap-sharpe.ts` so coverage-validation tests can import it
+// without dragging in the whole runner graph. The runner's only behavior
+// change is the imported name below.
+function bootstrapSharpeCI(dailyReturns: number[], iterations = gates().gates.bootstrapIterations): [number, number] {
+  return bootstrapSharpeCILib(dailyReturns, iterations);
 }
 
 /**
@@ -481,33 +472,9 @@ function computeDeflatedSharpe(observedSharpe: number, numAttempts: number, shar
 // The exact holdout Sharpe, IR, and ratio are the fields that leak. Boolean gate
 // results (passesHoldout, passesHoldoutOrIR, isValid) are safe to keep.
 
-// Fields removed from agent-visible leaderboard to prevent holdout leakage
-// into the iterative search loop. `isValid` was previously left visible but
-// combined with `passesHoldoutOrIR`, leaking the holdout gate as a boolean —
-// adversarial review (Codex, 2026-04-17) flagged this as critical leakage.
-// Now we strip every holdout-derived field and the overall isValid; the
-// agent sees only `isValidForSearch` (selection-only validity).
-const HOLDOUT_DERIVED_FIELDS = [
-  'holdoutSharpe',
-  'holdoutSpyIR',
-  'holdoutSpyExcessReturn',
-  'holdoutOOSRatio',
-  'passesHoldout',
-  'passesHoldoutOrIR',
-  'passesHoldoutIRFloor',
-  'passesHoldoutAndIR',
-  'passesHoldoutNewEntries',
-  'holdoutTrades',
-  'newHoldoutTrades',
-  'carriedHoldoutTrades',
-  'isValid',
-] as const;
-
-function stripHoldoutMetrics(entry: RunResult): object {
-  const result = { ...entry } as Record<string, unknown>;
-  for (const f of HOLDOUT_DERIVED_FIELDS) delete result[f];
-  return result;
-}
+// Holdout-redaction constant + stripping function moved to
+// ./lib/leaderboard-redaction.ts in Phase 0.a.4 so tests can import them
+// without pulling the runner's worker/backtest graph.
 
 // Apply a ConfigVariant's overrides onto a base SimConfig without losing nested
 // sibling fields. SimConfig has two object-valued fields (`signalInvalidation`,
@@ -551,6 +518,10 @@ function backfillIsValidForSearch(entry: RunResult): RunResult {
   return { ...entry, isValidForSearch: computed } as RunResult;
 }
 
+// Phase 2.j migration — extracted to `./lib/normalize-dsr-schema.ts`
+// in Phase 2.k so tests can exercise the REAL helper rather than a
+// duplicated copy (Codex round-24 Finding 2).
+
 // Optional suffix for leaderboard files — lets a campaign run in isolation
 // (e.g. AUTORESEARCH_LEADERBOARD_SUFFIX=campaign-a writes to
 // leaderboard-campaign-a.json / leaderboard-full-campaign-a.json).
@@ -560,36 +531,12 @@ function leaderboardSuffix(): string {
   return s ? `-${s}` : '';
 }
 
-// Global attempt counter across ALL campaigns — fixes Codex adversarial finding
-// (high #5): per-campaign leaderboards reset deflatedSharpe's N, understating the
-// true serial search burden. This counter persists across every runner invocation
-// regardless of suffix, so deflated Sharpe reflects the real multiple-testing surface.
-function globalAttemptsPath(): string {
-  return path.resolve(__dirname, '../../data/attempts-global.json');
-}
-function loadGlobalAttempts(): number {
-  const p = globalAttemptsPath();
-  if (!fs.existsSync(p)) return 0;
-  try {
-    const data = JSON.parse(fs.readFileSync(p, 'utf-8'));
-    return typeof data.count === 'number' ? data.count : 0;
-  } catch {
-    return 0;
-  }
-}
-function incrementGlobalAttempts(delta: number, source: string): number {
-  const p = globalAttemptsPath();
-  const prev = loadGlobalAttempts();
-  const next = prev + delta;
-  try {
-    fs.writeFileSync(p, JSON.stringify({
-      count: next,
-      lastSource: source,
-      lastUpdated: new Date().toISOString(),
-    }, null, 2));
-  } catch { /* best-effort */ }
-  return next;
-}
+// Global attempt counter across ALL campaigns — fixes Codex adversarial
+// finding (high #5): per-campaign leaderboards reset deflatedSharpe's N,
+// understating the true serial search burden. The counter now lives inside
+// the Phase 0.a.3 trial ledger (scripts/autoresearch/lib/trial-ledger.ts)
+// along with per-trial return vectors used to compute N_eff. The count
+// persists across every runner invocation regardless of suffix.
 
 function leaderboardPaths(): { fullPath: string; agentPath: string } {
   const suf = leaderboardSuffix();
@@ -609,7 +556,11 @@ function loadLeaderboard(): RunResult[] {
   const { fullPath } = leaderboardPaths();
   if (!fs.existsSync(fullPath)) return [];
   const raw = JSON.parse(fs.readFileSync(fullPath, 'utf-8')) as RunResult[];
-  return raw.map(backfillIsValidForSearch);
+  const maxRatio = gates().gates.maxStatConsistencyRatio;
+  return raw
+    .map(backfillIsValidForSearch)
+    .map(normalizeDsrSchema)
+    .map(entry => applyCurrentStatConsistencyGate(entry, maxRatio));
 }
 
 function saveLeaderboard(entries: RunResult[]) {
@@ -677,6 +628,157 @@ async function main() {
   const startMs = Date.now();
   console.log('=== Autoresearch Runner ===\n');
 
+  // 0pre. Acquire cross-process lock on the runner's writable artifacts
+  //       (leaderboard-*.json, attempts-global.json). Without this, two
+  //       runner processes started near-simultaneously can silently lose
+  //       one process's RunResult row and undercount the global attempt
+  //       counter — Codex round-3 Finding 2, 2026-04-18.
+  let runnerLock: AcquiredLock;
+  try {
+    const repoRoot = path.resolve(__dirname, '../..');
+    const suffixLbl = process.env.AUTORESEARCH_LEADERBOARD_SUFFIX
+      ? `campaign=${process.env.AUTORESEARCH_LEADERBOARD_SUFFIX}`
+      : 'primary';
+    runnerLock = acquireRunnerLock(repoRoot, `runner:${suffixLbl}`);
+    console.log(`Acquired runner lock at ${runnerLock.lockPath}\n`);
+  } catch (err) {
+    if (err instanceof LockHeldError) {
+      console.error(`\nFATAL: ${err.message}`);
+      console.error(`Wait for the other runner to finish, or kill pid ${err.held.pid} if it's stuck.`);
+      console.error(`If you are certain no runner is active, delete ${err.lockPath} and retry.`);
+    } else {
+      console.error(`\nFATAL: could not acquire runner lock: ${(err as Error).message}`);
+    }
+    process.exit(1);
+  }
+
+  // Install removable crash handlers so the lock is released even if
+  // main() throws in the middle. Codex round-5 + round-6 Finding 2: all
+  // listeners (incl. 'exit') are named closures and removed in the finally
+  // block below, so sequential same-pid invocations don't leak.
+  const onUncaught = (e: unknown): void => {
+    console.error('[uncaughtException]', e);
+    runnerLock.release();
+    process.exit(1);
+  };
+  const onUnhandled = (e: unknown): void => {
+    console.error('[unhandledRejection]', e);
+    runnerLock.release();
+    process.exit(1);
+  };
+  const onExit = (): void => {
+    // Defensive: if we ever reach process-exit with the lock still held
+    // (e.g. test killed us), release it. Normal-path release happens in
+    // the `finally` below.
+    runnerLock.release();
+  };
+  process.on('uncaughtException', onUncaught);
+  process.on('unhandledRejection', onUnhandled);
+  process.on('exit', onExit);
+
+  try {
+  // 0a. Load adoption gates (Phase 0.a.2 of 2026-04-18 foundation rebuild).
+  //     Hardcoded gate constants were moved to config/adoption-gates.json.
+  //     The file is hashed here; gates().assertGatesUnchanged() re-checks the
+  //     hash at end of main() so mid-campaign edits abort the run.
+  //     The file is ALSO required to be tracked+clean in git — stamping the
+  //     hash of an unrecoverable local file into the leaderboard would make
+  //     the audit meaningless. Codex round-6 Finding 1.
+  try {
+    GATES = loadAdoptionGates();
+    assertGateConfigTracked(GATES);
+  } catch (err) {
+    console.error(`\nFATAL: ${(err as Error).message}`);
+    console.error('Cannot start autoresearch without valid adoption gates configuration.');
+    process.exit(1);
+  }
+  console.log(formatGatesSummary(GATES));
+
+  // 0a2. Dataset manifest (Phase 0.b.6). Declares the dataset + holdout
+  //      date range. Its sha256 is what the Pre-Registration block's
+  //      "Holdout Window Hash" must match — closes the semantic-binding
+  //      gap that pre-reg-gate.ts previously flagged with a TODO comment.
+  let MANIFEST: LoadedManifest;
+  try {
+    MANIFEST = loadDatasetManifest();
+    assertManifestConfigTracked(MANIFEST);
+  } catch (err) {
+    console.error(`\nFATAL: ${(err as Error).message}`);
+    console.error('Cannot start autoresearch without valid dataset manifest.');
+    process.exit(1);
+  }
+  console.log(formatManifestSummary(MANIFEST));
+
+  // Phase 0.b.6 round-2: the module-level DATA_START / DATA_END constants
+  // feed the Supabase fetchers. They must match the manifest or the fetch
+  // paths would silently load a different range than the manifest claims.
+  // Refactoring the loaders to be manifest-driven is larger scope — this
+  // runtime assertion is the cheap defense.
+  if (DATA_START !== MANIFEST.manifest.dataStartDate || DATA_END !== MANIFEST.manifest.dataEndDate) {
+    console.error(`\nFATAL: runner.ts DATA_START/DATA_END constants (${DATA_START} / ${DATA_END}) do not match the committed manifest (${MANIFEST.manifest.dataStartDate} / ${MANIFEST.manifest.dataEndDate}).`);
+    console.error(`Update scripts/autoresearch/runner.ts so the constants equal config/dataset-manifest.json's dataStartDate/dataEndDate, then commit both.`);
+    process.exit(1);
+  }
+
+  // 0b. Pre-registration gate (Phase 0.a.1).
+  //     Every autoresearch run must reference a committed Pre-Registration block
+  //     in .handoff/current.md (hypothesis, config grid, decision rule, adoption
+  //     threshold, holdout window hash). Set AUTORESEARCH_PREREG_BYPASS="<reason>"
+  //     to skip this (reason is logged and counts as a declared trial).
+  //     Env overrides on gates must be declared in the pre-reg block.
+  //     git-clean requirement is not opt-outable in production — the only way to
+  //     run against a dirty .handoff/current.md is the explicit BYPASS flow above
+  //     (Codex adversarial-review Finding 1, 2026-04-18).
+  const declaredEnvOverrides = GATES.envOverrides.map(o => o.envVar);
+  const preRegOutcome = validatePreRegOrBypass({
+    requireGitClean: true,
+    envOverridesRequired: declaredEnvOverrides,
+  });
+  if (!preRegOutcome.ok) {
+    console.error(`\nFATAL: Pre-registration gate blocked the run.`);
+    console.error(`Reason: ${preRegOutcome.reason}`);
+    if (preRegOutcome.hint) console.error(`Hint:   ${preRegOutcome.hint}`);
+    console.error('');
+    console.error('See .handoff/TEAM.md "Pre-Registration Convention" or the 2026-04-18 foundation rebuild plan.');
+    process.exit(1);
+  }
+  console.log('');
+  console.log(formatPreRegSummary(preRegOutcome));
+  console.log('');
+
+  // Pre-registration audit metadata persisted onto every leaderboard entry
+  // produced during this run (Codex re-review Finding 2, 2026-04-18).
+  const preRegAudit = preRegOutcome.bypassed
+    ? {
+        preRegBypassed: true as const,
+        preRegBypassReason: preRegOutcome.bypassReason,
+        preRegBlockHash: undefined,
+        preRegGitSha: undefined,
+        preRegHoldoutWindowHash: undefined,
+      }
+    : {
+        preRegBypassed: false as const,
+        preRegBypassReason: undefined,
+        preRegBlockHash: preRegOutcome.block.blockHash,
+        preRegGitSha: preRegOutcome.gitSha,
+        preRegHoldoutWindowHash: preRegOutcome.block.holdoutWindowHash,
+      };
+
+  // Phase 0.b.6 semantic binding: the pre-reg block's "Holdout Window Hash"
+  // must match the committed dataset manifest's sha256. Placeholder hashes
+  // (e.g. sha256:0000...0000) no longer pass — the operator must use the
+  // current manifest hash. Bypassed runs don't have a block to check.
+  if (!preRegOutcome.bypassed) {
+    const expected = `sha256:${MANIFEST.rawHash}`;
+    if (preRegOutcome.block.holdoutWindowHash !== expected) {
+      console.error(`\nFATAL: Pre-Registration "Holdout Window Hash" does not match the committed dataset manifest.`);
+      console.error(`  pre-reg:  ${preRegOutcome.block.holdoutWindowHash}`);
+      console.error(`  manifest: ${expected}`);
+      console.error(`Either update the Pre-Registration block to the current manifest hash, or commit a new manifest.`);
+      process.exit(1);
+    }
+  }
+
   // 0. One-time migration: if leaderboard-full*.json doesn't exist but leaderboard*.json does,
   //    copy full data there and rewrite leaderboard*.json with holdout metrics stripped.
   //    Runs for the default suffix AND for any campaign suffix — the full file
@@ -686,7 +788,7 @@ async function main() {
     const { fullPath, agentPath } = leaderboardPaths();
     if (!fs.existsSync(fullPath) && fs.existsSync(agentPath)) {
       const raw = JSON.parse(fs.readFileSync(agentPath, 'utf-8')) as RunResult[];
-      const existing = raw.map(backfillIsValidForSearch);
+      const existing = raw.map(backfillIsValidForSearch).map(normalizeDsrSchema);
       fs.writeFileSync(fullPath, JSON.stringify(existing, null, 2));
       fs.writeFileSync(agentPath, JSON.stringify(existing.map(stripHoldoutMetrics), null, 2));
       const backfilled = existing.length - raw.filter(e => typeof (e as unknown as { isValidForSearch?: unknown }).isValidForSearch === 'boolean').length;
@@ -694,6 +796,44 @@ async function main() {
       console.log(`Migrated ${existing.length} existing ${suffixLabel} leaderboard entries → ${path.basename(fullPath)} (full) + ${path.basename(agentPath)} (stripped)`);
       if (backfilled > 0) console.log(`  Backfilled isValidForSearch on ${backfilled} pre-split entries`);
       console.log('');
+    }
+  }
+  // 0a. Phase 2.k boot-time DSR migration + Phase 2.o stat-consistency
+  //     regrade. Runs AFTER adoption-gate / dataset-manifest / pre-reg
+  //     guards have passed, so a failed startup NEVER mutates tracked
+  //     leaderboard files (Codex round-26 Finding 1). Trade-off: when
+  //     the runner can't start, external consumers keep reading stale
+  //     rows until the operator fixes the guard. Acceptable vs. the
+  //     audit-stamp regression the early-migration path caused.
+  //
+  //     Both migrations are idempotent via their *NeedsMigration
+  //     prechecks. Writes only happen when at least one row needs an
+  //     update. Codex round-28 Finding 1 (2026-04-20) added the
+  //     stat-consistency regrade here so Phase 2.h-era rows get their
+  //     `passesStatConsistency` + `isValid` recomputed under the
+  //     current `maxStatConsistencyRatio` before external consumers
+  //     read them.
+  {
+    const { fullPath, agentPath } = leaderboardPaths();
+    if (fs.existsSync(fullPath)) {
+      const raw = JSON.parse(fs.readFileSync(fullPath, 'utf-8')) as RunResult[];
+      const maxStatRatio = gates().gates.maxStatConsistencyRatio;
+      const needsDsr = leaderboardNeedsDsrMigration(raw);
+      const needsRegrade = leaderboardNeedsStatConsistencyRegrade(raw, maxStatRatio);
+      if (needsDsr || needsRegrade) {
+        const migrated = raw
+          .map(backfillIsValidForSearch)
+          .map(normalizeDsrSchema)
+          .map(entry => applyCurrentStatConsistencyGate(entry, maxStatRatio));
+        fs.writeFileSync(fullPath, JSON.stringify(migrated, null, 2));
+        fs.writeFileSync(agentPath, JSON.stringify(migrated.map(stripHoldoutMetrics), null, 2));
+        const parts: string[] = [];
+        if (needsDsr) parts.push('DSR schema');
+        if (needsRegrade) parts.push('stat-consistency regrade');
+        const suffixLabel = leaderboardSuffix() || '(primary)';
+        console.log(`Migrated ${migrated.length} ${suffixLabel} leaderboard entries → ${parts.join(' + ')}`);
+        console.log('');
+      }
     }
   }
   if (leaderboardSuffix()) {
@@ -731,6 +871,9 @@ async function main() {
   const strategySrc = path.resolve(__dirname, strategyFilename);
   const bestStrategyFilename = `best-${strategyFilename}`;
   const strategyBundle = path.resolve(__dirname, `.autoresearch-${strategyFilename.replace(/\.ts$/, '')}.mjs`);
+
+  const strategyRelFromRoot = path.relative(path.resolve(__dirname, '../..'), strategySrc);
+  const repoRootForGit = path.resolve(__dirname, '../..');
   console.log(`Bundling ${strategyFilename}...`);
   try {
     execSync(
@@ -753,6 +896,58 @@ async function main() {
   }
   console.log(`Strategy: "${strategy.name}", tickers: [${strategy.tickers.join(', ')}]\n`);
 
+  // Phase 0.a.5 provenance: capture AFTER esbuild completes so SHAs reflect
+  // the exact source state that was bundled. (If the operator edits a source
+  // file between here and here, esbuild already wrote the bundle — the worker
+  // uses that bundle, not the current file.) Three stamps:
+  //   - strategyGitSha: last commit that touched the strategy file.
+  //   - strategyBlobSha: content hash of the strategy file (git hash-object).
+  //   - repoGitSha: HEAD of the whole repo, null if the working tree is dirty.
+  // Codex round-4 note: a determined adversary could edit+revert a source
+  // file during the runner run; the bundle captures the edit but the SHAs
+  // see only the reverted state. This is documented in docs/sealed-holdout.md
+  // and considered out-of-scope for solo-operator trust. A future phase may
+  // isolate execution in a temp worktree to close it entirely.
+  const strategyGitSha: string | null = (() => {
+    try {
+      const dirty = execSync(`git status --porcelain -- "${strategyRelFromRoot}"`, { cwd: repoRootForGit, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      if (dirty.length > 0) return null;
+      const sha = execSync(`git log -n 1 --format=%H -- "${strategyRelFromRoot}"`, { cwd: repoRootForGit, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      return sha || null;
+    } catch {
+      return null;
+    }
+  })();
+  const strategyBlobSha: string | null = (() => {
+    try {
+      const sha = execSync(`git hash-object "${strategyRelFromRoot}"`, { cwd: repoRootForGit, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      return sha || null;
+    } catch {
+      return null;
+    }
+  })();
+  const repoGitSha: string | null = (() => {
+    try {
+      const dirty = execSync(`git status --porcelain`, { cwd: repoRootForGit, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      if (dirty.length > 0) return null;
+      const head = execSync(`git rev-parse HEAD`, { cwd: repoRootForGit, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      return head || null;
+    } catch {
+      return null;
+    }
+  })();
+  if (!strategyGitSha) {
+    console.warn(`  (strategy file is untracked or dirty — produced rows will be unsealable: ${strategyRelFromRoot})`);
+  } else {
+    console.log(`Strategy git SHA: ${strategyGitSha.slice(0, 10)}`);
+  }
+  if (!repoGitSha) {
+    console.warn(`  (working tree has uncommitted changes — produced rows will be unsealable)`);
+  } else {
+    console.log(`Repo HEAD:        ${repoGitSha.slice(0, 10)}`);
+  }
+  if (strategyBlobSha) console.log(`Strategy blob:    ${strategyBlobSha.slice(0, 10)}\n`);
+
   // 4. Load ticker data (parallel — local cache = instant, Supabase = parallel fetch)
   console.log('Loading ticker data...');
   const tickerEntries = await Promise.all(
@@ -763,6 +958,31 @@ async function main() {
     }),
   );
   const tickerDataMap = new Map<string, TickerDataBundle>(tickerEntries);
+
+  // Phase 0.b.7 per-series coverage check. Runs BEFORE signal generation
+  // so a truncated ticker can't silently contribute zero signals while
+  // other tickers' coverage masks the gap in the union-based bounds check.
+  // Closes Codex Phase 0.b.6 round-3 F1.
+  //
+  // Round-1 fix (Codex 0.b.7 F1+F2): pass the full marketContext SPY date
+  // list so coverage is validated against candle dates (not the benchmark's
+  // return dates, which are one trading day later), and cross-check the
+  // two SPY sources on their full date sequences.
+  const perTickerSeries: Record<string, TickerSeriesSummary> = {};
+  for (const [ticker, data] of tickerDataMap) {
+    perTickerSeries[ticker] = summarizeTickerSeries(data.candles);
+  }
+  const marketCtxDates = [...marketContext.spyByDate.keys()].sort();
+  const coverage = validatePerSeriesCoverage(
+    perTickerSeries, spyBenchmark.dates, marketCtxDates, MANIFEST.manifest,
+  );
+  if (!coverage.ok) {
+    console.error(`\nFATAL: per-series dataset check failed — ${coverage.reason}`);
+    if (coverage.hint) console.error(`Hint: ${coverage.hint}`);
+    process.exit(1);
+  }
+  const tickerCoverageHash = coverage.tickerCoverageHash;
+  console.log(`Ticker coverage hash: ${tickerCoverageHash.slice(0, 12)}...`);
 
   // 5. Generate signals
   // Invoke strategy.prepare() if defined, so strategies that need cross-ticker
@@ -793,7 +1013,13 @@ async function main() {
 
   // 6. Build WFA windows
   const wfa = strategy.wfa;
-  const holdoutCount = wfa.holdoutCount ?? 2;
+  // AUTORESEARCH_SKIP_HOLDOUT=1 (Phase 0.a.5): the disciplined-researcher
+  // opt-out. When set, the runner evaluates on selection windows only and
+  // emits empty holdout metrics. Produces audit rows that the seal ceremony
+  // will refuse (no holdout data to seal), forcing a deliberate re-run
+  // before promotion. Default off → preserves existing audit-file workflow.
+  const skipHoldout = ['1', 'true', 'yes'].includes(String(process.env.AUTORESEARCH_SKIP_HOLDOUT ?? '').toLowerCase());
+  const holdoutCount = skipHoldout ? 0 : (wfa.holdoutCount ?? 2);
   const wfaStartDate = allTradingDates.find(d => d >= '2018-01-01') ?? allTradingDates[0];
   const allWindows = buildWFAWindows(allTradingDates, {
     trainWindowDays: wfa.trainWindowDays,
@@ -803,9 +1029,71 @@ async function main() {
     startDate: wfaStartDate,
     endDate: allTradingDates[allTradingDates.length - 1],
   });
-  const selectionWindows = allWindows.slice(0, -holdoutCount);
-  const holdoutWindows = allWindows.slice(-holdoutCount);
+  // Guard the slice(0, -0) footgun: -0 collapses to 0 → slice(0, 0) returns [].
+  const selectionWindows = holdoutCount === 0 ? [...allWindows] : allWindows.slice(0, -holdoutCount);
+  const holdoutWindows = holdoutCount === 0 ? [] : allWindows.slice(-holdoutCount);
+  if (skipHoldout) {
+    console.log(`AUTORESEARCH_SKIP_HOLDOUT=1 — holdout evaluation disabled (discipline mode).`);
+  }
   console.log(`WFA: ${selectionWindows.length} selection + ${holdoutWindows.length} holdout windows\n`);
+
+  // Phase 0.b.6 data-bounds check: the loaded dataset must actually fit
+  // within AND reach the manifest's declared [dataStartDate, dataEndDate]
+  // range. Codex round-1 F1: metadata-only binding wasn't enough — a
+  // vendor backfill, corrected early history, truncated feed, or stale
+  // cache could all change WFA outcomes while the manifest hash passed.
+  // Round 2 F1 (post-ship): also require the data to REACH the declared
+  // boundaries, not just stay inside them. Otherwise a stale cache could
+  // silently evaluate less than declared while passing the hash check.
+  if (allTradingDates.length === 0) {
+    console.error(`\nFATAL: loaded zero trading dates. The dataset is empty.`);
+    process.exit(1);
+  }
+  const firstDate = allTradingDates[0];
+  const lastDate = allTradingDates[allTradingDates.length - 1];
+  // Bounds: no data outside the declared range.
+  if (firstDate < MANIFEST.manifest.dataStartDate) {
+    console.error(`\nFATAL: loaded data starts at ${firstDate}, BEFORE manifest dataStartDate ${MANIFEST.manifest.dataStartDate}.`);
+    console.error(`Vendor backfill or an earlier fetch has expanded the dataset. Update config/dataset-manifest.json (bump dataStartDate) and re-run.`);
+    process.exit(1);
+  }
+  if (lastDate > MANIFEST.manifest.dataEndDate) {
+    console.error(`\nFATAL: loaded data ends at ${lastDate}, AFTER manifest dataEndDate ${MANIFEST.manifest.dataEndDate}.`);
+    console.error(`Rolling-forward data has extended past the declared range. Update config/dataset-manifest.json (bump dataEndDate) and re-run.`);
+    process.exit(1);
+  }
+  // Coverage: data must reach at least to the end of the declared holdout
+  // and must include at least one trading day on/before the declared
+  // holdout start (pre-holdout history for the WFA training windows).
+  // BOUNDARY_SLACK_DAYS of weekend/holiday tolerance (Codex 0.b.7 round-2)
+  // because manifest dates may be calendar boundaries that fall on non-
+  // trading days.
+  const BOUNDARY_SLACK_MS = 10 * 86400 * 1000;
+  const slackBefore = (dateStr: string) => new Date(new Date(`${dateStr}T00:00:00Z`).getTime() - BOUNDARY_SLACK_MS).toISOString().slice(0, 10);
+  if (lastDate < slackBefore(MANIFEST.manifest.holdoutEndDate)) {
+    console.error(`\nFATAL: loaded data ends at ${lastDate}, more than 10 days before manifest holdoutEndDate ${MANIFEST.manifest.holdoutEndDate}.`);
+    console.error(`The dataset does not reach the declared holdout end — a stale cache or truncated feed. Refresh the data (or bump the manifest) and re-run.`);
+    process.exit(1);
+  }
+  if (firstDate > MANIFEST.manifest.holdoutStartDate) {
+    console.error(`\nFATAL: loaded data starts at ${firstDate}, AFTER manifest holdoutStartDate ${MANIFEST.manifest.holdoutStartDate}.`);
+    console.error(`The dataset has no pre-holdout history — WFA training windows cannot form. Refresh the data or adjust the manifest.`);
+    process.exit(1);
+  }
+
+  // Phase 0.b.6 holdout-range check: when holdout is live, every generated
+  // holdout window must fall within the manifest's declared holdout range.
+  // Catches the case where `allTradingDates` drifted (new candles, rolled-
+  // forward data) and the WFA-sliced window no longer matches the manifest.
+  if (holdoutWindows.length > 0) {
+    for (const w of holdoutWindows) {
+      if (!windowFallsInHoldout(w.oosStart, w.oosEnd, MANIFEST.manifest)) {
+        console.error(`\nFATAL: computed holdout window [${w.oosStart}..${w.oosEnd}] falls outside manifest range [${MANIFEST.manifest.holdoutStartDate}..${MANIFEST.manifest.holdoutEndDate}].`);
+        console.error(`This usually means the underlying candle data has shifted since the manifest was written. Update and commit config/dataset-manifest.json, then update the Pre-Registration block's Holdout Window Hash, then re-run.`);
+        process.exit(1);
+      }
+    }
+  }
 
   if (selectionWindows.length === 0) {
     printErrorResult(strategy.name, 'No WFA windows generated. Check date range and window params.', startMs);
@@ -871,7 +1159,7 @@ async function main() {
   let blWorker: Worker | null = null;
   const putCount = allSignals.filter(s => s.direction === 'PUT').length;
   const naiveDirection: 'CALL' | 'PUT' = putCount > allSignals.length / 2 ? 'PUT' : 'CALL';
-  const naiveSignals = generateNaiveSignals(tickerDataMap, NAIVE_BASELINE_INTERVAL, naiveDirection);
+  const naiveSignals = generateNaiveSignals(tickerDataMap, gates().gates.naiveBaselineIntervalDays, naiveDirection);
   if (!SCREEN_MODE) {
     try {
       blWorker = await spawnOneWorker(workerBundle, {
@@ -1018,15 +1306,85 @@ async function main() {
     // 12. Overfitting defenses
     const bootstrapCI = bootstrapSharpeCI(oosMetrics.dailyReturns);
     const bootstrapSignificant = bootstrapCI[0] > 0;
+    // Verify the gate config is still unchanged BEFORE incrementing the
+    // global attempt counter. Codex round-7 Finding 2 (2026-04-18): if gates
+    // are edited mid-run, the counter was advancing even though the runner
+    // would abort at save time with no leaderboard row, drifting the
+    // multiple-testing ledger and deflated-Sharpe denominator.
+    assertGatesUnchanged(gates());
+    assertManifestUnchanged(MANIFEST);
     // attemptNumber uses the GLOBAL ledger (all campaigns combined), not the
     // per-suffix leaderboard. Previously per-campaign counts reset when
     // AUTORESEARCH_LEADERBOARD_SUFFIX changed, which under-penalized deflated
     // Sharpe for serial searches across campaigns.
+    //
+    // Phase 0.a.3 (2026-04-18): we now record the OOS return vector alongside
+    // the attempt counter. `scripts/compute-effective-trials.ts` reads these
+    // to compute N_eff via participation ratio — the correct denominator for
+    // Deflated Sharpe when many trials are correlated (e.g. adjacent grid
+    // points). See scripts/autoresearch/lib/trial-ledger.ts for math.
     const localAttempt = leaderboard.length + 1;
-    const globalAttempt = incrementGlobalAttempts(1, `${leaderboardSuffix() || 'primary'}:${variant.name}`);
+    const trialSource = `${leaderboardSuffix() || 'primary'}:${variant.name}`;
+    const appended = appendTrial({
+      source: trialSource,
+      strategyName: variant.name,
+      leaderboardSuffix: leaderboardSuffix() || '',
+      oosSharpe: oosMetrics.sharpe,
+      oosTrades: workerResult.allOOSTrades.length,
+      oosDates: oosMetrics.equityCurve.map(e => e.date),
+      oosDailyReturns: oosMetrics.dailyReturns,
+      adoptionGatesEffectiveHash: gates().effectiveHash,
+      preRegBlockHash: preRegAudit.preRegBlockHash,
+    });
+    const globalAttempt = appended.ordinal;
     const attemptNumber = globalAttempt;
-    const sharpeSE = bootstrapCI[1] > bootstrapCI[0] ? (bootstrapCI[1] - bootstrapCI[0]) / (2 * 1.96) : 1;
-    const deflatedSharpe = computeDeflatedSharpe(oosMetrics.sharpe, attemptNumber, sharpeSE);
+    // Phase 2.a: N_eff diagnostic on the OOS daily-return series.
+    // Bandwidth 20 days ≈ one month, enough to capture typical credit-
+    // spread trade-life autocorrelation.
+    const nOosDaily = oosMetrics.dailyReturns.length;
+    const nEffOosDaily = computeEffectiveSampleSize(oosMetrics.dailyReturns, 20);
+    // Phase 2.c: closed-form Mertens SE on the annualized Sharpe, using
+    // N_eff as the effective sample size and the OOS returns' own
+    // skewness + kurtosis. Deterministic alternative to the bootstrap-
+    // CI-derived SE (which is itself noisy and under-covers above
+    // phi ≈ 0.5 per the 2.b Monte Carlo validation).
+    const mertens = computeMertensSharpeSE(oosMetrics.dailyReturns, nEffOosDaily, 252);
+    const mertensSharpeSE = mertens.annualizedSe;
+    const mertensSkewness = mertens.skewness;
+    const mertensKurtosis = mertens.kurtosis;
+    // Phase 2.i (2026-04-20): REVERTED Phase 2.g's swap — `deflatedSharpe`
+    // is bootstrap-SE-driven again, matching historical leaderboard
+    // semantics. `deflatedSharpeMertens` returns as a diagnostic companion.
+    //
+    // Why reverted: downstream analyses (`scripts/autoresearch/analyze-*.ts`)
+    // compare `deflatedSharpe > 0` and sort by its value across rows that
+    // span the 2.g boundary. Quietly changing the field's underlying
+    // formula makes a single leaderboard-full-*.json internally
+    // inconsistent — new rows reporting Mertens DSR mixed with old rows
+    // reporting bootstrap DSR. Codex round-22 Finding 1 (2026-04-20).
+    //
+    // Operators who want a Mertens-authoritative view of the fleet should
+    // prefer `deflatedSharpeMertens` in new analysis code. The Phase 2.h
+    // `passesStatConsistency` flag still surfaces disagreement between
+    // the two estimators for human review.
+    const bootstrapSharpeSE = bootstrapCI[1] > bootstrapCI[0] ? (bootstrapCI[1] - bootstrapCI[0]) / (2 * 1.96) : 1;
+    const deflatedSharpe = computeDeflatedSharpe(oosMetrics.sharpe, attemptNumber, bootstrapSharpeSE);
+    const deflatedSharpeMertens: number | undefined = mertensSharpeSE > 0
+      ? computeDeflatedSharpe(oosMetrics.sharpe, attemptNumber, mertensSharpeSE)
+      : undefined;
+    // Phase 2.h: stat-consistency flag between the two SE estimators.
+    // Ratio of the larger to the smaller, symmetric. Not a hard gate —
+    // reviewer-only signal. Triggered when the bootstrap SE and the
+    // parametric Mertens SE disagree by more than `maxStatConsistencyRatio`,
+    // which flags either a bootstrap coverage failure (autocorrelation
+    // beyond fixed-block's reach) or a Mertens mis-specification
+    // (extreme higher moments). Skipped when Mertens SE is unavailable.
+    const statConsistencyRatio = mertensSharpeSE > 0 && bootstrapSharpeSE > 0
+      ? Math.max(mertensSharpeSE / bootstrapSharpeSE, bootstrapSharpeSE / mertensSharpeSE)
+      : undefined;
+    const passesStatConsistency = statConsistencyRatio == null
+      ? undefined
+      : statConsistencyRatio <= gates().gates.maxStatConsistencyRatio;
     const holdoutOOSRatio = oosMetrics.sharpe > 0.01 ? holdoutMetrics.sharpe / oosMetrics.sharpe : 0;
 
     // 13. Validity checks
@@ -1040,13 +1398,13 @@ async function main() {
     //
     // Adversarial review finding (Codex, 2026-04-17) — prior `isValid`
     // embedded `passesHoldoutOrIR`, leaking holdout outcome to the search loop.
-    const passesMinTrades = workerResult.allOOSTrades.length >= MIN_OOS_TRADES;
-    const passesMaxDD = oosMetrics.maxDrawdownPct <= MAX_OOS_DD;
+    const g = gates().gates;
+    const passesMinTrades = workerResult.allOOSTrades.length >= g.minOosTrades;
+    const passesMaxDD = oosMetrics.maxDrawdownPct <= g.maxOosDrawdownPct;
     const passesWFA = oosMetrics.sharpe > 0;
-    const passesHoldout = holdoutMetrics.sharpe >= MIN_HOLDOUT_SHARPE;
-    const MIN_HOLDOUT_METRIC = 0.3;
-    const passesHoldoutAbsolute = holdoutMetrics.sharpe >= MIN_HOLDOUT_METRIC;
-    const passesHoldoutIR = holdoutSpyIRResult.ir >= MIN_HOLDOUT_METRIC;
+    const passesHoldout = holdoutMetrics.sharpe >= g.minHoldoutSharpe;
+    const passesHoldoutAbsolute = holdoutMetrics.sharpe >= g.minHoldoutMetric;
+    const passesHoldoutIR = holdoutSpyIRResult.ir >= g.minHoldoutMetric;
     // Legacy disjunctive gate — too permissive: accepts a winner with deeply
     // negative IR as long as raw Sharpe is above 0.3. Kept as diagnostic field
     // only; no longer wired into `isValid`. See gotcha #41.
@@ -1054,9 +1412,61 @@ async function main() {
     // Tighter gate (Codex Finding #3, 2026-04-18): require non-negative holdout
     // SPY IR in addition to positive absolute holdout Sharpe. Blocks adopting a
     // strategy that materially loses to SPY on the unseen regime.
-    const passesHoldoutIRFloor = holdoutSpyIRResult.ir >= 0;
+    const passesHoldoutIRFloor = holdoutSpyIRResult.ir >= g.minHoldoutIrFloor;
     const passesHoldoutAndIR = passesHoldoutAbsolute && passesHoldoutIRFloor;
-    const passesSanity = oosMetrics.sharpe <= MAX_SANE_OOS_SHARPE;
+    // Phase 1.c/d: three-pronged sanity on OOS metrics. All three are
+    // designed to catch the "result is too clean to be real" simulator-bug
+    // fingerprint documented in docs/backtest-trust-gotchas.md §1-2.
+    //   Upper Sharpe: impossibly-good aggregate (double-count premium,
+    //     phantom expiration profits).
+    //   Lower MaxDD: losses silently swallowed (TRAILING_LOCK class) —
+    //     8yr MaxDD < 2% is almost always a bug.
+    //   Per-trade edge: mean(grossPnl/maxProfit) across credit-spread
+    //     trades near 1.0 means the simulator books near-max-profit on
+    //     every trade, which is physically impossible across a mix of
+    //     winners and losers. Real strategies have a handful of SL-hit
+    //     losers that pull the mean well below 0.9 even at delta 0.20.
+    //     Only computed for strategies with ≥ 20 credit-spread trades in
+    //     OOS — below that the sample is too noisy to gate on mean.
+    const passesSanitySharpe = oosMetrics.sharpe <= g.maxSaneOosSharpe;
+    const passesSanityMaxDD = oosMetrics.maxDrawdownPct >= g.minSaneOosDrawdownPct;
+    // Per-trade edge: only CREDIT_SPREAD mode has a bounded maxProfit.
+    // LEAP/BUY_WRITE trades carry no such ceiling and trivially pass.
+    //
+    // Codex round-12 Finding 1 (2026-04-20): numerator and denominator must
+    // be on the same fill basis. `maxProfit` is stored as the net entry
+    // credit, but `grossPnl` is clamped against the GROSS entry credit
+    // (= net + entrySlippage). Under default bid/ask slippage, any trade
+    // closing at max profit yields `grossPnl / (maxProfit * 100) > 1.0`,
+    // which would falsely trip `passesSanityEdge` for legitimate runs.
+    // Reconstruct the gross max profit from stored trade fields so the
+    // ratio stays bounded at 1.0 regardless of slippage magnitude.
+    const csOosTrades = workerResult.allOOSTrades.filter(
+      t => t.mode === 'CREDIT_SPREAD' && (t.maxProfit ?? 0) > 0,
+    );
+    const oosPerTradeEdges = csOosTrades.map(t => {
+      if (t.grossPnl != null) {
+        // Gross basis: grossPnl is clamped at grossEntryCredit*100 where
+        // grossEntryCredit = clampSpreadCloseCost(netEntryCredit + entrySlippage, actualWidth)
+        // — i.e. capped at the spread width in buildCreditSpreadTrade.
+        // Codex round-13 Finding 1 (2026-04-20): match the same clamp
+        // here, else high-credit trades on narrow spreads score below 1.0
+        // at true gross max profit and under-count the near-max-profit
+        // pattern the gate is meant to catch.
+        const unclampedGross = (t.maxProfit ?? 0) + (t.entrySlippage ?? 0);
+        const grossMaxProfit = t.spreadWidth != null
+          ? Math.min(unclampedGross, t.spreadWidth)
+          : unclampedGross;
+        return grossMaxProfit > 0 ? t.grossPnl / (grossMaxProfit * 100) : 0;
+      }
+      // Net basis fallback for trades missing grossPnl (legacy/cached rows).
+      return t.pnl / ((t.maxProfit ?? 1) * 100);
+    });
+    const meanPerTradeEdge = oosPerTradeEdges.length > 0
+      ? oosPerTradeEdges.reduce((s, e) => s + e, 0) / oosPerTradeEdges.length
+      : 0;
+    const passesSanityEdge = csOosTrades.length < 20 || meanPerTradeEdge < g.maxSanePerTradeEdge;
+    const passesSanity = passesSanitySharpe && passesSanityMaxDD && passesSanityEdge;
     // Separate carry (selection-entered, live during holdout) from new (entered
     // inside holdout). A strategy that stops generating signals after the
     // boundary can otherwise pass the Sharpe/IR gate on a single carried LEAP
@@ -1071,14 +1481,41 @@ async function main() {
     const carriedHoldoutTrades = workerResult.allOOSTrades.filter(t =>
       t.exitDate >= holdoutStart,
     ).length;
-    const MIN_NEW_HOLDOUT_TRADES = 1;
-    const passesHoldoutNewEntries = newHoldoutTrades >= MIN_NEW_HOLDOUT_TRADES;
+    const passesHoldoutNewEntries = newHoldoutTrades >= g.minNewHoldoutTrades;
+    // Phase 1.b: holdout/OOS stability gate. The ratio reveals whether
+    // holdout performance is consistent with OOS (ratio ~1) or diverges
+    // wildly. Ratio below min → overfit to selection window. Ratio above
+    // max → holdout "too good," usually data snooping or pre-reg-rule
+    // bending. Previously documented as "manual check" in
+    // backtest-trust-gotchas.md; now a hard gate in `isValid`. Bounds live
+    // in the hashed adoption-gates config so changes trip
+    // adoptionGatesRawHash (Codex round-12 Finding 2, 2026-04-20). Held OUT
+    // of `isValidForSearch` to keep agents holdout-blind; stripped from
+    // agent-visible leaderboard below.
+    const passesStability =
+      holdoutOOSRatio >= g.minStabilityHoldoutOosRatio &&
+      holdoutOOSRatio <= g.maxStabilityHoldoutOosRatio;
     // Search-time validity: holdout-blind. Agents see this.
     const isValidForSearch = passesMinTrades && passesMaxDD && passesWFA && passesSanity && passesDeltaGates;
-    // Overall validity: includes holdout gate + new-entries guard. Full leaderboard only — stripped from agent-visible file.
-    // Gate now uses `passesHoldoutAndIR` (Sharpe ≥ 0.3 AND IR ≥ 0), NOT the legacy
+    // Phase 2.n (2026-04-20): stat-consistency is NOW a hard gate. When
+    // the bootstrap-SE and Mertens-SE estimators disagree by more than
+    // `maxStatConsistencyRatio` (default 5.0x, hashed in adoption-gates),
+    // the strategy fails `isValid`. Undefined (Mertens unavailable on
+    // degenerate series) treats as PASS — don't auto-reject on missing
+    // diagnostic. Not wired into `isValidForSearch` to keep agents
+    // holdout-blind; a DISAGREEMENT between SE estimators is a reviewer
+    // methodology concern, not a search signal.
+    const passesStatConsistencyForIsValid = passesStatConsistency !== false;
+    // Overall validity: includes holdout gate + new-entries guard + stability + stat consistency.
+    // Full leaderboard only — stripped from agent-visible file.
+    // Gate uses `passesHoldoutAndIR` (Sharpe ≥ 0.3 AND IR ≥ 0), NOT the legacy
     // disjunctive `passesHoldoutOrIR`. See runner.ts comment on `passesHoldoutAndIR` and gotcha #41.
-    const isValid = isValidForSearch && passesHoldoutAndIR && passesHoldoutNewEntries;
+    const isValid =
+      isValidForSearch &&
+      passesHoldoutAndIR &&
+      passesHoldoutNewEntries &&
+      passesStability &&
+      passesStatConsistencyForIsValid;
 
     const exitTypeBreakdown: Record<string, number> = {};
     for (const t of workerResult.allOOSTrades) {
@@ -1109,24 +1546,73 @@ async function main() {
       holdoutSpyExcessReturn: holdoutSpyIRResult.excessReturn,
       avgTrainSharpe,
       wfEfficiency,
-      passesMinTrades, passesMaxDD, passesWFA, passesHoldout, passesHoldoutOrIR, passesHoldoutIRFloor, passesHoldoutAndIR, passesSanity, isValid, isValidForSearch,
+      passesMinTrades, passesMaxDD, passesWFA, passesHoldout, passesHoldoutOrIR, passesHoldoutIRFloor, passesHoldoutAndIR, passesSanity, passesStability, isValid, isValidForSearch,
+      meanPerTradeEdge: oosPerTradeEdges.length > 0 ? meanPerTradeEdge : undefined,
       holdoutOOSRatio,
       bootstrapSharpe95CI: bootstrapCI,
       bootstrapSignificant,
       attemptNumber,
       deflatedSharpe,
+      nEffOosDaily,
+      nOosDaily,
+      mertensSharpeSE,
+      mertensSkewness,
+      mertensKurtosis,
+      deflatedSharpeMertens,
+      statConsistencyRatio,
+      passesStatConsistency,
       exitTypeBreakdown,
       signalsGenerated: allSignals.length,
       signalsSkippedNoChain: allSignals.length - workerResult.allOOSTrades.length - workerResult.holdoutTrades.length,
       baselineOosSharpe, baselineMaxDD, baselineCorrelation, baselineSpyIR, baselineTrades,
       deltaSpyIR, deltaMaxDD, deltaCorrelation, passesDeltaSpyIR, passesDeltaMaxDD, passesDeltaCorr, passesDeltaGates,
+      preRegBypassed: preRegAudit.preRegBypassed,
+      preRegBypassReason: preRegAudit.preRegBypassReason,
+      preRegBlockHash: preRegAudit.preRegBlockHash,
+      preRegGitSha: preRegAudit.preRegGitSha,
+      preRegHoldoutWindowHash: preRegAudit.preRegHoldoutWindowHash,
+      adoptionGatesRawHash: gates().rawHash,
+      adoptionGatesEffectiveHash: gates().effectiveHash,
+      adoptionGatesOverrides: gates().envOverrides.map(o => ({ envVar: o.envVar, target: o.target, value: o.parsed })),
+      // Phase 0.a.5 provenance: binds this row to strategy + repo state and
+      // records whether holdout was actually evaluated. Seal reads all three.
+      strategyGitSha,
+      strategyBlobSha,
+      repoGitSha,
+      holdoutEvaluated: holdoutWindows.length > 0,
+      // Phase 0.b.6 dataset-manifest provenance. Seal ceremony refuses rows
+      // whose datasetManifestHash doesn't match the current committed
+      // manifest — prevents sealing a row produced under an old manifest
+      // under a newer one.
+      datasetManifestHash: MANIFEST.rawHash,
+      datasetManifestVersion: MANIFEST.manifest.manifestVersion,
+      // Phase 0.b.7 per-series coverage hash. Seal refuses if a row's hash
+      // doesn't match current ticker-cache state.
+      tickerCoverageHash,
       elapsedMs,
     };
 
-    // Update leaderboard (skip in screen mode)
+    // Update leaderboard (skip in screen mode).
+    // Re-hash adoption gates config AND dataset manifest before persisting —
+    // refuse to write if either file changed mid-campaign (Phase 0.a.2 / 0.b.6
+    // immutability checks).
     if (!SCREEN_MODE) {
+      assertGatesUnchanged(gates());
+      assertManifestUnchanged(MANIFEST);
       leaderboard.push(runResult);
       saveLeaderboard(leaderboard);
+
+      // Phase 0.a.5: append each non-bypassed RunResult as one line in
+      // docs/audit-rows/<blockHash>.jsonl. The seal ceremony reads FROM
+      // this tracked file after the operator commits it — appending (not
+      // overwriting) so earlier rows are preserved in git history, closing
+      // the "silent overwrite" hole Codex flagged in round 2 (Finding 2).
+      if (!preRegAudit.preRegBypassed && preRegAudit.preRegBlockHash) {
+        const rowsDir = path.resolve(__dirname, '../../docs/audit-rows');
+        fs.mkdirSync(rowsDir, { recursive: true });
+        const rowPath = path.join(rowsDir, `${preRegAudit.preRegBlockHash}.jsonl`);
+        fs.appendFileSync(rowPath, JSON.stringify(runResult) + '\n');
+      }
     }
     allVariantResults.push(runResult);
 
@@ -1240,21 +1726,47 @@ async function main() {
 
   // Cleanup temp bundle
   try { fs.unlinkSync(strategyBundle); } catch {}
+  } finally {
+    // Happy-path teardown — Codex round-6 Finding 2. Release the lock and
+    // remove every process-level handler main() installed, so sequential
+    // same-pid invocations don't accumulate listeners.
+    runnerLock.release();
+    process.off('uncaughtException', onUncaught);
+    process.off('unhandledRejection', onUnhandled);
+    process.off('exit', onExit);
+  }
 }
 
 // ── Output Formatting ───────────────────────────────────
 
 function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion: boolean) {
   const bestSharpe = currentBest?.combinedSharpe ?? 0;
-  const holdoutStability = r.holdoutOOSRatio >= 0.5 ? 'STABLE' : r.holdoutOOSRatio >= 0.1 ? 'WEAK' : 'DEGRADED';
+  const g2 = gates().gates;
+  // Stability label tracks the configurable bounds. Codex round-13 Finding 2
+  // (2026-04-20): previously hardcoded 0.5/0.1 — would drift out of sync
+  // with the gate if an operator changed the hashed config.
+  const holdoutStability = (
+    r.holdoutOOSRatio >= g2.minStabilityHoldoutOosRatio &&
+    r.holdoutOOSRatio <= g2.maxStabilityHoldoutOosRatio
+      ? 'STABLE'
+      : r.holdoutOOSRatio > g2.maxStabilityHoldoutOosRatio
+        ? 'HIGH'
+        : 'WEAK'
+  );
   // Status line is SEARCH-VALIDITY ONLY (no holdout feedback). Holdout outcomes
   // appear only in the reviewer-only block below, which the agent-facing shells
   // strip before including the output in the next iteration's prompt.
   const invalidReasons = [
-    !r.passesMinTrades && `${r.oosTrades} trades < ${MIN_OOS_TRADES} min`,
-    !r.passesMaxDD && `MaxDD ${r.oosMaxDD.toFixed(1)}% > ${MAX_OOS_DD}% limit`,
+    !r.passesMinTrades && `${r.oosTrades} trades < ${g2.minOosTrades} min`,
+    !r.passesMaxDD && `MaxDD ${r.oosMaxDD.toFixed(1)}% > ${g2.maxOosDrawdownPct}% limit`,
     !r.passesWFA && `OOS Sharpe ${r.oosSharpe.toFixed(3)} <= 0`,
-    !r.passesSanity && `OOS Sharpe ${r.oosSharpe.toFixed(3)} > ${MAX_SANE_OOS_SHARPE} (sanity bound — simulator bug likely)`,
+    !r.passesSanity && (
+      r.oosSharpe > g2.maxSaneOosSharpe
+        ? `OOS Sharpe ${r.oosSharpe.toFixed(3)} > ${g2.maxSaneOosSharpe} (sanity bound — simulator bug likely)`
+      : r.oosMaxDD < g2.minSaneOosDrawdownPct
+        ? `OOS MaxDD ${r.oosMaxDD.toFixed(2)}% < ${g2.minSaneOosDrawdownPct}% (sanity bound — losses may be silently swallowed, TRAILING_LOCK fingerprint)`
+        : `Mean per-trade edge ${(r.meanPerTradeEdge ?? 0).toFixed(3)} ≥ ${g2.maxSanePerTradeEdge} (sanity bound — near-max-profit on every trade is a TRAILING_LOCK fingerprint)`
+    ),
     !r.passesDeltaGates && 'delta gates: signal timing does not beat naive baseline',
   ].filter(Boolean);
   const status = r.isValidForSearch ? 'VALID_FOR_SEARCH' : `INVALID_FOR_SEARCH (${invalidReasons.join(', ')})`;
@@ -1280,7 +1792,35 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
   console.log('');
   console.log('--- Overfitting Checks (agent-safe — no holdout signal) ---');
   console.log(`Bootstrap 95% CI: [${r.bootstrapSharpe95CI[0].toFixed(3)}, ${r.bootstrapSharpe95CI[1].toFixed(3)}] ${r.bootstrapSignificant ? '✓ significant' : '✗ NOT significant'}`);
-  console.log(`Deflated Sharpe: ${r.deflatedSharpe.toFixed(3)} (adjusted for ${r.attemptNumber} attempts) ${r.deflatedSharpe > 0 ? '✓ survives' : '✗ may be noise'}${overfitWarning}`);
+  // Phase 2.i: `deflatedSharpe` is bootstrap-SE-driven (historical
+  // semantics). `deflatedSharpeMertens` is the parametric-SE companion.
+  console.log(`Deflated Sharpe: ${r.deflatedSharpe.toFixed(3)} (bootstrap SE, adjusted for ${r.attemptNumber} attempts) ${r.deflatedSharpe > 0 ? '✓ survives' : '✗ may be noise'}${overfitWarning}`);
+  if (r.deflatedSharpeMertens != null) {
+    console.log(`Deflated Sharpe (Mertens): ${r.deflatedSharpeMertens.toFixed(3)}`);
+  }
+  if (r.statConsistencyRatio != null) {
+    // Phase 2.h/2.n: SE-estimator consistency — now a hard gate in
+    // `isValid`. Ratio compared against hashed `maxStatConsistencyRatio`.
+    const status = r.passesStatConsistency === false ? '✗ FAIL (rejects isValid)' : '✓ pass';
+    console.log(`SE estimator consistency: ratio ${r.statConsistencyRatio.toFixed(2)}x ${status}`);
+  }
+  if (r.nEffOosDaily != null && r.nOosDaily != null && r.nOosDaily > 0) {
+    const ratio = r.nEffOosDaily / r.nOosDaily;
+    const flag = ratio < 0.3 ? ' ⚠ very autocorrelated' : ratio < 0.6 ? ' (moderately autocorrelated)' : '';
+    console.log(`N_eff(OOS daily): ${r.nEffOosDaily.toFixed(0)} of ${r.nOosDaily} days (ratio ${ratio.toFixed(2)})${flag}`);
+  }
+  if (r.mertensSharpeSE != null) {
+    // Compare Mertens SE against the bootstrap-CI-derived SE.
+    // Large ratio (> 1.5 or < 0.67) = model-spec disagreement worth flagging.
+    const bootSE = (r.bootstrapSharpe95CI[1] - r.bootstrapSharpe95CI[0]) / (2 * 1.96);
+    const disagree = bootSE > 0 && (r.mertensSharpeSE / bootSE > 1.5 || r.mertensSharpeSE / bootSE < 0.67);
+    const skewTxt = r.mertensSkewness != null ? `skew ${r.mertensSkewness.toFixed(2)}` : '';
+    const kurtTxt = r.mertensKurtosis != null ? `kurt ${r.mertensKurtosis.toFixed(2)}` : '';
+    console.log(
+      `Mertens Sharpe SE: ${r.mertensSharpeSE.toFixed(3)} vs bootstrap SE ${bootSE.toFixed(3)}` +
+      `${disagree ? ' ⚠ disagrees' : ''} (${[skewTxt, kurtTxt].filter(Boolean).join(', ')})`
+    );
+  }
   console.log(`WF Efficiency: ${r.wfEfficiency.toFixed(2)} (avg train: ${r.avgTrainSharpe.toFixed(3)})`);
   console.log('');
   console.log('--- Signal Timing Alpha (vs naive baseline) ---');
@@ -1312,7 +1852,8 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
   console.log('--- Holdout Evaluation (do NOT feed to search agent) ---');
   console.log(`Holdout Sharpe gate: ${r.passesHoldout ? 'PASS' : 'FAIL'} (Sharpe ${r.holdoutSharpe.toFixed(3)}, ${r.holdoutTrades} trades)`);
   console.log(`Holdout-or-IR gate: ${r.passesHoldoutOrIR ? 'PASS' : 'FAIL'} (IR ${r.holdoutSpyIR.toFixed(3)}, excess ${(r.holdoutSpyExcessReturn * 100).toFixed(2)}%/yr)`);
-  console.log(`Holdout stability: ${holdoutStability} (ratio ${r.holdoutOOSRatio.toFixed(2)})`);
+  const stabilityGate = r.passesStability === false ? 'FAIL' : r.passesStability === true ? 'PASS' : 'n/a';
+  console.log(`Holdout stability: ${holdoutStability} (ratio ${r.holdoutOOSRatio.toFixed(2)}, gate ${stabilityGate} — bounds [${g2.minStabilityHoldoutOosRatio.toFixed(2)}, ${g2.maxStabilityHoldoutOosRatio.toFixed(2)}])`);
   console.log(`Overall validity (search+holdout): ${r.isValid ? 'VALID' : 'INVALID'}`);
   console.log(`True champion verdict: ${isNewChampion ? 'NEW CHAMPION' : 'NOT CHAMPION'}`);
   console.log('__END_REVIEWER_ONLY__');

@@ -12,16 +12,19 @@ import { bsmPrice, bsmDelta, computeRollingHV } from '../src/lib/backtest/bsm-pr
 describe('bsmPrice', () => {
   const S = 100, K = 100, T = 30 / 365, sigma = 0.20, r = 0.04;
 
-  it('ATM 30-DTE call is in expected range ($2.50-2.80)', () => {
+  // Expected ranges calibrated against QuantLib (Phase 0.c.8). Pre-Phase
+  // 0.c.8 ranges assumed a buggy normCDF that overpriced ATM options by
+  // ~10%. See docs or tests/bsm-quantlib-parity.test.ts for anchoring.
+  it('ATM 30-DTE call is in QuantLib-verified range (~$2.45)', () => {
     const price = bsmPrice(S, K, T, sigma, r, true);
-    expect(price).toBeGreaterThan(2.50);
-    expect(price).toBeLessThan(2.80);
+    expect(price).toBeGreaterThan(2.42);
+    expect(price).toBeLessThan(2.48);
   });
 
-  it('ATM 30-DTE put is in expected range ($2.20-2.45)', () => {
+  it('ATM 30-DTE put is in QuantLib-verified range (~$2.12)', () => {
     const price = bsmPrice(S, K, T, sigma, r, false);
-    expect(price).toBeGreaterThan(2.20);
-    expect(price).toBeLessThan(2.45);
+    expect(price).toBeGreaterThan(2.09);
+    expect(price).toBeLessThan(2.15);
   });
 
   it('put-call parity: C - P = S - K*exp(-rT)', () => {
@@ -80,16 +83,16 @@ describe('bsmPrice', () => {
 // ─── BSM Delta ──────────────────────────────────────────────────
 
 describe('bsmDelta', () => {
-  it('ATM 30-DTE call delta ≈ 0.60-0.67 (r=4% shifts forward)', () => {
+  it('ATM 30-DTE call delta ≈ 0.53 (QuantLib-verified, Phase 0.c.8)', () => {
     const d = bsmDelta(100, 100, 30 / 365, 0.20, 0.04, true);
-    expect(d).toBeGreaterThan(0.60);
-    expect(d).toBeLessThan(0.67);
+    expect(d).toBeGreaterThan(0.51);
+    expect(d).toBeLessThan(0.56);
   });
 
-  it('ATM 30-DTE put delta ≈ -0.40 to -0.33', () => {
+  it('ATM 30-DTE put delta ≈ -0.47 (QuantLib-verified)', () => {
     const d = bsmDelta(100, 100, 30 / 365, 0.20, 0.04, false);
-    expect(d).toBeGreaterThan(-0.40);
-    expect(d).toBeLessThan(-0.33);
+    expect(d).toBeGreaterThan(-0.49);
+    expect(d).toBeLessThan(-0.44);
   });
 
   it('call delta + |put delta| ≈ 1', () => {

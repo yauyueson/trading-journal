@@ -10,7 +10,6 @@
     "combinedSharpe": 0.44503454589602104,
     "correlationWithDTE5": 0.37139404736791026,
     "combinedMaxDD": 9.996741713435718,
-    "holdoutTrades": 20,
     "oosSpyIR": -0.718490587716086,
     "oosSpyExcessReturn": -0.13975707432103332,
     "avgTrainSharpe": -0.2393100871726781,
@@ -18,10 +17,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.7447077062625839,
       0.6006532413575408
@@ -62,7 +58,6 @@
     "combinedSharpe": 0.5244576643234891,
     "correlationWithDTE5": -0.050088773928564354,
     "combinedMaxDD": 9.466725015918115,
-    "holdoutTrades": 1,
     "oosSpyIR": -0.5919511400792297,
     "oosSpyExcessReturn": -0.13505611357558261,
     "avgTrainSharpe": -0.24126287567978266,
@@ -70,10 +65,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5887647285393917,
       0.5947068647392566
@@ -115,7 +107,6 @@
     "combinedSharpe": 0.5244576643234891,
     "correlationWithDTE5": -0.050088773928564354,
     "combinedMaxDD": 9.466725015918115,
-    "holdoutTrades": 1,
     "oosSpyIR": -0.5919511400792297,
     "oosSpyExcessReturn": -0.13505611357558261,
     "avgTrainSharpe": -0.24126287567978266,
@@ -123,10 +114,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5803863049220328,
       0.589118001156291
@@ -168,7 +156,6 @@
     "combinedSharpe": 0.5151038564581577,
     "correlationWithDTE5": -0.03919563389826446,
     "combinedMaxDD": 9.466725015918202,
-    "holdoutTrades": 3,
     "oosSpyIR": -0.6167117857635651,
     "oosSpyExcessReturn": -0.1371141042410118,
     "avgTrainSharpe": -0.31047987838929114,
@@ -176,10 +163,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.6938757159229068,
       0.5829339491764044
@@ -221,7 +205,6 @@
     "combinedSharpe": 0.5015109269559055,
     "correlationWithDTE5": -0.052143613869945,
     "combinedMaxDD": 9.466725015918088,
-    "holdoutTrades": 1,
     "oosSpyIR": -0.5941545106507458,
     "oosSpyExcessReturn": -0.1377454073012688,
     "avgTrainSharpe": -0.34302033799980136,
@@ -229,10 +212,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.691713349580833,
       0.5353038713892817
@@ -274,7 +254,6 @@
     "combinedSharpe": 0.49628121779776035,
     "correlationWithDTE5": -0.032841512241735496,
     "combinedMaxDD": 10.88019835150202,
-    "holdoutTrades": 1,
     "oosSpyIR": -0.6150641924665754,
     "oosSpyExcessReturn": -0.1390473946216074,
     "avgTrainSharpe": -0.26017836954784884,
@@ -282,10 +261,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.705851361974217,
       0.5971386463886038
@@ -327,7 +303,6 @@
     "combinedSharpe": 0.5017068367382851,
     "correlationWithDTE5": -0.05180264059413432,
     "combinedMaxDD": 9.466725015918136,
-    "holdoutTrades": 3,
     "oosSpyIR": -0.6103016769066926,
     "oosSpyExcessReturn": -0.13844257075924302,
     "avgTrainSharpe": -0.4013088427923312,
@@ -335,10 +310,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.7857629225815876,
       0.5132925673621682
@@ -380,7 +352,6 @@
     "combinedSharpe": 0.4913414104818959,
     "correlationWithDTE5": -0.03352086154945747,
     "combinedMaxDD": 10.167432381717036,
-    "holdoutTrades": 3,
     "oosSpyIR": -0.5823583114903506,
     "oosSpyExcessReturn": -0.13698553167605726,
     "avgTrainSharpe": -0.32040448376113445,
@@ -388,10 +359,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.7465301879423728,
       0.6179967626050031
@@ -433,7 +401,6 @@
     "combinedSharpe": 0.4603171139483275,
     "correlationWithDTE5": 0.30598714309143815,
     "combinedMaxDD": 12.453925211272763,
-    "holdoutTrades": 43,
     "oosSpyIR": -0.6866728695571196,
     "oosSpyExcessReturn": -0.12802384899570737,
     "avgTrainSharpe": 0.07671654780973881,
@@ -441,10 +408,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5938226922200259,
       0.9899812480941124
@@ -486,7 +450,6 @@
     "combinedSharpe": 0.4603171139483275,
     "correlationWithDTE5": 0.30598714309143815,
     "combinedMaxDD": 12.453925211272763,
-    "holdoutTrades": 43,
     "oosSpyIR": -0.6866728695571196,
     "oosSpyExcessReturn": -0.12802384899570737,
     "avgTrainSharpe": 0.07671654780973881,
@@ -494,10 +457,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.527497818456296,
       1.014365586850414
@@ -539,7 +499,6 @@
     "combinedSharpe": 0.4753900835597743,
     "correlationWithDTE5": 0.321497859055546,
     "combinedMaxDD": 11.199907822241334,
-    "holdoutTrades": 50,
     "oosSpyIR": -0.6891839703289548,
     "oosSpyExcessReturn": -0.1292193376318357,
     "avgTrainSharpe": 0.13086158456187064,
@@ -547,10 +506,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.6125969200334319,
       0.9696665226008404
@@ -592,7 +548,6 @@
     "combinedSharpe": 0.5146635676418614,
     "correlationWithDTE5": 0.27260737687858644,
     "combinedMaxDD": 12.678550244847472,
-    "holdoutTrades": 35,
     "oosSpyIR": -0.6470735333495317,
     "oosSpyExcessReturn": -0.12181315771270555,
     "avgTrainSharpe": 0.1333945767708493,
@@ -600,10 +555,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.49393299101687327,
       1.1394645206093923
@@ -645,7 +597,6 @@
     "combinedSharpe": 0.37064111454620746,
     "correlationWithDTE5": 0.24086009668575917,
     "combinedMaxDD": 15.386769320981205,
-    "holdoutTrades": 36,
     "oosSpyIR": -0.7713592201491696,
     "oosSpyExcessReturn": -0.14741823166579252,
     "avgTrainSharpe": -0.10754964328790424,
@@ -653,10 +604,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.8537066884430617,
       0.7571734541822186
@@ -698,7 +646,6 @@
     "combinedSharpe": 0.49160418020811397,
     "correlationWithDTE5": 0.2815861758162643,
     "combinedMaxDD": 12.533800077333773,
-    "holdoutTrades": 27,
     "oosSpyIR": -0.6763990986381132,
     "oosSpyExcessReturn": -0.1271932648562495,
     "avgTrainSharpe": 0.14438398412340592,
@@ -706,10 +653,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5031848533328803,
       1.0883166689203154
@@ -751,7 +695,6 @@
     "combinedSharpe": 0.3536658071404976,
     "correlationWithDTE5": 0.28562537000743504,
     "combinedMaxDD": 16.660441842534503,
-    "holdoutTrades": 40,
     "oosSpyIR": -0.7660800707042925,
     "oosSpyExcessReturn": -0.14310405410129795,
     "avgTrainSharpe": -0.14685955051558056,
@@ -759,10 +702,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.7204122162920574,
       0.7976723446314214
@@ -804,7 +744,6 @@
     "combinedSharpe": 0.13598226363965307,
     "correlationWithDTE5": -0.10909470015024153,
     "combinedMaxDD": 16.990211445622798,
-    "holdoutTrades": 25,
     "oosSpyIR": -0.6166027934552918,
     "oosSpyExcessReturn": -0.19795338070957982,
     "avgTrainSharpe": -0.6906664074386155,
@@ -812,10 +751,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.152792961660419,
       0.3449308281874546
@@ -857,7 +793,6 @@
     "combinedSharpe": 0.13598226363965307,
     "correlationWithDTE5": -0.10909470015024153,
     "combinedMaxDD": 16.990211445622798,
-    "holdoutTrades": 25,
     "oosSpyIR": -0.6166027934552918,
     "oosSpyExcessReturn": -0.19795338070957982,
     "avgTrainSharpe": -0.6906664074386155,
@@ -865,10 +800,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.046102281330291,
       0.34725387738766705
@@ -910,7 +842,6 @@
     "combinedSharpe": 0.05383544888717804,
     "correlationWithDTE5": -0.10061556504237643,
     "combinedMaxDD": 17.129364400769926,
-    "holdoutTrades": 28,
     "oosSpyIR": -0.7214066460026474,
     "oosSpyExcessReturn": -0.21586870943939265,
     "avgTrainSharpe": -0.8695766356584049,
@@ -918,10 +849,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.2729919330182151,
       0.18366256296562472
@@ -963,7 +891,6 @@
     "combinedSharpe": 0.18391610614620618,
     "correlationWithDTE5": -0.11869674758817626,
     "combinedMaxDD": 17.58687875467299,
-    "holdoutTrades": 21,
     "oosSpyIR": -0.5507415558744789,
     "oosSpyExcessReturn": -0.18579387973268402,
     "avgTrainSharpe": -0.5792269423278765,
@@ -971,10 +898,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.9892265477092361,
       0.5169519980877134
@@ -1016,7 +940,6 @@
     "combinedSharpe": 0.14267299934635122,
     "correlationWithDTE5": -0.10976805697431635,
     "combinedMaxDD": 15.068341965776872,
-    "holdoutTrades": 19,
     "oosSpyIR": -0.6592543342892621,
     "oosSpyExcessReturn": -0.199071302041855,
     "avgTrainSharpe": -0.7586130007443407,
@@ -1024,10 +947,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.1293737332934146,
       0.27750698340788704
@@ -1069,7 +989,6 @@
     "combinedSharpe": 0.058614050322087025,
     "correlationWithDTE5": -0.09631189051958332,
     "combinedMaxDD": 15.71927140416559,
-    "holdoutTrades": 34,
     "oosSpyIR": -0.690487743586712,
     "oosSpyExcessReturn": -0.21440212973464187,
     "avgTrainSharpe": -0.760997190739877,
@@ -1077,10 +996,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.162330789264901,
       0.23275904280626367
@@ -1122,7 +1038,6 @@
     "combinedSharpe": 0.038916461808986905,
     "correlationWithDTE5": -0.10902180963160349,
     "combinedMaxDD": 18.671873204151034,
-    "holdoutTrades": 27,
     "oosSpyIR": -0.6722608578497299,
     "oosSpyExcessReturn": -0.21790197092375255,
     "avgTrainSharpe": -0.8063838056554667,
@@ -1130,10 +1045,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.1930186846840043,
       0.2750485165046718
@@ -1175,7 +1087,6 @@
     "combinedSharpe": 0.418970075809475,
     "correlationWithDTE5": 0.34742694448405703,
     "combinedMaxDD": 19.247337754188443,
-    "holdoutTrades": 70,
     "oosSpyIR": -0.7302202863187407,
     "oosSpyExcessReturn": -0.12825841357146056,
     "avgTrainSharpe": 0.20480815547834877,
@@ -1183,10 +1094,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.7579522774588953,
       1.0725208473029626
@@ -1228,7 +1136,6 @@
     "combinedSharpe": 0.418970075809475,
     "correlationWithDTE5": 0.34742694448405703,
     "combinedMaxDD": 19.247337754188443,
-    "holdoutTrades": 70,
     "oosSpyIR": -0.7302202863187407,
     "oosSpyExcessReturn": -0.12825841357146056,
     "avgTrainSharpe": 0.20480815547834877,
@@ -1236,10 +1143,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.7354300298274153,
       1.1273577143927518
@@ -1281,7 +1185,6 @@
     "combinedSharpe": 0.42003740084628327,
     "correlationWithDTE5": 0.3487340265931406,
     "combinedMaxDD": 19.601316170632224,
-    "holdoutTrades": 65,
     "oosSpyIR": -0.7173597326676346,
     "oosSpyExcessReturn": -0.12323900346204356,
     "avgTrainSharpe": 0.2874402069268362,
@@ -1289,10 +1192,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.6975891799071878,
       1.0803554009688225
@@ -1334,7 +1234,6 @@
     "combinedSharpe": 0.4936137322027033,
     "correlationWithDTE5": 0.3766414694779327,
     "combinedMaxDD": 13.792443840647922,
-    "holdoutTrades": 79,
     "oosSpyIR": -0.6792107445464981,
     "oosSpyExcessReturn": -0.12251161073229289,
     "avgTrainSharpe": 0.3955239305279504,
@@ -1342,10 +1241,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.4692172513490982,
       1.1425351232531111
@@ -1387,7 +1283,6 @@
     "combinedSharpe": 0.48832675909586737,
     "correlationWithDTE5": 0.3521765190689839,
     "combinedMaxDD": 15.716711369706008,
-    "holdoutTrades": 48,
     "oosSpyIR": -0.6865756253805452,
     "oosSpyExcessReturn": -0.12150140301178931,
     "avgTrainSharpe": 0.22901709735831322,
@@ -1395,10 +1290,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5455242340960901,
       1.1021184251526916
@@ -1440,7 +1332,6 @@
     "combinedSharpe": 0.5119484824575524,
     "correlationWithDTE5": 0.3196425023336113,
     "combinedMaxDD": 16.046656574110408,
-    "holdoutTrades": 94,
     "oosSpyIR": -0.6209203322694397,
     "oosSpyExcessReturn": -0.09996994136119633,
     "avgTrainSharpe": 0.41126152398012655,
@@ -1448,10 +1339,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.42687359749331305,
       1.1253616318531645
@@ -1493,7 +1381,6 @@
     "combinedSharpe": 0.39681062913028176,
     "correlationWithDTE5": -0.0005981854615876478,
     "combinedMaxDD": 381.48471497715127,
-    "holdoutTrades": 176,
     "oosSpyIR": 0.4121878539136882,
     "oosSpyExcessReturn": 115.26572521080607,
     "avgTrainSharpe": -1.241451165330301,
@@ -1501,10 +1388,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.49819689423128694,
       0.7151023185363471
@@ -1545,7 +1429,6 @@
     "combinedSharpe": 0.39681062913028176,
     "correlationWithDTE5": -0.0005981854615876478,
     "combinedMaxDD": 381.48471497715127,
-    "holdoutTrades": 176,
     "oosSpyIR": 0.4121878539136882,
     "oosSpyExcessReturn": 115.26572521080607,
     "avgTrainSharpe": -1.241451165330301,
@@ -1553,10 +1436,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.4300822317408951,
       0.714641832010727
@@ -1597,7 +1477,6 @@
     "combinedSharpe": -0.026557135496718207,
     "correlationWithDTE5": -0.013789110785742908,
     "combinedMaxDD": 134.89614647609173,
-    "holdoutTrades": 175,
     "oosSpyIR": -0.07869409419155958,
     "oosSpyExcessReturn": -0.3475160763682304,
     "avgTrainSharpe": -1.2788056824752727,
@@ -1605,10 +1484,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5049008481143175,
       0.44571443657162974
@@ -1649,7 +1525,6 @@
     "combinedSharpe": -0.4812325279910805,
     "correlationWithDTE5": -0.04476153000625175,
     "combinedMaxDD": 111.71254815219574,
-    "holdoutTrades": 176,
     "oosSpyIR": -0.570517530750303,
     "oosSpyExcessReturn": -1.6555461623375871,
     "avgTrainSharpe": -1.4910341507611242,
@@ -1657,10 +1532,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.5109936152677477,
       0.3521725361383191
@@ -1701,7 +1573,6 @@
     "combinedSharpe": -0.8077750004283869,
     "correlationWithDTE5": -0.018299485534195782,
     "combinedMaxDD": 107.75671221499775,
-    "holdoutTrades": 175,
     "oosSpyIR": -0.9166638032796407,
     "oosSpyExcessReturn": -2.428936405577076,
     "avgTrainSharpe": -1.3589947151662554,
@@ -1709,10 +1580,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.420373600682423,
       -0.1205815206882091
@@ -1753,7 +1621,6 @@
     "combinedSharpe": 0.39681062913028176,
     "correlationWithDTE5": -0.0005981854615876478,
     "combinedMaxDD": 381.48471497715127,
-    "holdoutTrades": 176,
     "oosSpyIR": 0.4121878539136882,
     "oosSpyExcessReturn": 115.26572521080607,
     "avgTrainSharpe": -1.241451165330301,
@@ -1761,10 +1628,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.523720060304081,
       0.7152359550767784
@@ -1805,7 +1669,6 @@
     "combinedSharpe": -0.47909086415224417,
     "correlationWithDTE5": -0.018766829088881064,
     "combinedMaxDD": 135.37460028200616,
-    "holdoutTrades": 172,
     "oosSpyIR": -0.5205877489762266,
     "oosSpyExcessReturn": -5.135769387344873,
     "avgTrainSharpe": -0.7336144824068556,
@@ -1813,10 +1676,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.063290633187191,
       0.18782673711044295
@@ -1857,7 +1717,6 @@
     "combinedSharpe": -0.47909086415224417,
     "correlationWithDTE5": -0.018766829088881064,
     "combinedMaxDD": 135.37460028200616,
-    "holdoutTrades": 172,
     "oosSpyIR": -0.5205877489762266,
     "oosSpyExcessReturn": -5.135769387344873,
     "avgTrainSharpe": -0.7336144824068556,
@@ -1865,10 +1724,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.019865146446772,
       0.22254697901452763
@@ -1909,7 +1765,6 @@
     "combinedSharpe": -0.47909086415224417,
     "correlationWithDTE5": -0.018766829088881064,
     "combinedMaxDD": 135.37460028200616,
-    "holdoutTrades": 172,
     "oosSpyIR": -0.5205877489762266,
     "oosSpyExcessReturn": -5.135769387344873,
     "avgTrainSharpe": -0.7336144824068556,
@@ -1917,10 +1772,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.0266708441319539,
       0.17120015176727424
@@ -1961,7 +1813,6 @@
     "combinedSharpe": -0.47909086415224417,
     "correlationWithDTE5": -0.018766829088881064,
     "combinedMaxDD": 135.37460028200616,
-    "holdoutTrades": 172,
     "oosSpyIR": -0.5205877489762266,
     "oosSpyExcessReturn": -5.135769387344873,
     "avgTrainSharpe": -0.7336144824068556,
@@ -1969,10 +1820,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.0250508022591687,
       0.19041579806052097
@@ -2013,7 +1861,6 @@
     "combinedSharpe": -0.47909086415224417,
     "correlationWithDTE5": -0.018766829088881064,
     "combinedMaxDD": 135.37460028200616,
-    "holdoutTrades": 172,
     "oosSpyIR": -0.5205877489762266,
     "oosSpyExcessReturn": -5.135769387344873,
     "avgTrainSharpe": -0.7336144824068556,
@@ -2021,10 +1868,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.0098248348404386,
       0.20587641615634109
@@ -2065,7 +1909,6 @@
     "combinedSharpe": -0.47909086415224417,
     "correlationWithDTE5": -0.018766829088881064,
     "combinedMaxDD": 135.37460028200616,
-    "holdoutTrades": 172,
     "oosSpyIR": -0.5205877489762266,
     "oosSpyExcessReturn": -5.135769387344873,
     "avgTrainSharpe": -0.7336144824068556,
@@ -2073,10 +1916,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.0285452388211869,
       0.17131674901226518
@@ -2117,7 +1957,6 @@
     "combinedSharpe": 0.06646621568104595,
     "correlationWithDTE5": 0.042075595055218164,
     "combinedMaxDD": 99.16777626085377,
-    "holdoutTrades": 192,
     "oosSpyIR": -0.02683843570098075,
     "oosSpyExcessReturn": -0.0628177842535989,
     "avgTrainSharpe": 0.037620263361179275,
@@ -2125,10 +1964,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.4348528941356911,
       0.3956847370675768
@@ -2168,7 +2004,6 @@
     "combinedSharpe": 0.06646621568104595,
     "correlationWithDTE5": 0.042075595055218164,
     "combinedMaxDD": 99.16777626085377,
-    "holdoutTrades": 192,
     "oosSpyIR": -0.02683843570098075,
     "oosSpyExcessReturn": -0.0628177842535989,
     "avgTrainSharpe": 0.037620263361179275,
@@ -2176,10 +2011,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.43240025498383927,
       0.3995353459937817
@@ -2219,7 +2051,6 @@
     "combinedSharpe": 0.06646621568104595,
     "correlationWithDTE5": 0.042075595055218164,
     "combinedMaxDD": 99.16777626085377,
-    "holdoutTrades": 192,
     "oosSpyIR": -0.02683843570098075,
     "oosSpyExcessReturn": -0.0628177842535989,
     "avgTrainSharpe": 0.037620263361179275,
@@ -2227,10 +2058,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.4598903660954843,
       0.40921055670952877
@@ -2270,7 +2098,6 @@
     "combinedSharpe": -0.1801503262624197,
     "correlationWithDTE5": 0.0380733636394811,
     "combinedMaxDD": 128.60051846428507,
-    "holdoutTrades": 192,
     "oosSpyIR": -0.2471062321908903,
     "oosSpyExcessReturn": -0.9744105908302921,
     "avgTrainSharpe": 0.004581992661934653,
@@ -2278,10 +2105,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.958205280519203,
       0.4605326368441035
@@ -2321,7 +2145,6 @@
     "combinedSharpe": 0.30213395146055794,
     "correlationWithDTE5": 0.005773419706282008,
     "combinedMaxDD": 15.9432391334317,
-    "holdoutTrades": 0,
     "oosSpyIR": -1.1130882877043355,
     "oosSpyExcessReturn": -0.21905583205825527,
     "avgTrainSharpe": -0.5021007328735793,
@@ -2329,10 +2152,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.7461021462273842,
       -0.12897513710470354
@@ -2372,7 +2192,6 @@
     "combinedSharpe": 0.30213395146055794,
     "correlationWithDTE5": 0.005773419706282008,
     "combinedMaxDD": 15.9432391334317,
-    "holdoutTrades": 0,
     "oosSpyIR": -1.1130882877043355,
     "oosSpyExcessReturn": -0.21905583205825527,
     "avgTrainSharpe": -0.5021007328735793,
@@ -2380,10 +2199,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.698448647630121,
       -0.18703657866854265
@@ -2423,7 +2239,6 @@
     "combinedSharpe": 0.3514649210074754,
     "correlationWithDTE5": -0.0011155542722503483,
     "combinedMaxDD": 14.519514011725459,
-    "holdoutTrades": 0,
     "oosSpyIR": -1.074675817418419,
     "oosSpyExcessReturn": -0.21080303598505362,
     "avgTrainSharpe": -0.46030786043715477,
@@ -2431,10 +2246,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.5511212542711752,
       -0.0797123140805876
@@ -2475,7 +2287,6 @@
     "combinedSharpe": 0.2232828313789384,
     "correlationWithDTE5": 0.006216569773452495,
     "combinedMaxDD": 18.706051437542268,
-    "holdoutTrades": 0,
     "oosSpyIR": -1.1682968847860866,
     "oosSpyExcessReturn": -0.2321661972384853,
     "avgTrainSharpe": -0.5296904089442974,
@@ -2483,10 +2294,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.7717944108247052,
       -0.14288282627123536
@@ -2526,7 +2334,6 @@
     "combinedSharpe": 0.30213395146055794,
     "correlationWithDTE5": 0.005773419706282008,
     "combinedMaxDD": 15.9432391334317,
-    "holdoutTrades": 0,
     "oosSpyIR": -1.1130882877043355,
     "oosSpyExcessReturn": -0.21905583205825527,
     "avgTrainSharpe": -0.5021007328735793,
@@ -2534,10 +2341,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.762809610542581,
       -0.17030352583461425
@@ -2578,7 +2382,6 @@
     "combinedSharpe": -0.11683133137118352,
     "correlationWithDTE5": -0.1586885798860032,
     "combinedMaxDD": 99.4109043851599,
-    "holdoutTrades": 37,
     "oosSpyIR": -0.23450330681301026,
     "oosSpyExcessReturn": -0.457098727220565,
     "avgTrainSharpe": 0.21749865676391017,
@@ -2586,10 +2389,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.940805869578451,
       0.5629610464781082
@@ -2629,7 +2429,6 @@
     "combinedSharpe": -0.11683133137118352,
     "correlationWithDTE5": -0.1586885798860032,
     "combinedMaxDD": 99.4109043851599,
-    "holdoutTrades": 37,
     "oosSpyIR": -0.23450330681301026,
     "oosSpyExcessReturn": -0.457098727220565,
     "avgTrainSharpe": 0.21749865676391017,
@@ -2637,10 +2436,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.9269933497247089,
       0.4865602372151851
@@ -2680,7 +2476,6 @@
     "combinedSharpe": 0.3414064868015665,
     "correlationWithDTE5": -0.16408004351856487,
     "combinedMaxDD": 99.48191808444543,
-    "holdoutTrades": 37,
     "oosSpyIR": 0.31832211194958765,
     "oosSpyExcessReturn": 3.1384001032560978,
     "avgTrainSharpe": 0.00890130369677136,
@@ -2688,10 +2483,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.7911437562216389,
       0.6756665312064065
@@ -2731,7 +2523,6 @@
     "combinedSharpe": 0.4167254674572143,
     "correlationWithDTE5": -0.09689935310381054,
     "combinedMaxDD": 299.991839508808,
-    "holdoutTrades": 37,
     "oosSpyIR": 0.4134286558526718,
     "oosSpyExcessReturn": 17.712352297105745,
     "avgTrainSharpe": 0.14524122683499754,
@@ -2739,10 +2530,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.45157288421870295,
       0.7388801461236514
@@ -2782,7 +2570,6 @@
     "combinedSharpe": -0.11683133137118352,
     "correlationWithDTE5": -0.1586885798860032,
     "combinedMaxDD": 99.4109043851599,
-    "holdoutTrades": 37,
     "oosSpyIR": -0.23450330681301026,
     "oosSpyExcessReturn": -0.457098727220565,
     "avgTrainSharpe": 0.21749865676391017,
@@ -2790,10 +2577,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.9318778128442816,
       0.5180758463729694
@@ -2833,7 +2617,6 @@
     "combinedSharpe": 0.4335108725030711,
     "correlationWithDTE5": -0.05533364147028904,
     "combinedMaxDD": 12.236484311191939,
-    "holdoutTrades": 7,
     "oosSpyIR": -0.7423242018811522,
     "oosSpyExcessReturn": -0.16608767170476466,
     "avgTrainSharpe": 0.03787930655834105,
@@ -2841,10 +2624,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5864543590932569,
       0.6600248663790262
@@ -2884,7 +2664,6 @@
     "combinedSharpe": 0.4335108725030711,
     "correlationWithDTE5": -0.05533364147028904,
     "combinedMaxDD": 12.236484311191939,
-    "holdoutTrades": 7,
     "oosSpyIR": -0.7423242018811522,
     "oosSpyExcessReturn": -0.16608767170476466,
     "avgTrainSharpe": 0.03787930655834105,
@@ -2892,10 +2671,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.6162571762297762,
       0.6351253506613898
@@ -2935,7 +2711,6 @@
     "combinedSharpe": 0.4319310893786134,
     "correlationWithDTE5": -0.049954168829741005,
     "combinedMaxDD": 13.368340659074251,
-    "holdoutTrades": 7,
     "oosSpyIR": -0.7106404679353736,
     "oosSpyExcessReturn": -0.1630044804617198,
     "avgTrainSharpe": 0.03268348081029298,
@@ -2943,10 +2718,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5850224687523963,
       0.6533411572863892
@@ -2986,7 +2758,6 @@
     "combinedSharpe": 0.448334206622481,
     "correlationWithDTE5": -0.053428389624377605,
     "combinedMaxDD": 11.259404309089902,
-    "holdoutTrades": 7,
     "oosSpyIR": -0.746606216347478,
     "oosSpyExcessReturn": -0.1651640591555586,
     "avgTrainSharpe": 0.03274252144458319,
@@ -2994,10 +2765,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5869642882746909,
       0.6684132284081888
@@ -3036,7 +2804,6 @@
     "combinedSharpe": 0.4335108725030711,
     "correlationWithDTE5": -0.05533364147028904,
     "combinedMaxDD": 12.236484311191939,
-    "holdoutTrades": 7,
     "oosSpyIR": -0.7423242018811522,
     "oosSpyExcessReturn": -0.16608767170476466,
     "avgTrainSharpe": 0.03787930655834105,
@@ -3044,10 +2811,7 @@
     "passesMinTrades": false,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5695169997932956,
       0.6589558335646708
@@ -3087,7 +2851,6 @@
     "combinedSharpe": -0.24739986286990065,
     "correlationWithDTE5": -0.16759672957618496,
     "combinedMaxDD": 20.32590643915551,
-    "holdoutTrades": 12,
     "oosSpyIR": -1.1733627477436492,
     "oosSpyExcessReturn": -0.27042509388734554,
     "avgTrainSharpe": -1.2465442343213813,
@@ -3095,10 +2858,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.7723190182154394,
       -0.6792160393286898
@@ -3139,7 +2899,6 @@
     "combinedSharpe": -0.24739986286990065,
     "correlationWithDTE5": -0.16759672957618496,
     "combinedMaxDD": 20.32590643915551,
-    "holdoutTrades": 12,
     "oosSpyIR": -1.1733627477436492,
     "oosSpyExcessReturn": -0.27042509388734554,
     "avgTrainSharpe": -1.2465442343213813,
@@ -3147,10 +2906,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.747886435077325,
       -0.6927873026407602
@@ -3191,7 +2947,6 @@
     "combinedSharpe": -0.1557108100833033,
     "correlationWithDTE5": -0.12635721882481482,
     "combinedMaxDD": 16.919464133284887,
-    "holdoutTrades": 7,
     "oosSpyIR": -1.157103823906871,
     "oosSpyExcessReturn": -0.25629411961711834,
     "avgTrainSharpe": -1.1076336120724646,
@@ -3199,10 +2954,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.9348368398399736,
       -0.7291090391266734
@@ -3235,7 +2987,6 @@
     "combinedSharpe": -0.1557108100833033,
     "correlationWithDTE5": -0.12635721882481482,
     "combinedMaxDD": 16.919464133284887,
-    "holdoutTrades": 7,
     "oosSpyIR": -1.157103823906871,
     "oosSpyExcessReturn": -0.25629411961711834,
     "avgTrainSharpe": -1.1076336120724646,
@@ -3243,10 +2994,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.878184009407468,
       -0.7696533132098173
@@ -3279,7 +3027,6 @@
     "combinedSharpe": -0.5855250869144131,
     "correlationWithDTE5": -0.121753859601293,
     "combinedMaxDD": 33.76034235322883,
-    "holdoutTrades": 8,
     "oosSpyIR": -1.3696247006089821,
     "oosSpyExcessReturn": -0.32927377773305555,
     "avgTrainSharpe": -1.4478734768069534,
@@ -3287,10 +3034,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -2.1336411279477536,
       -0.8740398383854048
@@ -3323,7 +3067,6 @@
     "combinedSharpe": 0.2079986120891197,
     "correlationWithDTE5": 0.2641719899555214,
     "combinedMaxDD": 19.25572530631381,
-    "holdoutTrades": 1,
     "oosSpyIR": -1.0495235136459429,
     "oosSpyExcessReturn": -0.20536723132791004,
     "avgTrainSharpe": -0.4345600445562688,
@@ -3331,10 +3074,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.379213486698328,
       0.2435036784626373
@@ -3375,7 +3115,6 @@
     "combinedSharpe": 0.2079986120891197,
     "correlationWithDTE5": 0.2641719899555214,
     "combinedMaxDD": 19.25572530631381,
-    "holdoutTrades": 1,
     "oosSpyIR": -1.0495235136459429,
     "oosSpyExcessReturn": -0.20536723132791004,
     "avgTrainSharpe": -0.4345600445562688,
@@ -3383,10 +3122,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.3704914814679916,
       0.25621598210512253
@@ -3427,7 +3163,6 @@
     "combinedSharpe": 0.2988478360835525,
     "correlationWithDTE5": 0.2594336128905313,
     "combinedMaxDD": 17.242692600151567,
-    "holdoutTrades": 1,
     "oosSpyIR": -0.9866288513897086,
     "oosSpyExcessReturn": -0.19152770473229283,
     "avgTrainSharpe": -0.2749249850161941,
@@ -3435,10 +3170,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.1922426009261804,
       0.45692419431403775
@@ -3479,7 +3211,6 @@
     "combinedSharpe": 0.13853962496340705,
     "correlationWithDTE5": 0.2500062597938624,
     "combinedMaxDD": 21.360859939003817,
-    "holdoutTrades": 1,
     "oosSpyIR": -1.0891838946897112,
     "oosSpyExcessReturn": -0.21516462911646855,
     "avgTrainSharpe": -0.4606793294399386,
@@ -3487,10 +3218,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.265967976094027,
       0.15771020986328502
@@ -3531,7 +3259,6 @@
     "combinedSharpe": 0.08141008775220727,
     "correlationWithDTE5": 0.2416763180879591,
     "combinedMaxDD": 22.083427949000438,
-    "holdoutTrades": 1,
     "oosSpyIR": -1.1397064693659615,
     "oosSpyExcessReturn": -0.2253245383910577,
     "avgTrainSharpe": -0.595025555155414,
@@ -3539,10 +3266,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.605449535496908,
       -0.09543823742374977
@@ -3583,7 +3307,6 @@
     "combinedSharpe": 0.3907881767879186,
     "correlationWithDTE5": -0.04997995029403109,
     "combinedMaxDD": 33.11786589888335,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.023245992365679893,
     "oosSpyExcessReturn": -0.015334375354182533,
     "avgTrainSharpe": -0.23812901965889988,
@@ -3591,10 +3314,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.572900569768303,
       1.0017695957686163
@@ -3633,7 +3353,6 @@
     "combinedSharpe": 0.3907881767879186,
     "correlationWithDTE5": -0.04997995029403109,
     "combinedMaxDD": 33.11786589888335,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.023245992365679893,
     "oosSpyExcessReturn": -0.015334375354182533,
     "avgTrainSharpe": -0.23812901965889988,
@@ -3641,10 +3360,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5842080374365767,
       0.9698760701157577
@@ -3683,7 +3399,6 @@
     "combinedSharpe": 0.5123631383538608,
     "correlationWithDTE5": -0.051661518073813105,
     "combinedMaxDD": 25.491322368614668,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.029333393119096572,
     "oosSpyExcessReturn": -0.01574770593634512,
     "avgTrainSharpe": -0.0910290259038452,
@@ -3691,10 +3406,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5277354840078325,
       1.0777069729240005
@@ -3734,7 +3446,6 @@
     "combinedSharpe": 0.4352319090228849,
     "correlationWithDTE5": -0.052878107614347525,
     "combinedMaxDD": 36.06376441676294,
-    "holdoutTrades": 0,
     "oosSpyIR": 0.01511137111075949,
     "oosSpyExcessReturn": 0.010043428825685012,
     "avgTrainSharpe": -0.15653945722305887,
@@ -3742,10 +3453,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.4797689822266626,
       1.0296008715925555
@@ -3784,7 +3492,6 @@
     "combinedSharpe": 0.2687743160914531,
     "correlationWithDTE5": -0.0477619102266196,
     "combinedMaxDD": 37.40961145286163,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.08464137595830516,
     "oosSpyExcessReturn": -0.06171880231486307,
     "avgTrainSharpe": -0.1490035464618493,
@@ -3792,10 +3499,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5510964039269483,
       0.985214419033264
@@ -3834,7 +3538,6 @@
     "combinedSharpe": 0.2946967676734886,
     "correlationWithDTE5": -0.07803154682221401,
     "combinedMaxDD": 41.14609765831474,
-    "holdoutTrades": 9,
     "oosSpyIR": -0.0723484826521192,
     "oosSpyExcessReturn": -0.051688782270322635,
     "avgTrainSharpe": -0.5396698040477897,
@@ -3842,10 +3545,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.6654505385719258,
       0.843395750534104
@@ -3886,7 +3586,6 @@
     "combinedSharpe": 0.2946967676734886,
     "correlationWithDTE5": -0.07803154682221401,
     "combinedMaxDD": 41.14609765831474,
-    "holdoutTrades": 9,
     "oosSpyIR": -0.0723484826521192,
     "oosSpyExcessReturn": -0.051688782270322635,
     "avgTrainSharpe": -0.5396698040477897,
@@ -3894,10 +3593,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.6236458665383917,
       0.8234966445744683
@@ -3938,7 +3634,6 @@
     "combinedSharpe": 0.3600579081815863,
     "correlationWithDTE5": -0.08142726716523384,
     "combinedMaxDD": 34.53528265341766,
-    "holdoutTrades": 11,
     "oosSpyIR": -0.07289090335279816,
     "oosSpyExcessReturn": -0.045911629756901294,
     "avgTrainSharpe": -0.4303093876089143,
@@ -3946,10 +3641,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5182543383784636,
       0.8819011524439233
@@ -3989,7 +3681,6 @@
     "combinedSharpe": 0.3098398411911335,
     "correlationWithDTE5": -0.07696261378580575,
     "combinedMaxDD": 43.1881143195491,
-    "holdoutTrades": 10,
     "oosSpyIR": -0.03184719510914145,
     "oosSpyExcessReturn": -0.02446064960960703,
     "avgTrainSharpe": -0.6267097090987634,
@@ -3997,10 +3688,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.735683900328539,
       0.8318598793710625
@@ -4040,7 +3728,6 @@
     "combinedSharpe": 0.29274407719253487,
     "correlationWithDTE5": -0.07663559584010582,
     "combinedMaxDD": 37.5514252159102,
-    "holdoutTrades": 11,
     "oosSpyIR": -0.0643498899101948,
     "oosSpyExcessReturn": -0.04711391506390737,
     "avgTrainSharpe": -0.5904817692128413,
@@ -4048,10 +3735,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5959764057280654,
       0.8082471168352429
@@ -4091,7 +3775,6 @@
     "combinedSharpe": 0.39529584137475043,
     "correlationWithDTE5": -0.04845965829661153,
     "combinedMaxDD": 27.66330827363177,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.12479869290167898,
     "oosSpyExcessReturn": -0.06617573392651391,
     "avgTrainSharpe": -0.27191674155676154,
@@ -4099,10 +3782,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.6575005375546958,
       0.9470967515115849
@@ -4141,7 +3821,6 @@
     "combinedSharpe": 0.39529584137475043,
     "correlationWithDTE5": -0.04845965829661153,
     "combinedMaxDD": 27.66330827363177,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.12479869290167898,
     "oosSpyExcessReturn": -0.06617573392651391,
     "avgTrainSharpe": -0.27191674155676154,
@@ -4149,10 +3828,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.689821334541068,
       0.9800966337449564
@@ -4191,7 +3867,6 @@
     "combinedSharpe": 0.4229647261687286,
     "correlationWithDTE5": -0.0503520544783002,
     "combinedMaxDD": 22.276180225987776,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.21514687118340325,
     "oosSpyExcessReturn": -0.09466076329036281,
     "avgTrainSharpe": -0.3258788107880828,
@@ -4199,10 +3874,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.6637870430629671,
       1.0580441783287213
@@ -4241,7 +3913,6 @@
     "combinedSharpe": 0.3882818850458212,
     "correlationWithDTE5": -0.043898983487852414,
     "combinedMaxDD": 25.786792627230966,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.11976493171381652,
     "oosSpyExcessReturn": -0.06464777004017253,
     "avgTrainSharpe": -0.28447184523170227,
@@ -4249,10 +3920,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.6463090477245959,
       0.9200610057767844
@@ -4291,7 +3959,6 @@
     "combinedSharpe": 0.26563544383438437,
     "correlationWithDTE5": -0.04282336721966379,
     "combinedMaxDD": 29.9337245278535,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.22854014709826895,
     "oosSpyExcessReturn": -0.1202865940120702,
     "avgTrainSharpe": -0.40857803265659615,
@@ -4299,10 +3966,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.849604615549303,
       0.8131318389688007
@@ -4341,7 +4005,6 @@
     "combinedSharpe": 0.1714185001497914,
     "correlationWithDTE5": -0.032828186663376877,
     "combinedMaxDD": 30.843244429855655,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.3843903840957583,
     "oosSpyExcessReturn": -0.17177709600417604,
     "avgTrainSharpe": -0.4221940868653416,
@@ -4349,10 +4012,7 @@
     "passesMinTrades": false,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.9327192089722778,
       0.5374234090785915
@@ -4392,7 +4052,6 @@
     "combinedSharpe": 0.1714185001497914,
     "correlationWithDTE5": -0.032828186663376877,
     "combinedMaxDD": 30.843244429855655,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.3843903840957583,
     "oosSpyExcessReturn": -0.17177709600417604,
     "avgTrainSharpe": -0.4221940868653416,
@@ -4400,10 +4059,7 @@
     "passesMinTrades": false,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.9225378429351762,
       0.4939838448775077
@@ -4443,7 +4099,6 @@
     "combinedSharpe": 0.06504295317385082,
     "correlationWithDTE5": -0.031984081429104375,
     "combinedMaxDD": 30.772552079539118,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.5296203378237881,
     "oosSpyExcessReturn": -0.2115844571318677,
     "avgTrainSharpe": -0.5561530106465121,
@@ -4451,10 +4106,7 @@
     "passesMinTrades": false,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.0024115149872574,
       0.4036982726671676
@@ -4494,7 +4146,6 @@
     "combinedSharpe": 0.3539975382054564,
     "correlationWithDTE5": -0.037076232597613584,
     "combinedMaxDD": 17.871939927913235,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.3502217800487628,
     "oosSpyExcessReturn": -0.13476811038125613,
     "avgTrainSharpe": -0.30487407034913283,
@@ -4502,10 +4153,7 @@
     "passesMinTrades": false,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.8124032639766815,
       0.8450096428040511
@@ -4544,7 +4192,6 @@
     "combinedSharpe": 0.2573636094082959,
     "correlationWithDTE5": -0.031070759245706295,
     "combinedMaxDD": 19.370721009771326,
-    "holdoutTrades": 0,
     "oosSpyIR": -0.4740634922688631,
     "oosSpyExcessReturn": -0.16795969367710817,
     "avgTrainSharpe": -0.519984079600235,
@@ -4552,10 +4199,7 @@
     "passesMinTrades": false,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.144402049211538,
       0.6664557160599557
@@ -4595,7 +4239,6 @@
     "combinedSharpe": 0.31091933264149235,
     "correlationWithDTE5": 0.3346995363900522,
     "combinedMaxDD": 18.583008615501008,
-    "holdoutTrades": 34,
     "oosSpyIR": -0.9355026078669337,
     "oosSpyExcessReturn": -0.16070153613426133,
     "avgTrainSharpe": 0.33081600842097797,
@@ -4603,10 +4246,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.6307289316499127,
       0.9525149306385977
@@ -4647,7 +4287,6 @@
     "combinedSharpe": 0.31091933264149235,
     "correlationWithDTE5": 0.3346995363900522,
     "combinedMaxDD": 18.583008615501008,
-    "holdoutTrades": 34,
     "oosSpyIR": -0.9355026078669337,
     "oosSpyExcessReturn": -0.16070153613426133,
     "avgTrainSharpe": 0.33081600842097797,
@@ -4655,10 +4294,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.6526359680005251,
       0.9492066447359914
@@ -4699,7 +4335,6 @@
     "combinedSharpe": 0.3320079769408641,
     "correlationWithDTE5": 0.2839775668918527,
     "combinedMaxDD": 15.239378856492841,
-    "holdoutTrades": 19,
     "oosSpyIR": -0.9152245579534929,
     "oosSpyExcessReturn": -0.16158644147014334,
     "avgTrainSharpe": 0.4049864526579661,
@@ -4707,10 +4342,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5130149696532208,
       0.821333978934641
@@ -4743,7 +4375,6 @@
     "combinedSharpe": 0.23051596947518807,
     "correlationWithDTE5": 0.2599689161888838,
     "combinedMaxDD": 22.396198873702826,
-    "holdoutTrades": 17,
     "oosSpyIR": -0.982745833121198,
     "oosSpyExcessReturn": -0.1769816874530176,
     "avgTrainSharpe": 0.12680870798556257,
@@ -4751,10 +4382,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.7416384883977679,
       0.8649385854024322
@@ -4787,7 +4415,6 @@
     "combinedSharpe": 0.32331858056179547,
     "correlationWithDTE5": 0.2632497925435449,
     "combinedMaxDD": 18.655690022717376,
-    "holdoutTrades": 15,
     "oosSpyIR": -0.8743019108606211,
     "oosSpyExcessReturn": -0.15630331649071938,
     "avgTrainSharpe": 0.2332400318173321,
@@ -4795,10 +4422,7 @@
     "passesMinTrades": true,
     "passesMaxDD": true,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5809626428981498,
       1.0147349905195904
@@ -4832,7 +4456,6 @@
     "combinedSharpe": -0.5064928148578639,
     "correlationWithDTE5": -0.046183614844657786,
     "combinedMaxDD": 100.72814016207884,
-    "holdoutTrades": 58,
     "oosSpyIR": -0.5654790919615238,
     "oosSpyExcessReturn": -2.812506983524374,
     "avgTrainSharpe": -0.6138824502227808,
@@ -4840,10 +4463,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.230148738333119,
       0.32211209765376847
@@ -4885,7 +4505,6 @@
     "combinedSharpe": -0.3860447442207059,
     "correlationWithDTE5": -0.0016328743673630257,
     "combinedMaxDD": 353.81294829421137,
-    "holdoutTrades": 55,
     "oosSpyIR": -0.4133422710047156,
     "oosSpyExcessReturn": -7.413397323140916,
     "avgTrainSharpe": -0.6224964706929342,
@@ -4893,10 +4512,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.9483168628987839,
       0.6276769754969738
@@ -4938,7 +4554,6 @@
     "combinedSharpe": -0.48526921207830404,
     "correlationWithDTE5": 0.03151520353555725,
     "combinedMaxDD": 213.33058580569428,
-    "holdoutTrades": 58,
     "oosSpyIR": -0.5377797177993662,
     "oosSpyExcessReturn": -3.4482877612164575,
     "avgTrainSharpe": -1.1188273879097974,
@@ -4946,10 +4561,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.9227255982208602,
       -0.06248015474238059
@@ -4991,7 +4603,6 @@
     "combinedSharpe": -0.5173034218020726,
     "correlationWithDTE5": -0.025568123012763157,
     "combinedMaxDD": 108.3383712776653,
-    "holdoutTrades": 54,
     "oosSpyIR": -0.5606386699142742,
     "oosSpyExcessReturn": -4.968756633836362,
     "avgTrainSharpe": -0.7207020702510522,
@@ -4999,10 +4610,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.074566170730906,
       0.3923451781198457
@@ -5044,7 +4652,6 @@
     "combinedSharpe": -0.45514918185928155,
     "correlationWithDTE5": 0.03181571417542429,
     "combinedMaxDD": 375.9433729475811,
-    "holdoutTrades": 58,
     "oosSpyIR": -0.49353374459282245,
     "oosSpyExcessReturn": -5.3213484477784725,
     "avgTrainSharpe": -0.5936821160176696,
@@ -5052,10 +4659,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.0661220109781184,
       0.10791211237581974
@@ -5097,7 +4701,6 @@
     "combinedSharpe": -0.4464795422762355,
     "correlationWithDTE5": -0.01425700198915205,
     "combinedMaxDD": 101.69304702299354,
-    "holdoutTrades": 15,
     "oosSpyIR": -0.5291243492734328,
     "oosSpyExcessReturn": -1.7659769357542698,
     "avgTrainSharpe": -1.5989449679504453,
@@ -5105,10 +4708,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.4377667462995485,
       0.36752714548083854
@@ -5150,7 +4750,6 @@
     "combinedSharpe": 0.25180580111124534,
     "correlationWithDTE5": -0.01362230318497648,
     "combinedMaxDD": 118.31591935954894,
-    "holdoutTrades": 13,
     "oosSpyIR": 0.24589443049093174,
     "oosSpyExcessReturn": 3.6381926001549645,
     "avgTrainSharpe": -1.3251628083249265,
@@ -5158,10 +4757,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.6050680086093192,
       0.710609384675648
@@ -5203,7 +4799,6 @@
     "combinedSharpe": -0.4179807717860102,
     "correlationWithDTE5": -0.059730580468632215,
     "combinedMaxDD": 108.70560015782623,
-    "holdoutTrades": 14,
     "oosSpyIR": -0.4873720753803329,
     "oosSpyExcessReturn": -1.9620184096975801,
     "avgTrainSharpe": -1.3116355987064743,
@@ -5211,10 +4806,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.053187596906305,
       0.32359657363939953
@@ -5256,7 +4848,6 @@
     "combinedSharpe": -0.09582093095974566,
     "correlationWithDTE5": -0.11824901514627256,
     "combinedMaxDD": 101.16234521627531,
-    "holdoutTrades": 14,
     "oosSpyIR": -0.17180136196087192,
     "oosSpyExcessReturn": -0.5361441663779848,
     "avgTrainSharpe": -1.326583793004221,
@@ -5264,10 +4855,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.7239358457383921,
       0.7040712707373092
@@ -5309,7 +4897,6 @@
     "combinedSharpe": 0.08014786243278144,
     "correlationWithDTE5": -0.06351971615502049,
     "combinedMaxDD": 104.66793859670611,
-    "holdoutTrades": 12,
     "oosSpyIR": 0.04783012847470663,
     "oosSpyExcessReturn": 0.31580471789614245,
     "avgTrainSharpe": -1.0237931440551244,
@@ -5317,10 +4904,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.9404078794392436,
       0.9239519520040497
@@ -5362,7 +4946,6 @@
     "combinedSharpe": -0.2230110329485894,
     "correlationWithDTE5": -0.11444057201157437,
     "combinedMaxDD": 129.56504516704373,
-    "holdoutTrades": 78,
     "oosSpyIR": -0.3122903538486799,
     "oosSpyExcessReturn": -0.7762165130520365,
     "avgTrainSharpe": -1.138956843373945,
@@ -5370,10 +4953,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.8934355691436795,
       0.6595377326906817
@@ -5414,7 +4994,6 @@
     "combinedSharpe": -0.2230110329485894,
     "correlationWithDTE5": -0.11444057201157437,
     "combinedMaxDD": 129.56504516704373,
-    "holdoutTrades": 78,
     "oosSpyIR": -0.3122903538486799,
     "oosSpyExcessReturn": -0.7762165130520365,
     "avgTrainSharpe": -1.138956843373945,
@@ -5422,10 +5001,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.9247793061397256,
       0.6182620966406293
@@ -5466,7 +5042,6 @@
     "combinedSharpe": -0.7367922646659142,
     "correlationWithDTE5": -0.05583155468559672,
     "combinedMaxDD": 279.48438039406113,
-    "holdoutTrades": 71,
     "oosSpyIR": -0.7713093805196861,
     "oosSpyExcessReturn": -34.656273842004744,
     "avgTrainSharpe": -1.3427471626378888,
@@ -5474,10 +5049,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.1058420163384457,
       -0.4638166622563416
@@ -5518,7 +5090,6 @@
     "combinedSharpe": -0.6624090273835918,
     "correlationWithDTE5": -0.046485444264291624,
     "combinedMaxDD": 112.88998366225185,
-    "holdoutTrades": 62,
     "oosSpyIR": -0.806007683073323,
     "oosSpyExcessReturn": -1.302765400681924,
     "avgTrainSharpe": -1.4942261392263256,
@@ -5526,10 +5097,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.311702099107664,
       -0.1495859069041411
@@ -5570,7 +5138,6 @@
     "combinedSharpe": -0.37329400511789324,
     "correlationWithDTE5": -0.03514175558180671,
     "combinedMaxDD": 106.17614012956338,
-    "holdoutTrades": 46,
     "oosSpyIR": -0.41398611822536097,
     "oosSpyExcessReturn": -3.3278005794824788,
     "avgTrainSharpe": -0.9749965930396103,
@@ -5578,10 +5145,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.8672389521782607,
       0.37600880091845207
@@ -5622,7 +5186,6 @@
     "combinedSharpe": -0.3311951753947782,
     "correlationWithDTE5": -0.12579937491971008,
     "combinedMaxDD": 108.50629097729994,
-    "holdoutTrades": 12,
     "oosSpyIR": -0.44924710133597845,
     "oosSpyExcessReturn": -0.8544495302105389,
     "avgTrainSharpe": -0.9157190169282644,
@@ -5630,10 +5193,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.1133635856606832,
       0.5866739595816933
@@ -5675,7 +5235,6 @@
     "combinedSharpe": -0.3311951753947782,
     "correlationWithDTE5": -0.12579937491971008,
     "combinedMaxDD": 108.50629097729994,
-    "holdoutTrades": 12,
     "oosSpyIR": -0.44924710133597845,
     "oosSpyExcessReturn": -0.8544495302105389,
     "avgTrainSharpe": -0.9157190169282644,
@@ -5683,10 +5242,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.1170302251608881,
       0.6683046686134195
@@ -5728,7 +5284,6 @@
     "combinedSharpe": -0.35829306933139193,
     "correlationWithDTE5": -0.07296712829630653,
     "combinedMaxDD": 101.65467646775974,
-    "holdoutTrades": 18,
     "oosSpyIR": -0.3941018605309534,
     "oosSpyExcessReturn": -3.9506551920769963,
     "avgTrainSharpe": -1.1158799995204631,
@@ -5736,10 +5291,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5597183920810381,
       0.8244915067653353
@@ -5781,7 +5333,6 @@
     "combinedSharpe": -0.31165139029993866,
     "correlationWithDTE5": -0.023046270613227688,
     "combinedMaxDD": 190.2350569131142,
-    "holdoutTrades": 13,
     "oosSpyIR": -0.36564866896708176,
     "oosSpyExcessReturn": -1.8218721611057034,
     "avgTrainSharpe": -1.1359095941090938,
@@ -5789,10 +5340,7 @@
     "passesMinTrades": false,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.9074001271913005,
       0.3248847058758381
@@ -5834,7 +5382,6 @@
     "combinedSharpe": 0.4318945655686693,
     "correlationWithDTE5": -0.22052789820060653,
     "combinedMaxDD": 80.72353484834657,
-    "holdoutTrades": 17,
     "oosSpyIR": 0.286810927742384,
     "oosSpyExcessReturn": 0.46241709022395133,
     "avgTrainSharpe": -0.9955963140138469,
@@ -5842,10 +5389,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.0802505485682141,
       1.0929361305264504
@@ -5886,7 +5430,6 @@
     "combinedSharpe": 0.2642756207620758,
     "correlationWithDTE5": -0.17666661375203668,
     "combinedMaxDD": 26.51031239381623,
-    "holdoutTrades": 10,
     "oosSpyIR": -0.3053923198712599,
     "oosSpyExcessReturn": -0.1435314240743049,
     "avgTrainSharpe": -0.6189122776562889,
@@ -5894,10 +5437,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.8200071229776326,
       0.7542320878828755
@@ -5938,7 +5478,6 @@
     "combinedSharpe": 0.2642756207620758,
     "correlationWithDTE5": -0.17666661375203668,
     "combinedMaxDD": 26.51031239381623,
-    "holdoutTrades": 10,
     "oosSpyIR": -0.3053923198712599,
     "oosSpyExcessReturn": -0.1435314240743049,
     "avgTrainSharpe": -0.6189122776562889,
@@ -5946,10 +5485,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.8475660659030569,
       0.806988526625248
@@ -5990,7 +5526,6 @@
     "combinedSharpe": 0.4994179596051107,
     "correlationWithDTE5": -0.2025829649457463,
     "combinedMaxDD": 18.76672540146536,
-    "holdoutTrades": 10,
     "oosSpyIR": -0.20023593853589136,
     "oosSpyExcessReturn": -0.08552460063989566,
     "avgTrainSharpe": -0.5788280516701754,
@@ -5998,10 +5533,7 @@
     "passesMinTrades": false,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.6357593285867879,
       1.0838118278686848
@@ -6042,7 +5574,6 @@
     "combinedSharpe": -0.0070171862839741965,
     "correlationWithDTE5": -0.15634581666318362,
     "combinedMaxDD": 62.917836811030035,
-    "holdoutTrades": 17,
     "oosSpyIR": -0.24157697768530773,
     "oosSpyExcessReturn": -0.24530731246625045,
     "avgTrainSharpe": -0.789137695328436,
@@ -6050,10 +5581,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.0065348747369829,
       0.639993920490679
@@ -6095,7 +5623,6 @@
     "combinedSharpe": 0.10453257217983249,
     "correlationWithDTE5": -0.03106523191555009,
     "combinedMaxDD": 145.53378548770465,
-    "holdoutTrades": 10,
     "oosSpyIR": 0.05454210307862003,
     "oosSpyExcessReturn": 0.2428278143852569,
     "avgTrainSharpe": -1.121720596239762,
@@ -6103,10 +5630,7 @@
     "passesMinTrades": false,
     "passesMaxDD": false,
     "passesWFA": true,
-    "passesHoldout": false,
-    "passesHoldoutOrIR": false,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.10818527149679,
       0.5286460156295609
@@ -6146,7 +5670,6 @@
     "combinedSharpe": -0.5957371078698446,
     "correlationWithDTE5": -0.012014475813220899,
     "combinedMaxDD": 135.54976147462884,
-    "holdoutTrades": 15,
     "oosSpyIR": -0.6613579188962624,
     "oosSpyExcessReturn": -3.5592812395332993,
     "avgTrainSharpe": -1.377553026380481,
@@ -6154,10 +5677,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.0424477617563634,
       0.03307130916737113
@@ -6199,7 +5719,6 @@
     "combinedSharpe": -0.5957371078698446,
     "correlationWithDTE5": -0.012014475813220899,
     "combinedMaxDD": 135.54976147462884,
-    "holdoutTrades": 15,
     "oosSpyIR": -0.6613579188962624,
     "oosSpyExcessReturn": -3.5592812395332993,
     "avgTrainSharpe": -1.377553026380481,
@@ -6207,10 +5726,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.0818194601614424,
       0.1503042833743497
@@ -6252,7 +5768,6 @@
     "combinedSharpe": -0.15904818033377147,
     "correlationWithDTE5": -0.05756246238824826,
     "combinedMaxDD": 107.84635151645254,
-    "holdoutTrades": 13,
     "oosSpyIR": -0.22070758289576994,
     "oosSpyExcessReturn": -0.9271350933101539,
     "avgTrainSharpe": -0.7977759680605558,
@@ -6260,10 +5775,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5784103441397505,
       0.5539716636152807
@@ -6305,7 +5817,6 @@
     "combinedSharpe": -0.5957371078698446,
     "correlationWithDTE5": -0.012014475813220899,
     "combinedMaxDD": 135.54976147462884,
-    "holdoutTrades": 15,
     "oosSpyIR": -0.6613579188962624,
     "oosSpyExcessReturn": -3.5592812395332993,
     "avgTrainSharpe": -1.377553026380481,
@@ -6313,10 +5824,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -1.0725279760755566,
       0.20450801289248027
@@ -6358,7 +5866,6 @@
     "combinedSharpe": -0.15904818033377147,
     "correlationWithDTE5": -0.05756246238824826,
     "combinedMaxDD": 107.84635151645254,
-    "holdoutTrades": 13,
     "oosSpyIR": -0.22070758289576994,
     "oosSpyExcessReturn": -0.9271350933101539,
     "avgTrainSharpe": -0.7977759680605558,
@@ -6366,10 +5873,7 @@
     "passesMinTrades": true,
     "passesMaxDD": false,
     "passesWFA": false,
-    "passesHoldout": true,
-    "passesHoldoutOrIR": true,
     "passesSanity": true,
-    "isValid": false,
     "bootstrapSharpe95CI": [
       -0.5654222506706081,
       0.5313681423850158

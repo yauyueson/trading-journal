@@ -582,10 +582,10 @@ Any backtest result that violates these should be treated as a bug until proven 
 | Metric | Sanity bound | Enforced in |
 |---|---|---|
 | OOS Sharpe on 8yr data | ≤ 3.0 | `scripts/autoresearch/runner.ts` — `MAX_SANE_OOS_SHARPE` |
-| Standalone MaxDD on 8yr data | > 2% | (manual check — add if violated again) |
-| Per-trade edge as % of max profit | < 95% | (manual check — add if violated again) |
+| Standalone MaxDD on 8yr data | ≥ 2% | `runner.ts` — `passesSanityMaxDD` gate, wired into `isValid` via `passesSanity` (Phase 1.c, 2026-04-20) |
+| Per-trade edge as % of max profit | mean < 95% | `runner.ts` — `passesSanityEdge` (wired into `passesSanity` → `isValid`). Applies to credit-spread mode with ≥20 OOS trades. Phase 1.d, 2026-04-20. |
 | Win rate on credit spreads | < 85% | (varies by delta, but > 90% at delta > 0.30 is suspect) |
-| Holdout/OOS ratio | > 0.5 and < 2.0 | `runner.ts` warning only; hard bound not yet set |
+| Holdout/OOS ratio | ≥ 0.5 and ≤ 2.0 | `runner.ts` — `passesStability` gate, wired into `isValid` (Phase 1.b, 2026-04-20) |
 
 These bounds are intentionally loose. Anything beyond them is almost always a structural bug, not genius.
 
@@ -612,6 +612,29 @@ I.i.d. bootstrap understates CI width for daily returns because it ignores autoc
 
 ### Structural bugs pass all statistical checks
 Holdout, bootstrap, and deflated Sharpe all assume the simulator is trustworthy. **None of them caught the TRAILING_LOCK bug** because the bug produces consistent fake profits across all time periods. The only defense against structural bugs is sanity bounds + code review + adversarial testing.
+
+### Reference-driven validation beats unit-test-only validation on new simulators
+**Added:** 2026-04-20 (Phase 0.c.9 lesson)
+
+New simulators sit in a dangerous blind spot: unit tests only cover the scenarios you thought to write, and there's no real-world oracle saying "this number is right." Codex adversarial review partially substitutes for an oracle, but it finds one edge case at a time — each round exposes a new semantic hazard, and fixing it often creates new surface area.
+
+**Phase 0.c.9 Commit A** (`simulateBuyWrite`) needed 11 Codex rounds and 21 verified findings before stabilizing, because the only gate during development was "tests I wrote pass" — and the test set grew as Codex surfaced edges I hadn't enumerated. **Commit B** (CBOE BXM replication) used the opposite process: wrote the replication script first, ran it against the published BXM series, and iterated until monthly correlation cleared 0.85. The very first run exposed a critical cycle-pairing bug (bxm vs rep keyed off-by-one month) via correlation = -0.04 — localizable from one run rather than discovered under adversarial review. Two more structural adjustments brought correlation to 0.9665 on the full 2017-2026 window (107 cycles). Only THEN did Codex review; round 2 returned narrower-scope findings (test not exercising simulator, coverage threshold, methodology note on dividends) that were easy to fix because the simulator was empirically correct.
+
+**How to apply** when adding new simulators or payoff primitives:
+1. If a public reference exists (CBOE benchmark index, published return series, Bloomberg/Refinitiv benchmark), use it as the oracle. Build a replication script before or alongside the simulator, iterate until correlation/residuals clear a meaningful bar.
+2. If no public reference exists, construct one from a simpler closed-form path (e.g., delta-hedged stock position → BS pricing → theta decay). That's still a stronger oracle than adversarial review.
+3. Codex should come AFTER the reference check, not before it. Save your rounds for catching hygiene / robustness issues that correlation wouldn't surface.
+
+**Fingerprint of the anti-pattern:**
+- New simulator accumulating fixes across many small rounds of adversarial review
+- Each fix is real but none are caught by existing tests
+- No oracle / reference being consulted during development
+
+**Reference for Phase 0.c.9 itself:**
+- `scripts/replicate-bxm.ts` (the reference run)
+- `tests/bxm-replication.test.ts` (snapshot + live regression)
+- `data/cboe-bxm-daily.csv` + `data/cboe-bxm-daily.README.md` (source + methodology notes)
+- `data/bxm-replication-results.json` (committed snapshot; correlation 0.9665, 107 cycles)
 
 ---
 

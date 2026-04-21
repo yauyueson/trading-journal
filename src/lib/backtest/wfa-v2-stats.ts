@@ -14,24 +14,13 @@ import type {
   PermutationTestResult, BHCorrectedResult, ParameterStability,
   OptionTrade, WFAv2Window,
 } from './wfa-v2-types';
+// Phase 0.c.8 (2026-04-19): normCDF deduplicated. Previously a local copy
+// had its own variant of the "mixed A&S formulas" bug and every DSR
+// p-value was materially wrong. Using the canonical implementation from
+// src/lib/bsm.ts guarantees any future normCDF change lands everywhere.
+import { normCDF } from '../bsm';
 
 // ── Normal Distribution Helpers ─────────────────────────
-
-/** Standard normal CDF (Abramowitz & Stegun approximation) */
-function normCDF(x: number): number {
-  const a1 = 0.254829592;
-  const a2 = -0.284496736;
-  const a3 = 1.421413741;
-  const a4 = -1.453152027;
-  const a5 = 1.061405429;
-  const p = 0.3275911;
-
-  const sign = x < 0 ? -1 : 1;
-  const absX = Math.abs(x);
-  const t = 1.0 / (1.0 + p * absX);
-  const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-absX * absX / 2);
-  return 0.5 * (1.0 + sign * y);
-}
 
 /** Inverse normal CDF (rational approximation, Beasley-Springer-Moro) */
 function normInvCDF(p: number): number {

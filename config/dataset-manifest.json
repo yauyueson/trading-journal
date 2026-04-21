@@ -1,0 +1,24 @@
+{
+  "manifestVersion": 2,
+  "dataStartDate": "2017-01-01",
+  "dataEndDate": "2026-02-28",
+  "holdoutStartDate": "2024-01-22",
+  "holdoutEndDate": "2026-02-28",
+  "generatedAt": "2026-04-19T14:55:00Z",
+  "notes": "Phase 0.b.7: bumped to v2 with per-ticker dataStart overrides for post-IPO tickers. Tickers not listed must span the full dataStartDate. See docs/sealed-holdout.md.",
+  "tickers": {
+    "COIN": { "dataStart": "2021-04-14" },
+    "HOOD": { "dataStart": "2021-07-29" },
+    "ARM":  { "dataStart": "2023-09-14" },
+    "PLTR": { "dataStart": "2020-09-30" },
+    "MSTR": { "dataStart": "2017-01-03" },
+    "CRWD": { "dataStart": "2019-06-12" },
+    "UBER": { "dataStart": "2019-05-10" },
+    "SHOP": { "dataStart": "2017-01-03" },
+    "VRT":  { "dataStart": "2020-02-10" },
+    "NOW":  { "dataStart": "2017-01-03" },
+    "PANW": { "dataStart": "2017-01-03" },
+    "ANET": { "dataStart": "2017-01-03" },
+    "AVGO": { "dataStart": "2017-01-03" }
+  }
+}

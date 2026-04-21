@@ -55,7 +55,7 @@ import { applyFill, applySpreadFill } from './slippage';
 
 // ── Types ────────────────────────────────────────────────
 
-export type OptionMode = 'LEAP' | 'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SWING_LONG_OPTION';
+export type OptionMode = 'LEAP' | 'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SWING_LONG_OPTION' | 'BUY_WRITE';
 export type OptionExitType =
   | 'PROFIT_TARGET'
   | 'STOP_LOSS'
@@ -114,6 +114,16 @@ export interface OptionTrade {
   dailyMtM?: { date: string; spreadMid: number; unrealizedPnl: number }[];
   // Effective position size multiplier (1 = default 1 contract notionals)
   positionSize?: number;
+  // Phase 0.c.9: buy-write (covered call) only. Records the long-stock leg
+  // that accompanies the short call. Unset for non-BUY_WRITE trades.
+  stockLeg?: {
+    shares: number;          // typically 100
+    entryPrice: number;      // spot at entry
+    exitPrice: number;       // spot at exit OR strike if assigned
+    assigned: boolean;       // true if call finished ITM and shares were called away at K
+    pnl: number;             // shares × (exitPrice − entryPrice)
+    dailyMtM?: { date: string; price: number; pnl: number }[];
+  };
 }
 
 export interface EntrySignal {
@@ -176,6 +186,26 @@ export interface SimConfig {
   // Execution model
   fillMode: FillMode;                       // 'mid' (legacy) or 'bidask' (realistic)
   slippage: DynamicSlippageConfig;          // dynamic slippage config
+  // Phase 0.c.9: discrete ex-dividend cashflows used by simulateBuyWrite's
+  // stock-leg total-return accounting. Each entry names an ex-date (the
+  // day the holder-of-record must have owned the shares) and a
+  // per-share amount in dollars. We credit `100 × amount` to the trade
+  // on that date, but ONLY if the buy-write cycle was open at that date
+  // (signal.date < ex-date <= exitDate).
+  //
+  // Rationale: CBOE BXM is a total-return index — dividends matter for
+  // correlation. A continuous-yield approximation would credit small
+  // amounts every month regardless of actual ex-dates, biasing P&L on
+  // no-dividend months upward and distorting monthly return stats.
+  // Leaving this undefined yields the price-return-only behavior.
+  dividendSchedule?: Array<{ date: string; amountPerShare: number }>;
+  // Phase 0.c.9: strict monthly-expiry selection for BUY_WRITE. When true,
+  // simulateBuyWrite pre-filters the entry chain to rows whose expir_date
+  // is a third-Friday (standard CBOE monthly) before calling
+  // findStrikeByDelta. On weekly-option underlyings (SPY) the OI-based
+  // picker can otherwise land on a weekly expiry, which diverges from the
+  // CBOE BXM methodology this mode is designed to replicate.
+  requireMonthlyExpiry?: boolean;
   // ORATS liquidity & Greeks filters (all optional, defaults = no filter)
   maxBidAskSpreadPct?: number;   // max (ask-bid)/mid for short leg (e.g. 0.10 = 10%)
   minShortOI?: number;           // min open interest on short leg strike
@@ -460,6 +490,407 @@ export async function simulateLeap(
 }
 
 // buildLeapTrade moved to ./leap-exit and re-exported at the top of this module.
+
+/**
+ * Simulate one buy-write (covered call) cycle — Phase 0.c.9.
+ *
+ * Entry:
+ *   - Fetch chain at signal.date, pick the highest-OI expiry in `creditDTERange`.
+ *   - Select ATM call via `findStrikeByDelta(chain, 0.50, 'Call', creditDTERange)`.
+ *   - Buy 100 shares at stock_price; sell 1 call at call.bid (realistic short fill).
+ *
+ * Monitor:
+ *   - Daily (or interval) mark: stock_price from chain + option mid/ask.
+ *   - Records `dailyMtM` for the combined position AND per-leg stockLeg.dailyMtM.
+ *   - No TP / SL / trailing — buy-write held strictly to expiry (BXM methodology).
+ *
+ * Exit at call expiry:
+ *   - Spot > strike: call assigned; shares sold at K. Premium kept.
+ *   - Spot ≤ strike: call expires worthless. Shares remain; we mark them at spot
+ *     on expiry and treat it as the exit price. (The ACTUAL BXM would hold and
+ *     roll — we're replicating one monthly cycle per call, so each cycle ends.)
+ *
+ * Return: OptionTrade with `mode='BUY_WRITE'`, `stockLeg` populated, total `pnl`
+ * = short-call P&L + stock P&L. Returns null if no suitable call found.
+ *
+ * NOTE: signal.direction is ignored (always short CALL). Kept in signature for
+ * consistency with sibling simulators.
+ */
+export async function simulateBuyWrite(
+  token: string,
+  signal: EntrySignal,
+  config: SimConfig,
+  allTradingDates: string[],
+  maxDate: string,
+): Promise<OptionTrade | null> {
+  // 1. Entry chain + ATM call selection.
+  //
+  // Prerequisite: the SQLite cache must have been prefetched with a DTE
+  // range that covers `config.creditDTERange`. fetchHistoricalChain's
+  // cache key is `(ticker, date)` and does NOT track which DTE slice was
+  // loaded — a cache populated via `prefetch-chains.ts --dte-range 60,330`
+  // (LEAP default) will return only LEAP rows even when the caller asks
+  // for a 5-45 DTE slice, and findStrikeByDelta will see nothing and
+  // return null. For BXM replication, prefetch across 5-60 DTE first.
+  // (Codex round-8 P1 — documented limitation rather than an architectural
+  // cache-key change, which would touch every other simulator.)
+  const rawChain = await fetchHistoricalChain(
+    token, signal.ticker, signal.date, undefined, config.creditDTERange,
+  );
+  if (rawChain.length === 0) return null;
+
+  // BXM methodology: short the ATM call on the standard MONTHLY expiry
+  // (3rd Friday). On SPY's weekly-option chain, findStrikeByDelta's
+  // highest-OI tiebreak can pick a weekly expiry that has temporarily
+  // heavy flow, which materially distorts the replication. When
+  // `requireMonthlyExpiry` is on, pre-filter to third-Friday expiries only
+  // so the OI pick stays inside the standard monthly series.
+  // (Codex round-10 P1.)
+  const entryChain = config.requireMonthlyExpiry
+    ? rawChain.filter(r => isThirdFriday(r.expir_date))
+    : rawChain;
+  if (entryChain.length === 0) return null;
+
+  const atmMatch = findStrikeByDelta(
+    entryChain, 0.50, 'Call', config.creditDTERange, 0,
+  );
+  if (!atmMatch) return null;
+
+  const { row: entryRow } = atmMatch;
+  const entryStockPrice = entryRow.stock_price;
+  const strike = entryRow.strike;
+  const expiry = entryRow.expir_date;
+  const entryDTE = entryRow.dte;
+  const entryIV = entryRow.call_iv;
+  const entryDelta = entryRow.delta ?? 0.5;
+  // Short-call entry fill: route through applyFill so BUY_WRITE honors the
+  // same fillMode + dynamic-slippage model the rest of the engine uses.
+  // 'sell' side → receive bid minus impact (or mid under 'mid' mode).
+  const entryFill = applyFill(
+    config.fillMode,
+    entryRow.call_mid,
+    entryRow.call_bid,
+    entryRow.call_ask,
+    'sell',
+    config.slippage,
+    entryRow.call_oi,
+    entryRow.dte,
+  );
+  const premiumPerShare = entryFill.fillPrice;
+  if (!Number.isFinite(premiumPerShare) || premiumPerShare <= 0) return null;
+
+  // 2. Monitoring loop — hold to expiry.
+  // getMonitoringDates signature: (allDates, entryDate, intervalDays, maxDate).
+  // Cap the monitoring window at min(expiry, maxDate) so we don't mark past it.
+  const monitorCap = expiry < maxDate ? expiry : maxDate;
+  const monitorDates = getMonitoringDates(
+    allTradingDates, signal.date, config.monitoringIntervalDays, monitorCap,
+  ).filter(d => d > signal.date);
+
+  const stockDaily: { date: string; price: number; pnl: number }[] = [];
+  const combinedDaily: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
+
+  // Filter the dividend schedule to entries that could accrue during this
+  // trade's lifetime. Each entry is an ex-date; if signal.date < ex-date
+  // the holder-of-record has the shares and gets the cash. We credit on
+  // the ex-date itself (standard accrual convention).
+  //
+  // Upper bound: we only credit ex-dates on or before the earliest
+  // possible exit (min of option expiry and caller's maxDate). This
+  // bounds `divs` to what could actually accrue — a reusable yearly
+  // schedule with ex-dates that all fall after maxDate/expiry becomes an
+  // empty list and doesn't trigger the monitoring guard below
+  // (Codex round-11 P2).
+  const divWindowEnd = expiry <= maxDate ? expiry : maxDate;
+  const divs = (config.dividendSchedule ?? [])
+    .filter(ev => ev.date > signal.date && ev.date <= divWindowEnd && Number.isFinite(ev.amountPerShare))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  // If a dividend schedule actually has ex-dates inside this window,
+  // require daily monitoring so each ex-date lands on its own dailyMtM
+  // entry. With a sparser monitor the dividend lump would only show up
+  // on the next sampled day, delaying the cashflow by several days and
+  // distorting daily Sharpe/DD (Codex round-9 P2 b). Daily monitoring is
+  // BXM replication's natural use case; reject the combination loudly
+  // rather than silently accept incorrect path stats.
+  if (divs.length > 0 && config.monitoringIntervalDays !== 1) {
+    throw new Error(
+      `simulateBuyWrite: dividendSchedule requires monitoringIntervalDays === 1, ` +
+      `got ${config.monitoringIntervalDays}. A sparser monitor would defer ` +
+      `dividend cashflows to the next sampled day and distort daily P&L.`,
+    );
+  }
+  function accruedDividends(throughDate: string): number {
+    let total = 0;
+    for (const ev of divs) {
+      if (ev.date > throughDate) break;
+      total += 100 * ev.amountPerShare;
+    }
+    return total;
+  }
+
+  let lastMonitorDate = signal.date;
+  let lastStockPrice = entryStockPrice;
+
+  for (const d of monitorDates) {
+    // Mirror simulateCreditSpread's monitoring pattern: prefer direct
+    // lookup when the caller opts in (pre-warmed SQLite cache), but fall
+    // back to fetching the day's chain otherwise. Without the fallback,
+    // uncached runs would leave `dailyMtM` empty and degrade analytics
+    // to a single exit-day point.
+    let contract = config.useDirectLookup
+      ? findContractDirect(signal.ticker, d, strike, expiry, 'Call')
+      : null;
+    if (!contract) {
+      const chain = await fetchHistoricalChain(token, signal.ticker, d);
+      if (chain.length > 0) {
+        contract = findContract(chain, strike, expiry, 'Call');
+      }
+    }
+    if (contract) {
+      lastStockPrice = contract.row.stock_price;
+      const callMid = contract.mid;
+      const stockPnl = 100 * (lastStockPrice - entryStockPrice);
+      // Daily MtM uses fair value (mid), not ask. Charging the close
+      // spread every monitoring day would be paid once at exit and is
+      // already captured by the applyFill path at force-close or exit.
+      // The other simulators (simulateLeap, simulateCreditSpread) also
+      // mark dailyMtM at fair value; mixing mid/ask across modes would
+      // distort computePortfolioDailyMetrics / computeCorrelationStress.
+      const shortCallPnl = 100 * (premiumPerShare - callMid);
+      // Include accrued dividends in daily unrealized P&L so Sharpe/DD
+      // see the cashflow on the ex-date rather than as a single
+      // exit-day jump (Codex round-7 P2).
+      const divAccrued = accruedDividends(d);
+      stockDaily.push({ date: d, price: lastStockPrice, pnl: stockPnl + divAccrued });
+      combinedDaily.push({ date: d, spreadMid: callMid, unrealizedPnl: stockPnl + shortCallPnl + divAccrued });
+    }
+    lastMonitorDate = d;
+    if (d >= expiry) break;
+  }
+
+  // 3. Exit. Distinguish a true expiration (exit at or after option expiry)
+  // from a forced early close (window or data cutoff before expiry). Sister
+  // simulators (simulateLeap, simulateCreditSpread) do the same thing —
+  // pricing a forced close at intrinsic would systematically discard time
+  // value and manufacture "assignment" before the option has expired.
+  //
+  // Clamp both the target and the walk-back to min(expiry, maxDate) —
+  // otherwise a maxDate on a non-trading day (weekend/holiday) would
+  // silently roll the exit forward past the requested cutoff, sometimes
+  // all the way to expiry, turning a forced close into an assignment.
+  const exitCap = expiry <= maxDate ? expiry : maxDate;
+  let exitDate = exitCap;
+  let exitIdx = allTradingDates.lastIndexOf(exitDate);
+  if (exitIdx < 0) {
+    for (let i = allTradingDates.length - 1; i >= 0; i--) {
+      if (allTradingDates[i] <= exitCap) { exitIdx = i; exitDate = allTradingDates[i]; break; }
+    }
+    if (exitIdx < 0) return null;
+  }
+
+  // The "effective expiry" on the trading calendar: the last trading day
+  // on or before `expiry`. When expir_date is a non-trading Saturday
+  // (historical BXM monthlies) there is no Saturday row to fetch, so the
+  // settlement uses the preceding Friday's close. This is NOT a forced
+  // close — the option has reached its effective expiration.
+  let effectiveExpiryIdx = allTradingDates.lastIndexOf(expiry);
+  if (effectiveExpiryIdx < 0) {
+    for (let i = allTradingDates.length - 1; i >= 0; i--) {
+      if (allTradingDates[i] <= expiry) { effectiveExpiryIdx = i; break; }
+    }
+  }
+  const effectiveExpiryDate = effectiveExpiryIdx >= 0 ? allTradingDates[effectiveExpiryIdx] : expiry;
+
+  // Walk `exitDate` back through the calendar until we find a day that
+  // actually has chain data. Missing exit-day data + reuse of a stale
+  // monitor price would silently freeze the stock leg at an earlier mark
+  // and produce the wrong final P&L. Fall through to NO_CHAIN if we run
+  // out of trading days to look at.
+  let exitChain = await fetchHistoricalChain(token, signal.ticker, exitDate);
+  while (exitChain.length === 0 && exitIdx > 0) {
+    exitIdx -= 1;
+    exitDate = allTradingDates[exitIdx];
+    if (exitDate < signal.date) break;
+    exitChain = await fetchHistoricalChain(token, signal.ticker, exitDate);
+  }
+  if (exitChain.length === 0) {
+    return null; // no usable chain day — treat as unfetchable (caller skips)
+  }
+  const exitStockPrice = exitChain[0].stock_price;
+
+  // Forced-close vs expiration. The walk-back behavior means a caller who
+  // intended expiration-style settlement can legitimately end up on a
+  // pre-expiry trading day (e.g., Saturday expiry → Friday close). We
+  // must not classify that as FORCE_CLOSE — it reaches effective expiry.
+  // Rule: forcedClose iff maxDate is strictly before the effective expiry
+  // trading day (meaning the caller's window ended before any reasonable
+  // expiration settlement could occur).
+  const forcedClose = maxDate < effectiveExpiryDate;
+
+  let assigned: boolean;
+  let stockExitPrice: number;
+  let callExitPrice: number;      // what we pay per share to close short
+  let exitType: OptionTrade['exitType'];
+
+  if (forcedClose) {
+    // Early close: mark both legs at market.
+    //   Stock: mark at spot (no assignment before expiry).
+    //   Short call: buy-to-close via applyFill so BUY_WRITE honors the
+    //               configured fill model and dynamic-slippage penalty.
+    //               Prefer the already-loaded exitChain (uncached-run
+    //               friendly); only fall back to findContractDirect when
+    //               the chain came up empty, and to intrinsic when even
+    //               the strike row is missing.
+    const contract = exitChain.length > 0
+      ? findContract(exitChain, strike, expiry, 'Call')
+      : findContractDirect(signal.ticker, exitDate, strike, expiry, 'Call');
+    assigned = false;
+    stockExitPrice = exitStockPrice;
+    if (contract) {
+      const fill = applyFill(
+        config.fillMode,
+        contract.mid,
+        contract.bid,
+        contract.ask,
+        'buy',
+        config.slippage,
+        contract.oi,
+        contract.row.dte,
+      );
+      callExitPrice = fill.fillPrice;
+    } else {
+      callExitPrice = Math.max(0, exitStockPrice - strike);
+    }
+    exitType = 'FORCE_CLOSE';
+  } else {
+    // True expiration. `exitDate` may have been walked back from a
+    // non-trading expiry (e.g., Saturday monthly expiries) to the prior
+    // trading day — use that day's close as the settlement spot, which
+    // is how CBOE BXM replication handles Saturday expiries historically.
+    //
+    // Economics at expiration (no cash close of the short call):
+    //   ITM  → shares assigned away at strike; short call settles at 0.
+    //   OTM  → short call expires worthless; shares marked at spot.
+    // In both branches the short leg's cash P&L is just the kept premium
+    // (callExitPrice = 0). Charging intrinsic on top of capping the stock
+    // leg at strike would double-count the upside — the ITM cash flow is
+    // already captured by delivering shares at K instead of spot.
+    assigned = exitStockPrice > strike;
+    stockExitPrice = assigned ? strike : exitStockPrice;
+    callExitPrice = 0;
+    exitType = 'EXPIRATION';
+  }
+
+  const stockPnl = 100 * (stockExitPrice - entryStockPrice);
+  const shortCallPnl = 100 * (premiumPerShare - callExitPrice);
+  // Dividends realized during the holding period — only the ex-dates that
+  // actually fall inside (signal.date, exitDate] are credited. A trade
+  // that crosses no ex-date receives 0. This replaces the earlier
+  // continuous-yield approximation, which systematically overstated
+  // no-dividend months (Codex round-7 P1).
+  const dividendCredit = accruedDividends(exitDate);
+  const totalPnl = stockPnl + shortCallPnl + dividendCredit;
+
+  // Reconcile stockLeg.dailyMtM with the settled stock value (Codex round-8 P2).
+  // During monitoring we record `100 × (spot - entrySpot) + divAccrued`; on an
+  // assigned expiration the stock delivers at K, not final spot, so the
+  // last daily mark must be snapped to the settled value or the returned
+  // leg-level series is inconsistent with stockLeg.pnl. Append/replace a
+  // terminal entry representing true settlement.
+  {
+    const terminalStockPnl = stockPnl + dividendCredit;
+    const terminalCombinedPnl = totalPnl;
+    const last = stockDaily[stockDaily.length - 1];
+    if (last && last.date === exitDate) {
+      last.price = stockExitPrice;
+      last.pnl = terminalStockPnl;
+    } else {
+      stockDaily.push({ date: exitDate, price: stockExitPrice, pnl: terminalStockPnl });
+    }
+    const lastCombined = combinedDaily[combinedDaily.length - 1];
+    if (lastCombined && lastCombined.date === exitDate) {
+      lastCombined.unrealizedPnl = terminalCombinedPnl;
+      lastCombined.spreadMid = callExitPrice;
+    } else {
+      combinedDaily.push({ date: exitDate, spreadMid: callExitPrice, unrealizedPnl: terminalCombinedPnl });
+    }
+  }
+
+  const holdDays = countCalendarDays(signal.date, exitDate);
+  const entryNotional = 100 * entryStockPrice;
+  const pnlPct = entryNotional > 0 ? totalPnl / entryNotional : 0;
+  const exitDTE = Math.max(0, countCalendarDays(exitDate, expiry));
+
+  const trade: OptionTrade = {
+    ticker: signal.ticker,
+    mode: 'BUY_WRITE',
+    direction: 'CALL',
+    entryDate: signal.date,
+    entrySignalScore: signal.score,
+    strike,
+    expiry,
+    entryDTE,
+    entryPrice: premiumPerShare,            // credit received per share
+    entryDelta,
+    entryIV,
+    entryStockPrice,
+    exitDate,
+    exitPrice: callExitPrice,               // per-share cost to close short leg
+    exitDTE,
+    exitStockPrice,
+    exitType,
+    pnl: totalPnl,
+    pnlPct,
+    holdDays,
+    fillMode: config.fillMode,
+    dailyMtM: combinedDaily,
+    stockLeg: {
+      shares: 100,
+      entryPrice: entryStockPrice,
+      exitPrice: stockExitPrice,
+      assigned,
+      // Stock leg's realized P&L INCLUDES dividends accrued during the
+      // holding period — dividends are a stock-ownership cashflow, not a
+      // separate account. trade.pnl and stockLeg.dailyMtM terminal point
+      // already reflect this; keeping stockLeg.pnl price-only would make
+      // the returned leg breakdown internally inconsistent (Codex
+      // round-9 P2 a).
+      pnl: stockPnl + dividendCredit,
+      dailyMtM: stockDaily,
+    },
+  };
+  // Suppress unused-variable lint.
+  void lastMonitorDate;
+  return trade;
+}
+
+/**
+ * True if the given `YYYY-MM-DD` date is a standard CBOE monthly
+ * expiration date: the third Friday of its month OR the Saturday
+ * immediately following.
+ *
+ * CBOE options listed before Feb 2015 carried a `Saturday` expiration
+ * date in chain data (the day after expiration Friday) — BXM historical
+ * chains record those monthlies with Saturday `expir_date`. Post-2015
+ * monthlies record Friday. Any replication that covers pre-2015 data
+ * (the committed CBOE BXM series starts in 1988) must accept both.
+ */
+export function isThirdFriday(dateStr: string): boolean {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  const dow = d.getUTCDay();
+  if (dow !== 5 && dow !== 6) return false;
+  const dayOfMonth = d.getUTCDate();
+  // 3rd Friday: day 15-21 inclusive. 3rd-Saturday (= day after 3rd Friday):
+  // day 16-22 inclusive.
+  if (dow === 5) return dayOfMonth >= 15 && dayOfMonth <= 21;
+  return dayOfMonth >= 16 && dayOfMonth <= 22;
+}
+
+function countCalendarDays(start: string, end: string): number {
+  const a = new Date(`${start}T00:00:00Z`).getTime();
+  const b = new Date(`${end}T00:00:00Z`).getTime();
+  return Math.max(0, Math.round((b - a) / 86_400_000));
+}
 
 /**
  * Simulate a single credit spread trade.
@@ -1580,10 +2011,21 @@ export function computeOptionAnalytics(
     byExit[t.exitType] = (byExit[t.exitType] || 0) + 1;
   }
 
-  // Capital deployed per trade: premium paid (LEAP) or max loss (credit spread)
+  // Capital deployed per trade:
+  //   CREDIT_SPREAD → max loss per contract (width − credit)
+  //   BUY_WRITE     → stock notional (shares × entry spot); the short call
+  //                    premium is a credit, not capital. Using entryPrice
+  //                    (~$3.49) here would underreport capital ~129× and
+  //                    inflate ROC for covered-call positions.
+  //   LEAP / other  → premium paid per contract (100 × premium/share)
   const capitalPerTrade = trades.map(t => {
     if (t.mode === 'CREDIT_SPREAD') {
       return (t.maxLoss ?? t.entryPrice) * 100; // max loss per contract
+    }
+    if (t.mode === 'BUY_WRITE') {
+      const stockEntry = t.stockLeg?.entryPrice ?? t.entryStockPrice ?? 0;
+      const shares = t.stockLeg?.shares ?? 100;
+      return stockEntry * shares;
     }
     return t.entryPrice * 100; // premium paid per contract
   });

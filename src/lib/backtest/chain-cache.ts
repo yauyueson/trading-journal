@@ -115,6 +115,18 @@ async function fetchORATSHistStrikes(
 
 let _db: Database.Database | null = null;
 let _findContractStmt: Database.Statement | null = null;
+// Phase 1.g: whether fetch_log carries the dte_min/dte_max columns.
+// For writable DBs the migration in initDB ensures this is true. For
+// readonly DBs (committed fixtures pre-dating Phase 1.g) this stays false,
+// and isCovered falls back to the legacy "any entry = covered" check.
+let _fetchLogHasDteCols = false;
+// Phase 1.h (Codex round-14 Finding 1): whether the interval-list table
+// exists. The single-envelope approach from 1.g reported false coverage
+// for the middle of two disjoint fetches. 1.h stores each fetched interval
+// as a separate row; `isCovered` asks "does ANY single interval cover the
+// request?" For readonly pre-1.h fixtures the table is absent and we fall
+// back to the 1.g envelope or pre-1.g presence check.
+let _hasIntervalTable = false;
 
 export function initDB(dbPath?: string, readonly = false): Database.Database {
   if (_db) return _db;
@@ -150,10 +162,109 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
       ticker TEXT NOT NULL,
       trade_date TEXT NOT NULL,
       rows_fetched INTEGER,
+      dte_min INTEGER,
+      dte_max INTEGER,
       fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (ticker, trade_date)
     );
   `);
+
+    // Phase 1.g migration (2026-04-20) — add dte_min/dte_max to pre-existing
+    // fetch_log so that cache reads can tell whether a previous fetch covered
+    // the requested DTE range. Legacy rows (inserted before this migration)
+    // keep NULL/NULL, which is treated as "full coverage" for backward
+    // compatibility with prefetched caches. Going forward, explicit fetches
+    // stamp the range they requested.
+    //
+    // Must run BEFORE the Phase 1.h backfill below, which reads these
+    // columns.
+    for (const col of ['dte_min', 'dte_max']) {
+      try {
+        _db.exec(`ALTER TABLE fetch_log ADD COLUMN ${col} INTEGER`);
+      } catch (err) {
+        // "duplicate column name" — column already exists from a prior run
+        // or from the CREATE statement above. Anything else re-throws.
+        if (!/duplicate column name/i.test((err as Error).message)) throw err;
+      }
+    }
+
+    // Phase 1.h: per-fetch interval list. Each row records one fetched
+    // (ticker, trade_date, dteRange) tuple. NULL dte_min/dte_max means the
+    // fetch requested no filter = full chain. Multiple rows per
+    // (ticker, trade_date) accumulate as strategies with different DTE
+    // windows touch the same date.
+    //
+    // Uniqueness is enforced by a COALESCE-based expression index rather
+    // than the plain table UNIQUE, because SQLite's natural UNIQUE treats
+    // two NULLs as DISTINCT — so concurrent workers racing on a fresh
+    // full-fetch could otherwise both insert `(NULL, NULL)` rows and both
+    // pass. Coalescing NULL to -1 (outside any real DTE) makes the index
+    // key null-safe; `INSERT OR IGNORE` then reliably dedupes both range
+    // rows and full-range rows (Codex round-21 / Phase 1.m, 2026-04-20).
+    //
+    // The correlated `NOT EXISTS` with `IS` below remains as a cheap
+    // same-worker idempotency check across sequential initDB opens
+    // (avoids constraint violations noisy in logs even when they'd be
+    // silently ignored).
+    _db.exec(`
+      CREATE TABLE IF NOT EXISTS fetch_log_intervals (
+        ticker TEXT NOT NULL,
+        trade_date TEXT NOT NULL,
+        dte_min INTEGER,
+        dte_max INTEGER,
+        fetched_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_fli_lookup ON fetch_log_intervals(ticker, trade_date);
+    `);
+    // Phase 1.m migration: a 1.h-era DB created before the COALESCE
+    // expression index may already hold duplicate NULL/NULL rows from
+    // the concurrent race described above. Dedupe (keep the earliest
+    // rowid per key) before creating the unique index, or the index
+    // creation would fail on existing duplicates.
+    _db.exec(`
+      DELETE FROM fetch_log_intervals
+      WHERE rowid NOT IN (
+        SELECT MIN(rowid) FROM fetch_log_intervals
+        GROUP BY ticker, trade_date, COALESCE(dte_min, -1), COALESCE(dte_max, -1)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_fli_unique_coalesced
+        ON fetch_log_intervals(ticker, trade_date, COALESCE(dte_min, -1), COALESCE(dte_max, -1));
+      INSERT OR IGNORE INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max)
+      SELECT fl.ticker, fl.trade_date, fl.dte_min, fl.dte_max
+      FROM fetch_log fl
+      WHERE NOT EXISTS (
+        SELECT 1 FROM fetch_log_intervals fli
+        WHERE fli.ticker = fl.ticker
+          AND fli.trade_date = fl.trade_date
+          AND fli.dte_min IS fl.dte_min
+          AND fli.dte_max IS fl.dte_max
+      );
+    `);
+  } // end if (!readonly) for the WAL + schema block
+
+  // Detect Phase 1.g columns on whatever DB we're attached to (works for
+  // both readonly fixtures and writable caches). If absent, isCovered falls
+  // back to the legacy "entry exists ⇒ covered" check so pre-1.g fixtures
+  // keep working.
+  {
+    const cols = _db.prepare('PRAGMA table_info(fetch_log)').all() as { name: string }[];
+    const names = new Set(cols.map(c => c.name));
+    _fetchLogHasDteCols = names.has('dte_min') && names.has('dte_max');
+  }
+
+  // Phase 1.h: detect the interval-list table. Missing on pre-1.h readonly
+  // fixtures — isCovered falls back to the 1.g single-envelope logic there.
+  {
+    const tbl = _db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='fetch_log_intervals'",
+    ).get();
+    _hasIntervalTable = !!tbl;
+  }
+
+  // Re-open the closing brace for the original WAL-guard so the existing
+  // orats_cores_cache block runs inside the write path (it used to share
+  // the same `if (!readonly)`). Keep that path intact.
+  if (!readonly) {
 
     // v2: ORATS cores cache for VRP, contango, slope, smvVol
     _db.exec(`
@@ -180,18 +291,203 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
 
 export function closeDB(): void {
   _findContractStmt = null;
+  _fetchLogHasDteCols = false;
+  _hasIntervalTable = false;
   if (_db) { _db.close(); _db = null; }
+}
+
+/**
+ * Delete both `fetch_log` and `fetch_log_intervals` rows for a (ticker,
+ * date) pair in a single transaction.
+ *
+ * Codex round-15 Finding 2 (2026-04-20): recovery workflows like
+ * `scripts/repair-truncated-chains.ts` used to delete from `fetch_log`
+ * alone and rely on `isCached` returning false to trigger a retry. After
+ * Phase 1.h the interval list is authoritative, so repair flows must
+ * clear BOTH tables or `isCovered` keeps hitting the stale empty
+ * interval and short-circuits the retry.
+ *
+ * Safe no-op when either table is absent or the pair has no rows.
+ */
+export function clearFetchLogEntries(
+  ticker: string,
+  trade_date: string,
+): void {
+  const db = initDB();
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM fetch_log WHERE ticker = ? AND trade_date = ?').run(ticker, trade_date);
+    if (_hasIntervalTable) {
+      db.prepare('DELETE FROM fetch_log_intervals WHERE ticker = ? AND trade_date = ?').run(ticker, trade_date);
+    }
+  });
+  tx();
 }
 
 // ── Cache Operations ─────────────────────────────────────
 
-function isCached(ticker: string, date: string): boolean {
+/**
+ * Coverage check: has any prior fetch for (ticker, date) covered the
+ * requested DTE range?
+ *
+ * Three-tier fallback, from most-correct to most-permissive:
+ *
+ * 1. `fetch_log_intervals` present (Phase 1.h+). Each row is one fetched
+ *    interval — NULL/NULL means a full-range fetch. Coverage holds iff
+ *    some single row's interval encloses the requested range. Disjoint
+ *    fetches stay disjoint — [7,21] plus [45,65] does NOT imply [25,40]
+ *    is covered. Legacy `fetch_log` rows with NULL/NULL dte cols are also
+ *    honored (pre-1.g prefetched caches).
+ *
+ * 2. Only `fetch_log.dte_min/dte_max` present (Phase 1.g readonly DBs).
+ *    Single-envelope logic: the row's range must enclose the request.
+ *    Has the disjoint-false-hit caveat, but these DBs are immutable so
+ *    no new disjoint fetches can land on them.
+ *
+ * 3. Neither present (pre-1.g readonly fixtures). Any entry ⇒ covered.
+ *    Matches historical behavior.
+ *
+ * A request with no explicit range (caller wants the full chain) is only
+ * satisfied by a full-range entry (NULL/NULL interval) or by a tier-3
+ * presence hit.
+ */
+function isCovered(
+  ticker: string,
+  date: string,
+  requestedRange?: [number, number],
+): boolean {
+  const db = initDB();
+
+  // Tier 3: pre-1.g readonly fixtures.
+  if (!_fetchLogHasDteCols) {
+    const row = db.prepare('SELECT 1 FROM fetch_log WHERE ticker = ? AND trade_date = ?').get(ticker, date);
+    return !!row;
+  }
+
+  // A legacy fetch_log NULL/NULL entry always counts as full coverage
+  // (prefetched caches that never stamped a range).
+  const legacyFull = db.prepare(
+    'SELECT 1 FROM fetch_log WHERE ticker = ? AND trade_date = ? AND dte_min IS NULL AND dte_max IS NULL',
+  ).get(ticker, date);
+  if (legacyFull) return true;
+
+  // Tier 1: interval-list table. Ask "any interval that covers the request?"
+  if (_hasIntervalTable) {
+    if (!requestedRange) {
+      // Caller wants full chain — only a NULL/NULL interval satisfies.
+      const full = db.prepare(
+        'SELECT 1 FROM fetch_log_intervals WHERE ticker = ? AND trade_date = ? AND dte_min IS NULL AND dte_max IS NULL',
+      ).get(ticker, date);
+      return !!full;
+    }
+    const [reqMin, reqMax] = requestedRange;
+    const hit = db.prepare(`
+      SELECT 1 FROM fetch_log_intervals
+      WHERE ticker = ? AND trade_date = ?
+        AND (dte_min IS NULL OR dte_min <= ?)
+        AND (dte_max IS NULL OR dte_max >= ?)
+      LIMIT 1
+    `).get(ticker, date, reqMin, reqMax);
+    return !!hit;
+  }
+
+  // Tier 2: single-envelope fallback (1.g schema, no interval table).
+  const row = db.prepare(
+    'SELECT dte_min, dte_max FROM fetch_log WHERE ticker = ? AND trade_date = ?',
+  ).get(ticker, date) as { dte_min: number | null; dte_max: number | null } | undefined;
+  if (!row) return false;
+  if (!requestedRange) return false;
+  const [reqMin, reqMax] = requestedRange;
+  const cachedMin = row.dte_min ?? Number.NEGATIVE_INFINITY;
+  const cachedMax = row.dte_max ?? Number.POSITIVE_INFINITY;
+  return cachedMin <= reqMin && cachedMax >= reqMax;
+}
+
+// Backward-compat alias for callers that only need "did we ever fetch this
+// (ticker, date) pair" regardless of DTE coverage. Equivalent to
+// `isCovered(..., undefined)` when the pair was fetched with a legacy
+// (NULL, NULL) entry, OR truthy when any entry exists. Prefer `isCovered`
+// in new code.
+function hasFetchLogEntry(ticker: string, date: string): boolean {
   const db = initDB();
   const row = db.prepare('SELECT 1 FROM fetch_log WHERE ticker = ? AND trade_date = ?').get(ticker, date);
   return !!row;
 }
 
-function insertRows(rows: ChainRow[]): void {
+/**
+ * Record a fetch in the cache's log tables.
+ *
+ * Behavior (Phase 1.h):
+ *  - `fetch_log` gets one row per (ticker, trade_date). `rows_fetched` is
+ *    updated to `MAX(existing, new)` so a side-band fetch that returns 0
+ *    rows doesn't regress a previously-populated entry — consumers that
+ *    use `rows_fetched = 0` as "no data for this date" (e.g.
+ *    scripts/repair-truncated-chains.ts) keep working.
+ *  - `fetch_log.dte_min / dte_max` continue to track the MOST RECENT
+ *    fetch's range. They're vestigial (isCovered reads the interval
+ *    table), but writing them keeps 1.g-era DBs readable.
+ *  - `fetch_log_intervals` gets an INSERT OR IGNORE of the exact range
+ *    we just fetched. Multiple disjoint ranges accumulate as rows.
+ */
+function upsertFetchLog(
+  db: Database.Database,
+  ticker: string,
+  date: string,
+  rowsFetched: number,
+  dteRange: [number, number] | undefined,
+): void {
+  const existing = db.prepare(
+    'SELECT rows_fetched, dte_min, dte_max FROM fetch_log WHERE ticker = ? AND trade_date = ?',
+  ).get(ticker, date) as
+    | { rows_fetched: number | null; dte_min: number | null; dte_max: number | null }
+    | undefined;
+
+  const nextRowsFetched = Math.max(existing?.rows_fetched ?? 0, rowsFetched);
+
+  // Preserve an existing NULL/NULL stamp (legacy or prior full fetch) so a
+  // later partial fetch doesn't narrow the envelope recorded on fetch_log.
+  // Purely cosmetic for callers that still inspect fetch_log directly.
+  const preserveFull = existing && existing.dte_min == null && existing.dte_max == null;
+  const fullFetch = !dteRange;
+  const nextMin: number | null = preserveFull || fullFetch ? null : dteRange![0];
+  const nextMax: number | null = preserveFull || fullFetch ? null : dteRange![1];
+
+  db.prepare(
+    'INSERT OR REPLACE INTO fetch_log (ticker, trade_date, rows_fetched, dte_min, dte_max) VALUES (?, ?, ?, ?, ?)',
+  ).run(ticker, date, nextRowsFetched, nextMin, nextMax);
+
+  // Authoritative coverage record. Absent from pre-1.h readonly fixtures.
+  // Three defenses against dupe rows, now complete:
+  //   1. Codex round-17 Finding 1: explicit NOT EXISTS using `IS` for
+  //      null-safe equality — cheap same-worker idempotency check so
+  //      sequential full fetches don't churn the table or log noisy
+  //      constraint violations.
+  //   2. Codex round-18 Finding 1: cross-worker non-NULL races. `INSERT
+  //      OR IGNORE` catches the UNIQUE violation silently so a loser
+  //      worker doesn't abort with SQLITE_CONSTRAINT.
+  //   3. Codex round-21 / Phase 1.m (2026-04-20): the COALESCE expression
+  //      index on (ticker, trade_date, COALESCE(dte_min,-1),
+  //      COALESCE(dte_max,-1)) enforces NULL-safe uniqueness — a
+  //      concurrent race on a full-range fetch (dte_min=dte_max=NULL)
+  //      now also dedupes via `INSERT OR IGNORE` instead of silently
+  //      bloating the table.
+  if (_hasIntervalTable) {
+    const intervalMin = fullFetch ? null : dteRange![0];
+    const intervalMax = fullFetch ? null : dteRange![1];
+    const exists = db.prepare(`
+      SELECT 1 FROM fetch_log_intervals
+      WHERE ticker = ? AND trade_date = ?
+        AND dte_min IS ? AND dte_max IS ?
+      LIMIT 1
+    `).get(ticker, date, intervalMin, intervalMax);
+    if (!exists) {
+      db.prepare(
+        'INSERT OR IGNORE INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max) VALUES (?, ?, ?, ?)',
+      ).run(ticker, date, intervalMin, intervalMax);
+    }
+  }
+}
+
+function insertRows(rows: ChainRow[], dteRange?: [number, number]): void {
   const db = initDB();
   const insert = db.prepare(`
     INSERT OR REPLACE INTO option_chains
@@ -201,7 +497,6 @@ function insertRows(rows: ChainRow[]): void {
      delta, gamma, theta, vega)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  const logInsert = db.prepare('INSERT OR REPLACE INTO fetch_log (ticker, trade_date, rows_fetched) VALUES (?, ?, ?)');
 
   const doInsert = db.transaction((r: ChainRow[]) => {
     for (const row of r) {
@@ -213,7 +508,7 @@ function insertRows(rows: ChainRow[]): void {
       );
     }
     if (r.length > 0) {
-      logInsert.run(r[0].ticker, r[0].trade_date, r.length);
+      upsertFetchLog(db, r[0].ticker, r[0].trade_date, r.length, dteRange);
     }
   });
 
@@ -260,23 +555,28 @@ export async function fetchHistoricalChain(
   deltaRange?: [number, number],
   dteRange?: [number, number],
 ): Promise<ChainRow[]> {
-  // Check cache first
-  if (isCached(ticker, date)) {
+  // Coverage-aware cache check: only a HIT if the prior fetch's DTE range
+  // encloses the requested one (or was a full fetch). Otherwise we'd
+  // silently return a chain that's missing the DTEs the caller needs.
+  if (isCovered(ticker, date, dteRange)) {
     return getCachedChain(ticker, date);
   }
 
   // Fetch from ORATS
   const rawRows = await fetchORATSHistStrikes(token, ticker, date, deltaRange, dteRange);
   if (rawRows.length === 0) {
-    // Log empty fetch so we don't retry
+    // Log empty fetch so we don't retry. Stamp the range we tried, so a
+    // later call with a different range still triggers a fetch.
     const db = initDB();
-    db.prepare('INSERT OR REPLACE INTO fetch_log (ticker, trade_date, rows_fetched) VALUES (?, ?, 0)').run(ticker, date);
+    upsertFetchLog(db, ticker, date, 0, dteRange);
     return [];
   }
 
   const chainRows = rawRows.map(mapORATSRow);
-  insertRows(chainRows);
-  return chainRows;
+  insertRows(chainRows, dteRange);
+  // Return all cached rows for (ticker, date) so the caller sees any
+  // pre-existing coverage unioned with what we just fetched.
+  return getCachedChain(ticker, date);
 }
 
 /**
@@ -315,7 +615,7 @@ export async function fetchHistoricalChainsBatch(
 
   for (const t of tickers) {
     const upper = t.toUpperCase();
-    if (isCached(upper, date)) {
+    if (isCovered(upper, date, dteRange)) {
       result.set(upper, getCachedChain(upper, date));
     } else {
       missing.push(upper);
@@ -366,7 +666,7 @@ async function fetchMissingWithSplit(
     // Insert received tickers' rows
     for (const t of received) {
       const rows = byTicker.get(t)!;
-      insertRows(rows);
+      insertRows(rows, dteRange);
       result.set(t, rows);
     }
     // Recurse on the dropped tickers, splitting if >1
@@ -384,13 +684,12 @@ async function fetchMissingWithSplit(
 
   // No truncation: commit every requested ticker (log 0-rows where legitimate).
   const db = initDB();
-  const logInsert = db.prepare('INSERT OR REPLACE INTO fetch_log (ticker, trade_date, rows_fetched) VALUES (?, ?, ?)');
   for (const t of missing) {
     const rows = byTicker.get(t) ?? [];
     if (rows.length > 0) {
-      insertRows(rows);
+      insertRows(rows, dteRange);
     } else {
-      logInsert.run(t, date, 0);
+      upsertFetchLog(db, t, date, 0, dteRange);
     }
     result.set(t, rows);
   }
@@ -416,7 +715,12 @@ export function getCachedChainFiltered(
   deltaRange?: [number, number],
   dteRange?: [number, number],
 ): ChainRow[] {
-  if (!isCached(ticker, date)) return [];
+  // Read-only: return [] for any untouched (ticker, date). The final
+  // row-level DTE filter below catches the case where the cached range
+  // doesn't cover the requested range — we just skip rows outside it,
+  // and the caller sees an empty result exactly as they would have from
+  // a missing cache.
+  if (!hasFetchLogEntry(ticker, date)) return [];
   const rows = getCachedChain(ticker, date);
   return rows.filter(r => {
     if (deltaRange && (r.delta < deltaRange[0] || r.delta > deltaRange[1])) return false;
@@ -561,7 +865,10 @@ export async function prefetchDates(
 ): Promise<number> {
   let fetched = 0;
   for (let i = 0; i < dates.length; i++) {
-    if (!isCached(ticker, dates[i])) {
+    // prefetchDates has no DTE argument — fetch full chain, so the
+    // "already fetched at all" check is sufficient (`fetchHistoricalChain`
+    // stamps the legacy NULL/NULL range, satisfying future coverage checks).
+    if (!hasFetchLogEntry(ticker, dates[i])) {
       await fetchHistoricalChain(token, ticker, dates[i], deltaRange);
       fetched++;
       // Rate limiting: pause briefly between calls
@@ -584,10 +891,12 @@ export async function fetchMultiTickerChain(
 ): Promise<Map<string, ChainRow[]>> {
   const result = new Map<string, ChainRow[]>();
 
-  // Check which tickers need fetching
+  // Check which tickers need fetching. fetchMultiTickerChain doesn't
+  // take a DTE range so it always fetches full — legacy full-coverage
+  // entries satisfy via `isCovered(..., undefined)`.
   const needed: string[] = [];
   for (const t of tickers) {
-    if (isCached(t, date)) {
+    if (isCovered(t, date, undefined)) {
       result.set(t, getCachedChain(t, date));
     } else {
       needed.push(t);
@@ -612,15 +921,14 @@ export async function fetchMultiTickerChain(
     byTicker.get(t)!.push(row);
   }
 
+  const db = initDB();
   for (const t of needed) {
     const rows = byTicker.get(t) || [];
     const chainRows = rows.map(mapORATSRow);
     if (chainRows.length > 0) {
-      insertRows(chainRows);
+      insertRows(chainRows, undefined);
     } else {
-      // Log empty fetch
-      const db = initDB();
-      db.prepare('INSERT OR REPLACE INTO fetch_log (ticker, trade_date, rows_fetched) VALUES (?, ?, 0)').run(t, date);
+      upsertFetchLog(db, t, date, 0, undefined);
     }
     result.set(t, chainRows);
   }
@@ -642,11 +950,16 @@ export async function prefetchAll(
 ): Promise<number> {
   let apiCalls = 0;
 
-  // Find dates that need any fetching
+  // Find dates that need any fetching. `prefetchAll` has no DTE param so
+  // it implicitly wants full chains — use `isCovered(..., undefined)`,
+  // which requires either a legacy NULL/NULL stamp or a full-range
+  // interval. Partial slices (e.g., a prior [25,40] run) correctly fail
+  // this check, so the pre-filter lets fetchMultiTickerChain upgrade them
+  // to full. Codex round-14 Finding 3 (2026-04-20).
   const datesToFetch: string[] = [];
   for (const date of dates) {
-    const allCached = tickers.every(t => isCached(t, date));
-    if (!allCached) datesToFetch.push(date);
+    const allCovered = tickers.every(t => isCovered(t, date, undefined));
+    if (!allCovered) datesToFetch.push(date);
   }
 
   if (datesToFetch.length === 0) {
