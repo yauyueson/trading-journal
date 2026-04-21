@@ -232,6 +232,13 @@ export interface RunResult {
   mertensSharpeSE?: number;
   mertensSkewness?: number;
   mertensKurtosis?: number;          // raw kurtosis (3 = normal)
+  // Phase 2.e (2026-04-20) — deflated Sharpe computed with the Mertens
+  // SE in place of the bootstrap-CI-derived SE. Shipped as a companion
+  // to `deflatedSharpe` (which stays bootstrap-driven), NOT as a
+  // replacement. Promoting one to authoritative would affect historical
+  // leaderboard comparability and needs an explicit policy call.
+  // Agent-visible.
+  deflatedSharpeMertens?: number;
   // Pre-registration audit trail (Phase 0.a.1 / Codex re-review Finding 2).
   // Captured once per run by scripts/autoresearch/lib/pre-reg-gate.ts.
   // Persisted in BOTH full and agent-visible leaderboards so the audit

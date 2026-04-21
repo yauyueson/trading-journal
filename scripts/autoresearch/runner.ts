@@ -1305,6 +1305,18 @@ async function main() {
     const mertensSharpeSE = mertens.annualizedSe;
     const mertensSkewness = mertens.skewness;
     const mertensKurtosis = mertens.kurtosis;
+    // Phase 2.e: parallel DSR using the Mertens closed-form SE rather
+    // than the bootstrap-CI-derived SE. Exposed alongside the existing
+    // `deflatedSharpe` so humans can compare. NOT yet used in any gate
+    // or promotion decision — switching authority to Mertens would
+    // affect all historical leaderboard values and needs an explicit
+    // policy call.
+    const mertensSharpeSEForDSR = mertensSharpeSE > 0 ? mertensSharpeSE : sharpeSE;
+    const deflatedSharpeMertens = computeDeflatedSharpe(
+      oosMetrics.sharpe,
+      attemptNumber,
+      mertensSharpeSEForDSR,
+    );
     const holdoutOOSRatio = oosMetrics.sharpe > 0.01 ? holdoutMetrics.sharpe / oosMetrics.sharpe : 0;
 
     // 13. Validity checks
@@ -1464,6 +1476,7 @@ async function main() {
       mertensSharpeSE,
       mertensSkewness,
       mertensKurtosis,
+      deflatedSharpeMertens,
       exitTypeBreakdown,
       signalsGenerated: allSignals.length,
       signalsSkippedNoChain: allSignals.length - workerResult.allOOSTrades.length - workerResult.holdoutTrades.length,
@@ -1696,6 +1709,15 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
   console.log('--- Overfitting Checks (agent-safe — no holdout signal) ---');
   console.log(`Bootstrap 95% CI: [${r.bootstrapSharpe95CI[0].toFixed(3)}, ${r.bootstrapSharpe95CI[1].toFixed(3)}] ${r.bootstrapSignificant ? '✓ significant' : '✗ NOT significant'}`);
   console.log(`Deflated Sharpe: ${r.deflatedSharpe.toFixed(3)} (adjusted for ${r.attemptNumber} attempts) ${r.deflatedSharpe > 0 ? '✓ survives' : '✗ may be noise'}${overfitWarning}`);
+  if (r.deflatedSharpeMertens != null) {
+    // Phase 2.e: second DSR estimate via the parametric Mertens SE.
+    // When the two agree (typical), use as confirmation. When they
+    // disagree by > 0.5 Sharpe units, flag — usually signals the
+    // bootstrap is under-covering vs the parametric SE.
+    const gap = Math.abs(r.deflatedSharpeMertens - r.deflatedSharpe);
+    const flag = gap > 0.5 ? ' ⚠ diverges from bootstrap DSR' : '';
+    console.log(`Deflated Sharpe (Mertens): ${r.deflatedSharpeMertens.toFixed(3)}${flag}`);
+  }
   if (r.nEffOosDaily != null && r.nOosDaily != null && r.nOosDaily > 0) {
     const ratio = r.nEffOosDaily / r.nOosDaily;
     const flag = ratio < 0.3 ? ' ⚠ very autocorrelated' : ratio < 0.6 ? ' (moderately autocorrelated)' : '';
