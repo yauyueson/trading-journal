@@ -189,7 +189,7 @@ describe('Zero-EV stress (Phase 0.c.10)', () => {
       });
       expectZeroEV(pnls, `ATM call σ=${sigma}`, { minTrades: n });
     }
-  });
+  }, 30_000); // CI (GitHub Actions) needs ~7s; local ~2.5s. 30s gives headroom.
 
   it('G: EV stays near zero as DTE sweeps {7, 30, 90}', () => {
     for (const dte of [7, 30, 90]) {
