@@ -1475,11 +1475,25 @@ async function main() {
       holdoutOOSRatio <= g.maxStabilityHoldoutOosRatio;
     // Search-time validity: holdout-blind. Agents see this.
     const isValidForSearch = passesMinTrades && passesMaxDD && passesWFA && passesSanity && passesDeltaGates;
-    // Overall validity: includes holdout gate + new-entries guard + stability.
+    // Phase 2.n (2026-04-20): stat-consistency is NOW a hard gate. When
+    // the bootstrap-SE and Mertens-SE estimators disagree by more than
+    // `maxStatConsistencyRatio` (default 5.0x, hashed in adoption-gates),
+    // the strategy fails `isValid`. Undefined (Mertens unavailable on
+    // degenerate series) treats as PASS — don't auto-reject on missing
+    // diagnostic. Not wired into `isValidForSearch` to keep agents
+    // holdout-blind; a DISAGREEMENT between SE estimators is a reviewer
+    // methodology concern, not a search signal.
+    const passesStatConsistencyForIsValid = passesStatConsistency !== false;
+    // Overall validity: includes holdout gate + new-entries guard + stability + stat consistency.
     // Full leaderboard only — stripped from agent-visible file.
     // Gate uses `passesHoldoutAndIR` (Sharpe ≥ 0.3 AND IR ≥ 0), NOT the legacy
     // disjunctive `passesHoldoutOrIR`. See runner.ts comment on `passesHoldoutAndIR` and gotcha #41.
-    const isValid = isValidForSearch && passesHoldoutAndIR && passesHoldoutNewEntries && passesStability;
+    const isValid =
+      isValidForSearch &&
+      passesHoldoutAndIR &&
+      passesHoldoutNewEntries &&
+      passesStability &&
+      passesStatConsistencyForIsValid;
 
     const exitTypeBreakdown: Record<string, number> = {};
     for (const t of workerResult.allOOSTrades) {
@@ -1763,12 +1777,9 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
     console.log(`Deflated Sharpe (Mertens): ${r.deflatedSharpeMertens.toFixed(3)}`);
   }
   if (r.statConsistencyRatio != null) {
-    // Phase 2.h: SE-estimator consistency flag against the hashed
-    // `maxStatConsistencyRatio` in adoption-gates. Authoritative
-    // divergence signal — the old hardcoded 0.5-Sharpe-unit check
-    // between the two DSR values was dropped in 2.i to remove the
-    // conflict with this config-driven threshold.
-    const status = r.passesStatConsistency === false ? '⚠ FLAG' : '✓ ok';
+    // Phase 2.h/2.n: SE-estimator consistency — now a hard gate in
+    // `isValid`. Ratio compared against hashed `maxStatConsistencyRatio`.
+    const status = r.passesStatConsistency === false ? '✗ FAIL (rejects isValid)' : '✓ pass';
     console.log(`SE estimator consistency: ratio ${r.statConsistencyRatio.toFixed(2)}x ${status}`);
   }
   if (r.nEffOosDaily != null && r.nOosDaily != null && r.nOosDaily > 0) {

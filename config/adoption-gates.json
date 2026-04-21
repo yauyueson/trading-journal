@@ -3,7 +3,7 @@
   "description": "Canonical adoption gates for autoresearch runner. Changes to this file MUST go through a git PR. Runner hashes this file at start and refuses to continue if the hash changes mid-campaign.",
   "lastModified": "2026-04-20",
   "lastModifier": "yauyueson",
-  "rationale": "Phase 1.c/d (2026-04-20): added minSaneOosDrawdownPct=2.0 (8yr MaxDD <2% is TRAILING_LOCK fingerprint) and maxSanePerTradeEdge=0.95 (mean credit-spread edge near 1.0 is the same bug class, spotted at per-trade granularity). Both were on 'manual check' in docs/backtest-trust-gotchas.md; moved to enforced gates. Codex round-12 Finding 2 (2026-04-20): stability-ratio bounds moved out of runner.ts inline constants into hashed config — ratio 0.5..2.0 catches overfit-to-selection (<0.5) and data-snooping/pre-reg-drift (>2.0). Phase 2.h (2026-04-20): added maxStatConsistencyRatio=2.5 — warning flag (not a hard gate) when the bootstrap-SE-DSR and Mertens-SE-DSR disagree by more than this ratio, which surfaces strategies where one of the two SE estimators is mis-specified. Prior basis (Phase 0.a.2 2026-04-18): extracted from runner.ts inline constants.",
+  "rationale": "Phase 1.c/d (2026-04-20): added minSaneOosDrawdownPct=2.0 (8yr MaxDD <2% is TRAILING_LOCK fingerprint) and maxSanePerTradeEdge=0.95 (mean credit-spread edge near 1.0 is the same bug class, spotted at per-trade granularity). Both were on 'manual check' in docs/backtest-trust-gotchas.md; moved to enforced gates. Codex round-12 Finding 2 (2026-04-20): stability-ratio bounds moved out of runner.ts inline constants into hashed config — ratio 0.5..2.0 catches overfit-to-selection (<0.5) and data-snooping/pre-reg-drift (>2.0). Phase 2.h (2026-04-20): added maxStatConsistencyRatio — symmetric ratio between bootstrap-SE and Mertens-SE estimators; originally a soft flag at 2.5x. Phase 2.n (2026-04-20) promoted it to a hard gate wired into isValid; raised threshold to 5.0x so legitimately fat-tailed strategies aren't auto-rejected (at 5x the gate only trips on pathological disagreement). Prior basis (Phase 0.a.2 2026-04-18): extracted from runner.ts inline constants.",
   "gates": {
     "minOosTrades": 100,
     "maxOosDrawdownPct": 45,
@@ -18,7 +18,7 @@
     "naiveBaselineIntervalDays": 5,
     "minStabilityHoldoutOosRatio": 0.5,
     "maxStabilityHoldoutOosRatio": 2.0,
-    "maxStatConsistencyRatio": 2.5
+    "maxStatConsistencyRatio": 5.0
   },
   "environmentOverrides": {
     "AUTORESEARCH_MIN_OOS_TRADES": {

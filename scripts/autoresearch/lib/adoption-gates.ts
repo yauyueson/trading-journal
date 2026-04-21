@@ -24,16 +24,22 @@ export interface AdoptionGates {
   // audit hash.
   minStabilityHoldoutOosRatio: number;
   maxStabilityHoldoutOosRatio: number;
-  // Phase 2.h (2026-04-20) — max acceptable ratio between the bootstrap-
-  // SE-derived DSR and the Mertens-SE-derived DSR. Warning threshold,
-  // NOT currently wired into isValid. When the two estimators disagree
-  // by more than this ratio, the reviewer-only block flags the strategy
-  // as `passesStatConsistency=false` so a human can investigate.
+  // Phase 2.h (2026-04-20) — max acceptable ratio between the two
+  // Sharpe SE estimators (bootstrap vs Mertens), SYMMETRIC — triggered
+  // when `max(bs/mertens, mertens/bs)` exceeds this.
   //
-  // Ratio is symmetric — triggered when max(bs/mertens, mertens/bs) > this.
-  // Default 2.5: IID gaussian and phi=0.2 AR(1) both agree within 2x per
-  // the Phase 2.d cross-validation test, so 2.5 is a loose flag that
-  // catches true divergence without noise from short-series sampling.
+  // Phase 2.n (2026-04-20) promoted the flag to a HARD GATE wired into
+  // `isValid`. Default raised from 2.5× → 5.0× so legitimately fat-
+  // tailed strategies (where the parametric SE formula is biased by
+  // high kurtosis) aren't auto-rejected. At 5.0× the gate only trips on
+  // pathological disagreement — the Phase 2.d cross-validation confirms
+  // the two estimators agree within 2× on IID and low-phi AR(1), so
+  // anything past 5× is a genuine methodology warning worth acting on.
+  //
+  // Operators who want a soft warning INSTEAD of a hard gate can set
+  // this to 10 (upper validation bound, effectively disables the gate)
+  // and rely on the `passesStatConsistency` boolean + `statConsistency-
+  // Ratio` number in the reviewer log for manual triage.
   maxStatConsistencyRatio: number;
 }
 

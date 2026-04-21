@@ -37,7 +37,7 @@ const SAMPLE_GATES = {
     naiveBaselineIntervalDays: 5,
     minStabilityHoldoutOosRatio: 0.5,
     maxStabilityHoldoutOosRatio: 2.0,
-    maxStatConsistencyRatio: 2.5,
+    maxStatConsistencyRatio: 5.0,
   },
   environmentOverrides: {},
 };
