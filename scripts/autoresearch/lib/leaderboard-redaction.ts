@@ -122,10 +122,11 @@ export const AGENT_VISIBLE_FIELDS = [
   'mertensSharpeSE',
   'mertensSkewness',
   'mertensKurtosis',
-  // Phase 2.e: parallel DSR using Mertens SE. Agent-visible — safe
-  // because its ingredients (OOS returns + attempt count) are already
-  // exposed individually.
-  'deflatedSharpeMertens',
+  // Phase 2.g: `deflatedSharpe` is now Mertens-driven (authoritative).
+  // `deflatedSharpeBootstrap` is the retained bootstrap-SE-based DSR
+  // for audit/comparison. Both agent-visible — safe because their
+  // ingredients (OOS returns + attempt count) are already exposed.
+  'deflatedSharpeBootstrap',
   // Pre-registration audit trail
   'preRegBypassed',
   'preRegBypassReason',

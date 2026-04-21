@@ -216,7 +216,7 @@ export interface RunResult {
   bootstrapSharpe95CI: [number, number];  // 95% CI on standalone OOS Sharpe
   bootstrapSignificant: boolean;     // is lower bound of CI > 0?
   attemptNumber: number;             // which attempt this is (for multiple testing awareness)
-  deflatedSharpe: number;            // Sharpe adjusted for multiple testing (Bailey-López de Prado)
+  deflatedSharpe: number;            // Sharpe adjusted for multiple testing (Bailey-López de Prado). Phase 2.g (2026-04-20): authoritative SE input is Mertens closed-form with N_eff; prior runs used bootstrap-CI-width SE (see deflatedSharpeBootstrap).
   // Phase 2.a (2026-04-20) — Newey-West effective sample size of the OOS
   // daily-return series. Diagnostic only, not a gate. Reveals when daily
   // returns are strongly autocorrelated (N_eff << N) so a human reviewer
@@ -232,13 +232,14 @@ export interface RunResult {
   mertensSharpeSE?: number;
   mertensSkewness?: number;
   mertensKurtosis?: number;          // raw kurtosis (3 = normal)
-  // Phase 2.e (2026-04-20) — deflated Sharpe computed with the Mertens
-  // SE in place of the bootstrap-CI-derived SE. Shipped as a companion
-  // to `deflatedSharpe` (which stays bootstrap-driven), NOT as a
-  // replacement. Promoting one to authoritative would affect historical
-  // leaderboard comparability and needs an explicit policy call.
-  // Agent-visible.
-  deflatedSharpeMertens?: number;
+  // Phase 2.g (2026-04-20) — the OLD bootstrap-CI-width-derived DSR,
+  // kept for audit and cross-verification after Mertens was promoted
+  // to authoritative on `deflatedSharpe`. Large divergence between
+  // `deflatedSharpe` and `deflatedSharpeBootstrap` at print time
+  // signals either the bootstrap is under-covering (strong
+  // autocorrelation beyond fixed-block's reach) or the parametric SE
+  // is biased by extreme higher moments. Agent-visible.
+  deflatedSharpeBootstrap?: number;
   // Pre-registration audit trail (Phase 0.a.1 / Codex re-review Finding 2).
   // Captured once per run by scripts/autoresearch/lib/pre-reg-gate.ts.
   // Persisted in BOTH full and agent-visible leaderboards so the audit

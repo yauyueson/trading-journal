@@ -1287,40 +1287,44 @@ async function main() {
     });
     const globalAttempt = appended.ordinal;
     const attemptNumber = globalAttempt;
-    const sharpeSE = bootstrapCI[1] > bootstrapCI[0] ? (bootstrapCI[1] - bootstrapCI[0]) / (2 * 1.96) : 1;
-    const deflatedSharpe = computeDeflatedSharpe(oosMetrics.sharpe, attemptNumber, sharpeSE);
     // Phase 2.a: N_eff diagnostic on the OOS daily-return series.
-    // Pure logging — not yet fed into DSR. Bandwidth 20 days ≈ one month,
-    // enough to capture typical credit-spread trade-life autocorrelation.
+    // Bandwidth 20 days ≈ one month, enough to capture typical credit-
+    // spread trade-life autocorrelation.
     const nOosDaily = oosMetrics.dailyReturns.length;
     const nEffOosDaily = computeEffectiveSampleSize(oosMetrics.dailyReturns, 20);
     // Phase 2.c: closed-form Mertens SE on the annualized Sharpe, using
-    // N_eff as the effective sample size. Diagnostic — gives a second
-    // independent estimate of the Sharpe SE that can be compared against
-    // the bootstrap-CI-derived SE. Large divergence between the two is a
-    // signal that either the bootstrap is under-covering (e.g. strong
-    // autocorrelation beyond what block bootstrap handles) or the
-    // parametric SE is biased by extreme higher moments.
+    // N_eff as the effective sample size and the OOS returns' own
+    // skewness + kurtosis. Deterministic alternative to the bootstrap-
+    // CI-derived SE (which is itself noisy and under-covers above
+    // phi ≈ 0.5 per the 2.b Monte Carlo validation).
     const mertens = computeMertensSharpeSE(oosMetrics.dailyReturns, nEffOosDaily, 252);
     const mertensSharpeSE = mertens.annualizedSe;
     const mertensSkewness = mertens.skewness;
     const mertensKurtosis = mertens.kurtosis;
-    // Phase 2.e: parallel DSR using the Mertens closed-form SE rather
-    // than the bootstrap-CI-derived SE. Exposed alongside the existing
-    // `deflatedSharpe` so humans can compare. NOT yet used in any gate
-    // or promotion decision — switching authority to Mertens would
-    // affect all historical leaderboard values and needs an explicit
-    // policy call.
+    // Phase 2.g (2026-04-20): Mertens DSR is AUTHORITATIVE.
+    // `deflatedSharpe` now uses the Mertens SE; the old bootstrap-SE-
+    // based DSR moves to `deflatedSharpeBootstrap` for audit/comparison.
     //
-    // When Mertens SE is unavailable (degenerate OOS series — short or
-    // near-constant returns — returns 0), leave the parallel DSR
-    // UNDEFINED rather than silently falling back to the bootstrap SE
-    // and mislabeling the result "Mertens." Codex round-20 Finding 1
-    // (2026-04-20): a false agreement signal between the two DSRs in
-    // those runs is worse than a missing field.
-    const deflatedSharpeMertens: number | undefined = mertensSharpeSE > 0
+    // Rationale: Mertens is deterministic and handles autocorrelation
+    // correctly via N_eff, while bootstrap SE is noisy (seed-dependent)
+    // and degrades above phi ≈ 0.5. The divergence flag at print time
+    // surfaces cases where the two estimators disagree enough that a
+    // human should investigate.
+    //
+    // Fallback: when Mertens SE = 0 (degenerate OOS series — short or
+    // near-constant returns), use the bootstrap SE so the field is
+    // always populated. Those runs carry a `deflatedSharpeBootstrap`
+    // equal to `deflatedSharpe` as the transparency signal.
+    //
+    // Historical boundary: runs written before commit af56634 (Phase
+    // 2.f) computed `deflatedSharpe` from the bootstrap SE. Cross-phase
+    // leaderboard comparisons should account for that shift; the raw
+    // DSR values are not directly comparable across the 2.g boundary.
+    const bootstrapSharpeSE = bootstrapCI[1] > bootstrapCI[0] ? (bootstrapCI[1] - bootstrapCI[0]) / (2 * 1.96) : 1;
+    const deflatedSharpeBootstrap = computeDeflatedSharpe(oosMetrics.sharpe, attemptNumber, bootstrapSharpeSE);
+    const deflatedSharpe = mertensSharpeSE > 0
       ? computeDeflatedSharpe(oosMetrics.sharpe, attemptNumber, mertensSharpeSE)
-      : undefined;
+      : deflatedSharpeBootstrap;
     const holdoutOOSRatio = oosMetrics.sharpe > 0.01 ? holdoutMetrics.sharpe / oosMetrics.sharpe : 0;
 
     // 13. Validity checks
@@ -1480,7 +1484,7 @@ async function main() {
       mertensSharpeSE,
       mertensSkewness,
       mertensKurtosis,
-      deflatedSharpeMertens,
+      deflatedSharpeBootstrap,
       exitTypeBreakdown,
       signalsGenerated: allSignals.length,
       signalsSkippedNoChain: allSignals.length - workerResult.allOOSTrades.length - workerResult.holdoutTrades.length,
@@ -1712,15 +1716,15 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
   console.log('');
   console.log('--- Overfitting Checks (agent-safe — no holdout signal) ---');
   console.log(`Bootstrap 95% CI: [${r.bootstrapSharpe95CI[0].toFixed(3)}, ${r.bootstrapSharpe95CI[1].toFixed(3)}] ${r.bootstrapSignificant ? '✓ significant' : '✗ NOT significant'}`);
-  console.log(`Deflated Sharpe: ${r.deflatedSharpe.toFixed(3)} (adjusted for ${r.attemptNumber} attempts) ${r.deflatedSharpe > 0 ? '✓ survives' : '✗ may be noise'}${overfitWarning}`);
-  if (r.deflatedSharpeMertens != null) {
-    // Phase 2.e: second DSR estimate via the parametric Mertens SE.
-    // When the two agree (typical), use as confirmation. When they
-    // disagree by > 0.5 Sharpe units, flag — usually signals the
-    // bootstrap is under-covering vs the parametric SE.
-    const gap = Math.abs(r.deflatedSharpeMertens - r.deflatedSharpe);
-    const flag = gap > 0.5 ? ' ⚠ diverges from bootstrap DSR' : '';
-    console.log(`Deflated Sharpe (Mertens): ${r.deflatedSharpeMertens.toFixed(3)}${flag}`);
+  // Phase 2.g: `deflatedSharpe` is now Mertens-driven (authoritative).
+  // `deflatedSharpeBootstrap` stays as an audit companion — large
+  // disagreement signals the bootstrap is under-covering or the
+  // parametric SE is biased by extreme higher moments.
+  console.log(`Deflated Sharpe: ${r.deflatedSharpe.toFixed(3)} (Mertens, adjusted for ${r.attemptNumber} attempts) ${r.deflatedSharpe > 0 ? '✓ survives' : '✗ may be noise'}${overfitWarning}`);
+  if (r.deflatedSharpeBootstrap != null) {
+    const gap = Math.abs(r.deflatedSharpeBootstrap - r.deflatedSharpe);
+    const flag = gap > 0.5 ? ' ⚠ diverges from authoritative DSR' : '';
+    console.log(`Deflated Sharpe (bootstrap): ${r.deflatedSharpeBootstrap.toFixed(3)}${flag}`);
   }
   if (r.nEffOosDaily != null && r.nOosDaily != null && r.nOosDaily > 0) {
     const ratio = r.nEffOosDaily / r.nOosDaily;
