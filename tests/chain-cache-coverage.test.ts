@@ -329,6 +329,55 @@ describe('chain-cache DTE-range coverage (Phase 1.g)', () => {
     expect(getApiCallCount()).toBe(0);
   });
 
+  it('re-runs backfill on upgrade from broken early-1.h (empty interval table) (Codex r16 F1)', async () => {
+    // Simulate the state left behind by the broken early Phase 1.h build:
+    // fetch_log_intervals exists but is EMPTY, while fetch_log has the 1.g
+    // envelope. The first 1.i build's `hadIntervalsBeforeCreate` guard
+    // would skip backfill for these users. The fix: always INSERT OR IGNORE,
+    // which is idempotent on already-migrated DBs and a no-op on already-
+    // backfilled ones.
+    closeDB();
+    fs.rmSync(dbPath, { force: true });
+
+    const raw = new Database(dbPath);
+    raw.exec(`
+      CREATE TABLE fetch_log (
+        ticker TEXT NOT NULL,
+        trade_date TEXT NOT NULL,
+        rows_fetched INTEGER,
+        dte_min INTEGER,
+        dte_max INTEGER,
+        fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (ticker, trade_date)
+      );
+      CREATE TABLE fetch_log_intervals (
+        ticker TEXT NOT NULL,
+        trade_date TEXT NOT NULL,
+        dte_min INTEGER,
+        dte_max INTEGER,
+        fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (ticker, trade_date, dte_min, dte_max)
+      );
+    `);
+    raw.prepare('INSERT INTO fetch_log (ticker, trade_date, rows_fetched, dte_min, dte_max) VALUES (?,?,?,?,?)')
+      .run('SPY', '2024-01-02', 50, 25, 40);
+    raw.close();
+
+    initDB(dbPath);
+
+    // Backfill should have populated the previously-empty interval table.
+    const ro = new Database(dbPath, { readonly: true });
+    const intervals = ro.prepare(
+      'SELECT dte_min, dte_max FROM fetch_log_intervals WHERE ticker=? AND trade_date=?',
+    ).all('SPY', '2024-01-02') as { dte_min: number; dte_max: number }[];
+    ro.close();
+    expect(intervals).toEqual([{ dte_min: 25, dte_max: 40 }]);
+
+    // Coverage check confirms no re-fetch happens for the backfilled range.
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-02', undefined, [25, 40]);
+    expect(getApiCallCount()).toBe(0);
+  });
+
   it('clearFetchLogEntries wipes both tables so recovery retries re-fetch (Codex r15 F2)', async () => {
     // Populate cache with a zero-row fetch (simulating a truncated response).
     fetchSpy.mockResolvedValueOnce({

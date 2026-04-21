@@ -194,15 +194,11 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
     // (ticker, trade_date) accumulate as strategies with different DTE
     // windows touch the same date. UNIQUE prevents dupes on repeat calls.
     //
-    // Migration: detect whether the table existed BEFORE the CREATE. If it
-    // was just created and an older 1.g fetch_log already has rows, backfill
-    // their envelopes into the interval list. Without the backfill, on the
-    // first upgrade run `isCovered` would report every previously-cached
-    // partial range as a miss and re-fetch through ORATS — burning a lot of
-    // quota. Codex round-15 Finding 1 (2026-04-20).
-    const hadIntervalsBeforeCreate = !!_db.prepare(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='fetch_log_intervals'",
-    ).get();
+    // Migration: always backfill from fetch_log on open, using INSERT OR
+    // IGNORE. The UNIQUE constraint makes this idempotent — a DB that was
+    // already migrated sees zero new inserts; a DB with an empty interval
+    // table (from the broken early 1.h build) gets its missing envelopes
+    // seeded. Codex round-15 Finding 1 + round-16 Finding 1 (2026-04-20).
     _db.exec(`
       CREATE TABLE IF NOT EXISTS fetch_log_intervals (
         ticker TEXT NOT NULL,
@@ -213,13 +209,9 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
         UNIQUE (ticker, trade_date, dte_min, dte_max)
       );
       CREATE INDEX IF NOT EXISTS idx_fli_lookup ON fetch_log_intervals(ticker, trade_date);
+      INSERT OR IGNORE INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max)
+      SELECT ticker, trade_date, dte_min, dte_max FROM fetch_log;
     `);
-    if (!hadIntervalsBeforeCreate) {
-      _db.exec(`
-        INSERT OR IGNORE INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max)
-        SELECT ticker, trade_date, dte_min, dte_max FROM fetch_log
-      `);
-    }
   } // end if (!readonly) for the WAL + schema block
 
   // Detect Phase 1.g columns on whatever DB we're attached to (works for
