@@ -1325,6 +1325,19 @@ async function main() {
     const deflatedSharpe = mertensSharpeSE > 0
       ? computeDeflatedSharpe(oosMetrics.sharpe, attemptNumber, mertensSharpeSE)
       : deflatedSharpeBootstrap;
+    // Phase 2.h: stat-consistency flag between the two SE estimators.
+    // Ratio of the larger to the smaller, symmetric. Not a hard gate —
+    // reviewer-only signal. Triggered when the bootstrap SE and the
+    // parametric Mertens SE disagree by more than `maxStatConsistencyRatio`,
+    // which flags either a bootstrap coverage failure (autocorrelation
+    // beyond fixed-block's reach) or a Mertens mis-specification
+    // (extreme higher moments). Skipped when Mertens SE is unavailable.
+    const statConsistencyRatio = mertensSharpeSE > 0 && bootstrapSharpeSE > 0
+      ? Math.max(mertensSharpeSE / bootstrapSharpeSE, bootstrapSharpeSE / mertensSharpeSE)
+      : undefined;
+    const passesStatConsistency = statConsistencyRatio == null
+      ? undefined
+      : statConsistencyRatio <= gates().gates.maxStatConsistencyRatio;
     const holdoutOOSRatio = oosMetrics.sharpe > 0.01 ? holdoutMetrics.sharpe / oosMetrics.sharpe : 0;
 
     // 13. Validity checks
@@ -1485,6 +1498,8 @@ async function main() {
       mertensSkewness,
       mertensKurtosis,
       deflatedSharpeBootstrap,
+      statConsistencyRatio,
+      passesStatConsistency,
       exitTypeBreakdown,
       signalsGenerated: allSignals.length,
       signalsSkippedNoChain: allSignals.length - workerResult.allOOSTrades.length - workerResult.holdoutTrades.length,
@@ -1725,6 +1740,12 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
     const gap = Math.abs(r.deflatedSharpeBootstrap - r.deflatedSharpe);
     const flag = gap > 0.5 ? ' ⚠ diverges from authoritative DSR' : '';
     console.log(`Deflated Sharpe (bootstrap): ${r.deflatedSharpeBootstrap.toFixed(3)}${flag}`);
+  }
+  if (r.statConsistencyRatio != null) {
+    // Phase 2.h: SE-estimator consistency flag. Not wired into isValid;
+    // surfaces disagreement for human review.
+    const status = r.passesStatConsistency === false ? '⚠ FLAG' : '✓ ok';
+    console.log(`SE estimator consistency: ratio ${r.statConsistencyRatio.toFixed(2)}x ${status}`);
   }
   if (r.nEffOosDaily != null && r.nOosDaily != null && r.nOosDaily > 0) {
     const ratio = r.nEffOosDaily / r.nOosDaily;

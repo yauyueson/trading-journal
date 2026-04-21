@@ -127,6 +127,11 @@ export const AGENT_VISIBLE_FIELDS = [
   // for audit/comparison. Both agent-visible — safe because their
   // ingredients (OOS returns + attempt count) are already exposed.
   'deflatedSharpeBootstrap',
+  // Phase 2.h: stat-consistency flag + ratio. Reviewer-only warning,
+  // not wired into isValid. Agent-visible so the search loop can
+  // learn to avoid regimes where the two SE estimators disagree.
+  'statConsistencyRatio',
+  'passesStatConsistency',
   // Pre-registration audit trail
   'preRegBypassed',
   'preRegBypassReason',

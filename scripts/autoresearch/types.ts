@@ -240,6 +240,14 @@ export interface RunResult {
   // autocorrelation beyond fixed-block's reach) or the parametric SE
   // is biased by extreme higher moments. Agent-visible.
   deflatedSharpeBootstrap?: number;
+  // Phase 2.h (2026-04-20) — ratio of the larger to the smaller of the
+  // two Sharpe SE estimators (bootstrap vs Mertens). Symmetric ≥ 1.
+  // `passesStatConsistency` is true when the ratio is within
+  // `maxStatConsistencyRatio` (default 2.5). Warning-only — NOT wired
+  // into isValid. `undefined` when Mertens SE is unavailable. Agent-
+  // visible.
+  statConsistencyRatio?: number;
+  passesStatConsistency?: boolean;
   // Pre-registration audit trail (Phase 0.a.1 / Codex re-review Finding 2).
   // Captured once per run by scripts/autoresearch/lib/pre-reg-gate.ts.
   // Persisted in BOTH full and agent-visible leaderboards so the audit

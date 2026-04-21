@@ -24,6 +24,17 @@ export interface AdoptionGates {
   // audit hash.
   minStabilityHoldoutOosRatio: number;
   maxStabilityHoldoutOosRatio: number;
+  // Phase 2.h (2026-04-20) — max acceptable ratio between the bootstrap-
+  // SE-derived DSR and the Mertens-SE-derived DSR. Warning threshold,
+  // NOT currently wired into isValid. When the two estimators disagree
+  // by more than this ratio, the reviewer-only block flags the strategy
+  // as `passesStatConsistency=false` so a human can investigate.
+  //
+  // Ratio is symmetric — triggered when max(bs/mertens, mertens/bs) > this.
+  // Default 2.5: IID gaussian and phi=0.2 AR(1) both agree within 2x per
+  // the Phase 2.d cross-validation test, so 2.5 is a loose flag that
+  // catches true divergence without noise from short-series sampling.
+  maxStatConsistencyRatio: number;
 }
 
 export interface GateEnvOverrideSpec {
@@ -80,6 +91,7 @@ export function loadAdoptionGates(opts?: { repoRoot?: string }): LoadedGates {
     'minHoldoutMetric', 'minHoldoutIrFloor', 'minNewHoldoutTrades',
     'bootstrapIterations', 'naiveBaselineIntervalDays',
     'minStabilityHoldoutOosRatio', 'maxStabilityHoldoutOosRatio',
+    'maxStatConsistencyRatio',
   ];
   for (const k of required) {
     if (typeof parsed.gates[k] !== 'number' || !Number.isFinite(parsed.gates[k])) {
@@ -189,6 +201,15 @@ export function validateGateRanges(g: AdoptionGates): void {
     throw new Error(
       `adoption-gates: gates.maxStabilityHoldoutOosRatio=${g.maxStabilityHoldoutOosRatio} must be ` +
       `a finite number strictly greater than minStabilityHoldoutOosRatio=${g.minStabilityHoldoutOosRatio}.`,
+    );
+  }
+  // Phase 2.h stat-consistency ratio — must be > 1 (ratio of 1 means
+  // strict equality required, which would flag almost every real run).
+  // Upper-bounded at 10 to catch typos / accidental disabling.
+  if (!(g.maxStatConsistencyRatio > 1) || g.maxStatConsistencyRatio > 10) {
+    throw new Error(
+      `adoption-gates: gates.maxStatConsistencyRatio=${g.maxStatConsistencyRatio} must be in (1, 10]. ` +
+      `Below 1 would reject strategies where the two SE estimators agree exactly; above 10 disables the flag.`,
     );
   }
   // Unconstrained reals: minHoldoutSharpe and minHoldoutIrFloor are allowed

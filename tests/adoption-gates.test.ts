@@ -37,6 +37,7 @@ const SAMPLE_GATES = {
     naiveBaselineIntervalDays: 5,
     minStabilityHoldoutOosRatio: 0.5,
     maxStabilityHoldoutOosRatio: 2.0,
+    maxStatConsistencyRatio: 2.5,
   },
   environmentOverrides: {},
 };
@@ -247,6 +248,24 @@ describe('validateGateRanges', () => {
     expect(() => validateGateRanges({
       ...baseGates, minStabilityHoldoutOosRatio: 0.25, maxStabilityHoldoutOosRatio: 3.0,
     })).not.toThrow();
+  });
+
+  // Phase 2.h — stat-consistency ratio validation.
+  it('rejects maxStatConsistencyRatio <= 1 (ratio of 1 = strict equality, too tight)', () => {
+    expect(() => validateGateRanges({ ...baseGates, maxStatConsistencyRatio: 1 })).toThrow(/maxStatConsistencyRatio/);
+    expect(() => validateGateRanges({ ...baseGates, maxStatConsistencyRatio: 0.5 })).toThrow(/maxStatConsistencyRatio/);
+    expect(() => validateGateRanges({ ...baseGates, maxStatConsistencyRatio: 0 })).toThrow(/maxStatConsistencyRatio/);
+    expect(() => validateGateRanges({ ...baseGates, maxStatConsistencyRatio: -1 })).toThrow(/maxStatConsistencyRatio/);
+  });
+
+  it('rejects maxStatConsistencyRatio > 10 (effectively disables the flag)', () => {
+    expect(() => validateGateRanges({ ...baseGates, maxStatConsistencyRatio: 100 })).toThrow(/maxStatConsistencyRatio/);
+  });
+
+  it('accepts maxStatConsistencyRatio in (1, 10]', () => {
+    expect(() => validateGateRanges({ ...baseGates, maxStatConsistencyRatio: 1.5 })).not.toThrow();
+    expect(() => validateGateRanges({ ...baseGates, maxStatConsistencyRatio: 2.5 })).not.toThrow();
+    expect(() => validateGateRanges({ ...baseGates, maxStatConsistencyRatio: 10 })).not.toThrow();
   });
 
   it('validation fires inside loadAdoptionGates when env override pushes a value out of range', () => {
