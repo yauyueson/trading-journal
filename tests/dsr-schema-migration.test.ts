@@ -16,25 +16,10 @@
  * side effects.
  */
 import { describe, it, expect } from 'vitest';
-
-// The helper is not exported — we mirror its public contract here in
-// the test by reaching through runner's module. Since runner.ts has
-// side effects on import, we duplicate the logic in a small shim.
-// (Keeping the production helper module-private preserves its tight
-// coupling to the load path.)
-
-function normalizeDsrSchema(entry: Record<string, unknown>): Record<string, unknown> {
-  if (!('deflatedSharpeBootstrap' in entry)) return { ...entry };
-  const bsValue = entry.deflatedSharpeBootstrap;
-  const mertensValue = entry.deflatedSharpe;
-  const out = { ...entry };
-  if (typeof bsValue === 'number') out.deflatedSharpe = bsValue;
-  if (typeof mertensValue === 'number' && out.deflatedSharpeMertens == null) {
-    out.deflatedSharpeMertens = mertensValue;
-  }
-  delete out.deflatedSharpeBootstrap;
-  return out;
-}
+import {
+  normalizeDsrSchema,
+  leaderboardNeedsDsrMigration,
+} from '../scripts/autoresearch/lib/normalize-dsr-schema';
 
 describe('Phase 2.i/j DSR schema migration', () => {
   it('swaps Phase 2.g row to Phase 2.i schema: bootstrap restored, mertens preserved', () => {
@@ -93,9 +78,31 @@ describe('Phase 2.i/j DSR schema migration', () => {
       deflatedSharpeBootstrap: 1.0,    // 2.g bootstrap
       deflatedSharpeMertens: 0.7,      // somehow present from 2.e
     };
-    const after = normalizeDsrSchema(mutantRow);
+    const after = normalizeDsrSchema(mutantRow) as Record<string, unknown>;
     expect(after.deflatedSharpe).toBe(1.0);        // restored from bootstrap field
     expect(after.deflatedSharpeMertens).toBe(0.7); // kept, NOT overwritten to 0.3
     expect('deflatedSharpeBootstrap' in after).toBe(false);
+  });
+});
+
+describe('leaderboardNeedsDsrMigration', () => {
+  it('returns true when any row has a Phase 2.g deflatedSharpeBootstrap field', () => {
+    const rows = [
+      { deflatedSharpe: 1.0, deflatedSharpeMertens: 0.5 },
+      { deflatedSharpe: 0.8, deflatedSharpeBootstrap: 1.2 }, // 2.g row
+    ];
+    expect(leaderboardNeedsDsrMigration(rows)).toBe(true);
+  });
+
+  it('returns false on a fully-normalized leaderboard', () => {
+    const rows = [
+      { deflatedSharpe: 1.0 },
+      { deflatedSharpe: 1.2, deflatedSharpeMertens: 0.9 },
+    ];
+    expect(leaderboardNeedsDsrMigration(rows)).toBe(false);
+  });
+
+  it('returns false on an empty leaderboard', () => {
+    expect(leaderboardNeedsDsrMigration([])).toBe(false);
   });
 });

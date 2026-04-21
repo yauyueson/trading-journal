@@ -47,6 +47,7 @@ import { stripHoldoutMetrics } from './lib/leaderboard-redaction';
 import { computeEffectiveSampleSize } from './lib/effective-sample-size';
 import { bootstrapSharpeCI as bootstrapSharpeCILib } from './lib/bootstrap-sharpe';
 import { computeMertensSharpeSE } from './lib/mertens-sharpe-se';
+import { normalizeDsrSchema, leaderboardNeedsDsrMigration } from './lib/normalize-dsr-schema';
 
 // ── Config ──────────────────────────────────────────────
 
@@ -513,40 +514,9 @@ function backfillIsValidForSearch(entry: RunResult): RunResult {
   return { ...entry, isValidForSearch: computed } as RunResult;
 }
 
-/**
- * Phase 2.i migration: normalize Phase 2.g rows to the Phase 2.i schema.
- *
- * Phase 2.g (commit b418a51) briefly made `deflatedSharpe` Mertens-SE-
- * driven and moved the historical bootstrap value to a new field
- * `deflatedSharpeBootstrap`. Phase 2.i (Codex round-22) reverted that
- * promotion because downstream analyses compare `deflatedSharpe > 0`
- * and sort by it across rows. Continuing an existing leaderboard past
- * the revert would mix two formulas under the same field name — the
- * exact problem the revert was supposed to fix — UNLESS we normalize
- * on load.
- *
- * Detection: a row wrote by Phase 2.g carries a `deflatedSharpeBootstrap`
- * field. In that row, `deflatedSharpe` is the Mertens-based value.
- * We swap them so the normalized row matches the 2.i schema:
- *   deflatedSharpe        ← deflatedSharpeBootstrap (bootstrap-SE-based)
- *   deflatedSharpeMertens ← deflatedSharpe (Mertens-SE-based)
- *   deflatedSharpeBootstrap dropped
- * Idempotent: rows lacking `deflatedSharpeBootstrap` are returned
- * unchanged.
- */
-function normalizeDsrSchema(entry: RunResult): RunResult {
-  const e = entry as unknown as Record<string, unknown>;
-  if (!('deflatedSharpeBootstrap' in e)) return entry;
-  const bsValue = e.deflatedSharpeBootstrap;
-  const mertensValue = e.deflatedSharpe;
-  const out = { ...entry } as Record<string, unknown>;
-  if (typeof bsValue === 'number') out.deflatedSharpe = bsValue;
-  if (typeof mertensValue === 'number' && out.deflatedSharpeMertens == null) {
-    out.deflatedSharpeMertens = mertensValue;
-  }
-  delete out.deflatedSharpeBootstrap;
-  return out as unknown as RunResult;
-}
+// Phase 2.j migration — extracted to `./lib/normalize-dsr-schema.ts`
+// in Phase 2.k so tests can exercise the REAL helper rather than a
+// duplicated copy (Codex round-24 Finding 2).
 
 // Optional suffix for leaderboard files — lets a campaign run in isolation
 // (e.g. AUTORESEARCH_LEADERBOARD_SUFFIX=campaign-a writes to
@@ -818,6 +788,28 @@ async function main() {
       console.log(`Migrated ${existing.length} existing ${suffixLabel} leaderboard entries → ${path.basename(fullPath)} (full) + ${path.basename(agentPath)} (stripped)`);
       if (backfilled > 0) console.log(`  Backfilled isValidForSearch on ${backfilled} pre-split entries`);
       console.log('');
+    }
+  }
+  // 0a. Phase 2.k boot-time DSR migration. When `fullPath` already
+  //     exists (skipping the first-run-after-patch branch above), any
+  //     Phase 2.g-era rows with `deflatedSharpeBootstrap` still on
+  //     disk would be read by external consumers (analyze-*.ts, search
+  //     agent) before the next runner save rewrites the file. Rewrite
+  //     both files now if the disk copy needs migration. Idempotent —
+  //     a precheck skips the write when no rows carry the 2.g field.
+  //     Codex round-24 Finding 1 (2026-04-20).
+  {
+    const { fullPath, agentPath } = leaderboardPaths();
+    if (fs.existsSync(fullPath)) {
+      const raw = JSON.parse(fs.readFileSync(fullPath, 'utf-8')) as RunResult[];
+      if (leaderboardNeedsDsrMigration(raw)) {
+        const migrated = raw.map(backfillIsValidForSearch).map(normalizeDsrSchema);
+        fs.writeFileSync(fullPath, JSON.stringify(migrated, null, 2));
+        fs.writeFileSync(agentPath, JSON.stringify(migrated.map(stripHoldoutMetrics), null, 2));
+        const suffixLabel = leaderboardSuffix() || '(primary)';
+        console.log(`Migrated ${migrated.length} ${suffixLabel} leaderboard entries → Phase 2.i DSR schema (Codex r24 #1)`);
+        console.log('');
+      }
     }
   }
   if (leaderboardSuffix()) {
