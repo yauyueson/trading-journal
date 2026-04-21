@@ -1301,30 +1301,26 @@ async function main() {
     const mertensSharpeSE = mertens.annualizedSe;
     const mertensSkewness = mertens.skewness;
     const mertensKurtosis = mertens.kurtosis;
-    // Phase 2.g (2026-04-20): Mertens DSR is AUTHORITATIVE.
-    // `deflatedSharpe` now uses the Mertens SE; the old bootstrap-SE-
-    // based DSR moves to `deflatedSharpeBootstrap` for audit/comparison.
+    // Phase 2.i (2026-04-20): REVERTED Phase 2.g's swap — `deflatedSharpe`
+    // is bootstrap-SE-driven again, matching historical leaderboard
+    // semantics. `deflatedSharpeMertens` returns as a diagnostic companion.
     //
-    // Rationale: Mertens is deterministic and handles autocorrelation
-    // correctly via N_eff, while bootstrap SE is noisy (seed-dependent)
-    // and degrades above phi ≈ 0.5. The divergence flag at print time
-    // surfaces cases where the two estimators disagree enough that a
-    // human should investigate.
+    // Why reverted: downstream analyses (`scripts/autoresearch/analyze-*.ts`)
+    // compare `deflatedSharpe > 0` and sort by its value across rows that
+    // span the 2.g boundary. Quietly changing the field's underlying
+    // formula makes a single leaderboard-full-*.json internally
+    // inconsistent — new rows reporting Mertens DSR mixed with old rows
+    // reporting bootstrap DSR. Codex round-22 Finding 1 (2026-04-20).
     //
-    // Fallback: when Mertens SE = 0 (degenerate OOS series — short or
-    // near-constant returns), use the bootstrap SE so the field is
-    // always populated. Those runs carry a `deflatedSharpeBootstrap`
-    // equal to `deflatedSharpe` as the transparency signal.
-    //
-    // Historical boundary: runs written before commit af56634 (Phase
-    // 2.f) computed `deflatedSharpe` from the bootstrap SE. Cross-phase
-    // leaderboard comparisons should account for that shift; the raw
-    // DSR values are not directly comparable across the 2.g boundary.
+    // Operators who want a Mertens-authoritative view of the fleet should
+    // prefer `deflatedSharpeMertens` in new analysis code. The Phase 2.h
+    // `passesStatConsistency` flag still surfaces disagreement between
+    // the two estimators for human review.
     const bootstrapSharpeSE = bootstrapCI[1] > bootstrapCI[0] ? (bootstrapCI[1] - bootstrapCI[0]) / (2 * 1.96) : 1;
-    const deflatedSharpeBootstrap = computeDeflatedSharpe(oosMetrics.sharpe, attemptNumber, bootstrapSharpeSE);
-    const deflatedSharpe = mertensSharpeSE > 0
+    const deflatedSharpe = computeDeflatedSharpe(oosMetrics.sharpe, attemptNumber, bootstrapSharpeSE);
+    const deflatedSharpeMertens: number | undefined = mertensSharpeSE > 0
       ? computeDeflatedSharpe(oosMetrics.sharpe, attemptNumber, mertensSharpeSE)
-      : deflatedSharpeBootstrap;
+      : undefined;
     // Phase 2.h: stat-consistency flag between the two SE estimators.
     // Ratio of the larger to the smaller, symmetric. Not a hard gate —
     // reviewer-only signal. Triggered when the bootstrap SE and the
@@ -1497,7 +1493,7 @@ async function main() {
       mertensSharpeSE,
       mertensSkewness,
       mertensKurtosis,
-      deflatedSharpeBootstrap,
+      deflatedSharpeMertens,
       statConsistencyRatio,
       passesStatConsistency,
       exitTypeBreakdown,
@@ -1731,19 +1727,18 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
   console.log('');
   console.log('--- Overfitting Checks (agent-safe — no holdout signal) ---');
   console.log(`Bootstrap 95% CI: [${r.bootstrapSharpe95CI[0].toFixed(3)}, ${r.bootstrapSharpe95CI[1].toFixed(3)}] ${r.bootstrapSignificant ? '✓ significant' : '✗ NOT significant'}`);
-  // Phase 2.g: `deflatedSharpe` is now Mertens-driven (authoritative).
-  // `deflatedSharpeBootstrap` stays as an audit companion — large
-  // disagreement signals the bootstrap is under-covering or the
-  // parametric SE is biased by extreme higher moments.
-  console.log(`Deflated Sharpe: ${r.deflatedSharpe.toFixed(3)} (Mertens, adjusted for ${r.attemptNumber} attempts) ${r.deflatedSharpe > 0 ? '✓ survives' : '✗ may be noise'}${overfitWarning}`);
-  if (r.deflatedSharpeBootstrap != null) {
-    const gap = Math.abs(r.deflatedSharpeBootstrap - r.deflatedSharpe);
-    const flag = gap > 0.5 ? ' ⚠ diverges from authoritative DSR' : '';
-    console.log(`Deflated Sharpe (bootstrap): ${r.deflatedSharpeBootstrap.toFixed(3)}${flag}`);
+  // Phase 2.i: `deflatedSharpe` is bootstrap-SE-driven (historical
+  // semantics). `deflatedSharpeMertens` is the parametric-SE companion.
+  console.log(`Deflated Sharpe: ${r.deflatedSharpe.toFixed(3)} (bootstrap SE, adjusted for ${r.attemptNumber} attempts) ${r.deflatedSharpe > 0 ? '✓ survives' : '✗ may be noise'}${overfitWarning}`);
+  if (r.deflatedSharpeMertens != null) {
+    console.log(`Deflated Sharpe (Mertens): ${r.deflatedSharpeMertens.toFixed(3)}`);
   }
   if (r.statConsistencyRatio != null) {
-    // Phase 2.h: SE-estimator consistency flag. Not wired into isValid;
-    // surfaces disagreement for human review.
+    // Phase 2.h: SE-estimator consistency flag against the hashed
+    // `maxStatConsistencyRatio` in adoption-gates. Authoritative
+    // divergence signal — the old hardcoded 0.5-Sharpe-unit check
+    // between the two DSR values was dropped in 2.i to remove the
+    // conflict with this config-driven threshold.
     const status = r.passesStatConsistency === false ? '⚠ FLAG' : '✓ ok';
     console.log(`SE estimator consistency: ratio ${r.statConsistencyRatio.toFixed(2)}x ${status}`);
   }
