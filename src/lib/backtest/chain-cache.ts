@@ -194,12 +194,20 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
     // (ticker, trade_date) accumulate as strategies with different DTE
     // windows touch the same date. UNIQUE prevents dupes on repeat calls.
     //
-    // Migration: always backfill from fetch_log on open. Codex round-17
-    // Finding 1 (2026-04-20): SQLite's UNIQUE treats two NULLs as DISTINCT,
-    // so a naive `INSERT OR IGNORE` would append another `(NULL, NULL)`
-    // row on every initDB for any legacy full-coverage entry. The
-    // correlated NOT EXISTS with `IS` (null-safe equality) makes the
-    // backfill properly idempotent for both range rows and NULL rows.
+    // Migration: always backfill from fetch_log on open. Two defenses:
+    //   1. Correlated `NOT EXISTS` with `IS` (null-safe equality) keeps
+    //      the backfill idempotent for both range rows and NULL/NULL rows
+    //      across sequential initDB calls (Codex round-17 Finding 1).
+    //   2. `INSERT OR IGNORE` tolerates UNIQUE-constraint races between
+    //      concurrent workers that start up against the same legacy cache
+    //      (Codex round-18 Finding 1). Without it, the loser worker would
+    //      abort with SQLITE_CONSTRAINT_UNIQUE during initDB.
+    //
+    // NULL/NULL rows aren't protected by the UNIQUE constraint (SQLite
+    // treats NULLs as distinct), so a concurrent race on an empty interval
+    // table COULD insert two NULL/NULL rows. That's harmless — isCovered
+    // reports the same result either way, and the NOT EXISTS prevents
+    // further growth on subsequent opens.
     _db.exec(`
       CREATE TABLE IF NOT EXISTS fetch_log_intervals (
         ticker TEXT NOT NULL,
@@ -210,7 +218,7 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
         UNIQUE (ticker, trade_date, dte_min, dte_max)
       );
       CREATE INDEX IF NOT EXISTS idx_fli_lookup ON fetch_log_intervals(ticker, trade_date);
-      INSERT INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max)
+      INSERT OR IGNORE INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max)
       SELECT fl.ticker, fl.trade_date, fl.dte_min, fl.dte_max
       FROM fetch_log fl
       WHERE NOT EXISTS (
@@ -437,10 +445,19 @@ function upsertFetchLog(
   ).run(ticker, date, nextRowsFetched, nextMin, nextMax);
 
   // Authoritative coverage record. Absent from pre-1.h readonly fixtures.
-  // Codex round-17 Finding 1: SQLite UNIQUE treats NULLs as distinct, so
-  // `INSERT OR IGNORE` is NOT idempotent for full-fetch rows (dte_min =
-  // dte_max = NULL). Guard with an explicit NOT EXISTS using `IS` for
-  // null-safe equality.
+  // Two defenses against dupe rows:
+  //   1. Codex round-17 Finding 1: SQLite UNIQUE treats NULLs as distinct,
+  //      so a bare `INSERT OR IGNORE` is not idempotent for full-fetch
+  //      rows. Guard with explicit NOT EXISTS using `IS` for null-safe
+  //      equality, so same-worker sequential full fetches don't grow the
+  //      table.
+  //   2. Codex round-18 Finding 1: cross-worker races. If two workers
+  //      concurrently observe a missing non-NULL interval, both pass the
+  //      NOT EXISTS check and both try to INSERT — UNIQUE would make the
+  //      loser crash with SQLITE_CONSTRAINT. `INSERT OR IGNORE` turns
+  //      that crash into a silent skip. NULL rows under concurrent race
+  //      may still insert twice (UNIQUE doesn't dedupe NULLs) but that's
+  //      harmless — isCovered reports identically either way.
   if (_hasIntervalTable) {
     const intervalMin = fullFetch ? null : dteRange![0];
     const intervalMax = fullFetch ? null : dteRange![1];
@@ -452,7 +469,7 @@ function upsertFetchLog(
     `).get(ticker, date, intervalMin, intervalMax);
     if (!exists) {
       db.prepare(
-        'INSERT INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max) VALUES (?, ?, ?, ?)',
+        'INSERT OR IGNORE INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max) VALUES (?, ?, ?, ?)',
       ).run(ticker, date, intervalMin, intervalMax);
     }
   }
