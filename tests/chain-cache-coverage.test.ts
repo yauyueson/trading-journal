@@ -111,7 +111,7 @@ describe('chain-cache DTE-range coverage (Phase 1.g)', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('stamps the requested DTE range on fetch_log after a narrow fetch', async () => {
+  it('stamps the requested DTE range on fetch_log_intervals after a narrow fetch', async () => {
     fetchSpy.mockResolvedValueOnce({
       ok: true, status: 200,
       json: async () => makeOratsResponse([makeOratsRow('SPY', '2024-01-02', 30, 450)]),
@@ -121,11 +121,11 @@ describe('chain-cache DTE-range coverage (Phase 1.g)', () => {
 
     expect(getApiCallCount()).toBe(1);
     const db = new Database(dbPath, { readonly: true });
-    const row = db.prepare('SELECT dte_min, dte_max FROM fetch_log WHERE ticker=? AND trade_date=?')
-      .get('SPY', '2024-01-02') as { dte_min: number; dte_max: number };
+    const intervals = db.prepare(
+      'SELECT dte_min, dte_max FROM fetch_log_intervals WHERE ticker=? AND trade_date=? ORDER BY dte_min',
+    ).all('SPY', '2024-01-02') as { dte_min: number; dte_max: number }[];
     db.close();
-    expect(row.dte_min).toBe(25);
-    expect(row.dte_max).toBe(40);
+    expect(intervals).toEqual([{ dte_min: 25, dte_max: 40 }]);
   });
 
   it('hits cache on a second call with the same DTE range', async () => {
@@ -158,18 +158,75 @@ describe('chain-cache DTE-range coverage (Phase 1.g)', () => {
     await fetchHistoricalChain('tok', 'SPY', '2024-01-02', undefined, [2, 7]);
     expect(getApiCallCount()).toBe(2);
 
-    // Union after both fetches: min=2, max=40. Cache should reflect it.
+    // Both intervals recorded separately — no false-union envelope.
     const db = new Database(dbPath, { readonly: true });
-    const row = db.prepare('SELECT dte_min, dte_max FROM fetch_log WHERE ticker=? AND trade_date=?')
-      .get('SPY', '2024-01-02') as { dte_min: number; dte_max: number };
+    const intervals = db.prepare(
+      'SELECT dte_min, dte_max FROM fetch_log_intervals WHERE ticker=? AND trade_date=? ORDER BY dte_min',
+    ).all('SPY', '2024-01-02') as { dte_min: number; dte_max: number }[];
     db.close();
-    expect(row.dte_min).toBe(2);
-    expect(row.dte_max).toBe(40);
+    expect(intervals).toEqual([
+      { dte_min: 2, dte_max: 7 },
+      { dte_min: 25, dte_max: 40 },
+    ]);
 
     // Both rows now live in option_chains.
     const rows = getCachedChain('SPY', '2024-01-02');
     const dtes = rows.map(r => r.dte).sort((a, b) => a - b);
     expect(dtes).toEqual([5, 30]);
+  });
+
+  it('does NOT report the middle of two disjoint fetches as covered', async () => {
+    // Codex round-14 Finding 1: [7, 21] + [45, 65] MUST NOT imply [25, 40]
+    // is covered. Single-envelope union would have flagged it TRUE.
+    fetchSpy.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: async () => makeOratsResponse([makeOratsRow('SPY', '2024-01-02', 14, 450)]),
+    } as unknown as Response);
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-02', undefined, [7, 21]);
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: async () => makeOratsResponse([makeOratsRow('SPY', '2024-01-02', 55, 450)]),
+    } as unknown as Response);
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-02', undefined, [45, 65]);
+
+    expect(getApiCallCount()).toBe(2);
+
+    // Requesting the middle band — neither interval covers it, must re-fetch.
+    fetchSpy.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: async () => makeOratsResponse([makeOratsRow('SPY', '2024-01-02', 32, 450)]),
+    } as unknown as Response);
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-02', undefined, [25, 40]);
+    expect(getApiCallCount()).toBe(3);
+  });
+
+  it('preserves rows_fetched when a side-band fetch returns empty', async () => {
+    // Codex round-14 Finding 2: `rows_fetched` must not regress to 0 when a
+    // later empty side-band fetch touches a populated date (or consumers
+    // like scripts/repair-truncated-chains.ts mark good dates as broken).
+    fetchSpy.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: async () => makeOratsResponse([
+        makeOratsRow('SPY', '2024-01-02', 30, 445),
+        makeOratsRow('SPY', '2024-01-02', 30, 450),
+        makeOratsRow('SPY', '2024-01-02', 30, 455),
+      ]),
+    } as unknown as Response);
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-02', undefined, [25, 40]);
+
+    // Empty side-band fetch.
+    fetchSpy.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: async () => makeOratsResponse([]),
+    } as unknown as Response);
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-02', undefined, [2, 7]);
+
+    const db = new Database(dbPath, { readonly: true });
+    const row = db.prepare('SELECT rows_fetched FROM fetch_log WHERE ticker=? AND trade_date=?')
+      .get('SPY', '2024-01-02') as { rows_fetched: number };
+    db.close();
+    expect(row.rows_fetched).toBe(3); // preserved; NOT overwritten to 0
   });
 
   it('hits cache when the new range is a SUB-range of the cached one', async () => {
@@ -208,13 +265,20 @@ describe('chain-cache DTE-range coverage (Phase 1.g)', () => {
     await fetchHistoricalChain('tok', 'SPY', '2024-01-02');
     expect(getApiCallCount()).toBe(2);
 
-    // After the second fetch, range is stamped NULL/NULL (full coverage).
+    // After the second fetch, the interval list has both the narrow row
+    // AND a NULL/NULL row (recording the full fetch). The fetch_log row
+    // preserves the NULL/NULL stamp (doesn't narrow back to [25, 40]).
     const db = new Database(dbPath, { readonly: true });
-    const row = db.prepare('SELECT dte_min, dte_max FROM fetch_log WHERE ticker=? AND trade_date=?')
+    const intervals = db.prepare(
+      'SELECT dte_min, dte_max FROM fetch_log_intervals WHERE ticker=? AND trade_date=? ORDER BY dte_min IS NULL DESC, dte_min',
+    ).all('SPY', '2024-01-02') as { dte_min: number | null; dte_max: number | null }[];
+    const flRow = db.prepare('SELECT dte_min, dte_max FROM fetch_log WHERE ticker=? AND trade_date=?')
       .get('SPY', '2024-01-02') as { dte_min: number | null; dte_max: number | null };
     db.close();
-    expect(row.dte_min).toBeNull();
-    expect(row.dte_max).toBeNull();
+    expect(intervals).toContainEqual({ dte_min: null, dte_max: null });
+    expect(intervals).toContainEqual({ dte_min: 25, dte_max: 40 });
+    expect(flRow.dte_min).toBeNull();
+    expect(flRow.dte_max).toBeNull();
   });
 
   it('treats legacy NULL/NULL entries as full-coverage hits for backward compat', async () => {
