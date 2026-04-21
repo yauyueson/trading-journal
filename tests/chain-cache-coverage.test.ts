@@ -417,6 +417,74 @@ describe('chain-cache DTE-range coverage (Phase 1.g)', () => {
     expect(intervalCount.n).toBe(1);
   });
 
+  it('migration backfill stays idempotent across many initDB/closeDB cycles (Codex r17 F1)', async () => {
+    // SQLite UNIQUE treats NULLs as distinct, so a naive INSERT OR IGNORE
+    // would append a fresh (NULL, NULL) row every open. Seed a legacy
+    // full-coverage row AND a narrow-range row, reopen the DB 5 times,
+    // and confirm neither table grows.
+    closeDB();
+    fs.rmSync(dbPath, { force: true });
+
+    const raw = new Database(dbPath);
+    raw.exec(`
+      CREATE TABLE fetch_log (
+        ticker TEXT NOT NULL,
+        trade_date TEXT NOT NULL,
+        rows_fetched INTEGER,
+        dte_min INTEGER,
+        dte_max INTEGER,
+        fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (ticker, trade_date)
+      );
+    `);
+    raw.prepare('INSERT INTO fetch_log (ticker, trade_date, rows_fetched, dte_min, dte_max) VALUES (?,?,?,?,?)')
+      .run('SPY', '2024-01-02', 200, null, null);
+    raw.prepare('INSERT INTO fetch_log (ticker, trade_date, rows_fetched, dte_min, dte_max) VALUES (?,?,?,?,?)')
+      .run('SPY', '2024-01-03', 50, 25, 40);
+    raw.close();
+
+    // Reopen five times — backfill runs each time.
+    for (let i = 0; i < 5; i++) {
+      initDB(dbPath);
+      closeDB();
+    }
+
+    const ro = new Database(dbPath, { readonly: true });
+    const nullRows = ro.prepare(
+      'SELECT COUNT(*) AS n FROM fetch_log_intervals WHERE ticker=? AND trade_date=? AND dte_min IS NULL AND dte_max IS NULL',
+    ).get('SPY', '2024-01-02') as { n: number };
+    const rangeRows = ro.prepare(
+      'SELECT COUNT(*) AS n FROM fetch_log_intervals WHERE ticker=? AND trade_date=? AND dte_min=? AND dte_max=?',
+    ).get('SPY', '2024-01-03', 25, 40) as { n: number };
+    ro.close();
+    expect(nullRows.n).toBe(1);
+    expect(rangeRows.n).toBe(1);
+  });
+
+  it('upsertFetchLog is idempotent for full-range fetches (Codex r17 F1)', async () => {
+    // A full-range fetch (no dteRange) writes dte_min=NULL, dte_max=NULL to
+    // fetch_log_intervals. Repeated fetches must not append duplicate
+    // NULL/NULL rows.
+    fetchSpy.mockResolvedValue({
+      ok: true, status: 200,
+      json: async () => makeOratsResponse([makeOratsRow('SPY', '2024-01-02', 30, 450)]),
+    } as unknown as Response);
+
+    // Three fetches with no dteRange → three full fetches. But the cached
+    // full-coverage row should cover them all; only the first hits ORATS.
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-02');
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-02');
+    await fetchHistoricalChain('tok', 'SPY', '2024-01-02');
+    expect(getApiCallCount()).toBe(1);
+
+    const db = new Database(dbPath, { readonly: true });
+    const nullCount = db.prepare(
+      'SELECT COUNT(*) AS n FROM fetch_log_intervals WHERE ticker=? AND trade_date=? AND dte_min IS NULL AND dte_max IS NULL',
+    ).get('SPY', '2024-01-02') as { n: number };
+    db.close();
+    expect(nullCount.n).toBe(1);
+  });
+
   it('treats legacy NULL/NULL entries as full-coverage hits for backward compat', async () => {
     // Simulate an entry inserted by a pre-Phase-1.g cache: rows in
     // option_chains but fetch_log has NULL dte_min/dte_max.

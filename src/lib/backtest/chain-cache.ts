@@ -194,11 +194,12 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
     // (ticker, trade_date) accumulate as strategies with different DTE
     // windows touch the same date. UNIQUE prevents dupes on repeat calls.
     //
-    // Migration: always backfill from fetch_log on open, using INSERT OR
-    // IGNORE. The UNIQUE constraint makes this idempotent — a DB that was
-    // already migrated sees zero new inserts; a DB with an empty interval
-    // table (from the broken early 1.h build) gets its missing envelopes
-    // seeded. Codex round-15 Finding 1 + round-16 Finding 1 (2026-04-20).
+    // Migration: always backfill from fetch_log on open. Codex round-17
+    // Finding 1 (2026-04-20): SQLite's UNIQUE treats two NULLs as DISTINCT,
+    // so a naive `INSERT OR IGNORE` would append another `(NULL, NULL)`
+    // row on every initDB for any legacy full-coverage entry. The
+    // correlated NOT EXISTS with `IS` (null-safe equality) makes the
+    // backfill properly idempotent for both range rows and NULL rows.
     _db.exec(`
       CREATE TABLE IF NOT EXISTS fetch_log_intervals (
         ticker TEXT NOT NULL,
@@ -209,8 +210,16 @@ export function initDB(dbPath?: string, readonly = false): Database.Database {
         UNIQUE (ticker, trade_date, dte_min, dte_max)
       );
       CREATE INDEX IF NOT EXISTS idx_fli_lookup ON fetch_log_intervals(ticker, trade_date);
-      INSERT OR IGNORE INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max)
-      SELECT ticker, trade_date, dte_min, dte_max FROM fetch_log;
+      INSERT INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max)
+      SELECT fl.ticker, fl.trade_date, fl.dte_min, fl.dte_max
+      FROM fetch_log fl
+      WHERE NOT EXISTS (
+        SELECT 1 FROM fetch_log_intervals fli
+        WHERE fli.ticker = fl.ticker
+          AND fli.trade_date = fl.trade_date
+          AND fli.dte_min IS fl.dte_min
+          AND fli.dte_max IS fl.dte_max
+      );
     `);
   } // end if (!readonly) for the WAL + schema block
 
@@ -428,12 +437,24 @@ function upsertFetchLog(
   ).run(ticker, date, nextRowsFetched, nextMin, nextMax);
 
   // Authoritative coverage record. Absent from pre-1.h readonly fixtures.
+  // Codex round-17 Finding 1: SQLite UNIQUE treats NULLs as distinct, so
+  // `INSERT OR IGNORE` is NOT idempotent for full-fetch rows (dte_min =
+  // dte_max = NULL). Guard with an explicit NOT EXISTS using `IS` for
+  // null-safe equality.
   if (_hasIntervalTable) {
     const intervalMin = fullFetch ? null : dteRange![0];
     const intervalMax = fullFetch ? null : dteRange![1];
-    db.prepare(
-      'INSERT OR IGNORE INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max) VALUES (?, ?, ?, ?)',
-    ).run(ticker, date, intervalMin, intervalMax);
+    const exists = db.prepare(`
+      SELECT 1 FROM fetch_log_intervals
+      WHERE ticker = ? AND trade_date = ?
+        AND dte_min IS ? AND dte_max IS ?
+      LIMIT 1
+    `).get(ticker, date, intervalMin, intervalMax);
+    if (!exists) {
+      db.prepare(
+        'INSERT INTO fetch_log_intervals (ticker, trade_date, dte_min, dte_max) VALUES (?, ?, ?, ?)',
+      ).run(ticker, date, intervalMin, intervalMax);
+    }
   }
 }
 
