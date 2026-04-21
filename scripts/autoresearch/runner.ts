@@ -1380,8 +1380,16 @@ async function main() {
     const oosPerTradeEdges = csOosTrades.map(t => {
       if (t.grossPnl != null) {
         // Gross basis: grossPnl is clamped at grossEntryCredit*100 where
-        // grossEntryCredit = netEntryCredit + entrySlippage (both positive).
-        const grossMaxProfit = (t.maxProfit ?? 0) + (t.entrySlippage ?? 0);
+        // grossEntryCredit = clampSpreadCloseCost(netEntryCredit + entrySlippage, actualWidth)
+        // — i.e. capped at the spread width in buildCreditSpreadTrade.
+        // Codex round-13 Finding 1 (2026-04-20): match the same clamp
+        // here, else high-credit trades on narrow spreads score below 1.0
+        // at true gross max profit and under-count the near-max-profit
+        // pattern the gate is meant to catch.
+        const unclampedGross = (t.maxProfit ?? 0) + (t.entrySlippage ?? 0);
+        const grossMaxProfit = t.spreadWidth != null
+          ? Math.min(unclampedGross, t.spreadWidth)
+          : unclampedGross;
         return grossMaxProfit > 0 ? t.grossPnl / (grossMaxProfit * 100) : 0;
       }
       // Net basis fallback for trades missing grossPnl (legacy/cached rows).
@@ -1644,11 +1652,21 @@ async function main() {
 
 function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion: boolean) {
   const bestSharpe = currentBest?.combinedSharpe ?? 0;
-  const holdoutStability = r.holdoutOOSRatio >= 0.5 ? 'STABLE' : r.holdoutOOSRatio >= 0.1 ? 'WEAK' : 'DEGRADED';
+  const g2 = gates().gates;
+  // Stability label tracks the configurable bounds. Codex round-13 Finding 2
+  // (2026-04-20): previously hardcoded 0.5/0.1 — would drift out of sync
+  // with the gate if an operator changed the hashed config.
+  const holdoutStability = (
+    r.holdoutOOSRatio >= g2.minStabilityHoldoutOosRatio &&
+    r.holdoutOOSRatio <= g2.maxStabilityHoldoutOosRatio
+      ? 'STABLE'
+      : r.holdoutOOSRatio > g2.maxStabilityHoldoutOosRatio
+        ? 'HIGH'
+        : 'WEAK'
+  );
   // Status line is SEARCH-VALIDITY ONLY (no holdout feedback). Holdout outcomes
   // appear only in the reviewer-only block below, which the agent-facing shells
   // strip before including the output in the next iteration's prompt.
-  const g2 = gates().gates;
   const invalidReasons = [
     !r.passesMinTrades && `${r.oosTrades} trades < ${g2.minOosTrades} min`,
     !r.passesMaxDD && `MaxDD ${r.oosMaxDD.toFixed(1)}% > ${g2.maxOosDrawdownPct}% limit`,
@@ -1718,7 +1736,7 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
   console.log(`Holdout Sharpe gate: ${r.passesHoldout ? 'PASS' : 'FAIL'} (Sharpe ${r.holdoutSharpe.toFixed(3)}, ${r.holdoutTrades} trades)`);
   console.log(`Holdout-or-IR gate: ${r.passesHoldoutOrIR ? 'PASS' : 'FAIL'} (IR ${r.holdoutSpyIR.toFixed(3)}, excess ${(r.holdoutSpyExcessReturn * 100).toFixed(2)}%/yr)`);
   const stabilityGate = r.passesStability === false ? 'FAIL' : r.passesStability === true ? 'PASS' : 'n/a';
-  console.log(`Holdout stability: ${holdoutStability} (ratio ${r.holdoutOOSRatio.toFixed(2)}, gate ${stabilityGate} — bounds [0.5, 2.0])`);
+  console.log(`Holdout stability: ${holdoutStability} (ratio ${r.holdoutOOSRatio.toFixed(2)}, gate ${stabilityGate} — bounds [${g2.minStabilityHoldoutOosRatio.toFixed(2)}, ${g2.maxStabilityHoldoutOosRatio.toFixed(2)}])`);
   console.log(`Overall validity (search+holdout): ${r.isValid ? 'VALID' : 'INVALID'}`);
   console.log(`True champion verdict: ${isNewChampion ? 'NEW CHAMPION' : 'NOT CHAMPION'}`);
   console.log('__END_REVIEWER_ONLY__');
