@@ -598,6 +598,10 @@ These are not bugs — they are process failures that let bugs through.
 ### Holdout is not a free lunch
 If you iterate on a strategy based on holdout feedback (even indirectly — "this config has holdout Sharpe X"), you have turned holdout into another optimization target. Real holdout is a write-once gate: one run, accept or reject, never revisit. The runner hides exact holdout Sharpe for this reason (shows PASS/FAIL only).
 
+Two complementary policies govern this:
+- [docs/sealed-holdout.md](sealed-holdout.md) — a single candidate gets exactly one evaluation, sealed to an immutable record.
+- [docs/holdout-refresh-policy.md](holdout-refresh-policy.md) — the window itself gets rotated when an adoption event, 6-month calendar backstop, or 20-attempt cumulative threshold fires. Even "clean" seals erode the window's independence over time; rotation is the defense.
+
 ### Deflated Sharpe over many attempts
 After N attempts, the expected maximum Sharpe from noise depends on the standard error of the Sharpe estimator (from bootstrap CI), not just N. The `computeDeflatedSharpe` function in `runner.ts` uses Gumbel EVT for E[max of N standard normals], scaled by bootstrap SE. A deflated Sharpe < 0 means the result is indistinguishable from luck. **Prior bug (fixed 2026-04-15)**: the old formula used `sqrt(2 * ln(N))` without SE scaling, producing E[max] ≈ 3.3 instead of ≈ 0.9 — catastrophically over-penalizing.
 
