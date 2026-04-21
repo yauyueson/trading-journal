@@ -110,6 +110,11 @@ export const AGENT_VISIBLE_FIELDS = [
   'bootstrapSignificant',
   'attemptNumber',
   'deflatedSharpe',
+  // Phase 2.a: N_eff diagnostic on OOS daily-return autocorrelation.
+  // Purely selection-period, no holdout signal — safe to expose to the
+  // search-loop agent.
+  'nEffOosDaily',
+  'nOosDaily',
   // Pre-registration audit trail
   'preRegBypassed',
   'preRegBypassReason',

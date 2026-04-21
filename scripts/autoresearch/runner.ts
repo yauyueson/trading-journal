@@ -44,6 +44,7 @@ import { validatePreRegOrBypass, formatPreRegSummary } from './lib/pre-reg-gate'
 import { acquireRunnerLock, LockHeldError, type AcquiredLock } from './lib/file-lock';
 import { appendTrial } from './lib/trial-ledger';
 import { stripHoldoutMetrics } from './lib/leaderboard-redaction';
+import { computeEffectiveSampleSize } from './lib/effective-sample-size';
 
 // ── Config ──────────────────────────────────────────────
 
@@ -1318,6 +1319,11 @@ async function main() {
     const attemptNumber = globalAttempt;
     const sharpeSE = bootstrapCI[1] > bootstrapCI[0] ? (bootstrapCI[1] - bootstrapCI[0]) / (2 * 1.96) : 1;
     const deflatedSharpe = computeDeflatedSharpe(oosMetrics.sharpe, attemptNumber, sharpeSE);
+    // Phase 2.a: N_eff diagnostic on the OOS daily-return series.
+    // Pure logging — not yet fed into DSR. Bandwidth 20 days ≈ one month,
+    // enough to capture typical credit-spread trade-life autocorrelation.
+    const nOosDaily = oosMetrics.dailyReturns.length;
+    const nEffOosDaily = computeEffectiveSampleSize(oosMetrics.dailyReturns, 20);
     const holdoutOOSRatio = oosMetrics.sharpe > 0.01 ? holdoutMetrics.sharpe / oosMetrics.sharpe : 0;
 
     // 13. Validity checks
@@ -1472,6 +1478,8 @@ async function main() {
       bootstrapSignificant,
       attemptNumber,
       deflatedSharpe,
+      nEffOosDaily,
+      nOosDaily,
       exitTypeBreakdown,
       signalsGenerated: allSignals.length,
       signalsSkippedNoChain: allSignals.length - workerResult.allOOSTrades.length - workerResult.holdoutTrades.length,
@@ -1704,6 +1712,11 @@ function printResult(r: RunResult, currentBest: RunResult | null, isNewChampion:
   console.log('--- Overfitting Checks (agent-safe — no holdout signal) ---');
   console.log(`Bootstrap 95% CI: [${r.bootstrapSharpe95CI[0].toFixed(3)}, ${r.bootstrapSharpe95CI[1].toFixed(3)}] ${r.bootstrapSignificant ? '✓ significant' : '✗ NOT significant'}`);
   console.log(`Deflated Sharpe: ${r.deflatedSharpe.toFixed(3)} (adjusted for ${r.attemptNumber} attempts) ${r.deflatedSharpe > 0 ? '✓ survives' : '✗ may be noise'}${overfitWarning}`);
+  if (r.nEffOosDaily != null && r.nOosDaily != null && r.nOosDaily > 0) {
+    const ratio = r.nEffOosDaily / r.nOosDaily;
+    const flag = ratio < 0.3 ? ' ⚠ very autocorrelated' : ratio < 0.6 ? ' (moderately autocorrelated)' : '';
+    console.log(`N_eff(OOS daily): ${r.nEffOosDaily.toFixed(0)} of ${r.nOosDaily} days (ratio ${ratio.toFixed(2)})${flag}`);
+  }
   console.log(`WF Efficiency: ${r.wfEfficiency.toFixed(2)} (avg train: ${r.avgTrainSharpe.toFixed(3)})`);
   console.log('');
   console.log('--- Signal Timing Alpha (vs naive baseline) ---');

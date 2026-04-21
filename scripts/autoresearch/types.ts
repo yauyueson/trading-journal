@@ -217,6 +217,12 @@ export interface RunResult {
   bootstrapSignificant: boolean;     // is lower bound of CI > 0?
   attemptNumber: number;             // which attempt this is (for multiple testing awareness)
   deflatedSharpe: number;            // Sharpe adjusted for multiple testing (Bailey-López de Prado)
+  // Phase 2.a (2026-04-20) — Newey-West effective sample size of the OOS
+  // daily-return series. Diagnostic only, not a gate. Reveals when daily
+  // returns are strongly autocorrelated (N_eff << N) so a human reviewer
+  // can second-guess the bootstrap CI / deflated Sharpe. Agent-visible.
+  nEffOosDaily?: number;
+  nOosDaily?: number;                // raw length for context (days with P&L attribution)
   // Pre-registration audit trail (Phase 0.a.1 / Codex re-review Finding 2).
   // Captured once per run by scripts/autoresearch/lib/pre-reg-gate.ts.
   // Persisted in BOTH full and agent-visible leaderboards so the audit
