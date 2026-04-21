@@ -48,6 +48,10 @@ import { computeEffectiveSampleSize } from './lib/effective-sample-size';
 import { bootstrapSharpeCI as bootstrapSharpeCILib } from './lib/bootstrap-sharpe';
 import { computeMertensSharpeSE } from './lib/mertens-sharpe-se';
 import { normalizeDsrSchema, leaderboardNeedsDsrMigration } from './lib/normalize-dsr-schema';
+import {
+  applyCurrentStatConsistencyGate,
+  leaderboardNeedsStatConsistencyRegrade,
+} from './lib/stat-consistency-regrade';
 
 // ── Config ──────────────────────────────────────────────
 
@@ -552,7 +556,11 @@ function loadLeaderboard(): RunResult[] {
   const { fullPath } = leaderboardPaths();
   if (!fs.existsSync(fullPath)) return [];
   const raw = JSON.parse(fs.readFileSync(fullPath, 'utf-8')) as RunResult[];
-  return raw.map(backfillIsValidForSearch).map(normalizeDsrSchema);
+  const maxRatio = gates().gates.maxStatConsistencyRatio;
+  return raw
+    .map(backfillIsValidForSearch)
+    .map(normalizeDsrSchema)
+    .map(entry => applyCurrentStatConsistencyGate(entry, maxRatio));
 }
 
 function saveLeaderboard(entries: RunResult[]) {
@@ -790,26 +798,40 @@ async function main() {
       console.log('');
     }
   }
-  // 0a. Phase 2.k boot-time DSR migration. Runs AFTER adoption-gate /
-  //     dataset-manifest / pre-reg guards have passed, so a failed
-  //     startup NEVER mutates tracked leaderboard files (Codex
-  //     round-26 Finding 1 — earlier 2.l placement left repo dirty
-  //     on failed guards, poisoning subsequent runs' repoGitSha
-  //     audit stamp). Trade-off: when the runner can't start,
-  //     external consumers keep reading Phase 2.g mixed-schema rows
-  //     until the operator fixes the guard. Acceptable vs. the audit-
-  //     stamp regression the early-migration path caused.
-  //     Idempotent via `leaderboardNeedsDsrMigration()` precheck.
+  // 0a. Phase 2.k boot-time DSR migration + Phase 2.o stat-consistency
+  //     regrade. Runs AFTER adoption-gate / dataset-manifest / pre-reg
+  //     guards have passed, so a failed startup NEVER mutates tracked
+  //     leaderboard files (Codex round-26 Finding 1). Trade-off: when
+  //     the runner can't start, external consumers keep reading stale
+  //     rows until the operator fixes the guard. Acceptable vs. the
+  //     audit-stamp regression the early-migration path caused.
+  //
+  //     Both migrations are idempotent via their *NeedsMigration
+  //     prechecks. Writes only happen when at least one row needs an
+  //     update. Codex round-28 Finding 1 (2026-04-20) added the
+  //     stat-consistency regrade here so Phase 2.h-era rows get their
+  //     `passesStatConsistency` + `isValid` recomputed under the
+  //     current `maxStatConsistencyRatio` before external consumers
+  //     read them.
   {
     const { fullPath, agentPath } = leaderboardPaths();
     if (fs.existsSync(fullPath)) {
       const raw = JSON.parse(fs.readFileSync(fullPath, 'utf-8')) as RunResult[];
-      if (leaderboardNeedsDsrMigration(raw)) {
-        const migrated = raw.map(backfillIsValidForSearch).map(normalizeDsrSchema);
+      const maxStatRatio = gates().gates.maxStatConsistencyRatio;
+      const needsDsr = leaderboardNeedsDsrMigration(raw);
+      const needsRegrade = leaderboardNeedsStatConsistencyRegrade(raw, maxStatRatio);
+      if (needsDsr || needsRegrade) {
+        const migrated = raw
+          .map(backfillIsValidForSearch)
+          .map(normalizeDsrSchema)
+          .map(entry => applyCurrentStatConsistencyGate(entry, maxStatRatio));
         fs.writeFileSync(fullPath, JSON.stringify(migrated, null, 2));
         fs.writeFileSync(agentPath, JSON.stringify(migrated.map(stripHoldoutMetrics), null, 2));
+        const parts: string[] = [];
+        if (needsDsr) parts.push('DSR schema');
+        if (needsRegrade) parts.push('stat-consistency regrade');
         const suffixLabel = leaderboardSuffix() || '(primary)';
-        console.log(`Migrated ${migrated.length} ${suffixLabel} leaderboard entries → Phase 2.i DSR schema`);
+        console.log(`Migrated ${migrated.length} ${suffixLabel} leaderboard entries → ${parts.join(' + ')}`);
         console.log('');
       }
     }
