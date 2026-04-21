@@ -1311,12 +1311,16 @@ async function main() {
     // or promotion decision — switching authority to Mertens would
     // affect all historical leaderboard values and needs an explicit
     // policy call.
-    const mertensSharpeSEForDSR = mertensSharpeSE > 0 ? mertensSharpeSE : sharpeSE;
-    const deflatedSharpeMertens = computeDeflatedSharpe(
-      oosMetrics.sharpe,
-      attemptNumber,
-      mertensSharpeSEForDSR,
-    );
+    //
+    // When Mertens SE is unavailable (degenerate OOS series — short or
+    // near-constant returns — returns 0), leave the parallel DSR
+    // UNDEFINED rather than silently falling back to the bootstrap SE
+    // and mislabeling the result "Mertens." Codex round-20 Finding 1
+    // (2026-04-20): a false agreement signal between the two DSRs in
+    // those runs is worse than a missing field.
+    const deflatedSharpeMertens: number | undefined = mertensSharpeSE > 0
+      ? computeDeflatedSharpe(oosMetrics.sharpe, attemptNumber, mertensSharpeSE)
+      : undefined;
     const holdoutOOSRatio = oosMetrics.sharpe > 0.01 ? holdoutMetrics.sharpe / oosMetrics.sharpe : 0;
 
     // 13. Validity checks
