@@ -50,16 +50,18 @@ import type {
 } from './types';
 
 // ── Worker Init ──────────────────────────────────────────
+// Guard: workerData is null when the module is imported outside a worker thread
+// (e.g. in unit tests that import makeDiagonalEvaluator directly).
 
-const {
-  signals,
-  allTradingDates,
-  executionConfig,
-  startingCapital,
-  evaluatorMode,
-} = workerData as WorkerInitData;
+const signals: WorkerInitData['signals'] = workerData ? (workerData as WorkerInitData).signals : [];
+const allTradingDates: WorkerInitData['allTradingDates'] = workerData ? (workerData as WorkerInitData).allTradingDates : [];
+const executionConfig: WorkerInitData['executionConfig'] = workerData ? (workerData as WorkerInitData).executionConfig : {} as WorkerInitData['executionConfig'];
+const startingCapital: WorkerInitData['startingCapital'] = workerData ? (workerData as WorkerInitData).startingCapital : 0;
+const evaluatorMode: WorkerInitData['evaluatorMode'] = workerData ? (workerData as WorkerInitData).evaluatorMode : 'standard';
 
-initDB(undefined, /* readonly= */ true);
+if (workerData) {
+  initDB(undefined, /* readonly= */ true);
+}
 
 // ── Chain Lookup for Custom Evaluators ───────────────────
 
@@ -411,7 +413,31 @@ function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
 // directly so it satisfies the synchronous TradeEvaluator contract.
 // Known duplication: intentional, same pattern as makeLeapEvaluator.
 
-function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
+/**
+ * Synchronous equivalent of fetchContractOnDate in option-sim.ts.
+ * Tries findContractDirect first; falls back to getCachedChain + findContract
+ * when the direct lookup misses (e.g. cache populated via full-chain fetch).
+ * This mirrors the async fallback path so the sync evaluator and simulateDiagonal
+ * never diverge on miss handling.
+ */
+function findContractOnDateSync(
+  ticker: string,
+  date: string,
+  strike: number,
+  expiry: string,
+  type: 'Call' | 'Put',
+  useDirectLookup = true,
+): StrikeMatch | null {
+  if (useDirectLookup) {
+    const direct = findContractDirect(ticker, date, strike, expiry, type);
+    if (direct) return direct;
+  }
+  const chain = getCachedChain(ticker, date);
+  if (chain.length === 0) return null;
+  return findContract(chain, strike, expiry, type);
+}
+
+export function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
   return (signal, _config, allDates, maxDate) => {
     // Validate config
     if (!config.diagLongDeltaRange || !config.diagLongDTERange
@@ -501,7 +527,7 @@ function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
       if (stop) break;
 
       // Mark long leg
-      const longContract = findContractDirect(signal.ticker, d, longStrike, longExpiry, 'Call');
+      const longContract = findContractOnDateSync(signal.ticker, d, longStrike, longExpiry, 'Call', config.useDirectLookup ?? true);
       if (longContract) {
         const longMid = longContract.mid;
         const longPnl = 100 * (longMid - longPremium);
@@ -518,7 +544,7 @@ function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
 
       // Mark + close short cycle
       if (curShort) {
-        const shortContract = findContractDirect(signal.ticker, d, curShort.strike, curShort.expiry, 'Call');
+        const shortContract = findContractOnDateSync(signal.ticker, d, curShort.strike, curShort.expiry, 'Call', config.useDirectLookup ?? true);
         if (shortContract) {
           const shortMid = shortContract.mid;
           const shortPnl = 100 * (curShort.entryCredit - shortMid);
@@ -588,7 +614,7 @@ function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
 
     // Settle open short at long exit
     if (curShort) {
-      const closingContract = findContractDirect(signal.ticker, longExitDate, curShort.strike, curShort.expiry, 'Call');
+      const closingContract = findContractOnDateSync(signal.ticker, longExitDate, curShort.strike, curShort.expiry, 'Call', config.useDirectLookup ?? true);
       const buyBackCost = closingContract ? applyFill(
         config.fillMode, closingContract.mid, closingContract.row.call_bid, closingContract.row.call_ask,
         'buy', config.slippage, closingContract.row.call_oi, closingContract.row.dte,
@@ -745,8 +771,9 @@ function evaluateOnWindows(
 }
 
 // ── Message Handler ─────────────────────────────────────
+// Only wire up the message handler when running as a worker thread.
 
-parentPort!.on('message', (msg: WorkItem | { type: 'exit' }) => {
+if (workerData && parentPort) parentPort.on('message', (msg: WorkItem | { type: 'exit' }) => {
   if (msg.type === 'exit') {
     closeDB();
     process.exit(0);
@@ -790,4 +817,4 @@ parentPort!.on('message', (msg: WorkItem | { type: 'exit' }) => {
   }
 });
 
-parentPort!.postMessage({ type: 'ready' });
+if (workerData && parentPort) parentPort.postMessage({ type: 'ready' });

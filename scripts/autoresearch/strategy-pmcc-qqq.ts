@@ -17,7 +17,9 @@
  * Always-in entry.
  *
  * Run via:
- *   AUTORESEARCH_LEADERBOARD_SUFFIX=pmcc-qqq-pt50 npx tsx scripts/autoresearch/runner.ts
+ *   AUTORESEARCH_LEADERBOARD_SUFFIX=pmcc-qqq-pt50 \
+ *   AUTORESEARCH_STRATEGY_FILENAME=strategy-pmcc-qqq.ts \
+ *   npx tsx scripts/autoresearch/runner.ts
  */
 import type { StrategyDefinition, TickerDataBundle, MarketContext, EntrySignal, SimConfig, ConfigVariant } from './types';
 import { DEFAULT_LEAP_CONFIG } from '../../src/lib/backtest/option-sim';
