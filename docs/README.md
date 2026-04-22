@@ -186,11 +186,12 @@ docs/
 └── wfa/                         # WFA analysis docs
 ```
 
-### Backtesting & WFA Reports
-- [130M vs 4H Study](../backtesting%20history/credit-spread/reports/130m-vs-4h-study/README.md) — 648 configs, 15 tickers, 7 windows; 130M wins with 2× Sharpe edge
-- [Swing Strategy Sign-Off](./wfa/FINAL-SIGN-OFF.md) — Production validation for swing (1D, 45-65 DTE)
-- [Short-Term Results](./wfa/SHORT-TERM-RESULTS.md) — Short-term WFA validation results
+### Backtesting & WFA Reports (historical, pre-sealed-holdout era)
+- [Swing Strategy Sign-Off](./wfa/FINAL-SIGN-OFF.md) — Production validation for swing (1D, 45-65 DTE) — SUPERSEDED, strategy retired
+- [Short-Term Results](./wfa/SHORT-TERM-RESULTS.md) — Short-term WFA validation results — SUPERSEDED
 - [WFA Journey Summary](./wfa/WFA-JOURNEY-SUMMARY.md) — Historical record of the WFA investigation
+
+For current validated strategies, see `docs/audit-rows/` (pre-reg audit trail) and `docs/holdout-evaluations/` (sealed seal files).
 
 ---
 
