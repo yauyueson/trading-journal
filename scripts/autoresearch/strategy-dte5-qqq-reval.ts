@@ -1,5 +1,13 @@
 /**
- * DTE5 QQQ Re-Validation — Phase E7.
+ * DTE5 QQQ Re-Validation — Phase E7 (blob v2).
+ *
+ * Blob bumped 2026-04-22 after the first run's rows were written under a
+ * dirty working tree (untracked leaderboard-dte5-qqq-reval.json from the
+ * pre-fix bear-call run sat in the tree when the v2 runner started).
+ * Those rows stamped repoGitSha=null and became permanently unsealable
+ * under the first-matching-row rule. Bumping the blob here (this comment
+ * is the only change) breaks the identity match so new rows are the first
+ * match and can be sealed. No functional change.
  *
  * The active live strategy per CLAUDE.md + src/lib/strategyProfiles.ts.
  * Currently "validated" under pre-overhaul autoresearch. This campaign
