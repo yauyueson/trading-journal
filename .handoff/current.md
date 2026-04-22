@@ -1,45 +1,59 @@
 ---
-task: Phase E2b — PMCC QQQ longPT=0.50 confirmation campaign
+task: Phase E6 — PMCC on lower-priced growth names ($2K-friendly)
 stage: pre-reg
 owner: claude
 from: user
-timestamp: 2026-04-22T03:30:00-04:00
+timestamp: 2026-04-22T07:00:00-04:00
 ---
 
 ## Objective
 
-Second sealed-holdout autoresearch campaign on PMCC QQQ. Phase E2a sealed FAIL on 2026-04-22 with the decision-rule winner `pmcc-tight-short` (holdoutSpyIR −0.234). That campaign surfaced an anomaly: the non-winning variant `pmcc-high-pt` (longPT=0.50 instead of 0.40) passed all declared adoption criteria (holdoutSpyIR +0.259). Under sealed-holdout discipline we cannot retroactively pick the anomaly as the winner — we must pre-register it as a named anchor and re-seal.
+Test whether the validated PMCC-QQQ-pt50 structure (Phase E2b sealed PASS, holdoutSpyIR +0.26) generalizes to lower-priced individual growth names that fit a $2K account at entry. Portfolio of HOOD + PLTR, both $20-40 range during selection period, growing materially into holdout.
 
-Phase E2b does exactly that, with two neighboring profit-target values as robustness checks.
+The hypothesis: PMCC's "capture upside via deep-ITM LEAP + collect short-call theta" structure should benefit from higher IV (individual names) and sustained directional moves (HOOD went $10→$114, PLTR $16→$184 across the evaluation window).
 
 ## Pre-Registration
 
-**Hypothesis**: A PMCC on QQQ with long-leg profit target 0.50 (close the LEAP at +50% on premium) earns positive risk-adjusted alpha over SPY in the 2024-01-22 → 2026-02-28 holdout window. The higher profit target vs Phase E2a's 0.40 is expected to let the LEAP ride more of QQQ's 2024-2025 rally before closing, which — combined with the rolled short-call theta — produces positive SPY-excess return unlike the lower-PT siblings. Robustness check: adjacent profit targets 0.45 and 0.55 should show similar direction if the 0.50 pass was real edge and not a single-point artifact.
+**Hypothesis**: A PMCC on a HOOD+PLTR portfolio with long-leg profit target 0.50 (validated on QQQ) earns positive risk-adjusted alpha over SPY in the 2024-01-22 → 2026-02-28 holdout window. Individual-name growth underlyings provide higher IV (richer short-call theta) and sustained directional moves (LEAP long leg captures upside) vs an index. If the PMCC structure has a true structural edge, it should generalize. If it's QQQ-specific (like DTE5 proved to be in Phase E3), this campaign will fail.
 
-**Config Grid**: 3 configs, all sharing base PMCC structure (long δ [0.70, 0.80], long DTE [240, 300], short δ [0.20, 0.30], short DTE [30, 45], long SL 0.35, long TS DTE 90, short PT 0.50, roll trigger 0.02):
+**Config Grid**: 4 variants, all on {HOOD, PLTR} portfolio (maxPositions=1, first-come-first-served):
 
-| Variant | Long Profit Target | Role |
-|---|---:|---|
-| pmcc-pt50-anchor | 0.50 | Sealed candidate |
-| pmcc-pt45 | 0.45 | Robustness check (diagnostic only) |
-| pmcc-pt55 | 0.55 | Robustness check (diagnostic only) |
+| Variant | Long PT | Short δ | Short DTE | Role |
+|---|---:|---:|---:|---|
+| pmcc-lowprice-anchor | 0.50 | [0.20, 0.30] | [30, 45] | Anchor (mirrors pt50-QQQ) |
+| pmcc-lowprice-tight-short | 0.50 | [0.25, 0.35] | [25, 35] | Short-side sensitivity |
+| pmcc-lowprice-pt45 | 0.45 | [0.20, 0.30] | [30, 45] | Long-PT sensitivity (lower) |
+| pmcc-lowprice-pt55 | 0.55 | [0.20, 0.30] | [30, 45] | Long-PT sensitivity (upper) |
 
-Always-in entry. Fill model: bidask with dynamic slippage. Defined in `scripts/autoresearch/strategy-pmcc-qqq.ts`.
+All share: long δ [0.70, 0.80], long DTE [240, 300], long SL 0.35, long TS DTE 90, short PT 0.50, roll trigger 0.02, monitoringIntervalDays 1, fillMode=bidask with dynamic slippage. Defined in `scripts/autoresearch/strategy-pmcc-lowprice.ts`.
 
-**Decision Rule**: The sealed candidate is the NAMED ANCHOR `pmcc-pt50-anchor`, regardless of whether it has the highest selection combinedSharpe. This is a confirmation-of-effect design. The two neighbor variants (pt45, pt55) are diagnostic — their sealed-holdout metrics are reported in the seal ceremony's context but are NOT the sealed candidate. Only `pmcc-pt50-anchor` gets a seal file.
+**Decision Rule**: Winner = variant with highest **selection-window combinedSharpe** (no holdout peek). Standard decision rule. Seal via `scripts/evaluate-holdout.ts`.
 
-**Adoption Threshold**: The sealed anchor's row must satisfy ALL of the following:
-- `holdoutSpyIR ≥ 0` (core structural edge over SPY)
-- `holdoutSharpe ≥ 0.3` (absolute risk-adjusted floor)
-- `oosSharpe ≥ 0.8` (selection-window floor, mirrors DTE5's sealed bar)
-- `passesStability = true` (holdout/OOS Sharpe ratio ∈ [0.5, 2.0])
-- `passesStatConsistency = true` (bootstrap SE vs Mertens SE ratio ≤ 5.0x)
-- `deflatedSharpeMertens > 0` (Bailey-López de Prado multiple-testing correction)
+**Adoption Threshold**: The sealed winner's row must satisfy ALL of:
+- `holdoutSpyIR ≥ 0`
+- `holdoutSharpe ≥ 0.3`
+- `oosSharpe ≥ 0.8`
+- `passesStability = true`
+- `passesStatConsistency = true`
+- `deflatedSharpeMertens > 0`
 
-Robustness context (NOT gating; reviewer judgement):
-- If pt45 AND pt55 BOTH have positive holdoutSpyIR → robust edge (accept anchor's seal)
-- If anchor passes but both neighbors fail → single-point artifact, anchor seal is confirmed but flagged as fragile in the seal file's footer
-- If anchor passes and exactly one neighbor passes → partial robustness, flagged
+## Capital scaling caveat
+
+HOOD and PLTR grew materially during the evaluation window:
+- HOOD: $18 (2022) → $10 (2023) → $114 (2025-12)
+- PLTR: $18 (2022) → $16 (2023) → $184 (2025-12)
+
+A PMCC's capital requirement scales linearly with underlying price. At $2K starting, HOOD/PLTR PMCCs fit when underlying is <$50 (capital ~$1K-1.5K) but would exceed the account when underlying is $100+. The simulator does NOT enforce "can't afford position" — it opens trades regardless of notional. This pre-reg accepts that evaluation is portfolio-level (strategy edge) rather than per-position affordability (live capital).
+
+Adoption implication: a PASS here says the PMCC structure has edge on these underlyings; it does NOT say you can deploy $2K live against this portfolio today (you can't — HOOD/PLTR at current prices need more capital per position). A live deployment would require either (a) lower-price underlyings or (b) scaled-up account size.
+
+## Prior related seals
+
+- PMCC pt50 QQQ: sealed PASS (PR #8), holdoutSpyIR +0.26
+- PMCC tight-short QQQ: sealed FAIL (PR #8), holdoutSpyIR −0.23 — long-PT too tight
+- DTE5 mega-cap (AAPL/MSFT/NVDA/GOOG): sealed FAIL catastrophic (PR #10) — individual names broken for DTE5
+- DTE5 IWM: sealed FAIL (PR #9) — profitable but lags SPY
+- DTE5 SPY: sealed FAIL (PR #11) — decision-rule winner fails; w10 variant interesting
 
 **Holdout Window Hash**: sha256:4bde4339e7cb212ab59bb19dc727321d020d410f7b3e394c5389a16c06e7dbc9
 
@@ -47,8 +61,7 @@ Robustness context (NOT gating; reviewer judgement):
 
 ## References
 
-- Phase E2a seal (FAIL): `docs/holdout-evaluations/2026-04-22-b6947551239a.md`
-- Phase E2a pre-reg: same window's prior block (hash b6947551239a...)
-- Design spec: `docs/superpowers/specs/2026-04-22-pmcc-qqq-campaign-design.md`
+- Strategy file: `scripts/autoresearch/strategy-pmcc-lowprice.ts`
 - Sealed-holdout protocol: `docs/sealed-holdout.md`
-- Strategy file: `scripts/autoresearch/strategy-pmcc-qqq.ts` (blob will change vs E2a)
+- PMCC engine: `simulateDiagonal` + `makeDiagonalEvaluator` (on this branch, inherited from PR #8)
+- Validated PMCC-QQQ config: `scripts/autoresearch/strategy-pmcc-qqq.ts` (this branch)
