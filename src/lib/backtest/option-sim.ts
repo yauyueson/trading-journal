@@ -933,7 +933,14 @@ export async function simulateDiagonal(
   }
 
   // ─── 1. Entry: pick long + short from the same chain. ─────────────
-  const chain = await fetchHistoricalChain(token, signal.ticker, signal.date);
+  const enclosingDTE: [number, number] = [
+    config.diagShortDTERange![0],
+    config.diagLongDTERange![1],
+  ];
+  const chain = await fetchHistoricalChain(
+    token, signal.ticker, signal.date,
+    undefined, enclosingDTE,
+  );
   if (chain.length === 0) return null;
 
   const longMidDelta = (config.diagLongDeltaRange[0] + config.diagLongDeltaRange[1]) / 2;
@@ -1046,7 +1053,10 @@ export async function simulateDiagonal(
           curShort = null;
           // Task 6: open a new short cycle on the same day if long is still alive.
           if (!stop) {
-            const nextChain = await fetchHistoricalChain(token, signal.ticker, d);
+            const nextChain = await fetchHistoricalChain(
+              token, signal.ticker, d,
+              undefined, config.diagShortDTERange!,
+            );
             const nextShortMidDelta = (config.diagShortDeltaRange![0] + config.diagShortDeltaRange![1]) / 2;
             const nextMatch = findStrikeByDelta(
               nextChain, nextShortMidDelta, 'Call', config.diagShortDTERange!, 0,
