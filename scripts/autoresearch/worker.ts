@@ -326,13 +326,6 @@ function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
 
     const monitorDates: string[] = [];
     const interval = config.monitoringIntervalDays || 1;
-    if (interval !== 1) {
-      throw new Error(
-        `makeDiagonalEvaluator currently only supports monitoringIntervalDays=1 (got ${interval}). ` +
-        `The sync evaluator's inline date loop diverges from the async simulateDiagonal's getMonitoringDates ` +
-        `for interval > 1. Unify via shared helper before enabling longer intervals.`
-      );
-    }
     let dayCount = 0;
     for (let i = startIdx + 1; i < allDates.length; i++) {
       if (allDates[i] > monitorEnd) break;
