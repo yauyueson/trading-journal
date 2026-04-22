@@ -6,6 +6,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { OptionMode, OptionTrade, SimConfig } from '../src/lib/backtest/option-sim';
 import { computeOptionAnalytics, simulateDiagonal, DEFAULT_LEAP_CONFIG } from '../src/lib/backtest/option-sim';
 import type { EntrySignal } from '../src/lib/backtest/option-sim';
+import { makeDiagonalEvaluator } from '../scripts/autoresearch/worker';
 
 // Chain row shape for mocks (same as buy-write tests)
 interface ChainRowLike {
@@ -39,6 +40,15 @@ vi.mock('../src/lib/backtest/chain-cache', () => ({
   fetchHistoricalChain: vi.fn(async (_t: string, _k: string, date: string) => {
     return mockChainByDate.get(date) ?? [];
   }),
+  // Sync chain accessor used by makeDiagonalEvaluator (entry lookup + findContractOnDateSync fallback)
+  getCachedChain: vi.fn((_ticker: string, date: string) => {
+    return mockChainByDate.get(date) ?? [];
+  }),
+  // Filtered chain used for rolling short selection
+  getCachedChainFiltered: vi.fn((_ticker: string, date: string, _expFilter: unknown, dteRange: [number, number]) => {
+    const chain = mockChainByDate.get(date) ?? [];
+    return chain.filter((r: ChainRowLike) => r.dte >= dteRange[0] && r.dte <= dteRange[1]);
+  }),
   findStrikeByDelta: vi.fn((chain: ChainRowLike[], targetDelta: number, type: 'Call' | 'Put', dteRange: [number, number]) => {
     const filtered = chain.filter(r => r.dte >= dteRange[0] && r.dte <= dteRange[1]);
     if (filtered.length === 0) return null;
@@ -62,8 +72,10 @@ vi.mock('../src/lib/backtest/chain-cache', () => ({
       iv: picked.call_iv, delta: picked.delta, volume: picked.call_volume, oi: picked.call_oi,
     };
   }),
-  findContractDirect: vi.fn(() => null),  // force fallback to fetchHistoricalChain in simulator
+  findContractDirect: vi.fn(() => null),  // force fallback path in both sync and async evaluators
   findSpreadStrikes: vi.fn(() => null),
+  initDB: vi.fn(),
+  closeDB: vi.fn(),
 }));
 
 function buildWeekdays(startStr: string, endStr: string): string[] {
@@ -124,11 +136,11 @@ describe('Dispatcher guards', () => {
     expect(src).toMatch(/DIAGONAL requires simulateDiagonal/);
   });
 
-  it('autoresearch/worker source contains explicit throw on DIAGONAL', async () => {
+  it('autoresearch/worker source dispatches DIAGONAL to makeDiagonalEvaluator', async () => {
     const fs = await import('fs/promises');
     const src = await fs.readFile('scripts/autoresearch/worker.ts', 'utf-8');
     expect(src).toMatch(/mode === 'DIAGONAL'/);
-    expect(src).toMatch(/DIAGONAL requires simulateDiagonal/);
+    expect(src).toMatch(/makeDiagonalEvaluator/);
   });
 });
 
@@ -481,5 +493,58 @@ describe('DailyMtM consistency', () => {
     // Last monitored-day combined MtM should converge to final pnl within tolerance.
     const lastMtM = trade!.dailyMtM![trade!.dailyMtM!.length - 1].unrealizedPnl;
     expect(lastMtM).toBeCloseTo(trade!.pnl, -2);  // ±$50
+  });
+});
+
+describe('Parity: makeDiagonalEvaluator vs simulateDiagonal', () => {
+  beforeEach(() => mockChainByDate.clear());
+
+  it('produces the same pnl (±$1) and shortCallCycles.length for a happy-path trade', async () => {
+    // Same fixture as the simulateDiagonal happy-path test.
+    // findContractDirect is mocked to null, so both paths use the chain-fallback.
+    mockChainByDate.set('2023-01-20', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-10-20', dte: 273, strike: 340, spot: 380, callBid: 44.9, callMid: 45, callAsk: 45.1, delta: 0.75 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-02-17', dte: 28, strike: 400, spot: 380, callBid: 2.4, callMid: 2.5, callAsk: 2.6, delta: 0.25 }),
+    ]);
+    mockChainByDate.set('2023-02-17', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-02-17', expiry: '2023-10-20', dte: 245, strike: 340, spot: 385, callBid: 49.9, callMid: 50, callAsk: 50.1, delta: 0.78 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-02-17', expiry: '2023-02-17', dte: 0, strike: 400, spot: 385, callBid: 0, callMid: 0, callAsk: 0.05, delta: 0 }),
+    ]);
+    mockChainByDate.set('2023-07-24', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-07-24', expiry: '2023-10-20', dte: 88, strike: 340, spot: 395, callBid: 58, callMid: 58.5, callAsk: 59, delta: 0.88 }),
+    ]);
+
+    const signal: EntrySignal = { ticker: 'QQQ', date: '2023-01-20', direction: 'CALL', score: 0 };
+    const config: SimConfig = {
+      ...DEFAULT_LEAP_CONFIG,
+      mode: 'DIAGONAL',
+      diagLongDeltaRange: [0.65, 0.80],
+      diagLongDTERange: [240, 300],
+      diagShortDeltaRange: [0.20, 0.30],
+      diagShortDTERange: [25, 45],
+      diagLongProfitTarget: 0.40,
+      diagLongStopLoss: 0.35,
+      diagLongTimeStopDTE: 90,
+      diagShortProfitTarget: 0.50,
+      diagRollTriggerMoneyness: 0.02,
+      monitoringIntervalDays: 1,
+      fillMode: 'mid',
+    };
+    const allDates = buildWeekdays('2023-01-20', '2023-07-24');
+
+    // Async path (simulateDiagonal)
+    const asyncTrade = await simulateDiagonal('', signal, config, allDates, '2023-12-31');
+    expect(asyncTrade).not.toBeNull();
+
+    // Sync path (makeDiagonalEvaluator from autoresearch/worker.ts)
+    const evaluator = makeDiagonalEvaluator(config);
+    const syncTrade = evaluator(signal, config, allDates, '2023-12-31');
+    expect(syncTrade).not.toBeNull();
+
+    // Core parity assertions
+    expect(Math.abs(syncTrade!.pnl - asyncTrade!.pnl)).toBeLessThanOrEqual(1);
+    expect(syncTrade!.diagonalLegs!.shortCallCycles.length).toBe(asyncTrade!.diagonalLegs!.shortCallCycles.length);
+    expect(syncTrade!.exitType).toBe(asyncTrade!.exitType);
+    expect(syncTrade!.exitDate).toBe(asyncTrade!.exitDate);
   });
 });
