@@ -1002,6 +1002,17 @@ interface StudyResult {
   holdoutDetailed: DetailedMetrics;
   oosGrowth: PortfolioGrowthResult;
   holdoutGrowth: PortfolioGrowthResult;
+  // Optional per-config audit payload (2026-04-21). Populated on runs
+  // that should be re-checkable against the autoresearch Phase 1/2
+  // gate suite — daily returns feed N_eff / Mertens SE / bootstrap CI
+  // / stat-consistency; per-trade data feeds sanity-edge. Old study
+  // outputs predate these fields and won't carry them; the recheck
+  // script treats their absence as "cannot check" rather than a
+  // failure.
+  oosDailyReturns?: number[];
+  holdoutDailyReturns?: number[];
+  oosTrades?: OptionTrade[];
+  holdoutTrades?: OptionTrade[];
 }
 
 function buildDetailedMetrics(trades: OptionTrade[]): DetailedMetrics {
@@ -1225,6 +1236,11 @@ async function runConfigsViaWorkers(
       holdoutDetailed,
       oosGrowth,
       holdoutGrowth,
+      // Phase-1/2-gate audit payload. See StudyResult comment.
+      oosDailyReturns: oosMetrics.dailyReturns,
+      holdoutDailyReturns: holdoutMetrics.dailyReturns,
+      oosTrades: allOOSTrades,
+      holdoutTrades: wr.holdoutTrades,
     });
   }
 
@@ -1941,6 +1957,11 @@ async function main() {
         oosDetailed: buildDetailedMetrics(wr.allOOSTrades), holdoutDetailed: buildDetailedMetrics(wr.holdoutTrades),
         oosGrowth: simulatePortfolioGrowth(wr.allOOSTrades, DTE5_PARAMS.startingCapital),
         holdoutGrowth: simulatePortfolioGrowth(wr.holdoutTrades, DTE5_PARAMS.startingCapital),
+        // Phase-1/2-gate audit payload. See StudyResult comment.
+        oosDailyReturns: oosMetrics.dailyReturns,
+        holdoutDailyReturns: holdMetrics.dailyReturns,
+        oosTrades: wr.allOOSTrades,
+        holdoutTrades: wr.holdoutTrades,
       };
 
       const key = `${def._gate}|${def._ticker}`;
