@@ -103,6 +103,13 @@ function makeStandardEvaluator(config: SimConfig): TradeEvaluator {
     );
   }
 
+  if (config.mode === 'DIAGONAL') {
+    throw new Error(
+      "DIAGONAL requires simulateDiagonal — not dispatchable via autoresearch worker. " +
+      "DIAGONAL is a PMCC-campaign mode; call simulateDiagonal directly from the PMCC runner.",
+    );
+  }
+
   // Fallback: null (no trade)
   return () => null;
 }
