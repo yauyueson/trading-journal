@@ -82,35 +82,26 @@ export const strategy: StrategyDefinition = {
     return DTE5_QQQ_LIVE_ANCHOR;
   },
 
-  generateSignals(data: TickerDataBundle, market: MarketContext): EntrySignal[] {
+  generateSignals(data: TickerDataBundle, _market: MarketContext): EntrySignal[] {
+    // Canonical DTE5 bull signal (from scripts/wfa-dte5-tp-sl-study.ts):
+    //   close > EMA34 (with EMA34 > 0 sanity)
+    // Direction='CALL' — the credit-spread worker maps CALL→sell puts
+    // (BULL PUT credit spread). 'PUT'→sell calls (bear call) is WRONG for DTE5.
     const signals: EntrySignal[] = [];
-    const ema8 = data.emas.get(8)!;
-    const ema13 = data.emas.get(13)!;
     const ema34 = data.emas.get(34)!;
-    const ema55 = data.emas.get(55)!;
-    const ema200 = data.emas.get(200)!;
     const n = data.candles.length;
 
-    for (let i = 60; i < n; i++) {
+    for (let i = 55; i < n; i++) {
       const c = data.candles[i];
-
-      if (ema8[i] <= 0 || ema13[i] <= 0) continue;
-      if (ema34[i] <= 0 || ema34[i - 5] <= 0) continue;
-      if (ema55[i] <= 0 || ema200[i] <= 0) continue;
-
-      const spy = market.spyByDate.get(c.date);
-      if (!spy || !spy.ema200 || spy.ema200 <= 0) continue;
-      if (spy.close <= spy.ema200) continue;
-
-      if (c.close <= ema55[i]) continue;
-
-      if (!(ema8[i] > ema13[i] && ema34[i] > ema34[i - 5])) continue;
+      const e34 = ema34[i];
+      if (e34 <= 0) continue;
+      if (c.close <= e34) continue;
 
       signals.push({
         ticker: data.ticker,
         date: c.date,
-        direction: 'PUT',
-        score: 0,
+        direction: 'CALL',    // CALL = bull put credit spread (sell puts); PUT = bear call (wrong)
+        score: 50,
       });
     }
 
