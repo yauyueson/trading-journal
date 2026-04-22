@@ -1044,7 +1044,29 @@ export async function simulateDiagonal(
             dailyMtM: curShort.dailyMtM,
           });
           curShort = null;
-          // Task 6 will open a new short cycle here.
+          // Task 6: open a new short cycle on the same day if long is still alive.
+          if (!stop) {
+            const nextChain = await fetchHistoricalChain(token, signal.ticker, d);
+            const nextShortMidDelta = (config.diagShortDeltaRange![0] + config.diagShortDeltaRange![1]) / 2;
+            const nextMatch = findStrikeByDelta(
+              nextChain, nextShortMidDelta, 'Call', config.diagShortDTERange!, 0,
+            );
+            if (nextMatch && nextMatch.row.strike > longStrike) {
+              const nextFill = applyFill(
+                config.fillMode, nextMatch.row.call_mid, nextMatch.row.call_bid, nextMatch.row.call_ask,
+                'sell', config.slippage, nextMatch.row.call_oi, nextMatch.row.dte,
+              );
+              if (Number.isFinite(nextFill.fillPrice) && nextFill.fillPrice > 0) {
+                curShort = {
+                  strike: nextMatch.row.strike, expiry: nextMatch.row.expir_date,
+                  entryDate: d, entryDTE: nextMatch.row.dte,
+                  entryCredit: nextFill.fillPrice,
+                  entryDelta: nextMatch.row.delta ?? nextShortMidDelta,
+                  dailyMtM: [],
+                };
+              }
+            }
+          }
         }
       }
     }

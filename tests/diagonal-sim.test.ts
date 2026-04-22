@@ -285,3 +285,45 @@ describe('Short-cycle state machine', () => {
     expect(trade!.diagonalLegs!.shortCallCycles[0].exitDate).toBe('2023-02-15');
   });
 });
+
+describe('Short-cycle rolling', () => {
+  beforeEach(() => mockChainByDate.clear());
+
+  it('rolls into a new short cycle after the first expires', async () => {
+    // Cycle 1: short 2023-02-17 expiry, OTM expiry.
+    // Cycle 2: short 2023-03-17 expiry, opened on 2023-02-17 right after cycle 1 closes.
+    mockChainByDate.set('2023-01-20', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-10-20', dte: 273, strike: 340, spot: 380, callBid: 44.9, callMid: 45, callAsk: 45.1, delta: 0.75 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-02-17', dte: 28, strike: 400, spot: 380, callBid: 2.4, callMid: 2.5, callAsk: 2.6, delta: 0.25 }),
+    ]);
+    // On 2023-02-17: cycle 1 expires; chain offers a 2023-03-17 short (28 DTE).
+    mockChainByDate.set('2023-02-17', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-02-17', expiry: '2023-10-20', dte: 245, strike: 340, spot: 385, callBid: 49.9, callMid: 50, callAsk: 50.1, delta: 0.78 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-02-17', expiry: '2023-02-17', dte: 0, strike: 400, spot: 385, callBid: 0, callMid: 0, callAsk: 0.05, delta: 0 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-02-17', expiry: '2023-03-17', dte: 28, strike: 405, spot: 385, callBid: 2.0, callMid: 2.1, callAsk: 2.2, delta: 0.25 }),
+    ]);
+    mockChainByDate.set('2023-03-17', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-03-17', expiry: '2023-10-20', dte: 217, strike: 340, spot: 390, callBid: 53, callMid: 53.5, callAsk: 54, delta: 0.80 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-03-17', expiry: '2023-03-17', dte: 0, strike: 405, spot: 390, callBid: 0, callMid: 0, callAsk: 0.05, delta: 0 }),
+    ]);
+    // Time-stop day — 2023-07-24 Monday
+    mockChainByDate.set('2023-07-24', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-07-24', expiry: '2023-10-20', dte: 88, strike: 340, spot: 395, callBid: 58, callMid: 58.5, callAsk: 59, delta: 0.88 }),
+    ]);
+
+    const signal: EntrySignal = { ticker: 'QQQ', date: '2023-01-20', direction: 'CALL', score: 0 };
+    const config: SimConfig = { ...DEFAULT_LEAP_CONFIG, mode: 'DIAGONAL',
+      diagLongDeltaRange: [0.65, 0.80], diagLongDTERange: [240, 300],
+      diagShortDeltaRange: [0.20, 0.30], diagShortDTERange: [25, 45],
+      diagLongProfitTarget: 0.40, diagLongStopLoss: 0.35, diagLongTimeStopDTE: 90,
+      diagShortProfitTarget: 0.50, diagRollTriggerMoneyness: 0.02,
+      monitoringIntervalDays: 1 };
+    const allDates = buildWeekdays('2023-01-20', '2023-07-24');
+
+    const trade = await simulateDiagonal('', signal, config, allDates, '2023-12-31');
+    expect(trade!.diagonalLegs!.shortCallCycles.length).toBeGreaterThanOrEqual(2);
+    expect(trade!.diagonalLegs!.shortCallCycles[0].exitDate).toBe('2023-02-17');
+    expect(trade!.diagonalLegs!.shortCallCycles[1].entryDate).toBe('2023-02-17');
+    expect(trade!.diagonalLegs!.shortCallCycles[1].strike).toBe(405);
+  });
+});
