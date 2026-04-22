@@ -327,3 +327,42 @@ describe('Short-cycle rolling', () => {
     expect(trade!.diagonalLegs!.shortCallCycles[1].strike).toBe(405);
   });
 });
+
+describe('Short assignment', () => {
+  beforeEach(() => mockChainByDate.clear());
+
+  it('short expires ITM → assignment cost caps the short leg P&L', async () => {
+    // Short strike 400 expires with spot 408 → ITM by $8.
+    // Cycle P&L = entryCredit ($2.50) - exitCost ($8.00) = -$5.50/share → -$550.
+    mockChainByDate.set('2023-01-20', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-10-20', dte: 273, strike: 340, spot: 380, callBid: 44.9, callMid: 45, callAsk: 45.1, delta: 0.75 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-02-17', dte: 28, strike: 400, spot: 380, callBid: 2.4, callMid: 2.5, callAsk: 2.6, delta: 0.25 }),
+    ]);
+    mockChainByDate.set('2023-02-17', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-02-17', expiry: '2023-10-20', dte: 245, strike: 340, spot: 408, callBid: 70, callMid: 70.5, callAsk: 71, delta: 0.95 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-02-17', expiry: '2023-02-17', dte: 0, strike: 400, spot: 408, callBid: 7.9, callMid: 8, callAsk: 8.1, delta: 1.0 }),
+    ]);
+    mockChainByDate.set('2023-07-24', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-07-24', expiry: '2023-10-20', dte: 88, strike: 340, spot: 395, callBid: 58, callMid: 58.5, callAsk: 59, delta: 0.88 }),
+    ]);
+
+    const signal: EntrySignal = { ticker: 'QQQ', date: '2023-01-20', direction: 'CALL', score: 0 };
+    const config: SimConfig = { ...DEFAULT_LEAP_CONFIG, mode: 'DIAGONAL',
+      diagLongDeltaRange: [0.65, 0.80], diagLongDTERange: [240, 300],
+      diagShortDeltaRange: [0.20, 0.30], diagShortDTERange: [25, 45],
+      diagLongProfitTarget: 0.40, diagLongStopLoss: 0.35, diagLongTimeStopDTE: 90,
+      diagShortProfitTarget: 0.50, diagRollTriggerMoneyness: 0.02,
+      monitoringIntervalDays: 1,
+      fillMode: 'mid',
+    };
+    const allDates = buildWeekdays('2023-01-20', '2023-07-24');
+
+    const trade = await simulateDiagonal('', signal, config, allDates, '2023-12-31');
+    expect(trade).not.toBeNull();
+    const cycle = trade!.diagonalLegs!.shortCallCycles[0];
+    expect(cycle.exitReason).toBe('ASSIGNED');
+    expect(cycle.exitCost).toBeCloseTo(8, 1);
+    const cyclePnl = 100 * (cycle.entryCredit - cycle.exitCost);
+    expect(cyclePnl).toBeCloseTo(-550, 0);
+  });
+});
