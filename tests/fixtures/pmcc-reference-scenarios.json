@@ -1,0 +1,159 @@
+{
+  "_note": "Hand-calculated from scripts/build-pmcc-oracle-fixture.ts output. P&L computed with fillMode='mid', slippage disabled. Do NOT regenerate without updating expected values. Each scenario documents its arithmetic in arithmetic_notes. All prices are real ORATS chain data from data/option-chains.sqlite (harvest date 2026-04-21).",
+  "_generatedFrom": "2026-04-21 harvest of data/option-chains.sqlite",
+  "_config": {
+    "mode": "DIAGONAL",
+    "diagLongDeltaRange": [0.65, 0.80],
+    "diagShortDeltaRange": [0.20, 0.30],
+    "diagLongProfitTarget": 0.40,
+    "diagLongStopLoss": 0.35,
+    "diagLongTimeStopDTE": 60,
+    "diagShortProfitTarget": 0.50,
+    "diagRollTriggerMoneyness": 0.02,
+    "fillMode": "mid",
+    "slippageEnabled": false
+  },
+  "scenarios": [
+    {
+      "label": "happy",
+      "description": "QQQ bull run: short expires worthless OTM, long exits at maxDate via FORCE_CLOSE. Short[0] closes early via 50% PT; second short cycle added and FORCE_CLOSEd at maxDate.",
+      "entryDate": "2023-03-20",
+      "entrySpot": 305.56,
+      "longExpiry": "2023-12-15",
+      "longStrike": 280,
+      "longDelta": 0.7205,
+      "longEntryDTERange": [230, 310],
+      "shortExpiry": "2023-04-21",
+      "shortStrike": 322,
+      "shortDelta": 0.2428,
+      "shortEntryDTERange": [20, 50],
+      "exitDate": "2023-04-21",
+      "legs": {
+        "longCall": {
+          "entryDate": "2023-03-20",
+          "exitDate": "2023-04-21",
+          "entryPrice": 48.61697419097227,
+          "exitPrice": 53.89489642290465,
+          "exitReason": "FORCE_CLOSE"
+        },
+        "shortCallCycles": [
+          {
+            "strike": 322,
+            "entryDate": "2023-03-20",
+            "exitDate": "2023-04-12",
+            "entryCredit": 2.6777408125962006,
+            "exitCost": 1.0393384105041072,
+            "exitReason": "PROFIT_TARGET"
+          },
+          {
+            "strike": 330,
+            "entryDate": "2023-04-12",
+            "exitDate": "2023-04-21",
+            "entryCredit": 2.7607880190676948,
+            "exitCost": 1.7490608666881675,
+            "exitReason": "FORCE_CLOSE"
+          }
+        ]
+      },
+      "entryLongPremium": 48.61697419097227,
+      "entryShortCredit": 2.6777408125962006,
+      "expectedCombinedPnl": 792.8051786404001,
+      "tolerancePct": 0.005,
+      "arithmetic_notes": "long_pnl = 100 × (53.89490 − 48.61697) = 527.7922; short[0]_pnl = 100 × (2.67774 − 1.03934) = 163.8402; short[1]_pnl = 100 × (2.76079 − 1.74906) = 101.1727; total = 527.7922 + 163.8402 + 101.1727 = 792.8051. Capital = 100 × (48.61697 − 2.67774) = 4593.92. Return = 17.26%."
+    },
+    {
+      "label": "rolled",
+      "description": "QQQ strong bull run: long hits 40% profit target on 2023-05-30 (exitDate from simulator, which is before maxDate=2023-06-09). Short[0] is deeply ITM at long exit (spot 354.65 vs strike 339) and is FORCE_CLOSEd at the same date as the long, producing a large debit. Net P&L is still positive due to the large long gain.",
+      "entryDate": "2023-05-15",
+      "entrySpot": 326.5,
+      "longExpiry": "2024-01-19",
+      "longStrike": 300,
+      "longDelta": 0.7357,
+      "longEntryDTERange": [220, 290],
+      "shortExpiry": "2023-06-16",
+      "shortStrike": 339,
+      "shortDelta": 0.2408,
+      "shortEntryDTERange": [20, 45],
+      "exitDate": "2023-06-09",
+      "legs": {
+        "longCall": {
+          "entryDate": "2023-05-15",
+          "exitDate": "2023-05-30",
+          "entryPrice": 47.07560268515184,
+          "exitPrice": 66.91679810075388,
+          "exitReason": "PROFIT_TARGET"
+        },
+        "shortCallCycles": [
+          {
+            "strike": 339,
+            "entryDate": "2023-05-15",
+            "exitDate": "2023-05-30",
+            "entryCredit": 2.0388357468219094,
+            "exitCost": 14.792445797636946,
+            "exitReason": "FORCE_CLOSE"
+          }
+        ]
+      },
+      "entryLongPremium": 47.07560268515184,
+      "entryShortCredit": 2.0388357468219094,
+      "expectedCombinedPnl": 708.7583648394289,
+      "tolerancePct": 0.005,
+      "arithmetic_notes": "long_pnl = 100 × (66.91680 − 47.07560) = 1984.120; short[0]_pnl = 100 × (2.03884 − 14.79245) = −1275.361; total = 1984.120 − 1275.361 = 708.759. Capital = 100 × (47.07560 − 2.03884) = 4503.68. Return = 15.74%. Note: long exits early (2023-05-30) via PROFIT_TARGET at +42% gain; short is deeply ITM (spot 354.65 vs strike 339) and force-closed at mark price 14.79."
+    },
+    {
+      "label": "drawdown",
+      "description": "QQQ modest rally then stall: short[0] closes at 50% PT; second short also closes at 50% PT; third short entered and FORCE_CLOSEd same day at maxDate (entry=exit, pnl=0). Long exits at maxDate 2023-09-15 via FORCE_CLOSE.",
+      "entryDate": "2023-08-21",
+      "entrySpot": 364.28,
+      "longExpiry": "2024-06-21",
+      "longStrike": 340,
+      "longDelta": 0.7239,
+      "longEntryDTERange": [270, 320],
+      "shortExpiry": "2023-09-15",
+      "shortStrike": 378,
+      "shortDelta": 0.2587,
+      "shortEntryDTERange": [15, 35],
+      "exitDate": "2023-09-15",
+      "legs": {
+        "longCall": {
+          "entryDate": "2023-08-21",
+          "exitDate": "2023-09-15",
+          "entryPrice": 53.044886057124984,
+          "exitPrice": 55.134773903140456,
+          "exitReason": "FORCE_CLOSE"
+        },
+        "shortCallCycles": [
+          {
+            "strike": 378,
+            "entryDate": "2023-08-21",
+            "exitDate": "2023-09-08",
+            "entryCredit": 2.340376153015945,
+            "exitCost": 1.1677256048429057,
+            "exitReason": "PROFIT_TARGET"
+          },
+          {
+            "strike": 382,
+            "entryDate": "2023-09-08",
+            "exitDate": "2023-09-15",
+            "entryCredit": 2.2069785725830644,
+            "exitCost": 0.8566597104659784,
+            "exitReason": "PROFIT_TARGET"
+          },
+          {
+            "strike": 378,
+            "entryDate": "2023-09-15",
+            "exitDate": "2023-09-15",
+            "entryCredit": 1.7391324517305689,
+            "exitCost": 1.7391324517305689,
+            "exitReason": "FORCE_CLOSE"
+          }
+        ]
+      },
+      "entryLongPremium": 53.044886057124984,
+      "entryShortCredit": 2.340376153015945,
+      "expectedCombinedPnl": 461.2857256347631,
+      "tolerancePct": 0.005,
+      "arithmetic_notes": "long_pnl = 100 × (55.13477 − 53.04489) = 208.988; short[0]_pnl = 100 × (2.34038 − 1.16773) = 117.265; short[1]_pnl = 100 × (2.20698 − 0.85666) = 135.032; short[2]_pnl = 100 × (1.73913 − 1.73913) = 0.000 (FORCE_CLOSE same day, entry=exit); total = 208.988 + 117.265 + 135.032 + 0 = 461.285. Capital = 100 × (53.04489 − 2.34038) = 5070.45. Return = 9.10%."
+    }
+  ]
+}
