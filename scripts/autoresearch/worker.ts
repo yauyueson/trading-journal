@@ -523,6 +523,9 @@ export function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
     let longExitReason: OptionExitType = 'TIME_STOP';
     let longExitDate = monitorCap;
     let longExitPremium = longPremium;
+    let longExitBid = longRow.call_bid;
+    let longExitAsk = longRow.call_ask;
+    let longExitOI = longRow.call_oi;
     let longExitDTE = 0;
     let lastSpot = entryStockPrice;
     let stop = false;
@@ -537,6 +540,9 @@ export function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
         const longPnl = 100 * (longMid - longPremium);
         longDailyMtM.push({ date: d, premium: longMid, pnl: longPnl });
         longExitPremium = longMid;
+        longExitBid = longContract.row.call_bid;
+        longExitAsk = longContract.row.call_ask;
+        longExitOI = longContract.row.call_oi;
         longExitDTE = longContract.row.dte;
         lastSpot = longContract.row.stock_price;
 
@@ -633,10 +639,11 @@ export function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
       });
     }
 
-    // Long exit fill (synthetic ±$0.05 spread — matches simulateDiagonal's TODO)
+    // Long exit fill — uses actual bid/ask/OI stashed during monitoring
+    // (gotcha #42 fix, matches simulateDiagonal).
     const longExitFillPrice = applyFill(
-      config.fillMode, longExitPremium, longExitPremium - 0.05, longExitPremium + 0.05,
-      'sell', config.slippage, 0, longExitDTE,
+      config.fillMode, longExitPremium, longExitBid, longExitAsk,
+      'sell', config.slippage, longExitOI, longExitDTE,
     ).fillPrice;
     const longPnl = 100 * (longExitFillPrice - longPremium);
     const shortsPnl = shortCycles.reduce((s, c) => s + 100 * (c.entryCredit - c.exitCost), 0);

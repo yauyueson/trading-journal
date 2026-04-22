@@ -996,6 +996,9 @@ export async function simulateDiagonal(
   let longExitReason: OptionExitType = 'TIME_STOP';
   let longExitDate = monitorCap;
   let longExitPremium = longPremium;
+  let longExitBid = longRow.call_bid;
+  let longExitAsk = longRow.call_ask;
+  let longExitOI = longRow.call_oi;
   let longExitDTE = 0;
   let lastSpot = entryStockPrice;
   let stop = false;
@@ -1010,6 +1013,9 @@ export async function simulateDiagonal(
       const longPnl = 100 * (longMid - longPremium);
       longDailyMtM.push({ date: d, premium: longMid, pnl: longPnl });
       longExitPremium = longMid;
+      longExitBid = longContract.row.call_bid;
+      longExitAsk = longContract.row.call_ask;
+      longExitOI = longContract.row.call_oi;
       longExitDTE = longContract.row.dte;
       lastSpot = longContract.row.stock_price;
 
@@ -1100,11 +1106,11 @@ export async function simulateDiagonal(
   }
 
   // ─── 4. Reconcile P&L and build trade record. ─────────────────────
-  // TODO(Task 5): replace synthetic ±$0.05 spread with actual contract bid/ask from fetchContractOnDate.
-  // See docs/backtest-trust-gotchas.md gotcha #42. Understates exit slippage materially.
+  // Long-exit fill uses actual bid/ask/OI stashed during the monitoring loop
+  // (gotcha #42 fix, Phase E1 Task 5).
   const longExitFillPrice = applyFill(
-    config.fillMode, longExitPremium, longExitPremium - 0.05, longExitPremium + 0.05,
-    'sell', config.slippage, 0, longExitDTE,
+    config.fillMode, longExitPremium, longExitBid, longExitAsk,
+    'sell', config.slippage, longExitOI, longExitDTE,
   ).fillPrice;
   const longPnl = 100 * (longExitFillPrice - longPremium);
   const shortsPnl = shortCycles.reduce((s, c) => s + 100 * (c.entryCredit - c.exitCost), 0);

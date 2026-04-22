@@ -803,20 +803,32 @@ Bugs in this section are not in the simulator — they're in the *search process
 
 ---
 
-### 42. simulateDiagonal long-exit uses synthetic ±$0.05 spread (2026-04-21, Phase E1 Task 4)
+### 42. simulateDiagonal long-exit used synthetic ±$0.05 spread (found 2026-04-21, Phase E1 Task 4)
 
-`simulateDiagonal`'s long-leg exit fill uses `applyFill` against a synthetic
+**Fixed:** 2026-04-22 (Phase E1 Task 5 / Phase F0 prep)
+**Files:** `src/lib/backtest/option-sim.ts` `simulateDiagonal`; `scripts/autoresearch/worker.ts` `makeDiagonalEvaluator`; test `tests/diagonal-sim.test.ts`
+
+**What:** `simulateDiagonal`'s long-leg exit fill used `applyFill` against a synthetic
 bid/ask of `mid ± $0.05` instead of fetching the actual contract's bid/ask
 at the exit date. On deep ITM LEAPs with realistic $2-$4 bid/ask, this
-understates exit slippage materially (PMCC pnl biased upward).
+understated exit slippage materially (PMCC pnl biased upward).
 
-**Status**: accepted limitation for Task 4 happy-path; Task 5 will route
-the long-exit fill through `fetchContractOnDate` and use actual bid/ask.
+**Fix:** during the monitoring loop, stash the long contract's `call_bid`,
+`call_ask`, and `call_oi` alongside `longExitPremium`. In section 4's
+reconciliation, route those real values into `applyFill` instead of the
+synthetic ±$0.05 spread. Same fix applied to the sync
+`makeDiagonalEvaluator` in `scripts/autoresearch/worker.ts`. New test
+`long-exit fill honors contract bid/ask, not synthetic ±$0.05 spread`
+locks in the fix with a wide-spread fixture ($10 bid/ask).
 
-**Impact until fixed**: Any autoresearch numbers generated from
-`simulateDiagonal` before the Task 5 fix are optimistically biased on the
-long-leg exit. Do NOT run the PMCC autoresearch campaign against a
-build at this commit.
+**Impact of the pre-fix simulator on sealed artifacts:** PMCC QQQ pt50
+(sealed 2026-04-22 at attempt 48) ran under the biased simulator.
+Expected PnL bias: +$1-2 per 100 shares at each long exit, scaling with
+bid/ask spread width. The Phase F0 clean-slate declaration explicitly
+demotes pre-fix PMCC seals from "currently validated" to "historical
+evidence only" for this reason. Bull-call-debit QQQ (also sealed
+2026-04-22) is **not affected** — it uses `simulateDebitSpread`, which
+already sourced real bid/ask.
 
 ---
 
