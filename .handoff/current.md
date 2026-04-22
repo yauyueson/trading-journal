@@ -1,54 +1,51 @@
 ---
-task: Phase E2b — PMCC QQQ longPT=0.50 confirmation campaign
-stage: pre-reg
+task: Phase E8.c — DTE5 SPY (direction-corrected)
+stage: sealed
 owner: claude
 from: user
-timestamp: 2026-04-22T03:30:00-04:00
+timestamp: 2026-04-22T10:00:00-04:00
 ---
 
 ## Objective
 
-Second sealed-holdout autoresearch campaign on PMCC QQQ. Phase E2a sealed FAIL on 2026-04-22 with the decision-rule winner `pmcc-tight-short` (holdoutSpyIR −0.234). That campaign surfaced an anomaly: the non-winning variant `pmcc-high-pt` (longPT=0.50 instead of 0.40) passed all declared adoption criteria (holdoutSpyIR +0.259). Under sealed-holdout discipline we cannot retroactively pick the anomaly as the winner — we must pre-register it as a named anchor and re-seal.
-
-Phase E2b does exactly that, with two neighboring profit-target values as robustness checks.
+Complete the DTE5 generalization retest by running SPY with corrected direction (bull put, not bear call). Phase E5 had the direction bug. This closes the loop on "DTE5 generalization to other ETFs/tickers".
 
 ## Pre-Registration
 
-**Hypothesis**: A PMCC on QQQ with long-leg profit target 0.50 (close the LEAP at +50% on premium) earns positive risk-adjusted alpha over SPY in the 2024-01-22 → 2026-02-28 holdout window. The higher profit target vs Phase E2a's 0.40 is expected to let the LEAP ride more of QQQ's 2024-2025 rally before closing, which — combined with the rolled short-call theta — produces positive SPY-excess return unlike the lower-PT siblings. Robustness check: adjacent profit targets 0.45 and 0.55 should show similar direction if the 0.50 pass was real edge and not a single-point artifact.
+**Hypothesis**: A DTE5 bull put credit spread on SPY (short put δ ≈ 0.30, long put δ ≈ 0.20, DTE 2-7, SL 2.5× credit, trailing lock 50/50, hold-to-expiry, entry: close > EMA34) earns positive risk-adjusted alpha over SPY in the 2024-01-22 → 2026-02-28 holdout window. This is the most circular of the tests (entry on SPY benchmark, compared to SPY benchmark), so the question is specifically "can DTE5 extract theta above SPY's beta return in SPY's own bullish regimes".
 
-**Config Grid**: 3 configs, all sharing base PMCC structure (long δ [0.70, 0.80], long DTE [240, 300], short δ [0.20, 0.30], short DTE [30, 45], long SL 0.35, long TS DTE 90, short PT 0.50, roll trigger 0.02):
+**Config Grid**: 4 variants on SPY:
 
-| Variant | Long Profit Target | Role |
-|---|---:|---|
-| pmcc-pt50-anchor | 0.50 | Sealed candidate |
-| pmcc-pt45 | 0.45 | Robustness check (diagnostic only) |
-| pmcc-pt55 | 0.55 | Robustness check (diagnostic only) |
+| Variant | Short δ | Width |
+|---|---:|---:|
+| dte5-spy-v2-anchor | 0.30 | $5 |
+| dte5-spy-v2-tight | 0.25 | $5 |
+| dte5-spy-v2-wide | 0.35 | $5 |
+| dte5-spy-v2-w10 | 0.30 | $10 |
 
-Always-in entry. Fill model: bidask with dynamic slippage. Defined in `scripts/autoresearch/strategy-pmcc-qqq.ts`.
+**Decision Rule**: Winner = variant with highest **selection-window combinedSharpe**. Seal winner.
 
-**Decision Rule**: The sealed candidate is the NAMED ANCHOR `pmcc-pt50-anchor`, regardless of whether it has the highest selection combinedSharpe. This is a confirmation-of-effect design. The two neighbor variants (pt45, pt55) are diagnostic — their sealed-holdout metrics are reported in the seal ceremony's context but are NOT the sealed candidate. Only `pmcc-pt50-anchor` gets a seal file.
-
-**Adoption Threshold**: The sealed anchor's row must satisfy ALL of the following:
-- `holdoutSpyIR ≥ 0` (core structural edge over SPY)
-- `holdoutSharpe ≥ 0.3` (absolute risk-adjusted floor)
-- `oosSharpe ≥ 0.8` (selection-window floor, mirrors DTE5's sealed bar)
-- `passesStability = true` (holdout/OOS Sharpe ratio ∈ [0.5, 2.0])
-- `passesStatConsistency = true` (bootstrap SE vs Mertens SE ratio ≤ 5.0x)
-- `deflatedSharpeMertens > 0` (Bailey-López de Prado multiple-testing correction)
-
-Robustness context (NOT gating; reviewer judgement):
-- If pt45 AND pt55 BOTH have positive holdoutSpyIR → robust edge (accept anchor's seal)
-- If anchor passes but both neighbors fail → single-point artifact, anchor seal is confirmed but flagged as fragile in the seal file's footer
-- If anchor passes and exactly one neighbor passes → partial robustness, flagged
+**Adoption Threshold**: holdoutSpyIR ≥ 0, holdoutSharpe ≥ 0.3, oosSharpe ≥ 0.8, passesStability, passesStatConsistency, deflatedSharpeMertens > 0.
 
 **Holdout Window Hash**: sha256:4bde4339e7cb212ab59bb19dc727321d020d410f7b3e394c5389a16c06e7dbc9
 
 **Declared Env Overrides**: none
 
+## Sealed outcome (post-run)
+
+dte5-spy-v2-wide sealed FAIL at holdoutSpyIR −1.01 (holdoutSharpe 0.45 passes floor; OOS Sharpe 0.92 + OOS PnL +$4,999 profitable). Same window-artifact pattern as Phase E7/E8a/E8b. See `docs/holdout-evaluations/2026-04-22-ce851216a353.md`.
+
+## Context (sealed series complete as of 2026-04-22)
+
+- PMCC pt50 QQQ: sealed PASS (+0.26 SPY IR) — **only adoption candidate**
+- DTE5 QQQ v2 re-val: sealed FAIL (holdoutSpyIR −0.76), Phase E7
+- DTE5 megacap v2: sealed FAIL (holdoutSpyIR −1.10), Phase E8a
+- DTE5 IWM v2: sealed FAIL (holdoutSpyIR −0.62), Phase E8b
+- DTE5 SPY v2: sealed FAIL (holdoutSpyIR −1.01), Phase E8c
+
+Pattern: all 4 DTE5 candidates profitable in absolute terms but lose to SPY in 2024-2026 Mag7-rally window. Only PMCC's LEAP+rolled-short structure captures enough upside to beat SPY.
+
 ## References
 
-- Phase E2a seal (FAIL): `docs/holdout-evaluations/2026-04-22-b6947551239a.md`
-- Phase E2a pre-reg: same window's prior block (hash b6947551239a...)
-- Design spec: `docs/superpowers/specs/2026-04-22-pmcc-qqq-campaign-design.md`
-- Sealed-holdout protocol: `docs/sealed-holdout.md`
-- Strategy file: `scripts/autoresearch/strategy-pmcc-qqq.ts` (blob will change vs E2a)
+- Strategy file: `scripts/autoresearch/strategy-dte5-spy-v2.ts`
+- Superseded Phase E5 seal: `docs/holdout-evaluations/2026-04-22-c458a47e4651.md`

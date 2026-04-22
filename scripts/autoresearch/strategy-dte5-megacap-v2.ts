@@ -1,0 +1,95 @@
+/**
+ * DTE5 Mega-cap v2 — Phase E8 (direction bug fixed).
+ *
+ * Phase E3 (PR #10) had direction='PUT' which maps to BEAR CALL credit
+ * spread, not BULL PUT. Numbers were catastrophic because bear calls
+ * fight a bull market. This v2 uses direction='CALL' (bull put) +
+ * simplified canonical DTE5 signal (close > EMA34 only).
+ *
+ * Tests DTE5 bull put credit spread as a first-come-first-served
+ * portfolio across {AAPL, MSFT, NVDA, GOOG}.
+ *
+ * Run via:
+ *   AUTORESEARCH_LEADERBOARD_SUFFIX=dte5-megacap-v2 \
+ *   AUTORESEARCH_STRATEGY_FILENAME=strategy-dte5-megacap-v2.ts \
+ *   npx tsx scripts/autoresearch/runner.ts
+ */
+import type { StrategyDefinition, TickerDataBundle, MarketContext, EntrySignal, SimConfig, ConfigVariant } from './types';
+
+const MEGACAP_TICKERS = ['AAPL', 'MSFT', 'NVDA', 'GOOG'];
+
+const DTE5_MEGACAP_V2_ANCHOR: SimConfig = {
+  mode: 'CREDIT_SPREAD',
+  leapDeltaRange: [0.65, 0.80], leapDTERange: [180, 365], leapProfitTarget: 0.50,
+  leapStopLoss: 0.30, leapTimeStopDTE: 90,
+  creditShortDelta: 0.30,
+  creditSpreadWidth: 5,
+  creditDTERange: [2, 7],
+  creditProfitTarget: 1.0,
+  creditStopLossMultiple: 2.5,
+  creditTimeStopDTE: 0,
+  trailingActivatePct: 0.50,
+  trailingFloorPct: 0.50,
+  monitoringIntervalDays: 1,
+  minIVRank: 0,
+  fillMode: 'bidask',
+  slippage: {
+    baseMultiplier: 1.0, oiPivot: 500, oiExponent: 0.5,
+    dtePivot: 30, dteExponent: 0.5,
+  },
+};
+
+const configVariants: ConfigVariant[] = [
+  { name: 'dte5-megacap-v2-tight', overrides: { creditShortDelta: 0.25 } },
+  { name: 'dte5-megacap-v2-wide',  overrides: { creditShortDelta: 0.35 } },
+  { name: 'dte5-megacap-v2-w10',   overrides: { creditSpreadWidth: 10 } },
+];
+
+export const strategy: StrategyDefinition = {
+  name: 'dte5-megacap-v2-anchor',
+  tickers: MEGACAP_TICKERS,
+
+  portfolio: {
+    maxPositions: 1,
+    maxPerTicker: 1,
+    startingCapital: 10000,
+  },
+
+  wfa: {
+    trainWindowDays: 252,
+    forwardStepDays: 126,
+    purgeGapDays: 10,
+    mode: 'rolling' as const,
+    holdoutCount: 5,
+  },
+
+  buildConfig(_ticker, _direction): SimConfig {
+    return DTE5_MEGACAP_V2_ANCHOR;
+  },
+
+  generateSignals(data: TickerDataBundle, _market: MarketContext): EntrySignal[] {
+    // Canonical DTE5 bull signal: close > EMA34.
+    // direction='CALL' maps to PUT credit spread (bull put). This was the bug in v1.
+    const signals: EntrySignal[] = [];
+    const ema34 = data.emas.get(34)!;
+    const n = data.candles.length;
+
+    for (let i = 55; i < n; i++) {
+      const c = data.candles[i];
+      const e34 = ema34[i];
+      if (e34 <= 0) continue;
+      if (c.close <= e34) continue;
+
+      signals.push({
+        ticker: data.ticker,
+        date: c.date,
+        direction: 'CALL',  // CALL = bull put credit spread
+        score: 50,
+      });
+    }
+
+    return signals;
+  },
+
+  configVariants,
+};
