@@ -1,48 +1,52 @@
 ---
-task: Autoresearch Session 6 — Strategy Optimization
-stage: done
+task: Phase E2 — PMCC QQQ first sealed autoresearch campaign
+stage: pre-reg
 owner: claude
 from: user
-timestamp: 2026-04-10T00:00:00-04:00
+timestamp: 2026-04-22T00:00:00-04:00
 ---
 
 ## Objective
-Run autonomous trading strategy research loop (session 3, iterations 1-15 of 50 total).
-Improve combined Sharpe beyond session 2 champion of 0.798.
 
-## Work Done
+First sealed-holdout autoresearch campaign on the post-overhaul codebase for the PMCC (Poor Man's Covered Call) family on QQQ. The prior 30-ticker LEAP CALL family was confirmed dead on 2026-04-22 by bit-exact replicate of the 2026-04-18 naive-baseline diagnostic. PMCC is structurally different — theta from rolled short calls flips the holdout P&L regime vs naked long CALLs.
 
-### claude — 2026-04-10 (Session 6)
-Ran 20 iterations (attempts #86-105). Advanced champion from 1.326 → 1.396.
+Engine: `simulateDiagonal` (Phase E1, merged as PR #7 f344f55) plus sync `makeDiagonalEvaluator` in the autoresearch worker (Phase E2 Step 1, commit a34238d + c5b8563). Strategy: `scripts/autoresearch/strategy-pmcc-qqq.ts`.
 
-**New champion: momentum-ma-touch-leap-weekly-v19 (Combined Sharpe 1.396)**
-- Standalone Sharpe: 1.361
-- MaxDD: 23.6% | WR: 62.3% | Trades: 183 | Holdout IR: 0.560
-- Signal: price 0-5% above rising EMA34, price > EMA55 (regime filter), CALL LEAP
-- Config: delta [0.70,0.80], DTE [180,270], TP 25%, SL 30%, interval=3, timeStop=60
-- Universe: IWM + AAPL MSFT GOOG AMZN META + JPM GS + COST UNH NFLX (no GLD)
+## Pre-Registration
 
-**Key discoveries this session:**
-- maxPositions=4 (was 3): +0.027 Sharpe, -6.2% MaxDD via Kelly 25% sizing
-- Remove GLD: +0.038 Sharpe — commodity ETF doesn't fit equity momentum signal
-- EMA55 regime filter: +0.002 Sharpe, filters downtrend false entries
-- DTE axis confirmed: [180,270] is optimal, [270,365] too few trades
-- SL axis confirmed: 30% optimal, 25% too tight, 35% too wide
-- Signal band confirmed: 0-5% optimal, 3% reduces diversification
+**Hypothesis**: A systematic PMCC on QQQ — long deep-ITM LEAP (delta ~0.75, DTE ~270), rolled short OTM calls (delta ~0.25, DTE ~30-45) — earns positive risk-adjusted alpha over buy-and-hold SPY across the 2024-01-22 → 2026-02-28 holdout window. Primary edge mechanism: short-call theta captured during QQQ's drawdown and sideways periods cushions the long-leg beta exposure enough to beat SPY's risk-adjusted return.
 
-**Note on runner:** NUM_WORKERS reduced to 4 to avoid intermittent segfaults.
+**Config Grid**: 4 pre-registered variants, defined in `scripts/autoresearch/strategy-pmcc-qqq.ts`:
 
-**Dead ends found (15 iterations):**
-- EMA55 MA-touch: INVALID holdout -0.28
-- Wider MA band (0-8%), asymmetric band (-2% to +5%): INVALID
-- NVDA+TSLA tickers: INVALID (displace better signals)
-- TL 35/35, 50/50 variations: worse quality or INVALID
-- Delta 0.22/0.27: worse than 0.25
-- maxPositions 4: good holdout ratio (1.16) but lower combined
-- direction=PUT, TL50/50+DTE45-60: simulator crashes
+| Variant | Long δ | Long DTE | Long PT | Long SL | Long TS | Short δ | Short DTE | Short PT |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| pmcc-qqq-anchor (base) | [0.70, 0.80] | [240, 300] | 40% | 35% | 90 | [0.20, 0.30] | [30, 45] | 50% |
+| pmcc-tight-short | [0.70, 0.80] | [240, 300] | 40% | 35% | 90 | [0.25, 0.35] | [25, 35] | 50% |
+| pmcc-loose-short | [0.70, 0.80] | [240, 300] | 40% | 35% | 90 | [0.15, 0.25] | [35, 50] | 50% |
+| pmcc-high-pt | [0.70, 0.80] | [240, 300] | 50% | 35% | 90 | [0.20, 0.30] | [30, 45] | 50% |
 
-## Artifacts Modified
-- scripts/autoresearch/strategy.ts (reset to v18 champion)
-- scripts/autoresearch/best-strategy.ts (updated to v18)
-- scripts/autoresearch/journal.md (iterations 2-15 + session wrap-up)
-- scripts/autoresearch/leaderboard.json (updated by runner)
+Roll trigger: `DTE ≤ 2 AND |spot/strike − 1| ≤ 0.02`. Fill model: `bidask` with dynamic slippage (inherited from DEFAULT_LEAP_CONFIG).
+
+**Decision Rule**: Winner = variant with highest **selection-window combinedSharpe** (no holdout peek). Runner writes one row per variant to `data/leaderboard-full-pmcc-qqq.json`; agent-visible `scripts/autoresearch/leaderboard-pmcc-qqq.json` has holdout metrics stripped. The winner's row is then sealed via `scripts/evaluate-holdout.ts` against this pre-reg block's hash.
+
+**Adoption Threshold**: The sealed winner's row must satisfy ALL of the following:
+- `holdoutSpyIR ≥ 0` (core structural edge over SPY)
+- `holdoutSharpe ≥ 0.3` (absolute risk-adjusted floor)
+- `oosSharpe ≥ 0.8` (selection-window floor, mirrors DTE5's sealed bar)
+- `passesStability = true` (holdout/OOS Sharpe ratio ∈ [0.5, 2.0])
+- `passesStatConsistency = true` (bootstrap SE vs Mertens SE ratio ≤ 5.0x)
+- `deflatedSharpeMertens > 0` (Bailey-López de Prado multiple-testing correction)
+
+Any violation → seal file records FAIL, no live adoption, move on to next structurally-different candidate (likely PUT LEAPs or LEAP diagonals on a basket).
+
+**Holdout Window Hash**: `sha256:4bde4339e7cb212ab59bb19dc727321d020d410f7b3e394c5389a16c06e7dbc9` (matches `config/dataset-manifest.json` as of 2026-04-22)
+
+**Declared Env Overrides**: none.
+
+## References
+
+- Design spec: `docs/superpowers/specs/2026-04-22-pmcc-qqq-campaign-design.md`
+- Phase E1 implementation plan: `docs/superpowers/plans/2026-04-22-phase-e1-simulate-diagonal.md`
+- Phase E1 PR: https://github.com/yauyueson/trading-journal/pull/7 (merged at f344f55)
+- Sealed-holdout protocol: `docs/sealed-holdout.md`
+- Prior LEAP family post-mortem: `scripts/autoresearch/diagnose-naive-baseline-results.md` (2026-04-18)
