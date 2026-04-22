@@ -1,29 +1,27 @@
 ---
-task: Phase E8.b — DTE5 IWM (direction-corrected)
+task: Phase E8.c — DTE5 SPY (direction-corrected)
 stage: pre-reg
 owner: claude
 from: user
-timestamp: 2026-04-22T09:30:00-04:00
+timestamp: 2026-04-22T10:00:00-04:00
 ---
 
 ## Objective
 
-Re-test DTE5 on IWM after fixing the direction-encoding bug that affected Phase E4. Canonical DTE5 signal (close > EMA34) + direction='CALL' (bull put credit spread).
-
-Phase E4's sealed FAIL (holdoutSpyIR -0.43) tested bear call, not bull put. This phase provides the actual IWM generalization test.
+Complete the DTE5 generalization retest by running SPY with corrected direction (bull put, not bear call). Phase E5 had the direction bug. This closes the loop on "DTE5 generalization to other ETFs/tickers".
 
 ## Pre-Registration
 
-**Hypothesis**: A DTE5 bull put credit spread on IWM (short put δ ≈ 0.30, long put δ ≈ 0.20, DTE 2-7, SL 2.5× credit, trailing lock 50/50, hold-to-expiry, entry: close > EMA34) earns positive risk-adjusted alpha over SPY in the 2024-01-22 → 2026-02-28 holdout window. Prediction based on DTE5-QQQ-v2 (sealed FAIL −0.76) and DTE5-megacap-v2 (sealed FAIL −1.10): IWM likely shows the same "profitable in absolute, loses to SPY" pattern.
+**Hypothesis**: A DTE5 bull put credit spread on SPY (short put δ ≈ 0.30, long put δ ≈ 0.20, DTE 2-7, SL 2.5× credit, trailing lock 50/50, hold-to-expiry, entry: close > EMA34) earns positive risk-adjusted alpha over SPY in the 2024-01-22 → 2026-02-28 holdout window. This is the most circular of the tests (entry on SPY benchmark, compared to SPY benchmark), so the question is specifically "can DTE5 extract theta above SPY's beta return in SPY's own bullish regimes".
 
-**Config Grid**: 4 variants on IWM:
+**Config Grid**: 4 variants on SPY:
 
 | Variant | Short δ | Width |
 |---|---:|---:|
-| dte5-iwm-v2-anchor | 0.30 | $5 |
-| dte5-iwm-v2-tight | 0.25 | $5 |
-| dte5-iwm-v2-wide | 0.35 | $5 |
-| dte5-iwm-v2-w10 | 0.30 | $10 |
+| dte5-spy-v2-anchor | 0.30 | $5 |
+| dte5-spy-v2-tight | 0.25 | $5 |
+| dte5-spy-v2-wide | 0.35 | $5 |
+| dte5-spy-v2-w10 | 0.30 | $10 |
 
 **Decision Rule**: Winner = variant with highest **selection-window combinedSharpe**. Seal winner.
 
@@ -33,8 +31,15 @@ Phase E4's sealed FAIL (holdoutSpyIR -0.43) tested bear call, not bull put. This
 
 **Declared Env Overrides**: none
 
+## Context
+
+- DTE5 QQQ v2 sealed FAIL (holdoutSpyIR -0.76), Phase E7
+- DTE5 megacap v2 sealed FAIL (holdoutSpyIR -1.10), Phase E8a
+- DTE5 IWM v2 sealed FAIL (holdoutSpyIR -0.62), Phase E8b
+- Pattern: profitable absolute returns, lose to SPY in 2024-2026
+- This phase completes the generalization test
+
 ## References
 
-- Strategy file: `scripts/autoresearch/strategy-dte5-iwm-v2.ts`
-- Superseded Phase E4 seal: `docs/holdout-evaluations/2026-04-22-1ac17d7b29c4.md`
-- Direction bug memo: `memory/dte5-qqq-sealed-fail-window-artifact.md`
+- Strategy file: `scripts/autoresearch/strategy-dte5-spy-v2.ts`
+- Superseded Phase E5 seal: `docs/holdout-evaluations/2026-04-22-c458a47e4651.md`
