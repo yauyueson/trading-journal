@@ -39,7 +39,7 @@ Roll trigger: `DTE ≤ 2 AND |spot/strike − 1| ≤ 0.02`. Fill model: `bidask`
 
 Any violation → seal file records FAIL, no live adoption, move on to next structurally-different candidate (likely PUT LEAPs or LEAP diagonals on a basket).
 
-**Holdout Window Hash**: `sha256:4bde4339e7cb212ab59bb19dc727321d020d410f7b3e394c5389a16c06e7dbc9` (matches `config/dataset-manifest.json` as of 2026-04-22)
+**Holdout Window Hash**: sha256:4bde4339e7cb212ab59bb19dc727321d020d410f7b3e394c5389a16c06e7dbc9
 
 **Declared Env Overrides**: none.
 
