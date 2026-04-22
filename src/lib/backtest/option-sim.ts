@@ -997,7 +997,7 @@ export async function simulateDiagonal(
     if (stop) break;
 
     // Mark long leg.
-    const longContract = await fetchContractOnDate(token, signal.ticker, d, longStrike, longExpiry, 'Call');
+    const longContract = await fetchContractOnDate(token, signal.ticker, d, longStrike, longExpiry, 'Call', config.useDirectLookup ?? true);
     if (longContract) {
       const longMid = longContract.mid;
       const longPnl = 100 * (longMid - longPremium);
@@ -1014,7 +1014,7 @@ export async function simulateDiagonal(
 
     // Mark short leg + check for expiry close.
     if (curShort) {
-      const shortContract = await fetchContractOnDate(token, signal.ticker, d, curShort.strike, curShort.expiry, 'Call');
+      const shortContract = await fetchContractOnDate(token, signal.ticker, d, curShort.strike, curShort.expiry, 'Call', config.useDirectLookup ?? true);
       if (shortContract) {
         const shortMid = shortContract.mid;
         const shortPnl = 100 * (curShort.entryCredit - shortMid);
@@ -1040,7 +1040,7 @@ export async function simulateDiagonal(
 
   // ─── 3. Settle any open short at long exit. ───────────────────────
   if (curShort) {
-    const closingContract = await fetchContractOnDate(token, signal.ticker, longExitDate, curShort.strike, curShort.expiry, 'Call');
+    const closingContract = await fetchContractOnDate(token, signal.ticker, longExitDate, curShort.strike, curShort.expiry, 'Call', config.useDirectLookup ?? true);
     const buyBackCost = closingContract ? applyFill(
       config.fillMode, closingContract.mid, closingContract.row.call_bid, closingContract.row.call_ask,
       'buy', config.slippage, closingContract.row.call_oi, closingContract.row.dte,
@@ -1056,6 +1056,8 @@ export async function simulateDiagonal(
   }
 
   // ─── 4. Reconcile P&L and build trade record. ─────────────────────
+  // TODO(Task 5): replace synthetic ±$0.05 spread with actual contract bid/ask from fetchContractOnDate.
+  // See docs/backtest-trust-gotchas.md gotcha #42. Understates exit slippage materially.
   const longExitFillPrice = applyFill(
     config.fillMode, longExitPremium, longExitPremium - 0.05, longExitPremium + 0.05,
     'sell', config.slippage, 0, longExitDTE,
@@ -1063,7 +1065,9 @@ export async function simulateDiagonal(
   const longPnl = 100 * (longExitFillPrice - longPremium);
   const shortsPnl = shortCycles.reduce((s, c) => s + 100 * (c.entryCredit - c.exitCost), 0);
   const totalPnl = longPnl + shortsPnl;
-  const capital = Math.max(1, (longPremium - shortCycles[0].entryCredit) * 100);
+  // Guard: shortCycles may be empty when Task 6 adds mid-trade short exits before reconciliation.
+  const firstCredit = shortCycles.length > 0 ? shortCycles[0].entryCredit : 0;
+  const capital = Math.max(1, (longPremium - firstCredit) * 100);
 
   const combinedDaily: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
   const longByDate = new Map(longDailyMtM.map(r => [r.date, r]));
@@ -1113,9 +1117,12 @@ async function fetchContractOnDate(
   strike: number,
   expiry: string,
   type: 'Call' | 'Put',
+  useDirectLookup = true,
 ): Promise<{ row: ChainRow; mid: number } | null> {
-  const direct = findContractDirect(ticker, date, strike, expiry, type);
-  if (direct) return { row: direct.row, mid: direct.mid };
+  if (useDirectLookup) {
+    const direct = findContractDirect(ticker, date, strike, expiry, type);
+    if (direct) return { row: direct.row, mid: direct.mid };
+  }
   const chain = await fetchHistoricalChain(token, ticker, date);
   if (chain.length === 0) return null;
   const match = findContract(chain, strike, expiry, type);

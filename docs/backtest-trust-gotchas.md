@@ -803,6 +803,23 @@ Bugs in this section are not in the simulator — they're in the *search process
 
 ---
 
+### 42. simulateDiagonal long-exit uses synthetic ±$0.05 spread (2026-04-21, Phase E1 Task 4)
+
+`simulateDiagonal`'s long-leg exit fill uses `applyFill` against a synthetic
+bid/ask of `mid ± $0.05` instead of fetching the actual contract's bid/ask
+at the exit date. On deep ITM LEAPs with realistic $2-$4 bid/ask, this
+understates exit slippage materially (PMCC pnl biased upward).
+
+**Status**: accepted limitation for Task 4 happy-path; Task 5 will route
+the long-exit fill through `fetchContractOnDate` and use actual bid/ask.
+
+**Impact until fixed**: Any autoresearch numbers generated from
+`simulateDiagonal` before the Task 5 fix are optimistically biased on the
+long-leg exit. Do NOT run the PMCC autoresearch campaign against a
+build at this commit.
+
+---
+
 ## Appendix: adding a new gotcha
 
 When you find a new gotcha, add an entry with this shape:
