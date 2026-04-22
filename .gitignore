@@ -43,3 +43,7 @@ chain-cache.db
 # meaningful across sessions.
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Autoresearch runner state. The trial ledger is runtime audit state
+# (Phase 0.b.7 provenance), not tracked research artifact.
+data/trial-ledger/
