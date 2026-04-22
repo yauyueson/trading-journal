@@ -1,9 +1,39 @@
 ---
 task: Phase E11 — Bull call debit QQQ singleton (dsrM fix re-pre-reg)
-stage: pre-reg
+stage: done
 owner: claude
 from: user
 timestamp: 2026-04-22T13:00:00-04:00
+completed: 2026-04-22T22:27:14-00:00
+---
+
+## Work Done
+
+Sealed `bull-call-debit-qqq-solo-anchor` PASS (seal ceremony) but FAIL on full 6-criterion adoption threshold — dsrM still −0.265 (vs E10's −0.263). **The singleton-N=1 hypothesis is falsified.** Bailey-López de Prado deflation uses GLOBAL `attemptNumber` (106 at seal time), not per-campaign variant count, so N=1 vs N=4 makes essentially no difference in cumulative deflation.
+
+### Campaign E summary (all phases)
+- E7: DTE5 QQQ reval → sealed FAIL (holdoutSpyIR −0.76) — live paper strategy invalidated
+- E8a/b/c: DTE5 megacap/IWM/SPY corrected-direction → all sealed FAIL (window artifact)
+- E9: Long call QQQ → sealed FAIL
+- E10: Bull call debit QQQ 4-variant → sealed PASS (seal), all 4 beat SPY in holdout, 1/6 fail on dsrM
+- E11: Bull call debit QQQ singleton → same result as E10, singleton hypothesis falsified
+
+### Current validated strategies
+- PMCC QQQ pt50 — sealed PASS (6/6 criteria), needs $5K+ per position
+- Bull call debit QQQ wide — qualified PASS (5/6, fails dsrM), $2K-friendly
+
+### Next
+No more strategy sweeps until 2026-10-20 holdout refresh (resets attempt counter). Next engine work: Phase 0.c.9 CBOE BXM replication (from `.claude/plans/calm-weaving-wilkinson.md`) — simulator correctness, not strategy search, so doesn't burn attempts.
+
+## Artifacts
+- `scripts/autoresearch/strategy-bull-call-debit-qqq-solo.ts` — singleton strategy file
+- `docs/audit-rows/e95532f9b3a3499e858d6efb0ce60332bffcbcf7b5471e1abe4ce9036b6bda23.jsonl` — audit row
+- `docs/holdout-evaluations/2026-04-22-e95532f9b3a3.md` — seal file with rebuttal footer
+- Branch: `phase-e11-bull-call-debit-solo` (pushed, no PR opened)
+
+---
+_Original pre-reg retained below for provenance._
+
 ---
 
 ## Objective
