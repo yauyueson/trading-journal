@@ -55,7 +55,7 @@ import { applyFill, applySpreadFill } from './slippage';
 
 // ── Types ────────────────────────────────────────────────
 
-export type OptionMode = 'LEAP' | 'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SWING_LONG_OPTION' | 'BUY_WRITE';
+export type OptionMode = 'LEAP' | 'CREDIT_SPREAD' | 'DEBIT_SPREAD' | 'SWING_LONG_OPTION' | 'BUY_WRITE' | 'DIAGONAL';
 export type OptionExitType =
   | 'PROFIT_TARGET'
   | 'STOP_LOSS'
@@ -123,6 +123,34 @@ export interface OptionTrade {
     assigned: boolean;       // true if call finished ITM and shares were called away at K
     pnl: number;             // shares × (exitPrice − entryPrice)
     dailyMtM?: { date: string; price: number; pnl: number }[];
+  };
+  // Phase E1: PMCC (diagonal) only. Long LEAP call + one or more rolled
+  // short OTM call cycles. Unset for non-DIAGONAL trades.
+  diagonalLegs?: {
+    longCall: {
+      strike: number;
+      entryPrice: number;      // premium paid per contract
+      exitPrice: number;       // premium received at exit (or intrinsic if expired)
+      entryDate: string;
+      exitDate: string;
+      entryDelta?: number;
+      entryIV?: number;
+      entryDTE?: number;
+      exitDTE?: number;
+      dailyMtM?: { date: string; premium: number; pnl: number }[];
+    };
+    shortCallCycles: Array<{
+      strike: number;
+      entryDate: string;
+      exitDate: string;
+      entryCredit: number;     // premium received per contract (+)
+      exitCost: number;        // premium paid to close per contract (0 if expired OTM)
+      entryDTE?: number;
+      exitDTE?: number;
+      entryDelta?: number;
+      exitReason: 'EXPIRATION' | 'PROFIT_TARGET' | 'PIN_ROLL' | 'FORCE_CLOSE' | 'ASSIGNED';
+      dailyMtM?: { date: string; premium: number; pnl: number }[];
+    }>;
   };
 }
 
@@ -269,6 +297,16 @@ export interface SimConfig {
     type: 'macro' | 'trend' | 'momentum' | 'any';
     graceDays?: number; // 0 = immediate, 3 = 3-day confirmation
   };
+  // Phase E1: PMCC (long LEAP + rolled short OTM). All required for mode='DIAGONAL'.
+  diagLongDeltaRange?: [number, number];      // e.g., [0.65, 0.80]
+  diagLongDTERange?: [number, number];        // e.g., [240, 300]
+  diagShortDeltaRange?: [number, number];     // e.g., [0.20, 0.30]
+  diagShortDTERange?: [number, number];       // e.g., [30, 45]
+  diagLongProfitTarget?: number;              // e.g., 0.40 (= +40% on long premium)
+  diagLongStopLoss?: number;                  // e.g., 0.35 (= -35% on long premium)
+  diagLongTimeStopDTE?: number;               // e.g., 90 (close long when DTE ≤ this)
+  diagShortProfitTarget?: number;             // e.g., 0.50 (close short at 50% of credit)
+  diagRollTriggerMoneyness?: number;          // e.g., 0.02 (roll when |spot/K - 1| ≤ this with DTE ≤ 2)
 }
 
 export const DEFAULT_LEAP_CONFIG: SimConfig = {
