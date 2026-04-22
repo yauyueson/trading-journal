@@ -77,6 +77,13 @@ parentPort!.on('message', async (msg: EvalWorkItem | { type: 'exit' }) => {
       );
     }
 
+    if (item.config.mode === 'DIAGONAL') {
+      throw new Error(
+        "DIAGONAL requires simulateDiagonal — not dispatchable via eval-worker. " +
+        "DIAGONAL is a PMCC-campaign mode; call simulateDiagonal directly from the PMCC runner.",
+      );
+    }
+
     const trades: OptionTrade[] = [];
 
     for (const ts of allSignals) {

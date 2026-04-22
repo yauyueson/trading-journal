@@ -43,3 +43,19 @@ describe('Type extensions for DIAGONAL', () => {
     expect(c.mode).toBe('DIAGONAL');
   });
 });
+
+describe('Dispatcher guards', () => {
+  it('eval-worker source contains explicit throw on DIAGONAL', async () => {
+    const fs = await import('fs/promises');
+    const src = await fs.readFile('scripts/eval-worker.ts', 'utf-8');
+    expect(src).toMatch(/mode === 'DIAGONAL'/);
+    expect(src).toMatch(/DIAGONAL requires simulateDiagonal/);
+  });
+
+  it('autoresearch/worker source contains explicit throw on DIAGONAL', async () => {
+    const fs = await import('fs/promises');
+    const src = await fs.readFile('scripts/autoresearch/worker.ts', 'utf-8');
+    expect(src).toMatch(/mode === 'DIAGONAL'/);
+    expect(src).toMatch(/DIAGONAL requires simulateDiagonal/);
+  });
+});
