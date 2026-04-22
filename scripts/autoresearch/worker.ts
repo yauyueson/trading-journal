@@ -21,6 +21,7 @@ import {
   computeOptionAnalytics,
   type EntrySignal, type SimConfig, type OptionTrade, type OptionExitType,
 } from '../../src/lib/backtest/option-sim';
+import { applyFill } from '../../src/lib/backtest/slippage';
 import {
   buildLeapTrade,
   checkLeapExitType,
@@ -104,10 +105,7 @@ function makeStandardEvaluator(config: SimConfig): TradeEvaluator {
   }
 
   if (config.mode === 'DIAGONAL') {
-    throw new Error(
-      "DIAGONAL requires simulateDiagonal — not dispatchable via autoresearch worker. " +
-      "DIAGONAL is a PMCC-campaign mode; call simulateDiagonal directly from the PMCC runner.",
-    );
+    return makeDiagonalEvaluator(config);
   }
 
   // Fallback: null (no trade)
@@ -404,6 +402,263 @@ function makeLeapEvaluator(config: SimConfig): TradeEvaluator {
       endExitType, dailyMtM,
       { entrySlippage, exitSlippage, fillMode: config.fillMode },
     );
+  };
+}
+
+// ── Diagonal (PMCC) Evaluator ────────────────────────────
+//
+// Synchronous mirror of simulateDiagonal (option-sim.ts). Uses chain-cache
+// directly so it satisfies the synchronous TradeEvaluator contract.
+// Known duplication: intentional, same pattern as makeLeapEvaluator.
+
+function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
+  return (signal, _config, allDates, maxDate) => {
+    // Validate config
+    if (!config.diagLongDeltaRange || !config.diagLongDTERange
+        || !config.diagShortDeltaRange || !config.diagShortDTERange
+        || config.diagLongProfitTarget == null || config.diagLongStopLoss == null
+        || config.diagLongTimeStopDTE == null || config.diagShortProfitTarget == null
+        || config.diagRollTriggerMoneyness == null) {
+      throw new Error('makeDiagonalEvaluator requires all diag* config fields');
+    }
+
+    // Entry: pick long + short from cached chain
+    const entryChain = getCachedChain(signal.ticker, signal.date);
+    if (entryChain.length === 0) return null;
+
+    const longMidDelta = (config.diagLongDeltaRange[0] + config.diagLongDeltaRange[1]) / 2;
+    const longMatch = findStrikeByDelta(entryChain, longMidDelta, 'Call', config.diagLongDTERange, 0);
+    if (!longMatch) return null;
+
+    const shortMidDelta = (config.diagShortDeltaRange[0] + config.diagShortDeltaRange[1]) / 2;
+    const shortMatch = findStrikeByDelta(entryChain, shortMidDelta, 'Call', config.diagShortDTERange, 0);
+    if (!shortMatch || shortMatch.row.strike <= longMatch.row.strike) return null;
+
+    const longRow = longMatch.row;
+    const shortRow = shortMatch.row;
+    const entryStockPrice = longRow.stock_price;
+
+    // Mirror simulateDiagonal's entry fills
+    const longPremium = applyFill(
+      config.fillMode, longRow.call_mid, longRow.call_bid, longRow.call_ask,
+      'buy', config.slippage, longRow.call_oi, longRow.dte,
+    ).fillPrice;
+    const shortCredit = applyFill(
+      config.fillMode, shortRow.call_mid, shortRow.call_bid, shortRow.call_ask,
+      'sell', config.slippage, shortRow.call_oi, shortRow.dte,
+    ).fillPrice;
+
+    if (!Number.isFinite(longPremium) || longPremium <= 0) return null;
+    if (!Number.isFinite(shortCredit) || shortCredit <= 0) return null;
+
+    const longExpiry = longRow.expir_date;
+    const longStrike = longRow.strike;
+
+    // Active short cycle state + closed cycles list
+    type ShortCycle = NonNullable<OptionTrade['diagonalLegs']>['shortCallCycles'][number];
+    const shortCycles: ShortCycle[] = [];
+    let curShort: {
+      strike: number; expiry: string; entryDate: string; entryDTE: number;
+      entryCredit: number; entryDelta: number;
+      dailyMtM: { date: string; premium: number; pnl: number }[];
+    } | null = {
+      strike: shortRow.strike, expiry: shortRow.expir_date, entryDate: signal.date,
+      entryDTE: shortRow.dte, entryCredit: shortCredit, entryDelta: shortRow.delta ?? shortMidDelta,
+      dailyMtM: [],
+    };
+
+    const longDailyMtM: { date: string; premium: number; pnl: number }[] = [];
+
+    // Monitoring loop
+    const monitorCap = longExpiry < maxDate ? longExpiry : maxDate;
+    const startIdx = allDates.indexOf(signal.date);
+    if (startIdx < 0) return null;
+
+    const monitorDates: string[] = [];
+    const interval = config.monitoringIntervalDays || 1;
+    let dayCount = 0;
+    for (let i = startIdx + 1; i < allDates.length; i++) {
+      if (allDates[i] > monitorCap) break;
+      dayCount++;
+      if (dayCount % interval === 0) monitorDates.push(allDates[i]);
+    }
+
+    let longExitReason: OptionExitType = 'TIME_STOP';
+    let longExitDate = monitorCap;
+    let longExitPremium = longPremium;
+    let longExitDTE = 0;
+    let lastSpot = entryStockPrice;
+    let stop = false;
+
+    for (const d of monitorDates) {
+      if (stop) break;
+
+      // Mark long leg
+      const longContract = findContractDirect(signal.ticker, d, longStrike, longExpiry, 'Call');
+      if (longContract) {
+        const longMid = longContract.mid;
+        const longPnl = 100 * (longMid - longPremium);
+        longDailyMtM.push({ date: d, premium: longMid, pnl: longPnl });
+        longExitPremium = longMid;
+        longExitDTE = longContract.row.dte;
+        lastSpot = longContract.row.stock_price;
+
+        const longRet = (longMid - longPremium) / longPremium;
+        if (longRet >= config.diagLongProfitTarget) { longExitReason = 'PROFIT_TARGET'; longExitDate = d; stop = true; }
+        else if (longRet <= -config.diagLongStopLoss) { longExitReason = 'STOP_LOSS'; longExitDate = d; stop = true; }
+        else if (longContract.row.dte <= config.diagLongTimeStopDTE) { longExitReason = 'TIME_STOP'; longExitDate = d; stop = true; }
+      }
+
+      // Mark + close short cycle
+      if (curShort) {
+        const shortContract = findContractDirect(signal.ticker, d, curShort.strike, curShort.expiry, 'Call');
+        if (shortContract) {
+          const shortMid = shortContract.mid;
+          const shortPnl = 100 * (curShort.entryCredit - shortMid);
+          curShort.dailyMtM.push({ date: d, premium: shortMid, pnl: shortPnl });
+
+          // Mirror decideShortAction inline (sync)
+          let action: 'hold' | 'close_pt' | 'close_pin' | 'close_expired' = 'hold';
+          if (d >= curShort.expiry) {
+            action = 'close_expired';
+          } else {
+            const moneyness = Math.abs(shortContract.row.stock_price / curShort.strike - 1);
+            if (shortContract.row.dte <= 2 && moneyness <= config.diagRollTriggerMoneyness!) {
+              action = 'close_pin';
+            } else {
+              const pnlPct = (curShort.entryCredit - shortMid) / curShort.entryCredit;
+              if (pnlPct >= config.diagShortProfitTarget!) action = 'close_pt';
+            }
+          }
+
+          if (action !== 'hold') {
+            let exitCost: number;
+            let exitReason: ShortCycle['exitReason'];
+            if (action === 'close_expired') {
+              const assigned = shortContract.row.stock_price >= curShort.strike;
+              exitCost = assigned ? Math.max(0, shortContract.row.stock_price - curShort.strike) : 0;
+              exitReason = assigned ? 'ASSIGNED' : 'EXPIRATION';
+            } else {
+              exitCost = applyFill(
+                config.fillMode, shortContract.row.call_mid, shortContract.row.call_bid, shortContract.row.call_ask,
+                'buy', config.slippage, shortContract.row.call_oi, shortContract.row.dte,
+              ).fillPrice;
+              exitReason = action === 'close_pt' ? 'PROFIT_TARGET' : 'PIN_ROLL';
+            }
+            shortCycles.push({
+              strike: curShort.strike, entryDate: curShort.entryDate, exitDate: d,
+              entryCredit: curShort.entryCredit, exitCost,
+              entryDTE: curShort.entryDTE, exitDTE: shortContract.row.dte,
+              entryDelta: curShort.entryDelta,
+              exitReason,
+              dailyMtM: curShort.dailyMtM,
+            });
+            curShort = null;
+
+            // Rolling: open a new short if long is still alive
+            if (!stop) {
+              const nextChain = getCachedChainFiltered(signal.ticker, d, undefined, config.diagShortDTERange!);
+              const nextMatch = findStrikeByDelta(nextChain, shortMidDelta, 'Call', config.diagShortDTERange!, 0);
+              if (nextMatch && nextMatch.row.strike > longStrike) {
+                const nextCredit = applyFill(
+                  config.fillMode, nextMatch.row.call_mid, nextMatch.row.call_bid, nextMatch.row.call_ask,
+                  'sell', config.slippage, nextMatch.row.call_oi, nextMatch.row.dte,
+                ).fillPrice;
+                if (Number.isFinite(nextCredit) && nextCredit > 0) {
+                  curShort = {
+                    strike: nextMatch.row.strike, expiry: nextMatch.row.expir_date,
+                    entryDate: d, entryDTE: nextMatch.row.dte,
+                    entryCredit: nextCredit, entryDelta: nextMatch.row.delta ?? shortMidDelta,
+                    dailyMtM: [],
+                  };
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Settle open short at long exit
+    if (curShort) {
+      const closingContract = findContractDirect(signal.ticker, longExitDate, curShort.strike, curShort.expiry, 'Call');
+      const buyBackCost = closingContract ? applyFill(
+        config.fillMode, closingContract.mid, closingContract.row.call_bid, closingContract.row.call_ask,
+        'buy', config.slippage, closingContract.row.call_oi, closingContract.row.dte,
+      ).fillPrice : 0;
+      shortCycles.push({
+        strike: curShort.strike, entryDate: curShort.entryDate, exitDate: longExitDate,
+        entryCredit: curShort.entryCredit, exitCost: buyBackCost,
+        entryDTE: curShort.entryDTE, exitDTE: closingContract?.row.dte ?? 0,
+        entryDelta: curShort.entryDelta,
+        exitReason: 'FORCE_CLOSE',
+        dailyMtM: curShort.dailyMtM,
+      });
+    }
+
+    // Long exit fill (synthetic ±$0.05 spread — matches simulateDiagonal's TODO)
+    const longExitFillPrice = applyFill(
+      config.fillMode, longExitPremium, longExitPremium - 0.05, longExitPremium + 0.05,
+      'sell', config.slippage, 0, longExitDTE,
+    ).fillPrice;
+    const longPnl = 100 * (longExitFillPrice - longPremium);
+    const shortsPnl = shortCycles.reduce((s, c) => s + 100 * (c.entryCredit - c.exitCost), 0);
+    const totalPnl = longPnl + shortsPnl;
+    const firstCredit = shortCycles.length > 0 ? shortCycles[0].entryCredit : 0;
+    const capital = Math.max(1, (longPremium - firstCredit) * 100);
+
+    // Build combined dailyMtM with realized short P&L accumulation (mirrors Task 10 fix)
+    const combinedDaily: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
+    const longByDate = new Map(longDailyMtM.map(r => [r.date, r]));
+    const openShortMarkByDate = new Map<string, number>();
+    const realizations = shortCycles.map(c => ({ date: c.exitDate, pnl: 100 * (c.entryCredit - c.exitCost) }));
+    realizations.sort((a, b) => a.date.localeCompare(b.date));
+    for (const c of shortCycles) {
+      for (const m of c.dailyMtM ?? []) {
+        if (m.date < c.exitDate) openShortMarkByDate.set(m.date, m.pnl);
+      }
+    }
+    const realizedAsOf = (d: string): number => {
+      let cum = 0;
+      for (const r of realizations) {
+        if (r.date <= d) cum += r.pnl;
+        else break;
+      }
+      return cum;
+    };
+    for (const [d, lrow] of longByDate) {
+      const openMark = openShortMarkByDate.get(d) ?? 0;
+      const realized = realizedAsOf(d);
+      combinedDaily.push({ date: d, spreadMid: lrow.premium, unrealizedPnl: lrow.pnl + openMark + realized });
+    }
+
+    const holdDays = allDates.filter(d => d > signal.date && d <= longExitDate).length;
+
+    const trade: OptionTrade = {
+      ticker: signal.ticker, mode: 'DIAGONAL', direction: 'CALL',
+      entryDate: signal.date, entrySignalScore: signal.score,
+      strike: longStrike, expiry: longExpiry,
+      entryDTE: longRow.dte, entryPrice: longPremium - shortCredit,
+      entryDelta: longRow.delta ?? longMidDelta, entryIV: longRow.call_iv, entryStockPrice,
+      exitDate: longExitDate, exitPrice: longExitFillPrice, exitDTE: longExitDTE,
+      exitStockPrice: lastSpot,
+      exitType: longExitReason,
+      pnl: totalPnl, pnlPct: totalPnl / capital,
+      holdDays,
+      fillMode: config.fillMode,
+      dailyMtM: combinedDaily,
+      diagonalLegs: {
+        longCall: {
+          strike: longStrike, entryPrice: longPremium, exitPrice: longExitFillPrice,
+          entryDate: signal.date, exitDate: longExitDate,
+          entryDelta: longRow.delta ?? longMidDelta, entryIV: longRow.call_iv,
+          entryDTE: longRow.dte, exitDTE: longExitDTE,
+          dailyMtM: longDailyMtM,
+        },
+        shortCallCycles: shortCycles,
+      },
+    };
+    return trade;
   };
 }
 

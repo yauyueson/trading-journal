@@ -124,11 +124,11 @@ describe('Dispatcher guards', () => {
     expect(src).toMatch(/DIAGONAL requires simulateDiagonal/);
   });
 
-  it('autoresearch/worker source contains explicit throw on DIAGONAL', async () => {
+  it('autoresearch/worker source dispatches DIAGONAL to makeDiagonalEvaluator', async () => {
     const fs = await import('fs/promises');
     const src = await fs.readFile('scripts/autoresearch/worker.ts', 'utf-8');
     expect(src).toMatch(/mode === 'DIAGONAL'/);
-    expect(src).toMatch(/DIAGONAL requires simulateDiagonal/);
+    expect(src).toMatch(/makeDiagonalEvaluator/);
   });
 });
 
