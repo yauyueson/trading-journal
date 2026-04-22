@@ -2070,6 +2070,7 @@ export function computeOptionAnalytics(
       // at entry, so it reduces capital at risk; using full long premium
       // would overstate by ~5-8% on a typical PMCC.
       const longPrem = t.diagonalLegs?.longCall.entryPrice ?? 0;
+      // Invariant: simulateDiagonal always populates shortCallCycles[0] at entry.
       const firstShortCredit = t.diagonalLegs?.shortCallCycles[0]?.entryCredit ?? 0;
       const netDebit = Math.max(0, longPrem - firstShortCredit);
       return netDebit * 100;

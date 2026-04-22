@@ -187,8 +187,10 @@ function capitalAtRisk(trade: OptionTrade): number {
   }
   if (trade.mode === 'DIAGONAL') {
     const longPrem = trade.diagonalLegs?.longCall.entryPrice ?? 0;
+    // Invariant: simulateDiagonal always populates shortCallCycles[0] at entry.
     const firstShortCredit = trade.diagonalLegs?.shortCallCycles[0]?.entryCredit ?? 0;
-    return Math.max(0, (longPrem - firstShortCredit) * 100);
+    const netDebit = Math.max(0, longPrem - firstShortCredit);
+    return netDebit * 100;
   }
   return Math.max(0, trade.entryPrice * 100);
 }
