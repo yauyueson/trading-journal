@@ -1,6 +1,6 @@
 ---
 task: Phase E8.c — DTE5 SPY (direction-corrected)
-stage: pre-reg
+stage: sealed
 owner: claude
 from: user
 timestamp: 2026-04-22T10:00:00-04:00
@@ -31,13 +31,19 @@ Complete the DTE5 generalization retest by running SPY with corrected direction 
 
 **Declared Env Overrides**: none
 
-## Context
+## Sealed outcome (post-run)
 
-- DTE5 QQQ v2 sealed FAIL (holdoutSpyIR -0.76), Phase E7
-- DTE5 megacap v2 sealed FAIL (holdoutSpyIR -1.10), Phase E8a
-- DTE5 IWM v2 sealed FAIL (holdoutSpyIR -0.62), Phase E8b
-- Pattern: profitable absolute returns, lose to SPY in 2024-2026
-- This phase completes the generalization test
+dte5-spy-v2-wide sealed FAIL at holdoutSpyIR −1.01 (holdoutSharpe 0.45 passes floor; OOS Sharpe 0.92 + OOS PnL +$4,999 profitable). Same window-artifact pattern as Phase E7/E8a/E8b. See `docs/holdout-evaluations/2026-04-22-ce851216a353.md`.
+
+## Context (sealed series complete as of 2026-04-22)
+
+- PMCC pt50 QQQ: sealed PASS (+0.26 SPY IR) — **only adoption candidate**
+- DTE5 QQQ v2 re-val: sealed FAIL (holdoutSpyIR −0.76), Phase E7
+- DTE5 megacap v2: sealed FAIL (holdoutSpyIR −1.10), Phase E8a
+- DTE5 IWM v2: sealed FAIL (holdoutSpyIR −0.62), Phase E8b
+- DTE5 SPY v2: sealed FAIL (holdoutSpyIR −1.01), Phase E8c
+
+Pattern: all 4 DTE5 candidates profitable in absolute terms but lose to SPY in 2024-2026 Mag7-rally window. Only PMCC's LEAP+rolled-short structure captures enough upside to beat SPY.
 
 ## References
 

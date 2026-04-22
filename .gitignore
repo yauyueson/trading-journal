@@ -44,6 +44,9 @@ chain-cache.db
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 
-# Autoresearch runner state.
+# Autoresearch runner state. The trial ledger is runtime audit state
+# (Phase 0.b.7 provenance), not tracked research artifact. The runner lock
+# is held during a run; its presence makes `git status --porcelain` non-empty
+# which would poison repoGitSha=null and render the run's rows unsealable.
 data/trial-ledger/
 data/autoresearch-runner.lock
