@@ -304,7 +304,7 @@ export interface SimConfig {
   diagShortDTERange?: [number, number];       // e.g., [30, 45]
   diagLongProfitTarget?: number;              // e.g., 0.40 (= +40% on long premium)
   diagLongStopLoss?: number;                  // e.g., 0.35 (= -35% on long premium)
-  diagLongTimeStopDTE?: number;               // e.g., 90 (close long when DTE ≤ this)
+  diagLongTimeStopDTE?: number;              // e.g., 90 (close long when DTE < this)
   diagShortProfitTarget?: number;             // e.g., 0.50 (close short at 50% of credit)
   diagRollTriggerMoneyness?: number;          // e.g., 0.02 (roll when |spot/K - 1| ≤ this with DTE ≤ 2)
 }

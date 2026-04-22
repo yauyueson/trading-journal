@@ -2,7 +2,7 @@
  * Phase E1 — unit tests for simulateDiagonal (PMCC).
  * Mocks chain-cache so tests are self-contained.
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { OptionMode, OptionTrade, SimConfig } from '../src/lib/backtest/option-sim';
 
 describe('Type extensions for DIAGONAL', () => {
