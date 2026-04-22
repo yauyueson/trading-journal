@@ -1121,6 +1121,7 @@ export async function simulateDiagonal(
 
 type ShortActionDecision = 'hold' | 'close_pt' | 'close_pin' | 'close_expired';
 
+/** Caller (simulateDiagonal) validates diag* fields are non-null before invocation. */
 function decideShortAction(
   dateStr: string,
   curShort: { strike: number; expiry: string; entryCredit: number },
@@ -1129,12 +1130,14 @@ function decideShortAction(
 ): ShortActionDecision {
   if (dateStr >= curShort.expiry) return 'close_expired';
   const moneyness = Math.abs(row.stock_price / curShort.strike - 1);
-  if (row.dte <= 2 && moneyness <= (config.diagRollTriggerMoneyness ?? 0.02)) {
+  // Pin risk takes precedence over PT: imminent assignment management
+  // is more urgent than capturing a profit target.
+  if (row.dte <= 2 && moneyness <= config.diagRollTriggerMoneyness!) {
     return 'close_pin';
   }
   const shortMid = row.call_mid;
   const pnlPct = (curShort.entryCredit - shortMid) / curShort.entryCredit;
-  if (pnlPct >= (config.diagShortProfitTarget ?? 0.50)) return 'close_pt';
+  if (pnlPct >= config.diagShortProfitTarget!) return 'close_pt';
   return 'hold';
 }
 
