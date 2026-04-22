@@ -2065,6 +2065,15 @@ export function computeOptionAnalytics(
       const shares = t.stockLeg?.shares ?? 100;
       return stockEntry * shares;
     }
+    if (t.mode === 'DIAGONAL') {
+      // PMCC capital = net debit × 100. Short premium is real cash received
+      // at entry, so it reduces capital at risk; using full long premium
+      // would overstate by ~5-8% on a typical PMCC.
+      const longPrem = t.diagonalLegs?.longCall.entryPrice ?? 0;
+      const firstShortCredit = t.diagonalLegs?.shortCallCycles[0]?.entryCredit ?? 0;
+      const netDebit = Math.max(0, longPrem - firstShortCredit);
+      return netDebit * 100;
+    }
     return t.entryPrice * 100; // premium paid per contract
   });
   const totalCapitalDeployed = capitalPerTrade.reduce((s, c) => s + c, 0);
