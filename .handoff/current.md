@@ -37,6 +37,10 @@ All share: long δ [0.70, 0.80], long DTE [240, 300], long SL 0.35, long TS DTE 
 - `passesStatConsistency = true`
 - `deflatedSharpeMertens > 0`
 
+**Holdout Window Hash**: sha256:4bde4339e7cb212ab59bb19dc727321d020d410f7b3e394c5389a16c06e7dbc9
+
+**Declared Env Overrides**: none
+
 ## Capital scaling caveat
 
 HOOD and PLTR grew materially during the evaluation window:
@@ -54,10 +58,6 @@ Adoption implication: a PASS here says the PMCC structure has edge on these unde
 - DTE5 mega-cap (AAPL/MSFT/NVDA/GOOG): sealed FAIL catastrophic (PR #10) — individual names broken for DTE5
 - DTE5 IWM: sealed FAIL (PR #9) — profitable but lags SPY
 - DTE5 SPY: sealed FAIL (PR #11) — decision-rule winner fails; w10 variant interesting
-
-**Holdout Window Hash**: sha256:4bde4339e7cb212ab59bb19dc727321d020d410f7b3e394c5389a16c06e7dbc9
-
-**Declared Env Overrides**: none
 
 ## References
 
