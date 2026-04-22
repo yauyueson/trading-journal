@@ -1020,19 +1020,31 @@ export async function simulateDiagonal(
         const shortPnl = 100 * (curShort.entryCredit - shortMid);
         curShort.dailyMtM.push({ date: d, premium: shortMid, pnl: shortPnl });
 
-        // Happy path: only handle expiry close. Task 5/6/7 add other actions.
-        if (d >= curShort.expiry) {
-          const assigned = shortContract.row.stock_price >= curShort.strike;
-          const exitCost = assigned ? Math.max(0, shortContract.row.stock_price - curShort.strike) : 0;
+        // State machine: expiry, profit-target, pin-risk. Task 6 adds rolling.
+        const action = decideShortAction(d, curShort, shortContract.row, config);
+        if (action !== 'hold') {
+          let exitCost: number;
+          let exitReason: 'EXPIRATION' | 'PROFIT_TARGET' | 'PIN_ROLL' | 'FORCE_CLOSE' | 'ASSIGNED';
+          if (action === 'close_expired') {
+            const assigned = shortContract.row.stock_price >= curShort.strike;
+            exitCost = assigned ? Math.max(0, shortContract.row.stock_price - curShort.strike) : 0;
+            exitReason = assigned ? 'ASSIGNED' : 'EXPIRATION';
+          } else {
+            exitCost = applyFill(
+              config.fillMode, shortContract.row.call_mid, shortContract.row.call_bid, shortContract.row.call_ask,
+              'buy', config.slippage, shortContract.row.call_oi, shortContract.row.dte,
+            ).fillPrice;
+            exitReason = action === 'close_pt' ? 'PROFIT_TARGET' : 'PIN_ROLL';
+          }
           shortCycles.push({
             strike: curShort.strike, entryDate: curShort.entryDate, exitDate: d,
             entryCredit: curShort.entryCredit, exitCost,
-            entryDTE: curShort.entryDTE, exitDTE: 0, entryDelta: curShort.entryDelta,
-            exitReason: assigned ? 'ASSIGNED' : 'EXPIRATION',
+            entryDTE: curShort.entryDTE, exitDTE: shortContract.row.dte, entryDelta: curShort.entryDelta,
+            exitReason,
             dailyMtM: curShort.dailyMtM,
           });
           curShort = null;
-          // Task 6 will open next cycle here; Task 4 leaves slot empty.
+          // Task 6 will open a new short cycle here.
         }
       }
     }
@@ -1103,6 +1115,27 @@ export async function simulateDiagonal(
       shortCallCycles: shortCycles,
     },
   };
+}
+
+// ─── Short-cycle decision helper (Phase E1 Task 5) ──────────────────────────
+
+type ShortActionDecision = 'hold' | 'close_pt' | 'close_pin' | 'close_expired';
+
+function decideShortAction(
+  dateStr: string,
+  curShort: { strike: number; expiry: string; entryCredit: number },
+  row: ChainRow,
+  config: SimConfig,
+): ShortActionDecision {
+  if (dateStr >= curShort.expiry) return 'close_expired';
+  const moneyness = Math.abs(row.stock_price / curShort.strike - 1);
+  if (row.dte <= 2 && moneyness <= (config.diagRollTriggerMoneyness ?? 0.02)) {
+    return 'close_pin';
+  }
+  const shortMid = row.call_mid;
+  const pnlPct = (curShort.entryCredit - shortMid) / curShort.entryCredit;
+  if (pnlPct >= (config.diagShortProfitTarget ?? 0.50)) return 'close_pt';
+  return 'hold';
 }
 
 /**

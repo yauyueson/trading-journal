@@ -220,3 +220,68 @@ describe('simulateDiagonal happy path', () => {
     expect(trade!.exitType).toBe('TIME_STOP');
   });
 });
+
+describe('Short-cycle state machine', () => {
+  beforeEach(() => mockChainByDate.clear());
+
+  it('closes short at profit target (50% of credit)', async () => {
+    // Short call decays from $2.50 → $1.20 (52% profit) on day 2023-02-03.
+    mockChainByDate.set('2023-01-20', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-10-20', dte: 273, strike: 340, spot: 380, callBid: 44.9, callMid: 45, callAsk: 45.1, delta: 0.75 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-02-17', dte: 28, strike: 400, spot: 380, callBid: 2.4, callMid: 2.5, callAsk: 2.6, delta: 0.25 }),
+    ]);
+    mockChainByDate.set('2023-02-03', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-02-03', expiry: '2023-10-20', dte: 259, strike: 340, spot: 381, callBid: 46, callMid: 46.5, callAsk: 47, delta: 0.76 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-02-03', expiry: '2023-02-17', dte: 14, strike: 400, spot: 381, callBid: 1.1, callMid: 1.2, callAsk: 1.3, delta: 0.15 }),
+    ]);
+    // Long time-stop day — use 2023-07-24 (Monday, DTE=88 for 2023-10-20 long)
+    mockChainByDate.set('2023-07-24', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-07-24', expiry: '2023-10-20', dte: 88, strike: 340, spot: 395, callBid: 58, callMid: 58.5, callAsk: 59, delta: 0.88 }),
+    ]);
+
+    const signal: EntrySignal = { ticker: 'QQQ', date: '2023-01-20', direction: 'CALL', score: 0 };
+    const config: SimConfig = { ...DEFAULT_LEAP_CONFIG, mode: 'DIAGONAL',
+      fillMode: 'mid',  // mid-fill so entryCredit = call_mid exactly, keeping pnlPct math clean
+      diagLongDeltaRange: [0.65, 0.80], diagLongDTERange: [240, 300],
+      diagShortDeltaRange: [0.20, 0.30], diagShortDTERange: [25, 45],
+      diagLongProfitTarget: 0.40, diagLongStopLoss: 0.35, diagLongTimeStopDTE: 90,
+      diagShortProfitTarget: 0.50, diagRollTriggerMoneyness: 0.02,
+      monitoringIntervalDays: 1 };
+    const allDates = buildWeekdays('2023-01-20', '2023-07-24');
+
+    const trade = await simulateDiagonal('', signal, config, allDates, '2023-12-31');
+    expect(trade).not.toBeNull();
+    expect(trade!.diagonalLegs!.shortCallCycles).toHaveLength(1);
+    expect(trade!.diagonalLegs!.shortCallCycles[0].exitReason).toBe('PROFIT_TARGET');
+    expect(trade!.diagonalLegs!.shortCallCycles[0].exitDate).toBe('2023-02-03');
+  });
+
+  it('closes short via pin-risk rule when spot within 2% of strike at DTE ≤ 2', async () => {
+    // Short strike 400, spot 398 (0.5% away), DTE 2 on 2023-02-15.
+    mockChainByDate.set('2023-01-20', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-10-20', dte: 273, strike: 340, spot: 380, callBid: 44.9, callMid: 45, callAsk: 45.1, delta: 0.75 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-02-17', dte: 28, strike: 400, spot: 380, callBid: 2.4, callMid: 2.5, callAsk: 2.6, delta: 0.25 }),
+    ]);
+    mockChainByDate.set('2023-02-15', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-02-15', expiry: '2023-10-20', dte: 247, strike: 340, spot: 398, callBid: 60, callMid: 60.5, callAsk: 61, delta: 0.92 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-02-15', expiry: '2023-02-17', dte: 2, strike: 400, spot: 398, callBid: 0.80, callMid: 0.85, callAsk: 0.90, delta: 0.38 }),
+    ]);
+    mockChainByDate.set('2023-07-24', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-07-24', expiry: '2023-10-20', dte: 88, strike: 340, spot: 395, callBid: 58, callMid: 58.5, callAsk: 59, delta: 0.88 }),
+    ]);
+
+    const signal: EntrySignal = { ticker: 'QQQ', date: '2023-01-20', direction: 'CALL', score: 0 };
+    const config: SimConfig = { ...DEFAULT_LEAP_CONFIG, mode: 'DIAGONAL',
+      fillMode: 'mid',  // mid-fill keeps entry credit = call_mid; pin-risk fires on DTE/moneyness only
+      diagLongDeltaRange: [0.65, 0.80], diagLongDTERange: [240, 300],
+      diagShortDeltaRange: [0.20, 0.30], diagShortDTERange: [25, 45],
+      diagLongProfitTarget: 0.40, diagLongStopLoss: 0.35, diagLongTimeStopDTE: 90,
+      diagShortProfitTarget: 0.50, diagRollTriggerMoneyness: 0.02,
+      monitoringIntervalDays: 1 };
+    const allDates = buildWeekdays('2023-01-20', '2023-07-24');
+
+    const trade = await simulateDiagonal('', signal, config, allDates, '2023-12-31');
+    expect(trade!.diagonalLegs!.shortCallCycles[0].exitReason).toBe('PIN_ROLL');
+    expect(trade!.diagonalLegs!.shortCallCycles[0].exitDate).toBe('2023-02-15');
+  });
+});
