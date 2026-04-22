@@ -43,3 +43,7 @@ chain-cache.db
 # meaningful across sessions.
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Autoresearch runner state.
+data/trial-ledger/
+data/autoresearch-runner.lock
