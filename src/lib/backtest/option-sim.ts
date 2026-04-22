@@ -1115,12 +1115,44 @@ export async function simulateDiagonal(
 
   const combinedDaily: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
   const longByDate = new Map(longDailyMtM.map(r => [r.date, r]));
-  const shortByDate = new Map<string, number>();
+
+  // Per-date map of the currently-open short cycle's unrealized P&L (mark).
+  const openShortMarkByDate = new Map<string, number>();
+  // Realized short P&L from cycles that have closed AS OF or BEFORE each date.
+  // Each cycle contributes 100 × (entryCredit - exitCost), banked on its exitDate.
+  type CycleRealization = { date: string; pnl: number };
+  const realizations: CycleRealization[] = shortCycles.map(c => ({
+    date: c.exitDate,
+    pnl: 100 * (c.entryCredit - c.exitCost),
+  }));
+  realizations.sort((a, b) => a.date.localeCompare(b.date));
+
+  // Build the mark-only map from the ACTIVE cycle's dailyMtM at each date
+  // (a cycle's mark contributes only while the cycle is open — i.e., on dates
+  // at or after its entryDate and strictly before its exitDate).
   for (const c of shortCycles) {
-    for (const m of c.dailyMtM ?? []) shortByDate.set(m.date, m.pnl);
+    for (const m of c.dailyMtM ?? []) {
+      if (m.date < c.exitDate) openShortMarkByDate.set(m.date, m.pnl);
+    }
   }
+
+  function realizedAsOf(d: string): number {
+    let cum = 0;
+    for (const r of realizations) {
+      if (r.date <= d) cum += r.pnl;
+      else break;
+    }
+    return cum;
+  }
+
   for (const [d, lrow] of longByDate) {
-    combinedDaily.push({ date: d, spreadMid: lrow.premium, unrealizedPnl: lrow.pnl + (shortByDate.get(d) ?? 0) });
+    const openMark = openShortMarkByDate.get(d) ?? 0;
+    const realized = realizedAsOf(d);
+    combinedDaily.push({
+      date: d,
+      spreadMid: lrow.premium,
+      unrealizedPnl: lrow.pnl + openMark + realized,
+    });
   }
 
   return {
