@@ -41,7 +41,7 @@ Any violation → seal file records FAIL, no live adoption, move on to next stru
 
 **Holdout Window Hash**: sha256:4bde4339e7cb212ab59bb19dc727321d020d410f7b3e394c5389a16c06e7dbc9
 
-**Declared Env Overrides**: none.
+**Declared Env Overrides**: none
 
 ## References
 
