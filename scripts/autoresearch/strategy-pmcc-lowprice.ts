@@ -71,7 +71,7 @@ export const strategy: StrategyDefinition = {
     forwardStepDays: 126,
     purgeGapDays: 10,
     mode: 'rolling' as const,
-    holdoutCount: 5,
+    holdoutCount: 3,      // reduced from 5 — short-history tickers (HOOD 2021+, PLTR 2020+) can't fit 5 folds within manifest holdout
   },
 
   buildConfig(_ticker, _direction): SimConfig {
