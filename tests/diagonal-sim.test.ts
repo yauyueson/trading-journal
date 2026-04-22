@@ -366,3 +366,84 @@ describe('Short assignment', () => {
     expect(cyclePnl).toBeCloseTo(-550, 0);
   });
 });
+
+describe('Long-leg exits', () => {
+  beforeEach(() => mockChainByDate.clear());
+
+  it('closes at long profit target (+40%)', async () => {
+    mockChainByDate.set('2023-01-20', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-10-20', dte: 273, strike: 340, spot: 380, callBid: 44.9, callMid: 45, callAsk: 45.1, delta: 0.75 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-02-17', dte: 28, strike: 400, spot: 380, callBid: 2.4, callMid: 2.5, callAsk: 2.6, delta: 0.25 }),
+    ]);
+    // Long hits +40% ($63) on 2023-03-01.
+    mockChainByDate.set('2023-03-01', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-03-01', expiry: '2023-10-20', dte: 233, strike: 340, spot: 400, callBid: 62.5, callMid: 63, callAsk: 63.5, delta: 0.85 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-03-01', expiry: '2023-03-17', dte: 16, strike: 405, spot: 400, callBid: 3.5, callMid: 3.8, callAsk: 4.0, delta: 0.30 }),
+    ]);
+
+    const signal: EntrySignal = { ticker: 'QQQ', date: '2023-01-20', direction: 'CALL', score: 0 };
+    const config: SimConfig = { ...DEFAULT_LEAP_CONFIG, mode: 'DIAGONAL',
+      diagLongDeltaRange: [0.65, 0.80], diagLongDTERange: [240, 300],
+      diagShortDeltaRange: [0.20, 0.30], diagShortDTERange: [25, 45],
+      diagLongProfitTarget: 0.40, diagLongStopLoss: 0.35, diagLongTimeStopDTE: 90,
+      diagShortProfitTarget: 0.50, diagRollTriggerMoneyness: 0.02,
+      monitoringIntervalDays: 1,
+      fillMode: 'mid',
+    };
+    const allDates = buildWeekdays('2023-01-20', '2023-07-24');
+
+    const trade = await simulateDiagonal('', signal, config, allDates, '2023-12-31');
+    expect(trade!.exitType).toBe('PROFIT_TARGET');
+    expect(trade!.exitDate).toBe('2023-03-01');
+  });
+
+  it('closes at long stop loss (-35%)', async () => {
+    mockChainByDate.set('2023-01-20', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-10-20', dte: 273, strike: 340, spot: 380, callBid: 44.9, callMid: 45, callAsk: 45.1, delta: 0.75 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-02-17', dte: 28, strike: 400, spot: 380, callBid: 2.4, callMid: 2.5, callAsk: 2.6, delta: 0.25 }),
+    ]);
+    // Long drops to $29 (-35.5%) on 2023-03-01.
+    mockChainByDate.set('2023-03-01', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-03-01', expiry: '2023-10-20', dte: 233, strike: 340, spot: 350, callBid: 28.5, callMid: 29, callAsk: 29.5, delta: 0.55 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-03-01', expiry: '2023-03-17', dte: 16, strike: 405, spot: 350, callBid: 0.05, callMid: 0.10, callAsk: 0.15, delta: 0.02 }),
+    ]);
+
+    const signal: EntrySignal = { ticker: 'QQQ', date: '2023-01-20', direction: 'CALL', score: 0 };
+    const config: SimConfig = { ...DEFAULT_LEAP_CONFIG, mode: 'DIAGONAL',
+      diagLongDeltaRange: [0.65, 0.80], diagLongDTERange: [240, 300],
+      diagShortDeltaRange: [0.20, 0.30], diagShortDTERange: [25, 45],
+      diagLongProfitTarget: 0.40, diagLongStopLoss: 0.35, diagLongTimeStopDTE: 90,
+      diagShortProfitTarget: 0.50, diagRollTriggerMoneyness: 0.02,
+      monitoringIntervalDays: 1,
+      fillMode: 'mid',
+    };
+    const allDates = buildWeekdays('2023-01-20', '2023-07-24');
+
+    const trade = await simulateDiagonal('', signal, config, allDates, '2023-12-31');
+    expect(trade!.exitType).toBe('STOP_LOSS');
+    expect(trade!.exitDate).toBe('2023-03-01');
+  });
+
+  it('closes at long time-stop when DTE ≤ 90', async () => {
+    mockChainByDate.set('2023-01-20', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-10-20', dte: 273, strike: 340, spot: 380, callBid: 44.9, callMid: 45, callAsk: 45.1, delta: 0.75 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-02-17', dte: 28, strike: 400, spot: 380, callBid: 2.4, callMid: 2.5, callAsk: 2.6, delta: 0.25 }),
+    ]);
+    mockChainByDate.set('2023-07-24', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-07-24', expiry: '2023-10-20', dte: 88, strike: 340, spot: 395, callBid: 58, callMid: 58.5, callAsk: 59, delta: 0.88 }),
+    ]);
+    const signal: EntrySignal = { ticker: 'QQQ', date: '2023-01-20', direction: 'CALL', score: 0 };
+    const config: SimConfig = { ...DEFAULT_LEAP_CONFIG, mode: 'DIAGONAL',
+      diagLongDeltaRange: [0.65, 0.80], diagLongDTERange: [240, 300],
+      diagShortDeltaRange: [0.20, 0.30], diagShortDTERange: [25, 45],
+      diagLongProfitTarget: 0.40, diagLongStopLoss: 0.35, diagLongTimeStopDTE: 90,
+      diagShortProfitTarget: 0.50, diagRollTriggerMoneyness: 0.02,
+      monitoringIntervalDays: 1,
+      fillMode: 'mid',
+    };
+    const allDates = buildWeekdays('2023-01-20', '2023-07-24');
+
+    const trade = await simulateDiagonal('', signal, config, allDates, '2023-12-31');
+    expect(trade!.exitType).toBe('TIME_STOP');
+  });
+});
