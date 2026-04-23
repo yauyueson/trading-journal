@@ -114,8 +114,13 @@ interface RowOverrides {
   holdoutEvaluated?: boolean;
   passesHoldoutAndIR?: boolean;
   passesHoldoutIRFloor?: boolean;
+  passesStability?: boolean;
+  passesStatConsistency?: boolean;
   isValid?: boolean;
   holdoutSharpe?: number;
+  holdoutSpyIR?: number;
+  oosSharpe?: number;
+  deflatedSharpeMertens?: number;
   datasetManifestHash?: string | null;
   /** Omit entirely from the written row (simulates pre-0.b.7 rows). */
   omitTickerCoverageHash?: boolean;
@@ -125,7 +130,6 @@ function buildRow(opts: RowOverrides & { strategyName: string; preRegBlockHash: 
   return {
     strategyName: opts.strategyName,
     timestamp: new Date().toISOString(),
-    oosSharpe: 1.0,
     oosMaxDD: 0.1,
     oosWinRate: 0.6,
     oosTrades: 50,
@@ -140,7 +144,7 @@ function buildRow(opts: RowOverrides & { strategyName: string; preRegBlockHash: 
     passesHoldoutNewEntries: true,
     oosSpyIR: 0.2,
     oosSpyExcessReturn: 0.05,
-    holdoutSpyIR: 0.1,
+    holdoutSpyIR: opts.holdoutSpyIR ?? 0.1,
     holdoutSpyExcessReturn: 0.03,
     avgTrainSharpe: 1.0,
     wfEfficiency: 0.9,
@@ -151,6 +155,8 @@ function buildRow(opts: RowOverrides & { strategyName: string; preRegBlockHash: 
     passesHoldoutOrIR: true,
     passesHoldoutIRFloor: opts.passesHoldoutIRFloor ?? true,
     passesHoldoutAndIR: opts.passesHoldoutAndIR ?? true,
+    passesStability: opts.passesStability ?? true,
+    passesStatConsistency: opts.passesStatConsistency ?? true,
     passesSanity: true,
     isValidForSearch: true,
     isValid: opts.isValid ?? true,
@@ -159,6 +165,8 @@ function buildRow(opts: RowOverrides & { strategyName: string; preRegBlockHash: 
     bootstrapSignificant: true,
     attemptNumber: 1,
     deflatedSharpe: 0.8,
+    deflatedSharpeMertens: opts.deflatedSharpeMertens ?? 0.5,
+    oosSharpe: opts.oosSharpe ?? 1.0,
     preRegBypassed: false,
     preRegBlockHash: opts.preRegBlockHash,
     preRegGitSha: 'deadbeef0000',
@@ -603,5 +611,114 @@ describe('sealHoldout (JSONL + strong identity)', () => {
     const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
     expect(out.ok).toBe(false);
     if (!out.ok) expect(out.reason).toMatch(/empty/i);
+  });
+
+  // ── Standard adoption threshold (Phase F0 prep — Codex finding) ──
+
+  describe('standard 6-criterion adoption enforcement', () => {
+    function sealWith(overrides: Partial<RowOverrides>): ReturnType<typeof sealHoldout> {
+      commitAuditRow(tmpRoot, blockHash, {
+        strategyGitSha: strategy.sha,
+        strategyBlobSha: strategy.blob,
+        repoGitSha: strategy.head,
+        datasetManifestHash: manifestHash,
+        ...overrides,
+      });
+      return sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
+    }
+
+    it('FAILs when holdoutSpyIR < 0 even though passesHoldoutAndIR is true', () => {
+      const out = sealWith({ holdoutSpyIR: -0.05, passesHoldoutAndIR: true });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(false);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/Verdict:\*\* FAIL/);
+        expect(md).toMatch(/holdoutSpyIR >= 0.*✗/);
+      }
+    });
+
+    it('FAILs when holdoutSharpe < 0.3', () => {
+      const out = sealWith({ holdoutSharpe: 0.2, passesHoldoutAndIR: true });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(false);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/holdoutSharpe >= 0.3.*✗/);
+      }
+    });
+
+    it('FAILs when oosSharpe < 0.8', () => {
+      const out = sealWith({ oosSharpe: 0.5, passesHoldoutAndIR: true });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(false);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/oosSharpe >= 0.8.*✗/);
+      }
+    });
+
+    it('FAILs when passesStability is false', () => {
+      const out = sealWith({ passesStability: false, passesHoldoutAndIR: true });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(false);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/passesStability.*✗/);
+      }
+    });
+
+    it('FAILs when passesStatConsistency is false', () => {
+      const out = sealWith({ passesStatConsistency: false, passesHoldoutAndIR: true });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(false);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/passesStatConsistency.*✗/);
+      }
+    });
+
+    it('FAILs when deflatedSharpeMertens <= 0 (the E10/E11 scenario)', () => {
+      const out = sealWith({ deflatedSharpeMertens: -0.25, passesHoldoutAndIR: true });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(false);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/deflatedSharpeMertens > 0.*✗/);
+      }
+    });
+
+    it('PASSes when all six standard criteria clear AND passesHoldoutAndIR is true', () => {
+      const out = sealWith({
+        holdoutSpyIR: 0.25,
+        holdoutSharpe: 0.9,
+        oosSharpe: 1.2,
+        passesStability: true,
+        passesStatConsistency: true,
+        deflatedSharpeMertens: 0.4,
+        passesHoldoutAndIR: true,
+      });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(true);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/Verdict:\*\* PASS/);
+        expect(md).toMatch(/6 of 6 standard adoption gates/);
+      }
+    });
+
+    it('seal markdown includes the 6-criterion table regardless of verdict', () => {
+      const out = sealWith({ deflatedSharpeMertens: -0.1 });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toContain('holdoutSpyIR >= 0');
+        expect(md).toContain('holdoutSharpe >= 0.3');
+        expect(md).toContain('oosSharpe >= 0.8');
+        expect(md).toContain('passesStability');
+        expect(md).toContain('passesStatConsistency');
+        expect(md).toContain('deflatedSharpeMertens > 0');
+      }
+    });
   });
 });
