@@ -220,9 +220,11 @@ describe('makeDebitSpreadEvaluator — reliability fixes (Codex findings)', () =
     expect(trade!.expiry).toBe('2026-02-20');
   });
 
-  it('debitMaxHoldDays enforced: forces exit when held for N days even without PT or TIME_STOP', () => {
-    // Entry at 2026-01-05. Set debitMaxHoldDays=5 (very short). No profit target reached.
-    // Every monitoring day, spread mid = debit (no movement). Force-close on day 5.
+  it('debitMaxHoldDays enforced (calendar days): forces exit at day N even without PT or TIME_STOP', () => {
+    // Entry 2026-01-05 (Monday). Set debitMaxHoldDays=7 calendar days.
+    // Since weekends don't have trading data, the first monitor date at >= 7 calendar
+    // days from entry is 2026-01-12 (Monday, exactly 7 calendar days later).
+    // No profit target triggers (spread mid stays at debit of 8 throughout).
     const dates = buildWeekdays('2026-01-05', '2026-02-20');
     for (const d of dates) {
       const dte = Math.max(0, 46 - dates.indexOf(d));
@@ -232,7 +234,7 @@ describe('makeDebitSpreadEvaluator — reliability fixes (Codex findings)', () =
       ]);
     }
 
-    const config: SimConfig = { ...BASE_CONFIG, debitMaxHoldDays: 5, debitMinExitDTE: 0 };
+    const config: SimConfig = { ...BASE_CONFIG, debitMaxHoldDays: 7, debitMinExitDTE: 0 };
     const evaluator = makeDebitSpreadEvaluator(config);
     const signal: EntrySignal = { ticker: 'QQQ', date: '2026-01-05', direction: 'CALL', score: 0 };
 
@@ -240,7 +242,8 @@ describe('makeDebitSpreadEvaluator — reliability fixes (Codex findings)', () =
 
     expect(trade).not.toBeNull();
     expect(trade!.exitType).toBe('FORCE_CLOSE');
-    expect(trade!.holdDays).toBe(5);
+    // 7 calendar days after 2026-01-05 (Mon) = 2026-01-12 (Mon).
+    expect(trade!.exitDate).toBe('2026-01-12');
   });
 
   it('missing-chain force-close: 3 consecutive missing days trigger FORCE_CLOSE', () => {

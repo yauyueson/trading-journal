@@ -803,13 +803,14 @@ export function makeDebitSpreadEvaluator(config: SimConfig): TradeEvaluator {
     let exitType: OptionExitType = 'EXPIRATION';
     let exitDTE = 0;
     let stopped = false;
-    let heldDays = 0;
     let consecutiveMissing = 0;
     const missingChainCap = config.missingChainExitAfterDays ?? 3;
+    const entryMs = Date.parse(signal.date + 'T00:00:00Z');
 
     for (const d of monitorDates) {
       if (stopped) break;
-      heldDays++;
+      // debitMaxHoldDays is documented as CALENDAR days (option-sim.ts types).
+      const heldCalendarDays = Math.round((Date.parse(d + 'T00:00:00Z') - entryMs) / 86400000);
       const longCur = findContractDirect(signal.ticker, d, longRow.strike, expiry, optionType);
       const shortCur = findContractDirect(signal.ticker, d, shortRow.strike, expiry, optionType);
       if (!longCur || !shortCur) {
@@ -869,8 +870,8 @@ export function makeDebitSpreadEvaluator(config: SimConfig): TradeEvaluator {
         break;
       }
 
-      // Max hold days: force exit after N trading days
-      if (config.debitMaxHoldDays != null && heldDays >= config.debitMaxHoldDays) {
+      // Max hold days: force exit after N calendar days from entry
+      if (config.debitMaxHoldDays != null && heldCalendarDays >= config.debitMaxHoldDays) {
         const closeLong = applyFill(config.fillMode, longCur.mid,
           optionType === 'Call' ? longCur.row.call_bid : longCur.row.put_bid,
           optionType === 'Call' ? longCur.row.call_ask : longCur.row.put_ask,
