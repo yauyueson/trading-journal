@@ -50,3 +50,4 @@ chain-cache.db
 # which would poison repoGitSha=null and render the run's rows unsealable.
 data/trial-ledger/
 data/autoresearch-runner.lock
+scripts/autoresearch/leaderboard-*.json
