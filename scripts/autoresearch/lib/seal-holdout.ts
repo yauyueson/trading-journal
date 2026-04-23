@@ -690,7 +690,7 @@ function buildSealMarkdown(opts: {
 ## Phase F0 effective-counter provenance
 
 F0 boundary (from \`docs/phase-f0-clean-slate-declaration.md\`): trials
-timestamped before 2026-04-22T22:15:00Z are excluded from the effective
+timestamped before ${F0_BOUNDARY_ISO} are excluded from the effective
 N used in the deflatedSharpeMertens gate. The gate's \`actual\` column
 above reports the F0-effective dsrM; the row's originally-stamped
 global dsrM is shown here for comparison only.
