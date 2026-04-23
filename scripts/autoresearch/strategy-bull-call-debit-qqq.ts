@@ -42,9 +42,18 @@ const BULL_CALL_DEBIT_ANCHOR: SimConfig = {
 };
 
 const configVariants: ConfigVariant[] = [
-  { name: 'bull-call-debit-qqq-narrow', overrides: { debitShortDelta: 0.40 } },  // tighter spread, lower max profit but smaller debit
-  { name: 'bull-call-debit-qqq-wide',   overrides: { debitShortDelta: 0.20 } },  // wider spread, higher max profit but larger debit
-  { name: 'bull-call-debit-qqq-hold',   overrides: { debitProfitTargetPct: 0.70 } }, // hold longer for more profit
+  // Spread-width variants (vary short delta, hold long delta)
+  { name: 'bull-call-debit-qqq-narrow', overrides: { debitShortDelta: 0.40 } },  // tighter spread
+  { name: 'bull-call-debit-qqq-wide',   overrides: { debitShortDelta: 0.20 } },  // wider spread
+  // Profit target variants
+  { name: 'bull-call-debit-qqq-pt30',   overrides: { debitProfitTargetPct: 0.30 } }, // fast exit
+  { name: 'bull-call-debit-qqq-pt70',   overrides: { debitProfitTargetPct: 0.70 } }, // hold longer
+  // Long-leg delta variants (moneyness)
+  { name: 'bull-call-debit-qqq-itm',    overrides: { debitLongDelta: 0.65 } }, // deeper ITM long
+  { name: 'bull-call-debit-qqq-otm',    overrides: { debitLongDelta: 0.35 } }, // OTM long (cheaper)
+  // DTE variants
+  { name: 'bull-call-debit-qqq-shortdte', overrides: { debitDTERange: [15, 30] } }, // shorter DTE
+  { name: 'bull-call-debit-qqq-longdte',  overrides: { debitDTERange: [60, 90] } }, // longer DTE
 ];
 
 export const strategy: StrategyDefinition = {
