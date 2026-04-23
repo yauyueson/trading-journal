@@ -1,6 +1,6 @@
 # Phase F0 — Clean-Slate Declaration
 
-**Effective:** 2026-04-22T22:15:00Z (pre-registered before any F1 pre-reg is written; see git history for immutable binding).
+**Effective:** 2026-04-23T02:20:00Z UTC (pre-registered before any F1 pre-reg is written; see git history for immutable binding). Bound to declaration commit `0edb7f8` (2026-04-22 22:15:05 local UTC-0400). Boundary set to the round minute after the commit's UTC timestamp to guarantee all pre-F0 trials — including E10 (attempts 102-105, 22:16Z) and E11 (attempt 106, 22:26Z) — fall strictly before it.
 **Status:** ACTIVE.
 **Supersedes:** `docs/attempt-counter-policy.md` per-campaign EAC opt-in. Phase F0 is a full reset, not a per-campaign adjustment.
 
@@ -29,7 +29,7 @@ All four land on `main` before the first F1 campaign pre-reg is written.
 
 ## Attempt-counter rules under F0
 
-1. **F0 starts at attempt #1.** The first autoresearch runner invocation committed after this declaration's commit is the first F0 attempt. The global ledger continues to increment from 107, but F0 pre-regs compute dsrM and other deflation-sensitive metrics using a **filtered attempt count**: only attempts stamped with a timestamp ≥ 2026-04-22T22:15:00Z AND a `repoGitSha` reachable from the F0 boundary commit count toward the F0 counter.
+1. **F0 starts at attempt #1.** The first autoresearch runner invocation committed after this declaration's commit is the first F0 attempt. The global ledger continues to increment from 107, but F0 pre-regs compute dsrM and other deflation-sensitive metrics using a **filtered attempt count**: only attempts stamped with a timestamp ≥ 2026-04-23T02:20:00Z AND a `repoGitSha` reachable from the F0 boundary commit count toward the F0 counter.
 
 2. **Filter implementation.** The seal ceremony and pre-reg-gate readers must read the ledger, filter for `timestamp >= F0_BOUNDARY_ISO` AND `repoGitSha` is an ancestor of current HEAD (or is HEAD itself), and report `effectiveAttemptNumber` alongside `attemptNumber`. The 6-criterion dsrM gate uses `effectiveAttemptNumber` for its deflation math.
 
@@ -69,7 +69,7 @@ All four land on `main` before the first F1 campaign pre-reg is written.
 
 ## Procedural safeguards
 
-- **Pre-reg block hash covers the F0 boundary reference.** F1+ pre-regs include a line `**Phase F0 boundary:** 2026-04-22T22:15:00Z (commit <SHA of this declaration>)`. Any change invalidates the pre-reg.
+- **Pre-reg block hash covers the F0 boundary reference.** F1+ pre-regs include a line `**Phase F0 boundary:** 2026-04-23T02:20:00Z (commit <SHA of this declaration>)`. Any change invalidates the pre-reg.
 - **Runner and sealer implement `effectiveAttemptNumber`.** Not deferred — lands in the same commit as this declaration or in an immediately following fix.
 - **Codex adversarial review on each F1+ pre-reg and its first seal.** Re-uses existing `codex:adversarial-review` workflow.
 
@@ -88,7 +88,7 @@ All four land on `main` before the first F1 campaign pre-reg is written.
 
 1. [ ] Implement `effectiveAttemptNumber` filter (see scope limitations above). Blocking.
 2. [ ] Codex adversarial review of the `effectiveAttemptNumber` implementation. Blocking.
-3. [ ] F1 strategy pre-reg drafted with `**Phase F0 boundary:** 2026-04-22T22:15:00Z (commit <SHA>)` line. Non-blocking for infra but required before runner.
+3. [ ] F1 strategy pre-reg drafted with `**Phase F0 boundary:** 2026-04-23T02:20:00Z (commit <SHA>)` line. Non-blocking for infra but required before runner.
 4. [ ] Residual-priors disclosure in F1 pre-reg. Non-blocking for infra.
 5. [ ] Strategy selected is not bull-call-debit QQQ or PMCC QQQ pt50 with identical config (gate 5 of binding commitments).
 

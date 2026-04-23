@@ -753,8 +753,8 @@ describe('sealHoldout (JSONL + strong identity)', () => {
       // Under F0 N=5, dsrM > 0 → gate PASS.
       writeF0Ledger([
         { timestamp: '2026-04-10T00:00:00Z' },  // pre-boundary: excluded
-        { timestamp: '2026-04-15T00:00:00Z' },  // pre-boundary: excluded
-        { timestamp: '2026-04-23T00:00:00Z' },  // post-boundary: counted
+        { timestamp: '2026-04-22T22:26:00Z' },  // pre-boundary (E11-style): excluded
+        { timestamp: '2026-04-23T03:00:00Z' },  // post-boundary: counted
         { timestamp: '2026-04-23T12:00:00Z' },  // post-boundary: counted
         { timestamp: '2026-04-24T00:00:00Z' },  // post-boundary: counted
         { timestamp: '2026-04-24T12:00:00Z' },  // post-boundary: counted

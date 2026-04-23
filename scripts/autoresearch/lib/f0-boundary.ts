@@ -23,10 +23,13 @@ import type { TrialLedger } from './trial-ledger';
  * The Phase F0 boundary timestamp (ISO UTC). Trials timestamped strictly
  * before this are excluded from F0 effective counts.
  *
- * Bound to the commit that shipped the F0 declaration; changes require
- * an explicit new phase declaration per the "no further resets" rule.
+ * Bound to commit 0edb7f8 (F0 declaration, 2026-04-22 22:15:05 UTC-0400 =
+ * 2026-04-23 02:15:05 UTC). Boundary set slightly after the commit UTC
+ * time to give a clean round-minute value and ensure all pre-F0 trials
+ * fall before it. Changes require an explicit new phase declaration per
+ * the "no further resets" rule.
  */
-export const F0_BOUNDARY_ISO = '2026-04-22T22:15:00Z';
+export const F0_BOUNDARY_ISO = '2026-04-23T02:20:00Z';
 
 /** Cached boundary epoch (ms) for comparisons. */
 const F0_BOUNDARY_MS = Date.parse(F0_BOUNDARY_ISO);

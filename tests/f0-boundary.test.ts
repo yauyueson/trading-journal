@@ -37,8 +37,8 @@ function writeLedger(root: string, trials: Array<{ timestamp: string; strategyNa
 }
 
 describe('F0_BOUNDARY_ISO', () => {
-  it('is the declared 2026-04-22 boundary', () => {
-    expect(F0_BOUNDARY_ISO).toBe('2026-04-22T22:15:00Z');
+  it('is the declared 2026-04-23T02:20:00Z boundary', () => {
+    expect(F0_BOUNDARY_ISO).toBe('2026-04-23T02:20:00Z');
   });
 });
 
@@ -62,10 +62,10 @@ describe('countEffectiveAttempts', () => {
   it('excludes trials timestamped before F0 boundary', () => {
     writeLedger(tmpRoot, [
       { timestamp: '2026-04-10T00:00:00Z' },  // pre-boundary
-      { timestamp: '2026-04-20T12:00:00Z' },  // pre-boundary
-      { timestamp: '2026-04-22T22:14:00Z' },  // pre-boundary (1 min before)
-      { timestamp: '2026-04-22T22:15:00Z' },  // EXACTLY at boundary (inclusive)
-      { timestamp: '2026-04-23T00:00:00Z' },  // post-boundary
+      { timestamp: '2026-04-22T22:16:00Z' },  // pre-boundary (E10-style run)
+      { timestamp: '2026-04-23T02:19:00Z' },  // pre-boundary (1 min before)
+      { timestamp: '2026-04-23T02:20:00Z' },  // EXACTLY at boundary (inclusive)
+      { timestamp: '2026-04-23T03:00:00Z' },  // post-boundary
       { timestamp: '2026-04-25T12:00:00Z' },  // post-boundary
     ]);
     const r = countEffectiveAttempts(tmpRoot, '2026-05-01T00:00:00Z');
@@ -75,7 +75,7 @@ describe('countEffectiveAttempts', () => {
 
   it('excludes trials timestamped AFTER the upToTimestamp', () => {
     writeLedger(tmpRoot, [
-      { timestamp: '2026-04-23T00:00:00Z' },  // counted
+      { timestamp: '2026-04-23T03:00:00Z' },  // counted
       { timestamp: '2026-04-24T00:00:00Z' },  // counted
       { timestamp: '2026-04-25T00:00:00Z' },  // NOT counted — after upTo
       { timestamp: '2026-04-30T00:00:00Z' },  // NOT counted
