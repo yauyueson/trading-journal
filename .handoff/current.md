@@ -1,9 +1,9 @@
 ---
-task: Phase F1 — BCD QQQ wide (10-day cadence) singleton adoption attempt (second post-F0 seal)
+task: Phase F1 — BCD QQQ wide (10-day emission, flat-gated) singleton adoption attempt (second post-F0 seal, v2 after Codex prose correction)
 stage: pre-reg
 owner: claude
 from: user
-timestamp: 2026-04-23T12:45:00Z
+timestamp: 2026-04-23T22:30:00Z
 ---
 
 ## Objective
@@ -37,20 +37,31 @@ Residual informal priors (disclosure, not mechanical correction):
 
 ## Pre-Registration
 
-**Hypothesis**: A fixed 10-trading-day cadence of bull call debit
-spreads on QQQ with config (long δ 0.50, short δ 0.20, DTE 30-60,
-profit target 50%, max hold 45 days, min exit DTE 7, bid/ask fills)
-earns positive risk-adjusted alpha over SPY AND clears all 6 standard
-adoption gates — including deflatedSharpeMertens > 0 computed under
-the F0-effective attempt counter at this seal's timestamp.
+**Hypothesis**: Bull call debit spreads on QQQ with config (long δ
+0.50, short δ 0.20, DTE 30-60, profit target 50%, max hold 45 days,
+min exit DTE 7, bid/ask fills), entered from a 10-trading-day
+signal-emission cadence under portfolio constraint maxPositions=1
+(i.e. emitted signals are accepted only when flat; signals arriving
+while a prior spread is still open are skipped and NOT queued — so
+observed inter-entry spacing is ≥ 10 trading days, often longer after
+long-held trades), earn positive risk-adjusted alpha over SPY AND
+clear all 6 standard adoption gates — including deflatedSharpeMertens
+> 0 computed under the F0-effective attempt counter at this seal's
+timestamp.
 
 **Config Grid**: 1 variant (singleton named anchor):
 
-| Variant | Long δ | Short δ | DTE | PT | Cadence |
-|---|---|---|---|---|---|
-| bcd-qqq-wide-f1-anchor | 0.50 | 0.20 | 30-60 | 50% | 10 trading days |
+| Variant | Long δ | Short δ | DTE | PT | Signal emission | Position cap |
+|---|---|---|---|---|---|---|
+| bcd-qqq-wide-f1-anchor | 0.50 | 0.20 | 30-60 | 50% | every 10 trading days from i=60 | maxPositions=1 |
 
-Defined in `scripts/autoresearch/strategy-bcd-qqq-wide-f1.ts`.
+Defined in `scripts/autoresearch/strategy-bcd-qqq-wide-f1.ts`. The
+10-trading-day spacing applies to signal emission (loop stride in
+`generateSignals`); actual entry dates are filtered by the runner's
+portfolio-state gate via `evaluateConfiguredSignalsWithState()`. This
+is the same emission-plus-flat-gate pattern validated by
+`bcd-nosignal-10d-anchor` in the F0 exploration sweep
+(`data/leaderboard-full-f0-bcd-nosignal-10d.json`).
 
 **Decision Rule**: The named anchor `bcd-qqq-wide-f1-anchor` is always
 the sealed candidate (no variants to choose among). Seal via
@@ -78,13 +89,34 @@ PASS, failing only dsrM at −0.27 under the global attempt counter
 F0 declaration.
 
 This pre-reg is materially different from the E11 solo anchor:
-1. **Entry**: drops EMA34 signal in favor of fixed 10-day cadence
-   (per F0 null-test finding that the signal adds no alpha).
-2. **F0-effective N at seal**: will be ~29 vs the pre-F0 N=106, which
-   changes the dsrM gate outcome from FAIL to expected PASS.
+1. **Entry**: drops EMA34 signal in favor of 10-trading-day signal
+   emission (per F0 null-test finding that the EMA34 filter adds no
+   alpha).
+2. **F0-effective N at seal**: will be ≥30 (v2 re-run) vs the pre-F0
+   N=106, which changes the dsrM gate outcome from FAIL to expected
+   PASS.
 
 Both changes combine to produce a different identity triple (name,
 blob, preReg) — not a re-run of E11 under a counter reset.
+
+## Relationship to v1 seal (2026-04-23-e281292f4870)
+
+An earlier pre-reg (block hash `e281292f4870bbbd…`, committed
+`d409ef4`) sealed the same strategy file as `bcd-qqq-wide-f1-anchor`
+with verdict 6/6 PASS. Codex adversarial review of that seal flagged
+a P1 finding: the v1 pre-reg hypothesis text called the entry a
+"fixed 10-trading-day cadence," but the code emits signals every 10
+days and lets the runner's portfolio-state gate skip signals that
+arrive while a prior spread is still open. The strategy file and
+measured numbers were correct; only the prose overstated what was
+mechanically enforced.
+
+This v2 pre-reg corrects the prose (describing emission-plus-
+flat-gate rather than "fixed cadence") and produces a new
+`preRegBlockHash` so the sealer requires a fresh audit row. The v1
+seal remains in `docs/holdout-evaluations/2026-04-23-e281292f4870.md`
+as historical evidence of the prose-mismatched seal and is superseded
+by the v2 seal produced from this pre-reg.
 
 ## Caveats
 

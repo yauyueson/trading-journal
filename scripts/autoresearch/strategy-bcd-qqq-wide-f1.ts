@@ -30,6 +30,17 @@
  *   AUTORESEARCH_LEADERBOARD_SUFFIX=bcd-qqq-wide-f1 \
  *   AUTORESEARCH_STRATEGY_FILENAME=strategy-bcd-qqq-wide-f1.ts \
  *   npx tsx scripts/autoresearch/runner.ts
+ *
+ * v2 blob bump (2026-04-23): Codex adversarial review of the v1 seal
+ * flagged that "fixed 10-trading-day cadence" prose in the v1 pre-reg
+ * overstated what was enforced. The code emits a signal every 10
+ * trading days starting at index 60, and the runner's portfolio gate
+ * skips signals that arrive while a prior spread is still open — so
+ * observed inter-entry spacing is ≥10 trading days, often longer after
+ * long-held trades. The strategy file and measured numbers are
+ * unchanged; this comment-only edit produces a new strategy blob so
+ * the sealer will emit a fresh audit row under the corrected v2
+ * pre-reg (see `.handoff/current.md`) instead of reusing the v1 row.
  */
 import type { StrategyDefinition, TickerDataBundle, MarketContext, EntrySignal, SimConfig } from './types';
 import { DEFAULT_LEAP_CONFIG } from '../../src/lib/backtest/option-sim';
@@ -72,11 +83,20 @@ export const strategy: StrategyDefinition = {
   },
 
   generateSignals(data: TickerDataBundle, _market: MarketContext): EntrySignal[] {
-    // Fixed 10-day cadence (no EMA34 filter). F0 null-test on BCD
-    // established that EMA34 gating contributes no timing alpha; the
-    // edge is the structural long-bull-call payoff during QQQ's
-    // positive-drift regime. 10d cadence chosen over 5d because the F0
-    // nosignal-5d variant failed holdoutSpyIR (−0.19) from over-trading.
+    // Emit a candidate signal every 10 trading days from index 60
+    // forward. No EMA34 filter (F0 null-test confirmed the filter adds
+    // no timing alpha). Actual entry dates are further filtered by the
+    // runner's portfolio-state gate under maxPositions=1: signals
+    // landing while a prior spread is still open are skipped, so
+    // inter-entry spacing is ≥ 10 trading days, sometimes longer after
+    // long-held trades (this is the "emission + flat-gate" pattern
+    // validated by bcd-nosignal-10d-anchor in the F0 sweep, not a
+    // truly fixed cadence with overlapping positions).
+    //
+    // 10d emission chosen over 5d because the F0 nosignal-5d variant
+    // failed holdoutSpyIR (−0.19) from over-trading; and over 20d
+    // because nosignal-20d's oosSharpe (0.68) was too low to clear
+    // dsrM at current F0-effective N.
     const signals: EntrySignal[] = [];
     for (let i = 60; i < data.candles.length; i += CADENCE_DAYS) {
       signals.push({
