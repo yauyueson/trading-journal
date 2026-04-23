@@ -110,6 +110,10 @@ function makeStandardEvaluator(config: SimConfig): TradeEvaluator {
     return makeDiagonalEvaluator(config);
   }
 
+  if (config.mode === 'DEBIT_SPREAD') {
+    return makeDebitSpreadEvaluator(config);
+  }
+
   // Fallback: null (no trade)
   return () => null;
 }
@@ -519,6 +523,9 @@ export function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
     let longExitReason: OptionExitType = 'TIME_STOP';
     let longExitDate = monitorCap;
     let longExitPremium = longPremium;
+    let longExitBid = longRow.call_bid;
+    let longExitAsk = longRow.call_ask;
+    let longExitOI = longRow.call_oi;
     let longExitDTE = 0;
     let lastSpot = entryStockPrice;
     let stop = false;
@@ -533,6 +540,9 @@ export function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
         const longPnl = 100 * (longMid - longPremium);
         longDailyMtM.push({ date: d, premium: longMid, pnl: longPnl });
         longExitPremium = longMid;
+        longExitBid = longContract.row.call_bid;
+        longExitAsk = longContract.row.call_ask;
+        longExitOI = longContract.row.call_oi;
         longExitDTE = longContract.row.dte;
         lastSpot = longContract.row.stock_price;
 
@@ -629,10 +639,11 @@ export function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
       });
     }
 
-    // Long exit fill (synthetic ±$0.05 spread — matches simulateDiagonal's TODO)
+    // Long exit fill — uses actual bid/ask/OI stashed during monitoring
+    // (gotcha #42 fix, matches simulateDiagonal).
     const longExitFillPrice = applyFill(
-      config.fillMode, longExitPremium, longExitPremium - 0.05, longExitPremium + 0.05,
-      'sell', config.slippage, 0, longExitDTE,
+      config.fillMode, longExitPremium, longExitBid, longExitAsk,
+      'sell', config.slippage, longExitOI, longExitDTE,
     ).fillPrice;
     const longPnl = 100 * (longExitFillPrice - longPremium);
     const shortsPnl = shortCycles.reduce((s, c) => s + 100 * (c.entryCredit - c.exitCost), 0);
@@ -690,6 +701,230 @@ export function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
         },
         shortCallCycles: shortCycles,
       },
+    };
+    return trade;
+  };
+}
+
+// ── Debit Spread Evaluator ──────────────────────────────
+
+/**
+ * Phase E10: bull call / bear put debit spread evaluator.
+ *
+ * For CALL (bull): buy a higher-delta (lower-strike) call, sell a
+ * lower-delta (higher-strike) call → net debit paid, bounded upside.
+ * For PUT (bear): buy higher-delta (higher-strike) put, sell lower-delta
+ * (lower-strike) put → same bounded-risk structure mirrored.
+ *
+ * Signal direction convention (matches credit spread inverted):
+ * - signal.direction='CALL' → BULL CALL debit spread (option type Call)
+ * - signal.direction='PUT'  → BEAR PUT debit spread (option type Put)
+ *
+ * Config required: debitDTERange, debitLongDelta, debitShortDelta,
+ * debitProfitTargetPct, debitMaxHoldDays, debitMinExitDTE.
+ *
+ * Capital at risk = net debit × 100 (hard cap on max loss).
+ */
+export function makeDebitSpreadEvaluator(config: SimConfig): TradeEvaluator {
+  return (signal, _config, allDates, maxDate) => {
+    if (config.debitDTERange == null || config.debitLongDelta == null
+        || config.debitShortDelta == null || config.debitProfitTargetPct == null) {
+      throw new Error('makeDebitSpreadEvaluator requires debit* config fields');
+    }
+    if (config.debitShortDelta >= config.debitLongDelta) {
+      throw new Error(`makeDebitSpreadEvaluator: debitShortDelta (${config.debitShortDelta}) must be < debitLongDelta (${config.debitLongDelta})`);
+    }
+
+    const entryChain = getCachedChain(signal.ticker, signal.date);
+    if (entryChain.length === 0) return null;
+
+    // Bull call: direction='CALL' → option type Call, long at higher delta, short at lower delta (higher strike)
+    // Bear put:  direction='PUT'  → option type Put, long at higher |delta|, short at lower |delta| (lower strike)
+    const optionType: 'Call' | 'Put' = signal.direction === 'CALL' ? 'Call' : 'Put';
+
+    const longMatch = findStrikeByDelta(entryChain, config.debitLongDelta, optionType, config.debitDTERange, 0);
+    if (!longMatch) return null;
+    let shortMatch = findStrikeByDelta(entryChain, config.debitShortDelta, optionType, config.debitDTERange, 0);
+    if (!shortMatch) return null;
+    if (shortMatch.row.expir_date !== longMatch.row.expir_date) {
+      // Need same expiry. Re-try short leg within the long leg's exact DTE.
+      const exactDte: [number, number] = [longMatch.row.dte, longMatch.row.dte];
+      const retry = findStrikeByDelta(entryChain, config.debitShortDelta, optionType, exactDte, 0);
+      if (!retry || retry.row.expir_date !== longMatch.row.expir_date) return null;
+      shortMatch = retry;  // use the same-expiry match, not the original
+    }
+
+    const longRow = longMatch.row;
+    const shortRow = shortMatch.row;
+    if (longRow.expir_date !== shortRow.expir_date) return null;
+
+    // Direction check: for CALL bull debit, long strike < short strike; for PUT bear debit, long strike > short strike
+    if (optionType === 'Call' && longRow.strike >= shortRow.strike) return null;
+    if (optionType === 'Put' && longRow.strike <= shortRow.strike) return null;
+
+    // Entry fills: long at ask, short at bid (conservative)
+    const longBid = optionType === 'Call' ? longRow.call_bid : longRow.put_bid;
+    const longMid = optionType === 'Call' ? longRow.call_mid : longRow.put_mid;
+    const longAsk = optionType === 'Call' ? longRow.call_ask : longRow.put_ask;
+    const longOi  = optionType === 'Call' ? longRow.call_oi  : longRow.put_oi;
+    const shortBid = optionType === 'Call' ? shortRow.call_bid : shortRow.put_bid;
+    const shortMid = optionType === 'Call' ? shortRow.call_mid : shortRow.put_mid;
+    const shortAsk = optionType === 'Call' ? shortRow.call_ask : shortRow.put_ask;
+    const shortOi  = optionType === 'Call' ? shortRow.call_oi  : shortRow.put_oi;
+
+    const longEntryFill = applyFill(config.fillMode, longMid, longBid, longAsk, 'buy', config.slippage, longOi, longRow.dte).fillPrice;
+    const shortEntryFill = applyFill(config.fillMode, shortMid, shortBid, shortAsk, 'sell', config.slippage, shortOi, shortRow.dte).fillPrice;
+    const netDebit = longEntryFill - shortEntryFill;
+    if (!Number.isFinite(netDebit) || netDebit <= 0) return null;
+
+    const spreadWidth = Math.abs(shortRow.strike - longRow.strike);
+    const maxProfit = spreadWidth - netDebit;
+    const maxLoss = netDebit;
+
+    const expiry = longRow.expir_date;
+    const monitorEnd = expiry < maxDate ? expiry : maxDate;
+    const startIdx = allDates.indexOf(signal.date);
+    if (startIdx < 0) return null;
+
+    const monitorDates: string[] = [];
+    const interval = config.monitoringIntervalDays || 1;
+    let dayCount = 0;
+    for (let i = startIdx + 1; i < allDates.length; i++) {
+      if (allDates[i] > monitorEnd) break;
+      dayCount++;
+      if (dayCount % interval === 0) monitorDates.push(allDates[i]);
+    }
+
+    const dailyMtM: { date: string; spreadMid: number; unrealizedPnl: number }[] = [];
+
+    let exitDate = monitorEnd;
+    let exitSpreadValue = netDebit;  // value at exit (will be overwritten)
+    let exitStockPrice = longRow.stock_price;
+    let exitType: OptionExitType = 'EXPIRATION';
+    let exitDTE = 0;
+    let stopped = false;
+    let consecutiveMissing = 0;
+    const missingChainCap = config.missingChainExitAfterDays ?? 3;
+    const entryMs = Date.parse(signal.date + 'T00:00:00Z');
+
+    for (const d of monitorDates) {
+      if (stopped) break;
+      // debitMaxHoldDays is documented as CALENDAR days (option-sim.ts types).
+      const heldCalendarDays = Math.round((Date.parse(d + 'T00:00:00Z') - entryMs) / 86400000);
+      const longCur = findContractDirect(signal.ticker, d, longRow.strike, expiry, optionType);
+      const shortCur = findContractDirect(signal.ticker, d, shortRow.strike, expiry, optionType);
+      if (!longCur || !shortCur) {
+        consecutiveMissing++;
+        if (consecutiveMissing >= missingChainCap) {
+          // Force-close at last known mark to avoid stale-price drift.
+          const last = dailyMtM[dailyMtM.length - 1];
+          exitSpreadValue = last ? last.spreadMid : netDebit;
+          exitDate = d;
+          exitType = 'FORCE_CLOSE';
+          stopped = true;
+          break;
+        }
+        continue;
+      }
+      consecutiveMissing = 0;
+
+      // Mark-to-market spread value = long mid - short mid
+      const curSpreadMid = longCur.mid - shortCur.mid;
+      const unrealizedPnl = (curSpreadMid - netDebit) * 100;
+      dailyMtM.push({ date: d, spreadMid: curSpreadMid, unrealizedPnl });
+
+      exitStockPrice = longCur.row.stock_price;
+      exitDTE = longCur.row.dte;
+
+      // Profit target: reach debitProfitTargetPct of max profit
+      if (maxProfit > 0 && (curSpreadMid - netDebit) >= config.debitProfitTargetPct * maxProfit) {
+        const closeLong = applyFill(config.fillMode, longCur.mid,
+          optionType === 'Call' ? longCur.row.call_bid : longCur.row.put_bid,
+          optionType === 'Call' ? longCur.row.call_ask : longCur.row.put_ask,
+          'sell', config.slippage, optionType === 'Call' ? longCur.row.call_oi : longCur.row.put_oi, longCur.row.dte).fillPrice;
+        const closeShort = applyFill(config.fillMode, shortCur.mid,
+          optionType === 'Call' ? shortCur.row.call_bid : shortCur.row.put_bid,
+          optionType === 'Call' ? shortCur.row.call_ask : shortCur.row.put_ask,
+          'buy', config.slippage, optionType === 'Call' ? shortCur.row.call_oi : shortCur.row.put_oi, shortCur.row.dte).fillPrice;
+        exitSpreadValue = closeLong - closeShort;
+        exitDate = d;
+        exitType = 'PROFIT_TARGET';
+        stopped = true;
+        break;
+      }
+
+      // Time stop: min DTE before forced exit
+      if (config.debitMinExitDTE != null && longCur.row.dte <= config.debitMinExitDTE) {
+        const closeLong = applyFill(config.fillMode, longCur.mid,
+          optionType === 'Call' ? longCur.row.call_bid : longCur.row.put_bid,
+          optionType === 'Call' ? longCur.row.call_ask : longCur.row.put_ask,
+          'sell', config.slippage, optionType === 'Call' ? longCur.row.call_oi : longCur.row.put_oi, longCur.row.dte).fillPrice;
+        const closeShort = applyFill(config.fillMode, shortCur.mid,
+          optionType === 'Call' ? shortCur.row.call_bid : shortCur.row.put_bid,
+          optionType === 'Call' ? shortCur.row.call_ask : shortCur.row.put_ask,
+          'buy', config.slippage, optionType === 'Call' ? shortCur.row.call_oi : shortCur.row.put_oi, shortCur.row.dte).fillPrice;
+        exitSpreadValue = closeLong - closeShort;
+        exitDate = d;
+        exitType = 'TIME_STOP';
+        stopped = true;
+        break;
+      }
+
+      // Max hold days: force exit after N calendar days from entry
+      if (config.debitMaxHoldDays != null && heldCalendarDays >= config.debitMaxHoldDays) {
+        const closeLong = applyFill(config.fillMode, longCur.mid,
+          optionType === 'Call' ? longCur.row.call_bid : longCur.row.put_bid,
+          optionType === 'Call' ? longCur.row.call_ask : longCur.row.put_ask,
+          'sell', config.slippage, optionType === 'Call' ? longCur.row.call_oi : longCur.row.put_oi, longCur.row.dte).fillPrice;
+        const closeShort = applyFill(config.fillMode, shortCur.mid,
+          optionType === 'Call' ? shortCur.row.call_bid : shortCur.row.put_bid,
+          optionType === 'Call' ? shortCur.row.call_ask : shortCur.row.put_ask,
+          'buy', config.slippage, optionType === 'Call' ? shortCur.row.call_oi : shortCur.row.put_oi, shortCur.row.dte).fillPrice;
+        exitSpreadValue = closeLong - closeShort;
+        exitDate = d;
+        exitType = 'FORCE_CLOSE';
+        stopped = true;
+        break;
+      }
+    }
+
+    // If never stopped, exit at monitorEnd via intrinsic or last mark
+    if (!stopped) {
+      if (monitorEnd >= expiry) {
+        // Expiration: intrinsic value
+        const spot = exitStockPrice;
+        const longIntrinsic = optionType === 'Call' ? Math.max(0, spot - longRow.strike) : Math.max(0, longRow.strike - spot);
+        const shortIntrinsic = optionType === 'Call' ? Math.max(0, spot - shortRow.strike) : Math.max(0, shortRow.strike - spot);
+        exitSpreadValue = longIntrinsic - shortIntrinsic;
+        exitDate = monitorEnd;
+        exitType = 'EXPIRATION';
+      } else {
+        // Forced close at maxDate
+        const last = dailyMtM[dailyMtM.length - 1];
+        exitSpreadValue = last ? last.spreadMid : netDebit;
+        exitDate = monitorEnd;
+        exitType = 'FORCE_CLOSE';
+      }
+    }
+
+    const pnl = (exitSpreadValue - netDebit) * 100;
+    const capital = Math.max(1, netDebit * 100);
+    const trade: OptionTrade = {
+      ticker: signal.ticker, mode: 'DEBIT_SPREAD', direction: signal.direction,
+      entryDate: signal.date, entrySignalScore: signal.score,
+      strike: longRow.strike,              // long leg (primary, bought)
+      longStrike: shortRow.strike,          // short leg (wing, sold) — reusing existing field
+      expiry, entryDTE: longRow.dte, entryPrice: netDebit,
+      entryDelta: longRow.delta ?? config.debitLongDelta,
+      entryIV: optionType === 'Call' ? longRow.call_iv : longRow.put_iv,
+      entryStockPrice: longRow.stock_price,
+      spreadWidth, maxProfit, maxLoss,
+      exitDate, exitPrice: exitSpreadValue, exitDTE,
+      exitStockPrice, exitType,
+      pnl, pnlPct: pnl / capital,
+      holdDays: allDates.filter(d => d > signal.date && d <= exitDate).length,
+      fillMode: config.fillMode,
+      dailyMtM,
     };
     return trade;
   };

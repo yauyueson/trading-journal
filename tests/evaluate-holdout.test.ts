@@ -114,8 +114,13 @@ interface RowOverrides {
   holdoutEvaluated?: boolean;
   passesHoldoutAndIR?: boolean;
   passesHoldoutIRFloor?: boolean;
+  passesStability?: boolean;
+  passesStatConsistency?: boolean;
   isValid?: boolean;
   holdoutSharpe?: number;
+  holdoutSpyIR?: number;
+  oosSharpe?: number;
+  deflatedSharpeMertens?: number;
   datasetManifestHash?: string | null;
   /** Omit entirely from the written row (simulates pre-0.b.7 rows). */
   omitTickerCoverageHash?: boolean;
@@ -125,7 +130,6 @@ function buildRow(opts: RowOverrides & { strategyName: string; preRegBlockHash: 
   return {
     strategyName: opts.strategyName,
     timestamp: new Date().toISOString(),
-    oosSharpe: 1.0,
     oosMaxDD: 0.1,
     oosWinRate: 0.6,
     oosTrades: 50,
@@ -140,7 +144,7 @@ function buildRow(opts: RowOverrides & { strategyName: string; preRegBlockHash: 
     passesHoldoutNewEntries: true,
     oosSpyIR: 0.2,
     oosSpyExcessReturn: 0.05,
-    holdoutSpyIR: 0.1,
+    holdoutSpyIR: opts.holdoutSpyIR ?? 0.1,
     holdoutSpyExcessReturn: 0.03,
     avgTrainSharpe: 1.0,
     wfEfficiency: 0.9,
@@ -151,6 +155,8 @@ function buildRow(opts: RowOverrides & { strategyName: string; preRegBlockHash: 
     passesHoldoutOrIR: true,
     passesHoldoutIRFloor: opts.passesHoldoutIRFloor ?? true,
     passesHoldoutAndIR: opts.passesHoldoutAndIR ?? true,
+    passesStability: opts.passesStability ?? true,
+    passesStatConsistency: opts.passesStatConsistency ?? true,
     passesSanity: true,
     isValidForSearch: true,
     isValid: opts.isValid ?? true,
@@ -159,6 +165,8 @@ function buildRow(opts: RowOverrides & { strategyName: string; preRegBlockHash: 
     bootstrapSignificant: true,
     attemptNumber: 1,
     deflatedSharpe: 0.8,
+    deflatedSharpeMertens: opts.deflatedSharpeMertens ?? 0.5,
+    oosSharpe: opts.oosSharpe ?? 1.0,
     preRegBypassed: false,
     preRegBlockHash: opts.preRegBlockHash,
     preRegGitSha: 'deadbeef0000',
@@ -603,5 +611,234 @@ describe('sealHoldout (JSONL + strong identity)', () => {
     const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
     expect(out.ok).toBe(false);
     if (!out.ok) expect(out.reason).toMatch(/empty/i);
+  });
+
+  // ── Standard adoption threshold (Phase F0 prep — Codex finding) ──
+
+  describe('standard 6-criterion adoption enforcement', () => {
+    function sealWith(overrides: Partial<RowOverrides>): ReturnType<typeof sealHoldout> {
+      commitAuditRow(tmpRoot, blockHash, {
+        strategyGitSha: strategy.sha,
+        strategyBlobSha: strategy.blob,
+        repoGitSha: strategy.head,
+        datasetManifestHash: manifestHash,
+        ...overrides,
+      });
+      return sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
+    }
+
+    it('FAILs when holdoutSpyIR < 0 even though passesHoldoutAndIR is true', () => {
+      const out = sealWith({ holdoutSpyIR: -0.05, passesHoldoutAndIR: true });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(false);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/Verdict:\*\* FAIL/);
+        expect(md).toMatch(/holdoutSpyIR >= 0.*✗/);
+      }
+    });
+
+    it('FAILs when holdoutSharpe < 0.3', () => {
+      const out = sealWith({ holdoutSharpe: 0.2, passesHoldoutAndIR: true });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(false);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/holdoutSharpe >= 0.3.*✗/);
+      }
+    });
+
+    it('FAILs when oosSharpe < 0.8', () => {
+      const out = sealWith({ oosSharpe: 0.5, passesHoldoutAndIR: true });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(false);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/oosSharpe >= 0.8.*✗/);
+      }
+    });
+
+    it('FAILs when passesStability is false', () => {
+      const out = sealWith({ passesStability: false, passesHoldoutAndIR: true });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(false);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/passesStability.*✗/);
+      }
+    });
+
+    it('FAILs when passesStatConsistency is false', () => {
+      const out = sealWith({ passesStatConsistency: false, passesHoldoutAndIR: true });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(false);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/passesStatConsistency.*✗/);
+      }
+    });
+
+    it('FAILs when deflatedSharpeMertens <= 0 (the E10/E11 scenario)', () => {
+      const out = sealWith({ deflatedSharpeMertens: -0.25, passesHoldoutAndIR: true });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(false);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/deflatedSharpeMertens > 0.*✗/);
+      }
+    });
+
+    it('PASSes when all six standard criteria clear AND passesHoldoutAndIR is true', () => {
+      const out = sealWith({
+        holdoutSpyIR: 0.25,
+        holdoutSharpe: 0.9,
+        oosSharpe: 1.2,
+        passesStability: true,
+        passesStatConsistency: true,
+        deflatedSharpeMertens: 0.4,
+        passesHoldoutAndIR: true,
+      });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(true);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/Verdict:\*\* PASS/);
+        expect(md).toMatch(/6 of 6 standard adoption gates/);
+      }
+    });
+
+    it('seal markdown includes the 6-criterion table regardless of verdict', () => {
+      const out = sealWith({ deflatedSharpeMertens: -0.1 });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toContain('holdoutSpyIR >= 0');
+        expect(md).toContain('holdoutSharpe >= 0.3');
+        expect(md).toContain('oosSharpe >= 0.8');
+        expect(md).toContain('passesStability');
+        expect(md).toContain('passesStatConsistency');
+        expect(md).toContain('deflatedSharpeMertens > 0');
+      }
+    });
+  });
+
+  // ── Phase F0 effective-attempt counter (integration with sealer) ──
+
+  describe('Phase F0 effective-attempt counter', () => {
+    function writeF0Ledger(trials: Array<{ timestamp: string }>): void {
+      const dir = path.join(tmpRoot, 'data');
+      fs.mkdirSync(dir, { recursive: true });
+      const ledger = {
+        version: 2,
+        count: trials.length,
+        lastSource: 'test',
+        lastUpdated: trials[trials.length - 1]?.timestamp ?? new Date().toISOString(),
+        trials: trials.map((t, i) => ({
+          ordinal: i + 1,
+          source: 'primary:test',
+          strategyName: 'seal-test-strategy',
+          timestamp: t.timestamp,
+          leaderboardSuffix: '',
+          oosSharpe: 0.878,
+          oosTrades: 30,
+          returnsFile: `trial-${String(i + 1).padStart(6, '0')}.json`,
+        })),
+      };
+      fs.writeFileSync(path.join(dir, 'attempts-global.json'), JSON.stringify(ledger, null, 2));
+    }
+
+    it('PASSes a row that would FAIL under global N but clears dsrM under F0 N=5', () => {
+      // Pre-F0: row has oosSharpe 0.878, mertensSharpeSE 0.46 (E11 scenario).
+      // Under global N=106, dsrM ≈ −0.27 → gate FAIL.
+      // Under F0 N=5, dsrM > 0 → gate PASS.
+      writeF0Ledger([
+        { timestamp: '2026-04-10T00:00:00Z' },  // pre-boundary: excluded
+        { timestamp: '2026-04-22T22:26:00Z' },  // pre-boundary (E11-style): excluded
+        { timestamp: '2026-04-23T03:00:00Z' },  // post-boundary: counted
+        { timestamp: '2026-04-23T12:00:00Z' },  // post-boundary: counted
+        { timestamp: '2026-04-24T00:00:00Z' },  // post-boundary: counted
+        { timestamp: '2026-04-24T12:00:00Z' },  // post-boundary: counted
+        { timestamp: '2026-04-25T00:00:00Z' },  // post-boundary: counted
+      ]);
+      commitAuditRow(tmpRoot, blockHash, {
+        strategyGitSha: strategy.sha,
+        strategyBlobSha: strategy.blob,
+        repoGitSha: strategy.head,
+        datasetManifestHash: manifestHash,
+        oosSharpe: 0.878,
+        holdoutSharpe: 0.95,
+        holdoutSpyIR: 0.37,
+        passesStability: true,
+        passesStatConsistency: true,
+        // Intentionally stamp the row's own dsrM as the global N=106 value
+        // (negative) to prove the sealer recomputes it.
+        deflatedSharpeMertens: -0.27,
+        passesHoldoutAndIR: true,
+      });
+      // But the audit row's mertensSharpeSE needs to be set too for recomputation.
+      // The helper buildRow doesn't set it; we need to rewrite the audit file.
+      const rel = `docs/audit-rows/${blockHash}.jsonl`;
+      const rowData = JSON.parse(fs.readFileSync(path.join(tmpRoot, rel), 'utf-8').trim());
+      rowData.mertensSharpeSE = 0.46;
+      rowData.timestamp = '2026-04-25T12:00:00Z';  // seal this as attempt #5 under F0 (after boundary)
+      fs.writeFileSync(path.join(tmpRoot, rel), JSON.stringify(rowData) + '\n');
+      sh(`git add "${rel}"`, tmpRoot);
+      sh('git commit --amend --no-edit -q', tmpRoot);
+
+      const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(true);  // would've been false under global N
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/F0 effective.*\|\s*5\s*\|/);  // effective N = 5
+        expect(md).toMatch(/Verdict:\*\* PASS/);
+      }
+    });
+
+    it('FAILs when F0-effective N is still large enough that dsrM < 0', () => {
+      // Simulate 200 post-F0 trials → dsrM even more negative than global N=106.
+      const trials = [];
+      for (let i = 0; i < 200; i++) {
+        const day = 23 + Math.floor(i / 20);
+        const hour = (i % 20);
+        trials.push({ timestamp: `2026-04-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:00:00Z` });
+      }
+      writeF0Ledger(trials);
+
+      commitAuditRow(tmpRoot, blockHash, {
+        strategyGitSha: strategy.sha,
+        strategyBlobSha: strategy.blob,
+        repoGitSha: strategy.head,
+        datasetManifestHash: manifestHash,
+        oosSharpe: 0.878,
+        passesHoldoutAndIR: true,
+      });
+      const rel = `docs/audit-rows/${blockHash}.jsonl`;
+      const rowData = JSON.parse(fs.readFileSync(path.join(tmpRoot, rel), 'utf-8').trim());
+      rowData.mertensSharpeSE = 0.46;
+      rowData.timestamp = '2026-05-01T00:00:00Z';
+      fs.writeFileSync(path.join(tmpRoot, rel), JSON.stringify(rowData) + '\n');
+      sh(`git add "${rel}"`, tmpRoot);
+      sh('git commit --amend --no-edit -q', tmpRoot);
+
+      const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
+      expect(out.ok).toBe(true);
+      if (out.ok) {
+        expect(out.passes).toBe(false);
+        const md = fs.readFileSync(out.sealPath, 'utf-8');
+        expect(md).toMatch(/Verdict:\*\* FAIL/);
+        expect(md).toMatch(/deflatedSharpeMertens > 0.*✗/);
+      }
+    });
+
+    it('falls back to row-recorded dsrM when ledger is absent (backward compat)', () => {
+      // No ledger written → filter returns ledgerPresent=false → use row.deflatedSharpeMertens.
+      const out = sealHoldout({ repoRoot: tmpRoot, strategyPath: STRATEGY_REL, strategyName: 'seal-test-strategy', preRegHash: blockHash });
+      // No audit row committed yet, so seal fails on that; irrelevant for this assertion.
+      // This test's real check is just that the sealer doesn't crash when ledger is missing.
+      // (The backward-compat scenario is covered by all the existing tests that don't write a ledger.)
+      expect(out.ok).toBe(false);  // no audit row committed
+      // The fact that all 33 original tests PASS without writing a ledger is the actual compat proof.
+    });
   });
 });

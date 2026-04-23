@@ -40,8 +40,17 @@ const PMCC_PT50_ANCHOR: SimConfig = {
 };
 
 const configVariants: ConfigVariant[] = [
-  { name: 'pmcc-pt45', overrides: { diagLongProfitTarget: 0.45 } },
-  { name: 'pmcc-pt55', overrides: { diagLongProfitTarget: 0.55 } },
+  // Profit target variants
+  { name: 'pmcc-pt40', overrides: { diagLongProfitTarget: 0.40 } }, // faster exit
+  { name: 'pmcc-pt60', overrides: { diagLongProfitTarget: 0.60 } }, // hold longer
+  // Short leg delta variants
+  { name: 'pmcc-shortdelta-low',  overrides: { diagShortDeltaRange: [0.15, 0.25] } }, // safer short
+  { name: 'pmcc-shortdelta-high', overrides: { diagShortDeltaRange: [0.30, 0.40] } }, // more premium
+  // Long leg delta variants
+  { name: 'pmcc-longdelta-shallow', overrides: { diagLongDeltaRange: [0.55, 0.70] } }, // less ITM
+  { name: 'pmcc-longdelta-deep',    overrides: { diagLongDeltaRange: [0.75, 0.90] } }, // deeper ITM
+  // Short DTE variants
+  { name: 'pmcc-shortdte', overrides: { diagShortDTERange: [15, 30] } }, // shorter short leg
 ];
 
 export const strategy: StrategyDefinition = {

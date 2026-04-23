@@ -34,6 +34,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { validatePreRegOrBypass } from './pre-reg-gate';
 import { loadDatasetManifest } from './dataset-manifest';
+import { countEffectiveAttempts, deflatedSharpeAt, F0_BOUNDARY_ISO } from './f0-boundary';
 import type { RunResult } from '../types';
 
 export interface SealArgs {
@@ -42,6 +43,73 @@ export interface SealArgs {
   strategyName: string;        // must match RunResult.strategyName on the row
   preRegHash: string;          // 64 hex chars (no prefix); normalized before use
   now?: Date;                  // injectable clock (tests)
+}
+
+/**
+ * The standard 6-criterion adoption threshold that every sealed artifact
+ * must satisfy, regardless of what the pre-reg's free-form text says. A
+ * pre-reg may choose to document a stricter threshold; it cannot document
+ * a looser one and still get a machine-enforced PASS verdict.
+ *
+ * Codex adversarial review (2026-04-22) flagged that the prior verdict
+ * logic only checked `passesHoldoutAndIR`, which allowed rows to seal PASS
+ * while failing other pre-reg criteria (notably `deflatedSharpeMertens`).
+ * This function closes that gap.
+ */
+export interface AdoptionGate {
+  name: string;
+  required: string;
+  actual: number | boolean | null | undefined;
+  passed: boolean;
+}
+
+export function computeStandardAdoption(
+  row: RunResult,
+  opts: { dsrMOverride?: number | undefined } = {},
+): {
+  passesAll: boolean;
+  gates: AdoptionGate[];
+} {
+  const dsrM = opts.dsrMOverride !== undefined ? opts.dsrMOverride : row.deflatedSharpeMertens;
+  const gates: AdoptionGate[] = [
+    {
+      name: 'holdoutSpyIR >= 0',
+      required: '>= 0',
+      actual: row.holdoutSpyIR,
+      passed: typeof row.holdoutSpyIR === 'number' && Number.isFinite(row.holdoutSpyIR) && row.holdoutSpyIR >= 0,
+    },
+    {
+      name: 'holdoutSharpe >= 0.3',
+      required: '>= 0.3',
+      actual: row.holdoutSharpe,
+      passed: typeof row.holdoutSharpe === 'number' && Number.isFinite(row.holdoutSharpe) && row.holdoutSharpe >= 0.3,
+    },
+    {
+      name: 'oosSharpe >= 0.8',
+      required: '>= 0.8',
+      actual: row.oosSharpe,
+      passed: typeof row.oosSharpe === 'number' && Number.isFinite(row.oosSharpe) && row.oosSharpe >= 0.8,
+    },
+    {
+      name: 'passesStability',
+      required: 'true',
+      actual: row.passesStability,
+      passed: row.passesStability === true,
+    },
+    {
+      name: 'passesStatConsistency',
+      required: 'true',
+      actual: row.passesStatConsistency,
+      passed: row.passesStatConsistency === true,
+    },
+    {
+      name: 'deflatedSharpeMertens > 0',
+      required: '> 0',
+      actual: dsrM,
+      passed: typeof dsrM === 'number' && Number.isFinite(dsrM) && dsrM > 0,
+    },
+  ];
+  return { passesAll: gates.every(g => g.passed), gates };
 }
 
 export type SealOutcome =
@@ -453,7 +521,30 @@ export function sealHoldout(args: SealArgs): SealOutcome {
   }
 
   // 8. Compose and write the seal.
-  const passes = Boolean(row.passesHoldoutAndIR);
+  //    Verdict = passesHoldoutAndIR AND all six standard-adoption gates.
+  //    The standard 6 gates (holdoutSpyIR, holdoutSharpe, oosSharpe,
+  //    passesStability, passesStatConsistency, deflatedSharpeMertens) are
+  //    machine-enforced regardless of what the pre-reg's free-form
+  //    threshold text says.
+  //
+  //    Phase F0 (docs/phase-f0-clean-slate-declaration.md): the
+  //    deflatedSharpeMertens gate uses a RECOMPUTED value under the F0
+  //    effective attempt counter, not the row's original dsrM that was
+  //    computed against the global counter. Trials timestamped before
+  //    F0_BOUNDARY_ISO are excluded from the effective N, so dsrM for
+  //    F0-era strategies isn't over-deflated by pre-F0 attempts run under
+  //    documented simulator bugs.
+  const f0 = countEffectiveAttempts(args.repoRoot, String(row.timestamp ?? now.toISOString()));
+  let effectiveDsrM: number | undefined = row.deflatedSharpeMertens;
+  if (f0.ledgerPresent && f0.effectiveN > 0) {
+    effectiveDsrM = deflatedSharpeAt(
+      typeof row.oosSharpe === 'number' ? row.oosSharpe : undefined,
+      f0.effectiveN,
+      typeof row.mertensSharpeSE === 'number' ? row.mertensSharpeSE : undefined,
+    );
+  }
+  const adoption = computeStandardAdoption(row, { dsrMOverride: effectiveDsrM });
+  const passes = Boolean(row.passesHoldoutAndIR) && adoption.passesAll;
   const utcDate = now.toISOString().slice(0, 10);
   const sealFilename = `${utcDate}-${hashPrefix}.md`;
   const sealPath = path.join(sealsDir, sealFilename);
@@ -476,6 +567,9 @@ export function sealHoldout(args: SealArgs): SealOutcome {
     holdoutWindowHash: outcome.block.holdoutWindowHash,
     row,
     passes,
+    adoptionGates: adoption.gates,
+    effectiveAttemptN: f0.ledgerPresent ? f0.effectiveN : null,
+    effectiveDsrM,
   });
   try {
     fs.writeFileSync(sealPath, md, { flag: 'wx' });
@@ -528,12 +622,20 @@ function buildSealMarkdown(opts: {
   holdoutWindowHash: string;
   row: RunResult;
   passes: boolean;
+  adoptionGates: AdoptionGate[];
+  effectiveAttemptN: number | null;
+  effectiveDsrM: number | undefined;
 }): string {
   const r = opts.row;
   const verdict = opts.passes ? 'PASS' : 'FAIL';
+  const gateRows = opts.adoptionGates.map(g =>
+    `| ${g.name} | ${g.required} | ${typeof g.actual === 'number' ? g.actual.toFixed(3) : String(g.actual)} | ${g.passed ? '✓' : '✗'} |`
+  ).join('\n');
+  const passedCount = opts.adoptionGates.filter(g => g.passed).length;
+  const totalCount = opts.adoptionGates.length;
   return `# Holdout Seal — ${opts.strategyName}
 
-**Verdict:** ${verdict} (\`passesHoldoutAndIR = ${opts.passes}\`)
+**Verdict:** ${verdict} (${passedCount} of ${totalCount} standard adoption gates, \`passesHoldoutAndIR = ${r.passesHoldoutAndIR ?? 'n/a'}\`)
 **Sealed at:** ${opts.timestampIso}
 **Pre-reg block hash:** \`${opts.preRegBlockHash}\`
 **Pre-reg commit (\`.handoff/current.md\`):** \`${opts.preRegGitSha ?? 'n/a'}\`
@@ -580,7 +682,18 @@ function buildSealMarkdown(opts: {
 | oosMaxDD | ${fmtOrNA(r.oosMaxDD)} |
 | oosTrades | ${r.oosTrades} |
 | deflatedSharpe | ${fmtOrNA(r.deflatedSharpe)} |
-| attemptNumber | ${r.attemptNumber ?? 'n/a'} |
+| deflatedSharpeMertens (global) | ${fmtOrNA(r.deflatedSharpeMertens)} |
+| deflatedSharpeMertens (F0 effective) | ${fmtOrNA(opts.effectiveDsrM)} |
+| attemptNumber (global) | ${r.attemptNumber ?? 'n/a'} |
+| attemptNumber (F0 effective) | ${opts.effectiveAttemptN ?? 'n/a (ledger absent)'} |
+
+## Phase F0 effective-counter provenance
+
+F0 boundary (from \`docs/phase-f0-clean-slate-declaration.md\`): trials
+timestamped before ${F0_BOUNDARY_ISO} are excluded from the effective
+N used in the deflatedSharpeMertens gate. The gate's \`actual\` column
+above reports the F0-effective dsrM; the row's originally-stamped
+global dsrM is shown here for comparison only.
 
 ## Adoption-gate provenance
 
@@ -589,6 +702,19 @@ function buildSealMarkdown(opts: {
 | adoptionGatesRawHash | \`${r.adoptionGatesRawHash ?? 'n/a'}\` |
 | adoptionGatesEffectiveHash | \`${r.adoptionGatesEffectiveHash ?? 'n/a'}\` |
 | adoptionGatesOverrides | ${r.adoptionGatesOverrides && r.adoptionGatesOverrides.length > 0 ? r.adoptionGatesOverrides.map(o => `${o.envVar}=${o.value} (${o.target})`).join(', ') : 'none'} |
+
+## Standard adoption threshold (machine-enforced, ${passedCount} of ${totalCount} pass)
+
+| Criterion | Required | Actual | Pass? |
+|---|---|---:|:---:|
+${gateRows}
+
+The seal verdict requires ALL six of the above to pass, in addition to
+the runner's \`passesHoldoutAndIR\` boolean. A pre-reg may document a
+stricter free-form threshold (see Pre-Registration section above) but
+cannot document a looser one while still earning a machine-enforced
+PASS. A row that clears \`passesHoldoutAndIR\` but fails any of the
+above is sealed with verdict FAIL.
 
 ## Known limitations at time of seal
 

@@ -231,6 +231,49 @@ describe('simulateDiagonal happy path', () => {
     expect(trade!.pnl).toBeLessThan(1700);
     expect(trade!.exitType).toBe('TIME_STOP');
   });
+
+  it('long-exit fill honors contract bid/ask, not synthetic ±$0.05 spread (gotcha #42 fix)', async () => {
+    // Design: on the exit day, contract has a WIDE bid/ask — bid=50, ask=60, mid=55.
+    // Under bidask fillMode with default dynamic slippage:
+    //   Pre-fix sell fill ≈ mid-0.05 = $54.95 → long PnL ≈ (54.95 - 45.1) * 100 = $985
+    //   Post-fix sell fill ≈ bid $50 → long PnL ≈ (50 - 45.1) * 100 = $490
+    // The $495 gap is larger than any reasonable slippage impact term, so the
+    // assertion range cleanly separates pre- vs post-fix behavior.
+    mockChainByDate.set('2023-01-20', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-10-20', dte: 273, strike: 340, spot: 380, callBid: 44.9, callMid: 45, callAsk: 45.1, delta: 0.75 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-02-17', dte: 28, strike: 400, spot: 380, callBid: 2.4, callMid: 2.5, callAsk: 2.6, delta: 0.25 }),
+    ]);
+    mockChainByDate.set('2023-02-17', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-02-17', expiry: '2023-10-20', dte: 245, strike: 340, spot: 385, callBid: 49.9, callMid: 50, callAsk: 50.1, delta: 0.78 }),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-02-17', expiry: '2023-02-17', dte: 0, strike: 400, spot: 385, callBid: 0, callMid: 0, callAsk: 0.05, delta: 0 }),
+    ]);
+    // Wide bid/ask spread at time-stop exit: bid=50, ask=60.
+    mockChainByDate.set('2023-07-24', [
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-07-24', expiry: '2023-10-20', dte: 88, strike: 340, spot: 395, callBid: 50, callMid: 55, callAsk: 60, delta: 0.88 }),
+    ]);
+
+    const signal: EntrySignal = { ticker: 'QQQ', date: '2023-01-20', direction: 'CALL', score: 0 };
+    const config: SimConfig = {
+      ...DEFAULT_LEAP_CONFIG,  // keeps default dynamic slippage enabled
+      mode: 'DIAGONAL',
+      fillMode: 'bidask',
+      diagLongDeltaRange: [0.65, 0.80], diagLongDTERange: [240, 300],
+      diagShortDeltaRange: [0.20, 0.30], diagShortDTERange: [25, 45],
+      diagLongProfitTarget: 0.40, diagLongStopLoss: 0.35, diagLongTimeStopDTE: 90,
+      diagShortProfitTarget: 0.50, diagRollTriggerMoneyness: 0.02,
+      monitoringIntervalDays: 1,
+    };
+    const allDates = buildWeekdays('2023-01-20', '2023-07-24');
+
+    const trade = await simulateDiagonal('', signal, config, allDates, '2023-12-31');
+    expect(trade).not.toBeNull();
+    expect(trade!.exitType).toBe('TIME_STOP');
+    // Post-fix expected PnL ≈ $490 long + $235 short = ~$725. Wide tolerance for slippage variability.
+    expect(trade!.pnl).toBeGreaterThan(400);
+    expect(trade!.pnl).toBeLessThan(900);
+    // Pre-fix synthetic would land near ~$1220. Assert we're clearly below that.
+    expect(trade!.pnl).toBeLessThan(1000);
+  });
 });
 
 describe('Short-cycle state machine', () => {
