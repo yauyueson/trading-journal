@@ -25,6 +25,11 @@
  *   AUTORESEARCH_LEADERBOARD_SUFFIX=pmcc-qqq-pt60-f1 \
  *   AUTORESEARCH_STRATEGY_FILENAME=strategy-pmcc-qqq-pt60-f1.ts \
  *   npx tsx scripts/autoresearch/runner.ts
+ *
+ * Blob bump: unblock the sealer after the pre-reg commit's runner-HEAD
+ * accumulated non-audit diffs (leaderboard gitignore). New blob produces
+ * a new (name, blob, preReg) identity triple so the sealer selects the
+ * fresh row instead of the stale first match.
  */
 import type { StrategyDefinition, TickerDataBundle, MarketContext, EntrySignal, SimConfig } from './types';
 import { DEFAULT_LEAP_CONFIG } from '../../src/lib/backtest/option-sim';
