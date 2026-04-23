@@ -15,20 +15,26 @@ config (60% profit target vs 50%) and first-time sealing under the
 F0-corrected simulator (gotcha #42 fix, calendar-day maxHoldDays,
 full 6-gate machine enforcement).
 
+This pre-reg references the Phase F0 boundary 2026-04-23T02:20:00Z UTC
+(declaration commit `0edb7f8`). Trials before that timestamp are
+excluded from the F0-effective attempt counter used in the
+deflatedSharpeMertens gate.
+
+Residual informal priors (disclosure, not mechanical correction):
+- PMCC structure produces real risk-adjusted edge on QQQ (pre-F0
+  sealed pt50 cleared 6/6 before gotcha #42 fix — demoted but
+  evidence not invalidated).
+- QQQ is the most-explored ticker; other tickers underexplored.
+- pt60 tested in the F0 bypass sweep (2026-04-23) produced oosSharpe
+  1.72, oosSpyIR +0.85, dsrM > 0 under F0-effective N ≈ 18. This
+  observation influenced the decision to pre-reg pt60 here. The F0
+  reset does not claim a clean epistemic slate.
+
 ## Pre-Registration
 
-**Phase F0 boundary:** 2026-04-23T02:20:00Z UTC (declaration commit `0edb7f8`). Trials before this timestamp are excluded from the F0-effective attempt counter used in deflatedSharpeMertens gating.
+**Hypothesis**: PMCC on QQQ with config (long δ 0.70-0.80, long DTE 240-300, short δ 0.20-0.30, short DTE 30-45, long profit target 60%, short profit target 50%, long stop loss 35%, long time-stop DTE 90, roll trigger moneyness 2%) — structural edge from premium collection on top of deep-ITM long LEAP — earns positive risk-adjusted alpha over SPY AND clears all 6 standard adoption gates including deflatedSharpeMertens > 0 computed under the F0-effective attempt counter.
 
-**Residual informal priors:** I carry the following priors from pre-F0 exploration that are not mechanically counted:
-- PMCC structure produces real risk-adjusted edge on QQQ (pre-F0 sealed PMCC pt50 cleared 6/6 before gotcha #42 fix; demoted but evidence not invalidated).
-- QQQ is the most-explored ticker; other tickers underexplored.
-- pt60 tested in F0 sweep (bypass mode, 2026-04-23) produced oosSharpe 1.72, oosSpyIR +0.85, dsrM > 0 under F0-effective N ≈ 18. This observation influenced the decision to pre-reg pt60 here.
-
-These priors are a disclosure, not a correction. The F0 reset does not claim a clean epistemic slate — only a reset of the mechanical deflation counter.
-
-**Hypothesis:** PMCC on QQQ with config (long δ 0.70-0.80, long DTE 240-300, short δ 0.20-0.30, short DTE 30-45, long profit target 60%, short profit target 50%, long stop loss 35%, long time-stop DTE 90, roll trigger moneyness 2%) — structural edge from premium collection on top of deep-ITM long LEAP — earns positive risk-adjusted alpha over SPY AND clears all 6 standard adoption gates including deflatedSharpeMertens > 0 computed under the F0-effective attempt counter.
-
-**Config Grid:** 1 variant (singleton named anchor).
+**Config Grid**: 1 variant (singleton named anchor):
 
 | Variant | Long δ | Long DTE | Short δ | Short DTE | Long PT |
 |---|---|---|---|---|---|
@@ -36,19 +42,19 @@ These priors are a disclosure, not a correction. The F0 reset does not claim a c
 
 Defined in `scripts/autoresearch/strategy-pmcc-qqq-pt60-f1.ts`.
 
-**Decision Rule:** The named anchor `pmcc-qqq-pt60-f1-anchor` is always the sealed candidate (no variants to choose among). Seal via `scripts/evaluate-holdout.ts`.
+**Decision Rule**: The named anchor `pmcc-qqq-pt60-f1-anchor` is always the sealed candidate (no variants to choose among). Seal via `scripts/evaluate-holdout.ts`.
 
-**Adoption Threshold:** The sealed row must satisfy ALL of the standard 6 adoption gates as machine-enforced by `scripts/autoresearch/lib/seal-holdout.ts::computeStandardAdoption`:
-- holdoutSpyIR >= 0
-- holdoutSharpe >= 0.3
-- oosSharpe >= 0.8
-- passesStability = true
-- passesStatConsistency = true
-- deflatedSharpeMertens > 0 (computed under F0-effective attempt counter)
+**Adoption Threshold**: The sealed row must satisfy ALL of the standard 6 adoption gates as machine-enforced by `scripts/autoresearch/lib/seal-holdout.ts::computeStandardAdoption`:
+- `holdoutSpyIR >= 0`
+- `holdoutSharpe >= 0.3`
+- `oosSharpe >= 0.8`
+- `passesStability = true`
+- `passesStatConsistency = true`
+- `deflatedSharpeMertens > 0` (computed under F0-effective attempt counter)
 
-**Holdout Window Hash:** sha256:4bde4339e7cb212ab59bb19dc727321d020d410f7b3e394c5389a16c06e7dbc9
+**Holdout Window Hash**: sha256:4bde4339e7cb212ab59bb19dc727321d020d410f7b3e394c5389a16c06e7dbc9
 
-**Declared Env Overrides:** none
+**Declared Env Overrides**: none
 
 ## Relationship to pre-F0 PMCC QQQ pt50
 
@@ -60,7 +66,7 @@ This pre-reg is NOT a re-run of pt50 with a counter reset. pt60 is a materially 
 
 ## Caveats
 
-- PMCC's always-in signal means the "signal alpha" question is N/A — PMCC's edge is structural (premium collection), not timing. F0 random-entry null test (strategy-bcd-qqq-random.ts, 2026-04-23) confirmed the EMA34 signal has no timing alpha for BCD; PMCC deliberately does not use a timing signal.
+- PMCC's always-in signal means the "signal alpha" question is N/A — PMCC's edge is structural (premium collection), not timing. F0 random-entry null test (2026-04-23) confirmed the EMA34 signal has no timing alpha for BCD; PMCC deliberately does not use a timing signal.
 - The runner's `SrchVld=NO` delta-gate failure is expected for PMCC in this window: bounded-upside PMCC loses to unbounded long-call naive baseline during the 2024-2026 Mag7 rally. This does not affect the 6 adoption gates above.
 - Holdout has been iterated against by prior runs — see `docs/sealed-holdout.md` "Known limitations." Not a fresh holdout; the October 2026 refresh is the clean data reset.
 
