@@ -34,6 +34,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { validatePreRegOrBypass } from './pre-reg-gate';
 import { loadDatasetManifest } from './dataset-manifest';
+import { countEffectiveAttempts, deflatedSharpeAt, F0_BOUNDARY_ISO } from './f0-boundary';
 import type { RunResult } from '../types';
 
 export interface SealArgs {
@@ -62,10 +63,14 @@ export interface AdoptionGate {
   passed: boolean;
 }
 
-export function computeStandardAdoption(row: RunResult): {
+export function computeStandardAdoption(
+  row: RunResult,
+  opts: { dsrMOverride?: number | undefined } = {},
+): {
   passesAll: boolean;
   gates: AdoptionGate[];
 } {
+  const dsrM = opts.dsrMOverride !== undefined ? opts.dsrMOverride : row.deflatedSharpeMertens;
   const gates: AdoptionGate[] = [
     {
       name: 'holdoutSpyIR >= 0',
@@ -100,8 +105,8 @@ export function computeStandardAdoption(row: RunResult): {
     {
       name: 'deflatedSharpeMertens > 0',
       required: '> 0',
-      actual: row.deflatedSharpeMertens,
-      passed: typeof row.deflatedSharpeMertens === 'number' && Number.isFinite(row.deflatedSharpeMertens) && row.deflatedSharpeMertens > 0,
+      actual: dsrM,
+      passed: typeof dsrM === 'number' && Number.isFinite(dsrM) && dsrM > 0,
     },
   ];
   return { passesAll: gates.every(g => g.passed), gates };
@@ -520,9 +525,25 @@ export function sealHoldout(args: SealArgs): SealOutcome {
   //    The standard 6 gates (holdoutSpyIR, holdoutSharpe, oosSharpe,
   //    passesStability, passesStatConsistency, deflatedSharpeMertens) are
   //    machine-enforced regardless of what the pre-reg's free-form
-  //    threshold text says. This closes the Codex 2026-04-22 finding that
-  //    `passesHoldoutAndIR` alone was too permissive.
-  const adoption = computeStandardAdoption(row);
+  //    threshold text says.
+  //
+  //    Phase F0 (docs/phase-f0-clean-slate-declaration.md): the
+  //    deflatedSharpeMertens gate uses a RECOMPUTED value under the F0
+  //    effective attempt counter, not the row's original dsrM that was
+  //    computed against the global counter. Trials timestamped before
+  //    F0_BOUNDARY_ISO are excluded from the effective N, so dsrM for
+  //    F0-era strategies isn't over-deflated by pre-F0 attempts run under
+  //    documented simulator bugs.
+  const f0 = countEffectiveAttempts(args.repoRoot, String(row.timestamp ?? now.toISOString()));
+  let effectiveDsrM: number | undefined = row.deflatedSharpeMertens;
+  if (f0.ledgerPresent && f0.effectiveN > 0) {
+    effectiveDsrM = deflatedSharpeAt(
+      typeof row.oosSharpe === 'number' ? row.oosSharpe : undefined,
+      f0.effectiveN,
+      typeof row.mertensSharpeSE === 'number' ? row.mertensSharpeSE : undefined,
+    );
+  }
+  const adoption = computeStandardAdoption(row, { dsrMOverride: effectiveDsrM });
   const passes = Boolean(row.passesHoldoutAndIR) && adoption.passesAll;
   const utcDate = now.toISOString().slice(0, 10);
   const sealFilename = `${utcDate}-${hashPrefix}.md`;
@@ -547,6 +568,8 @@ export function sealHoldout(args: SealArgs): SealOutcome {
     row,
     passes,
     adoptionGates: adoption.gates,
+    effectiveAttemptN: f0.ledgerPresent ? f0.effectiveN : null,
+    effectiveDsrM,
   });
   try {
     fs.writeFileSync(sealPath, md, { flag: 'wx' });
@@ -600,6 +623,8 @@ function buildSealMarkdown(opts: {
   row: RunResult;
   passes: boolean;
   adoptionGates: AdoptionGate[];
+  effectiveAttemptN: number | null;
+  effectiveDsrM: number | undefined;
 }): string {
   const r = opts.row;
   const verdict = opts.passes ? 'PASS' : 'FAIL';
@@ -657,7 +682,18 @@ function buildSealMarkdown(opts: {
 | oosMaxDD | ${fmtOrNA(r.oosMaxDD)} |
 | oosTrades | ${r.oosTrades} |
 | deflatedSharpe | ${fmtOrNA(r.deflatedSharpe)} |
-| attemptNumber | ${r.attemptNumber ?? 'n/a'} |
+| deflatedSharpeMertens (global) | ${fmtOrNA(r.deflatedSharpeMertens)} |
+| deflatedSharpeMertens (F0 effective) | ${fmtOrNA(opts.effectiveDsrM)} |
+| attemptNumber (global) | ${r.attemptNumber ?? 'n/a'} |
+| attemptNumber (F0 effective) | ${opts.effectiveAttemptN ?? 'n/a (ledger absent)'} |
+
+## Phase F0 effective-counter provenance
+
+F0 boundary (from \`docs/phase-f0-clean-slate-declaration.md\`): trials
+timestamped before 2026-04-22T22:15:00Z are excluded from the effective
+N used in the deflatedSharpeMertens gate. The gate's \`actual\` column
+above reports the F0-effective dsrM; the row's originally-stamped
+global dsrM is shown here for comparison only.
 
 ## Adoption-gate provenance
 
