@@ -725,7 +725,7 @@ export function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
  *
  * Capital at risk = net debit × 100 (hard cap on max loss).
  */
-function makeDebitSpreadEvaluator(config: SimConfig): TradeEvaluator {
+export function makeDebitSpreadEvaluator(config: SimConfig): TradeEvaluator {
   return (signal, _config, allDates, maxDate) => {
     if (config.debitDTERange == null || config.debitLongDelta == null
         || config.debitShortDelta == null || config.debitProfitTargetPct == null) {
@@ -744,13 +744,14 @@ function makeDebitSpreadEvaluator(config: SimConfig): TradeEvaluator {
 
     const longMatch = findStrikeByDelta(entryChain, config.debitLongDelta, optionType, config.debitDTERange, 0);
     if (!longMatch) return null;
-    const shortMatch = findStrikeByDelta(entryChain, config.debitShortDelta, optionType, config.debitDTERange, 0);
+    let shortMatch = findStrikeByDelta(entryChain, config.debitShortDelta, optionType, config.debitDTERange, 0);
     if (!shortMatch) return null;
     if (shortMatch.row.expir_date !== longMatch.row.expir_date) {
-      // Need same expiry. Re-try short leg within the long leg's DTE range.
+      // Need same expiry. Re-try short leg within the long leg's exact DTE.
       const exactDte: [number, number] = [longMatch.row.dte, longMatch.row.dte];
       const retry = findStrikeByDelta(entryChain, config.debitShortDelta, optionType, exactDte, 0);
       if (!retry || retry.row.expir_date !== longMatch.row.expir_date) return null;
+      shortMatch = retry;  // use the same-expiry match, not the original
     }
 
     const longRow = longMatch.row;
@@ -802,12 +803,29 @@ function makeDebitSpreadEvaluator(config: SimConfig): TradeEvaluator {
     let exitType: OptionExitType = 'EXPIRATION';
     let exitDTE = 0;
     let stopped = false;
+    let heldDays = 0;
+    let consecutiveMissing = 0;
+    const missingChainCap = config.missingChainExitAfterDays ?? 3;
 
     for (const d of monitorDates) {
       if (stopped) break;
+      heldDays++;
       const longCur = findContractDirect(signal.ticker, d, longRow.strike, expiry, optionType);
       const shortCur = findContractDirect(signal.ticker, d, shortRow.strike, expiry, optionType);
-      if (!longCur || !shortCur) continue;
+      if (!longCur || !shortCur) {
+        consecutiveMissing++;
+        if (consecutiveMissing >= missingChainCap) {
+          // Force-close at last known mark to avoid stale-price drift.
+          const last = dailyMtM[dailyMtM.length - 1];
+          exitSpreadValue = last ? last.spreadMid : netDebit;
+          exitDate = d;
+          exitType = 'FORCE_CLOSE';
+          stopped = true;
+          break;
+        }
+        continue;
+      }
+      consecutiveMissing = 0;
 
       // Mark-to-market spread value = long mid - short mid
       const curSpreadMid = longCur.mid - shortCur.mid;
@@ -847,6 +865,23 @@ function makeDebitSpreadEvaluator(config: SimConfig): TradeEvaluator {
         exitSpreadValue = closeLong - closeShort;
         exitDate = d;
         exitType = 'TIME_STOP';
+        stopped = true;
+        break;
+      }
+
+      // Max hold days: force exit after N trading days
+      if (config.debitMaxHoldDays != null && heldDays >= config.debitMaxHoldDays) {
+        const closeLong = applyFill(config.fillMode, longCur.mid,
+          optionType === 'Call' ? longCur.row.call_bid : longCur.row.put_bid,
+          optionType === 'Call' ? longCur.row.call_ask : longCur.row.put_ask,
+          'sell', config.slippage, optionType === 'Call' ? longCur.row.call_oi : longCur.row.put_oi, longCur.row.dte).fillPrice;
+        const closeShort = applyFill(config.fillMode, shortCur.mid,
+          optionType === 'Call' ? shortCur.row.call_bid : shortCur.row.put_bid,
+          optionType === 'Call' ? shortCur.row.call_ask : shortCur.row.put_ask,
+          'buy', config.slippage, optionType === 'Call' ? shortCur.row.call_oi : shortCur.row.put_oi, shortCur.row.dte).fillPrice;
+        exitSpreadValue = closeLong - closeShort;
+        exitDate = d;
+        exitType = 'FORCE_CLOSE';
         stopped = true;
         break;
       }
