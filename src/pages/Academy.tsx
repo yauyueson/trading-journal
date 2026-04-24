@@ -143,6 +143,35 @@ const GLOSSARY: GlossaryItem[] = [
         whyItMatters: '很多交易员死于重仓。凯利公式告诉你：即使你有 99% 的胜率，如果在这一次梭哈，你最终破产的概率也是 100%。通常使用 "Half-Kelly" 来控制风险。'
     },
 
+    // --- ACTIVE F1 ADOPTED STRATEGIES (2026-04-23) ---
+    {
+        id: 'bcd-qqq-wide',
+        term: 'BCD QQQ wide (F1 采纳 · $2K 级)',
+        category: 'Strategy',
+        icon: Trophy,
+        formula: 'Long δ 0.50 - Short δ 0.20 @ DTE 30-60 · PT 50% · 每 10 交易日',
+        explanation: '✅ **当前活跃策略 #1**（2026-04-23 封存通过 6/6 采纳门槛，dsrM F0-effective N=30 +0.065）。\n\n这是一个 bull call debit spread（看涨借方价差）在 QQQ 上的结构化应用：买入一个 ATM 附近的 long call（δ ≈ 0.50），同时卖出一个更虚值的 short call（δ ≈ 0.20）作为权利金抵消，两腿同一到期日、DTE 在 30 到 60 天之间。净支出（net debit）即为最大亏损；当价差 P&L 达到 +50% 时平仓获利。\n\n**为什么选 debit 而不是 credit？** 2024-2026 的 QQQ 牛市窗口中，bounded-upside credit spread（如 DTE5 Bull Put）系统性地输给"一直做多 SPY"这个 naive baseline（holdoutSpyIR −0.76）。BCD 反过来顺应方向性溢价——long call 腿在方向对时能产生 2-3x 的收益，而 short call 仅作为成本补贴不限制上行。\n\n**入场规则的精妙**：不使用 EMA34 / EMA55 等技术信号门控（F0 null-test 已证明这些指标不增加 alpha），而是采用"每 10 个交易日 + maxPositions=1 flat-gate"的简单节奏。即：上一笔仓位平仓后 10 个交易日才触发下一笔入场。这避免了 5 日节奏的过度交易（holdoutSpyIR −0.19）与 20 日节奏的样本不足（dsrM 未通过）之间的平衡点。\n\n**资本需求**：$2K 起步。每手 debit 约 $400-600（取决于 QQQ 当前价位），maxPositions=1 意味着总占用不超过一手。\n\n**历史回测**：oosSharpe 0.97, holdoutSharpe 1.22, holdoutSpyIR +0.40。封存文件：`docs/holdout-evaluations/2026-04-23-25880326cfe1.md`。',
+        whyItMatters: '这是 2 个 F1 活跃策略之一，占小资金账户的主力。用 Signals 页面的 "Open BCD Position →" 按钮手动触发 `BCDEntryModal` 入场。'
+    },
+    {
+        id: 'pmcc-qqq-pt60',
+        term: 'PMCC QQQ pt60 (F1 采纳 · $10K+ 级)',
+        category: 'Strategy',
+        icon: Trophy,
+        formula: 'Long LEAP δ 0.70-0.80 @ DTE 240-300 + Short monthly δ 0.20-0.30 @ DTE 30-45 · Long PT 60%',
+        explanation: '✅ **当前活跃策略 #2**（2026-04-23 封存通过 6/6 采纳门槛，dsrM F0-effective N=25 +0.845 — 极为宽裕的安全边际）。\n\nPMCC (Poor Man\'s Covered Call) 是 diagonal spread 的一种，模拟"持有 100 股正股 + 卖出一个月看涨期权"的传统 covered call 策略，但用一张深度实值 LEAP call 替代 100 股正股，大幅降低资金门槛。\n\n**结构**：\n1. Long LEAP call（δ 0.70-0.80，DTE 240-300 天）— 这是长期"持股替代物"，占绝大部分资金（$8K-$12K/张）。\n2. Short monthly call（δ 0.20-0.30，DTE 30-45 天）— 在 LEAP 上方卖出一张 OTM call，每月收取权利金。\n\n**管理规则**：\n- **Long PT +60%**：当 LEAP 盈利 60% 时平掉整个头寸。\n- **Short PT +50%**：当 short leg 盈利 50% 时单独平短腿。\n- **Roll 触发**：当 QQQ 现价逼近 short strike（距离 ≤ 2%）时滚动 short 到更远的期权。\n- **Long SL −35%**：如果 LEAP 亏损 35% 则整体止损。\n\n**为什么 pt60 而不是 pt50？** F0 null-test 探索了 50% / 60% / 70% 三种长腿止盈：60% 在 2024-2026 窗口的 holdoutSpyIR 最佳 (+0.15)，且 dsrM 余量最大。pt50 轻微过早止盈，pt70 让利润回吐。\n\n**资本需求**：$10K 起步。适合有稳定收入的账户用作核心持仓。\n\n**相比 BCD 的互补性**：PMCC 是"always-in"（只要没仓位就入场，不等信号），BCD 是"每 10 日节奏"（离散触发）。两者资本 tier 不同、节奏不同、方向敞口不同——可以并行持有，平台 Dashboard 会显示两个独立的 P&L 板。\n\n**历史回测**：oosSharpe 1.72, holdoutSharpe 1.63, holdoutSpyIR +0.15。封存文件：`docs/holdout-evaluations/2026-04-23-7e9c2026f3df.md`。',
+        whyItMatters: '这是 2 个 F1 活跃策略之一，占大资金账户的核心持仓。用 Signals 页面的 "Open PMCC Position →" 按钮手动触发 `PMCCEntryModal`（两条腿独立选择到期日）入场。'
+    },
+    {
+        id: 'dsr-mertens',
+        term: 'Deflated Sharpe Ratio (Mertens) - 多重检验惩罚',
+        category: 'Metric',
+        icon: FlaskConical,
+        formula: 'dsrM = Sharpe − SE × E[max(N standard normals)]',
+        explanation: '当你在同一个数据集上测试 100 个策略，即使所有策略都毫无 alpha，你也会看到一些"看起来很牛"的假阳性——这就是多重检验偏差（multiple testing bias）。Deflated Sharpe Ratio 是 Bailey & López de Prado 提出的数学校正：从观测到的 Sharpe 中扣除"如果 N 次都在纯噪声中抽样，最大 Sharpe 的期望值"。\n\n**公式直觉**：\n- 如果 N=1（只测一次），没有多重检验惩罚，dsrM = Sharpe。\n- 如果 N=100（测了 100 种配置），需要扣除约 2.5 × SE ≈ 1.0 Sharpe 单位才能确信不是噪声。\n- 如果 N=1000，惩罚更重。\n\n**Phase F0 clean-slate 的意义**：2026-04-23 之前的 106 次尝试（pre-F0）被标记为"历史证据"，不计入 dsrM 的 N。F0 边界后重新计数（F0-effective N），给新策略一个"清白的起点"。这是一次性声明，至 2026-10 才考虑下次重置。\n\n**6/6 采纳门槛中的角色**：dsrM > 0 是六大门槛之一（其他：holdoutSpyIR ≥ 0, holdoutSharpe ≥ 0.3, oosSharpe ≥ 0.8, passesStability, passesStatConsistency）。BCD 和 PMCC 都是在 F0-effective N（分别为 30 和 25）下通过这一门槛的。',
+        whyItMatters: '防止你把噪声当 alpha。每次运行 runner 都会消耗一次尝试次数（计入 attempts-global.json），所以策略探索必须"想清楚再跑"。'
+    },
+
     // --- CREDIT SPREAD STRATEGY ---
     {
         id: 'spread-width',
