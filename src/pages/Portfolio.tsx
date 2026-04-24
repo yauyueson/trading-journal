@@ -9,7 +9,7 @@ import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { QuickAddPositionForm } from '../components/QuickAddPositionForm';
 import { PortfolioGreeksWidget } from '../components/PortfolioGreeksWidget';
 import { useAppSettings } from '../context/AppSettingsContext';
-import { getProfile } from '../lib/strategyProfiles';
+import { getProfile, RETIRED_STRATEGIES, type StrategyType } from '../lib/strategyProfiles';
 import { getPositionRiskAtStopOutDollars, aggregatePortfolioGreeks } from '../lib/riskSizing';
 import { formatCurrency, daysUntil } from '../lib/utils';
 import { usePositions } from '../hooks/usePositions';
@@ -117,13 +117,12 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
 
     const allActivePositions = positions.filter(p => p.status === 'active');
     const ownerFiltered = ownerFilter === 'All' ? allActivePositions : allActivePositions.filter(p => p.owner === ownerFilter);
-    const LEGACY_STRATEGIES: ReadonlyArray<string> = ['dte5', 'swing', 'shortTerm'];
     const strategyFiltered = strategyFilter === 'All'
         ? ownerFiltered
         : strategyFilter === 'untagged'
             ? ownerFiltered.filter(p => !p.strategy_type)
             : strategyFilter === 'legacy'
-                ? ownerFiltered.filter(p => p.strategy_type && LEGACY_STRATEGIES.includes(p.strategy_type))
+                ? ownerFiltered.filter(p => p.strategy_type && RETIRED_STRATEGIES.has(p.strategy_type as StrategyType))
                 : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
     const activePositions = paperFilter === 'all'
         ? strategyFiltered
@@ -410,7 +409,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                     {activePositions.length > 0 && (() => {
                         const bcdCount = activePositions.filter(p => p.strategy_type === 'bcd').length;
                         const pmccCount = activePositions.filter(p => p.strategy_type === 'pmcc').length;
-                        const legacyCount = activePositions.filter(p => p.strategy_type && LEGACY_STRATEGIES.includes(p.strategy_type)).length;
+                        const legacyCount = activePositions.filter(p => p.strategy_type && RETIRED_STRATEGIES.has(p.strategy_type as StrategyType)).length;
                         const untaggedCount = activePositions.length - bcdCount - pmccCount - legacyCount;
                         const dailyTheta = portfolioGreeks?.netTheta ?? 0;
 

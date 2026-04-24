@@ -11,6 +11,7 @@ import { MFEMAEChart } from '../components/stats/MFEMAEChart';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAppSettings } from '../context/AppSettingsContext';
+import { RETIRED_STRATEGIES, type StrategyType } from '../lib/strategyProfiles';
 
 interface StatsPageProps {
     positions?: Position[];
@@ -111,7 +112,6 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
     const { activeStrategy } = useAppSettings();
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
     const [strategyFilter, setStrategyFilter] = useState<'All' | 'bcd' | 'pmcc' | 'legacy'>('All');
-    const LEGACY_STRATEGIES: ReadonlyArray<string> = ['dte5', 'swing', 'shortTerm'];
     const [statsTab, setStatsTab] = useState<StatsTab>('overview');
     const allClosedPositions = positions.filter(p => p.status === 'closed');
     const ownerFiltered = ownerFilter === 'All'
@@ -120,7 +120,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
     const closedPositions = strategyFilter === 'All'
         ? ownerFiltered
         : strategyFilter === 'legacy'
-            ? ownerFiltered.filter(p => p.strategy_type && LEGACY_STRATEGIES.includes(p.strategy_type))
+            ? ownerFiltered.filter(p => p.strategy_type && RETIRED_STRATEGIES.has(p.strategy_type as StrategyType))
             : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
 
     const stats = useMemo(() => {
