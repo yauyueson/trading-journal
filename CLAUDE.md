@@ -125,7 +125,7 @@ Test environment: jsdom with globals enabled. Setup file: `src/test/setup.ts`.
 - **ESLint**: Lints only `src/**/*.{ts,tsx}`. Ignores `api/`, `lib/`, `*.cjs`. Max 25 warnings.
 - **API route pattern**: `api/strategy-recommend.js` uses raw `fetch()` for Supabase REST (env: `SUPABASE_URL`/`SUPABASE_ANON_KEY`). `api/cron-iv.js` uses `@supabase/supabase-js` createClient.
 - **Paper trading**: Positions have `is_paper` boolean. Paper and live positions coexist; filter via the portfolio's paper/live toggle.
-- **Strategy config consistency**: When changing strategy parameters (EMA gate, SL, TL, tickers), update ALL of: `data/strategy-config.json`, `src/lib/strategyProfiles.ts`, `api/cron-signal-scan.js`, `api/check-alerts.js`, `src/pages/Signals.tsx`, `src/pages/Dashboard.tsx`, `lib/_shared/strategyConfig.js`, `src/lib/types/settings.ts`, and `CLAUDE.md`. Run `npx tsc --noEmit && npm run build` to verify.
+- **Strategy config consistency**: When changing strategy parameters (deltas, DTE, PT/SL, tickers), update ALL of: `data/strategy-config.json`, `src/lib/strategyProfiles.ts`, `lib/_shared/strategyConfig.js`, `src/lib/types/settings.ts`, `src/pages/Signals.tsx`, `src/pages/Dashboard.tsx`, `src/components/PositionCard.tsx`, `src/components/BCDEntryModal.tsx` / `src/components/PMCCEntryModal.tsx` (if entry defaults move), `api/cron-signal-scan.js`, `api/check-alerts.js`, and `CLAUDE.md`. Run `npx tsc --noEmit && npm run test && npm run build` to verify.
 - **ORATS data quirk**: `orats_iv_cache.hv30d` is always NULL — ORATS `/hist/cores` doesn't provide `clsHv30d` (skips from 20d to 60d). Use `hv20d` for VRP computation (IV30² - HV20²).
 
 ## Env Vars
@@ -139,11 +139,19 @@ Analytics: `candidate_snapshots`, `stock_candles`, `signal_history`, `orats_iv_c
 
 Migrations in `supabase/migrations/` as raw SQL (no ORM).
 
-## Active Strategy
+## Active Strategies
 
-**DTE5 Bull Put Credit Spread (QQQ only)**: short delta 0.30 / long delta 0.20, DTE 2-7, EMA55 gate, SL 2.5x credit, trailing lock 50/50, hold-to-expiry. WFA-validated: OOS Sharpe 1.44, Holdout +0.84, MaxDD 11.8%. Strategy type `'dte5'` in `src/lib/strategyProfiles.ts`. Live testing at $1K, 10% risk per trade.
+Two F1 sealed adoptions (post-F0 clean-slate, 2026-04-23) run concurrently — different capital tiers, both QQQ-only:
 
-`STRATEGY_PROFILES` in `strategyProfiles.ts` defines three types (`swing`, `shortTerm`, `dte5`) — only `dte5` is active. Retired strategies kept for backward compat with existing DB data.
+**BCD QQQ wide** (`strategy_type: 'bcd'`, `$2K` tier): bull call debit spread. Long call δ 0.50 / short call δ 0.20, same expiry, DTE 30-60, profit target 50%, bid/ask fills. Entered every 10 trading days when flat (10-day emission + `maxPositions=1` flat gate — not a strict cadence). Seal: [docs/holdout-evaluations/2026-04-23-25880326cfe1.md](docs/holdout-evaluations/2026-04-23-25880326cfe1.md) — oosSharpe 0.97, holdoutSharpe 1.22, holdoutSpyIR +0.40, dsrM (F0-eff N=30) +0.065 (all 6 gates pass).
+
+**PMCC QQQ pt60** (`strategy_type: 'pmcc'`, `$10K+` tier): diagonal. Long LEAP call δ 0.70–0.80, DTE 240-300; short monthly call δ 0.20-0.30, DTE 30-45. Long PT 60%, short PT 50%, long SL 35%, roll short when underlying within 2% of short strike. Always-in (enter when flat). Seal: [docs/holdout-evaluations/2026-04-23-7e9c2026f3df.md](docs/holdout-evaluations/2026-04-23-7e9c2026f3df.md) — oosSharpe 1.72, holdoutSharpe 1.63, holdoutSpyIR +0.15, dsrM (F0-eff N=25) +0.845.
+
+`STRATEGY_PROFILES` in [src/lib/strategyProfiles.ts](src/lib/strategyProfiles.ts) defines five types. `ACTIVE_STRATEGIES = ['bcd', 'pmcc']`; `RETIRED_STRATEGIES = {'swing', 'shortTerm', 'dte5'}`. Retired rows remain viewable under the "Legacy" filter on Portfolio / Stats; their code paths are untouched.
+
+**Entry flow**: manual via `BCDEntryModal` / `PMCCEntryModal` on the Signals page. No cron-driven signal emission — `api/cron-signal-scan.js` is untouched by the F1 revamp. `api/check-alerts.js` explicitly skips BCD/PMCC positions (the DTE5 SL 2.5x / TL 50/50 rules don't apply).
+
+**Retired DTE5 Bull Put Credit Spread (historical reference)**: short delta 0.30 / long delta 0.20, DTE 2-7, EMA55 gate, SL 2.5x credit, trailing lock 50/50, hold-to-expiry. Sealed FAIL under F0 (window-artifact loss to 2024-2026 QQQ rally). Still in `STRATEGY_PROFILES` for back-compat with existing DB rows.
 
 ## Ticker Watchlist
 
