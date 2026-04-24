@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { computePositionPnL, isCreditStrategy, getStrategyKind, CONTRACT_MULTIPLIER } from '../utils';
+import {
+  computePositionPnL,
+  computeRiskMultiple,
+  CONTRACT_MULTIPLIER,
+  getOpenedQuantity,
+  getStrategyKind,
+  groupTransactionsByPositionId,
+  isCreditStrategy,
+} from '../utils';
 
 describe('isCreditStrategy', () => {
   it('identifies credit spreads', () => {
@@ -185,5 +193,50 @@ describe('computePositionPnL with kind argument (Phase A — revamp generalizati
       { quantity: -1, price: 5.50 },
     ];
     expect(computePositionPnL(txns, 'single')).toBe(250);
+  });
+});
+
+describe('transaction grouping helpers', () => {
+  it('groups transactions by position_id without dropping order', () => {
+    const txns = [
+      { position_id: 'a', quantity: 1, price: 1 },
+      { position_id: 'b', quantity: 2, price: 2 },
+      { position_id: 'a', quantity: -1, price: 3 },
+    ];
+    const grouped = groupTransactionsByPositionId(txns);
+    expect(grouped.a).toEqual([txns[0], txns[2]]);
+    expect(grouped.b).toEqual([txns[1]]);
+    expect(grouped.missing).toBeUndefined();
+  });
+
+  it('counts opened contracts only', () => {
+    const txns = [
+      { quantity: 3 },
+      { quantity: -1 },
+      { quantity: 2 },
+    ];
+    expect(getOpenedQuantity(txns)).toBe(5);
+  });
+});
+
+describe('computeRiskMultiple', () => {
+  it('uses max_risk_entry as dollars per contract for debit spreads', () => {
+    const txns = [
+      { quantity: 1, price: 2.00 },
+      { quantity: -1, price: 3.50 },
+    ];
+    const pnl = computePositionPnL(txns, 'debit');
+    expect(pnl).toBe(150);
+    expect(computeRiskMultiple(pnl, 200, getOpenedQuantity(txns))).toBe(0.75);
+  });
+
+  it('uses max_risk_entry as dollars per contract for credit spreads', () => {
+    const txns = [
+      { quantity: 2, price: 0.50 },
+      { quantity: -2, price: 0.20 },
+    ];
+    const pnl = computePositionPnL(txns, 'credit');
+    expect(pnl).toBe(60);
+    expect(computeRiskMultiple(pnl, 450, getOpenedQuantity(txns))).toBeCloseTo(0.0666667, 6);
   });
 });

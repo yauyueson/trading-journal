@@ -1,7 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { Position, Transaction } from '../lib/types';
-import { formatCurrency, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
+import {
+    computePositionPnL,
+    computeRiskMultiple,
+    formatCurrency,
+    getOpenedQuantity,
+    getStrategyKind,
+    groupTransactionsByPositionId,
+} from '../lib/utils';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ScoreValidation } from '../components/ScoreValidation';
 import { EquityCurve } from '../components/stats/EquityCurve';
@@ -124,6 +131,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
             : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
 
     const stats = useMemo(() => {
+        const transactionsByPosition = groupTransactionsByPositionId(transactions);
         let totalPnL = 0, wins = 0, losses = 0, totalWinPnL = 0, totalLossPnL = 0;
         const setupStats: Record<string, BucketStats> = {};
         const strategyStats: Record<string, BucketStats> = {};
@@ -140,17 +148,9 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
         const heatmapTrades: { closedAt: string; pnl: number }[] = [];
 
         closedPositions.forEach(p => {
-            const txns = transactions.filter(t => t.position_id === p.id);
-            const isCreditStrategy = isCreditStrategyFn(p.type);
-            let cost = 0, proceeds = 0, totalQty = 0;
-            txns.forEach(t => {
-                const price = t.price * CONTRACT_MULTIPLIER;
-                if (t.quantity > 0) { cost += t.quantity * price; totalQty += t.quantity; }
-                else proceeds += Math.abs(t.quantity) * price;
-            });
-            // For credit strategies, entry price is a credit received (not a cost),
-            // and close price is a debit paid (not proceeds). Invert the formula.
-            const pnl = isCreditStrategy ? cost - proceeds : proceeds - cost;
+            const txns = transactionsByPosition[p.id] ?? [];
+            const totalQty = getOpenedQuantity(txns);
+            const pnl = computePositionPnL(txns, getStrategyKind(p));
             totalPnL += pnl;
             if (pnl >= 0) { wins++; totalWinPnL += pnl; }
             else { losses++; totalLossPnL += pnl; }
@@ -161,10 +161,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                 : null;
 
             // R-Multiple
-            const maxRiskDollars = (p.max_risk_entry != null && totalQty > 0)
-                ? p.max_risk_entry * totalQty * CONTRACT_MULTIPLIER
-                : null;
-            const rMult = (maxRiskDollars != null && maxRiskDollars !== 0) ? pnl / maxRiskDollars : null;
+            const rMult = computeRiskMultiple(pnl, p.max_risk_entry, totalQty);
 
             // Setup bucket
             if (!setupStats[p.setup]) setupStats[p.setup] = emptyBucket();

@@ -9,7 +9,7 @@ import { usePositionAction, useUpdatePrice } from '../hooks/usePositionMutations
 import { useAutoCloseStuckPositions } from '../hooks/useAutoCloseStuckPositions';
 import { PositionCard } from '../components/PositionCard';
 import type { Position, PositionAction as PositionActionType } from '../lib/types';
-import { computePositionPnL, getStrategyKind } from '../lib/utils';
+import { computePositionPnL, getStrategyKind, groupTransactionsByPositionId } from '../lib/utils';
 import { ACTIVE_STRATEGIES, STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
 
 export function DashboardPage() {
@@ -18,6 +18,10 @@ export function DashboardPage() {
   const { data: transactions = [] } = useTransactions();
   const positionAction = usePositionAction();
   const updatePrice = useUpdatePrice();
+  const transactionsByPosition = useMemo(
+    () => groupTransactionsByPositionId(transactions),
+    [transactions],
+  );
 
   useAutoCloseStuckPositions(positions, transactions);
 
@@ -39,7 +43,7 @@ export function DashboardPage() {
     let pnl = 0;
     let wins = 0;
     for (const pos of closed) {
-      const txns = transactions.filter(t => t.position_id === pos.id);
+      const txns = transactionsByPosition[pos.id] ?? [];
       const p = computePositionPnL(txns, getStrategyKind(pos));
       pnl += p;
       if (p > 0) wins++;
@@ -55,7 +59,7 @@ export function DashboardPage() {
       pnl,
       returnPct: capital > 0 ? (pnl / capital) * 100 : 0,
     };
-  }), [positions, transactions, settings]);
+  }), [positions, transactionsByPosition, settings]);
 
   // Combined performance across all active strategies — for the hero P&L + chart.
   const { perfStats, chartData } = useMemo(() => {
@@ -70,7 +74,7 @@ export function DashboardPage() {
     const data: { trade: string; pnl: number }[] = [{ trade: '0', pnl: 0 }];
     for (let i = 0; i < closedAll.length; i++) {
       const pos = closedAll[i];
-      const txns = transactions.filter(t => t.position_id === pos.id);
+      const txns = transactionsByPosition[pos.id] ?? [];
       const pnl = computePositionPnL(txns, getStrategyKind(pos));
       totalPnl += pnl;
       if (pnl > 0) wins++;
@@ -84,7 +88,7 @@ export function DashboardPage() {
       },
       chartData: data,
     };
-  }, [positions, transactions]);
+  }, [positions, transactionsByPosition]);
 
   const totalCapital = boards.reduce((sum, b) => sum + b.capital, 0);
   const returnPct = totalCapital > 0 ? (perfStats.pnl / totalCapital) * 100 : 0;
@@ -294,7 +298,7 @@ export function DashboardPage() {
               >
                 <PositionCard
                   position={pos}
-                  transactions={transactions.filter(t => t.position_id === pos.id)}
+                  transactions={transactionsByPosition[pos.id] ?? []}
                   onAction={handleAction}
                   onUpdatePrice={handleUpdatePrice}
                 />

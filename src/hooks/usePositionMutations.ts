@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import { formatDate } from '../lib/utils';
+import { requireSupabaseData, throwIfSupabaseError } from '../lib/supabaseResult';
 import type { Position, PositionAction, DirectAddItem, WatchlistItem, RollData } from '../lib/types';
 
 function useInvalidatePositionsAndTransactions() {
@@ -20,7 +21,7 @@ function usePositionFieldUpdate<K extends string>(
   const invalidate = useInvalidatePositionsAndTransactions();
   return useMutation({
     mutationFn: async (vars: { id: string } & Record<K, unknown>) => {
-      await supabase.from('positions').update({ [column]: vars[field] }).eq('id', vars.id);
+      throwIfSupabaseError(await supabase.from('positions').update({ [column]: vars[field] }).eq('id', vars.id));
     },
     onSuccess: invalidate,
   });
@@ -31,32 +32,32 @@ export function usePositionAction() {
   const invalidate = useInvalidatePositionsAndTransactions();
   return useMutation({
     mutationFn: async ({ id, action, exitType }: { id: string; action: PositionAction; exitType?: Position['exit_type'] }) => {
-      await supabase.from('transactions').insert([{
+      throwIfSupabaseError(await supabase.from('transactions').insert([{
         position_id: id,
         type: action.type,
         quantity: action.quantity,
         price: action.price,
         note: action.type,
-      }]);
+      }]));
       if (action.type === 'Close') {
-        await supabase.from('positions').update({
+        throwIfSupabaseError(await supabase.from('positions').update({
           status: 'closed',
           closed_at: new Date().toISOString(),
           ...(exitType ? { exit_type: exitType } : {}),
-        }).eq('id', id);
+        }).eq('id', id));
       } else if (action.type === 'Take Profit' || action.type === 'Size Down') {
         // Auto-close if remaining quantity is 0
-        const { data: txns } = await supabase
+        const { data: txns } = throwIfSupabaseError(await supabase
           .from('transactions')
           .select('quantity')
-          .eq('position_id', id);
+          .eq('position_id', id));
         const remaining = (txns || []).reduce((sum, t) => sum + t.quantity, 0);
         if (remaining <= 0) {
-          await supabase.from('positions').update({
+          throwIfSupabaseError(await supabase.from('positions').update({
             status: 'closed',
             closed_at: new Date().toISOString(),
             exit_type: action.type === 'Take Profit' ? 'TP' : 'MANUAL',
-          }).eq('id', id);
+          }).eq('id', id));
         }
       }
     },
@@ -68,14 +69,14 @@ export function useUpdateScore() {
   const invalidate = useInvalidatePositionsAndTransactions();
   return useMutation({
     mutationFn: async ({ id, score }: { id: string; score: number }) => {
-      await supabase.from('positions').update({
+      throwIfSupabaseError(await supabase.from('positions').update({
         current_score: score,
         tech_score: score,
         tech_score_manual: score,
         tech_score_source: 'manual',
         score_updated_at: new Date().toISOString(),
         tech_score_updated_at: new Date().toISOString(),
-      }).eq('id', id);
+      }).eq('id', id));
     },
     onSuccess: invalidate,
   });
@@ -109,7 +110,7 @@ export function useAddDirect() {
   const invalidate = useInvalidatePositionsAndTransactions();
   return useMutation({
     mutationFn: async (item: DirectAddItem) => {
-      const { data, error } = await supabase.from('positions').insert([{
+      const data = requireSupabaseData(await supabase.from('positions').insert([{
         ticker: item.ticker,
         strike: item.strike,
         type: item.type,
@@ -137,17 +138,16 @@ export function useAddDirect() {
         strategy_type: item.strategy_type || null,
         is_paper: item.is_paper ?? false,
         target_price: item.target_price ?? null,
-      }]).select();
+      }]).select(), 'Position insert returned no rows');
 
-      if (error) throw error;
       if (data && data[0]) {
-        await supabase.from('transactions').insert([{
+        throwIfSupabaseError(await supabase.from('transactions').insert([{
           position_id: data[0].id,
           type: 'Open',
           quantity: item.quantity,
           price: item.entry_price,
           note: 'Initial Entry',
-        }]);
+        }]));
       }
     },
     onSuccess: invalidate,
@@ -159,22 +159,22 @@ export function useRollPosition() {
   return useMutation({
     mutationFn: async ({ originalPosition, rollData }: { originalPosition: Position; rollData: RollData }) => {
       // Close existing
-      await supabase.from('transactions').insert([{
+      throwIfSupabaseError(await supabase.from('transactions').insert([{
         position_id: originalPosition.id,
         type: 'Close',
         quantity: rollData.closeQty,
         price: rollData.closePrice,
         note: 'Rolled Position',
-      }]);
+      }]));
 
-      await supabase.from('positions').update({
+      throwIfSupabaseError(await supabase.from('positions').update({
         status: 'closed',
         closed_at: new Date().toISOString(),
         exit_type: 'ROLL',
-      }).eq('id', originalPosition.id);
+      }).eq('id', originalPosition.id));
 
       // Open new
-      const { data: newPosData } = await supabase.from('positions').insert([{
+      const newPosData = requireSupabaseData(await supabase.from('positions').insert([{
         ticker: originalPosition.ticker,
         strike: rollData.newStrike,
         type: rollData.newType,
@@ -187,16 +187,16 @@ export function useRollPosition() {
         notes: `Rolled from ${originalPosition.ticker} $${originalPosition.strike} ${formatDate(originalPosition.expiration)}`,
         stop_reason: originalPosition.stop_reason,
         owner: originalPosition.owner || null,
-      }]).select();
+      }]).select(), 'Rolled position insert returned no rows');
 
       if (newPosData && newPosData[0]) {
-        await supabase.from('transactions').insert([{
+        throwIfSupabaseError(await supabase.from('transactions').insert([{
           position_id: newPosData[0].id,
           type: 'Open',
           quantity: rollData.newQty,
           price: rollData.newPrice,
           note: 'Rolled from prev position',
-        }]);
+        }]));
       }
     },
     onSuccess: invalidate,
@@ -207,7 +207,7 @@ export function useAddToWatchlist() {
   const invalidate = useInvalidatePositionsAndTransactions();
   return useMutation({
     mutationFn: async (item: WatchlistItem) => {
-      const { error } = await supabase.from('positions').insert([{
+      throwIfSupabaseError(await supabase.from('positions').insert([{
         ticker: item.ticker,
         strike: item.strike,
         type: item.type,
@@ -230,8 +230,7 @@ export function useAddToWatchlist() {
         trade_profile: item.trade_profile || null,
         iv_rank_entry: item.iv_rank_entry ?? null,
         iv_regime_entry: item.iv_regime_entry || null,
-      }]);
-      if (error) throw error;
+      }]));
     },
     onSuccess: invalidate,
   });
@@ -241,8 +240,7 @@ export function useDeletePosition() {
   const invalidate = useInvalidatePositionsAndTransactions();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('positions').delete().eq('id', id);
-      if (error) throw error;
+      throwIfSupabaseError(await supabase.from('positions').delete().eq('id', id));
     },
     onSuccess: invalidate,
   });
@@ -252,19 +250,19 @@ export function useMoveToActive() {
   const invalidate = useInvalidatePositionsAndTransactions();
   return useMutation({
     mutationFn: async ({ position, qty, price }: { position: Position; qty: number; price: number }) => {
-      await supabase.from('positions').update({
+      throwIfSupabaseError(await supabase.from('positions').update({
         status: 'active',
         current_score: position.entry_score,
         score_updated_at: new Date().toISOString(),
-      }).eq('id', position.id);
+      }).eq('id', position.id));
 
-      await supabase.from('transactions').insert([{
+      throwIfSupabaseError(await supabase.from('transactions').insert([{
         position_id: position.id,
         type: 'Open',
         quantity: qty,
         price: price,
         note: 'Moved from Watchlist',
-      }]);
+      }]));
     },
     onSuccess: invalidate,
   });

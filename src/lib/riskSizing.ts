@@ -7,7 +7,7 @@
 
 import type { SpreadRecommendation, SingleLegRecommendation, Recommendation } from './types';
 import type { Position, Transaction } from './types';
-import { CONTRACT_MULTIPLIER, getStrategyKind } from './utils';
+import { CONTRACT_MULTIPLIER, getStrategyKind, groupTransactionsByPositionId } from './utils';
 
 /** Stop-out level: we size and display risk as "lose this much then stop" (e.g. 50% of max loss). */
 export const STOP_OUT_PCT = 0.5;
@@ -212,6 +212,7 @@ export function aggregatePortfolioGreeks(
     let positionsWithData = 0;
     let largestRiskPct = 0;
     let largestRiskTicker = '';
+    const transactionsByPosition = groupTransactionsByPositionId(transactions);
 
     // Concentration tracking: risk$ per ticker and per expiration week
     const riskByTicker: Record<string, number> = {};
@@ -221,7 +222,7 @@ export function aggregatePortfolioGreeks(
         const legData = bulkData[pos.id];
         if (!legData || legData.length === 0) return;
 
-        const posTxns = transactions.filter(t => t.position_id === pos.id);
+        const posTxns = transactionsByPosition[pos.id] ?? [];
         let qtyBought = 0, qtySold = 0, totalCostBasis = 0;
         posTxns.forEach(t => {
             if (t.quantity > 0) {

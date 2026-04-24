@@ -11,7 +11,7 @@ import { PortfolioGreeksWidget } from '../components/PortfolioGreeksWidget';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { getProfile, RETIRED_STRATEGIES, type StrategyType } from '../lib/strategyProfiles';
 import { getPositionRiskAtStopOutDollars, aggregatePortfolioGreeks } from '../lib/riskSizing';
-import { formatCurrency, daysUntil } from '../lib/utils';
+import { formatCurrency, daysUntil, groupTransactionsByPositionId } from '../lib/utils';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAutoCloseStuckPositions } from '../hooks/useAutoCloseStuckPositions';
@@ -63,24 +63,20 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const loading = props.loading ?? (positionsLoading || transactionsLoading);
 
     // Pre-index transactions by position_id to avoid N+1 filtering (was 40+ filter ops per render)
-    const transactionsByPosition = useMemo(() => {
-        const map: Record<string, Transaction[]> = {};
-        transactions.forEach(t => {
-            if (!map[t.position_id]) map[t.position_id] = [];
-            map[t.position_id].push(t);
-        });
-        return map;
-    }, [transactions]);
+    const transactionsByPosition = useMemo(
+        () => groupTransactionsByPositionId(transactions),
+        [transactions],
+    );
 
     // Stable callbacks — useCallback prevents cascading re-renders through PositionCard memo
-    const defaultOnAction = useCallback(async (id: string, action: PositionAction, exitType?: Position['exit_type']) => { positionActionMut.mutate({ id, action, exitType }); }, [positionActionMut.mutate]);
-    const defaultOnUpdateScore = useCallback(async (id: string, score: number) => { updateScoreMut.mutate({ id, score }); }, [updateScoreMut.mutate]);
-    const defaultOnUpdatePrice = useCallback(async (id: string, price: number) => { updatePriceMut.mutate({ id, price }); }, [updatePriceMut.mutate]);
-    const defaultOnUpdateTarget = useCallback(async (id: string, target: number) => { updateTargetMut.mutate({ id, target }); }, [updateTargetMut.mutate]);
-    const defaultOnUpdateStop = useCallback(async (id: string, stopPrice: number) => { updateStopMut.mutate({ id, stopPrice }); }, [updateStopMut.mutate]);
-    const defaultOnUpdateOwner = useCallback(async (id: string, owner: 'Yuchen' | 'Annie' | null) => { updateOwnerMut.mutate({ id, owner }); }, [updateOwnerMut.mutate]);
-    const onUpdatePaper = useCallback(async (id: string, isPaper: boolean) => { updatePaperMut.mutate({ id, isPaper }); }, [updatePaperMut.mutate]);
-    const defaultOnAddDirect = useCallback(async (item: DirectAddItem) => { addDirectMut.mutate(item); }, [addDirectMut.mutate]);
+    const defaultOnAction = useCallback(async (id: string, action: PositionAction, exitType?: Position['exit_type']) => { await positionActionMut.mutateAsync({ id, action, exitType }); }, [positionActionMut]);
+    const defaultOnUpdateScore = useCallback(async (id: string, score: number) => { await updateScoreMut.mutateAsync({ id, score }); }, [updateScoreMut]);
+    const defaultOnUpdatePrice = useCallback(async (id: string, price: number) => { await updatePriceMut.mutateAsync({ id, price }); }, [updatePriceMut]);
+    const defaultOnUpdateTarget = useCallback(async (id: string, target: number) => { await updateTargetMut.mutateAsync({ id, target }); }, [updateTargetMut]);
+    const defaultOnUpdateStop = useCallback(async (id: string, stopPrice: number) => { await updateStopMut.mutateAsync({ id, stopPrice }); }, [updateStopMut]);
+    const defaultOnUpdateOwner = useCallback(async (id: string, owner: 'Yuchen' | 'Annie' | null) => { await updateOwnerMut.mutateAsync({ id, owner }); }, [updateOwnerMut]);
+    const onUpdatePaper = useCallback(async (id: string, isPaper: boolean) => { await updatePaperMut.mutateAsync({ id, isPaper }); }, [updatePaperMut]);
+    const defaultOnAddDirect = useCallback(async (item: DirectAddItem) => { await addDirectMut.mutateAsync(item); }, [addDirectMut]);
     const onAction = props.onAction ?? defaultOnAction;
     const onUpdateScore = props.onUpdateScore ?? defaultOnUpdateScore;
     const onUpdatePrice = props.onUpdatePrice ?? defaultOnUpdatePrice;
@@ -90,11 +86,11 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const onAddDirect = props.onAddDirect ?? defaultOnAddDirect;
     const onRoll = props.onRoll ?? (async (originalPositionId: string, rollData: RollData) => {
         const originalPosition = positions.find(p => p.id === originalPositionId);
-        if (originalPosition) rollPositionMut.mutate({ originalPosition, rollData });
+        if (originalPosition) await rollPositionMut.mutateAsync({ originalPosition, rollData });
     });
     const onDelete = props.onDelete ?? (async (id: string) => {
         if (window.confirm('Are you sure you want to permanently delete this position? This cannot be undone.')) {
-            deletePositionMut.mutate(id);
+            await deletePositionMut.mutateAsync(id);
         }
     });
     const { settings, maxRiskPerTrade, stopOutFraction, activeStrategy } = useAppSettings();

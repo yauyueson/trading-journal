@@ -124,3 +124,33 @@ export function computePositionPnL(
     const isCredit = typeof kindOrIsCredit === 'boolean' ? kindOrIsCredit : kindOrIsCredit === 'credit';
     return isCredit ? cost - proceeds : proceeds - cost;
 }
+
+export function groupTransactionsByPositionId<T extends { position_id: string }>(
+    transactions: T[],
+): Record<string, T[]> {
+    return transactions.reduce<Record<string, T[]>>((grouped, transaction) => {
+        (grouped[transaction.position_id] ??= []).push(transaction);
+        return grouped;
+    }, {});
+}
+
+export function getOpenQuantity(transactions: { quantity: number }[]): number {
+    return transactions.reduce((sum, transaction) => sum + transaction.quantity, 0);
+}
+
+export function getOpenedQuantity(transactions: { quantity: number }[]): number {
+    return transactions.reduce(
+        (sum, transaction) => sum + (transaction.quantity > 0 ? transaction.quantity : 0),
+        0,
+    );
+}
+
+/** `maxRiskEntryDollars` is already dollars per contract, not per-share option price. */
+export function computeRiskMultiple(
+    pnl: number,
+    maxRiskEntryDollars: number | null | undefined,
+    openedQuantity: number,
+): number | null {
+    if (maxRiskEntryDollars == null || maxRiskEntryDollars <= 0 || openedQuantity <= 0) return null;
+    return pnl / (maxRiskEntryDollars * openedQuantity);
+}

@@ -43,8 +43,8 @@ function loadPersistedState() {
 export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist: onAddToWatchlistProp, onAddDirect: onAddDirectProp }) => {
     const addToWatchlistMut = useAddToWatchlist();
     const addDirectMut = useAddDirect();
-    const onAddToWatchlist = onAddToWatchlistProp ?? (async (item: WatchlistItem) => { addToWatchlistMut.mutate(item); });
-    const onAddDirect = onAddDirectProp ?? (async (item: DirectAddItem) => { addDirectMut.mutate(item); });
+    const onAddToWatchlist = onAddToWatchlistProp ?? (async (item: WatchlistItem) => { await addToWatchlistMut.mutateAsync(item); });
+    const onAddDirect = onAddDirectProp ?? (async (item: DirectAddItem) => { await addDirectMut.mutateAsync(item); });
     const { settings, stopOutFraction, activeStrategy, setActiveStrategy } = useAppSettings();
     const profile = getProfile(activeStrategy);
     const { accountSize: portfolioTotal, riskPct } = settings.portfolio;

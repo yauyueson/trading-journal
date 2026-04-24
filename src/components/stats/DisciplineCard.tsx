@@ -9,7 +9,7 @@ import {
     Cell,
 } from 'recharts';
 import { Position, Transaction } from '../../lib/types';
-import { formatCurrency, computePositionPnL, isCreditStrategy as isCreditStrategyFn } from '../../lib/utils';
+import { formatCurrency, computePositionPnL, getStrategyKind, groupTransactionsByPositionId } from '../../lib/utils';
 
 interface DisciplineCardProps {
     closedPositions: Position[];
@@ -46,6 +46,7 @@ const EXIT_LABELS: Record<ExitType, string> = {
 
 export const DisciplineCard: React.FC<DisciplineCardProps> = ({ closedPositions, transactions }) => {
     const metrics = useMemo(() => {
+        const transactionsByPosition = groupTransactionsByPositionId(transactions);
         const byType: Record<ExitType, { count: number; totalPnl: number }> = {
             TP: { count: 0, totalPnl: 0 },
             SL: { count: 0, totalPnl: 0 },
@@ -61,9 +62,8 @@ export const DisciplineCard: React.FC<DisciplineCardProps> = ({ closedPositions,
         let withExitType = 0;
 
         closedPositions.forEach(p => {
-            const txns = transactions.filter(t => t.position_id === p.id);
-            const isCreditStrategy = isCreditStrategyFn(p.type);
-            const pnl = computePositionPnL(txns, isCreditStrategy);
+            const txns = transactionsByPosition[p.id] ?? [];
+            const pnl = computePositionPnL(txns, getStrategyKind(p));
             const et: ExitType = (p.exit_type as ExitType) || 'Unknown';
             byType[et].count++;
             byType[et].totalPnl += pnl;
