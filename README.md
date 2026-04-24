@@ -50,7 +50,7 @@
 - **CBOE API** - 备用数据源（15 分钟延迟，免费）
 
 ### 测试与 CI
-- **Vitest** - 683 项自动化测试（评分对等 + 单元 + 风控 + BSM + 130M migration）
+- **Vitest** - 1213 项自动化测试（评分对等 + 单元 + 风控 + BSM + 回测 + F0 boundary + 交易结果）
 - **GitHub Actions** - CI 流水线（lint → build → test）
 - **ESLint 9** - 代码质量检查
 
@@ -141,7 +141,7 @@ vercel --prod
 
 ## 🧪 测试
 
-### 自动化测试（683 项）
+### 自动化测试（1213 项）
 ```bash
 npm run test        # 运行全部测试
 npm run test:watch  # 开发时实时监听
@@ -173,8 +173,8 @@ trading-journal/
 │   │   └── scoring.cjs       # 共享评分逻辑（与 oss-core.ts 镜像）
 │   ├── strategy-recommend.js  # 策略推荐
 │   ├── scan-options.js        # 期权扫描器
-│   ├── option-price.js        # 单合约报价
-│   ├── check-alerts.js        # 止损/目标价提醒
+│   ├── option-prices.js       # 单/多合约报价（option-price 为 rewrite 目标）
+│   ├── check-alerts.js        # 止损/目标价提醒（BCD/PMCC 自动跳过 DTE5 SL 规则）
 │   └── daily-recap.js         # 每日汇总
 ├── src/
 │   ├── components/            # React 组件
@@ -219,17 +219,22 @@ trading-journal/
 - [x] React Router v6 + React Query v5 架构重构
 - [x] 懒加载路由（包大小 983KB → 430KB）
 - [x] WFA backtesting engine（rolling window, portfolio stress, slippage, BSM pricing）
-- [x] WFA-Driven Workflow Integration（signal context, IV gate, TP auto-fill, strategy toggle）
-- [x] 130M 短线策略迁移（替代 4H, OOS Sharpe 2.22, WR 84.6%）
-- [x] Scoring overhaul Phase 1（VRP ±10pt, orFcst20d ±2.0）
-- [x] Multicore WFA（worker cap removed, full CPU utilization）
-- [x] WFA Results Viewer（`/backtest` tab, 5556 OOS trades）
-- [x] 683 项自动化测试 + GitHub Actions CI
+- [x] 130M 短线策略迁移（已退役，历史回测基础设施保留）
+- [x] Sealed-holdout 协议（pre-reg → audit-rows → 6-gate 封存）
+- [x] **Phase F0 clean-slate（2026-04-23）**：有效尝试计数器从全局 N=106 重置，单次性
+- [x] **Phase F1 adoption（2026-04-23）**：两个并行策略通过 6/6 封存
+  - BCD QQQ wide（bull call debit spread，$2K 级别，10 交易日触发）
+  - PMCC QQQ pt60（diagonal，$10K+ 级别，持续在场）
+- [x] **平台 F1 改造**：Dashboard/Signals/Portfolio/Stats 适配 BCD+PMCC 并行；DTE5 退役
+- [x] 手动入场 modal（BCDEntryModal、PMCCEntryModal），自动追踪 P&L/rolls
+- [x] 1213 项自动化测试 + GitHub Actions CI
 - [x] Multi-AI team protocol（Claude + Gemini handoff system）
 
 ### 计划中 📋
-- [ ] Scoring overhaul Phase 2（smvVol live path, exitMultiplier validation）
-- [ ] Unified score dimension preservation（8→4 reduction fix）
+- [ ] BCD/PMCC 实时入场触发警报（目前 PositionCard 仅静态标识触发阈值）
+- [ ] PMCC rollShortLeg mutation（一次性关旧短腿 + 开新短腿）
+- [ ] Settings 页面新增 BCD/PMCC 资本 tier 编辑器
+- [ ] 第三个 F1 候选（CSP HOOD/PLTR、SPY PMCC）— 每新增尝试均收紧 dsrM
 
 ---
 
@@ -253,4 +258,4 @@ MIT License
 
 ---
 
-*最后更新: 2026年3月23日*
+*最后更新: 2026年4月24日（Phase F1 平台改造 + cron-signal-scan / useSignalScanner 退役）*

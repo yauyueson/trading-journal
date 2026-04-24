@@ -46,8 +46,9 @@ For full project context (key files, database tables, testing, architecture), re
 | `lib/tiingo-client.js` | Tiingo stock candle client |
 | `api/strategy-recommend.js` | Main strategy recommendation API |
 | `api/scan-options.js` | Options scanner API |
-| `api/cron-signal-scan.js` | Daily signal scanner cron (21:00 UTC weekdays) |
 | `api/cron-trade-outcomes.js` | Daily MFE/MAE computation cron (21:35 UTC weekdays) |
+| `src/components/BCDEntryModal.tsx` | Manual BCD debit-spread entry (F1 adopted) |
+| `src/components/PMCCEntryModal.tsx` | Manual PMCC diagonal entry — separate LEAP + short expiries (F1 adopted) |
 | `api/backtest-data.js` | Unified backtest endpoint (?type=candles or ?type=iv) |
 | `src/lib/backtest/engine.ts` | Core simulation + V4 quality gates |
 | `src/lib/backtest/option-sim.ts` | Credit spread simulator (BSM on ORATS chains) |
@@ -56,18 +57,19 @@ For full project context (key files, database tables, testing, architecture), re
 | `src/lib/backtest/wfa-options.ts` | Rolling WFA loop engine |
 | `src/lib/riskSizing.ts` | Risk sizing + portfolio Greeks |
 | `src/lib/types.ts` | Shared TypeScript interfaces |
-| `src/hooks/useSignalScanner.ts` | Signal scanner hook (130M + approxTickers) |
-| `scripts/prefetch-130m.mjs` | 130M candle prefetch for Supabase stock_candles |
-| `scripts/wfa-pipeline-short.ts` | Short-term 130M WFA pipeline (worker threads) |
-| `tests/migration-130m.test.ts` | 130M migration validation (38 tests) |
+| `src/lib/strategyProfiles.ts` | `STRATEGY_PROFILES` (BCD, PMCC active; DTE5/swing/shortTerm retired), `ACTIVE_STRATEGIES`, `RETIRED_STRATEGIES`, `kind` discriminator |
+| `scripts/prefetch-130m.mjs` | 130M candle prefetch for Supabase stock_candles (historical backtests) |
+| `scripts/wfa-pipeline-short.ts` | Short-term 130M WFA pipeline — archived, strategy retired |
+| `tests/migration-130m.test.ts` | 130M migration validation (data-path invariants; Signals scanner describe collapsed) |
 
 ### Critical Rules
 
 - `src/lib/oss-core.ts` and `lib/_shared/scoring.cjs` **MUST stay in sync** — 307 parity tests enforce this
 - `api/strategy-recommend.js` uses raw `fetch()` for Supabase REST (no JS client)
-- All 683 existing tests must keep passing after any change
-- Crons: most triggered via cronjobs.org. Exception: `cron-iv` uses Vercel cron (22:00 UTC weekdays)
+- All 1213 existing tests must keep passing after any change
+- Crons: `cron-iv` uses Vercel cron (22:00 UTC weekdays); `cron-trade-outcomes` still runs externally. `cron-signal-scan` was retired on 2026-04-24 (F1 revamp — BCD uses manual 10-day cadence, PMCC is always-in)
 - **Backtesting results & reports** must go in `backtesting history/credit-spread/reports/` — one subfolder per study with a `README.md` + data files. Never scatter results across `data/`, `scripts/`, or root.
+- **Active F1 strategies (2026-04-23)**: BCD QQQ wide (`strategy_type='bcd'`, $2K, debit spread) and PMCC QQQ pt60 (`strategy_type='pmcc'`, $10K+, diagonal). DTE5/swing/shortTerm are retired (viewable under Legacy filter)
 
 ### Database Tables
 
@@ -85,11 +87,23 @@ SPY, QQQ, GOOGL, JPM, META, TSLA, MSFT, NFLX, AAPL, NVDA, AMD, COST, IREN, BA, A
 
 ### Testing
 
-683 Vitest tests across 18 files (307 parity + 48 oss-core + 19 riskSizing + 10 tech-parity + 33 backtest + 32 bsm + 38 migration-130m + others). CI: GitHub Actions lint -> build -> test.
+1213 Vitest tests across 52 files (307 parity + 48 oss-core + 21 riskSizing + 23 computePositionPnL + backtest + bsm + migration-130m data-path invariants + F0 boundary + holdout-eval + others). CI: GitHub Actions lint -> build -> test.
 
-### Recent Major Changes (2026-03-23)
+### Recent Major Changes
 
-- **130M Migration**: Short-term strategy replaced 4H with 130M timeframe (3×130min bars = exact 390min regular session). Config: `em|tp50|w10|iv20|dsoff|pm2.25`. Data: Tiingo IEX 10-min → 130M aggregation, cached in Supabase `stock_candles` with block-encoded timeframe (`130M_0/1/2`). `cron-signal-scan.js` handles daily 130M top-up.
-- **Scoring Overhaul Phase 1**: VRP (IV²-RV²) feeds ±10pt into credit/debit builder scoring. `orFcst20d` clamp widened ±0.8→±2.0.
-- **Multicore WFA**: Worker cap removed (`Math.min(4, cpus-2)` → `Math.max(1, cpus-2)`).
+**2026-04-24 — Post-F1 cleanup (PR #16, #17)**
+- Retired `api/cron-signal-scan.js` (782 lines) and `src/hooks/useSignalScanner.ts` (153 lines) after the F1 revamp orphaned them.
+- Removed dead `SpreadPickerModal`, pruned unused exports from `src/lib/strategyConfig.ts`, deduped `LEGACY_STRATEGIES` → use shared `RETIRED_STRATEGIES` Set.
+- ~1,400 lines of DTE5/shortTerm dead code removed cumulatively.
+
+**2026-04-23 — Phase F0 clean-slate + Phase F1 platform revamp (PR #14, #15)**
+- **F0 declaration**: one-time reset of effective attempt counter (boundary `2026-04-23T02:20:00Z`). Pre-F0 trials excluded from dsrM gating. Binding commitments in `docs/phase-f0-clean-slate-declaration.md`.
+- **F1 adoptions** (sealed 6/6 gates each):
+  - PMCC QQQ pt60 — `strategy_type='pmcc'`, $10K+ tier, long LEAP δ 0.70-0.80 + short δ 0.20-0.30, long PT 60%, roll trigger moneyness 2%.
+  - BCD QQQ wide — `strategy_type='bcd'`, $2K tier, long call δ 0.50 / short δ 0.20, DTE 30-60, PT 50%.
+- **Platform revamp**: 5 phases wiring BCD + PMCC as concurrent active strategies; DTE5 retired to Legacy filter. New `BCDEntryModal` / `PMCCEntryModal` for manual entry. `api/check-alerts.js` skips BCD/PMCC (legacy DTE5 SL 2.5x / TL 50/50 rules don't apply).
+
+**2026-03-23 — 130M Migration (retired UI, preserved data path)**
+- Short-term strategy replaced 4H with 130M timeframe (3×130min bars = exact 390min regular session). Cache layout + `backtest-data.js` 130M paths preserved for historical backtests, but the live signal scanner and Signals board were removed in the F1 revamp.
+- **Scoring Overhaul Phase 1**: VRP (IV²-RV²) ±10pt into credit/debit builder scoring. `orFcst20d` clamp widened ±0.8→±2.0.
 - **WFA Results Viewer**: Live at `/backtest`, loads from `data/wfa-results.json`.
