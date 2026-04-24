@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { History, Check, Trash2 } from 'lucide-react';
 import { Position, Transaction } from '../lib/types';
-import { formatCurrency, formatPercent, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
+import { computePositionPnL, formatCurrency, formatPercent, getStrategyKind, groupTransactionsByPositionId } from '../lib/utils';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
@@ -44,32 +44,28 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
     const loading = loadingProp ?? (positionsLoading || transactionsLoading);
     const onDelete = onDeleteProp ?? (async (id: string) => {
         if (window.confirm('Are you sure you want to permanently delete this position? This cannot be undone.')) {
-            deletePositionMut.mutate(id);
+            await deletePositionMut.mutateAsync(id);
         }
     });
     const onUpdateOwner = onUpdateOwnerProp ?? (async (id: string, owner: 'Yuchen' | 'Annie' | null) => {
-        updateOwnerMut.mutate({ id, owner });
+        await updateOwnerMut.mutateAsync({ id, owner });
     });
 
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
     const allClosedPositions = positions.filter(p => p.status === 'closed');
     const closedPositions = ownerFilter === 'All' ? allClosedPositions : allClosedPositions.filter(p => p.owner === ownerFilter);
-    const getStats = (position: Position) => {
-        const txns = transactions.filter(t => t.position_id === position.id);
-        const isCreditStrategy = isCreditStrategyFn(position.type);
-        let totalQtyBought = 0, totalCostBasis = 0, totalProceeds = 0;
-        txns.forEach(t => {
-            const price = t.price * CONTRACT_MULTIPLIER;
-            if (t.quantity > 0) { totalQtyBought += t.quantity; totalCostBasis += t.quantity * price; }
-            else { totalProceeds += Math.abs(t.quantity) * price; }
-        });
-        // For credit strategies, entry price is a credit received (not a cost),
-        // and close price is a debit paid (not proceeds). Invert the formula.
-        const pnl = isCreditStrategy ? totalCostBasis - totalProceeds : totalProceeds - totalCostBasis;
-        const pnlPct = totalCostBasis > 0 ? (pnl / totalCostBasis) * 100 : 0;
+    const transactionsByPosition = useMemo(
+        () => groupTransactionsByPositionId(transactions),
+        [transactions],
+    );
+    const getStats = useCallback((position: Position) => {
+        const txns = transactionsByPosition[position.id] ?? [];
+        const pnl = computePositionPnL(txns, getStrategyKind(position));
+        const totalEntryDollars = txns.reduce((sum, t) => t.quantity > 0 ? sum + t.quantity * t.price * 100 : sum, 0);
+        const pnlPct = totalEntryDollars > 0 ? (pnl / totalEntryDollars) * 100 : 0;
         const holdDays = position.closed_at && position.created_at ? Math.ceil((new Date(position.closed_at).getTime() - new Date(position.created_at).getTime()) / 86400000) : 0;
         return { pnl, pnlPct, holdDays };
-    };
+    }, [transactionsByPosition]);
 
     const overallStats = useMemo(() => {
         let totalPnL = 0, wins = 0, losses = 0;
@@ -80,7 +76,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
         });
         const winRate = closedPositions.length > 0 ? (wins / closedPositions.length) * 100 : 0;
         return { totalPnL, wins, losses, winRate };
-    }, [closedPositions, transactions]);
+    }, [closedPositions, getStats]);
 
     if (loading) return <LoadingSpinner />;
 

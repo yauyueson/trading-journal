@@ -4,12 +4,13 @@ interface NotesEditorProps {
   positionId: string;
   notes: string | null | undefined;
   stopReason: string | null | undefined;
-  onSave: (vars: { id: string; notes: string }) => void;
+  onSave: (vars: { id: string; notes: string }) => Promise<unknown>;
 }
 
 export const NotesEditor: React.FC<NotesEditorProps> = ({ positionId, notes, stopReason, onSave }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [input, setInput] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const displayText = notes || stopReason;
 
@@ -26,9 +27,18 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({ positionId, notes, sto
         />
         <div className="flex gap-2">
           <button
-            onClick={() => { onSave({ id: positionId, notes: input }); setIsEditing(false); }}
+            onClick={async () => {
+              setSubmitting(true);
+              try {
+                await onSave({ id: positionId, notes: input });
+                setIsEditing(false);
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+            disabled={submitting}
             className="text-xs px-3 py-1.5 bg-accent-green/20 text-accent-green rounded-lg font-medium"
-          >Save</button>
+          >{submitting ? '...' : 'Save'}</button>
           <button onClick={() => setIsEditing(false)} className="text-xs px-3 py-1.5 text-text-tertiary hover:text-text-primary">Cancel</button>
         </div>
       </div>

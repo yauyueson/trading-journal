@@ -16,6 +16,36 @@ function sbHeaders(sbKey) {
     return { 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}` };
 }
 
+function getAnalyticsStrategyKind(position = {}) {
+    if (position.strategy_type === 'bcd') return 'debit';
+    if (position.strategy_type === 'pmcc') return 'diagonal';
+    if (position.strategy_type === 'swing' || position.strategy_type === 'shortTerm' || position.strategy_type === 'dte5') return 'credit';
+
+    const type = position.type || '';
+    if (type.includes('Credit') || type.includes('Short')) return 'credit';
+    if (type.includes('Debit') || type.includes('Spread')) return 'debit';
+    return 'single';
+}
+
+export function computeAnalyticsPositionPnL(transactions, position = {}) {
+    let cost = 0;
+    let proceeds = 0;
+    for (const tx of transactions) {
+        const dollars = Number(tx.price || 0) * 100;
+        const quantity = Number(tx.quantity || 0);
+        if (quantity > 0) cost += quantity * dollars;
+        else proceeds += Math.abs(quantity) * dollars;
+    }
+    return getAnalyticsStrategyKind(position) === 'credit' ? cost - proceeds : proceeds - cost;
+}
+
+function groupByPositionId(rows) {
+    return rows.reduce((grouped, row) => {
+        (grouped[row.position_id] ??= []).push(row);
+        return grouped;
+    }, {});
+}
+
 // ── Score Validation ────────────────────────────────────────────────────────
 async function handleScoreValidation(req, res) {
     const { sbUrl, sbKey } = sbConfig();
@@ -48,7 +78,7 @@ async function handleScoreValidation(req, res) {
     const posParams = new URLSearchParams({
         id: `in.(${positionIds.join(',')})`,
         status: 'eq.closed',
-        select: 'id,ticker,closed_at',
+        select: 'id,ticker,type,strategy_type,closed_at',
         limit: '1000',
     });
     const posRes = await fetch(`${sbUrl}/rest/v1/positions?${posParams}`, { headers });
@@ -56,6 +86,7 @@ async function handleScoreValidation(req, res) {
         return res.status(502).json({ error: 'Failed to fetch positions', detail: await posRes.text() });
     }
     const closedPositions = await posRes.json();
+    const positionById = Object.fromEntries(closedPositions.map(p => [p.id, p]));
     const closedIds = new Set(closedPositions.map(p => p.id));
 
     if (closedIds.size === 0) {
@@ -79,9 +110,9 @@ async function handleScoreValidation(req, res) {
     const transactions = await txRes.json();
 
     const pnlByPosition = {};
-    for (const tx of transactions) {
-        if (!pnlByPosition[tx.position_id]) pnlByPosition[tx.position_id] = 0;
-        pnlByPosition[tx.position_id] += -tx.quantity * tx.price * 100;
+    const txByPosition = groupByPositionId(transactions);
+    for (const id of closedIds) {
+        pnlByPosition[id] = computeAnalyticsPositionPnL(txByPosition[id] || [], positionById[id]);
     }
 
     const BUCKETS = [

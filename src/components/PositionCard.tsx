@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Calendar, ChevronDown } from 'lucide-react';
 import { InlineEditField } from './position/InlineEditField';
 import { PositionActionForm } from './position/PositionActionForm';
@@ -7,7 +7,7 @@ import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory, PositionAction } from '../lib/types';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
-import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
+import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, groupTransactionsByPositionId, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
 import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQWithFactors } from '../lib/scoring';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
 import { STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
@@ -70,14 +70,14 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const updateNotesMut = useUpdateNotes();
     const deletePositionMut = useDeletePosition();
 
-    const onAction = props.onAction ?? (async (id: string, action: PositionAction, exitType?: Position['exit_type']) => { positionActionMut.mutate({ id, action, exitType }); });
-    const onUpdatePrice = props.onUpdatePrice ?? (async (id: string, price: number) => { updatePriceMut.mutate({ id, price }); });
-    const onUpdateTarget = props.onUpdateTarget ?? (async (id: string, target: number) => { updateTargetMut.mutate({ id, target }); });
-    const onUpdateStop = props.onUpdateStop ?? (async (id: string, stopPrice: number) => { updateStopMut.mutate({ id, stopPrice }); });
-    const onUpdateOwner = props.onUpdateOwner ?? (async (id: string, owner: 'Yuchen' | 'Annie' | null) => { updateOwnerMut.mutate({ id, owner }); });
+    const onAction = props.onAction ?? (async (id: string, action: PositionAction, exitType?: Position['exit_type']) => { await positionActionMut.mutateAsync({ id, action, exitType }); });
+    const onUpdatePrice = props.onUpdatePrice ?? (async (id: string, price: number) => { await updatePriceMut.mutateAsync({ id, price }); });
+    const onUpdateTarget = props.onUpdateTarget ?? (async (id: string, target: number) => { await updateTargetMut.mutateAsync({ id, target }); });
+    const onUpdateStop = props.onUpdateStop ?? (async (id: string, stopPrice: number) => { await updateStopMut.mutateAsync({ id, stopPrice }); });
+    const onUpdateOwner = props.onUpdateOwner ?? (async (id: string, owner: 'Yuchen' | 'Annie' | null) => { await updateOwnerMut.mutateAsync({ id, owner }); });
     const onDelete = props.onDelete ?? (async (id: string) => {
         if (window.confirm('Are you sure you want to permanently delete this position? This cannot be undone.')) {
-            deletePositionMut.mutate(id);
+            await deletePositionMut.mutateAsync(id);
         }
     });
     const { settings: appSettings, stopOutFraction } = useAppSettings();
@@ -390,7 +390,10 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
         }
     }, [isExpanded, position.id, historyData.length]);
 
-    const positionTxns = transactions.filter(t => t.position_id === position.id);
+    const positionTxns = useMemo(
+        () => groupTransactionsByPositionId(transactions)[position.id] ?? [],
+        [transactions, position.id],
+    );
 
     let totalQtyBought = 0, totalCostBasis = 0, totalQtySold = 0;
     positionTxns.forEach(t => {
@@ -835,7 +838,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                 positionId={position.id}
                 notes={position.notes}
                 stopReason={position.stop_reason}
-                onSave={vars => updateNotesMut.mutate(vars)}
+                onSave={vars => updateNotesMut.mutateAsync(vars)}
             />
 
             {/* Expandable Greeks History */}
