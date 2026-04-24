@@ -507,17 +507,28 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
                         <span className="text-xl sm:text-2xl font-bold">{position.ticker}</span>
-                        {position.strategy_type && (
-                            <span className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded ${
-                                position.strategy_type === 'dte5'
-                                    ? 'bg-amber-500/15 text-amber-400'
-                                    : position.strategy_type === 'swing'
-                                        ? 'bg-green-500/15 text-green-400'
-                                        : 'bg-blue-500/15 text-blue-400'
-                            }`}>
-                                {position.strategy_type === 'dte5' ? 'DTE5' : position.strategy_type === 'swing' ? 'Swing' : 'ST'}
-                            </span>
-                        )}
+                        {position.strategy_type && (() => {
+                            const st = position.strategy_type;
+                            const badgeClass = st === 'bcd'
+                                ? 'bg-emerald-500/15 text-emerald-400'
+                                : st === 'pmcc'
+                                    ? 'bg-blue-500/15 text-blue-400'
+                                    : st === 'dte5'
+                                        ? 'bg-amber-500/15 text-amber-400'
+                                        : st === 'swing'
+                                            ? 'bg-green-500/15 text-green-400'
+                                            : 'bg-sky-500/15 text-sky-400';
+                            const label = st === 'bcd' ? 'BCD'
+                                : st === 'pmcc' ? 'PMCC'
+                                : st === 'dte5' ? 'DTE5'
+                                : st === 'swing' ? 'Swing'
+                                : 'ST';
+                            return (
+                                <span className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded ${badgeClass}`}>
+                                    {label}
+                                </span>
+                            );
+                        })()}
                         {props.onUpdatePaper ? (
                             <button
                                 onClick={() => props.onUpdatePaper!(position.id, !position.is_paper)}
