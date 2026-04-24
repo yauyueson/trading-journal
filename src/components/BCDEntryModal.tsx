@@ -15,13 +15,15 @@
  * + auto tracking" scope.
  */
 import React, { useState, useMemo } from 'react';
-import { X } from 'lucide-react';
+import { Sparkles, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { useAddDirect } from '../hooks/usePositionMutations';
+import { useChainCandidates } from '../hooks/useChainCandidates';
 import { STRATEGY_PROFILES } from '../lib/strategyProfiles';
 import type { PositionLeg } from '../lib/types';
-import { CONTRACT_MULTIPLIER } from '../lib/utils';
+import { CONTRACT_MULTIPLIER, formatDate } from '../lib/utils';
+import { buildBCDCandidates, type BCDCandidate } from '../lib/chainCandidates';
 
 interface Props {
   isOpen: boolean;
@@ -44,6 +46,33 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [netDebit, setNetDebit] = useState('');
   const [quantityOverride, setQuantityOverride] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [pickedExpiration, setPickedExpiration] = useState<string | null>(null);
+
+  // Fetch call-chain candidates at δ 0.15-0.55 across DTE 30-60 so we can
+  // propose both long (≈ 0.50) and short (≈ 0.20) legs per expiration.
+  const chainQuery = useChainCandidates(isOpen && ticker ? {
+    ticker,
+    direction: 'call',
+    strategy: 'long',
+    dteMin: profile.dteMin,
+    dteMax: profile.dteMax,
+    minDelta: 0.15,
+    maxDelta: 0.55,
+    strikeRange: 0.25,
+    minVolume: 0,
+  } : null);
+  const bcdCandidates: BCDCandidate[] = useMemo(
+    () => buildBCDCandidates(chainQuery.data ?? [], profile.defaultDelta, 0.20).slice(0, 5),
+    [chainQuery.data, profile.defaultDelta],
+  );
+
+  const applyCandidate = (c: BCDCandidate) => {
+    setExpiration(c.expiration);
+    setLongStrike(String(c.long.strike));
+    setShortStrike(String(c.short.strike));
+    setNetDebit(c.netDebit.toFixed(2));
+    setPickedExpiration(c.expiration);
+  };
 
   const longStrikeNum = parseFloat(longStrike);
   const shortStrikeNum = parseFloat(shortStrike);
@@ -143,6 +172,60 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="px-5 pb-5 space-y-4">
+          {/* Suggestions — one candidate spread per expiration in the 30-60 DTE window. */}
+          <div className="rounded-lg bg-bg-secondary/40 border border-border-default/30 px-3 py-2.5">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-text-secondary">
+                <Sparkles size={12} className="text-accent-green" />
+                Suggested spreads
+              </div>
+              {chainQuery.isFetching && (
+                <span className="text-[10px] text-text-tertiary">Loading chain…</span>
+              )}
+            </div>
+            {chainQuery.isError && (
+              <p className="text-[11px] text-amber-400">
+                Couldn't load chain — enter strikes manually below.
+              </p>
+            )}
+            {!chainQuery.isFetching && !chainQuery.isError && bcdCandidates.length === 0 && (
+              <p className="text-[11px] text-text-tertiary">
+                No spreads matched — broaden the DTE/δ window or enter manually.
+              </p>
+            )}
+            {bcdCandidates.length > 0 && (
+              <div className="space-y-1.5">
+                {bcdCandidates.map(c => {
+                  const isPicked = pickedExpiration === c.expiration;
+                  return (
+                    <button
+                      key={c.expiration}
+                      type="button"
+                      onClick={() => applyCandidate(c)}
+                      className={`w-full text-left rounded-md px-2.5 py-2 text-[11px] transition-colors ${isPicked ? 'bg-accent-green/15 border border-accent-green/50' : 'bg-bg-tertiary/40 border border-transparent hover:border-border-default/50'}`}
+                    >
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="font-mono text-text-primary">{formatDate(c.expiration)} · {c.dte}d</span>
+                        <span className="font-mono text-accent-green">${c.netDebit.toFixed(2)}/ct</span>
+                      </div>
+                      <div className="flex items-center justify-between text-text-tertiary">
+                        <span>
+                          L ${c.long.strike} δ{Math.abs(c.long.greeks.delta).toFixed(2)}
+                          {' · '}
+                          S ${c.short.strike} δ{Math.abs(c.short.greeks.delta).toFixed(2)}
+                        </span>
+                        <span className="font-mono">w ${c.width.toFixed(0)}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+                <p className="text-[10px] text-text-tertiary pt-1">
+                  Mid-price estimates — verify fill at your broker before submitting.
+                </p>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">Ticker</label>

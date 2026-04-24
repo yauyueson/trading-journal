@@ -14,13 +14,19 @@
  * legs live on different expiration dates.
  */
 import React, { useState, useMemo } from 'react';
-import { X } from 'lucide-react';
+import { Sparkles, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { useAddDirect } from '../hooks/usePositionMutations';
+import { useChainCandidates } from '../hooks/useChainCandidates';
 import { STRATEGY_PROFILES } from '../lib/strategyProfiles';
 import type { PositionLeg } from '../lib/types';
-import { CONTRACT_MULTIPLIER } from '../lib/utils';
+import { CONTRACT_MULTIPLIER, formatDate } from '../lib/utils';
+import {
+  buildPMCCLeapCandidates,
+  buildPMCCShortCandidates,
+  type ChainOption,
+} from '../lib/chainCandidates';
 
 interface Props {
   isOpen: boolean;
@@ -48,6 +54,67 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
   const [quantityOverride, setQuantityOverride] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [pickedLeap, setPickedLeap] = useState<ChainOption | null>(null);
+  const [pickedShort, setPickedShort] = useState<ChainOption | null>(null);
+
+  // LEAP candidates (δ 0.70-0.80, DTE 240-300). Liquidity on long-dated contracts is
+  // thin, so relax volume + spread filters and keep the band wide enough to surface
+  // contracts at the edges of the target δ range.
+  const leapQuery = useChainCandidates(isOpen && ticker ? {
+    ticker,
+    direction: 'call',
+    strategy: 'long',
+    dteMin: profile.longDteMin ?? 240,
+    dteMax: profile.longDteMax ?? 300,
+    minDelta: 0.65,
+    maxDelta: 0.85,
+    strikeRange: 0.5,
+    minVolume: 0,
+    maxSpreadPct: 0.30,
+  } : null);
+
+  const shortQuery = useChainCandidates(isOpen && ticker ? {
+    ticker,
+    direction: 'call',
+    strategy: 'long',
+    dteMin: profile.shortDteMin ?? 30,
+    dteMax: profile.shortDteMax ?? 45,
+    minDelta: 0.15,
+    maxDelta: 0.35,
+    strikeRange: 0.25,
+    minVolume: 0,
+  } : null);
+
+  const leapCandidates = useMemo(
+    () => buildPMCCLeapCandidates(leapQuery.data ?? [], 0.75).slice(0, 5),
+    [leapQuery.data],
+  );
+  const shortCandidates = useMemo(() => {
+    const manualLong = parseFloat(longStrike);
+    const floor = pickedLeap?.strike ?? (isNaN(manualLong) ? 0 : manualLong);
+    if (floor <= 0) return [];
+    return buildPMCCShortCandidates(shortQuery.data ?? [], floor, 0.25).slice(0, 5);
+  }, [shortQuery.data, pickedLeap, longStrike]);
+
+  const applyLeap = (opt: ChainOption) => {
+    setLongExpiration(opt.expiration);
+    setLongStrike(String(opt.strike));
+    setLongDebit(opt.price.toFixed(2));
+    setPickedLeap(opt);
+    // Clear short pick if it no longer clears the new LEAP strike.
+    if (pickedShort && pickedShort.strike <= opt.strike) {
+      setPickedShort(null);
+      setShortExpiration('');
+      setShortStrike('');
+      setShortCredit('');
+    }
+  };
+  const applyShort = (opt: ChainOption) => {
+    setShortExpiration(opt.expiration);
+    setShortStrike(String(opt.strike));
+    setShortCredit(opt.price.toFixed(2));
+    setPickedShort(opt);
+  };
 
   const longStrikeNum = parseFloat(longStrike);
   const shortStrikeNum = parseFloat(shortStrike);
@@ -171,9 +238,43 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
           {/* Long LEAP leg */}
           <div className="rounded-lg border border-blue-500/20 bg-blue-500/[0.03] px-3 py-3">
-            <p className="text-[11px] font-semibold text-blue-400 uppercase tracking-wider mb-2">
-              Long LEAP leg · δ {profile.longDeltaMin?.toFixed(2)}–{profile.longDeltaMax?.toFixed(2)}
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] font-semibold text-blue-400 uppercase tracking-wider">
+                Long LEAP leg · δ {profile.longDeltaMin?.toFixed(2)}–{profile.longDeltaMax?.toFixed(2)}
+              </p>
+              {leapQuery.isFetching && (
+                <span className="text-[10px] text-text-tertiary">Loading…</span>
+              )}
+            </div>
+            {/* LEAP suggestions */}
+            {leapCandidates.length > 0 && (
+              <div className="space-y-1 mb-2.5">
+                <div className="flex items-center gap-1 text-[10px] text-text-tertiary">
+                  <Sparkles size={10} className="text-blue-400" /> suggested LEAPs
+                </div>
+                {leapCandidates.map(opt => {
+                  const isPicked = pickedLeap?.strike === opt.strike && pickedLeap?.expiration === opt.expiration;
+                  return (
+                    <button
+                      key={`${opt.expiration}-${opt.strike}`}
+                      type="button"
+                      onClick={() => applyLeap(opt)}
+                      className={`w-full text-left rounded-md px-2 py-1.5 text-[11px] transition-colors ${isPicked ? 'bg-blue-500/15 border border-blue-500/50' : 'bg-bg-tertiary/40 border border-transparent hover:border-border-default/50'}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-text-primary">
+                          ${opt.strike} · {formatDate(opt.expiration)} ({opt.dte}d)
+                        </span>
+                        <span className="font-mono text-blue-300">δ{Math.abs(opt.greeks.delta).toFixed(2)} · ${opt.price.toFixed(2)}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {leapQuery.isError && (
+              <p className="text-[10px] text-amber-400 mb-2">Couldn't load LEAP chain — enter manually.</p>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-[10px] text-text-tertiary mb-1">
@@ -221,9 +322,46 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
           {/* Short leg */}
           <div className="rounded-lg border border-rose-500/20 bg-rose-500/[0.03] px-3 py-3">
-            <p className="text-[11px] font-semibold text-rose-400 uppercase tracking-wider mb-2">
-              Short monthly leg · δ {profile.shortDeltaMin?.toFixed(2)}–{profile.shortDeltaMax?.toFixed(2)}
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] font-semibold text-rose-400 uppercase tracking-wider">
+                Short monthly leg · δ {profile.shortDeltaMin?.toFixed(2)}–{profile.shortDeltaMax?.toFixed(2)}
+              </p>
+              {shortQuery.isFetching && (
+                <span className="text-[10px] text-text-tertiary">Loading…</span>
+              )}
+            </div>
+            {/* Short suggestions — shown once a LEAP strike exists to filter by. */}
+            {shortCandidates.length > 0 && (
+              <div className="space-y-1 mb-2.5">
+                <div className="flex items-center gap-1 text-[10px] text-text-tertiary">
+                  <Sparkles size={10} className="text-rose-400" /> suggested shorts (strike &gt; LEAP ${pickedLeap?.strike ?? longStrikeNum})
+                </div>
+                {shortCandidates.map(opt => {
+                  const isPicked = pickedShort?.strike === opt.strike && pickedShort?.expiration === opt.expiration;
+                  return (
+                    <button
+                      key={`${opt.expiration}-${opt.strike}`}
+                      type="button"
+                      onClick={() => applyShort(opt)}
+                      className={`w-full text-left rounded-md px-2 py-1.5 text-[11px] transition-colors ${isPicked ? 'bg-rose-500/15 border border-rose-500/50' : 'bg-bg-tertiary/40 border border-transparent hover:border-border-default/50'}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-text-primary">
+                          ${opt.strike} · {formatDate(opt.expiration)} ({opt.dte}d)
+                        </span>
+                        <span className="font-mono text-rose-300">δ{Math.abs(opt.greeks.delta).toFixed(2)} · ${opt.price.toFixed(2)}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {shortQuery.isError && (
+              <p className="text-[10px] text-amber-400 mb-2">Couldn't load short chain — enter manually.</p>
+            )}
+            {!pickedLeap && isNaN(longStrikeNum) && !shortQuery.isFetching && (
+              <p className="text-[10px] text-text-tertiary mb-2">Pick a LEAP above to filter short candidates by strike.</p>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-[10px] text-text-tertiary mb-1">
