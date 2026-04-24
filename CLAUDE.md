@@ -66,7 +66,8 @@ All in `api/` as ESM `.js` files. Key routes:
 - `strategy-recommend.js` (15s) — main recommendation engine (raw `fetch()` for Supabase REST, not JS client)
 - `scan-options.js` (15s) — options scanner
 - `option-prices.js` (15s) — single/bulk option price lookup; rewrite `/api/option-price` → `/api/option-prices` in `vercel.json`
-- `cron-signal-scan.js` (60s) — daily signal scanner (21:00 UTC weekdays, external cron)
+<!-- cron-signal-scan.js retired 2026-04-24 (post-F1 revamp) — DTE5/shortTerm live scanning is no longer active. -->
+
 - `cron-trade-outcomes.js` (30s) — daily MFE/MAE computation (21:35 UTC weekdays, external cron)
 - `cron-iv.js` (120s) — IV backfill (Vercel cron, 22:00 UTC weekdays via `vercel.json`)
 - `backtest-data.js` (15s) — unified backtest endpoint (`?type=candles` or `?type=iv`)
@@ -125,7 +126,7 @@ Test environment: jsdom with globals enabled. Setup file: `src/test/setup.ts`.
 - **ESLint**: Lints only `src/**/*.{ts,tsx}`. Ignores `api/`, `lib/`, `*.cjs`. Max 25 warnings.
 - **API route pattern**: `api/strategy-recommend.js` uses raw `fetch()` for Supabase REST (env: `SUPABASE_URL`/`SUPABASE_ANON_KEY`). `api/cron-iv.js` uses `@supabase/supabase-js` createClient.
 - **Paper trading**: Positions have `is_paper` boolean. Paper and live positions coexist; filter via the portfolio's paper/live toggle.
-- **Strategy config consistency**: When changing strategy parameters (deltas, DTE, PT/SL, tickers), update ALL of: `data/strategy-config.json`, `src/lib/strategyProfiles.ts`, `lib/_shared/strategyConfig.js`, `src/lib/types/settings.ts`, `src/pages/Signals.tsx`, `src/pages/Dashboard.tsx`, `src/components/PositionCard.tsx`, `src/components/BCDEntryModal.tsx` / `src/components/PMCCEntryModal.tsx` (if entry defaults move), `api/cron-signal-scan.js`, `api/check-alerts.js`, and `CLAUDE.md`. Run `npx tsc --noEmit && npm run test && npm run build` to verify.
+- **Strategy config consistency**: When changing strategy parameters (deltas, DTE, PT/SL, tickers), update ALL of: `data/strategy-config.json`, `src/lib/strategyProfiles.ts`, `lib/_shared/strategyConfig.js`, `src/lib/types/settings.ts`, `src/pages/Signals.tsx`, `src/pages/Dashboard.tsx`, `src/components/PositionCard.tsx`, `src/components/BCDEntryModal.tsx` / `src/components/PMCCEntryModal.tsx` (if entry defaults move), `api/check-alerts.js`, and `CLAUDE.md`. Run `npx tsc --noEmit && npm run test && npm run build` to verify.
 - **ORATS data quirk**: `orats_iv_cache.hv30d` is always NULL — ORATS `/hist/cores` doesn't provide `clsHv30d` (skips from 20d to 60d). Use `hv20d` for VRP computation (IV30² - HV20²).
 
 ## Env Vars
@@ -149,7 +150,7 @@ Two F1 sealed adoptions (post-F0 clean-slate, 2026-04-23) run concurrently — d
 
 `STRATEGY_PROFILES` in [src/lib/strategyProfiles.ts](src/lib/strategyProfiles.ts) defines five types. `ACTIVE_STRATEGIES = ['bcd', 'pmcc']`; `RETIRED_STRATEGIES = {'swing', 'shortTerm', 'dte5'}`. Retired rows remain viewable under the "Legacy" filter on Portfolio / Stats; their code paths are untouched.
 
-**Entry flow**: manual via `BCDEntryModal` / `PMCCEntryModal` on the Signals page. No cron-driven signal emission — `api/cron-signal-scan.js` is untouched by the F1 revamp. `api/check-alerts.js` explicitly skips BCD/PMCC positions (the DTE5 SL 2.5x / TL 50/50 rules don't apply).
+**Entry flow**: manual via `BCDEntryModal` / `PMCCEntryModal` on the Signals page. No cron-driven signal emission — the old `api/cron-signal-scan.js` (DTE5 EMA55 daily scanner) was retired on 2026-04-24. `api/check-alerts.js` explicitly skips BCD/PMCC positions (the DTE5 SL 2.5x / TL 50/50 rules don't apply).
 
 **Retired DTE5 Bull Put Credit Spread (historical reference)**: short delta 0.30 / long delta 0.20, DTE 2-7, EMA55 gate, SL 2.5x credit, trailing lock 50/50, hold-to-expiry. Sealed FAIL under F0 (window-artifact loss to 2024-2026 QQQ rally). Still in `STRATEGY_PROFILES` for back-compat with existing DB rows.
 

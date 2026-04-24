@@ -86,41 +86,24 @@ describe('130M-01 — Config consistency across 3 sources', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 2. Signal Scanner — ScanTimeframe type includes 130M
+// 2-3. Live signal scanner + Signals.tsx wiring — retired in the F1 revamp
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('130M-02 — Signal scanner supports 130M', () => {
-  const scannerSrc = readFileSync(
-    resolve(__dirname, '../src/hooks/useSignalScanner.ts'), 'utf-8'
-  );
-
-  it('ScanTimeframe type includes 130M', () => {
-    expect(scannerSrc).toContain("'130M'");
-    expect(scannerSrc).toMatch(/ScanTimeframe\s*=.*'130M'/);
+// The frontend useSignalScanner hook and the shortTerm Signals.tsx board were
+// both orphaned when BCD + PMCC were adopted as the active F1 strategies.
+// The hook file itself was deleted on 2026-04-23 alongside api/cron-signal-scan.js
+// (the external cron that drove DTE5/shortTerm signal emission). The 130M
+// data-path invariants (cache layout, multiplier math, backtest-data.js) remain
+// covered below — those still matter for historical backtests.
+describe('130M-03 — live signal scanner (retired under F1 revamp)', () => {
+  it('useSignalScanner hook file no longer exists', () => {
+    const p = resolve(__dirname, '../src/hooks/useSignalScanner.ts');
+    expect(() => readFileSync(p, 'utf-8')).toThrow();
   });
 
-  it('lookback for 130M is shorter than 4H (fewer calendar days needed)', () => {
-    // 130M lookback should be 100-150 days; 4H is 300
-    expect(scannerSrc).toMatch(/130M.*\?\s*1[012]\d/);
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 3. Signal Board — retired in the F1 revamp (2026-04-23)
-// ═══════════════════════════════════════════════════════════════════════════════
-// Signals.tsx no longer has a "shortTerm" board — shortTerm was retired
-// alongside swing and dte5 when BCD + PMCC were adopted as the active F1
-// strategies. The 130M timeframe infrastructure remains in place for historical
-// data but is no longer surfaced in the UI. Tests that asserted specific
-// Signals.tsx wiring for shortTerm are retired here; the 4H→130M data-path
-// invariants (cache layout, multiplier math, backtest-data.js) remain
-// covered below.
-describe('130M-03 — Signals.tsx wiring (retired under F1 revamp)', () => {
-  it('Signals.tsx no longer references the retired shortTerm board', () => {
+  it('Signals.tsx sources tabs from ACTIVE_STRATEGIES instead of shortTerm', () => {
     const signalsSrc = readFileSync(
       resolve(__dirname, '../src/pages/Signals.tsx'), 'utf-8'
     );
-    // Post-revamp, Signals.tsx should source tabs from ACTIVE_STRATEGIES
-    // (which contains only 'bcd' and 'pmcc').
     expect(signalsSrc).toContain('ACTIVE_STRATEGIES');
     expect(signalsSrc).not.toMatch(/SHORT_TERM_PERIOD_MULT/);
   });
