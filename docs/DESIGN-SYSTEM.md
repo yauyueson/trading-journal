@@ -374,7 +374,7 @@ input:-webkit-autofill {
 | Content | auto | Page content |
 | Header | 50 | Sticky header |
 | Bottom nav | 50 | Mobile tab bar |
-| Modals | 100 | SpreadPickerModal, RollModal |
+| Modals | 100 | BCDEntryModal, PMCCEntryModal, RollModal |
 
 ---
 

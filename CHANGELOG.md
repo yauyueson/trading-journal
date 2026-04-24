@@ -4,6 +4,57 @@
 
 ---
 
+## [5.1.0] - 2026-04-24
+
+### 死代码清理 + 退役 DTE5 基础设施（PR #16, #17）
+
+F1 平台改造之后的两轮清理，合计移除 ~1,400 行 DTE5/shortTerm 死代码。无行为变化，1213 测试全绿。
+
+#### 删除（PR #17 — 781 行 + 153 行）
+- ❌ `api/cron-signal-scan.js`（782 行）— 每日 QQQ EMA55 扫描 + 10-min→130M 汇总。F1 改造后无活跃策略消费，外部 cron 命中将 404（预期 no-op）。
+- ❌ `src/hooks/useSignalScanner.ts`（153 行）— 前端 tech-score 扫描 hook。唯一调用者在 Phase B 改造时被删除。
+- 同步删除 `vercel.json` 的 `cron-signal-scan.js` maxDuration 条目；`tests/migration-130m.test.ts` 的 130M-02 / 130M-03 describe 合并为 "retired under F1 revamp"。
+
+#### 删除（PR #16 — 341 行）
+- ❌ `src/components/SpreadPickerModal.tsx`（256 行）— 旧 DTE5 信号到价差选择器。F1 改造后 Dashboard 停止引用。
+- ✅ Portfolio.tsx / Stats.tsx 内联 `LEGACY_STRATEGIES` 数组去重 → 统一使用 `strategyProfiles.ts` 导出的 `RETIRED_STRATEGIES` Set。
+- ✅ `src/lib/strategyConfig.ts` 剪除 85 行死导出（`useStrategyConfig`, `getBuildTimeConfig`, `getConfigProfile`, `StrategyConfig` / `StrategyConfigProfile` 类型）。保留 `getDefaultCreditSpreadConfig`（Settings 页面重置按钮使用）。
+
+#### 保留（故意）
+- 130M backtest 基础设施（cache, `intraday-cache.ts`, `backtest-data.js` 130M 路径）— 历史回测脚本仍需使用。
+- `api/strategy-recommend.js` + `api/scan-options.js` — 仍为 Options Selector 页面服务。
+- Academy 页面的 shortTerm/130M 教学内容 — 纯教育用途。
+
+---
+
+## [5.0.0] - 2026-04-23
+
+### Phase F0 clean-slate + Phase F1 platform revamp (PR #14, #15)
+
+#### Phase F0 — 有效尝试计数器重置
+- ✅ **Pre-reg 公告**: `docs/phase-f0-clean-slate-declaration.md` — 将 global attempt N=106 重置，通过 `F0_BOUNDARY_ISO = '2026-04-23T02:20:00Z'` 边界过滤旧 trials。
+- ✅ **实现**: `scripts/autoresearch/lib/f0-boundary.ts` 提供 `countEffectiveAttempts()` + `deflatedSharpeAt()`；sealer 用 F0-effective N 重新计算 dsrM，与 global N 并列记录。
+- ✅ **Binding commitments**: 无进一步 resets 直至 2026-10；6 gates 为 floor；第一个 F1 adoption 不能 near-boundary on dsrM。
+
+#### Phase F1 — 两个并行策略封存（6/6 PASS each）
+- ✅ **PMCC QQQ pt60**（`strategy_type='pmcc'`，$10K+）：long LEAP call δ 0.70-0.80, DTE 240-300；short monthly δ 0.20-0.30, DTE 30-45。long PT 60%，short PT 50%，long SL 35%，2% moneyness 滚动。Seal: `docs/holdout-evaluations/2026-04-23-7e9c2026f3df.md`（oosSharpe 1.72, holdoutSpyIR +0.15, dsrM (F0-eff N=25) +0.845）。
+- ✅ **BCD QQQ wide**（`strategy_type='bcd'`，$2K）：long call δ 0.50 / short δ 0.20, DTE 30-60, PT 50%。10 交易日信号触发 + maxPositions=1 flat-gate。Seal: `docs/holdout-evaluations/2026-04-23-25880326cfe1.md`（oosSharpe 0.97, holdoutSpyIR +0.40, dsrM (F0-eff N=30) +0.065）。
+
+#### 平台改造（5 phases: foundations → display → entry → auto-tracking → docs）
+- ✅ **Phase A 基础**: `StrategyType` 扩展为 `'bcd'` / `'pmcc'`；`StrategyProfile` 新增 `kind` 区分器 (`'credit_spread' | 'debit_spread' | 'diagonal'`)；`getStrategyKind()` + `computePositionPnL` 支持四种 kind。`RETIRED_STRATEGIES` 包含 DTE5。
+- ✅ **Phase B 显示**: Dashboard 多策略板 + hero P&L 跨 `ACTIVE_STRATEGIES` 汇总；Signals tabs (BCD / PMCC)；Portfolio + Stats 新增 Legacy chip；PositionCard strategy badge 按 `strategy_type` 着色。
+- ✅ **Phase C 入场**: 新增 `BCDEntryModal` 和 `PMCCEntryModal`（PMCC 两条腿独立过期日，手动输入履约 + 到期 + 净 debit）。
+- ✅ **Phase D 自动跟踪**: `api/check-alerts.js` 跳过 BCD/PMCC（DTE5 SL 2.5x / TL 50/50 不适用）；PositionCard 加上每策略触发标识（BCD "PT 50%"，PMCC 短腿 DTE 倒计时 + 2% moneyness 滚动）。
+
+#### Codex 审查
+- PR #15 adversarial review 捕捉到 v1 seal 的 "fixed 10-day cadence" 措辞过强（实际是 emission + maxPositions=1 flat-gate）。v2 pre-reg 修正文字 + 新 audit row → 重新封存（block hash `25880326cfe1`）。
+- PR #15 独立 code review: 无新 findings。
+
+#### 测试
+- Tests: 1206 → 1214 → 1213（F0 boundary, computePositionPnL kind-argument, riskSizing debit/diagonal, 130M-02/03 consolidated）。
+
+---
+
 ## [4.0.0] - 2026-03-23
 
 ### 130M Migration + Scoring Overhaul

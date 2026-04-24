@@ -1,8 +1,12 @@
 # Trading Journal - 文档总览
 
-> 最后更新: 2026年4月6日
+> 最后更新: 2026年4月24日
 
-> **⚠️ 当前活跃策略 (2026-04)**: 仅 **DTE5 Bull Put Credit Spread**（QQQ, DTE 2-7, EMA34 gate）处于活跃交易。Swing 和 ShortTerm 策略已退役。
+> **✅ 当前活跃策略 (Phase F1 adoption, 2026-04-23)**: **两个并行策略**，不同资本 tier，均 QQQ-only：
+> - **BCD QQQ wide** (`strategy_type='bcd'`, $2K 级)：bull call debit spread，long δ 0.50 / short δ 0.20，DTE 30-60，PT 50%，10 交易日触发 + maxPositions=1 flat-gate。
+> - **PMCC QQQ pt60** (`strategy_type='pmcc'`, $10K+ 级)：diagonal，long LEAP δ 0.70-0.80 DTE 240-300，short monthly δ 0.20-0.30 DTE 30-45，long PT 60%，2% moneyness 滚动。
+>
+> DTE5、Swing、ShortTerm 均已退役（`RETIRED_STRATEGIES`），历史数据仍可在 Portfolio / Stats 的 Legacy filter 下查看。手动入场使用 `BCDEntryModal` / `PMCCEntryModal`，无 cron 驱动的信号扫描（`api/cron-signal-scan.js` 于 2026-04-24 退役）。
 
 欢迎来到Trading Journal项目文档中心！这里包含了项目的完整技术文档和使用指南。
 
@@ -47,7 +51,7 @@
 - 数据流设计（React Query 缓存 + Supabase 实时失效）
 - API集成方案
 - 状态管理策略（Context + React Query，无 prop drilling）
-- 测试体系（695+ 项 Vitest 测试 + GitHub Actions CI）
+- 测试体系（1213 项 Vitest 测试 + GitHub Actions CI）
 - 性能优化技巧（懒加载路由、代码分割）
 
 **阅读时间**: 25分钟
@@ -256,6 +260,20 @@ For current validated strategies, see `docs/audit-rows/` (pre-reg audit trail) a
 
 ## 🔄 文档更新日志
 
+### 2026-04-24（Phase F1 改造后清理 + 文档同步）
+- ✅ **退役基础设施**: 删除 `api/cron-signal-scan.js`（782 行）、`src/hooks/useSignalScanner.ts`（153 行）、`src/components/SpreadPickerModal.tsx`（256 行）、`src/lib/strategyConfig.ts` 死导出（85 行）。
+- ✅ **文档同步**: 所有 DTE5 "活跃策略" 标记更新为 BCD + PMCC 并行；测试数 683/695 → 1213；`cron-signal-scan` 从生产 API 表移除。
+- ✅ **相关 PR**: #16（dead-code cleanup）、#17（cron-signal-scan + useSignalScanner retire）。
+
+### 2026-04-23（Phase F0 clean-slate + Phase F1 platform revamp — PR #14, #15）
+- ✅ **Phase F0 declaration**: 有效尝试计数器一次性重置（boundary `2026-04-23T02:20:00Z`）。Binding commitments 在 `phase-f0-clean-slate-declaration.md`。
+- ✅ **Phase F1 两个采纳**:
+  - PMCC QQQ pt60（$10K+）— 6/6 gates PASS，dsrM (F0-eff N=25) +0.845
+  - BCD QQQ wide（$2K）— 6/6 gates PASS，dsrM (F0-eff N=30) +0.065（v2 pre-reg 修正 cadence 措辞后）
+- ✅ **平台改造 5 phases**: foundations → display → entry → auto-tracking → docs。DTE5/swing/shortTerm 移入 `RETIRED_STRATEGIES`。
+- ✅ **新组件**: `BCDEntryModal`, `PMCCEntryModal`（PMCC 双腿独立过期日）。
+- ✅ **`api/check-alerts.js`** 自动跳过 `strategy_type in ('bcd','pmcc')`（DTE5 SL/TL 规则不适用）。
+
 ### 2026-03-23（130M Migration + Scoring Overhaul + Documentation Refresh）
 - ✅ **130M 短线策略迁移**: 4H → 130M (3×130min = exact 390min session), production config `em|tp50|w10|iv20|dsoff|pm2.25`
 - ✅ **数据管线**: Tiingo IEX 10-min → 130M aggregation, Supabase `stock_candles` block-encoded cache, cache-first pattern
@@ -378,4 +396,4 @@ For current validated strategies, see `docs/audit-rows/` (pre-reg audit trail) a
 ---
 
 *文档维护者: Trading Journal Team*
-*最后更新: 2026年4月6日*
+*最后更新: 2026年4月24日*

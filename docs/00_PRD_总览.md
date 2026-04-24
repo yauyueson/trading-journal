@@ -37,11 +37,13 @@
 
 ### 2.2 典型场景
 
-1. **发现机会**：在 Signals 页面查看 EMA34 信号，确认 QQQ 是否满足入场条件。
-2. **计划入场**：信号确认后，通过 Strategy Recommender 获取 DTE5 Bull Put 推荐合约，将合约加入 Portfolio（Watchlist 状态）。
-3. **持仓管理**：在 Portfolio 查看 P&L、Score、到期日；用「Refresh Prices」更新价格；根据危险/警告标签决定是否提前平仓或 hold-to-expiry。
-4. **策略探索**：在 Strategy Recommender 输入标的与方向（BULL/BEAR），根据 IV 期限结构得到 Credit/Debit Spread 或单腿推荐，并可将推荐加入 Watchlist。
-5. **复盘**：在 History/Stats 查看已平仓记录与胜率、Setup 分布等。
+**（Phase F1 adoption, 2026-04-23 生效）**
+
+1. **BCD 入场（$2K 级）**：Signals 页面 BCD tab 显示 "Eligible"（距上次关仓 ≥10 交易日）→ 点击 "Open BCD Position →" 触发 `BCDEntryModal` → 填入 broker 查询到的 long δ 0.50 / short δ 0.20 + DTE 30-60 call spread 详情 → 确认 contracts 和 net debit → 位置以 `strategy_type='bcd'` 写入。
+2. **PMCC 入场（$10K+ 级）**：Signals 页面 PMCC tab（持续 "Eligible" 因持续在场）→ 点击 "Open PMCC Position →" 触发 `PMCCEntryModal` → 填入 LEAP 双腿各自的 strike/到期/debit + credit → 位置以 `strategy_type='pmcc'` 写入，legs[] 两条独立 expiration。
+3. **持仓管理**：Portfolio 查看 P&L、短腿 DTE 倒计时、到期警示；PositionCard 按 `strategy_type` 显示 PT 50% (BCD) 或短腿 2% moneyness 滚动提示 (PMCC)。
+4. **Legacy 策略查看**：已退役的 DTE5 / Swing / ShortTerm 历史持仓在 Portfolio / Stats "Legacy" filter 下可见。
+5. **复盘**：History/Stats 按 `strategy_type` 分组查看胜率、Setup 分布等。
 
 ---
 
@@ -82,7 +84,7 @@
 | P2 | Settings | 全局应用设置（Dark Mode、通知偏好等） | ✅ |
 | 后续 | 导出、短信提醒、多账户等 | 见「未来规划」 | 规划中 |
 
-> **⚠️ 当前活跃策略**: 仅 **DTE5 Bull Put Credit Spread**（QQQ）处于活跃状态。Swing 和 ShortTerm 策略已退役（代码保留用于历史数据兼容）。
+> **✅ 当前活跃策略 (Phase F1 adoption, 2026-04-23)**: **BCD QQQ wide** (`strategy_type='bcd'`, $2K 级，bull call debit spread，10 交易日手动触发) + **PMCC QQQ pt60** (`strategy_type='pmcc'`, $10K+ 级，diagonal，持续在场)。DTE5 / Swing / ShortTerm 均已退役（代码保留用于历史数据兼容）。本文档个别小节仍描述旧 DTE5 流程，请以 [docs/README.md](./README.md) 和 [CLAUDE.md](../CLAUDE.md) 的 Active Strategies 章节为准。
 
 ---
 

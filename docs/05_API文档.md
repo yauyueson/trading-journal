@@ -1,6 +1,6 @@
 # Trading Journal - API文档
 
-> 最后更新: 2026年4月6日
+> 最后更新: 2026年4月24日
 > **数据源**: ORATS（期权链/Greeks/IV/cores/earnings/impliedMove）+ Tiingo（股票K线）
 
 ## 📋 目录
@@ -37,7 +37,7 @@ Supabase PostgreSQL (数据存储)
 | `/api/option-prices` | GET/POST | 通用价格 API：支持单腿 GET 或多腿 POST 批量获取 | ✅ 生产 |
 | `/api/scan-options` | GET | OSS v2.3 扫描器，获取高分单腿合约列表 | ✅ 生产 |
 | `/api/strategy-recommend` | GET | 策略推荐引擎（价差/组合策略专用） | ✅ 生产 |
-| `/api/check-alerts` | GET | 止损/目标价 Discord 自动提醒 | ✅ 生产 |
+| `/api/check-alerts` | GET | 止损/目标价 Discord 自动提醒（Phase F1: BCD/PMCC 持仓自动跳过旧 DTE5 SL 2.5x / TL 50/50 规则） | ✅ 生产 |
 | `/api/daily-recap` | GET | 每日持仓汇总 Discord 消息 | ✅ 生产 |
 | `/api/batch-refresh-tech` | GET/POST | 批量刷新技术面评分（Tech Score 自动化） | ⏸️ 已禁用 |
 | ~~`/api/underlying-rv`~~ | ~~GET~~ | ~~标的已实现波动率~~ | ❌ 已移除 |
@@ -49,7 +49,7 @@ Supabase PostgreSQL (数据存储)
 | `/api/analytics?type=execution-quality` | GET | 基于 Delta 代理对入场时机分类（early/late/at-market） | ✅ 生产 |
 | `/api/backtest-data?type=candles` | GET | 获取历史K线数据（Supabase 缓存 → Tiingo），供回测引擎使用 | ✅ 生产 |
 | `/api/backtest-data?type=iv` | GET | 获取 ORATS 历史 IV 数据（Supabase 缓存 → ORATS），供回测引擎使用 | ✅ 生产 |
-| `/api/cron-signal-scan` | GET | 每日信号扫描（21:00 UTC 工作日，外部 Cron），扫描 watchlist tickers 的 EMA34 信号并写入 signal_history | ✅ 生产 |
+| ~~`/api/cron-signal-scan`~~ | ~~GET~~ | ~~每日信号扫描（EMA34）~~ | ❌ 已退役（2026-04-24，F1 平台改造后 BCD 使用 10 交易日手动触发、PMCC 持续在场） |
 | `/api/cron-trade-outcomes` | GET | 每日 MFE/MAE 计算（21:35 UTC 工作日，外部 Cron），分析已平仓交易的盈亏路径 | ✅ 生产 |
 | `/api/live-prices` | GET | 实时标的价格查询（Tiingo IEX） | ✅ 生产 |
 
