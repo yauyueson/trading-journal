@@ -7,15 +7,20 @@
 
 import type { SpreadRecommendation, SingleLegRecommendation, Recommendation } from './types';
 import type { Position, Transaction } from './types';
-import { CONTRACT_MULTIPLIER } from './utils';
+import { CONTRACT_MULTIPLIER, getStrategyKind } from './utils';
 
 /** Stop-out level: we size and display risk as "lose this much then stop" (e.g. 50% of max loss). */
 export const STOP_OUT_PCT = 0.5;
 
 /**
  * Estimate max loss in dollars for an existing position (for risk % display).
- * Single leg: cost at risk = entryPrice * 100 * qty.
- * Credit spread: (width - credit) * 100 * qty; debit spread: debit * 100 * qty.
+ *
+ *   credit spread: (width − credit) × 100 × qty, clamped ≥ 0.
+ *   debit spread:  entryPrice (net debit) × 100 × qty. Max loss = full debit paid.
+ *   diagonal (PMCC): entryPrice (net debit = long LEAP debit − short credit) × 100 × qty.
+ *                    Max loss on the LEAP leg is the full LEAP debit; short rolls can only
+ *                    reduce net basis, never add to max loss (because they're sold for credit).
+ *   single leg:    entryPrice × 100 × qty.
  */
 export function getPositionMaxLossDollars(
     position: Position,
@@ -23,21 +28,21 @@ export function getPositionMaxLossDollars(
     entryPricePerShare: number
 ): number {
     if (totalQty <= 0) return 0;
-    const isSpread = !!position.legs && position.legs.length >= 2;
-    const isCredit = position.type?.includes('Credit') || position.type?.includes('Short');
+    const kind = getStrategyKind(position);
 
-    if (!isSpread) {
+    if (kind === 'credit') {
+        const shortLeg = position.legs?.find(l => l.side === 'short');
+        const longLeg = position.legs?.find(l => l.side === 'long');
+        const width = shortLeg && longLeg ? Math.abs(shortLeg.strike - longLeg.strike) : 0;
+        if (width > 0) {
+            // Guard: credit should never exceed width; clamp to prevent negative max loss
+            return Math.max(0, width - entryPricePerShare) * CONTRACT_MULTIPLIER * totalQty;
+        }
+        // Fallback for credit positions without explicit legs: treat as naked short (debit-like).
         return entryPricePerShare * CONTRACT_MULTIPLIER * totalQty;
     }
-    const shortLeg = position.legs!.find(l => l.side === 'short');
-    const longLeg = position.legs!.find(l => l.side === 'long');
-    const width = shortLeg && longLeg
-        ? Math.abs(shortLeg.strike - longLeg.strike)
-        : 0;
-    if (isCredit && width > 0) {
-        // Guard: credit should never exceed width; clamp to prevent negative max loss
-        return Math.max(0, width - entryPricePerShare) * CONTRACT_MULTIPLIER * totalQty;
-    }
+
+    // debit, diagonal, single → max loss = entry cost × 100 × qty
     return entryPricePerShare * CONTRACT_MULTIPLIER * totalQty;
 }
 

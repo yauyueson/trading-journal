@@ -106,7 +106,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const [rollingPosition, setRollingPosition] = useState<{ position: Position, qty: number } | null>(null);
     const [sortBy] = useState('expiration');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
-    const [strategyFilter, setStrategyFilter] = useState<'All' | 'swing' | 'shortTerm' | 'dte5' | 'untagged'>('All');
+    const [strategyFilter, setStrategyFilter] = useState<'All' | 'bcd' | 'pmcc' | 'legacy' | 'untagged'>('All');
     const [paperFilter, setPaperFilter] = useState<'all' | 'paper' | 'live'>('all');
     const [bulkData, setBulkData] = useState<Record<string, any>>({});
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
@@ -117,11 +117,14 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
 
     const allActivePositions = positions.filter(p => p.status === 'active');
     const ownerFiltered = ownerFilter === 'All' ? allActivePositions : allActivePositions.filter(p => p.owner === ownerFilter);
+    const LEGACY_STRATEGIES: ReadonlyArray<string> = ['dte5', 'swing', 'shortTerm'];
     const strategyFiltered = strategyFilter === 'All'
         ? ownerFiltered
         : strategyFilter === 'untagged'
             ? ownerFiltered.filter(p => !p.strategy_type)
-            : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
+            : strategyFilter === 'legacy'
+                ? ownerFiltered.filter(p => p.strategy_type && LEGACY_STRATEGIES.includes(p.strategy_type))
+                : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
     const activePositions = paperFilter === 'all'
         ? strategyFiltered
         : paperFilter === 'paper'
@@ -327,18 +330,18 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                     <div>
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary mb-1.5 block">Strategy</span>
                         <div className="flex flex-row lg:flex-col gap-1.5">
-                            {([['All', 'All'], ['dte5', 'DTE5'], ['swing', 'Swing'], ['shortTerm', 'ST'], ['untagged', '\u2014']] as const).map(([value, label]) => (
+                            {([['All', 'All'], ['bcd', 'BCD'], ['pmcc', 'PMCC'], ['legacy', 'Legacy'], ['untagged', '\u2014']] as const).map(([value, label]) => (
                                 <button
                                     key={value}
                                     type="button"
                                     onClick={() => setStrategyFilter(value as typeof strategyFilter)}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] ${strategyFilter === value
-                                        ? value === 'dte5'
-                                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                                            : value === 'swing'
-                                                ? 'bg-green-500/20 text-green-400 border border-green-500/40'
-                                                : value === 'shortTerm'
-                                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                        ? value === 'bcd'
+                                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                            : value === 'pmcc'
+                                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                                                : value === 'legacy'
+                                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
                                                     : 'bg-white/10 text-text-primary border border-white/20'
                                         : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
                                         }`}
@@ -405,9 +408,10 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
 
                     {/* Summary Strip */}
                     {activePositions.length > 0 && (() => {
-                        const swingCount = activePositions.filter(p => p.strategy_type === 'swing').length;
-                        const stCount = activePositions.filter(p => p.strategy_type === 'shortTerm').length;
-                        const untaggedCount = activePositions.length - swingCount - stCount;
+                        const bcdCount = activePositions.filter(p => p.strategy_type === 'bcd').length;
+                        const pmccCount = activePositions.filter(p => p.strategy_type === 'pmcc').length;
+                        const legacyCount = activePositions.filter(p => p.strategy_type && LEGACY_STRATEGIES.includes(p.strategy_type)).length;
+                        const untaggedCount = activePositions.length - bcdCount - pmccCount - legacyCount;
                         const dailyTheta = portfolioGreeks?.netTheta ?? 0;
 
                         // Find nearest expiring position
@@ -415,15 +419,17 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                             daysUntil(a.expiration) - daysUntil(b.expiration)
                         )[0];
                         const nearestDTE = nearest ? daysUntil(nearest.expiration) : null;
+                        // Time-stop threshold: legacy shortTerm = 1d, everything else = 3d (closest to expiry urgency for BCD/PMCC short legs)
                         const timeStopThreshold = nearest?.strategy_type === 'shortTerm' ? 1 : 3;
                         const nearestUrgent = nearestDTE != null && nearestDTE <= timeStopThreshold;
 
                         return (
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2.5 border-b border-white/[0.04] text-xs font-mono mb-4">
                                 <span className="text-text-tertiary">
-                                    {swingCount > 0 && <span className="text-green-400">{swingCount} Swing</span>}
-                                    {swingCount > 0 && stCount > 0 && <span className="text-text-tertiary"> / </span>}
-                                    {stCount > 0 && <span className="text-blue-400">{stCount} ST</span>}
+                                    {bcdCount > 0 && <span className="text-emerald-400">{bcdCount} BCD</span>}
+                                    {bcdCount > 0 && pmccCount > 0 && <span className="text-text-tertiary"> / </span>}
+                                    {pmccCount > 0 && <span className="text-blue-400">{pmccCount} PMCC</span>}
+                                    {legacyCount > 0 && <span className="text-amber-400"> · {legacyCount} legacy</span>}
                                     {untaggedCount > 0 && <span className="text-text-tertiary"> + {untaggedCount}</span>}
                                 </span>
                                 {dailyTheta !== 0 && (

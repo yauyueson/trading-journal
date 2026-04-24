@@ -78,19 +78,23 @@ describe('EXIT-02 — useAddDirect mutation insert', () => {
 });
 
 // ---------------------------------------------------------------------------
-// SIG-01: Signals page — DTE5 board contract
+// SIG-01: Signals page — BCD + PMCC board contract (F1 revamp, 2026-04-23)
 // ---------------------------------------------------------------------------
-describe('SIG-01 — Signals page DTE5 board', () => {
-  it('src/pages/Signals.tsx has DTE5 board as default', () => {
-    expect(signalsSrc).toContain("'dte5'");
+// The prior DTE5/SpreadPickerModal/useSignalScanner wiring was retired when
+// BCD + PMCC were adopted as the active F1 strategies; Signals.tsx now renders
+// a tab control over ACTIVE_STRATEGIES and defers entry flow to Phase C.
+describe('SIG-01 — Signals page active F1 boards', () => {
+  it('src/pages/Signals.tsx sources its tabs from ACTIVE_STRATEGIES', () => {
+    expect(signalsSrc).toContain('ACTIVE_STRATEGIES');
   });
 
-  it('src/pages/Signals.tsx uses SpreadPickerModal for signal-to-spread flow', () => {
-    expect(signalsSrc).toContain('SpreadPickerModal');
+  it('src/pages/Signals.tsx reads the profile from STRATEGY_PROFILES', () => {
+    expect(signalsSrc).toContain('STRATEGY_PROFILES');
   });
 
-  it('src/pages/Signals.tsx uses useSignalScanner hook', () => {
-    expect(signalsSrc).toContain('useSignalScanner');
+  it('src/pages/Signals.tsx renders BCD cadence + PMCC always-in context', () => {
+    expect(signalsSrc).toContain('bcd');
+    expect(signalsSrc).toContain('Always-in');
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computePositionPnL, isCreditStrategy, CONTRACT_MULTIPLIER } from '../utils';
+import { computePositionPnL, isCreditStrategy, getStrategyKind, CONTRACT_MULTIPLIER } from '../utils';
 
 describe('isCreditStrategy', () => {
   it('identifies credit spreads', () => {
@@ -116,5 +116,74 @@ describe('computePositionPnL', () => {
 
   it('CONTRACT_MULTIPLIER is 100', () => {
     expect(CONTRACT_MULTIPLIER).toBe(100);
+  });
+});
+
+describe('getStrategyKind', () => {
+  it('maps BCD strategy_type to debit kind (via profile lookup)', () => {
+    expect(getStrategyKind({ strategy_type: 'bcd', type: 'Call Spread' })).toBe('debit');
+  });
+
+  it('maps PMCC strategy_type to diagonal kind (via profile lookup)', () => {
+    expect(getStrategyKind({ strategy_type: 'pmcc', type: 'Call Spread' })).toBe('diagonal');
+  });
+
+  it('maps retired DTE5 strategy_type to credit kind (via profile lookup)', () => {
+    expect(getStrategyKind({ strategy_type: 'dte5', type: 'Put Credit Spread' })).toBe('credit');
+  });
+
+  it('falls back to type-string inspection when strategy_type is absent', () => {
+    expect(getStrategyKind({ type: 'Put Credit Spread' })).toBe('credit');
+    expect(getStrategyKind({ type: 'Short Call' })).toBe('credit');
+    expect(getStrategyKind({ type: 'Long Call' })).toBe('single');
+  });
+
+  it('returns "single" when neither strategy_type nor type signals a spread', () => {
+    expect(getStrategyKind({})).toBe('single');
+    expect(getStrategyKind(null)).toBe('single');
+    expect(getStrategyKind(undefined)).toBe('single');
+  });
+});
+
+describe('computePositionPnL with kind argument (Phase A — revamp generalization)', () => {
+  it('kind="credit" matches the legacy boolean `true` signature', () => {
+    const txns = [
+      { quantity: 1, price: 0.50 },
+      { quantity: -1, price: 0.20 },
+    ];
+    expect(computePositionPnL(txns, 'credit')).toBe(computePositionPnL(txns, true));
+    expect(computePositionPnL(txns, 'credit')).toBe(30);
+  });
+
+  it('kind="debit" matches the legacy boolean `false` signature', () => {
+    const txns = [
+      { quantity: 1, price: 2.00 },
+      { quantity: -1, price: 3.50 },
+    ];
+    expect(computePositionPnL(txns, 'debit')).toBe(computePositionPnL(txns, false));
+    expect(computePositionPnL(txns, 'debit')).toBe(150);
+  });
+
+  it('kind="diagonal" uses proceeds - cost (same sign as debit)', () => {
+    // PMCC open: pay LEAP debit $10.00, receive short credit $1.50, net debit $8.50
+    // Close LEAP later: receive $12.00, close short: pay $0.20
+    // cost = (1 * 10.00 + 1 * 0.20) * 100 = $1020
+    // proceeds = (1 * 1.50 + 1 * 12.00) * 100 = $1350
+    // P&L = proceeds - cost = $330
+    const txns = [
+      { quantity: 1, price: 10.00 },   // open LEAP
+      { quantity: -1, price: 1.50 },   // open short (credit received)
+      { quantity: 1, price: 0.20 },    // close short (buy-to-close)
+      { quantity: -1, price: 12.00 },  // close LEAP (sell-to-close)
+    ];
+    expect(computePositionPnL(txns, 'diagonal')).toBe(330);
+  });
+
+  it('kind="single" uses proceeds - cost (long-option convention)', () => {
+    const txns = [
+      { quantity: 1, price: 3.00 },
+      { quantity: -1, price: 5.50 },
+    ];
+    expect(computePositionPnL(txns, 'single')).toBe(250);
   });
 });

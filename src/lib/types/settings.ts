@@ -69,6 +69,11 @@ export interface DTE5CapitalSettings {
   maxConcurrentPositions: number;
 }
 
+/** Capital allocation for an active strategy. Shape is identical to DTE5CapitalSettings
+ *  so UI components can reuse the same editor; kept as a separate alias to allow
+ *  future per-strategy divergence. */
+export type StrategyCapitalSettings = DTE5CapitalSettings;
+
 export interface AppSettings {
   portfolio: PortfolioSettings;
   techScore: TechScoreSettings;
@@ -79,6 +84,10 @@ export interface AppSettings {
     dte5: CreditSpreadConfig;
   };
   dte5Capital?: DTE5CapitalSettings;
+  /** Capital allocation for BCD QQQ wide (F1 adopted, $2K tier). */
+  bcdCapital?: StrategyCapitalSettings;
+  /** Capital allocation for PMCC QQQ pt60 (F1 adopted, $10K+ tier). */
+  pmccCapital?: StrategyCapitalSettings;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -168,6 +177,16 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   dte5Capital: {
     startingCapital: 10000,
     riskPctPerTrade: 10,
+    maxConcurrentPositions: 1,
+  },
+  bcdCapital: {
+    startingCapital: 2000,
+    riskPctPerTrade: 15,
+    maxConcurrentPositions: 1,
+  },
+  pmccCapital: {
+    startingCapital: 10000,
+    riskPctPerTrade: 50,
     maxConcurrentPositions: 1,
   },
 };

@@ -507,17 +507,28 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
                         <span className="text-xl sm:text-2xl font-bold">{position.ticker}</span>
-                        {position.strategy_type && (
-                            <span className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded ${
-                                position.strategy_type === 'dte5'
-                                    ? 'bg-amber-500/15 text-amber-400'
-                                    : position.strategy_type === 'swing'
-                                        ? 'bg-green-500/15 text-green-400'
-                                        : 'bg-blue-500/15 text-blue-400'
-                            }`}>
-                                {position.strategy_type === 'dte5' ? 'DTE5' : position.strategy_type === 'swing' ? 'Swing' : 'ST'}
-                            </span>
-                        )}
+                        {position.strategy_type && (() => {
+                            const st = position.strategy_type;
+                            const badgeClass = st === 'bcd'
+                                ? 'bg-emerald-500/15 text-emerald-400'
+                                : st === 'pmcc'
+                                    ? 'bg-blue-500/15 text-blue-400'
+                                    : st === 'dte5'
+                                        ? 'bg-amber-500/15 text-amber-400'
+                                        : st === 'swing'
+                                            ? 'bg-green-500/15 text-green-400'
+                                            : 'bg-sky-500/15 text-sky-400';
+                            const label = st === 'bcd' ? 'BCD'
+                                : st === 'pmcc' ? 'PMCC'
+                                : st === 'dte5' ? 'DTE5'
+                                : st === 'swing' ? 'Swing'
+                                : 'ST';
+                            return (
+                                <span className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded ${badgeClass}`}>
+                                    {label}
+                                </span>
+                            );
+                        })()}
                         {props.onUpdatePaper ? (
                             <button
                                 onClick={() => props.onUpdatePaper!(position.id, !position.is_paper)}
@@ -582,6 +593,27 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                     dte <= 1 ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/15 text-amber-400'
                                 }`}>
                                     {dte <= 0 ? 'EXPIRY' : `DTE ${dte}`}
+                                </span>
+                            );
+                        })()}
+                        {position.strategy_type === 'bcd' && (
+                            <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-500/15 text-emerald-400"
+                                title="Bull Call Debit Spread — close at +50% of debit paid">
+                                PT 50%
+                            </span>
+                        )}
+                        {position.strategy_type === 'pmcc' && (() => {
+                            // PMCC: show short-leg DTE (the rolling leg) — that's the active countdown.
+                            const shortLeg = position.legs?.find(l => l.side === 'short');
+                            const shortExp = shortLeg?.expiration ?? position.expiration;
+                            if (!shortExp) return null;
+                            const shortDte = Math.round((new Date(shortExp + 'T16:00:00').getTime() - Date.now()) / 86400000);
+                            return (
+                                <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold rounded ${
+                                    shortDte <= 7 ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/15 text-blue-400'
+                                }`}
+                                    title="Short-leg DTE — roll when underlying within 2% of short strike or at DTE 7">
+                                    Short {shortDte <= 0 ? 'EXP' : `${shortDte}d`}
                                 </span>
                             );
                         })()}

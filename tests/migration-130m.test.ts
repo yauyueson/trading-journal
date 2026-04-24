@@ -105,30 +105,24 @@ describe('130M-02 — Signal scanner supports 130M', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 3. Signal Board — Signals.tsx wired for 130M
+// 3. Signal Board — retired in the F1 revamp (2026-04-23)
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('130M-03 — Signals.tsx wiring', () => {
-  const signalsSrc = readFileSync(
-    resolve(__dirname, '../src/pages/Signals.tsx'), 'utf-8'
-  );
-
-  it('shortTerm board uses 130M timeframe (not 4H)', () => {
-    expect(signalsSrc).toContain("? '130M'");
-    expect(signalsSrc).not.toMatch(/shortTerm.*\?\s*'4H'/);
-  });
-
-  it('period multiplier is 2.25 (not 1.5)', () => {
-    expect(signalsSrc).toContain('SHORT_TERM_PERIOD_MULT = 2.25');
-    expect(signalsSrc).not.toContain('SHORT_TERM_PERIOD_MULT = 1.5');
-  });
-
-  it('DTE5 is default board (retired strategies hidden)', () => {
-    expect(signalsSrc).toContain("'dte5'");
-  });
-
-  it('signal subtitle shows 130M × 2.25', () => {
-    expect(signalsSrc).toContain('130M');
-    expect(signalsSrc).toContain('2.25');
+// Signals.tsx no longer has a "shortTerm" board — shortTerm was retired
+// alongside swing and dte5 when BCD + PMCC were adopted as the active F1
+// strategies. The 130M timeframe infrastructure remains in place for historical
+// data but is no longer surfaced in the UI. Tests that asserted specific
+// Signals.tsx wiring for shortTerm are retired here; the 4H→130M data-path
+// invariants (cache layout, multiplier math, backtest-data.js) remain
+// covered below.
+describe('130M-03 — Signals.tsx wiring (retired under F1 revamp)', () => {
+  it('Signals.tsx no longer references the retired shortTerm board', () => {
+    const signalsSrc = readFileSync(
+      resolve(__dirname, '../src/pages/Signals.tsx'), 'utf-8'
+    );
+    // Post-revamp, Signals.tsx should source tabs from ACTIVE_STRATEGIES
+    // (which contains only 'bcd' and 'pmcc').
+    expect(signalsSrc).toContain('ACTIVE_STRATEGIES');
+    expect(signalsSrc).not.toMatch(/SHORT_TERM_PERIOD_MULT/);
   });
 });
 

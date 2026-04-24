@@ -110,7 +110,8 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
     const loading = loadingProp ?? (positionsLoading || transactionsLoading);
     const { activeStrategy } = useAppSettings();
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
-    const [strategyFilter, setStrategyFilter] = useState<'All' | 'swing' | 'shortTerm' | 'dte5'>('dte5');
+    const [strategyFilter, setStrategyFilter] = useState<'All' | 'bcd' | 'pmcc' | 'legacy'>('All');
+    const LEGACY_STRATEGIES: ReadonlyArray<string> = ['dte5', 'swing', 'shortTerm'];
     const [statsTab, setStatsTab] = useState<StatsTab>('overview');
     const allClosedPositions = positions.filter(p => p.status === 'closed');
     const ownerFiltered = ownerFilter === 'All'
@@ -118,7 +119,9 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
         : allClosedPositions.filter(p => p.owner === ownerFilter);
     const closedPositions = strategyFilter === 'All'
         ? ownerFiltered
-        : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
+        : strategyFilter === 'legacy'
+            ? ownerFiltered.filter(p => p.strategy_type && LEGACY_STRATEGIES.includes(p.strategy_type))
+            : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
 
     const stats = useMemo(() => {
         let totalPnL = 0, wins = 0, losses = 0, totalWinPnL = 0, totalLossPnL = 0;
@@ -271,7 +274,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                     </div>
                     {/* Strategy Filter */}
                     <div className="flex items-center gap-1.5 mb-4 lg:flex-col lg:items-stretch">
-                        {([['dte5', 'DTE5'], ['All', 'All'], ['swing', 'Swing'], ['shortTerm', 'ST']] as const).map(([value, label]) => (
+                        {([['All', 'All'], ['bcd', 'BCD'], ['pmcc', 'PMCC'], ['legacy', 'Legacy']] as const).map(([value, label]) => (
                             <button
                                 key={value}
                                 type="button"
