@@ -23,7 +23,6 @@
     "api/strategy-recommend.js": { "maxDuration": 15 },
     "api/check-alerts.js": { "maxDuration": 60 },
     "api/daily-recap.js": { "maxDuration": 60 },
-    "api/cron-signal-scan.js": { "maxDuration": 60 },
     "api/backtest-data.js": { "maxDuration": 15 },
     "api/cron-trade-outcomes.js": { "maxDuration": 30 },
     "api/cron-iv.js": { "maxDuration": 120 }
