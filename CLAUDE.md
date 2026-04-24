@@ -17,7 +17,7 @@ Adapted from [andrej-karpathy-skills](https://github.com/forrestchang/andrej-kar
 npm run dev          # Vite dev server (frontend only, stub APIs) → localhost:5173
 npm run build        # tsc && vite build
 npm run lint         # ESLint on src/ (max 25 warnings allowed)
-npm run test         # vitest run --passWithNoTests (1213 tests)
+npm run test         # vitest run --passWithNoTests (1232 tests)
 npm run test:watch   # vitest in watch mode
 vercel dev           # Full-stack local dev (real API routes + env vars)
 ```
@@ -51,12 +51,12 @@ CI pipeline (GitHub Actions): `lint → build → test` on every push/PR.
 - **Provider chain**: `QueryClientProvider → AppSettingsProvider → AuthProvider → ErrorBoundary → Suspense → RouterProvider`
 - **Routing**: React Router v6 with lazy-loaded pages (`src/router.tsx`). Routes: `/dashboard`, `/portfolio`, `/signals`, `/history`, `/stats`, `/selector`, `/academy`, `/settings`, `/backtest`
 - **Data fetching**: React Query v5 (staleTime 30s, gcTime 5min, retry 1, refetchOnWindowFocus false). Query key factory in `src/lib/queryKeys.ts`. Pages fetch via hooks in `src/hooks/`, no prop drilling.
-- **Mutations**: `src/hooks/usePositionMutations.ts` — 11 mutation hooks, auto-invalidate `queryKeys.positions` + `queryKeys.transactions` on success
+- **Mutations**: `src/hooks/usePositionMutations.ts` — 11 mutation hooks, auto-invalidate `queryKeys.positions` + `queryKeys.transactions` on success. All Supabase calls are wrapped with `throwIfSupabaseError` / `requireSupabaseData` from `src/lib/supabaseResult.ts` so failures propagate to TanStack Query's `onError` (never silently swallowed). Callers use `.mutateAsync()` to `await` and surface errors to the UI.
 - **Realtime**: Supabase channels → `useRealtimeInvalidation` → `queryClient.invalidateQueries`
 - **Contexts**: AuthContext (session/auth state), AppSettingsContext (portfolio config, active strategy, derived risk limits), BuyModalContext
 - **Settings persistence**: localStorage with 5-min TTL, backed by Supabase `app_settings` table (id=1, JSON blob)
 - **Types**: Core types in `src/lib/types.ts` (Position, Transaction, LiveData), settings types in `src/lib/types/settings.ts`
-- **Shared utilities**: `src/lib/utils.ts` exports `getStrategyKind(position)` (returns `'credit' | 'debit' | 'diagonal' | 'single'`; reads `strategy_type` first, falls back to legacy `type` string inspection — use this instead of string-parsing `position.type`), `isCreditStrategy(typeString)` (legacy back-compat wrapper), `computePositionPnL(txns, kindOrIsCredit)` (accepts either a `PositionPnLKind` string or the legacy boolean), formatting helpers (`formatCurrency`, `formatPrice`, `formatPercent`, `formatDate`, `daysUntil`)
+- **Shared utilities**: `src/lib/utils.ts` exports `getStrategyKind(position)` (returns `'credit' | 'debit' | 'diagonal' | 'single'`; reads `strategy_type` first, falls back to legacy `type` string inspection — use this instead of string-parsing `position.type`), `isCreditStrategy(typeString)` (legacy back-compat wrapper), `computePositionPnL(txns, kindOrIsCredit)` (accepts either a `PositionPnLKind` string or the legacy boolean), `groupTransactionsByPositionId(txns)` (single source of truth for indexing — use instead of repeated `.filter(t => t.position_id === id)`), `getOpenedQuantity(txns)` / `getOpenQuantity(txns)` (opened vs. net), `computeRiskMultiple(pnl, maxRiskEntryDollars, openedQty)` (NB: `max_risk_entry` is stored as dollars-per-contract, already ×100; don't multiply by `CONTRACT_MULTIPLIER` again), formatting helpers (`formatCurrency`, `formatPrice`, `formatPercent`, `formatDate`, `daysUntil`)
 - **Path alias**: `@/*` → `./src/*` (tsconfig paths)
 - **Dark theme only**: Custom Tailwind tokens (`text-text-primary`, `bg-bg-secondary`, `text-accent-green`, etc.) defined in `tailwind.config.js`. Never use hardcoded hex colors.
 
@@ -115,9 +115,9 @@ Study results go in `backtesting history/credit-spread/reports/<study-name>/` wi
 
 ### Testing
 
-Vitest configured in `vite.config.ts` (not a separate config). **1213 tests across 52 files**. Tests in two locations:
-- `tests/` — integration/parity tests (scoring parity, BSM, WFA, option-sim, F0 boundary, evaluate-holdout, adoption gates, migration)
-- `src/lib/__tests__/` — unit tests (oss-core, riskSizing, computePositionPnL)
+Vitest configured in `vite.config.ts` (not a separate config). **1232 tests across 55 files**. Tests in two locations:
+- `tests/` — integration/parity tests (scoring parity, BSM, WFA, option-sim, F0 boundary, evaluate-holdout, adoption gates, migration, analytics-pnl sign conventions)
+- `src/lib/__tests__/` — unit tests (oss-core, riskSizing, computePositionPnL, chainCandidates, supabaseResult)
 
 Test environment: jsdom with globals enabled. Setup file: `src/test/setup.ts`.
 
@@ -125,7 +125,7 @@ Test environment: jsdom with globals enabled. Setup file: `src/test/setup.ts`.
 
 - **Backtest trust gotchas**: Before making any claim about a strategy's performance, read `docs/backtest-trust-gotchas.md`. It catalogues every simulator bug and trap that has produced fake results in this project. Any new gotcha found must be added there. The runner enforces `MAX_SANE_OOS_SHARPE = 3.0` — anything higher is almost always a structural bug.
 - **Scoring parity**: `oss-core.ts` ↔ `scoring.cjs` must match. Run `npx vitest run tests/scoring-parity.test.ts` after any scoring change.
-- **All tests must pass**: 1213 tests. Never merge with failures.
+- **All tests must pass**: 1232 tests. Never merge with failures.
 - **Sealed holdout protocol**: Any new strategy adoption requires (1) pre-registration committed to `.handoff/current.md` **before** running the runner, (2) a singleton strategy file with a named anchor (no variants), (3) the sealer (`scripts/evaluate-holdout.ts`) machine-enforcing 6/6 gates. See `docs/sealed-holdout.md` + `docs/phase-f0-clean-slate-declaration.md`.
 - **Backtesting reports**: Must go in `backtesting history/credit-spread/reports/<study-name>/`. Each study folder gets a `README.md` plus data outputs. Never scatter results across `data/`, `scripts/`, or project root.
 - **ESLint**: Lints only `src/**/*.{ts,tsx}`. Ignores `api/`, `lib/`, `*.cjs`. Max 25 warnings.
@@ -155,7 +155,7 @@ Two F1 sealed adoptions (post-F0 clean-slate, 2026-04-23) run concurrently — d
 
 `STRATEGY_PROFILES` in [src/lib/strategyProfiles.ts](src/lib/strategyProfiles.ts) defines five types. `ACTIVE_STRATEGIES = ['bcd', 'pmcc']`; `RETIRED_STRATEGIES = {'swing', 'shortTerm', 'dte5'}`. Retired rows remain viewable under the "Legacy" filter on Portfolio / Stats; their code paths are untouched.
 
-**Entry flow**: manual via `BCDEntryModal` / `PMCCEntryModal` on the Signals page. No cron-driven signal emission — the old `api/cron-signal-scan.js` (DTE5 EMA55 daily scanner) was retired on 2026-04-24. `api/check-alerts.js` explicitly skips BCD/PMCC positions (the DTE5 SL 2.5x / TL 50/50 rules don't apply).
+**Entry flow**: manual via `BCDEntryModal` / `PMCCEntryModal` on the Signals page. On open, each modal fetches `/api/scan-options` for the matching ticker × DTE × δ range and shows 3-5 candidate spreads the user can click to pre-fill strikes + mid-price debit. Chain pairing lives in `src/lib/chainCandidates.ts` (`buildBCDCandidates`, `buildPMCCLeapCandidates`, `buildPMCCShortCandidates`) and is fetched via `useChainCandidates` (`src/hooks/useChainCandidates.ts`, React Query, 60s staleTime). All fields remain editable — the suggestions are mid-price estimates, not broker fills. No cron-driven signal emission — the old `api/cron-signal-scan.js` (DTE5 EMA55 daily scanner) was retired on 2026-04-24. `api/check-alerts.js` explicitly skips BCD/PMCC positions (the DTE5 SL 2.5x / TL 50/50 rules don't apply).
 
 **Retired DTE5 Bull Put Credit Spread (historical reference)**: short delta 0.30 / long delta 0.20, DTE 2-7, EMA55 gate, SL 2.5x credit, trailing lock 50/50, hold-to-expiry. Sealed FAIL under F0 (window-artifact loss to 2024-2026 QQQ rally). Still in `STRATEGY_PROFILES` for back-compat with existing DB rows.
 
