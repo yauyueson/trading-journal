@@ -203,7 +203,7 @@ describe('Zero-EV stress (Phase 0.c.10)', () => {
       });
       expectZeroEV(pnls, `ATM call ${dte}-DTE`, { minTrades: n });
     }
-  });
+  }, 30_000); // same CI headroom as F — 60k trades at DTE=90 runs ~5s on GHA.
 
   it('H: at r=0.04 the long call EV equals BSM(r=0) − BSM(r=0.04) (rate cost)', () => {
     // Physical GBM has zero drift (E[S_T]=S_0), so E[payoff] = BSM(r=0).
