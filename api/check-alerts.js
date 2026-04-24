@@ -59,10 +59,25 @@ export default async function handler(req, res) {
   }
 
   try {
-    const positions = await supabaseQuery('positions', 'status=eq.active&select=*');
+    const allActivePositions = await supabaseQuery('positions', 'status=eq.active&select=*');
+
+    // Post-F1 platform revamp (2026-04-23): BCD and PMCC positions do NOT use
+    // the DTE5 SL 2.5x / TL 50/50 alert logic. BCD has PT 50% (structural,
+    // no SL); PMCC has 2% moneyness roll triggers + long PT 60% / short PT 50%
+    // handled in-UI (Phase D). Filter those strategy_types out of the legacy
+    // alert path rather than fire spurious DTE5 alerts against them.
+    const SKIP_LEGACY_ALERT_STRATEGIES = new Set(['bcd', 'pmcc']);
+    const positions = (allActivePositions || []).filter(
+      p => !p.strategy_type || !SKIP_LEGACY_ALERT_STRATEGIES.has(p.strategy_type)
+    );
 
     if (!positions || positions.length === 0) {
-      return res.status(200).json({ ok: true, message: 'No active positions', sent: 0 });
+      return res.status(200).json({
+        ok: true,
+        message: 'No active positions requiring DTE5-style alerts',
+        sent: 0,
+        skippedBcdPmcc: (allActivePositions?.length ?? 0) - positions.length,
+      });
     }
 
     const positionIds = positions.map(p => p.id).filter(Boolean);

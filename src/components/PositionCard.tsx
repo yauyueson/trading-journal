@@ -596,6 +596,27 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                 </span>
                             );
                         })()}
+                        {position.strategy_type === 'bcd' && (
+                            <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-500/15 text-emerald-400"
+                                title="Bull Call Debit Spread — close at +50% of debit paid">
+                                PT 50%
+                            </span>
+                        )}
+                        {position.strategy_type === 'pmcc' && (() => {
+                            // PMCC: show short-leg DTE (the rolling leg) — that's the active countdown.
+                            const shortLeg = position.legs?.find(l => l.side === 'short');
+                            const shortExp = shortLeg?.expiration ?? position.expiration;
+                            if (!shortExp) return null;
+                            const shortDte = Math.round((new Date(shortExp + 'T16:00:00').getTime() - Date.now()) / 86400000);
+                            return (
+                                <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold rounded ${
+                                    shortDte <= 7 ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/15 text-blue-400'
+                                }`}
+                                    title="Short-leg DTE — roll when underlying within 2% of short strike or at DTE 7">
+                                    Short {shortDte <= 0 ? 'EXP' : `${shortDte}d`}
+                                </span>
+                            );
+                        })()}
                         <span>·</span>
                         <span>{totalQty}x</span>
                         {singleTradeRiskPct != null && (
