@@ -360,9 +360,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         <button
                             onClick={handleAnalyze}
                             disabled={loading || !ticker}
-                            className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-lg transition-all shadow-lg shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="w-full bg-accent-green hover:bg-accent-green/90 text-bg-primary font-bold py-3 px-6 rounded-lg transition-all shadow-lg shadow-accent-green/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                            {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Activity size={20} />}
+                            {loading ? <div className="w-5 h-5 border-2 border-bg-primary/30 border-t-bg-primary rounded-full animate-spin" /> : <Activity size={20} />}
                             Analyze
                         </button>
 
