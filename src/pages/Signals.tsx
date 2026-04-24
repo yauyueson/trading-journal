@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { usePositions } from '../hooks/usePositions';
 import { ACTIVE_STRATEGIES, STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
+import { BCDEntryModal } from '../components/BCDEntryModal';
+import { PMCCEntryModal } from '../components/PMCCEntryModal';
 
 // BCD emits a candidate every 10 trading days. Approximate trading-day
 // advance with Mon-Fri business-day arithmetic (good enough for display).
@@ -22,6 +24,7 @@ function formatDate(d: Date): string {
 export const SignalsPage: React.FC = () => {
   const { data: positions = [] } = usePositions();
   const [activeBoard, setActiveBoard] = useState<StrategyType>(ACTIVE_STRATEGIES[0]);
+  const [entryModal, setEntryModal] = useState<StrategyType | null>(null);
 
   const boardContext = useMemo(() => {
     const profile = STRATEGY_PROFILES[activeBoard];
@@ -183,11 +186,32 @@ export const SignalsPage: React.FC = () => {
             </>
           )}
         </div>
+
+        {/* Enter button */}
+        {!boardContext.openPosition && (
+          <div className="mt-6 pt-4 border-t border-white/[0.06] flex items-center justify-between">
+            <p className="text-xs text-text-tertiary">
+              Manual entry. Enter strikes + fills from your broker; the platform will track P&L, rolls, and exit triggers.
+            </p>
+            <button
+              type="button"
+              onClick={() => setEntryModal(activeBoard)}
+              className="action-btn btn-primary text-xs whitespace-nowrap"
+            >
+              Open {boardContext.profile.shortLabel} Position →
+            </button>
+          </div>
+        )}
       </div>
 
-      <p className="text-[10px] text-text-tertiary mt-6">
-        Entry flow (BCDEntryModal / PMCCEntryModal) ships in Phase C. Until then, use the Portfolio quick-add form to log a trade manually.
-      </p>
+      <BCDEntryModal
+        isOpen={entryModal === 'bcd'}
+        onClose={() => setEntryModal(null)}
+      />
+      <PMCCEntryModal
+        isOpen={entryModal === 'pmcc'}
+        onClose={() => setEntryModal(null)}
+      />
     </div>
   );
 };
