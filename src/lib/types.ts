@@ -42,8 +42,10 @@ export interface Position {
     exit_type?: 'TP' | 'SL' | 'TIME' | 'MANUAL' | 'ROLL' | 'EXP_PROFIT' | 'EXP_LOSS' | 'EARLY_PROFIT' | 'EARLY_DEFENSE';
     /** Spread width in dollars (e.g. 15 for a $15-wide spread). Null for single-leg positions. */
     spread_width?: number;
-    /** Which strategy profile was used to open this position. */
-    strategy_type?: 'swing' | 'shortTerm' | 'dte5' | null;
+    /** Which strategy profile was used to open this position.
+     *  Active (F1 adoptions): 'bcd', 'pmcc'.
+     *  Retired (kept for historical rows): 'swing', 'shortTerm', 'dte5'. */
+    strategy_type?: 'swing' | 'shortTerm' | 'dte5' | 'bcd' | 'pmcc' | null;
     /** Paper trade (not real money). */
     is_paper?: boolean;
 }
@@ -148,7 +150,7 @@ export interface DirectAddItem {
     iv_rank_entry?: number;
     spread_width?: number;
     /** Which strategy profile was used to open this position. */
-    strategy_type?: 'swing' | 'shortTerm' | 'dte5';
+    strategy_type?: 'swing' | 'shortTerm' | 'dte5' | 'bcd' | 'pmcc';
     /** Paper trade (not real money). */
     is_paper?: boolean;
     /** Take-profit target price, stored as a percentage (e.g., 0.30 = 30%). */

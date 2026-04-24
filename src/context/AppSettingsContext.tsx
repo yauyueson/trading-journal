@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { supabase, supabaseReady } from '../lib/supabase';
 import { AppSettings, DEFAULT_APP_SETTINGS } from '../lib/types/settings';
-import type { StrategyType } from '../lib/strategyProfiles';
+import { ACTIVE_STRATEGIES, type StrategyType } from '../lib/strategyProfiles';
 
 const STORAGE_KEY = 'trading-journal-app-settings';
 const STORAGE_TS_KEY = 'trading-journal-app-settings-ts';
@@ -47,8 +47,14 @@ interface AppSettingsContextValue {
   // Derived convenience values (same as old PortfolioSettingsContext)
   maxRiskPerTrade: number;
   stopOutFraction: number;
+  /** @deprecated (Phase F1 revamp): BCD + PMCC are concurrent. Prefer activeStrategies / isStrategyActive. */
   activeStrategy: StrategyType;
+  /** @deprecated (Phase F1 revamp): kept for back-compat with the single-active UI. */
   setActiveStrategy: (s: StrategyType) => void;
+  /** Strategies the user is currently running concurrently. Sourced from ACTIVE_STRATEGIES. */
+  activeStrategies: readonly StrategyType[];
+  /** True if `s` is in activeStrategies (a cheap helper for UI branching). */
+  isStrategyActive: (s: StrategyType) => boolean;
 }
 
 const AppSettingsContext = createContext<AppSettingsContextValue | null>(null);
@@ -59,9 +65,11 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [activeStrategy, setActiveStrategyState] = useState<StrategyType>(() => {
     try {
       const stored = localStorage.getItem(STRATEGY_STORAGE_KEY);
-      if (stored === 'dte5' || stored === 'swing' || stored === 'shortTerm') return stored as StrategyType;
-    } catch {}
-    return 'dte5';
+      const valid: StrategyType[] = ['dte5', 'swing', 'shortTerm', 'bcd', 'pmcc'];
+      if (stored && valid.includes(stored as StrategyType)) return stored as StrategyType;
+    } catch { /* ignore */ }
+    // Default to the first active F1 strategy (BCD — small-account friendly).
+    return ACTIVE_STRATEGIES[0] ?? 'bcd';
   });
 
   const setActiveStrategy = useCallback((s: StrategyType) => {
@@ -135,9 +143,17 @@ export const AppSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const maxRiskPerTrade = (settings.portfolio.accountSize * settings.portfolio.riskPct) / 100;
   const stopOutFraction = settings.portfolio.stopOutPct / 100;
 
+  const activeStrategies = ACTIVE_STRATEGIES;
+  const isStrategyActive = useCallback(
+    (s: StrategyType) => activeStrategies.includes(s),
+    [activeStrategies],
+  );
+
   const value = useMemo(() => ({
-    settings, updateSettings, isLoading, maxRiskPerTrade, stopOutFraction, activeStrategy, setActiveStrategy,
-  }), [settings, updateSettings, isLoading, maxRiskPerTrade, stopOutFraction, activeStrategy, setActiveStrategy]);
+    settings, updateSettings, isLoading, maxRiskPerTrade, stopOutFraction,
+    activeStrategy, setActiveStrategy, activeStrategies, isStrategyActive,
+  }), [settings, updateSettings, isLoading, maxRiskPerTrade, stopOutFraction,
+      activeStrategy, setActiveStrategy, activeStrategies, isStrategyActive]);
 
   return (
     <AppSettingsContext.Provider value={value}>

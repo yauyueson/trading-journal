@@ -48,6 +48,33 @@ describe('getPositionMaxLossDollars', () => {
   it('qty=0 → 0', () => {
     expect(getPositionMaxLossDollars(singleLegPos(), 0, 5.0)).toBe(0);
   });
+
+  it('debit spread (BCD): entryPrice (net debit) × 100 × qty', () => {
+    const pos = {
+      id: '3', ticker: 'QQQ', type: 'Call Spread', status: 'active',
+      strategy_type: 'bcd',
+      legs: [
+        { strike: 450, type: 'Call', side: 'long', expiration: '2026-05-15' },
+        { strike: 460, type: 'Call', side: 'short', expiration: '2026-05-15' },
+      ],
+    } as any;
+    // net debit = 2.50 per share; max loss = full debit paid
+    expect(getPositionMaxLossDollars(pos, 1, 2.50)).toBe(2.50 * 100 * 1);
+  });
+
+  it('diagonal (PMCC): entryPrice (net debit) × 100 × qty — LEAP is max loss', () => {
+    const pos = {
+      id: '4', ticker: 'QQQ', type: 'Call Spread', status: 'active',
+      strategy_type: 'pmcc',
+      legs: [
+        { strike: 400, type: 'Call', side: 'long', expiration: '2027-01-15' },  // LEAP
+        { strike: 470, type: 'Call', side: 'short', expiration: '2026-05-15' },  // monthly short
+      ],
+    } as any;
+    // net debit = LEAP cost − short credit = 8.50 per share
+    // max loss = LEAP is the at-risk leg (short can be rolled indefinitely)
+    expect(getPositionMaxLossDollars(pos, 1, 8.50)).toBe(8.50 * 100 * 1);
+  });
 });
 
 describe('getPositionRiskAtStopOutDollars', () => {
