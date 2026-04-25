@@ -1,6 +1,7 @@
 export const queryKeys = {
   positions: ['positions'] as const,
   transactions: ['transactions'] as const,
+  earnings: (tickers: string[]) => ['earnings', tickers] as const,
   optionPrice: (ticker: string, expiration: string, strike: number, type: string) =>
     ['optionPrice', ticker, expiration, strike, type] as const,
   optionPrices: (legs: unknown[]) => ['optionPrices', JSON.stringify(legs)] as const,

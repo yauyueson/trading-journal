@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, ChevronDown } from 'lucide-react';
 import { InlineEditField } from './position/InlineEditField';
 import { PositionActionForm } from './position/PositionActionForm';
@@ -7,7 +7,7 @@ import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory, PositionAction } from '../lib/types';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
-import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, groupTransactionsByPositionId, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
+import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
 import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQWithFactors } from '../lib/scoring';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
 import { STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
@@ -40,6 +40,13 @@ function normalizeExpiration(exp: string): string {
 
 interface PositionCardProps {
     position: Position;
+    /**
+     * Transactions for THIS position only — caller must pre-filter via
+     * `groupTransactionsByPositionId(...)[position.id]` (see Portfolio.tsx,
+     * Dashboard.tsx). Passing the global transactions array here will
+     * silently aggregate across all positions and produce wrong PnL.
+     * A dev-mode assertion enforces this at runtime.
+     */
     transactions: Transaction[];
     onAction?: (id: string, action: PositionAction, exitType?: Position['exit_type']) => Promise<void>;
     onUpdateScore?: (id: string, score: number) => Promise<void>;
@@ -51,6 +58,8 @@ interface PositionCardProps {
     onUpdatePaper?: (id: string, isPaper: boolean) => Promise<void>;
     onDataUpdate?: (timestamp: string) => void;
     refreshTrigger?: number;
+    parentManagedPrices?: boolean;
+    needsFallbackPriceRefresh?: boolean;
     index?: number;
     onRollClick?: (qty: number) => void;
     portfolioTotal?: number;
@@ -59,7 +68,19 @@ interface PositionCardProps {
 }
 
 const PositionCardInner: React.FC<PositionCardProps> = (props) => {
-    const { position, transactions, onDataUpdate, refreshTrigger = 0, index = 0, onRollClick, portfolioTotal: portfolioTotalProp, initialData, fetchEarningsForTicker } = props;
+    const {
+        position,
+        transactions,
+        onDataUpdate,
+        refreshTrigger = 0,
+        parentManagedPrices = false,
+        needsFallbackPriceRefresh = false,
+        index = 0,
+        onRollClick,
+        portfolioTotal: portfolioTotalProp,
+        initialData,
+        fetchEarningsForTicker,
+    } = props;
 
     // Mutation hooks as fallbacks when callback props not provided
     const positionActionMut = usePositionAction();
@@ -71,7 +92,8 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const deletePositionMut = useDeletePosition();
 
     const onAction = props.onAction ?? (async (id: string, action: PositionAction, exitType?: Position['exit_type']) => { await positionActionMut.mutateAsync({ id, action, exitType }); });
-    const onUpdatePrice = props.onUpdatePrice ?? (async (id: string, price: number) => { await updatePriceMut.mutateAsync({ id, price }); });
+    const defaultOnUpdatePrice = useCallback(async (id: string, price: number) => { await updatePriceMut.mutateAsync({ id, price }); }, [updatePriceMut]);
+    const onUpdatePrice = props.onUpdatePrice ?? defaultOnUpdatePrice;
     const onUpdateTarget = props.onUpdateTarget ?? (async (id: string, target: number) => { await updateTargetMut.mutateAsync({ id, target }); });
     const onUpdateStop = props.onUpdateStop ?? (async (id: string, stopPrice: number) => { await updateStopMut.mutateAsync({ id, stopPrice }); });
     const onUpdateOwner = props.onUpdateOwner ?? (async (id: string, owner: 'Yuchen' | 'Annie' | null) => { await updateOwnerMut.mutateAsync({ id, owner }); });
@@ -116,7 +138,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         setEarnings({ loading: false, date: null, days: null });
                     }
                 }
-            } catch (e) {
+            } catch {
                 setEarnings({ loading: false, date: null, days: null });
             }
         };
@@ -350,20 +372,20 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
             }
         } catch { /* price fetch failed — silent */ }
         setLoading(false);
-    }, [position.id, position.ticker, position.expiration, position.strike, position.type, isSpread, isCreditStrategy, position.legs, onUpdatePrice, initialData]);
+    }, [position.id, position.ticker, position.expiration, position.strike, position.type, position.current_price, isSpread, isCreditStrategy, position.legs, onUpdatePrice, onDataUpdate, initialData]);
 
     useEffect(() => {
         // Initial load? Try using bulk data if available, otherwise fetch.
         // If initialData is present, it means parent likely fetched already.
         if (initialData) {
             fetchGreeksAndPrice(true);
-        } else {
+        } else if (!parentManagedPrices) {
             fetchGreeksAndPrice(false);
         }
-    }, [initialData]); // Re-run when initialData updates (bulk refresh)
+    }, [initialData, parentManagedPrices, fetchGreeksAndPrice]); // Re-run when initialData updates (bulk refresh)
 
     useEffect(() => {
-        if (refreshTrigger > 0 && !initialData) {
+        if (refreshTrigger > 0 && !initialData && (!parentManagedPrices || needsFallbackPriceRefresh)) {
             // Only trigger individual fetch if NO bulk data was provided
             // OR if the refresh trigger is meant to force fallback
             // But Portfolio logic says: if bulk fails, trigger incremented.
@@ -375,7 +397,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
             }, delay);
             return () => clearTimeout(timeoutId);
         }
-    }, [refreshTrigger, index, fetchGreeksAndPrice, initialData]);
+    }, [refreshTrigger, index, fetchGreeksAndPrice, initialData, parentManagedPrices, needsFallbackPriceRefresh]);
 
     const hasLoadedHistoryRef = React.useRef(false);
 
@@ -390,10 +412,17 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
         }
     }, [isExpanded, position.id, historyData.length]);
 
-    const positionTxns = useMemo(
-        () => groupTransactionsByPositionId(transactions)[position.id] ?? [],
-        [transactions, position.id],
-    );
+    // Caller contract: `transactions` is pre-filtered for this position.
+    // Dev-mode assertion to fail loudly if a future caller forgets.
+    if (process.env.NODE_ENV !== 'production') {
+        const stray = transactions.find(t => t.position_id !== position.id);
+        if (stray) {
+            console.error(
+                `[PositionCard] received transaction for a different position. Expected position_id=${position.id}, got ${stray.position_id}. Caller must pre-filter via groupTransactionsByPositionId.`,
+            );
+        }
+    }
+    const positionTxns = transactions;
 
     let totalQtyBought = 0, totalCostBasis = 0, totalQtySold = 0;
     positionTxns.forEach(t => {
@@ -876,12 +905,40 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     );
 };
 
+// Per-field shallow compare avoids the JSON.stringify cost of the original
+// implementation while covering every position field PositionCard reads.
+// `legs` reference-equality is sound because React Query produces a fresh
+// `positions` array on every cache update — a position whose legs change
+// will arrive as a new object with a new `legs` reference. The optimistic
+// `setQueryData` path in usePositionFieldUpdate also spreads into a new
+// object, preserving the same invariant.
+function positionFieldsEqual(a: Position, b: Position): boolean {
+    return a.id === b.id
+        && a.ticker === b.ticker
+        && a.strike === b.strike
+        && a.type === b.type
+        && a.expiration === b.expiration
+        && a.status === b.status
+        && a.setup === b.setup
+        && a.strategy === b.strategy
+        && a.current_score === b.current_score
+        && a.current_price === b.current_price
+        && a.target_price === b.target_price
+        && a.stop_price === b.stop_price
+        && a.notes === b.notes
+        && a.closed_at === b.closed_at
+        && a.legs === b.legs
+        && a.owner === b.owner
+        && a.strategy_type === b.strategy_type
+        && a.is_paper === b.is_paper
+        && a.exit_type === b.exit_type;
+}
+
 export const PositionCard = React.memo(PositionCardInner, (prev, next) => {
-    return prev.position.id === next.position.id
-        && prev.position.current_score === next.position.current_score
-        && prev.position.status === next.position.status
-        && prev.position.is_paper === next.position.is_paper
+    return positionFieldsEqual(prev.position, next.position)
         && prev.refreshTrigger === next.refreshTrigger
+        && prev.parentManagedPrices === next.parentManagedPrices
+        && prev.needsFallbackPriceRefresh === next.needsFallbackPriceRefresh
         && prev.initialData === next.initialData
         && prev.portfolioTotal === next.portfolioTotal
         && prev.transactions.length === next.transactions.length
