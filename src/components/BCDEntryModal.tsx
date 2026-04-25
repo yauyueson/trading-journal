@@ -49,22 +49,43 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [submitting, setSubmitting] = useState(false);
   const [pickedExpiration, setPickedExpiration] = useState<string | null>(null);
 
-  // Fetch call-chain candidates at δ 0.15-0.55 across DTE 30-60 so we can
-  // propose both long (≈ 0.50) and short (≈ 0.20) legs per expiration.
-  const chainQuery = useChainCandidates(isOpen && ticker ? {
+  // Fetch the long (δ ≈ 0.50) and short (δ ≈ 0.20) legs in two narrow-band
+  // queries instead of one wide [0.15, 0.55] sweep. The /api/scan-options
+  // endpoint truncates its response to the top 20 contracts ranked by LQS
+  // (api/scan-options.js:386), and a broad-band BCD scan was getting the
+  // δ ≤ 0.25 strikes pruned out before reaching buildBCDCandidates — leaving
+  // the modal to settle for δ 0.30-0.40 shorts and present spreads that
+  // didn't match the F1 sealed config. Two narrow bands fit comfortably
+  // under the 20-cap and surface the right contracts on both legs.
+  const longChainQuery = useChainCandidates(isOpen && ticker ? {
+    ticker,
+    direction: 'call',
+    strategy: 'long',
+    dteMin: profile.dteMin,
+    dteMax: profile.dteMax,
+    minDelta: 0.45,
+    maxDelta: 0.55,
+    strikeRange: 0.25,
+    minVolume: 0,
+  } : null);
+  const shortChainQuery = useChainCandidates(isOpen && ticker ? {
     ticker,
     direction: 'call',
     strategy: 'long',
     dteMin: profile.dteMin,
     dteMax: profile.dteMax,
     minDelta: 0.15,
-    maxDelta: 0.55,
+    maxDelta: 0.25,
     strikeRange: 0.25,
     minVolume: 0,
   } : null);
+  const mergedChain = useMemo(
+    () => [...(longChainQuery.data ?? []), ...(shortChainQuery.data ?? [])],
+    [longChainQuery.data, shortChainQuery.data],
+  );
   const bcdCandidates: BCDCandidate[] = useMemo(
-    () => buildBCDCandidates(chainQuery.data ?? [], profile.defaultDelta, 0.20).slice(0, 5),
-    [chainQuery.data, profile.defaultDelta],
+    () => buildBCDCandidates(mergedChain, profile.defaultDelta, 0.20).slice(0, 5),
+    [mergedChain, profile.defaultDelta],
   );
 
   const applyCandidate = (c: BCDCandidate) => {
@@ -111,14 +132,15 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         { strike: longStrikeNum, type: 'Call', side: 'long', expiration },
         { strike: shortStrikeNum, type: 'Call', side: 'short', expiration },
       ];
+      const fetchedAtMs = Math.max(longChainQuery.dataUpdatedAt ?? 0, shortChainQuery.dataUpdatedAt ?? 0);
       const fillDiagnostics = buildBcdFillDiagnostics({
         quantity: contracts,
         netDebit: debitNum,
         longStrike: longStrikeNum,
         shortStrike: shortStrikeNum,
         expiration,
-        chain: chainQuery.data,
-        chainFetchedAt: chainQuery.dataUpdatedAt ? new Date(chainQuery.dataUpdatedAt).toISOString() : null,
+        chain: mergedChain,
+        chainFetchedAt: fetchedAtMs ? new Date(fetchedAtMs).toISOString() : null,
       });
       await addDirect.mutateAsync({
         ticker,
@@ -190,16 +212,16 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 <Sparkles size={12} className="text-accent-green" />
                 Suggested spreads
               </div>
-              {chainQuery.isFetching && (
+              {(longChainQuery.isFetching || shortChainQuery.isFetching) && (
                 <span className="text-[10px] text-text-tertiary">Loading chain…</span>
               )}
             </div>
-            {chainQuery.isError && (
+            {(longChainQuery.isError || shortChainQuery.isError) && (
               <p className="text-[11px] text-amber-400">
                 Couldn't load chain — enter strikes manually below.
               </p>
             )}
-            {!chainQuery.isFetching && !chainQuery.isError && bcdCandidates.length === 0 && (
+            {!(longChainQuery.isFetching || shortChainQuery.isFetching) && !(longChainQuery.isError || shortChainQuery.isError) && bcdCandidates.length === 0 && (
               <p className="text-[11px] text-text-tertiary">
                 No spreads matched — broaden the DTE/δ window or enter manually.
               </p>
