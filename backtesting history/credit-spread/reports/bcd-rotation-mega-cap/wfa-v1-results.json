@@ -1,0 +1,546 @@
+{
+  "generated": "2026-04-25T15:53:26.880Z",
+  "universe": [
+    "AMD",
+    "MSFT",
+    "AAPL",
+    "JPM",
+    "META",
+    "ORCL",
+    "NVDA",
+    "IWM",
+    "CRM",
+    "BA",
+    "TSLA",
+    "CRWD",
+    "AMZN",
+    "GS",
+    "NFLX",
+    "AVGO",
+    "PANW",
+    "COST",
+    "LULU",
+    "SHOP",
+    "GOOG",
+    "ANET",
+    "NOW"
+  ],
+  "config": {
+    "rotation": "top-3 by (126d-21d)/63d-RV",
+    "cadenceDays": 10,
+    "capital": {
+      "rotation": 6000,
+      "baseline": 2000
+    }
+  },
+  "windows": {
+    "selection": 10,
+    "holdout": 5,
+    "holdoutBoundary": "2024-01-22"
+  },
+  "rebalanceDates": 225,
+  "rebalancesSkippedRV": 22,
+  "results": {
+    "baseline": {
+      "name": "QQQ-only baseline (F1 anchor)",
+      "trades": 84,
+      "capital": 2000,
+      "selStart": "2019-01-17",
+      "selEnd": "2024-01-19",
+      "holdStart": "2024-01-22",
+      "holdEnd": "2026-02-27",
+      "selSharpe": 0.9705805465455615,
+      "selMaxDD": 39.784273380252124,
+      "selPnl": 7164.646740038742,
+      "selTrades": 59,
+      "selWinRate": 64.40677966101694,
+      "holdSharpe": 1.2229995848980162,
+      "holdMaxDD": 14.317889166313005,
+      "holdPnl": 5496.885561269923,
+      "holdTrades": 25,
+      "holdWinRate": 60
+    },
+    "rotation": {
+      "name": "Rotation top-3",
+      "trades": 226,
+      "capital": 6000,
+      "selStart": "2019-01-17",
+      "selEnd": "2024-01-19",
+      "holdStart": "2024-01-22",
+      "holdEnd": "2026-02-27",
+      "selSharpe": 0.8983272179549295,
+      "selMaxDD": 70.76608934944225,
+      "selPnl": 27801.990884655883,
+      "selTrades": 154,
+      "selWinRate": 49.35064935064935,
+      "holdSharpe": 0.6092931305816391,
+      "holdMaxDD": 21.513762800514836,
+      "holdPnl": 8979.51379562118,
+      "holdTrades": 72,
+      "holdWinRate": 48.61111111111111
+    },
+    "rotationRvFiltered": {
+      "name": "Rotation top-3 + RV filter",
+      "trades": 219,
+      "capital": 6000,
+      "selStart": "2019-01-17",
+      "selEnd": "2024-01-19",
+      "holdStart": "2024-01-22",
+      "holdEnd": "2026-02-27",
+      "selSharpe": 0.8621737452921663,
+      "selMaxDD": 73.11379400815015,
+      "selPnl": 26455.922844535424,
+      "selTrades": 149,
+      "selWinRate": 48.99328859060403,
+      "holdSharpe": 0.5284796295273088,
+      "holdMaxDD": 22.182099835376384,
+      "holdPnl": 7375.9543030871255,
+      "holdTrades": 70,
+      "holdWinRate": 48.57142857142857
+    }
+  },
+  "correlations": {
+    "rotation_vs_baseline_selection": {
+      "r": 0.3649472163764772,
+      "n": 1260
+    },
+    "rotation_vs_baseline_holdout": {
+      "r": 0.523554812517086,
+      "n": 528
+    },
+    "rotationRv_vs_baseline_selection": {
+      "r": 0.3572653050305358,
+      "n": 1260
+    },
+    "rotationRv_vs_baseline_holdout": {
+      "r": 0.5243955003254037,
+      "n": 528
+    }
+  },
+  "perTickerContribution": {
+    "rotation": [
+      {
+        "ticker": "GOOG",
+        "picks": 26,
+        "trades": 11,
+        "wins": 6,
+        "losses": 5,
+        "pnl": 16251.050363185852
+      },
+      {
+        "ticker": "NVDA",
+        "picks": 56,
+        "trades": 15,
+        "wins": 9,
+        "losses": 6,
+        "pnl": 6282.422816399702
+      },
+      {
+        "ticker": "META",
+        "picks": 20,
+        "trades": 8,
+        "wins": 7,
+        "losses": 1,
+        "pnl": 6155.22346622354
+      },
+      {
+        "ticker": "NFLX",
+        "picks": 44,
+        "trades": 9,
+        "wins": 6,
+        "losses": 3,
+        "pnl": 6051.294398983047
+      },
+      {
+        "ticker": "GS",
+        "picks": 30,
+        "trades": 13,
+        "wins": 8,
+        "losses": 5,
+        "pnl": 5500.35515521314
+      },
+      {
+        "ticker": "AVGO",
+        "picks": 32,
+        "trades": 14,
+        "wins": 10,
+        "losses": 4,
+        "pnl": 5449.727773911564
+      },
+      {
+        "ticker": "JPM",
+        "picks": 27,
+        "trades": 13,
+        "wins": 7,
+        "losses": 6,
+        "pnl": 1614.7491456220591
+      },
+      {
+        "ticker": "NOW",
+        "picks": 25,
+        "trades": 8,
+        "wins": 3,
+        "losses": 5,
+        "pnl": 1529.7590439404703
+      },
+      {
+        "ticker": "MSFT",
+        "picks": 12,
+        "trades": 3,
+        "wins": 2,
+        "losses": 1,
+        "pnl": 1481.492738435206
+      },
+      {
+        "ticker": "CRWD",
+        "picks": 33,
+        "trades": 20,
+        "wins": 10,
+        "losses": 10,
+        "pnl": 1337.856173043651
+      },
+      {
+        "ticker": "IWM",
+        "picks": 9,
+        "trades": 4,
+        "wins": 2,
+        "losses": 2,
+        "pnl": 811.0049418189155
+      },
+      {
+        "ticker": "ANET",
+        "picks": 26,
+        "trades": 12,
+        "wins": 6,
+        "losses": 6,
+        "pnl": 724.7552819203202
+      },
+      {
+        "ticker": "PANW",
+        "picks": 19,
+        "trades": 6,
+        "wins": 2,
+        "losses": 4,
+        "pnl": 9.49363829563572
+      },
+      {
+        "ticker": "AAPL",
+        "picks": 32,
+        "trades": 13,
+        "wins": 7,
+        "losses": 6,
+        "pnl": -12.242982299462483
+      },
+      {
+        "ticker": "ORCL",
+        "picks": 13,
+        "trades": 6,
+        "wins": 2,
+        "losses": 4,
+        "pnl": -133.0421323671219
+      },
+      {
+        "ticker": "AMD",
+        "picks": 28,
+        "trades": 8,
+        "wins": 3,
+        "losses": 5,
+        "pnl": -537.853390524258
+      },
+      {
+        "ticker": "CRM",
+        "picks": 8,
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "pnl": -727.451342286776
+      },
+      {
+        "ticker": "AMZN",
+        "picks": 17,
+        "trades": 3,
+        "wins": 0,
+        "losses": 3,
+        "pnl": -1116.919681194392
+      },
+      {
+        "ticker": "LULU",
+        "picks": 30,
+        "trades": 6,
+        "wins": 1,
+        "losses": 5,
+        "pnl": -2083.768535232054
+      },
+      {
+        "ticker": "BA",
+        "picks": 34,
+        "trades": 10,
+        "wins": 1,
+        "losses": 9,
+        "pnl": -2099.9246661477514
+      },
+      {
+        "ticker": "COST",
+        "picks": 59,
+        "trades": 22,
+        "wins": 9,
+        "losses": 13,
+        "pnl": -2669.398033008157
+      },
+      {
+        "ticker": "SHOP",
+        "picks": 40,
+        "trades": 15,
+        "wins": 9,
+        "losses": 6,
+        "pnl": -3159.573783445585
+      },
+      {
+        "ticker": "TSLA",
+        "picks": 34,
+        "trades": 6,
+        "wins": 1,
+        "losses": 5,
+        "pnl": -3877.5057102104747
+      }
+    ],
+    "rotationRvFiltered": [
+      {
+        "ticker": "GOOG",
+        "picks": 23,
+        "trades": 11,
+        "wins": 6,
+        "losses": 5,
+        "pnl": 16251.050363185852
+      },
+      {
+        "ticker": "NVDA",
+        "picks": 49,
+        "trades": 17,
+        "wins": 10,
+        "losses": 7,
+        "pnl": 6256.840618051214
+      },
+      {
+        "ticker": "META",
+        "picks": 19,
+        "trades": 8,
+        "wins": 7,
+        "losses": 1,
+        "pnl": 5839.256727294705
+      },
+      {
+        "ticker": "GS",
+        "picks": 30,
+        "trades": 13,
+        "wins": 8,
+        "losses": 5,
+        "pnl": 5500.35515521314
+      },
+      {
+        "ticker": "AVGO",
+        "picks": 29,
+        "trades": 14,
+        "wins": 10,
+        "losses": 4,
+        "pnl": 5449.727773911564
+      },
+      {
+        "ticker": "NFLX",
+        "picks": 40,
+        "trades": 8,
+        "wins": 5,
+        "losses": 3,
+        "pnl": 3720.7650883083566
+      },
+      {
+        "ticker": "CRWD",
+        "picks": 31,
+        "trades": 19,
+        "wins": 10,
+        "losses": 9,
+        "pnl": 1664.856673490274
+      },
+      {
+        "ticker": "MSFT",
+        "picks": 9,
+        "trades": 3,
+        "wins": 2,
+        "losses": 1,
+        "pnl": 1481.492738435206
+      },
+      {
+        "ticker": "NOW",
+        "picks": 21,
+        "trades": 7,
+        "wins": 3,
+        "losses": 4,
+        "pnl": 1421.6876892147034
+      },
+      {
+        "ticker": "AAPL",
+        "picks": 27,
+        "trades": 12,
+        "wins": 7,
+        "losses": 5,
+        "pnl": 1319.5793116250757
+      },
+      {
+        "ticker": "ANET",
+        "picks": 24,
+        "trades": 11,
+        "wins": 6,
+        "losses": 5,
+        "pnl": 1269.2788491570795
+      },
+      {
+        "ticker": "JPM",
+        "picks": 25,
+        "trades": 12,
+        "wins": 6,
+        "losses": 6,
+        "pnl": 971.7374340454389
+      },
+      {
+        "ticker": "IWM",
+        "picks": 9,
+        "trades": 4,
+        "wins": 2,
+        "losses": 2,
+        "pnl": 811.0049418189155
+      },
+      {
+        "ticker": "ORCL",
+        "picks": 11,
+        "trades": 6,
+        "wins": 2,
+        "losses": 4,
+        "pnl": -133.0421323671219
+      },
+      {
+        "ticker": "AMD",
+        "picks": 22,
+        "trades": 7,
+        "wins": 3,
+        "losses": 4,
+        "pnl": -484.8195263064634
+      },
+      {
+        "ticker": "CRM",
+        "picks": 8,
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "pnl": -727.451342286776
+      },
+      {
+        "ticker": "AMZN",
+        "picks": 15,
+        "trades": 3,
+        "wins": 0,
+        "losses": 3,
+        "pnl": -1116.919681194392
+      },
+      {
+        "ticker": "LULU",
+        "picks": 25,
+        "trades": 5,
+        "wins": 1,
+        "losses": 4,
+        "pnl": -1339.9329819386815
+      },
+      {
+        "ticker": "PANW",
+        "picks": 19,
+        "trades": 7,
+        "wins": 2,
+        "losses": 5,
+        "pnl": -1380.5046421566904
+      },
+      {
+        "ticker": "BA",
+        "picks": 31,
+        "trades": 10,
+        "wins": 1,
+        "losses": 9,
+        "pnl": -2099.9246661477514
+      },
+      {
+        "ticker": "COST",
+        "picks": 54,
+        "trades": 22,
+        "wins": 9,
+        "losses": 13,
+        "pnl": -2683.8708786607067
+      },
+      {
+        "ticker": "TSLA",
+        "picks": 31,
+        "trades": 6,
+        "wins": 1,
+        "losses": 5,
+        "pnl": -3877.5057102104747
+      },
+      {
+        "ticker": "SHOP",
+        "picks": 36,
+        "trades": 13,
+        "wins": 6,
+        "losses": 7,
+        "pnl": -4281.7846548599155
+      }
+    ]
+  },
+  "pickFrequency": {
+    "rotation": {
+      "AMD": 28,
+      "MSFT": 12,
+      "AAPL": 32,
+      "JPM": 27,
+      "META": 20,
+      "ORCL": 13,
+      "NVDA": 56,
+      "IWM": 9,
+      "CRM": 8,
+      "BA": 34,
+      "TSLA": 34,
+      "CRWD": 33,
+      "AMZN": 17,
+      "GS": 30,
+      "NFLX": 44,
+      "AVGO": 32,
+      "PANW": 19,
+      "COST": 59,
+      "LULU": 30,
+      "SHOP": 40,
+      "GOOG": 26,
+      "ANET": 26,
+      "NOW": 25
+    },
+    "rotationRvFiltered": {
+      "AMD": 22,
+      "MSFT": 9,
+      "AAPL": 27,
+      "JPM": 25,
+      "META": 19,
+      "ORCL": 11,
+      "NVDA": 49,
+      "IWM": 9,
+      "CRM": 8,
+      "BA": 31,
+      "TSLA": 31,
+      "CRWD": 31,
+      "AMZN": 15,
+      "GS": 30,
+      "NFLX": 40,
+      "AVGO": 29,
+      "PANW": 19,
+      "COST": 54,
+      "LULU": 25,
+      "SHOP": 36,
+      "GOOG": 23,
+      "ANET": 24,
+      "NOW": 21
+    }
+  }
+}
