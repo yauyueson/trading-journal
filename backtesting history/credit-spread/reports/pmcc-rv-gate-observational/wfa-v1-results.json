@@ -1,0 +1,146 @@
+{
+  "generated": "2026-04-25T20:36:27.002Z",
+  "frozenSpec": {
+    "rvGateThreshold": 1.5,
+    "rvLookbacks": {
+      "short": 5,
+      "long": 60
+    },
+    "scope": "new LEAP entries only",
+    "config": {
+      "mode": "DIAGONAL",
+      "leapDeltaRange": [
+        0.65,
+        0.8
+      ],
+      "leapDTERange": [
+        180,
+        365
+      ],
+      "leapProfitTarget": 0.5,
+      "leapStopLoss": 0.3,
+      "leapTimeStopDTE": 90,
+      "creditShortDelta": 0.35,
+      "creditSpreadWidth": 10,
+      "creditDTERange": [
+        45,
+        65
+      ],
+      "creditProfitTarget": 0.3,
+      "creditStopLossMultiple": 100,
+      "creditTimeStopDTE": 5,
+      "monitoringIntervalDays": 1,
+      "minIVRank": 0,
+      "fillMode": "bidask",
+      "slippage": {
+        "enabled": true,
+        "fillMode": "bidask",
+        "executionStyle": "combo",
+        "baseImpactBps": 2,
+        "oiHalfLife": 500,
+        "maxOiFactor": 6,
+        "dteAccelDays": 7,
+        "dteAccelMultiplier": 3
+      },
+      "missingChainExitAfterDays": 3,
+      "commissionPerLeg": 0,
+      "diagLongDeltaRange": [
+        0.7,
+        0.8
+      ],
+      "diagLongDTERange": [
+        240,
+        300
+      ],
+      "diagShortDeltaRange": [
+        0.2,
+        0.3
+      ],
+      "diagShortDTERange": [
+        30,
+        45
+      ],
+      "diagLongProfitTarget": 0.6,
+      "diagLongStopLoss": 0.35,
+      "diagLongTimeStopDTE": 90,
+      "diagShortProfitTarget": 0.5,
+      "diagRollTriggerMoneyness": 0.02
+    }
+  },
+  "windows": {
+    "selection": 10,
+    "holdout": 5,
+    "holdoutBoundary": "2024-01-22"
+  },
+  "signals": {
+    "baseline": 2241,
+    "gated": 1982,
+    "skipped": 259
+  },
+  "results": {
+    "baseline": {
+      "name": "PMCC F1 baseline",
+      "trades": 39,
+      "selTrades": 28,
+      "selSharpe": 1.7238083678549994,
+      "selMaxDD": 17.515130700906912,
+      "selPnl": 34407.663036881146,
+      "selWinRate": 57.14285714285714,
+      "holdTrades": 11,
+      "holdSharpe": 1.6292681375017988,
+      "holdMaxDD": 12.544423740076951,
+      "holdPnl": 18668.81509406373,
+      "holdWinRate": 54.54545454545454,
+      "perWindowSharpe": [
+        2.2906020379703693,
+        2.4404341830756975,
+        2.015578444561605,
+        2.703416683500973,
+        1.8654982241993763,
+        2.0621992059045477,
+        -0.6329487411562796,
+        -0.04245225041768031,
+        3.6832214398933942,
+        1.5994228823681906
+      ]
+    },
+    "rvGated": {
+      "name": "PMCC F1 + RV gate",
+      "trades": 35,
+      "selTrades": 26,
+      "selSharpe": 2.027073866035266,
+      "selMaxDD": 15.509183551058625,
+      "selPnl": 38580.71351574584,
+      "selWinRate": 65.38461538461539,
+      "holdTrades": 9,
+      "holdSharpe": 1.1623052540341985,
+      "holdMaxDD": 9.8713491903718,
+      "holdPnl": 11228.4182683857,
+      "holdWinRate": 55.55555555555556,
+      "perWindowSharpe": [
+        2.2906020379703693,
+        2.4404341830756975,
+        5.566845002702891,
+        2.638322442564938,
+        1.7527982734550318,
+        1.9787324396486035,
+        -0.699990395043892,
+        0.6765752927828911,
+        3.3849367188542465,
+        1.6049806842312004
+      ]
+    }
+  },
+  "deltas": {
+    "selection": {
+      "sharpe": 0.3032654981802665,
+      "maxDD": -2.0059471498482875,
+      "pnl": 4173.050478864694
+    },
+    "holdout": {
+      "sharpe": -0.4669628834676003,
+      "maxDD": -2.6730745497051505,
+      "pnl": -7440.396825678032
+    }
+  }
+}
