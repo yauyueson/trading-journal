@@ -58,17 +58,20 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [pickedLeap, setPickedLeap] = useState<ChainOption | null>(null);
   const [pickedShort, setPickedShort] = useState<ChainOption | null>(null);
 
-  // LEAP candidates (δ 0.70-0.80, DTE 240-300). Liquidity on long-dated contracts is
-  // thin, so relax volume + spread filters and keep the band wide enough to surface
-  // contracts at the edges of the target δ range.
+  // LEAP candidates: δ band matches the sealed F1 config exactly so the
+  // /api/scan-options top-20 LQS truncation can't return contracts outside
+  // the sealed range — same class of bug that hit BCDEntryModal pre-fix.
+  // Liquidity is still relaxed via maxSpreadPct: 0.30 + minVolume: 0; if
+  // the chain is genuinely sparse at exact-band edges the modal will show
+  // fewer suggestions and the user can enter manually.
   const leapQuery = useChainCandidates(isOpen && ticker ? {
     ticker,
     direction: 'call',
     strategy: 'long',
     dteMin: profile.longDteMin ?? 240,
     dteMax: profile.longDteMax ?? 300,
-    minDelta: 0.65,
-    maxDelta: 0.85,
+    minDelta: profile.longDeltaMin ?? 0.70,
+    maxDelta: profile.longDeltaMax ?? 0.80,
     strikeRange: 0.5,
     minVolume: 0,
     maxSpreadPct: 0.30,
@@ -80,8 +83,8 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
     strategy: 'long',
     dteMin: profile.shortDteMin ?? 30,
     dteMax: profile.shortDteMax ?? 45,
-    minDelta: 0.15,
-    maxDelta: 0.35,
+    minDelta: profile.shortDeltaMin ?? 0.20,
+    maxDelta: profile.shortDeltaMax ?? 0.30,
     strikeRange: 0.25,
     minVolume: 0,
   } : null);
