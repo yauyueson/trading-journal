@@ -3,7 +3,12 @@ import { supabase } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import type { Position } from '../lib/types';
 
-const POSITION_SELECT = [
+// `as const satisfies` enforces that every entry below is a valid `keyof Position`
+// (catches typos / removed fields). The `_AllKeysCovered` guard below catches the
+// reverse direction: any new field added to `Position` must be added here, or the
+// build fails. Together they make this list a maintained contract — the only
+// alternative for `select(*)` performance without schema-drift risk.
+const POSITION_COLUMNS = [
   'id',
   'ticker',
   'strike',
@@ -41,7 +46,17 @@ const POSITION_SELECT = [
   'spread_width',
   'strategy_type',
   'is_paper',
-].join(',');
+] as const satisfies readonly (keyof Position)[];
+
+// Build-time guard: if any `keyof Position` is missing from `POSITION_COLUMNS`,
+// `_MissingKeys` resolves to that key union, the conditional resolves to `never`,
+// and `const _AllKeysCovered: never = true` fails to compile — usually with the
+// missing key name in the error message.
+type _MissingKeys = Exclude<keyof Position, typeof POSITION_COLUMNS[number]>;
+const _AllKeysCovered: _MissingKeys extends never ? true : never = true;
+void _AllKeysCovered;
+
+const POSITION_SELECT = POSITION_COLUMNS.join(',');
 
 export function usePositions() {
   return useQuery({
