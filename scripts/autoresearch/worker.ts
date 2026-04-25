@@ -836,6 +836,25 @@ export function makeDebitSpreadEvaluator(config: SimConfig): TradeEvaluator {
       exitStockPrice = longCur.row.stock_price;
       exitDTE = longCur.row.dte;
 
+      // Stop loss: if MtM loss ≥ debitStopLossPct of net debit paid, close at market.
+      // Unset (default) = no SL; mirrors sealed BCD F1 config. Check BEFORE profit
+      // target so a same-bar gap that hits both triggers the conservative exit.
+      if (config.debitStopLossPct != null && (netDebit - curSpreadMid) >= config.debitStopLossPct * netDebit) {
+        const closeLong = applyFill(config.fillMode, longCur.mid,
+          optionType === 'Call' ? longCur.row.call_bid : longCur.row.put_bid,
+          optionType === 'Call' ? longCur.row.call_ask : longCur.row.put_ask,
+          'sell', config.slippage, optionType === 'Call' ? longCur.row.call_oi : longCur.row.put_oi, longCur.row.dte).fillPrice;
+        const closeShort = applyFill(config.fillMode, shortCur.mid,
+          optionType === 'Call' ? shortCur.row.call_bid : shortCur.row.put_bid,
+          optionType === 'Call' ? shortCur.row.call_ask : shortCur.row.put_ask,
+          'buy', config.slippage, optionType === 'Call' ? shortCur.row.call_oi : shortCur.row.put_oi, shortCur.row.dte).fillPrice;
+        exitSpreadValue = closeLong - closeShort;
+        exitDate = d;
+        exitType = 'STOP_LOSS';
+        stopped = true;
+        break;
+      }
+
       // Profit target: reach debitProfitTargetPct of max profit
       if (maxProfit > 0 && (curSpreadMid - netDebit) >= config.debitProfitTargetPct * maxProfit) {
         const closeLong = applyFill(config.fillMode, longCur.mid,

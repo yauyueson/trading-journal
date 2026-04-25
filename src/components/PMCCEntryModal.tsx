@@ -27,6 +27,7 @@ import {
   buildPMCCShortCandidates,
   type ChainOption,
 } from '../lib/chainCandidates';
+import { buildPmccFillDiagnostics } from '../lib/fillDiagnostics';
 
 interface Props {
   isOpen: boolean;
@@ -161,6 +162,19 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         { strike: longStrikeNum, type: 'Call', side: 'long', expiration: longExpiration },
         { strike: shortStrikeNum, type: 'Call', side: 'short', expiration: shortExpiration },
       ];
+      const fetchedAtMs = Math.max(leapQuery.dataUpdatedAt ?? 0, shortQuery.dataUpdatedAt ?? 0);
+      const fillDiagnostics = buildPmccFillDiagnostics({
+        quantity: contracts,
+        longDebit: longDebitNum,
+        shortCredit: shortCreditNum,
+        longStrike: longStrikeNum,
+        longExpiration,
+        shortStrike: shortStrikeNum,
+        shortExpiration,
+        longChain: leapQuery.data,
+        shortChain: shortQuery.data,
+        chainFetchedAt: fetchedAtMs ? new Date(fetchedAtMs).toISOString() : null,
+      });
       await addDirect.mutateAsync({
         ticker,
         strike: longStrikeNum,
@@ -181,6 +195,7 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         is_paper: true,
         target_price: profile.longProfitTarget ?? 0.60,
         legs,
+        fill_diagnostics: fillDiagnostics,
       });
       onClose();
       setLongExpiration('');

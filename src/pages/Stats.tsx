@@ -15,6 +15,7 @@ import { EquityCurve } from '../components/stats/EquityCurve';
 import { MonthlyHeatmap } from '../components/stats/MonthlyHeatmap';
 import { DisciplineCard } from '../components/stats/DisciplineCard';
 import { MFEMAEChart } from '../components/stats/MFEMAEChart';
+import { FillQualityCard } from '../components/stats/FillQualityCard';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAppSettings } from '../context/AppSettingsContext';
@@ -100,7 +101,7 @@ const BucketList: React.FC<{ entries: [string, BucketStats][]; renderLabel?: (ke
     </div>
 );
 
-type StatsTab = 'overview' | 'breakdowns' | 'discipline' | 'validation' | 'mfe-mae';
+type StatsTab = 'overview' | 'breakdowns' | 'discipline' | 'validation' | 'mfe-mae' | 'fill-quality';
 
 const TABS: { key: StatsTab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
@@ -108,6 +109,7 @@ const TABS: { key: StatsTab; label: string }[] = [
     { key: 'discipline', label: 'Discipline' },
     { key: 'validation', label: 'Validation' },
     { key: 'mfe-mae', label: 'MFE/MAE' },
+    { key: 'fill-quality', label: 'Fill Quality' },
 ];
 
 export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, transactions: transactionsProp, loading: loadingProp }) => {
@@ -505,6 +507,13 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                     {statsTab === 'mfe-mae' && (
                         <div className="mt-2">
                             <MFEMAEChart />
+                        </div>
+                    )}
+
+                    {/* ═══ FILL QUALITY TAB ═══ */}
+                    {statsTab === 'fill-quality' && (
+                        <div className="mt-2">
+                            <FillQualityCard />
                         </div>
                     )}
                 </>

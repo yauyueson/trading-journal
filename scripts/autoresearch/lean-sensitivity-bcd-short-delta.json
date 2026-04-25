@@ -1,0 +1,99 @@
+{
+  "generated": "2026-04-24T20:28:53.040Z",
+  "sweep": "bcd-short-delta",
+  "description": "BCD: short-leg delta (0.15 / 0.20 anchor / 0.25 / 0.30)",
+  "strategy": "bcd",
+  "anchor": "bcd-qqq-wide-f1",
+  "dataRange": [
+    "2017-01-03",
+    "2026-02-27"
+  ],
+  "results": [
+    {
+      "name": "bcd-short-d15",
+      "overrides": {
+        "debitShortDelta": 0.15
+      },
+      "totalTrades": 92,
+      "winRate": 59.78260869565217,
+      "totalPnl": 12677.152561295028,
+      "returnOnCapital": 19.379423306418552,
+      "avgPnlPct": 24.07362162997074,
+      "profitFactor": 1.689302884055757,
+      "dailyPortfolioSharpe": 0.6756691828270449,
+      "dailyMtMDrawdownPct": 4.222034677298867,
+      "realizedExitDrawdownPct": 4.093149448982512,
+      "avgHoldDays": 18.934782608695652,
+      "avgCapitalPerTrade": 711.0383748631837,
+      "byExit": {
+        "PROFIT_TARGET": 40,
+        "TIME_STOP": 20,
+        "FORCE_CLOSE": 32
+      }
+    },
+    {
+      "name": "bcd-short-d20 (anchor)",
+      "overrides": {},
+      "totalTrades": 99,
+      "winRate": 65.65656565656566,
+      "totalPnl": 13186.005342638568,
+      "returnOnCapital": 20.943633416132588,
+      "avgPnlPct": 23.619755977846562,
+      "profitFactor": 1.7817136694771623,
+      "dailyPortfolioSharpe": 0.7940300533625246,
+      "dailyMtMDrawdownPct": 3.2333310879826382,
+      "realizedExitDrawdownPct": 2.877127646568834,
+      "avgHoldDays": 17.86868686868687,
+      "avgCapitalPerTrade": 635.9544712779847,
+      "byExit": {
+        "PROFIT_TARGET": 52,
+        "FORCE_CLOSE": 28,
+        "TIME_STOP": 19
+      }
+    },
+    {
+      "name": "bcd-short-d25",
+      "overrides": {
+        "debitShortDelta": 0.25
+      },
+      "totalTrades": 96,
+      "winRate": 64.58333333333334,
+      "totalPnl": 8162.632852593515,
+      "returnOnCapital": 15.138756307433237,
+      "avgPnlPct": 18.7904310352649,
+      "profitFactor": 1.53056699829972,
+      "dailyPortfolioSharpe": 0.5947431882596463,
+      "dailyMtMDrawdownPct": 3.3393834342638895,
+      "realizedExitDrawdownPct": 2.898183624534787,
+      "avgHoldDays": 18.020833333333332,
+      "avgCapitalPerTrade": 561.6539682728102,
+      "byExit": {
+        "PROFIT_TARGET": 54,
+        "FORCE_CLOSE": 26,
+        "TIME_STOP": 16
+      }
+    },
+    {
+      "name": "bcd-short-d30",
+      "overrides": {
+        "debitShortDelta": 0.3
+      },
+      "totalTrades": 99,
+      "winRate": 65.65656565656566,
+      "totalPnl": 5320.576051583345,
+      "returnOnCapital": 11.381114744207588,
+      "avgPnlPct": 15.068554095510747,
+      "profitFactor": 1.40232329377194,
+      "dailyPortfolioSharpe": 0.4909811130209041,
+      "dailyMtMDrawdownPct": 2.7232714559172675,
+      "realizedExitDrawdownPct": 2.2736598101619276,
+      "avgHoldDays": 17.282828282828284,
+      "avgCapitalPerTrade": 472.21378264012657,
+      "byExit": {
+        "PROFIT_TARGET": 62,
+        "FORCE_CLOSE": 22,
+        "TIME_STOP": 15
+      }
+    }
+  ]
+}

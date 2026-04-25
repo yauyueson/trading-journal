@@ -1,0 +1,102 @@
+{
+  "generated": "2026-04-24T20:28:42.366Z",
+  "sweep": "bcd-sl",
+  "description": "BCD: debit-based stop-loss (none / 30% / 50% / 70%)",
+  "strategy": "bcd",
+  "anchor": "bcd-qqq-wide-f1",
+  "dataRange": [
+    "2017-01-03",
+    "2026-02-27"
+  ],
+  "results": [
+    {
+      "name": "bcd-no-sl (F1 anchor)",
+      "overrides": {},
+      "totalTrades": 99,
+      "winRate": 65.65656565656566,
+      "totalPnl": 13186.005342638568,
+      "returnOnCapital": 20.943633416132588,
+      "avgPnlPct": 23.619755977846562,
+      "profitFactor": 1.7817136694771623,
+      "dailyPortfolioSharpe": 0.7940300533625246,
+      "dailyMtMDrawdownPct": 3.2333310879826382,
+      "realizedExitDrawdownPct": 2.877127646568834,
+      "avgHoldDays": 17.86868686868687,
+      "avgCapitalPerTrade": 635.9544712779847,
+      "byExit": {
+        "PROFIT_TARGET": 52,
+        "FORCE_CLOSE": 28,
+        "TIME_STOP": 19
+      }
+    },
+    {
+      "name": "bcd-sl30",
+      "overrides": {
+        "debitStopLossPct": 0.3
+      },
+      "totalTrades": 140,
+      "winRate": 38.57142857142858,
+      "totalPnl": 2654.4219297509617,
+      "returnOnCapital": 2.773317075457573,
+      "avgPnlPct": 5.932693125027215,
+      "profitFactor": 1.1038735288813497,
+      "dailyPortfolioSharpe": 0.18024387682835685,
+      "dailyMtMDrawdownPct": 6.101675780581618,
+      "realizedExitDrawdownPct": 6.004083587409226,
+      "avgHoldDays": 10.092857142857143,
+      "avgCapitalPerTrade": 683.6635020519619,
+      "byExit": {
+        "STOP_LOSS": 85,
+        "PROFIT_TARGET": 52,
+        "TIME_STOP": 2,
+        "FORCE_CLOSE": 1
+      }
+    },
+    {
+      "name": "bcd-sl50",
+      "overrides": {
+        "debitStopLossPct": 0.5
+      },
+      "totalTrades": 124,
+      "winRate": 50,
+      "totalPnl": 5411.839215385396,
+      "returnOnCapital": 6.388545144836804,
+      "avgPnlPct": 11.716934415744495,
+      "profitFactor": 1.2041688814689935,
+      "dailyPortfolioSharpe": 0.3190203353331219,
+      "dailyMtMDrawdownPct": 7.001166221183847,
+      "realizedExitDrawdownPct": 6.494613078292078,
+      "avgHoldDays": 13.233870967741936,
+      "avgCapitalPerTrade": 683.1581158266933,
+      "byExit": {
+        "PROFIT_TARGET": 57,
+        "STOP_LOSS": 59,
+        "FORCE_CLOSE": 3,
+        "TIME_STOP": 5
+      }
+    },
+    {
+      "name": "bcd-sl70",
+      "overrides": {
+        "debitStopLossPct": 0.7
+      },
+      "totalTrades": 106,
+      "winRate": 57.54716981132076,
+      "totalPnl": 7031.725146270368,
+      "returnOnCapital": 10.06597048530335,
+      "avgPnlPct": 15.239922585367008,
+      "profitFactor": 1.3128922208632725,
+      "dailyPortfolioSharpe": 0.4052087468168566,
+      "dailyMtMDrawdownPct": 6.500482796559814,
+      "realizedExitDrawdownPct": 6.349387041991632,
+      "avgHoldDays": 15.933962264150944,
+      "avgCapitalPerTrade": 659.0226921353504,
+      "byExit": {
+        "PROFIT_TARGET": 51,
+        "STOP_LOSS": 34,
+        "FORCE_CLOSE": 10,
+        "TIME_STOP": 11
+      }
+    }
+  ]
+}

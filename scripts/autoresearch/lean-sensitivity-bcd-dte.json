@@ -1,0 +1,107 @@
+{
+  "generated": "2026-04-24T20:28:54.172Z",
+  "sweep": "bcd-dte",
+  "description": "BCD: DTE band ([21,45] / [30,60] anchor / [45,75] / [60,90])",
+  "strategy": "bcd",
+  "anchor": "bcd-qqq-wide-f1",
+  "dataRange": [
+    "2017-01-03",
+    "2026-02-27"
+  ],
+  "results": [
+    {
+      "name": "bcd-dte-21-45",
+      "overrides": {
+        "debitDTERange": [
+          21,
+          45
+        ]
+      },
+      "totalTrades": 118,
+      "winRate": 61.016949152542374,
+      "totalPnl": 8697.975044854165,
+      "returnOnCapital": 13.925139830093357,
+      "avgPnlPct": 17.081571734909502,
+      "profitFactor": 1.4946211692848064,
+      "dailyPortfolioSharpe": 0.55763958518804,
+      "dailyMtMDrawdownPct": 3.1037299041652773,
+      "realizedExitDrawdownPct": 2.6810575047116,
+      "avgHoldDays": 13.330508474576272,
+      "avgCapitalPerTrade": 529.3422818146217,
+      "byExit": {
+        "TIME_STOP": 41,
+        "PROFIT_TARGET": 53,
+        "FORCE_CLOSE": 24
+      }
+    },
+    {
+      "name": "bcd-dte-30-60 (anchor)",
+      "overrides": {},
+      "totalTrades": 99,
+      "winRate": 65.65656565656566,
+      "totalPnl": 13186.005342638568,
+      "returnOnCapital": 20.943633416132588,
+      "avgPnlPct": 23.619755977846562,
+      "profitFactor": 1.7817136694771623,
+      "dailyPortfolioSharpe": 0.7940300533625246,
+      "dailyMtMDrawdownPct": 3.2333310879826382,
+      "realizedExitDrawdownPct": 2.877127646568834,
+      "avgHoldDays": 17.86868686868687,
+      "avgCapitalPerTrade": 635.9544712779847,
+      "byExit": {
+        "PROFIT_TARGET": 52,
+        "FORCE_CLOSE": 28,
+        "TIME_STOP": 19
+      }
+    },
+    {
+      "name": "bcd-dte-45-75",
+      "overrides": {
+        "debitDTERange": [
+          45,
+          75
+        ]
+      },
+      "totalTrades": 76,
+      "winRate": 67.10526315789474,
+      "totalPnl": 10368.627668325538,
+      "returnOnCapital": 18.134201431264295,
+      "avgPnlPct": 22.632219820671036,
+      "profitFactor": 1.756940018398296,
+      "dailyPortfolioSharpe": 0.6772339419695228,
+      "dailyMtMDrawdownPct": 4.052532002094962,
+      "realizedExitDrawdownPct": 3.7852922182022595,
+      "avgHoldDays": 23.5,
+      "avgCapitalPerTrade": 752.3315098404328,
+      "byExit": {
+        "PROFIT_TARGET": 36,
+        "FORCE_CLOSE": 38,
+        "TIME_STOP": 2
+      }
+    },
+    {
+      "name": "bcd-dte-60-90",
+      "overrides": {
+        "debitDTERange": [
+          60,
+          90
+        ]
+      },
+      "totalTrades": 69,
+      "winRate": 60.86956521739131,
+      "totalPnl": 7218.792997151382,
+      "returnOnCapital": 12.338850376738163,
+      "avgPnlPct": 16.36459866742491,
+      "profitFactor": 1.4366151843324149,
+      "dailyPortfolioSharpe": 0.46528142995964805,
+      "dailyMtMDrawdownPct": 4.467650102323398,
+      "realizedExitDrawdownPct": 4.362938561748821,
+      "avgHoldDays": 26.217391304347824,
+      "avgCapitalPerTrade": 847.8925116212461,
+      "byExit": {
+        "PROFIT_TARGET": 30,
+        "FORCE_CLOSE": 39
+      }
+    }
+  ]
+}
