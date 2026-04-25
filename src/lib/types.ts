@@ -155,6 +155,8 @@ export interface DirectAddItem {
     is_paper?: boolean;
     /** Take-profit target price, stored as a percentage (e.g., 0.30 = 30%). */
     target_price?: number;
+    /** Optional fill-quality capture (BCD/PMCC modals). Persisted to fill_diagnostics. */
+    fill_diagnostics?: import('./fillDiagnostics').FillDiagnosticsPayload;
 }
 
 // ────────────────────────────────────────────────────────────────

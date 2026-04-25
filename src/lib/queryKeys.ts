@@ -8,4 +8,5 @@ export const queryKeys = {
     ['scanOptions', params] as const,
   greeksHistory: (positionId: string) => ['greeksHistory', positionId] as const,
   analytics: (type: string) => ['analytics', type] as const,
+  fillDiagnostics: ['fillDiagnostics'] as const,
 };

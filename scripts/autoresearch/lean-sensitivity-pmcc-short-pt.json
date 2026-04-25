@@ -1,0 +1,121 @@
+{
+  "generated": "2026-04-24T20:29:00.940Z",
+  "sweep": "pmcc-short-pt",
+  "description": "PMCC: short-call profit target (30% / 40% / 50% anchor / 60% / 70%)",
+  "strategy": "pmcc",
+  "anchor": "pmcc-qqq-pt60-f1",
+  "dataRange": [
+    "2017-01-03",
+    "2026-02-27"
+  ],
+  "results": [
+    {
+      "name": "pmcc-short-pt30",
+      "overrides": {
+        "diagShortProfitTarget": 0.3
+      },
+      "totalTrades": 42,
+      "winRate": 57.14285714285714,
+      "totalPnl": 51008.473170529,
+      "returnOnCapital": 26.911311418340077,
+      "avgPnlPct": 26.307119181644122,
+      "profitFactor": 3.589152968877673,
+      "dailyPortfolioSharpe": 1.390189765860818,
+      "dailyMtMDrawdownPct": 4.735146540862094,
+      "realizedExitDrawdownPct": 4.128347072941299,
+      "avgHoldDays": 50.785714285714285,
+      "avgCapitalPerTrade": 4512.925578251428,
+      "byExit": {
+        "PROFIT_TARGET": 23,
+        "STOP_LOSS": 17,
+        "TIME_STOP": 2
+      }
+    },
+    {
+      "name": "pmcc-short-pt40",
+      "overrides": {
+        "diagShortProfitTarget": 0.4
+      },
+      "totalTrades": 42,
+      "winRate": 57.14285714285714,
+      "totalPnl": 48419.59090239785,
+      "returnOnCapital": 25.54545565727509,
+      "avgPnlPct": 25.147930442951427,
+      "profitFactor": 3.3228502222751746,
+      "dailyPortfolioSharpe": 1.2660705951559272,
+      "dailyMtMDrawdownPct": 5.186856836227427,
+      "realizedExitDrawdownPct": 4.436359241689924,
+      "avgHoldDays": 50.785714285714285,
+      "avgCapitalPerTrade": 4512.925578251428,
+      "byExit": {
+        "PROFIT_TARGET": 23,
+        "STOP_LOSS": 17,
+        "TIME_STOP": 2
+      }
+    },
+    {
+      "name": "pmcc-short-pt50 (anchor)",
+      "overrides": {},
+      "totalTrades": 42,
+      "winRate": 59.523809523809526,
+      "totalPnl": 49598.74998088616,
+      "returnOnCapital": 26.167562440728,
+      "avgPnlPct": 25.52069958860297,
+      "profitFactor": 3.359542598998017,
+      "dailyPortfolioSharpe": 1.2527358148292798,
+      "dailyMtMDrawdownPct": 5.271913055138866,
+      "realizedExitDrawdownPct": 4.468857095546242,
+      "avgHoldDays": 50.785714285714285,
+      "avgCapitalPerTrade": 4512.925578251428,
+      "byExit": {
+        "PROFIT_TARGET": 23,
+        "STOP_LOSS": 17,
+        "TIME_STOP": 2
+      }
+    },
+    {
+      "name": "pmcc-short-pt60",
+      "overrides": {
+        "diagShortProfitTarget": 0.6
+      },
+      "totalTrades": 42,
+      "winRate": 57.14285714285714,
+      "totalPnl": 46282.930202419826,
+      "returnOnCapital": 24.418185266330337,
+      "avgPnlPct": 23.842739616139244,
+      "profitFactor": 3.195310258134824,
+      "dailyPortfolioSharpe": 1.3270923626810647,
+      "dailyMtMDrawdownPct": 4.817101918294083,
+      "realizedExitDrawdownPct": 4.32379755065788,
+      "avgHoldDays": 50.785714285714285,
+      "avgCapitalPerTrade": 4512.925578251428,
+      "byExit": {
+        "PROFIT_TARGET": 23,
+        "STOP_LOSS": 17,
+        "TIME_STOP": 2
+      }
+    },
+    {
+      "name": "pmcc-short-pt70",
+      "overrides": {
+        "diagShortProfitTarget": 0.7
+      },
+      "totalTrades": 42,
+      "winRate": 57.14285714285714,
+      "totalPnl": 40313.31418970992,
+      "returnOnCapital": 21.268704688292488,
+      "avgPnlPct": 20.508006545249945,
+      "profitFactor": 2.7771424134420464,
+      "dailyPortfolioSharpe": 1.1089366178630546,
+      "dailyMtMDrawdownPct": 5.605501077224528,
+      "realizedExitDrawdownPct": 4.87027024100025,
+      "avgHoldDays": 50.785714285714285,
+      "avgCapitalPerTrade": 4512.925578251428,
+      "byExit": {
+        "PROFIT_TARGET": 23,
+        "STOP_LOSS": 17,
+        "TIME_STOP": 2
+      }
+    }
+  ]
+}

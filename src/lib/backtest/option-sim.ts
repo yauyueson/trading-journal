@@ -272,6 +272,7 @@ export interface SimConfig {
   debitLongDelta?: number;                // closer to ATM, e.g. 0.50
   debitShortDelta?: number;               // further OTM, e.g. 0.20
   debitProfitTargetPct?: number;          // e.g. 0.50 = 50% of max profit
+  debitStopLossPct?: number;              // e.g. 0.50 = exit if MtM loss ≥ 50% of debit paid (unset = no SL)
   debitMaxHoldDays?: number;              // max calendar days to hold
   debitMinExitDTE?: number;               // min DTE before forced time exit
   // Underlying trend exit (shared by debit and underlying strategies)

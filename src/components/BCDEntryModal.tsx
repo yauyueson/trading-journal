@@ -24,6 +24,7 @@ import { STRATEGY_PROFILES } from '../lib/strategyProfiles';
 import type { PositionLeg } from '../lib/types';
 import { CONTRACT_MULTIPLIER, formatDate } from '../lib/utils';
 import { buildBCDCandidates, type BCDCandidate } from '../lib/chainCandidates';
+import { buildBcdFillDiagnostics } from '../lib/fillDiagnostics';
 
 interface Props {
   isOpen: boolean;
@@ -110,6 +111,15 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         { strike: longStrikeNum, type: 'Call', side: 'long', expiration },
         { strike: shortStrikeNum, type: 'Call', side: 'short', expiration },
       ];
+      const fillDiagnostics = buildBcdFillDiagnostics({
+        quantity: contracts,
+        netDebit: debitNum,
+        longStrike: longStrikeNum,
+        shortStrike: shortStrikeNum,
+        expiration,
+        chain: chainQuery.data,
+        chainFetchedAt: chainQuery.dataUpdatedAt ? new Date(chainQuery.dataUpdatedAt).toISOString() : null,
+      });
       await addDirect.mutateAsync({
         ticker,
         strike: longStrikeNum,
@@ -128,6 +138,7 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         is_paper: true,
         target_price: profile.profitTarget,
         legs,
+        fill_diagnostics: fillDiagnostics,
       });
       onClose();
       // reset

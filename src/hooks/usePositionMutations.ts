@@ -148,6 +148,31 @@ export function useAddDirect() {
           price: item.entry_price,
           note: 'Initial Entry',
         }]));
+
+        // Fill-quality capture: best-effort. If the insert fails (missing
+        // table, schema drift, RLS), log and move on — don't fail the trade
+        // entry on a diagnostics hiccup.
+        if (item.fill_diagnostics) {
+          const d = item.fill_diagnostics;
+          try {
+            const { error } = await supabase.from('fill_diagnostics').insert([{
+              position_id: data[0].id,
+              chain_fetched_at: d.chainFetchedAt,
+              strategy_type: d.strategyType,
+              quantity: d.quantity,
+              actual_net_debit: d.actualNetDebit,
+              actual_long_debit: d.actualLongDebit,
+              actual_short_credit: d.actualShortCredit,
+              legs: d.legs,
+              predicted_net_debit: d.predictedNetDebit,
+              predicted_slippage: d.predictedSlippage,
+              slippage_delta_abs: d.slippageDeltaAbs,
+            }]);
+            if (error) console.warn('[fill_diagnostics] insert failed (non-fatal):', error.message);
+          } catch (err) {
+            console.warn('[fill_diagnostics] insert threw (non-fatal):', err);
+          }
+        }
       }
     },
     onSuccess: invalidate,
