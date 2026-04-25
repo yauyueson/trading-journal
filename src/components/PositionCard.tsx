@@ -40,6 +40,13 @@ function normalizeExpiration(exp: string): string {
 
 interface PositionCardProps {
     position: Position;
+    /**
+     * Transactions for THIS position only — caller must pre-filter via
+     * `groupTransactionsByPositionId(...)[position.id]` (see Portfolio.tsx,
+     * Dashboard.tsx). Passing the global transactions array here will
+     * silently aggregate across all positions and produce wrong PnL.
+     * A dev-mode assertion enforces this at runtime.
+     */
     transactions: Transaction[];
     onAction?: (id: string, action: PositionAction, exitType?: Position['exit_type']) => Promise<void>;
     onUpdateScore?: (id: string, score: number) => Promise<void>;
@@ -405,6 +412,16 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
         }
     }, [isExpanded, position.id, historyData.length]);
 
+    // Caller contract: `transactions` is pre-filtered for this position.
+    // Dev-mode assertion to fail loudly if a future caller forgets.
+    if (process.env.NODE_ENV !== 'production') {
+        const stray = transactions.find(t => t.position_id !== position.id);
+        if (stray) {
+            console.error(
+                `[PositionCard] received transaction for a different position. Expected position_id=${position.id}, got ${stray.position_id}. Caller must pre-filter via groupTransactionsByPositionId.`,
+            );
+        }
+    }
     const positionTxns = transactions;
 
     let totalQtyBought = 0, totalCostBasis = 0, totalQtySold = 0;
@@ -888,33 +905,37 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     );
 };
 
-function positionRenderKey(position: Position): string {
-    return JSON.stringify({
-        id: position.id,
-        ticker: position.ticker,
-        strike: position.strike,
-        type: position.type,
-        expiration: position.expiration,
-        status: position.status,
-        setup: position.setup,
-        strategy: position.strategy,
-        current_score: position.current_score,
-        current_price: position.current_price,
-        target_price: position.target_price,
-        stop_price: position.stop_price,
-        notes: position.notes,
-        closed_at: position.closed_at,
-        legs: position.legs,
-        owner: position.owner,
-        strategy_type: position.strategy_type,
-        is_paper: position.is_paper,
-        exit_type: position.exit_type,
-    });
+// Per-field shallow compare avoids the JSON.stringify cost of the original
+// implementation while covering every position field PositionCard reads.
+// `legs` reference-equality is sound because React Query produces a fresh
+// `positions` array on every cache update — a position whose legs change
+// will arrive as a new object with a new `legs` reference. The optimistic
+// `setQueryData` path in usePositionFieldUpdate also spreads into a new
+// object, preserving the same invariant.
+function positionFieldsEqual(a: Position, b: Position): boolean {
+    return a.id === b.id
+        && a.ticker === b.ticker
+        && a.strike === b.strike
+        && a.type === b.type
+        && a.expiration === b.expiration
+        && a.status === b.status
+        && a.setup === b.setup
+        && a.strategy === b.strategy
+        && a.current_score === b.current_score
+        && a.current_price === b.current_price
+        && a.target_price === b.target_price
+        && a.stop_price === b.stop_price
+        && a.notes === b.notes
+        && a.closed_at === b.closed_at
+        && a.legs === b.legs
+        && a.owner === b.owner
+        && a.strategy_type === b.strategy_type
+        && a.is_paper === b.is_paper
+        && a.exit_type === b.exit_type;
 }
 
 export const PositionCard = React.memo(PositionCardInner, (prev, next) => {
-    return prev.position.id === next.position.id
-        && positionRenderKey(prev.position) === positionRenderKey(next.position)
+    return positionFieldsEqual(prev.position, next.position)
         && prev.refreshTrigger === next.refreshTrigger
         && prev.parentManagedPrices === next.parentManagedPrices
         && prev.needsFallbackPriceRefresh === next.needsFallbackPriceRefresh
