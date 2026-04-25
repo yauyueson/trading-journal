@@ -120,6 +120,18 @@ Located in `scripts/autoresearch/`:
 
 Study results go in `backtesting history/credit-spread/reports/<study-name>/` with a `README.md` + data outputs; sealed holdouts go in `docs/holdout-evaluations/`; audit rows in `docs/audit-rows/`.
 
+**Zero-API research tooling**: `scripts/attribution/` and the `lean-wfa-*` family run pure cache-only studies — no ORATS calls, no dsrM cost, no sealer involvement. Use these for exploration before pre-registering anything:
+- `scripts/attribution/sealed-anchors-attribution.ts` — replays sealed F1 anchors through their WFA, tags entries by pre-declared regime features, produces what-if-gate tables.
+- `scripts/attribution/liquidity-eligibility.ts` — sweeps any cached ticker set through monthly snapshots for BCD/PMCC constructability + leg liquidity stats.
+- `scripts/attribution/probe-orats-dte-coverage.ts` — single-call ORATS diagnostic to distinguish stale cache from market-illiquid (see Critical Rules / gotcha #43).
+- `scripts/autoresearch/lean-wfa-bcd-rotation.ts` — multi-ticker rotation runner, top-N selector configurable.
+- `scripts/autoresearch/lean-wfa-bcd-per-ticker.ts` — per-ticker unconditional decomposition with equal-weight basket roll-up.
+- `scripts/autoresearch/lean-wfa-pmcc-rv-gate.ts` — frozen-spec gate observational test pattern (reusable for any selection-discovered gate that needs a holdout sanity check before October dsrM-refresh adoption).
+- `scripts/autoresearch/lean-sensitivity-runner.ts` — single-axis sweeps via `LEAP_SWEEP=<name>|all`, bypasses pre-reg gate.
+- `scripts/autoresearch/lean-wfa-runner.ts` — WFA validation companion to the sensitivity runner; takes a hardcoded `VARIANTS` array and reports per-variant selection / holdout / per-window stability.
+
+`scripts/prefetch-chains.ts` accepts `--max-calls N` for hard ORATS API budget caps. Always set this when re-fetching to avoid runaway costs.
+
 ### Risk Sizing
 
 `src/lib/riskSizing.ts` — position sizing uses stop-out level (not full max loss) as risk. 0.25 Kelly fraction. `getPositionRiskAtStopOutDollars()` for per-position risk, capped by `maxRiskPerTrade` from AppSettings. `getPositionMaxLossDollars()` branches on `getStrategyKind(position)`: credit spread uses `(width − credit) × 100 × qty`; debit spread uses `entryPrice × 100 × qty`; diagonal uses long-LEAP debit × 100 × qty (short rolls can only reduce basis).
@@ -144,6 +156,7 @@ Test environment: jsdom with globals enabled. Setup file: `src/test/setup.ts`.
 - **Paper trading**: Positions have `is_paper` boolean. Paper and live positions coexist; filter via the portfolio's paper/live toggle.
 - **Strategy config consistency**: When changing strategy parameters (deltas, DTE, PT/SL, tickers), update ALL of: `data/strategy-config.json`, `src/lib/strategyProfiles.ts`, `lib/_shared/strategyConfig.js`, `src/lib/types/settings.ts`, `src/pages/Signals.tsx`, `src/pages/Dashboard.tsx`, `src/components/PositionCard.tsx`, `src/components/BCDEntryModal.tsx` / `src/components/PMCCEntryModal.tsx` (if entry defaults move), `api/check-alerts.js`, and `CLAUDE.md`. Run `npx tsc --noEmit && npm run test && npm run build` to verify.
 - **ORATS data quirk**: `orats_iv_cache.hv30d` is always NULL — ORATS `/hist/cores` doesn't provide `clsHv30d` (skips from 20d to 60d). Use `hv20d` for VRP computation (IV30² - HV20²).
+- **Chain cache coverage debugging** (gotcha #43): If a per-day chain query returns `[]` for tickers that should be liquid, suspect stale `NULL/NULL` fetch_log entries before declaring the ticker market-illiquid. `isCovered()` treats NULL/NULL as "everything fetched" even when the original ORATS call used a DTE-range filter, so subsequent re-fetches with `--dte-range` get silently no-op'd. Diagnostic: run `scripts/attribution/probe-orats-dte-coverage.ts` (single API call) to compare ORATS reality against the cache. Recovery: purge NULL/NULL entries from both `fetch_log` and `fetch_log_intervals` (option_chains rows preserved), re-run prefetch with explicit `--dte-range`. Back up the SQLite first.
 
 ## Env Vars
 
@@ -169,6 +182,8 @@ Two F1 sealed adoptions (post-F0 clean-slate, 2026-04-23) run concurrently — d
 **Entry flow**: manual via `BCDEntryModal` / `PMCCEntryModal` on the Signals page. On open, each modal fetches `/api/scan-options` for the matching ticker × DTE × δ range and shows 3-5 candidate spreads the user can click to pre-fill strikes + mid-price debit. Chain pairing lives in `src/lib/chainCandidates.ts` (`buildBCDCandidates`, `buildPMCCLeapCandidates`, `buildPMCCShortCandidates`) and is fetched via `useChainCandidates` (`src/hooks/useChainCandidates.ts`, React Query, 60s staleTime). All fields remain editable — the suggestions are mid-price estimates, not broker fills. No cron-driven signal emission — the old `api/cron-signal-scan.js` (DTE5 EMA55 daily scanner) was retired on 2026-04-24. `api/check-alerts.js` explicitly skips BCD/PMCC positions (the DTE5 SL 2.5x / TL 50/50 rules don't apply).
 
 **Retired DTE5 Bull Put Credit Spread (historical reference)**: short delta 0.30 / long delta 0.20, DTE 2-7, EMA55 gate, SL 2.5x credit, trailing lock 50/50, hold-to-expiry. Sealed FAIL under F0 (window-artifact loss to 2024-2026 QQQ rally). Still in `STRATEGY_PROFILES` for back-compat with existing DB rows.
+
+**Expansion paths empirically falsified (2026-04-25)**: a comprehensive session tested the natural BCD/PMCC expansion ideas and produced 6 negative results, 0 live candidates for October 2026-10-20 dsrM-refresh adoption. Specifically falsified: (1) trend gates on F1 anchors — both BCD and PMCC are rebound-capture engines, gates DELETE alpha; (2) CPI/FOMC event blackouts on QQQ — delete winners; (3) naive momentum rotation across 23 single-name BCD candidates — Sharpe drops 1.22 → 0.61 holdout, win rate 60% → 49%; (4) single-name BCD universe ceiling is below QQQ — only META beats QQQ on holdout Sharpe; (5) equal-weight basket as satellite — worse Sharpe AND worse drawdown; (6) PMCC RV-elevated gate — selection +0.30 lift, holdout -0.47 (overfit). Memory file at `~/.claude/projects/.../memory/bcd-pmcc-expansion-empirically-falsified-2026-04-25.md`. Before proposing any of these expansion ideas again, point to that file's evidence; don't re-run unless the regime has materially changed.
 
 ## Ticker Watchlist
 
