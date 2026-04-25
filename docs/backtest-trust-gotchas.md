@@ -832,6 +832,30 @@ already sourced real bid/ask.
 
 ---
 
+### 43. Stale `NULL/NULL` fetch_log entries treat any DTE range as covered
+
+**Trap — discovered 2026-04-25, recovery procedure documented**
+**Files:** `src/lib/backtest/chain-cache.ts` — `isCovered()` (lines 366-371), `fetch_log` / `fetch_log_intervals` tables
+
+**What happened:** `isCovered(ticker, date, requestedRange)` short-circuits to `true` if a `(ticker, date)` row exists in `fetch_log` with `dte_min IS NULL AND dte_max IS NULL`. The intent was "legacy prefetched caches that never stamped a range counted as full coverage." But a previous run of `scripts/prefetch-chains.ts` had stamped NULL/NULL even though the actual ORATS calls had used a DTE-range filter (the script's default is `[60, 330]`). Result: cache claimed "everything is fetched" for those (ticker, date) pairs, but DTE 30-59 rows were never actually stored. Any subsequent prefetch with `--dte-range 30,60` was silently no-op'd.
+
+**How it was discovered:** The liquidity-eligibility scorecard for the BCD expansion universe showed 13 tickers (ORCL, NOW, PANW, ANET, SHOP, CRWD, VRT, ARM, AVGO, BA, MSTR, LULU, UBER, COIN) with 0-14% DTE 30-60 monthly snapshot coverage despite full per-day cache. A single-call ORATS probe (`scripts/attribution/probe-orats-dte-coverage.ts` — ORCL on 2024-01-02, no DTE filter) returned 109 rows in DTE 30-59. The data exists at ORATS but was never cached.
+
+**Fingerprint:**
+- Liquidity coverage check shows large gap in a specific DTE band (e.g. DTE 30-60 < 15% across many tickers) while overall data coverage is high (>80%)
+- `SELECT MIN(dte), MAX(dte) FROM option_chains WHERE ticker = '...' GROUP BY ticker` shows a band-limited distribution (e.g. min DTE = 60 across thousands of trading days)
+- `SELECT dte_min, dte_max, COUNT(*) FROM fetch_log_intervals WHERE ticker IN (...) GROUP BY dte_min, dte_max` shows only NULL/NULL entries
+- A cache-only WFA on these tickers produces "no trades" or zero-trade windows even though the strategy spec is well-defined and the stocks are liquid
+
+**Prevention:**
+- New prefetchers MUST stamp the actual DTE range used in the fetch into `fetch_log_intervals.dte_min` / `dte_max`. Do not rely on the legacy NULL/NULL → "everything is covered" fallback for fresh fetches.
+- Before declaring a ticker market-illiquid based on `getCachedChainFiltered()` returning `[]`, run the single-call probe (`probe-orats-dte-coverage.ts` template) with no DTE filter and compare against the cache's actual DTE distribution. If ORATS returns rows the cache doesn't have, the cache is stale.
+- Recovery procedure: `DELETE FROM fetch_log_intervals WHERE ticker IN (...) AND dte_min IS NULL AND dte_max IS NULL; DELETE FROM fetch_log WHERE ticker IN (...) AND dte_min IS NULL AND dte_max IS NULL;` — option_chains rows are preserved (re-fetches use `INSERT OR IGNORE`). Then re-run prefetch with explicit `--dte-range`. Back up the SQLite first.
+
+**Real recovery cost (2026-04-25):** 1 probe + 2,401 main backfill + 538 tail backfill = 2,940 ORATS calls to fully re-cover 12 tickers across 2018-01 → 2026-02 at DTE 30-60.
+
+---
+
 ## Appendix: adding a new gotcha
 
 When you find a new gotcha, add an entry with this shape:
