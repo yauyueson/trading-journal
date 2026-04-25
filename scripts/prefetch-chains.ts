@@ -20,6 +20,7 @@
  *   --from          start date (default 2017-01-01; WFA will ignore pre-2018 data)
  *   --to            end date (default 2026-02-28)
  *   --dte-range     ORATS dte= filter (default 60,330 — narrows to LEAP-range strikes)
+ *   --max-calls     hard abort if API call count reaches this (defaults to no cap)
  */
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -84,11 +85,15 @@ async function main() {
   const dteRange: [number, number] | undefined = dteRangeArg
     ? (() => { const [lo, hi] = dteRangeArg.split(',').map(s => Number(s.trim())); return [lo, hi] as [number, number]; })()
     : [60, 330];
+  const maxCallsArg = getArg('--max-calls');
+  const maxCalls = maxCallsArg ? Number(maxCallsArg) : Number.POSITIVE_INFINITY;
 
   console.log(`ORATS chain prefetch (batch-per-date) — ${tickers.length} tickers, ${from} → ${to}`);
   console.log(`Tickers: ${tickers.join(', ')}`);
   console.log(`DTE filter: [${dteRange[0]}, ${dteRange[1]}]`);
-  console.log(`Rate limit: ~${RATE_LIMIT_RPM} RPM (${MIN_INTERVAL_MS}ms between calls)\n`);
+  console.log(`Rate limit: ~${RATE_LIMIT_RPM} RPM (${MIN_INTERVAL_MS}ms between calls)`);
+  if (isFinite(maxCalls)) console.log(`Max API calls: ${maxCalls} (hard abort)`);
+  console.log('');
 
   // Build union of trading dates across tickers (each ticker has its own
   // listing range — e.g. ARM only started Sep 2023).
@@ -123,11 +128,16 @@ async function main() {
       activeTickers.push(t);
     }
 
+    if (apiCalls >= maxCalls) {
+      process.stdout.write('\n');
+      console.warn(`\n⚠ Hard cap of ${maxCalls} API calls reached — aborting at date ${date} (${i}/${allDates.length}).`);
+      break;
+    }
     const apiBefore = getApiCallCount();
     try {
       await fetchHistoricalChainsBatch(ORATS_TOKEN, activeTickers, date, undefined, dteRange);
       if (getApiCallCount() > apiBefore) {
-        apiCalls++;
+        apiCalls += getApiCallCount() - apiBefore;
         // Rate-limit only when we actually hit the API
         const elapsed = Date.now() - start;
         const minElapsed = apiCalls * MIN_INTERVAL_MS;
