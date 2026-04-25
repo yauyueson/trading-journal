@@ -13,17 +13,34 @@ function useInvalidatePositionsAndTransactions() {
   };
 }
 
+function useInvalidatePositions() {
+  const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.positions });
+  };
+}
+
 /** Factory for simple single-field position update mutations */
 function usePositionFieldUpdate<K extends string>(
   field: K,
   column: string = field,
 ) {
-  const invalidate = useInvalidatePositionsAndTransactions();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (vars: { id: string } & Record<K, unknown>) => {
       throwIfSupabaseError(await supabase.from('positions').update({ [column]: vars[field] }).eq('id', vars.id));
+      return vars;
     },
-    onSuccess: invalidate,
+    onSuccess: vars => {
+      queryClient.setQueryData<Position[]>(queryKeys.positions, old => {
+        if (!old) return old;
+        return old.map(position =>
+          position.id === vars.id
+            ? { ...position, [column]: vars[field] } as Position
+            : position,
+        );
+      });
+    },
   });
 }
 
@@ -66,7 +83,7 @@ export function usePositionAction() {
 }
 
 export function useUpdateScore() {
-  const invalidate = useInvalidatePositionsAndTransactions();
+  const invalidate = useInvalidatePositions();
   return useMutation({
     mutationFn: async ({ id, score }: { id: string; score: number }) => {
       throwIfSupabaseError(await supabase.from('positions').update({
@@ -229,7 +246,7 @@ export function useRollPosition() {
 }
 
 export function useAddToWatchlist() {
-  const invalidate = useInvalidatePositionsAndTransactions();
+  const invalidate = useInvalidatePositions();
   return useMutation({
     mutationFn: async (item: WatchlistItem) => {
       throwIfSupabaseError(await supabase.from('positions').insert([{

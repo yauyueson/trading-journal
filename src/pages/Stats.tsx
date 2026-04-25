@@ -122,15 +122,24 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
     const [strategyFilter, setStrategyFilter] = useState<'All' | 'bcd' | 'pmcc' | 'legacy'>('All');
     const [statsTab, setStatsTab] = useState<StatsTab>('overview');
-    const allClosedPositions = positions.filter(p => p.status === 'closed');
-    const ownerFiltered = ownerFilter === 'All'
-        ? allClosedPositions
-        : allClosedPositions.filter(p => p.owner === ownerFilter);
-    const closedPositions = strategyFilter === 'All'
-        ? ownerFiltered
-        : strategyFilter === 'legacy'
-            ? ownerFiltered.filter(p => p.strategy_type && RETIRED_STRATEGIES.has(p.strategy_type as StrategyType))
-            : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
+    const allClosedPositions = useMemo(
+        () => positions.filter(p => p.status === 'closed'),
+        [positions],
+    );
+    const ownerFiltered = useMemo(
+        () => ownerFilter === 'All'
+            ? allClosedPositions
+            : allClosedPositions.filter(p => p.owner === ownerFilter),
+        [allClosedPositions, ownerFilter],
+    );
+    const closedPositions = useMemo(
+        () => strategyFilter === 'All'
+            ? ownerFiltered
+            : strategyFilter === 'legacy'
+                ? ownerFiltered.filter(p => p.strategy_type && RETIRED_STRATEGIES.has(p.strategy_type as StrategyType))
+                : ownerFiltered.filter(p => p.strategy_type === strategyFilter),
+        [ownerFiltered, strategyFilter],
+    );
 
     const stats = useMemo(() => {
         const transactionsByPosition = groupTransactionsByPositionId(transactions);

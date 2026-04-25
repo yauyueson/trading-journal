@@ -15,6 +15,8 @@ import { formatCurrency, daysUntil, groupTransactionsByPositionId } from '../lib
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAutoCloseStuckPositions } from '../hooks/useAutoCloseStuckPositions';
+import { useOptionPrices, type OptionPriceLeg } from '../hooks/useOptionPrices';
+import { useEarningsLookup } from '../hooks/useEarningsLookup';
 import {
     usePositionAction,
     useUpdateScore,
@@ -98,33 +100,89 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const { accountSize: portfolioTotal, riskPct, stopOutPct } = settings.portfolio;
     const [showForm, setShowForm] = useState(false);
     const [showAccountSettings, setShowAccountSettings] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
     const [rollingPosition, setRollingPosition] = useState<{ position: Position, qty: number } | null>(null);
     const [sortBy] = useState('expiration');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
     const [strategyFilter, setStrategyFilter] = useState<'All' | 'bcd' | 'pmcc' | 'legacy' | 'untagged'>('All');
     const [paperFilter, setPaperFilter] = useState<'all' | 'paper' | 'live'>('all');
-    const [bulkData, setBulkData] = useState<Record<string, any>>({});
     const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // Auto-close active positions that have 0 remaining quantity (stuck from prior bug)
     useAutoCloseStuckPositions(positions, transactions);
 
-    const allActivePositions = positions.filter(p => p.status === 'active');
-    const ownerFiltered = ownerFilter === 'All' ? allActivePositions : allActivePositions.filter(p => p.owner === ownerFilter);
-    const strategyFiltered = strategyFilter === 'All'
-        ? ownerFiltered
-        : strategyFilter === 'untagged'
-            ? ownerFiltered.filter(p => !p.strategy_type)
-            : strategyFilter === 'legacy'
-                ? ownerFiltered.filter(p => p.strategy_type && RETIRED_STRATEGIES.has(p.strategy_type as StrategyType))
-                : ownerFiltered.filter(p => p.strategy_type === strategyFilter);
-    const activePositions = paperFilter === 'all'
-        ? strategyFiltered
-        : paperFilter === 'paper'
-            ? strategyFiltered.filter(p => p.is_paper)
-            : strategyFiltered.filter(p => !p.is_paper);
+    const allActivePositions = useMemo(
+        () => positions.filter(p => p.status === 'active'),
+        [positions],
+    );
+    const ownerFiltered = useMemo(
+        () => ownerFilter === 'All' ? allActivePositions : allActivePositions.filter(p => p.owner === ownerFilter),
+        [allActivePositions, ownerFilter],
+    );
+    const strategyFiltered = useMemo(() => {
+        if (strategyFilter === 'All') return ownerFiltered;
+        if (strategyFilter === 'untagged') return ownerFiltered.filter(p => !p.strategy_type);
+        if (strategyFilter === 'legacy') return ownerFiltered.filter(p => p.strategy_type && RETIRED_STRATEGIES.has(p.strategy_type as StrategyType));
+        return ownerFiltered.filter(p => p.strategy_type === strategyFilter);
+    }, [ownerFiltered, strategyFilter]);
+    const activePositions = useMemo(() => {
+        if (paperFilter === 'all') return strategyFiltered;
+        if (paperFilter === 'paper') return strategyFiltered.filter(p => p.is_paper);
+        return strategyFiltered.filter(p => !p.is_paper);
+    }, [strategyFiltered, paperFilter]);
+
+    const legsToFetch = useMemo<OptionPriceLeg[]>(() => {
+        return activePositions.flatMap(pos => {
+            if (pos.legs && pos.legs.length > 0) {
+                return pos.legs.map(leg => ({
+                    ticker: pos.ticker,
+                    expiration: leg.expiration,
+                    strike: leg.strike,
+                    type: leg.type,
+                    id: pos.id,
+                }));
+            }
+            return [{
+                ticker: pos.ticker,
+                expiration: pos.expiration,
+                strike: pos.strike,
+                type: pos.type,
+                id: pos.id,
+            }];
+        });
+    }, [activePositions]);
+    const optionPricesQuery = useOptionPrices(legsToFetch, !loading && legsToFetch.length > 0);
+    const bulkData = useMemo<Record<string, any[]>>(() => {
+        const grouped: Record<string, any[]> = {};
+        for (const result of optionPricesQuery.data ?? []) {
+            if (!result.id || result.success === false) continue;
+            if (!grouped[result.id]) grouped[result.id] = [];
+            grouped[result.id].push(result);
+        }
+        return grouped;
+    }, [optionPricesQuery.data]);
+    const failedPricePositionIds = useMemo(() => {
+        if (optionPricesQuery.isError) return new Set(activePositions.map(p => p.id));
+        if (!optionPricesQuery.isSuccess) return new Set<string>();
+        const failedIds = new Set<string>();
+        for (const result of optionPricesQuery.data ?? []) {
+            if (result.id && result.success === false) failedIds.add(result.id);
+        }
+        for (const position of activePositions) {
+            if (!bulkData[position.id]) failedIds.add(position.id);
+        }
+        return failedIds;
+    }, [activePositions, bulkData, optionPricesQuery.data, optionPricesQuery.isError, optionPricesQuery.isSuccess]);
+    const failedPricePositionKey = useMemo(
+        () => [...failedPricePositionIds].sort().join('|'),
+        [failedPricePositionIds],
+    );
+    const earningsTickers = useMemo(() => activePositions.map(p => p.ticker), [activePositions]);
+    const earningsLookup = useEarningsLookup(earningsTickers);
+    const fetchEarningsForTicker = useCallback(async (ticker: string) => {
+        const key = ticker.toUpperCase();
+        return earningsLookup.data?.[key] ?? { date: null, daysUntil: null };
+    }, [earningsLookup.data]);
 
     // ... (risk calc unchanged)
     const totalRiskDollars = activePositions.reduce((sum, position) => {
@@ -150,7 +208,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
         return aggregatePortfolioGreeks(activePositions, transactions, bulkData, portfolioTotal, stopOutFraction);
     }, [activePositions, bulkData, transactions, portfolioTotal, stopOutFraction]);
 
-    const sortedPositions = [...activePositions].sort((a, b) => {
+    const sortedPositions = useMemo(() => [...activePositions].sort((a, b) => {
         switch (sortBy) {
             case 'expiration':
                 return new Date(a.expiration).getTime() - new Date(b.expiration).getTime();
@@ -161,93 +219,29 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
             default:
                 return 0;
         }
-    });
+    }), [activePositions, sortBy]);
+
+    const rollClickHandlers = useMemo(() => {
+        const handlers: Record<string, (qty: number) => void> = {};
+        for (const position of sortedPositions) {
+            handlers[position.id] = (qty: number) => setRollingPosition({ position, qty });
+        }
+        return handlers;
+    }, [sortedPositions]);
 
     const refreshAllPrices = async () => {
-        setRefreshing(true);
-        // Collect all legs
-        const legsToFetch: any[] = [];
-
-        activePositions.forEach(pos => {
-            if (pos.legs && pos.legs.length > 0) {
-                pos.legs.forEach(leg => {
-                    legsToFetch.push({
-                        ticker: pos.ticker,
-                        expiration: leg.expiration,
-                        strike: leg.strike,
-                        type: leg.type,
-                        id: pos.id // Map back to position
-                    });
-                });
-            } else {
-                legsToFetch.push({
-                    ticker: pos.ticker,
-                    expiration: pos.expiration,
-                    strike: pos.strike,
-                    type: pos.type,
-                    id: pos.id
-                });
-            }
-        });
-
-        if (legsToFetch.length === 0) {
-            setRefreshing(false);
-            return;
-        }
-
-        try {
-            const res = await fetch('/api/option-prices-bulk', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ legs: legsToFetch })
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                if (data.success && data.results) {
-                    // Group results by Position ID
-                    const newBulkData: Record<string, any[]> = {};
-                    const failedPositionIds = new Set<string>();
-
-                    data.results.forEach((r: any) => {
-                        if (!r.id) return;
-                        if (!newBulkData[r.id]) newBulkData[r.id] = [];
-                        if (r.success === false) {
-                            failedPositionIds.add(r.id);
-                        } else {
-                            newBulkData[r.id].push(r);
-                        }
-                    });
-
-                    // Apply successful partial results immediately
-                    setBulkData(prev => ({ ...prev, ...newBulkData }));
-                    setLastTimestamp(new Date().toISOString());
-
-                    // Only trigger individual re-fetch for positions whose legs all failed
-                    // (avoids blanket refreshTrigger that re-fetches every card)
-                    const partialFailIds = [...failedPositionIds].filter(
-                        id => !newBulkData[id] || newBulkData[id].length === 0
-                    );
-                    if (partialFailIds.length > 0) {
-                        setRefreshTrigger(prev => prev + 1);
-                    }
-                }
-            } else {
-                // Full failure — fall back to individual fetches
-                setRefreshTrigger(prev => prev + 1);
-            }
-        } catch (e) {
-            setRefreshTrigger(prev => prev + 1);
-        }
-
-        setRefreshing(false);
+        if (legsToFetch.length === 0) return;
+        const result = await optionPricesQuery.refetch();
+        if (result.data) setLastTimestamp(new Date().toISOString());
     };
 
     useEffect(() => {
-        // Bulk refresh only
-        refreshAllPrices();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        if (optionPricesQuery.data) setLastTimestamp(new Date().toISOString());
+    }, [optionPricesQuery.data]);
+
+    useEffect(() => {
+        if (failedPricePositionKey) setRefreshTrigger(prev => prev + 1);
+    }, [failedPricePositionKey]);
 
 
     if (loading) return <LoadingSpinner />;
@@ -272,16 +266,16 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                 <div className="flex items-center gap-2 sm:gap-3">
                     <button
                         onClick={refreshAllPrices}
-                        disabled={refreshing}
+                        disabled={optionPricesQuery.isFetching}
                         className={`
                             relative overflow-hidden group flex items-center gap-2 p-2.5 sm:px-4 sm:py-2 rounded-xl border border-white/[0.06]
                             bg-white/[0.03] hover:bg-white/[0.05] transition-all duration-200
-                            ${refreshing ? 'opacity-70 cursor-not-allowed text-text-tertiary' : 'text-text-secondary hover:text-text-primary hover:border-text-secondary/30'}
+                            ${optionPricesQuery.isFetching ? 'opacity-70 cursor-not-allowed text-text-tertiary' : 'text-text-secondary hover:text-text-primary hover:border-text-secondary/30'}
                         `}
                         aria-label="Refresh all prices"
                     >
-                        <RefreshCw size={18} className={`transition-transform duration-500 ${refreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
-                        <span className="font-medium text-sm hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh All'}</span>
+                        <RefreshCw size={18} className={`transition-transform duration-500 ${optionPricesQuery.isFetching ? 'animate-spin' : 'group-hover:rotate-180'}`} />
+                        <span className="font-medium text-sm hidden sm:inline">{optionPricesQuery.isFetching ? 'Refreshing...' : 'Refresh All'}</span>
                     </button>
                     <button
                         onClick={() => setShowForm(!showForm)}
@@ -473,10 +467,13 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                                     onDelete={onDelete}
                                     onDataUpdate={setLastTimestamp}
                                     refreshTrigger={refreshTrigger}
+                                    parentManagedPrices
+                                    needsFallbackPriceRefresh={failedPricePositionIds.has(position.id)}
                                     index={index}
-                                    onRollClick={(qty) => setRollingPosition({ position, qty })}
+                                    onRollClick={rollClickHandlers[position.id]}
                                     portfolioTotal={portfolioTotal}
                                     initialData={bulkData[position.id]}
+                                    fetchEarningsForTicker={fetchEarningsForTicker}
                                 />
                             ))}
                         </div>
