@@ -194,35 +194,35 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div>
-            <h3 className="text-sm font-semibold text-white">Open BCD Position</h3>
-            <p className="text-[11px] text-text-tertiary mt-0.5">
+            <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green">▌ OPEN_BCD_POSITION</h3>
+            <p className="text-[11px] text-text-tertiary font-mono mt-0.5">
               {profile.subtitle}
             </p>
           </div>
-          <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary p-1" aria-label="Close">
+          <button onClick={onClose} className="text-text-tertiary hover:text-phosphor-amber p-1 cursor-pointer" aria-label="Close">
             <X size={16} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="px-5 pb-5 space-y-4">
           {/* Suggestions — one candidate spread per expiration in the 30-60 DTE window. */}
-          <div className="rounded-lg bg-bg-secondary/40 border border-border-default/30 px-3 py-2.5">
+          <div className="terminal-panel px-3 py-2.5">
             <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-text-secondary">
-                <Sparkles size={12} className="text-accent-green" />
-                Suggested spreads
+              <div className="label-mono flex items-center gap-1.5">
+                <Sparkles size={12} className="text-phosphor-green" />
+                ▌ SUGGESTED SPREADS
               </div>
               {(longChainQuery.isFetching || shortChainQuery.isFetching) && (
-                <span className="text-[10px] text-text-tertiary">Loading chain…</span>
+                <span className="text-[10px] text-phosphor-dim font-mono uppercase tracking-wider">Loading…</span>
               )}
             </div>
             {(longChainQuery.isError || shortChainQuery.isError) && (
-              <p className="text-[11px] text-amber-400">
+              <p className="text-[11px] text-phosphor-amber font-mono">
                 Couldn't load chain — enter strikes manually below.
               </p>
             )}
             {!(longChainQuery.isFetching || shortChainQuery.isFetching) && !(longChainQuery.isError || shortChainQuery.isError) && bcdCandidates.length === 0 && (
-              <p className="text-[11px] text-text-tertiary">
+              <p className="text-[11px] text-text-tertiary font-mono">
                 No spreads matched — broaden the DTE/δ window or enter manually.
               </p>
             )}
@@ -235,13 +235,13 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       key={c.expiration}
                       type="button"
                       onClick={() => applyCandidate(c)}
-                      className={`w-full text-left rounded-md px-2.5 py-2 text-[11px] transition-colors ${isPicked ? 'bg-accent-green/15 border border-accent-green/50' : 'bg-bg-tertiary/40 border border-transparent hover:border-border-default/50'}`}
+                      className={`w-full text-left rounded-md px-2.5 py-2 text-[11px] font-mono transition-colors cursor-pointer ${isPicked ? 'bg-phosphor-green/10 border border-phosphor-green/45 text-glow-green' : 'bg-terminal-panel border border-border-default/50 hover:border-phosphor-green/30'}`}
                     >
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className="font-mono text-text-primary">{formatDate(c.expiration)} · {c.dte}d</span>
-                        <span className="font-mono text-accent-green">${c.netDebit.toFixed(2)}/ct</span>
+                        <span className="font-mono text-text-primary tabular-nums">{formatDate(c.expiration)} · {c.dte}d</span>
+                        <span className="font-mono text-phosphor-green tabular-nums">${c.netDebit.toFixed(2)}/ct</span>
                       </div>
-                      <div className="flex items-center justify-between text-text-tertiary">
+                      <div className="flex items-center justify-between text-text-tertiary tabular-nums">
                         <span>
                           L ${c.long.strike} δ{Math.abs(c.long.greeks.delta).toFixed(2)}
                           {' · '}
@@ -252,8 +252,8 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     </button>
                   );
                 })}
-                <p className="text-[10px] text-text-tertiary pt-1">
-                  Mid-price estimates — verify fill at your broker before submitting.
+                <p className="text-[10px] text-text-tertiary font-mono pt-1">
+                  ▌ Mid-price estimates — verify fill at your broker.
                 </p>
               </div>
             )}
@@ -261,7 +261,7 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">Ticker</label>
+              <label className="label-mono mb-1 block">Ticker</label>
               <input
                 className="input-field"
                 value={ticker}
@@ -270,10 +270,10 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">
+              <label className="label-mono mb-1 block">
                 Expiration
                 {dte != null && (
-                  <span className={`ml-2 text-[9px] font-mono px-1.5 py-0.5 rounded ${dteInRange ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                  <span className={`ml-2 text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${dteInRange ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/30' : 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/30'}`}>
                     {dte}d{!dteInRange && ' ⚠'}
                   </span>
                 )}
@@ -290,7 +290,7 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">
+              <label className="label-mono mb-1 block">
                 Long strike · δ ≈ {profile.defaultDelta.toFixed(2)}
               </label>
               <input
@@ -304,7 +304,7 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">
+              <label className="label-mono mb-1 block">
                 Short strike · δ ≈ 0.20
               </label>
               <input
@@ -321,7 +321,7 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">
+              <label className="label-mono mb-1 block">
                 Net debit / contract
               </label>
               <input
@@ -335,7 +335,7 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">
+              <label className="label-mono mb-1 block">
                 Contracts <span className="text-text-tertiary/70 normal-case font-normal">(suggested {suggestedContracts})</span>
               </label>
               <input
@@ -352,22 +352,22 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
           {/* Summary strip */}
           {width != null && maxLossPerContract != null && maxProfitPerContract != null && contracts > 0 && (
-            <div className="rounded-lg bg-bg-secondary/30 border border-border-default/30 px-3 py-2.5 text-xs space-y-1">
+            <div className="terminal-panel px-3 py-2.5 text-xs font-mono space-y-1">
               <div className="flex justify-between">
-                <span className="text-text-tertiary">Spread width</span>
-                <span className="text-text-primary font-mono">${width.toFixed(2)}</span>
+                <span className="label-mono">SPREAD WIDTH</span>
+                <span className="text-text-primary tabular-nums">${width.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-text-tertiary">Max loss</span>
-                <span className="text-accent-red font-mono">${(maxLossPerContract * contracts).toFixed(0)}</span>
+                <span className="label-mono">MAX LOSS</span>
+                <span className="text-phosphor-red text-glow-red tabular-nums">${(maxLossPerContract * contracts).toFixed(0)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-text-tertiary">Max profit (PT 50%)</span>
-                <span className="text-accent-green font-mono">${(maxProfitPerContract * 0.5 * contracts).toFixed(0)}</span>
+                <span className="label-mono">MAX PROFIT (PT 50%)</span>
+                <span className="text-phosphor-green text-glow-green tabular-nums">${(maxProfitPerContract * 0.5 * contracts).toFixed(0)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-text-tertiary">% of capital</span>
-                <span className="text-text-primary font-mono">
+                <span className="label-mono">% OF CAPITAL</span>
+                <span className="text-text-primary tabular-nums">
                   {capital > 0 ? ((maxLossPerContract * contracts / capital) * 100).toFixed(1) : '—'}%
                 </span>
               </div>
@@ -378,22 +378,22 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
             <button
               type="button"
               onClick={onClose}
-              className="action-btn btn-secondary text-xs"
+              className="btn-terminal-danger flex-1"
               disabled={submitting}
             >
-              Cancel
+              CANCEL
             </button>
             <button
               type="submit"
-              className="action-btn btn-primary text-xs"
+              className="btn-terminal flex-1"
               disabled={!canSubmit || submitting}
             >
-              {submitting ? 'Opening...' : 'Open BCD Position'}
+              {submitting ? '▌ OPENING...' : '▌ OPEN BCD'}
             </button>
           </div>
 
-          <p className="text-[10px] text-text-tertiary">
-            Entered as paper trade by default. Mark live from the position card when real.
+          <p className="text-[10px] text-text-tertiary font-mono">
+            ▌ Entered as paper by default. Mark live from the position card when real.
           </p>
         </form>
       </motion.div>

@@ -24,17 +24,19 @@ export const DataFooter: React.FC<DataFooterProps> = ({ timestamp }) => {
         }).format(date);
 
         return (
-            <div className="mt-8 pt-4 border-t border-border-default flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest text-text-tertiary">
+            <div className="mt-8 pt-4 border-t border-phosphor-green/15 flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest text-phosphor-dim/70">
+                <span>▌</span>
                 <Clock size={12} />
-                <span>Market Data: {formatted} ET (CBOE 15m Delayed)</span>
+                <span>MARKET_DATA: {formatted} ET (CBOE 15M DELAYED)</span>
             </div>
         );
     } catch (e) {
         // Fallback to raw if parsing fails
         return (
-            <div className="mt-8 pt-4 border-t border-border-default flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest text-text-tertiary">
+            <div className="mt-8 pt-4 border-t border-phosphor-green/15 flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest text-phosphor-dim/70">
+                <span>▌</span>
                 <Clock size={12} />
-                <span>Market Data: {timestamp} (CBOE 15m Delayed)</span>
+                <span>MARKET_DATA: {timestamp} (CBOE 15M DELAYED)</span>
             </div>
         );
     }

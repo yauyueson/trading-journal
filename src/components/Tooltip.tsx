@@ -153,16 +153,16 @@ export const Tooltip: React.FC<TooltipProps> = ({ label, explanation, formula, p
     const tooltipContent = isVisible ? createPortal(
         <div
             ref={tooltipRef}
-            className={`w-72 max-w-[85vw] px-4 py-3 bg-bg-tertiary border border-white/10 rounded-xl shadow-2xl text-xs text-text-primary text-left font-normal normal-case tracking-normal leading-relaxed backdrop-blur-xl transition-opacity duration-200 ${isMeasured ? 'opacity-100' : 'opacity-0'
+            className={`w-72 max-w-[85vw] px-4 py-3 bg-terminal-panel border border-phosphor-green/30 rounded-md shadow-[0_0_24px_rgba(0,255,65,0.15),0_8px_32px_rgba(0,0,0,0.6)] text-xs text-text-primary text-left font-normal normal-case tracking-normal leading-relaxed transition-opacity duration-200 ${isMeasured ? 'opacity-100' : 'opacity-0'
                 }`}
             style={tooltipStyle}
         >
-            <div className="font-semibold mb-1.5 text-accent-blue text-sm">{label}</div>
+            <div className="font-mono font-bold uppercase tracking-wider mb-1.5 text-phosphor-green text-glow-green text-xs">▌ {label}</div>
             <div className="text-text-secondary leading-relaxed">{explanation}</div>
             {formula && (
-                <div className="mt-2 pt-2 border-t border-white/10">
-                    <div className="text-[10px] uppercase tracking-wider text-text-tertiary mb-1">Formula</div>
-                    <code className="text-accent-green font-mono text-xs bg-black/30 px-2 py-1 rounded block overflow-x-auto whitespace-pre-wrap break-all">
+                <div className="mt-2 pt-2 border-t border-phosphor-green/15">
+                    <div className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary mb-1">Formula</div>
+                    <code className="text-phosphor-green text-glow-green font-mono text-xs bg-terminal-black border border-phosphor-green/20 px-2 py-1 rounded block overflow-x-auto whitespace-pre-wrap break-all">
                         {formula}
                     </code>
                 </div>
@@ -187,7 +187,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ label, explanation, formula, p
                 >
                     <HelpCircle
                         size={14}
-                        className="text-text-tertiary hover:text-accent-blue transition-colors"
+                        className="text-text-tertiary hover:text-phosphor-green transition-colors"
                     />
                 </div>
             </div>

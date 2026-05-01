@@ -46,20 +46,20 @@ export const PositionActionForm: React.FC<PositionActionFormProps> = ({
   if (!actionMode) {
     return (
       <div className="flex flex-wrap gap-2">
-        <button onClick={onRefresh} disabled={loading} className="action-btn btn-secondary flex items-center justify-center gap-1.5 cursor-pointer px-2.5 sm:px-3" aria-label="Refresh price">
-          {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={15} />}
-          <span className="hidden sm:inline text-sm">Refresh</span>
+        <button onClick={onRefresh} disabled={loading} className="btn-terminal flex items-center justify-center gap-1.5 px-2.5 sm:px-3" aria-label="Refresh price">
+          {loading ? <div className="spinner w-4 h-4" /> : <RefreshCw size={14} />}
+          <span className="hidden sm:inline">Refresh</span>
         </button>
-        <button onClick={() => setActionMode('Add')} className="action-btn btn-secondary text-sm">+ Add</button>
-        <button onClick={() => setActionMode('TakeProfit')} className="action-btn btn-secondary text-sm">Profit</button>
+        <button onClick={() => setActionMode('Add')} className="btn-terminal">+ Add</button>
+        <button onClick={() => setActionMode('TakeProfit')} className="btn-terminal">Profit</button>
         {onRollClick && (
-          <button onClick={() => onRollClick(totalQty)} className="action-btn btn-secondary text-text-secondary hover:text-white flex items-center gap-1 text-sm">
+          <button onClick={() => onRollClick(totalQty)} className="btn-terminal-warn flex items-center gap-1">
             <ArrowRightLeft size={14} /> Roll
           </button>
         )}
-        <button onClick={() => setActionMode('Close')} className="action-btn btn-secondary text-text-secondary hover:text-accent-red hover:bg-accent-red/10 text-sm">Close</button>
-        <button onClick={() => onDelete(positionId)} className="action-btn btn-secondary text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 px-2.5" aria-label="Delete Position">
-          <Trash2 size={15} />
+        <button onClick={() => setActionMode('Close')} className="btn-terminal-danger">Close</button>
+        <button onClick={() => onDelete(positionId)} className="btn-terminal-danger px-2.5" aria-label="Delete Position">
+          <Trash2 size={14} />
         </button>
       </div>
     );
@@ -68,21 +68,21 @@ export const PositionActionForm: React.FC<PositionActionFormProps> = ({
   const isSubmitting = loading || submitting;
 
   return (
-    <div className="card-elevated p-4 space-y-3">
-      <div className="text-sm font-medium text-text-secondary">
-        {actionMode === 'Add' ? 'Add to Position' : actionMode === 'TakeProfit' ? 'Take Profit' : 'Close Position'}
+    <div className="terminal-panel p-4 space-y-3">
+      <div className="text-xs font-mono font-bold text-phosphor-green text-glow-green uppercase tracking-widest">
+        ▌ {actionMode === 'Add' ? 'ADD_TO_POSITION' : actionMode === 'TakeProfit' ? 'TAKE_PROFIT' : 'CLOSE_POSITION'}
       </div>
       <div className="flex gap-3">
         {actionMode !== 'Close' && (
           <input type="number" min="1" value={actionQty} onChange={e => setActionQty(parseInt(e.target.value) || 1)}
-            placeholder="Qty" className="w-24 px-4 py-3 rounded-xl font-mono" />
+            placeholder="Qty" className="w-24 px-4 py-3 rounded-md font-mono" />
         )}
         <input type="number" step="0.01" value={actionPrice} onChange={e => setActionPrice(e.target.value)}
-          placeholder="Price" className="flex-1 px-4 py-3 rounded-xl font-mono" autoFocus />
+          placeholder="Price" className="flex-1 px-4 py-3 rounded-md font-mono" autoFocus />
       </div>
       {actionMode === 'Close' && (
         <div className="space-y-2">
-          <p className="text-xs text-text-tertiary">Why are you closing?</p>
+          <p className="label-mono">▌ EXIT_REASON</p>
           <div className="flex flex-wrap gap-2">
             {([
               ['EXP_PROFIT', 'Expired +'],
@@ -98,10 +98,10 @@ export const PositionActionForm: React.FC<PositionActionFormProps> = ({
               <button
                 key={t}
                 onClick={() => setCloseExitType(t)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                className={`px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider rounded-md border transition-colors cursor-pointer ${
                   closeExitType === t
-                    ? 'bg-accent-green/20 text-accent-green border-accent-green/40'
-                    : 'bg-bg-tertiary text-text-tertiary border-white/[0.1] hover:text-white'
+                    ? 'bg-phosphor-green/15 text-phosphor-green text-glow-green border-phosphor-green/45'
+                    : 'bg-terminal-panel text-text-tertiary border-border-default/50 hover:text-phosphor-dim hover:border-phosphor-green/20'
                 }`}
               >
                 {label}
@@ -111,16 +111,16 @@ export const PositionActionForm: React.FC<PositionActionFormProps> = ({
         </div>
       )}
       <div className="flex gap-2">
-        <button onClick={() => { setActionMode(null); setCloseExitType('MANUAL'); }} className="flex-1 py-3 btn-secondary rounded-xl">Cancel</button>
+        <button onClick={() => { setActionMode(null); setCloseExitType('MANUAL'); }} className="flex-1 py-3 btn-terminal">Cancel</button>
         {actionMode === 'Close' && (
           <button onClick={() => handleAction('Close', closeExitType)}
-            disabled={!actionPrice || isSubmitting} className="flex-1 py-3 btn-primary rounded-xl">
+            disabled={!actionPrice || isSubmitting} className="flex-1 py-3 btn-terminal-danger">
             {isSubmitting ? '...' : 'Confirm Close'}
           </button>
         )}
         {actionMode !== 'Close' && (
           <button onClick={() => handleAction(actionMode === 'Add' ? 'Size Up' : 'Take Profit')}
-            disabled={!actionPrice || isSubmitting} className="flex-1 py-3 btn-primary rounded-xl">
+            disabled={!actionPrice || isSubmitting} className="flex-1 py-3 btn-terminal">
             {isSubmitting ? '...' : 'Confirm'}
           </button>
         )}

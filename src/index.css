@@ -193,27 +193,29 @@
         @apply rounded-2xl transition-all duration-300;
     }
 
-    /* Inputs */
+    /* Inputs — phosphor terminal voice. Mono everywhere keeps the chrome consistent. */
     input,
     select,
     textarea {
-        @apply transition-all text-base appearance-none rounded-xl;
+        @apply transition-all text-base appearance-none rounded-md font-mono;
         color: #FFFFFF;
         background: rgba(255, 255, 255, 0.04);
-        border: 0.5px solid rgba(255, 255, 255, 0.1);
-        transition: border-color 0.15s ease, background 0.15s ease;
+        border: 1px solid rgba(0, 255, 65, 0.18);
+        transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
     }
 
     input:hover,
     select:hover,
     textarea:hover {
-        border-color: rgba(255, 255, 255, 0.16);
+        border-color: rgba(0, 255, 65, 0.32);
     }
 
     input:focus,
     select:focus,
     textarea:focus {
-        @apply border-accent-green/50 outline-none shadow-accent-green/10;
+        outline: none;
+        border-color: rgba(0, 255, 65, 0.6);
+        box-shadow: 0 0 0 3px rgba(0, 255, 65, 0.08);
     }
 
     input::placeholder {
@@ -375,6 +377,26 @@
     /* Mobile-friendly table wrapper — edge-to-edge bleed on mobile */
     .table-responsive {
         @apply overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0;
+    }
+
+    /* Terminal panel — flat surface used by signature pages (Dashboard, Portfolio, PositionCard).
+       Replaces the glassy `.card` look on opted-in components. */
+    .terminal-panel {
+        background: #141414;
+        border: 1px solid rgba(0, 255, 65, 0.18);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.02),
+            0 0 0 1px rgba(0, 0, 0, 0.6);
+        border-radius: 6px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    .terminal-panel-amber {
+        border-color: rgba(255, 176, 0, 0.35);
+    }
+
+    .terminal-panel-red {
+        border-color: rgba(255, 45, 0, 0.45);
     }
 }
 
@@ -561,6 +583,133 @@
     .pulse-glow {
         animation: pulseGlow 2s ease-in-out infinite;
     }
+
+    /* Phosphor glow for big numeric KPIs and headlines.
+       Pair the color via a separate Tailwind class (text-phosphor-green / text-phosphor-red / text-phosphor-amber). */
+    .text-glow-green {
+        text-shadow: 0 0 6px rgba(0, 255, 65, 0.55), 0 0 12px rgba(0, 255, 65, 0.25);
+    }
+
+    .text-glow-red {
+        text-shadow: 0 0 6px rgba(255, 45, 0, 0.55), 0 0 12px rgba(255, 45, 0, 0.25);
+    }
+
+    .text-glow-amber {
+        text-shadow: 0 0 6px rgba(255, 176, 0, 0.55), 0 0 12px rgba(255, 176, 0, 0.25);
+    }
+
+    /* Subtle CRT scanlines — applied via ::after so it doesn't add DOM nodes.
+       Use sparingly (Dashboard hero / nav strip), not site-wide. */
+    .scanlines {
+        position: relative;
+    }
+
+    .scanlines::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: repeating-linear-gradient(
+            to bottom,
+            rgba(0, 255, 65, 0) 0px,
+            rgba(0, 255, 65, 0) 2px,
+            rgba(0, 255, 65, 0.04) 2px,
+            rgba(0, 255, 65, 0.04) 3px
+        );
+        mix-blend-mode: screen;
+        opacity: 0.6;
+        border-radius: inherit;
+    }
+
+    /* Blinking cursor — append `<span class="cursor-blink" aria-hidden="true"></span>` after a headline.
+       Renders the underscore via ::after so the DOM stays clean. */
+    .cursor-blink::after {
+        content: '_';
+        margin-left: 0.15em;
+        color: currentColor;
+        animation: cursorBlink 1s steps(1, end) infinite;
+    }
+
+    /* Terminal-style monospace label */
+    .label-mono {
+        @apply font-mono uppercase tracking-wider text-[10px] text-text-tertiary;
+    }
+
+    /* Metric glow wrappers — apply to numeric values so positive/negative reads pre-attentively */
+    .metric-glow-pos {
+        @apply text-phosphor-green text-glow-green;
+    }
+
+    .metric-glow-neg {
+        @apply text-phosphor-red text-glow-red;
+    }
+
+    .metric-glow-warn {
+        @apply text-phosphor-amber text-glow-amber;
+    }
+}
+
+@layer components {
+    /* Terminal-style buttons — used on signature pages alongside existing .btn-primary/.btn-secondary/.btn-danger */
+    .btn-terminal {
+        @apply font-mono uppercase tracking-wider text-xs px-3 py-2 rounded-md
+               text-phosphor-green min-h-[44px] cursor-pointer
+               disabled:opacity-50 disabled:cursor-not-allowed;
+        background: rgba(0, 255, 65, 0.04);
+        border: 1px solid rgba(0, 255, 65, 0.4);
+        transition: background 0.1s ease, border-color 0.1s ease, text-shadow 0.1s ease;
+    }
+
+    .btn-terminal:hover:not(:disabled) {
+        background: rgba(0, 255, 65, 0.1);
+        border-color: rgba(0, 255, 65, 0.7);
+        text-shadow: 0 0 6px rgba(0, 255, 65, 0.55);
+    }
+
+    .btn-terminal:active:not(:disabled) {
+        background: rgba(0, 255, 65, 0.16);
+        transform: scale(0.97);
+    }
+
+    .btn-terminal-danger {
+        @apply font-mono uppercase tracking-wider text-xs px-3 py-2 rounded-md
+               text-phosphor-red min-h-[44px] cursor-pointer
+               disabled:opacity-50 disabled:cursor-not-allowed;
+        background: rgba(255, 45, 0, 0.05);
+        border: 1px solid rgba(255, 45, 0, 0.4);
+        transition: background 0.1s ease, border-color 0.1s ease, text-shadow 0.1s ease;
+    }
+
+    .btn-terminal-danger:hover:not(:disabled) {
+        background: rgba(255, 45, 0, 0.12);
+        border-color: rgba(255, 45, 0, 0.7);
+        text-shadow: 0 0 6px rgba(255, 45, 0, 0.55);
+    }
+
+    .btn-terminal-danger:active:not(:disabled) {
+        background: rgba(255, 45, 0, 0.18);
+        transform: scale(0.97);
+    }
+
+    .btn-terminal-warn {
+        @apply font-mono uppercase tracking-wider text-xs px-3 py-2 rounded-md
+               text-phosphor-amber min-h-[44px] cursor-pointer
+               disabled:opacity-50 disabled:cursor-not-allowed;
+        background: rgba(255, 176, 0, 0.05);
+        border: 1px solid rgba(255, 176, 0, 0.4);
+        transition: background 0.1s ease, border-color 0.1s ease, text-shadow 0.1s ease;
+    }
+
+    .btn-terminal-warn:hover:not(:disabled) {
+        background: rgba(255, 176, 0, 0.12);
+        border-color: rgba(255, 176, 0, 0.7);
+        text-shadow: 0 0 6px rgba(255, 176, 0, 0.55);
+    }
+
+    .btn-terminal-warn:active:not(:disabled) {
+        background: rgba(255, 176, 0, 0.18);
+        transform: scale(0.97);
+    }
 }
 
 /* Animations */
@@ -634,6 +783,12 @@
     }
 }
 
+@keyframes cursorBlink {
+    50% {
+        opacity: 0;
+    }
+}
+
 /* Custom Select Arrow */
 select {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23A3A3A3' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
@@ -675,8 +830,13 @@ select {
     .pulse-glow,
     .spinner,
     .wipe-reveal,
-    .stagger-fade-in>* {
+    .stagger-fade-in>*,
+    .cursor-blink::after {
         animation: none !important;
+    }
+
+    .scanlines::after {
+        opacity: 0 !important;
     }
 
     .wipe-reveal {

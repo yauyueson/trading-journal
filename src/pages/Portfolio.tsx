@@ -251,14 +251,14 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
             {/* Header — full width above both columns */}
             <div className="flex justify-between items-start">
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-text-primary to-text-secondary bg-clip-text text-transparent">
-                        Portfolio
+                    <h1 className="text-xl sm:text-2xl font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green">
+                        ▌ PORTFOLIO
                     </h1>
-                    <p className="text-text-secondary text-sm mt-1 hidden sm:block">Manage open positions and track performance</p>
+                    <p className="text-text-tertiary text-[11px] font-mono uppercase tracking-wider mt-1 hidden sm:block">MANAGE OPEN POSITIONS · TRACK PERFORMANCE</p>
                     {activePositions.length > 0 && portfolioTotal > 0 && (
                         <p className="text-xs sm:text-sm text-text-tertiary mt-1.5 sm:mt-2 font-mono">
-                            Risk: <span className={totalRiskPct > 10 ? 'text-accent-red font-semibold' : 'text-text-primary'}>{formatCurrency(totalRiskDollars)}</span>
-                            {' '}<span className={totalRiskPct > 10 ? 'text-accent-red font-semibold' : ''}>({totalRiskPct.toFixed(1)}%)</span>
+                            RISK: <span className={totalRiskPct > 10 ? 'text-phosphor-red text-glow-red font-bold' : 'text-text-primary'}>{formatCurrency(totalRiskDollars)}</span>
+                            {' '}<span className={totalRiskPct > 10 ? 'text-phosphor-red text-glow-red font-bold' : ''}>({totalRiskPct.toFixed(1)}%)</span>
                         </p>
                     )}
                 </div>
@@ -267,22 +267,18 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                     <button
                         onClick={refreshAllPrices}
                         disabled={optionPricesQuery.isFetching}
-                        className={`
-                            relative overflow-hidden group flex items-center gap-2 p-2.5 sm:px-4 sm:py-2 rounded-xl border border-white/[0.06]
-                            bg-white/[0.03] hover:bg-white/[0.05] transition-all duration-200
-                            ${optionPricesQuery.isFetching ? 'opacity-70 cursor-not-allowed text-text-tertiary' : 'text-text-secondary hover:text-text-primary hover:border-text-secondary/30'}
-                        `}
+                        className="btn-terminal flex items-center gap-2 group"
                         aria-label="Refresh all prices"
                     >
-                        <RefreshCw size={18} className={`transition-transform duration-500 ${optionPricesQuery.isFetching ? 'animate-spin' : 'group-hover:rotate-180'}`} />
-                        <span className="font-medium text-sm hidden sm:inline">{optionPricesQuery.isFetching ? 'Refreshing...' : 'Refresh All'}</span>
+                        <RefreshCw size={14} className={`transition-transform duration-500 ${optionPricesQuery.isFetching ? 'animate-spin' : 'group-hover:rotate-180'}`} />
+                        <span className="hidden sm:inline">{optionPricesQuery.isFetching ? 'REFRESHING...' : 'REFRESH'}</span>
                     </button>
                     <button
                         onClick={() => setShowForm(!showForm)}
-                        className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2.5 sm:py-2 rounded-xl font-medium text-sm text-black shadow-lg transition-all duration-200 bg-accent-green hover:bg-[#5ED4A6] shadow-accent-green/20 hover:shadow-accent-green/30 hover:-translate-y-0.5"
+                        className="btn-terminal flex items-center gap-1.5 sm:gap-2"
                     >
-                        <span className="text-lg leading-none">+</span>
-                        <span className="hidden sm:inline">Add Position</span>
+                        <span className="text-base leading-none">+</span>
+                        <span className="hidden sm:inline">ADD POSITION</span>
                     </button>
                 </div>
             </div>
@@ -293,20 +289,16 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                 <div className="lg:w-1/4 lg:sticky lg:top-20 lg:self-start space-y-4">
                     {/* Filter: Owner */}
                     <div>
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary mb-1.5 block">Owner</span>
+                        <span className="label-mono mb-1.5 block">▌ OWNER</span>
                         <div className="flex flex-row lg:flex-col gap-1.5">
                             {(['All', 'Yuchen', 'Annie'] as const).map(value => (
                                 <button
                                     key={value}
                                     type="button"
                                     onClick={() => setOwnerFilter(value)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] ${ownerFilter === value
-                                        ? value === 'Yuchen'
-                                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                            : value === 'Annie'
-                                                ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
-                                                : 'bg-white/10 text-text-primary border border-white/20'
-                                        : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                    className={`px-3 py-1.5 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all min-h-[36px] cursor-pointer ${ownerFilter === value
+                                        ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                        : 'bg-terminal-panel text-text-tertiary border border-border-default/50 hover:text-phosphor-dim hover:border-phosphor-green/20'
                                         }`}
                                 >
                                     {value}
@@ -317,22 +309,18 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
 
                     {/* Filter: Strategy */}
                     <div>
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary mb-1.5 block">Strategy</span>
+                        <span className="label-mono mb-1.5 block">▌ STRATEGY</span>
                         <div className="flex flex-row lg:flex-col gap-1.5">
                             {([['All', 'All'], ['bcd', 'BCD'], ['pmcc', 'PMCC'], ['legacy', 'Legacy'], ['untagged', '\u2014']] as const).map(([value, label]) => (
                                 <button
                                     key={value}
                                     type="button"
                                     onClick={() => setStrategyFilter(value as typeof strategyFilter)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] ${strategyFilter === value
-                                        ? value === 'bcd'
-                                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                            : value === 'pmcc'
-                                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                                : value === 'legacy'
-                                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                                                    : 'bg-white/10 text-text-primary border border-white/20'
-                                        : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                    className={`px-3 py-1.5 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all min-h-[36px] cursor-pointer ${strategyFilter === value
+                                        ? value === 'legacy'
+                                            ? 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/40'
+                                            : 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                        : 'bg-terminal-panel text-text-tertiary border border-border-default/50 hover:text-phosphor-dim hover:border-phosphor-green/20'
                                         }`}
                                 >
                                     {label}
@@ -343,20 +331,18 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
 
                     {/* Filter: Mode */}
                     <div>
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary mb-1.5 block">Mode</span>
+                        <span className="label-mono mb-1.5 block">▌ MODE</span>
                         <div className="flex flex-row lg:flex-col gap-1.5">
                             {([['all', 'All'], ['paper', 'Paper'], ['live', 'Live']] as const).map(([value, label]) => (
                                 <button
                                     key={value}
                                     type="button"
                                     onClick={() => setPaperFilter(value as typeof paperFilter)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] ${paperFilter === value
+                                    className={`px-3 py-1.5 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all min-h-[36px] cursor-pointer ${paperFilter === value
                                         ? value === 'paper'
-                                            ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40'
-                                            : value === 'live'
-                                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                                : 'bg-white/10 text-text-primary border border-white/20'
-                                        : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                            ? 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/40'
+                                            : 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                        : 'bg-terminal-panel text-text-tertiary border border-border-default/50 hover:text-phosphor-dim hover:border-phosphor-green/20'
                                         }`}
                                 >
                                     {label}
@@ -369,22 +355,22 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                     <button
                         type="button"
                         onClick={() => setShowAccountSettings(!showAccountSettings)}
-                        className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.05] text-text-secondary hover:text-text-primary text-xs sm:text-sm font-medium transition-colors w-full"
+                        className="terminal-panel flex items-center gap-2 px-3 sm:px-4 py-2 hover:border-phosphor-green/40 text-text-secondary hover:text-phosphor-green text-xs font-mono uppercase tracking-wider transition-colors w-full cursor-pointer"
                         aria-expanded={showAccountSettings}
                     >
-                        <Settings2 size={16} className="text-accent-green shrink-0" />
-                        <span className="font-mono truncate min-w-0">
-                            <span className="hidden lg:inline">Portfolio {formatCurrency(portfolioTotal)} · Risk {riskPct}% · Stop {stopOutPct}% · Cap {formatCurrency(maxRiskPerTrade)}/trade</span>
-                            <span className="lg:hidden hidden sm:inline">Portfolio {formatCurrency(portfolioTotal)} · Risk {riskPct}% · Stop {stopOutPct}% · Cap {formatCurrency(maxRiskPerTrade)}/trade</span>
-                            <span className="sm:hidden truncate">{formatCurrency(portfolioTotal)} · {riskPct}% · {formatCurrency(maxRiskPerTrade)}/trade</span>
+                        <Settings2 size={14} className="text-phosphor-green shrink-0" />
+                        <span className="truncate min-w-0">
+                            <span className="hidden lg:inline">PORT {formatCurrency(portfolioTotal)} · RISK {riskPct}% · STOP {stopOutPct}% · CAP {formatCurrency(maxRiskPerTrade)}/T</span>
+                            <span className="lg:hidden hidden sm:inline">PORT {formatCurrency(portfolioTotal)} · RISK {riskPct}% · STOP {stopOutPct}% · CAP {formatCurrency(maxRiskPerTrade)}/T</span>
+                            <span className="sm:hidden truncate">{formatCurrency(portfolioTotal)} · {riskPct}% · {formatCurrency(maxRiskPerTrade)}/T</span>
                         </span>
-                        <ChevronDown size={16} className={`text-gray-500 transition-transform shrink-0 ${showAccountSettings ? 'rotate-180' : ''}`} />
+                        <ChevronDown size={14} className={`text-phosphor-dim/70 transition-transform shrink-0 ${showAccountSettings ? 'rotate-180' : ''}`} />
                     </button>
 
                     {/* Collapsible Account & Risk Settings */}
                     {showAccountSettings && (
-                        <div className="rounded-xl border border-white/[0.06] bg-bg-secondary/10 p-6">
-                            <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-4">Account & risk</h3>
+                        <div className="terminal-panel p-6">
+                            <h3 className="text-xs font-mono font-bold text-phosphor-green text-glow-green uppercase tracking-widest mb-4">▌ ACCOUNT & RISK</h3>
                             <PortfolioSettingsForm variant="full" className="max-w-md" />
                         </div>
                     )}
@@ -413,23 +399,23 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                         const nearestUrgent = nearestDTE != null && nearestDTE <= timeStopThreshold;
 
                         return (
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2.5 border-b border-white/[0.04] text-xs font-mono mb-4">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2.5 border-b border-phosphor-green/15 text-[11px] font-mono uppercase tracking-wider mb-4">
                                 <span className="text-text-tertiary">
-                                    {bcdCount > 0 && <span className="text-emerald-400">{bcdCount} BCD</span>}
+                                    {bcdCount > 0 && <span className="text-phosphor-green">{bcdCount} BCD</span>}
                                     {bcdCount > 0 && pmccCount > 0 && <span className="text-text-tertiary"> / </span>}
-                                    {pmccCount > 0 && <span className="text-blue-400">{pmccCount} PMCC</span>}
-                                    {legacyCount > 0 && <span className="text-amber-400"> · {legacyCount} legacy</span>}
+                                    {pmccCount > 0 && <span className="text-phosphor-green">{pmccCount} PMCC</span>}
+                                    {legacyCount > 0 && <span className="text-phosphor-amber"> · {legacyCount} LEGACY</span>}
                                     {untaggedCount > 0 && <span className="text-text-tertiary"> + {untaggedCount}</span>}
                                 </span>
                                 {dailyTheta !== 0 && (
                                     <span className="text-text-secondary">
-                                        <span className="text-accent-green font-semibold">${(dailyTheta * 100).toFixed(0)}</span>/day theta
+                                        <span className="text-phosphor-green text-glow-green font-bold">${(dailyTheta * 100).toFixed(0)}</span>/DAY THETA
                                     </span>
                                 )}
                                 {nearest && nearestDTE != null && (
-                                    <span className={nearestUrgent ? 'text-accent-red font-semibold' : 'text-text-secondary'}>
-                                        Next: {nearest.ticker} {nearestDTE}d
-                                        {nearestUrgent && ' — close now'}
+                                    <span className={nearestUrgent ? 'text-phosphor-red text-glow-red font-bold' : 'text-text-secondary'}>
+                                        NEXT: {nearest.ticker} {nearestDTE}D
+                                        {nearestUrgent && ' — CLOSE NOW'}
                                     </span>
                                 )}
                             </div>
@@ -447,8 +433,9 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                     )}
 
                     {activePositions.length === 0 ? (
-                        <div className="text-center py-20 text-text-tertiary">
-                            No active positions. Click "Add Position" to start tracking.
+                        <div className="terminal-panel text-center py-20">
+                            <p className="text-phosphor-green text-glow-green text-sm font-mono uppercase tracking-widest font-bold">▌ NO_ACTIVE_POSITIONS</p>
+                            <p className="text-text-tertiary text-xs font-mono mt-2">Click "ADD POSITION" to start tracking.</p>
                         </div>
                     ) : (
                         <div className="space-y-4">

@@ -523,14 +523,15 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const earningsWarning = earnings.days !== null && earnings.days >= 0 && earnings.days <= 7;
     const earningsImminent = earnings.days !== null && earnings.days >= 0 && earnings.days <= 3;
 
-    let cardClass = 'card';
-    if (alertLevel === 'danger') cardClass = 'card-danger';
-    else if (earningsImminent) cardClass = 'card-earnings';
-    else if (alertLevel === 'warning') cardClass = 'card-warning';
-    else if (alertLevel === 'success') cardClass = 'card border-accent-green/30';
-    else if (earningsWarning) cardClass = 'card-earnings-soon';
+    // Terminal-panel base + state-driven border tint. Replaces glassy card-* variants on this signature page.
+    let cardClass = 'terminal-panel';
+    if (alertLevel === 'danger') cardClass = 'terminal-panel terminal-panel-red';
+    else if (earningsImminent) cardClass = 'terminal-panel terminal-panel-amber';
+    else if (alertLevel === 'warning') cardClass = 'terminal-panel terminal-panel-amber';
+    else if (alertLevel === 'success') cardClass = 'terminal-panel border-phosphor-green/45';
+    else if (earningsWarning) cardClass = 'terminal-panel terminal-panel-amber';
 
-    const pnlColor = unrealizedPnL >= 0 ? 'text-accent-green' : 'text-accent-red';
+    const pnlColor = unrealizedPnL >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red';
 
     return (
         <div className={`${cardClass} p-4 sm:p-5 fade-in`}>
@@ -538,25 +539,21 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
             <div className="flex justify-between items-start gap-3 mb-4">
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
-                        <span className="text-xl sm:text-2xl font-bold">{position.ticker}</span>
+                        <span className="text-xl sm:text-2xl font-mono font-bold uppercase tracking-wider text-phosphor-green text-glow-green">{position.ticker}</span>
                         {position.strategy_type && (() => {
                             const st = position.strategy_type;
-                            const badgeClass = st === 'bcd'
-                                ? 'bg-emerald-500/15 text-emerald-400'
-                                : st === 'pmcc'
-                                    ? 'bg-blue-500/15 text-blue-400'
-                                    : st === 'dte5'
-                                        ? 'bg-amber-500/15 text-amber-400'
-                                        : st === 'swing'
-                                            ? 'bg-green-500/15 text-green-400'
-                                            : 'bg-sky-500/15 text-sky-400';
+                            // Active strategies (bcd/pmcc) glow phosphor-green; retired (dte5/swing/shortTerm) glow phosphor-amber as a read-only state.
+                            const isActive = st === 'bcd' || st === 'pmcc';
+                            const badgeClass = isActive
+                                ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/30'
+                                : 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/30';
                             const label = st === 'bcd' ? 'BCD'
                                 : st === 'pmcc' ? 'PMCC'
                                 : st === 'dte5' ? 'DTE5'
-                                : st === 'swing' ? 'Swing'
+                                : st === 'swing' ? 'SWING'
                                 : 'ST';
                             return (
-                                <span className={`inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded ${badgeClass}`}>
+                                <span className={`inline-block px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded ${badgeClass}`}>
                                     {label}
                                 </span>
                             );
@@ -585,16 +582,14 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                     const val = e.target.value;
                                     onUpdateOwner(position.id, val === '' ? null : val as 'Yuchen' | 'Annie');
                                 }}
-                                className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold cursor-pointer transition-colors appearance-none bg-transparent border-0 outline-none ${position.owner === 'Yuchen'
-                                    ? 'bg-blue-500/20 text-blue-400'
-                                    : position.owner === 'Annie'
-                                        ? 'bg-pink-500/20 text-pink-400'
-                                        : 'bg-white/5 text-text-tertiary'
+                                className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-mono uppercase tracking-wider cursor-pointer transition-colors appearance-none border ${position.owner
+                                    ? 'bg-phosphor-green/10 text-phosphor-dim border-phosphor-green/25'
+                                    : 'bg-terminal-black text-text-tertiary border-phosphor-green/15'
                                     }`}
                             >
-                                <option value="" className="bg-bg-primary text-text-tertiary">—</option>
-                                <option value="Yuchen" className="bg-bg-primary text-blue-400">Yuchen</option>
-                                <option value="Annie" className="bg-bg-primary text-pink-400">Annie</option>
+                                <option value="" className="bg-bg-primary text-text-tertiary">▌ —</option>
+                                <option value="Yuchen" className="bg-bg-primary text-phosphor-dim">▌ Y · YUCHEN</option>
+                                <option value="Annie" className="bg-bg-primary text-phosphor-dim">▌ A · ANNIE</option>
                             </select>
                         )}
                         {isSpread ? (
@@ -610,7 +605,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         ) : (
                             <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-text-secondary font-medium uppercase tracking-wide">
                                 <span className="text-text-primary font-mono">${position.strike}</span>
-                                <span className={`${position.type?.toLowerCase().includes('call') ? 'text-accent-green' : 'text-accent-red'}`}>
+                                <span className={`font-mono ${position.type?.toLowerCase().includes('call') ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>
                                     {position.type}
                                 </span>
                             </div>
@@ -621,15 +616,15 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         {position.strategy_type === 'dte5' && position.expiration && (() => {
                             const dte = Math.round((new Date(position.expiration + 'T16:00:00').getTime() - Date.now()) / 86400000);
                             return (
-                                <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold rounded ${
-                                    dte <= 1 ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/15 text-amber-400'
+                                <span className={`inline-block px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded ${
+                                    dte <= 1 ? 'bg-phosphor-red/15 text-phosphor-red text-glow-red' : 'bg-phosphor-amber/15 text-phosphor-amber text-glow-amber'
                                 }`}>
                                     {dte <= 0 ? 'EXPIRY' : `DTE ${dte}`}
                                 </span>
                             );
                         })()}
                         {position.strategy_type === 'bcd' && (
-                            <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-500/15 text-emerald-400"
+                            <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded bg-phosphor-green/15 text-phosphor-green text-glow-green"
                                 title="Bull Call Debit Spread — close at +50% of debit paid">
                                 PT 50%
                             </span>
@@ -641,8 +636,8 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                             if (!shortExp) return null;
                             const shortDte = Math.round((new Date(shortExp + 'T16:00:00').getTime() - Date.now()) / 86400000);
                             return (
-                                <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold rounded ${
-                                    shortDte <= 7 ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/15 text-blue-400'
+                                <span className={`inline-block px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded ${
+                                    shortDte <= 7 ? 'bg-phosphor-red/15 text-phosphor-red text-glow-red' : 'bg-phosphor-amber/15 text-phosphor-amber'
                                 }`}
                                     title="Short-leg DTE — roll when underlying within 2% of short strike or at DTE 7">
                                     Short {shortDte <= 0 ? 'EXP' : `${shortDte}d`}
@@ -660,8 +655,8 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                             </>
                         )}
                         {liveData.ivRatio !== undefined && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-mono font-medium bg-bg-tertiary border border-border-default/50 text-text-secondary" title="IV Ratio">
-                                IVR: <span className={liveData.ivRatio > 1.05 ? 'text-accent-green' : liveData.ivRatio < 0.95 ? 'text-accent-red' : 'text-text-primary'}>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-mono font-medium bg-terminal-black border border-phosphor-green/15 text-text-secondary uppercase tracking-wider" title="IV Ratio">
+                                IVR: <span className={liveData.ivRatio > 1.05 ? 'text-phosphor-green text-glow-green' : liveData.ivRatio < 0.95 ? 'text-phosphor-red text-glow-red' : 'text-text-primary'}>
                                     {liveData.ivRatio.toFixed(2)}
                                 </span>
                             </span>
@@ -675,7 +670,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                     <div className={`text-xs sm:text-sm font-mono ${pnlColor} mb-1`}>
                         {unrealizedPnL >= 0 ? '+' : ''}{formatCurrency(unrealizedPnL)}
                     </div>
-                    <div className={`text-[10px] sm:text-xs font-mono font-medium ${realizedPnL > 0 ? 'text-accent-green' : realizedPnL < 0 ? 'text-accent-red' : 'text-text-tertiary'} flex items-center justify-end gap-1`}>
+                    <div className={`text-[10px] sm:text-xs font-mono font-medium ${realizedPnL > 0 ? 'text-phosphor-green text-glow-green' : realizedPnL < 0 ? 'text-phosphor-red text-glow-red' : 'text-text-tertiary'} flex items-center justify-end gap-1`}>
                         <span className="text-text-tertiary text-[10px] uppercase tracking-wider hidden sm:inline">Realized</span>
                         {realizedPnL !== 0 ? (realizedPnL > 0 ? '+' : '') + formatCurrency(realizedPnL) : '—'}
                     </div>
@@ -684,23 +679,23 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
 
             {/* Earnings Banner */}
             {earningsWarning && (
-                <div className={`mb-4 p-3 rounded-xl flex items-center justify-between ${earningsImminent ? 'bg-bg-secondary border border-purple-500/20' : 'bg-bg-secondary border border-blue-500/20'}`}>
+                <div className={`mb-4 p-3 rounded-md flex items-center justify-between terminal-panel ${earningsImminent ? 'border-phosphor-amber/40' : 'border-phosphor-green/20'}`}>
                     <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${earningsImminent ? 'bg-purple-500/10' : 'bg-blue-500/10'}`}>
-                            <Calendar size={18} className={earningsImminent ? 'text-purple-300/70' : 'text-blue-300/70'} />
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${earningsImminent ? 'bg-phosphor-amber/10' : 'bg-phosphor-green/10'}`}>
+                            <Calendar size={18} className={earningsImminent ? 'text-phosphor-amber' : 'text-phosphor-dim'} />
                         </div>
                         <div>
-                            <div className={`font-semibold ${earningsImminent ? 'text-text-primary' : 'text-text-primary'}`}>
-                                {earnings.days === 0 ? 'Earnings TODAY' : earnings.days === 1 ? 'Earnings TOMORROW' : `Earnings in ${earnings.days} days`}
+                            <div className="font-mono font-bold uppercase tracking-wider text-text-primary">
+                                {earnings.days === 0 ? '▌ EARNINGS_TODAY' : earnings.days === 1 ? '▌ EARNINGS_TOMORROW' : `▌ EARNINGS_${earnings.days}D`}
                             </div>
-                            <div className="text-sm text-text-secondary">
+                            <div className="text-sm text-text-secondary font-mono">
                                 {formatDate(earnings.date)} · Consider position sizing
                             </div>
                         </div>
                     </div>
                     {earningsImminent && (
-                        <span className="px-3 py-1 bg-purple-500/30 text-purple-300 rounded-lg text-sm font-semibold animate-pulse">
-                            ACTION NEEDED
+                        <span className="px-3 py-1 bg-phosphor-amber/15 text-phosphor-amber text-glow-amber border border-phosphor-amber/40 rounded-md text-xs font-mono font-bold uppercase tracking-wider animate-pulse">
+                            ▌ ACTION_NEEDED
                         </span>
                     )}
                 </div>
@@ -741,7 +736,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         value={targetPrice}
                         onSave={v => onUpdateTarget(position.id, v)}
                         formatValue={formatPrice}
-                        colorClass="text-accent-green"
+                        colorClass="text-phosphor-green text-glow-green"
                         tooltipLabel="Target"
                         tooltipExplanation="Profit Target Price. Click to edit."
                         TooltipComponent={Tooltip}
@@ -759,7 +754,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         value={currentStopLoss}
                         onSave={v => onUpdateStop(position.id, v)}
                         formatValue={formatPrice}
-                        colorClass={currentStopLoss != null ? 'text-accent-red' : 'text-text-tertiary'}
+                        colorClass={currentStopLoss != null ? 'text-phosphor-red text-glow-red' : 'text-text-tertiary'}
                         tooltipLabel="Stop"
                         tooltipExplanation="Optional stop price. Credit spreads have defined risk — no stop needed."
                         TooltipComponent={Tooltip}
@@ -770,9 +765,9 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                             <Tooltip label="DTE" explanation="Days to expiration." className="text-[11px] text-text-tertiary uppercase tracking-wider" />
                         </div>
                         <div className={`metric-value font-bold ${
-                            daysToExp <= 7 ? 'text-accent-red' :
-                            daysToExp <= 14 ? 'text-accent-yellow' :
-                            'text-accent-green'
+                            daysToExp <= 7 ? 'text-phosphor-red text-glow-red' :
+                            daysToExp <= 14 ? 'text-phosphor-amber text-glow-amber' :
+                            'text-phosphor-green text-glow-green'
                         }`}>
                             {daysToExp}d
                         </div>
@@ -829,8 +824,8 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         </div>
                         <div className={`metric-value font-bold ${
                             position.iv_rank_entry == null ? 'text-text-tertiary' :
-                            (position.iv_rank_entry <= 1 ? position.iv_rank_entry * 100 : position.iv_rank_entry) >= 30 ? 'text-accent-green' :
-                            (position.iv_rank_entry <= 1 ? position.iv_rank_entry * 100 : position.iv_rank_entry) >= 20 ? 'text-accent-yellow' : 'text-accent-red'
+                            (position.iv_rank_entry <= 1 ? position.iv_rank_entry * 100 : position.iv_rank_entry) >= 30 ? 'text-phosphor-green text-glow-green' :
+                            (position.iv_rank_entry <= 1 ? position.iv_rank_entry * 100 : position.iv_rank_entry) >= 20 ? 'text-phosphor-amber text-glow-amber' : 'text-phosphor-red text-glow-red'
                         }`}>
                             {position.iv_rank_entry != null ? `${Math.round(position.iv_rank_entry <= 1 ? position.iv_rank_entry * 100 : position.iv_rank_entry)}%` : '—'}
                         </div>
@@ -845,16 +840,16 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         <span className="text-text-tertiary uppercase tracking-wider font-medium">
                             TP Progress ({Math.round(tpFraction * 100)}%)
                         </span>
-                        <span className={`font-mono font-semibold ${tpReady ? 'text-accent-green' : 'text-text-secondary'}`}>
+                        <span className={`font-mono font-semibold ${tpReady ? 'text-phosphor-green text-glow-green' : 'text-text-secondary'}`}>
                             {Math.min(tpProgress, 999).toFixed(0)}%
                         </span>
                     </div>
-                    <div className="h-1.5 bg-bg-secondary rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-terminal-black rounded-full overflow-hidden border border-phosphor-green/15">
                         <div
                             className={`h-full rounded-full transition-all duration-500 ${
-                                tpReady ? 'bg-accent-green' :
-                                tpProgress >= 70 ? 'bg-accent-yellow' :
-                                'bg-text-tertiary'
+                                tpReady ? 'bg-phosphor-green' :
+                                tpProgress >= 70 ? 'bg-phosphor-amber' :
+                                'bg-phosphor-dim/50'
                             }`}
                             style={{ width: `${Math.min(tpProgress, 100)}%` }}
                         />

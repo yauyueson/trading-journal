@@ -37,10 +37,10 @@ export const ScoreValidation: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="card p-6 bg-bg-tertiary/50">
-                <div className="flex items-center gap-2 text-text-secondary">
+            <div className="terminal-panel p-6">
+                <div className="flex items-center gap-2 text-phosphor-dim font-mono uppercase tracking-wider">
                     <Loader2 size={16} className="animate-spin" />
-                    <span className="text-sm">Loading score validation...</span>
+                    <span className="text-sm">▌ Loading score validation...</span>
                 </div>
             </div>
         );
@@ -48,20 +48,20 @@ export const ScoreValidation: React.FC = () => {
 
     if (error) {
         return (
-            <div className="card p-6 bg-bg-tertiary/50">
-                <div className="text-red-400 text-sm">Score validation error: {error}</div>
+            <div className="terminal-panel terminal-panel-red p-6">
+                <div className="text-phosphor-red text-glow-red text-sm font-mono">▌ SCORE_VALIDATION_ERROR: {error}</div>
             </div>
         );
     }
 
     if (!data || data.totalClosed === 0) {
         return (
-            <div className="card p-6 bg-bg-tertiary/50">
-                <h3 className="text-lg font-semibold text-white/90 flex items-center gap-2 mb-2">
-                    <TrendingUp size={18} />
-                    Score → P&L Validation
+            <div className="terminal-panel p-6">
+                <h3 className="text-sm font-mono font-bold text-phosphor-green text-glow-green uppercase tracking-widest flex items-center gap-2 mb-2">
+                    <TrendingUp size={16} />
+                    ▌ SCORE → P&L VALIDATION
                 </h3>
-                <p className="text-text-tertiary text-sm">
+                <p className="text-text-tertiary text-xs font-mono">
                     {data?.message || 'No closed positions linked to scored candidates yet. Trade from recommendations to populate.'}
                 </p>
             </div>
@@ -71,26 +71,26 @@ export const ScoreValidation: React.FC = () => {
     const hasData = data.buckets.some(b => b.closedCount > 0);
 
     return (
-        <div className="card p-6 bg-bg-tertiary/50">
+        <div className="terminal-panel p-6">
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white/90 flex items-center gap-2">
-                    <TrendingUp size={18} />
-                    Score → P&L Validation
+                <h3 className="text-sm font-mono font-bold text-phosphor-green text-glow-green uppercase tracking-widest flex items-center gap-2">
+                    <TrendingUp size={16} />
+                    ▌ SCORE → P&L VALIDATION
                 </h3>
                 {data.monotonic != null && hasData && (
-                    <div className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full ${
+                    <div className={`flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded-md ${
                         data.monotonic
-                            ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/30'
+                            : 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/30'
                     }`}>
                         {data.monotonic ? <CheckCircle size={12} /> : <AlertTriangle size={12} />}
-                        {data.monotonic ? 'Monotonic' : 'Non-monotonic'}
+                        {data.monotonic ? 'MONOTONIC' : 'NON-MONOTONIC'}
                     </div>
                 )}
             </div>
 
-            <div className="text-xs text-text-tertiary mb-4">
-                {data.totalLinked} candidates linked · {data.totalClosed} closed positions
+            <div className="text-[11px] text-text-tertiary font-mono uppercase tracking-wider mb-4">
+                {data.totalLinked} CANDIDATES LINKED · {data.totalClosed} CLOSED POSITIONS
             </div>
 
             {/* Bucket table */}
@@ -115,28 +115,28 @@ export const ScoreValidation: React.FC = () => {
                                 </td>
                                 <td className="py-2 px-3 text-right">
                                     {b.hitRate != null ? (
-                                        <span className={b.hitRate >= 50 ? 'text-green-400' : 'text-red-400'}>
+                                        <span className={b.hitRate >= 50 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}>
                                             {b.hitRate}%
                                         </span>
                                     ) : <span className="text-text-tertiary">—</span>}
                                 </td>
                                 <td className="py-2 px-3 text-right font-mono">
                                     {b.avgPnl != null ? (
-                                        <span className={b.avgPnl >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                        <span className={b.avgPnl >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}>
                                             {b.avgPnl >= 0 ? '+' : ''}${b.avgPnl}
                                         </span>
                                     ) : <span className="text-text-tertiary">—</span>}
                                 </td>
                                 <td className="py-2 px-3 text-right font-mono">
                                     {b.closedCount > 0 ? (
-                                        <span className={b.totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                        <span className={b.totalPnl >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}>
                                             {b.totalPnl >= 0 ? '+' : ''}${b.totalPnl}
                                         </span>
                                     ) : <span className="text-text-tertiary">—</span>}
                                 </td>
                                 <td className="py-2 pl-3 text-right font-mono">
                                     {b.profitFactor != null && b.profitFactor !== Infinity ? (
-                                        <span className={b.profitFactor >= 1.0 ? 'text-green-400' : 'text-red-400'}>
+                                        <span className={b.profitFactor >= 1.0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}>
                                             {b.profitFactor.toFixed(2)}
                                         </span>
                                     ) : b.profitFactor === Infinity ? (
@@ -150,7 +150,7 @@ export const ScoreValidation: React.FC = () => {
             </div>
 
             {!data.monotonic && hasData && (
-                <div className="mt-3 text-xs text-amber-400/80 flex items-center gap-1.5">
+                <div className="mt-3 text-xs text-phosphor-amber/80 font-mono flex items-center gap-1.5">
                     <AlertTriangle size={12} />
                     Higher scores don't consistently correlate with better win rates. Scoring may need recalibration.
                 </div>

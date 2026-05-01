@@ -99,32 +99,32 @@ export function AppLayout() {
 
   return (
     <div style={{ minHeight: '100dvh' }}>
-      {/* Desktop header — floating pill bar (hidden on mobile) */}
+      {/* Desktop header — flat terminal panel with subtle scanlines */}
       <div className="hidden sm:sticky sm:top-3 sm:block sm:z-50 sm:px-4 sm:px-6">
         <div className="mx-auto px-4 py-2.5 flex items-center gap-6 max-w-7xl
-          sm:border sm:border-white/[0.08] sm:rounded-2xl sm:bg-black/60 sm:backdrop-blur-2xl sm:shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+          sm:border sm:border-phosphor-green/20 sm:rounded-md sm:bg-terminal-panel sm:scanlines sm:shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
           <h1
-            className="text-base font-semibold text-gradient-primary shrink-0 cursor-pointer"
+            className="text-sm font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green shrink-0 cursor-pointer"
             onClick={() => navigate('/dashboard')}
           >
-            Trading Journal
+            ▌ TRADING_JOURNAL
           </h1>
           <TabNav />
           <div className="flex items-center gap-1 ml-auto shrink-0">
             <button
               onClick={() => navigate('/settings')}
-              className="flex items-center gap-1.5 text-text-tertiary text-sm hover:text-text-secondary transition-colors min-w-[44px] min-h-[44px] justify-center"
+              className="flex items-center gap-1.5 text-text-tertiary font-mono uppercase tracking-wider text-[11px] hover:text-phosphor-green hover:text-glow-green transition-colors min-w-[44px] min-h-[44px] justify-center"
               aria-label="Settings"
             >
-              <Settings size={16} />
-              <span className="hidden lg:inline text-[13px]">Settings</span>
+              <Settings size={14} />
+              <span className="hidden lg:inline">Settings</span>
             </button>
             <button
               onClick={logout}
-              className="flex items-center gap-1.5 text-text-tertiary text-sm hover:text-text-secondary transition-colors min-w-[44px] min-h-[44px] justify-center"
+              className="flex items-center gap-1.5 text-text-tertiary font-mono uppercase tracking-wider text-[11px] hover:text-phosphor-amber hover:text-glow-amber transition-colors min-w-[44px] min-h-[44px] justify-center"
               aria-label="Logout"
             >
-              <span className="text-[13px]">Logout</span>
+              <span>Logout</span>
             </button>
           </div>
         </div>
@@ -133,10 +133,10 @@ export function AppLayout() {
       {/* Mobile top bar — slim, no backdrop-blur (avoids iOS containing block bug) */}
       <div className="sm:hidden flex items-center justify-between px-4 py-2">
         <h1
-          className="text-base font-semibold text-gradient-primary cursor-pointer"
+          className="text-sm font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green cursor-pointer"
           onClick={() => navigate('/dashboard')}
         >
-          Trading Journal
+          ▌ TRADING_JOURNAL
         </h1>
         <div className="flex items-center gap-1">
           <button

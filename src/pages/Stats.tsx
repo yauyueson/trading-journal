@@ -65,7 +65,7 @@ const BucketMeta: React.FC<{ data: BucketStats }> = ({ data }) => {
                 <span className="text-[11px] text-text-tertiary font-mono">Hold: {avgHold}d</span>
             )}
             {avgR != null && (
-                <span className={`text-[11px] font-mono font-semibold ${avgR >= 0 ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
+                <span className={`text-[11px] font-mono font-semibold ${avgR >= 0 ? 'text-phosphor-green' : 'text-phosphor-red'}`}>
                     R: {avgR >= 0 ? '+' : ''}{avgR.toFixed(2)}x
                 </span>
             )}
@@ -82,17 +82,17 @@ const BucketList: React.FC<{ entries: [string, BucketStats][]; renderLabel?: (ke
                 const total = data.wins + data.losses;
                 const wr = total > 0 ? (data.wins / total) * 100 : 0;
                 return (
-                    <div key={key} className="py-3 border-b border-white/[0.04] flex justify-between items-center">
+                    <div key={key} className="py-3 border-b border-phosphor-green/10 flex justify-between items-center">
                         <div>
                             {renderLabel ? renderLabel(key) : (
-                                <div className="font-medium text-text-primary">{key || 'Unknown'}</div>
+                                <div className="font-mono uppercase tracking-wider text-text-primary">{key || 'Unknown'}</div>
                             )}
-                            <div className="text-text-secondary text-sm">
-                                <span className="text-accent-green">{data.wins}W</span> / <span className="text-red-400">{data.losses}L</span> · {wr.toFixed(0)}%
+                            <div className="text-text-secondary text-xs font-mono uppercase tracking-wider">
+                                <span className="text-phosphor-green">{data.wins}W</span> / <span className="text-phosphor-red">{data.losses}L</span> · {wr.toFixed(0)}%
                             </div>
                             <BucketMeta data={data} />
                         </div>
-                        <div className={`text-xl font-bold font-mono ${data.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                        <div className={`text-xl font-bold font-mono tabular-nums ${data.pnl >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>
                             {data.pnl >= 0 ? '+' : ''}{formatCurrency(data.pnl)}
                         </div>
                     </div>
@@ -255,43 +255,52 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
 
     return (
         <div className="stagger-fade-in pb-24 sm:pb-0">
-            <h2 className="text-2xl font-bold mb-4">Performance Stats</h2>
+            <h2 className="text-xl sm:text-2xl font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green mb-4">
+                ▌ PERFORMANCE_STATS
+            </h2>
 
             <div className="lg:flex lg:gap-8">
                 {/* Sidebar — filters + vertical tabs on desktop */}
                 <div className="lg:w-48 shrink-0 lg:sticky lg:top-20 lg:self-start">
                     {/* Owner Filter */}
-                    <div className="flex items-center gap-1.5 mb-4 lg:flex-col lg:items-stretch">
-                        {(['All', 'Yuchen', 'Annie'] as const).map(value => (
-                            <button
-                                key={value}
-                                type="button"
-                                onClick={() => setOwnerFilter(value)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all lg:text-left ${ownerFilter === value
-                                    ? value === 'Yuchen'
-                                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                        : value === 'Annie'
-                                            ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
-                                            : 'bg-white/10 text-text-primary border border-white/20'
-                                    : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                                    }`}
-                            >
-                                {value}
-                            </button>
-                        ))}
+                    <div className="mb-4">
+                        <span className="label-mono mb-1.5 block">▌ OWNER</span>
+                        <div className="flex items-center gap-1.5 lg:flex-col lg:items-stretch">
+                            {(['All', 'Yuchen', 'Annie'] as const).map(value => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => setOwnerFilter(value)}
+                                    className={`px-3 py-1.5 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all min-h-[36px] cursor-pointer lg:text-left ${ownerFilter === value
+                                        ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                        : 'bg-terminal-panel text-text-tertiary border border-border-default/50 hover:text-phosphor-dim hover:border-phosphor-green/20'
+                                        }`}
+                                >
+                                    {value}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                     {/* Strategy Filter */}
-                    <div className="flex items-center gap-1.5 mb-4 lg:flex-col lg:items-stretch">
-                        {([['All', 'All'], ['bcd', 'BCD'], ['pmcc', 'PMCC'], ['legacy', 'Legacy']] as const).map(([value, label]) => (
-                            <button
-                                key={value}
-                                type="button"
-                                onClick={() => setStrategyFilter(value as typeof strategyFilter)}
-                                className={`filter-pill lg:text-left ${strategyFilter === value ? 'filter-pill-active' : ''}`}
-                            >
-                                {label}
-                            </button>
-                        ))}
+                    <div className="mb-4">
+                        <span className="label-mono mb-1.5 block">▌ STRATEGY</span>
+                        <div className="flex items-center gap-1.5 lg:flex-col lg:items-stretch">
+                            {([['All', 'All'], ['bcd', 'BCD'], ['pmcc', 'PMCC'], ['legacy', 'Legacy']] as const).map(([value, label]) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => setStrategyFilter(value as typeof strategyFilter)}
+                                    className={`px-3 py-1.5 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all min-h-[36px] cursor-pointer lg:text-left ${strategyFilter === value
+                                        ? value === 'legacy'
+                                            ? 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/40'
+                                            : 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                        : 'bg-terminal-panel text-text-tertiary border border-border-default/50 hover:text-phosphor-dim hover:border-phosphor-green/20'
+                                        }`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Vertical tab nav — desktop only */}
@@ -302,10 +311,10 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                                     key={tab.key}
                                     type="button"
                                     onClick={() => setStatsTab(tab.key)}
-                                    className={`text-left px-3 py-2 rounded-lg text-sm ${
+                                    className={`text-left px-3 py-2 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all cursor-pointer ${
                                         statsTab === tab.key
-                                            ? 'bg-white/[0.08] text-white'
-                                            : 'text-text-tertiary hover:text-text-secondary'
+                                            ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border-l-2 border-phosphor-green'
+                                            : 'text-text-tertiary hover:text-phosphor-dim border-l-2 border-transparent'
                                     }`}
                                 >
                                     {tab.label}
@@ -318,11 +327,12 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                 {/* Main content */}
                 <div className="flex-1 min-w-0">
             {closedPositions.length === 0 ? (
-                <div className="text-center py-16 text-text-secondary">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-bg-tertiary flex items-center justify-center">
-                        <BarChart3 size={32} strokeWidth={1.5} />
+                <div className="terminal-panel text-center py-16">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-phosphor-green/[0.08] border border-phosphor-green/30 flex items-center justify-center">
+                        <BarChart3 size={32} strokeWidth={1.5} className="text-phosphor-green" />
                     </div>
-                    <p>Complete some trades to see your stats</p>
+                    <p className="text-phosphor-green text-glow-green text-sm font-mono uppercase tracking-widest font-bold">▌ NO_CLOSED_TRADES</p>
+                    <p className="text-text-tertiary text-xs font-mono mt-2">Complete some trades to see your stats.</p>
                 </div>
             ) : (
                 <>
@@ -333,10 +343,10 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                                 key={tab.key}
                                 type="button"
                                 onClick={() => setStatsTab(tab.key)}
-                                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap min-h-[36px] ${
+                                className={`px-3.5 py-1.5 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all whitespace-nowrap min-h-[36px] cursor-pointer ${
                                     statsTab === tab.key
-                                        ? 'bg-white/10 text-text-primary border border-white/20'
-                                        : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                        ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                        : 'bg-terminal-panel text-text-tertiary border border-border-default/50 hover:text-phosphor-dim hover:border-phosphor-green/20'
                                 }`}
                             >
                                 {tab.label}
@@ -347,40 +357,40 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                     {/* ═══ OVERVIEW TAB ═══ */}
                     {statsTab === 'overview' && (
                         <>
-                            {/* Key Metrics */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                                <div className="py-3">
-                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-2">Total P&L</div>
-                                    <div className={`text-3xl font-bold font-mono ${stats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                            {/* Key Metrics \u2014 phosphor terminal tiles */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                                <div className="terminal-panel p-4">
+                                    <span className="label-mono">\u258C TOTAL P&L</span>
+                                    <div className={`text-3xl font-bold font-mono tabular-nums mt-1 ${stats.totalPnL >= 0 ? 'metric-glow-pos' : 'metric-glow-neg'}`}>
                                         {stats.totalPnL >= 0 ? '+' : ''}{formatCurrency(stats.totalPnL)}
                                     </div>
                                 </div>
-                                <div className="py-3">
-                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-2">Win Rate</div>
-                                    <div className={`text-3xl font-bold ${stats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                <div className="terminal-panel p-4">
+                                    <span className="label-mono">\u258C WIN RATE</span>
+                                    <div className={`text-3xl font-bold font-mono tabular-nums mt-1 ${stats.winRate >= 50 ? 'metric-glow-pos' : 'metric-glow-neg'}`}>
                                         {stats.winRate.toFixed(1)}%
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                                <div className="py-3">
-                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Avg Win</div>
-                                    <div className="text-xl font-bold font-mono text-accent-green">{formatCurrency(stats.avgWin)}</div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                                <div className="terminal-panel p-4">
+                                    <span className="label-mono">AVG WIN</span>
+                                    <div className="text-xl font-bold font-mono tabular-nums mt-1 metric-glow-pos">{formatCurrency(stats.avgWin)}</div>
                                 </div>
-                                <div className="py-3">
-                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Avg Loss</div>
-                                    <div className="text-xl font-bold font-mono text-accent-red">{formatCurrency(Math.abs(stats.avgLoss))}</div>
+                                <div className="terminal-panel p-4">
+                                    <span className="label-mono">AVG LOSS</span>
+                                    <div className="text-xl font-bold font-mono tabular-nums mt-1 metric-glow-neg">{formatCurrency(Math.abs(stats.avgLoss))}</div>
                                 </div>
-                                <div className="py-3">
-                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Profit Factor</div>
-                                    <div className={`text-xl font-bold ${stats.profitFactor >= 1 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                <div className="terminal-panel p-4">
+                                    <span className="label-mono">PROFIT FACTOR</span>
+                                    <div className={`text-xl font-bold font-mono tabular-nums mt-1 ${stats.profitFactor >= 1 ? 'metric-glow-pos' : 'metric-glow-neg'}`}>
                                         {stats.profitFactor === Infinity ? '\u221E' : stats.profitFactor.toFixed(2)}
                                     </div>
                                 </div>
-                                <div className="py-3">
-                                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Total Trades</div>
-                                    <div className="text-xl font-bold">{closedPositions.length}</div>
+                                <div className="terminal-panel p-4">
+                                    <span className="label-mono">TOTAL TRADES</span>
+                                    <div className="text-xl font-bold font-mono tabular-nums mt-1 text-text-primary">{closedPositions.length}</div>
                                 </div>
                             </div>
 
@@ -397,12 +407,12 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                     {/* ═══ BREAKDOWNS TAB ═══ */}
                     {statsTab === 'breakdowns' && (
                         <>
-                            <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By Strategy</h3>
+                            <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green mb-4 pt-6 mt-2 border-t border-phosphor-green/15">▌ BY_STRATEGY</h3>
                             <div className="mb-8">
                                 <BucketList entries={Object.entries(stats.strategyStats)} />
                             </div>
 
-                            <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By Setup</h3>
+                            <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green mb-4 pt-6 mt-2 border-t border-phosphor-green/15">▌ BY_SETUP</h3>
                             <div className="mb-8">
                                 <BucketList entries={Object.entries(stats.setupStats)} renderLabel={key => (
                                     <div className="font-medium text-text-primary">{key || 'Unknown Setup'}</div>
@@ -411,7 +421,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
 
                             {Object.keys(stats.crossTabStats).length > 0 && (
                                 <>
-                                    <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">Setup x Strategy</h3>
+                                    <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green mb-4 pt-6 mt-2 border-t border-phosphor-green/15">▌ SETUP × STRATEGY</h3>
                                     <div className="mb-8">
                                         <BucketList
                                             entries={Object.entries(stats.crossTabStats)}
@@ -419,9 +429,9 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                                                 const [setup, strategy] = key.split('|');
                                                 return (
                                                     <div className="flex items-center gap-2 mb-1">
-                                                        <span className="badge bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-xs">{setup}</span>
+                                                        <span className="badge bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/30 text-[10px] font-mono uppercase tracking-wider">{setup}</span>
                                                         <span className="text-text-tertiary">+</span>
-                                                        <span className="badge bg-violet-500/10 text-violet-400 border border-violet-500/20 text-xs">{strategy}</span>
+                                                        <span className="badge bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/30 text-[10px] font-mono uppercase tracking-wider">{strategy}</span>
                                                     </div>
                                                 );
                                             }}
@@ -433,7 +443,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                             {/* DTE Breakdown */}
                             {Object.keys(stats.dteStats).length > 0 && (
                                 <>
-                                    <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By DTE at Entry</h3>
+                                    <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green mb-4 pt-6 mt-2 border-t border-phosphor-green/15">▌ BY_DTE_AT_ENTRY</h3>
                                     <div className="mb-8">
                                         <BucketList entries={Object.entries(stats.dteStats).sort((a, b) => {
                                             const order = activeStrategy === 'shortTerm'
@@ -450,7 +460,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                             {/* Regime Breakdown */}
                             {Object.keys(stats.regimeStats).length > 0 && (
                                 <>
-                                    <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By IV Regime</h3>
+                                    <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green mb-4 pt-6 mt-2 border-t border-phosphor-green/15">▌ BY_IV_REGIME</h3>
                                     <div className="mb-8">
                                         <BucketList entries={Object.entries(stats.regimeStats)} />
                                     </div>
@@ -460,7 +470,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                             {/* Hold Duration Breakdown */}
                             {Object.keys(stats.holdDurationStats).length > 0 && (
                                 <>
-                                    <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By Hold Duration</h3>
+                                    <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green mb-4 pt-6 mt-2 border-t border-phosphor-green/15">▌ BY_HOLD_DURATION</h3>
                                     <div className="mb-8">
                                         <BucketList entries={Object.entries(stats.holdDurationStats).sort((a, b) => {
                                             const order = ['<3d', '3-7d', '7-14d', '14+d'];
@@ -473,7 +483,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                             {/* Exit Type Breakdown */}
                             {Object.keys(stats.exitTypeStats).length > 0 && (
                                 <>
-                                    <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By Exit Reason</h3>
+                                    <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green mb-4 pt-6 mt-2 border-t border-phosphor-green/15">▌ BY_EXIT_REASON</h3>
                                     <div className="mb-8">
                                         <BucketList entries={Object.entries(stats.exitTypeStats)} renderLabel={key => {
                                             const labels: Record<string, string> = { TP: 'Profit Target', SL: 'Stop Loss', TIME: 'Time Stop', MANUAL: 'Manual Close', ROLL: 'Rolled' };
@@ -486,7 +496,7 @@ export const StatsPage: React.FC<StatsPageProps> = ({ positions: positionsProp, 
                             {/* Spread Width Breakdown */}
                             {Object.keys(stats.spreadWidthStats).length > 0 && (
                                 <>
-                                    <h3 className="text-lg font-semibold mb-4 text-white/90 pt-6 mt-2 border-t border-white/[0.06]">By Spread Width</h3>
+                                    <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green mb-4 pt-6 mt-2 border-t border-phosphor-green/15">▌ BY_SPREAD_WIDTH</h3>
                                     <div className="mb-8">
                                         <BucketList entries={Object.entries(stats.spreadWidthStats).sort((a, b) => {
                                             const order = ['$5', '$10', '$15', '$20+'];

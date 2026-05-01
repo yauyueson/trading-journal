@@ -28,20 +28,20 @@ export const TabNav: React.FC = () => {
                     onClick={() => navigate(TAB_PATHS[tab.id] || '/dashboard')}
                     aria-label={`${tab.label} tab`}
                     aria-current={activeTab === tab.id ? 'page' : undefined}
-                    className={`px-3 py-1.5 text-[13px] font-medium rounded-lg transition-colors duration-200 relative
+                    className={`px-3 py-1.5 font-mono uppercase tracking-wider text-[11px] transition-colors duration-200 relative cursor-pointer
                         ${activeTab === tab.id
-                            ? 'text-text-primary'
-                            : 'text-text-tertiary hover:text-text-secondary'
+                            ? 'text-phosphor-green text-glow-green'
+                            : 'text-text-tertiary hover:text-phosphor-dim'
                         }`}
                 >
+                    <span className="relative z-10">{tab.label}</span>
                     {activeTab === tab.id && (
                         <motion.div
                             layoutId="activeTab"
-                            className="absolute inset-0 bg-white/[0.08] rounded-lg"
+                            className="absolute left-2 right-2 -bottom-0.5 h-0.5 bg-phosphor-green shadow-[0_0_8px_rgba(0,255,65,0.7)]"
                             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                         />
                     )}
-                    <span className="relative z-10">{tab.label}</span>
                 </button>
             ))}
         </nav>

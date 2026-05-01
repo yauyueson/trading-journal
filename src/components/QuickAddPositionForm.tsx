@@ -138,19 +138,19 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
     };
 
     return (
-        <div className="card-elevated p-8 animate-in fade-in slide-in-from-top-4 shadow-2xl relative overflow-hidden group">
-            <div className={`absolute top-0 left-0 w-1 h-full ${isDTE5 ? 'bg-orange-500/50' : 'bg-emerald-500/50'}`} />
+        <div className="terminal-panel p-8 animate-in fade-in slide-in-from-top-4 relative overflow-hidden group">
+            <div className={`absolute top-0 left-0 w-1 h-full ${isDTE5 ? 'bg-phosphor-amber' : 'bg-phosphor-green'}`} />
             {isDTE5 && (
-                <div className="mb-4 px-3 py-2 rounded-lg bg-orange-500/10 border border-orange-500/30 border-dashed">
-                    <p className="text-xs font-semibold text-orange-400">PAPER TRADE — DTE5 Bull Put Spread (QQQ only, hold-to-expiry)</p>
+                <div className="mb-4 px-3 py-2 rounded-md bg-phosphor-amber/10 border border-phosphor-amber/30 border-dashed">
+                    <p className="text-[11px] font-mono uppercase tracking-wider text-phosphor-amber text-glow-amber">▌ PAPER · DTE5 Bull Put Spread (QQQ, hold-to-expiry)</p>
                 </div>
             )}
             <div className="flex justify-between items-center mb-8">
                 <div>
-                    <h3 className="text-xl font-bold text-text-primary">{isDTE5 ? 'Add DTE5 Paper Trade' : 'Quick Add Position'}</h3>
+                    <h3 className="text-sm sm:text-base font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green">▌ {isDTE5 ? 'ADD_DTE5_PAPER_TRADE' : 'QUICK_ADD_POSITION'}</h3>
                     <p className="text-sm text-text-tertiary">{isDTE5 ? 'QQQ bull put spread \u2022 Delta 30/20 \u2022 Hold to expiry' : 'Enter the details of your new option position'}</p>
                 </div>
-                <button onClick={onClose} className="p-2 hover:bg-bg-elevated rounded-lg transition-colors text-text-tertiary hover:text-text-primary">
+                <button onClick={onClose} className="p-2 hover:bg-phosphor-amber/10 rounded-md transition-colors text-text-tertiary hover:text-phosphor-amber cursor-pointer">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
             </div>
@@ -161,9 +161,9 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
                     <div className="grid grid-cols-3 gap-2 flex-1">
                         {([['single', 'Single Leg'], ['credit', 'Credit Spread'], ['debit', 'Debit Spread']] as const).map(([value, label]) => (
                             <button key={value} type="button" onClick={() => setPositionType(value)}
-                                className={`px-3 py-3 rounded-lg text-xs sm:text-sm font-medium transition-all ${positionType === value
-                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                    : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                className={`px-3 py-3 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all cursor-pointer ${positionType === value
+                                    ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                    : 'bg-terminal-panel text-text-tertiary border border-border-default/50 hover:text-phosphor-dim hover:border-phosphor-green/20'
                                 }`}
                             >{label}</button>
                         ))}
@@ -171,13 +171,11 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
                     <div className="flex gap-1.5">
                         {(['Yuchen', 'Annie'] as const).map(name => (
                             <button key={name} type="button" onClick={() => setFormOwner(name)}
-                                className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${formOwner === name
-                                    ? name === 'Yuchen'
-                                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                        : 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
-                                    : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                className={`px-3 py-2 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all cursor-pointer ${formOwner === name
+                                    ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                    : 'bg-terminal-panel text-text-tertiary border border-border-default/50 hover:text-phosphor-dim hover:border-phosphor-green/20'
                                 }`}
-                            >{name}</button>
+                            >▌ {name.toUpperCase()}</button>
                         ))}
                     </div>
                 </div>
@@ -229,7 +227,7 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
                         <label htmlFor="expiration">
                             Expiration
                             {dte != null && (
-                                <span className={`ml-2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${dteInRange ? 'bg-emerald-500/15 text-emerald-400' : 'bg-orange-500/15 text-orange-400'}`}>
+                                <span className={`ml-2 text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${dteInRange ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/30' : 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/30'}`}>
                                     {dte}d{!dteInRange && ' ⚠'}
                                 </span>
                             )}
@@ -241,18 +239,18 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
 
                 {/* Spread Info Bar */}
                 {positionType !== 'single' && (spreadWidth != null || maxRiskPerContract != null) && (
-                    <div className="flex items-center gap-4 text-xs font-mono px-3 py-2 rounded-lg bg-bg-secondary/30 border border-border-default/30">
+                    <div className="flex items-center gap-4 text-xs font-mono px-3 py-2 terminal-panel">
                         {spreadWidth != null && (
-                            <span className="text-text-secondary">
-                                Width: <span className={`font-semibold ${spreadWidth === profile.defaultWidth ? 'text-emerald-400' : spreadWidth > 0 ? 'text-text-primary' : ''}`}>${spreadWidth}</span>
+                            <span className="text-text-secondary uppercase tracking-wider">
+                                <span className="label-mono">WIDTH:</span> <span className={`font-bold tabular-nums ${spreadWidth === profile.defaultWidth ? 'text-phosphor-green text-glow-green' : spreadWidth > 0 ? 'text-text-primary' : ''}`}>${spreadWidth}</span>
                                 {spreadWidth !== profile.defaultWidth && spreadWidth > 0 && positionType === 'credit' && (
-                                    <span className="text-orange-400 ml-1">(${profile.defaultWidth} recommended)</span>
+                                    <span className="text-phosphor-amber ml-1">(${profile.defaultWidth} recommended)</span>
                                 )}
                             </span>
                         )}
                         {maxRiskPerContract != null && maxRiskPerContract > 0 && (
-                            <span className="text-text-secondary">
-                                Max Risk: <span className="text-text-primary font-semibold">${maxRiskPerContract.toFixed(0)}</span>/contract
+                            <span className="text-text-secondary uppercase tracking-wider">
+                                <span className="label-mono">MAX RISK:</span> <span className="text-text-primary font-bold tabular-nums">${maxRiskPerContract.toFixed(0)}</span>/CT
                             </span>
                         )}
                     </div>
@@ -261,15 +259,15 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
                 {/* Row 2: Execution */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
                     <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Direction</label>
+                        <label className="label-mono">Direction</label>
                         <div className="flex gap-2">
                             {(['BULL', 'BEAR'] as const).map(d => (
                                 <button key={d} type="button" onClick={() => setForm({ ...form, direction: d })}
-                                    className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${form.direction === d
+                                    className={`flex-1 py-2.5 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all cursor-pointer ${form.direction === d
                                         ? d === 'BULL'
-                                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                            : 'bg-red-500/20 text-red-400 border border-red-500/40'
-                                        : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                            ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                            : 'bg-phosphor-red/10 text-phosphor-red text-glow-red border border-phosphor-red/40'
+                                        : 'bg-terminal-panel text-text-tertiary border border-border-default/50 hover:text-phosphor-dim hover:border-phosphor-green/20'
                                     }`}
                                 >{d === 'BULL' ? '▲ BULL' : '▼ BEAR'}</button>
                             ))}
@@ -315,22 +313,22 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
                                     value={form.stop_reason} onChange={e => setForm({ ...form, stop_reason: e.target.value })} />
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Market State</label>
+                                <label className="label-mono">Market State</label>
                                 <div className="grid grid-cols-4 gap-1">
                                     {[{ label: 'TREND', value: 'TRENDING' }, { label: 'EXPL', value: 'EXPLOSIVE' },
                                       { label: 'RANGE', value: 'RANGING' }, { label: 'REV', value: 'REVERTING' }].map(opt => (
                                         <button key={opt.value} type="button"
                                             onClick={() => setForm({ ...form, market_state: form.market_state === opt.value ? '' : opt.value })}
-                                            className={`py-2 rounded-lg text-[10px] font-bold transition-all ${form.market_state === opt.value
-                                                ? 'bg-accent-green/20 text-accent-green border border-accent-green/40'
-                                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
+                                            className={`py-2 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all cursor-pointer ${form.market_state === opt.value
+                                                ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                                : 'bg-terminal-panel text-text-tertiary border border-border-default/50 hover:text-phosphor-dim hover:border-phosphor-green/20'
                                             }`}
                                         >{opt.label}</button>
                                     ))}
                                 </div>
                             </div>
                             <div className="space-y-1.5">
-                                <label htmlFor="iv_regime" className="text-xs font-medium text-text-secondary uppercase tracking-wider">IV Regime</label>
+                                <label htmlFor="iv_regime" className="label-mono">IV Regime</label>
                                 <select id="iv_regime" className="input-field"
                                     value={form.iv_regime_entry} onChange={e => setForm({ ...form, iv_regime_entry: e.target.value })}>
                                     <option value="">— Unknown —</option>
@@ -344,17 +342,17 @@ export const QuickAddPositionForm: React.FC<Props> = ({ onAddDirect, onClose, pr
                 </div>
 
                 {/* Actions */}
-                <div className="flex justify-end items-center gap-4 pt-4 border-t border-border-default/50">
+                <div className="flex justify-end items-center gap-4 pt-4 border-t border-phosphor-green/15">
                     <button type="button" onClick={onClose}
-                        className="px-6 py-2.5 rounded-xl font-medium text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-all">
-                        Cancel
+                        className="btn-terminal-danger">
+                        CANCEL
                     </button>
                     <button type="submit" disabled={submitting}
-                        className="btn-primary px-8 py-2.5 rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-500/10">
+                        className="btn-terminal flex items-center gap-2">
                         {submitting ? (
-                            <><RefreshCw size={18} className="animate-spin" /><span>Adding...</span></>
+                            <><RefreshCw size={14} className="animate-spin" /><span>ADDING...</span></>
                         ) : (
-                            <><span className="text-xl leading-none mb-0.5">+</span><span>Add Position</span></>
+                            <><span className="text-base leading-none">+</span><span>ADD POSITION</span></>
                         )}
                     </button>
                 </div>

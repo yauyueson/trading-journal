@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { Recommendation, SpreadRecommendation } from '../../lib/types';
+import { CHART_COLORS } from '../../lib/chartTheme';
 
 interface PayoffDiagramProps {
     recommendation: Recommendation;
@@ -57,23 +58,23 @@ export const PayoffDiagram: React.FC<PayoffDiagramProps> = ({ recommendation, cu
     return (
         <div className="flex flex-col items-center w-full max-w-[400px]">
             {/* View Mode Toggle */}
-            <div className="flex bg-bg-secondary p-1 rounded-lg border border-white/[0.1] mb-4 w-full">
+            <div className="flex bg-terminal-black p-1 rounded-md border border-phosphor-green/20 mb-4 w-full">
                 <button
                     onClick={() => setViewMode('Exp')}
-                    className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all ${viewMode === 'Exp' ? 'bg-bg-tertiary text-accent-green border border-accent-green/20' : 'text-gray-500 hover:text-gray-300'}`}
+                    className={`flex-1 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded-md transition-all ${viewMode === 'Exp' ? 'bg-phosphor-green/15 text-phosphor-green text-glow-green border border-phosphor-green/40' : 'text-text-tertiary hover:text-phosphor-dim'}`}
                 >
-                    AT EXPIRATION
+                    ▌ AT_EXPIRATION
                 </button>
                 <button
                     onClick={() => setViewMode('T0')}
-                    className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all ${viewMode === 'T0' ? 'bg-bg-tertiary text-blue-400 border border-blue-400/20' : 'text-gray-500 hover:text-gray-300'}`}
+                    className={`flex-1 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded-md transition-all ${viewMode === 'T0' ? 'bg-phosphor-amber/15 text-phosphor-amber text-glow-amber border border-phosphor-amber/40' : 'text-text-tertiary hover:text-phosphor-dim'}`}
                 >
-                    T+0 (NOW)
+                    ▌ T+0_NOW
                 </button>
             </div>
 
             {/* SVG Graph */}
-            <div className="relative w-full bg-bg-primary rounded-xl border border-bg-tertiary p-2 mb-4 overflow-hidden shadow-inner">
+            <div className="relative w-full bg-terminal-black rounded-md border border-phosphor-green/20 p-2 mb-4 overflow-hidden">
                 <svg
                     className="w-full h-auto overflow-visible cursor-crosshair select-none"
                     viewBox={`0 0 ${width} ${height}`}
@@ -99,44 +100,44 @@ export const PayoffDiagram: React.FC<PayoffDiagramProps> = ({ recommendation, cu
                     onTouchEnd={() => setIsHovered(false)}
                 >
                     {/* Grid/Zero Line */}
-                    <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke="#333" strokeDasharray="4" />
+                    <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke={CHART_COLORS.grid} strokeDasharray="4" />
 
                     {/* Payoff Curve */}
                     <path
                         d={pathD}
                         fill="none"
-                        stroke={viewMode === 'Exp' ? (isCredit ? '#4ade80' : '#60a5fa') : '#A855F7'}
+                        stroke={viewMode === 'Exp' ? (isCredit ? CHART_COLORS.positive : CHART_COLORS.warning) : '#00CC33'}
                         strokeWidth="2.5"
                         className="transition-all duration-500 ease-in-out"
                     />
 
                     {/* Current Price Marker */}
-                    <line x1={xScale(currentPrice)} y1={padding} x2={xScale(currentPrice)} y2={height - padding} stroke="#fbbf24" strokeWidth="1" strokeDasharray="3" opacity="0.6" />
-                    <text x={xScale(currentPrice)} y={height - 5} textAnchor="middle" fill="#fbbf24" fontSize="8" fontWeight="bold">NOW</text>
+                    <line x1={xScale(currentPrice)} y1={padding} x2={xScale(currentPrice)} y2={height - padding} stroke={CHART_COLORS.warning} strokeWidth="1" strokeDasharray="3" opacity="0.7" />
+                    <text x={xScale(currentPrice)} y={height - 5} textAnchor="middle" fill={CHART_COLORS.warning} fontSize="8" fontWeight="bold" fontFamily="DM Mono, monospace">NOW</text>
 
                     {/* Interactive Scrubber */}
                     <g opacity={isHovered ? 1 : 0.4} className="transition-opacity duration-300">
-                        <line x1={xScale(hoverPrice)} y1={padding} x2={xScale(hoverPrice)} y2={height - padding} stroke="white" strokeWidth="1" strokeDasharray="2" />
-                        <circle cx={xScale(hoverPrice)} cy={yScale(getPL(hoverPrice))} r="5" fill="white" className="shadow-lg" />
+                        <line x1={xScale(hoverPrice)} y1={padding} x2={xScale(hoverPrice)} y2={height - padding} stroke={CHART_COLORS.positive} strokeWidth="1" strokeDasharray="2" />
+                        <circle cx={xScale(hoverPrice)} cy={yScale(getPL(hoverPrice))} r="5" fill={CHART_COLORS.positive} />
 
                         {/* Tooltip Overlay inside SVG */}
-                        <rect x={xScale(hoverPrice) - 35} y={yScale(getPL(hoverPrice)) - 30} width={70} height={20} rx="4" fill="rgba(0,0,0,0.8)" stroke="#444" />
-                        <text x={xScale(hoverPrice)} y={yScale(getPL(hoverPrice)) - 17} textAnchor="middle" fill="white" fontSize="9" fontWeight="bold" className="font-mono">
+                        <rect x={xScale(hoverPrice) - 35} y={yScale(getPL(hoverPrice)) - 30} width={70} height={20} rx="4" fill={CHART_COLORS.tooltipBg} stroke={CHART_COLORS.tooltipBorder} />
+                        <text x={xScale(hoverPrice)} y={yScale(getPL(hoverPrice)) - 17} textAnchor="middle" fill={CHART_COLORS.positive} fontSize="9" fontWeight="bold" fontFamily="DM Mono, monospace">
                             ${getPL(hoverPrice).toFixed(2)}
                         </text>
                     </g>
 
                     {/* Strike Labels */}
-                    <text x={xScale(lowerStrike)} y={height / 2 + 15} textAnchor="middle" fill="#444" fontSize="8" fontWeight="bold">${lowerStrike}</text>
-                    <text x={xScale(upperStrike)} y={height / 2 + 15} textAnchor="middle" fill="#444" fontSize="8" fontWeight="bold">${upperStrike}</text>
+                    <text x={xScale(lowerStrike)} y={height / 2 + 15} textAnchor="middle" fill={CHART_COLORS.axisText} fontSize="8" fontWeight="bold" fontFamily="DM Mono, monospace">${lowerStrike}</text>
+                    <text x={xScale(upperStrike)} y={height / 2 + 15} textAnchor="middle" fill={CHART_COLORS.axisText} fontSize="8" fontWeight="bold" fontFamily="DM Mono, monospace">${upperStrike}</text>
                 </svg>
             </div>
 
             {/* Price Slider */}
             <div className="w-full px-2">
-                <div className="flex justify-between text-[10px] text-gray-500 mb-1 font-mono uppercase tracking-wider">
+                <div className="flex justify-between text-[10px] text-text-tertiary mb-1 font-mono uppercase tracking-wider">
                     <span>${minX.toFixed(0)}</span>
-                    <span className="text-white font-bold bg-bg-tertiary px-2 rounded tracking-normal">${hoverPrice.toFixed(2)}</span>
+                    <span className="text-phosphor-green text-glow-green font-bold bg-terminal-black border border-phosphor-green/25 px-2 rounded tracking-normal">${hoverPrice.toFixed(2)}</span>
                     <span>${maxX.toFixed(0)}</span>
                 </div>
                 <input
@@ -149,7 +150,7 @@ export const PayoffDiagram: React.FC<PayoffDiagramProps> = ({ recommendation, cu
                         setHoverPrice(parseFloat(e.target.value));
                         setIsHovered(true);
                     }}
-                    className="w-full h-1.5 bg-bg-tertiary rounded-lg appearance-none cursor-pointer accent-accent-green"
+                    className="w-full h-1.5 bg-terminal-black rounded-lg appearance-none cursor-pointer accent-phosphor-green"
                 />
             </div>
         </div>

@@ -25,19 +25,19 @@ export const MonthlyHeatmap: React.FC<MonthlyHeatmapProps> = ({ trades }) => {
 
     if (trades.length === 0) {
         return (
-            <div className="card p-6 flex items-center justify-center text-text-tertiary text-sm h-24">
+            <div className="terminal-panel p-6 flex items-center justify-center text-text-tertiary text-xs font-mono uppercase tracking-wider h-24">
                 No closed trades yet
             </div>
         );
     }
 
     const cellBg = (val: number | undefined): string => {
-        if (val == null || val === 0) return 'rgba(255,255,255,0.03)';
+        if (val == null || val === 0) return 'rgba(0,255,65,0.03)';
         const intensity = Math.min(1, Math.abs(val) / maxAbs);
-        const alpha = 0.15 + intensity * 0.55;
+        const alpha = 0.12 + intensity * 0.4;
         return val > 0
-            ? `rgba(16,185,129,${alpha})`
-            : `rgba(239,68,68,${alpha})`;
+            ? `rgba(0,255,65,${alpha})`
+            : `rgba(255,45,0,${alpha})`;
     };
 
     const formatVal = (val: number) =>
@@ -46,8 +46,8 @@ export const MonthlyHeatmap: React.FC<MonthlyHeatmapProps> = ({ trades }) => {
             : `${Math.abs(val) >= 1000 ? `${(val / 1000).toFixed(1)}K` : `-$${Math.abs(val).toFixed(0)}`}`;
 
     return (
-        <div className="card p-4">
-            <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">Monthly P&L</h3>
+        <div className="terminal-panel p-4">
+            <h3 className="label-mono mb-3">▌ MONTHLY_P&L</h3>
 
             {/* Mobile: vertical list */}
             <div className="sm:hidden space-y-1">
@@ -64,8 +64,8 @@ export const MonthlyHeatmap: React.FC<MonthlyHeatmapProps> = ({ trades }) => {
                                     className="flex items-center justify-between rounded-lg px-3 py-2 mb-1"
                                     style={{ backgroundColor: cellBg(val) }}
                                 >
-                                    <span className="text-xs text-text-secondary font-medium">{MONTHS[m]}</span>
-                                    <span className={`text-sm font-mono font-semibold ${val! >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    <span className="text-xs text-text-secondary font-mono uppercase tracking-wider">{MONTHS[m]}</span>
+                                    <span className={`text-sm font-mono font-bold tabular-nums ${val! >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>
                                         {formatVal(val!)}
                                     </span>
                                 </div>

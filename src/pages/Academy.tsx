@@ -280,13 +280,13 @@ export const Academy: React.FC = () => {
 
     return (
         <div className="stagger-fade-in pb-20 sm:pb-10 font-sans max-w-5xl mx-auto">
-            {/* Header section with glass effect */}
+            {/* Header section */}
             <div className="mb-6 sm:mb-10 text-center">
-                <div className="inline-block p-3 bg-accent-green/10 rounded-2xl mb-3 sm:mb-4 border border-accent-green/20">
-                    <BookOpen className="text-accent-green w-7 h-7 sm:w-8 sm:h-8" />
+                <div className="inline-block p-3 bg-phosphor-green/10 rounded-md mb-3 sm:mb-4 border border-phosphor-green/30">
+                    <BookOpen className="text-phosphor-green w-7 h-7 sm:w-8 sm:h-8" />
                 </div>
-                <h1 className="text-2xl sm:text-4xl font-extrabold text-text-primary mb-2 tracking-tight">Trading Academy</h1>
-                <p className="text-text-tertiary text-sm sm:text-lg">Credit Spread strategy concepts, risk management, and WFA-validated rules.</p>
+                <h1 className="text-2xl sm:text-4xl font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green mb-2">▌ TRADING_ACADEMY</h1>
+                <p className="text-text-tertiary text-xs sm:text-sm font-mono uppercase tracking-wider">CREDIT SPREAD CONCEPTS · RISK MANAGEMENT · WFA-VALIDATED RULES</p>
             </div>
 
             {/* Search and Filters */}
@@ -297,97 +297,112 @@ export const Academy: React.FC = () => {
                         placeholder="Search terms, formulas or concepts..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-bg-tertiary border border-white/[0.08] text-text-primary rounded-xl pl-12 pr-4 py-3.5 sm:py-4 focus:outline-none focus:border-accent-green transition-all shadow-xl text-sm sm:text-base"
+                        className="w-full bg-terminal-panel border border-phosphor-green/20 text-text-primary rounded-md pl-12 pr-4 py-3.5 sm:py-4 focus:outline-none focus:border-phosphor-green/60 transition-all font-mono text-sm sm:text-base"
                     />
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-phosphor-dim/70" size={20} />
                 </div>
                 <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-                    {categories.map(cat => (
-                        <button
-                            key={cat}
-                            onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                            className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold border transition-all shrink-0 ${selectedCategory === cat
-                                ? 'bg-accent-green text-black border-accent-green'
-                                : 'bg-bg-tertiary text-text-tertiary border-white/[0.08] hover:border-gray-600'
-                                }`}
-                        >
-                            {cat}
-                        </button>
-                    ))}
+                    {categories.map(cat => {
+                        // Phosphor collapse: Strategy/Concept → green, Greek/Metric → amber, Risk/Structure → red.
+                        const isActive = selectedCategory === cat;
+                        const family =
+                            (cat === 'Strategy' || cat === 'Concept') ? 'green' :
+                            (cat === 'Greek' || cat === 'Metric') ? 'amber' : 'red';
+                        const activeCls =
+                            family === 'green' ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40' :
+                            family === 'amber' ? 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/40' :
+                                                  'bg-phosphor-red/10 text-phosphor-red text-glow-red border border-phosphor-red/40';
+                        return (
+                            <button
+                                key={cat}
+                                onClick={() => setSelectedCategory(isActive ? null : cat)}
+                                className={`px-3.5 sm:px-4 py-2 rounded-md text-xs font-mono uppercase tracking-wider border transition-all shrink-0 cursor-pointer ${isActive
+                                    ? activeCls
+                                    : 'bg-terminal-panel text-text-tertiary border-border-default/50 hover:text-phosphor-dim hover:border-phosphor-green/20'
+                                    }`}
+                            >
+                                {cat}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
             {/* Content Grid */}
             <div className="grid grid-cols-1 gap-6">
                 {filteredGlossary.length > 0 ? (
-                    filteredGlossary.map((item) => (
-                        <div
-                            key={item.id}
-                            className="bg-bg-tertiary border border-white/[0.08] rounded-2xl p-6 hover:border-white/[0.12] transition-all group overflow-hidden relative"
-                        >
-                            {/* Decorative background icon */}
-                            <item.icon className="absolute -right-4 -top-4 w-32 h-32 text-white/5 group-hover:text-white/10 transition-colors pointer-events-none" />
+                    filteredGlossary.map((item) => {
+                        // Same phosphor collapse for category badges as the filter pills.
+                        const family =
+                            (item.category === 'Strategy' || item.category === 'Concept') ? 'green' :
+                            (item.category === 'Greek' || item.category === 'Metric') ? 'amber' : 'red';
+                        const badgeCls =
+                            family === 'green' ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border-phosphor-green/30' :
+                            family === 'amber' ? 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border-phosphor-amber/30' :
+                                                  'bg-phosphor-red/10 text-phosphor-red text-glow-red border-phosphor-red/30';
+                        return (
+                            <div
+                                key={item.id}
+                                className="terminal-panel p-6 hover:border-phosphor-green/40 transition-all group overflow-hidden relative"
+                            >
+                                {/* Decorative background icon */}
+                                <item.icon className="absolute -right-4 -top-4 w-32 h-32 text-phosphor-green/5 group-hover:text-phosphor-green/10 transition-colors pointer-events-none" />
 
-                            <div className="flex items-start gap-4 relative z-10">
-                                <div className="p-3 bg-white/5 rounded-xl border border-white/10 group-hover:bg-accent-green/10 group-hover:border-accent-green/30 transition-all">
-                                    <item.icon className="w-6 h-6 text-text-tertiary group-hover:text-accent-green transition-colors" />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex flex-wrap items-center gap-3 mb-2">
-                                        <h3 className="text-xl font-bold text-text-primary tracking-wide">{item.term}</h3>
-                                        <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded border ${item.category === 'Metric' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
-                                            item.category === 'Greek' ? 'bg-pink-500/10 text-pink-400 border-pink-500/30' :
-                                                item.category === 'Strategy' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
-                                                    item.category === 'Risk' ? 'bg-red-500/10 text-red-400 border-red-500/30' :
-                                                        item.category === 'Concept' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
-                                                            'bg-orange-500/10 text-orange-400 border-orange-500/30'
-                                            }`}>
-                                            {item.category}
-                                        </span>
+                                <div className="flex items-start gap-4 relative z-10">
+                                    <div className="p-3 bg-phosphor-green/[0.04] rounded-md border border-phosphor-green/20 group-hover:bg-phosphor-green/10 group-hover:border-phosphor-green/40 transition-all">
+                                        <item.icon className="w-6 h-6 text-phosphor-dim group-hover:text-phosphor-green group-hover:text-glow-green transition-colors" />
                                     </div>
-
-                                    <p className="text-text-tertiary leading-relaxed mb-4 text-[15px]">
-                                        {item.explanation}
-                                    </p>
-
-                                    {item.formula && (
-                                        <div className="bg-black/40 rounded-xl p-4 mb-4 border border-white/5 font-mono text-sm group-hover:border-accent-green/20 transition-colors">
-                                            <div className="text-gray-500 text-[10px] uppercase font-bold mb-1 tracking-widest">Formula</div>
-                                            <div className="text-accent-green font-bold text-base">{item.formula}</div>
+                                    <div className="flex-1">
+                                        <div className="flex flex-wrap items-center gap-3 mb-2">
+                                            <h3 className="text-xl font-mono font-bold uppercase tracking-wider text-text-primary">{item.term}</h3>
+                                            <span className={`text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded border ${badgeCls}`}>
+                                                {item.category}
+                                            </span>
                                         </div>
-                                    )}
 
-                                    <div className="flex items-start gap-2 bg-bg-elevated rounded-xl p-4 border-l-4 border-accent-green/50">
-                                        <Info size={18} className="text-accent-green shrink-0 mt-0.5" />
-                                        <div>
-                                            <div className="text-text-primary text-xs font-bold uppercase mb-1 tracking-wider">Trading Edge</div>
-                                            <div className="text-gray-300 text-sm italic">{item.whyItMatters}</div>
+                                        <p className="text-text-tertiary leading-relaxed mb-4 text-[15px] font-sans">
+                                            {item.explanation}
+                                        </p>
+
+                                        {item.formula && (
+                                            <div className="bg-terminal-black rounded-md p-4 mb-4 border border-phosphor-green/20 font-mono text-sm group-hover:border-phosphor-green/40 transition-colors">
+                                                <div className="label-mono mb-1">▌ FORMULA</div>
+                                                <div className="text-phosphor-green text-glow-green font-bold text-base">{item.formula}</div>
+                                            </div>
+                                        )}
+
+                                        <div className="flex items-start gap-2 bg-terminal-panel rounded-md p-4 border-l-4 border-phosphor-green">
+                                            <Info size={18} className="text-phosphor-green text-glow-green shrink-0 mt-0.5" />
+                                            <div>
+                                                <div className="label-mono mb-1">▌ TRADING_EDGE</div>
+                                                <div className="text-text-secondary text-sm italic font-sans">{item.whyItMatters}</div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 ) : (
-                    <div className="text-center py-20 bg-bg-tertiary rounded-3xl border border-white/[0.08] border-dashed">
+                    <div className="terminal-panel text-center py-20 border-dashed">
                         <div className="mb-4 flex justify-center">
-                            <AlertTriangle size={48} className="text-gray-600" />
+                            <AlertTriangle size={48} className="text-phosphor-amber" />
                         </div>
-                        <h3 className="text-xl font-bold text-text-tertiary mb-1">No matches found</h3>
-                        <p className="text-gray-500">Try searching for different keywords or clear your filters.</p>
+                        <h3 className="text-xl font-mono font-bold text-phosphor-amber text-glow-amber uppercase tracking-widest mb-1">▌ NO_MATCHES</h3>
+                        <p className="text-text-tertiary font-mono text-xs uppercase tracking-wider">Try different keywords or clear your filters.</p>
                         <button
                             onClick={() => { setSearchQuery(''); setSelectedCategory(null); }}
-                            className="mt-6 text-accent-green font-bold hover:underline"
+                            className="mt-6 btn-terminal"
                         >
-                            Clear all filters
+                            ▌ CLEAR FILTERS
                         </button>
                     </div>
                 )}
             </div>
 
             {/* Footer Tip */}
-            <div className="mt-12 text-center text-gray-500 text-sm">
-                <p>Not finding what you need? Data updates every 15 minutes. Happy Trading!</p>
+            <div className="mt-12 text-center text-text-tertiary text-[11px] font-mono uppercase tracking-wider">
+                <p>▌ Data updates every 15 minutes. Happy trading.</p>
             </div>
         </div>
     );

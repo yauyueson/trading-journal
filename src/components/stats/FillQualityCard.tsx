@@ -41,10 +41,10 @@ function aggregate(rows: FillDiagnosticRow[]): AggregateStats {
 
 function StatBlock({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-lg bg-bg-tertiary/40 border border-border-default/30 px-3 py-2.5">
-      <div className="text-[10px] uppercase tracking-wider text-text-tertiary">{label}</div>
-      <div className="text-sm font-mono text-text-primary mt-0.5">{value}</div>
-      {hint && <div className="text-[10px] text-text-tertiary mt-0.5">{hint}</div>}
+    <div className="terminal-panel px-3 py-2.5">
+      <div className="label-mono">{label}</div>
+      <div className="text-sm font-mono tabular-nums text-text-primary mt-0.5">{value}</div>
+      {hint && <div className="text-[10px] text-text-tertiary font-mono mt-0.5">{hint}</div>}
     </div>
   );
 }
@@ -56,18 +56,18 @@ export const FillQualityCard: React.FC = () => {
   const pmccStats = useMemo(() => aggregate(rows.filter(r => r.strategy_type === 'pmcc')), [rows]);
 
   if (isLoading) {
-    return <div className="text-text-tertiary text-xs">Loading fill diagnostics…</div>;
+    return <div className="text-text-tertiary text-xs font-mono uppercase tracking-wider">▌ Loading fill diagnostics…</div>;
   }
   if (error) {
     return (
-      <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.04] px-3 py-2.5 text-xs text-amber-300">
+      <div className="terminal-panel terminal-panel-amber px-3 py-2.5 text-xs text-phosphor-amber font-mono">
         Couldn't load fill diagnostics: {(error as Error).message}. Has the 017_fill_diagnostics migration been applied?
       </div>
     );
   }
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg bg-bg-secondary/40 border border-border-default/30 px-4 py-4 text-xs text-text-tertiary">
+      <div className="terminal-panel px-4 py-4 text-xs text-text-tertiary font-mono">
         No fill-quality captures yet. Enter a BCD or PMCC trade through the entry modal and the chain snapshot + model prediction will be logged here for calibration.
       </div>
     );
@@ -80,10 +80,10 @@ export const FillQualityCard: React.FC = () => {
         { label: 'BCD', stats: bcdStats },
         { label: 'PMCC', stats: pmccStats },
       ].map(({ label, stats }) => (
-        <div key={label} className="card-glass p-4">
+        <div key={label} className="terminal-panel p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-text-primary">{label} fill quality</h3>
-            <span className="text-[11px] text-text-tertiary">{stats.count} trade{stats.count === 1 ? '' : 's'}</span>
+            <h3 className="text-xs font-mono font-bold text-phosphor-green text-glow-green uppercase tracking-widest">▌ {label}_FILL_QUALITY</h3>
+            <span className="text-[10px] text-phosphor-dim/70 font-mono uppercase tracking-wider">{stats.count} TRADE{stats.count === 1 ? '' : 'S'}</span>
           </div>
           {stats.count === 0 ? (
             <p className="text-xs text-text-tertiary">No {label} entries captured yet.</p>
@@ -115,8 +115,8 @@ export const FillQualityCard: React.FC = () => {
       ))}
 
       {/* Recent captures */}
-      <div className="card-glass p-4">
-        <h3 className="text-sm font-semibold text-text-primary mb-3">Recent captures</h3>
+      <div className="terminal-panel p-4">
+        <h3 className="text-xs font-mono font-bold text-phosphor-green text-glow-green uppercase tracking-widest mb-3">▌ RECENT_CAPTURES</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-[11px]">
             <thead className="text-text-tertiary uppercase tracking-wider text-[10px]">
@@ -138,7 +138,7 @@ export const FillQualityCard: React.FC = () => {
                 const hasSnapshot = r.legs.every(l => l.bid != null);
                 const deltaColor = deltaPerShare == null
                   ? 'text-text-tertiary'
-                  : deltaPerShare > 0 ? 'text-accent-red' : 'text-accent-green';
+                  : deltaPerShare > 0 ? 'text-phosphor-red text-glow-red' : 'text-phosphor-green text-glow-green';
                 return (
                   <tr key={r.id} className="border-b border-border-default/10 text-text-secondary">
                     <td className="py-1.5 pr-3 font-mono">{formatDate(r.captured_at.slice(0, 10))}</td>
@@ -158,8 +158,8 @@ export const FillQualityCard: React.FC = () => {
                     </td>
                     <td className="py-1.5">
                       {hasSnapshot
-                        ? <span className="text-accent-green/80 text-[10px]">✓ both legs</span>
-                        : <span className="text-amber-400/80 text-[10px]">partial</span>}
+                        ? <span className="text-phosphor-green/80 text-[10px] font-mono uppercase tracking-wider">✓ BOTH LEGS</span>
+                        : <span className="text-phosphor-amber/80 text-[10px] font-mono uppercase tracking-wider">PARTIAL</span>}
                     </td>
                   </tr>
                 );

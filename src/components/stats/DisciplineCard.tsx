@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { Position, Transaction } from '../../lib/types';
 import { formatCurrency, computePositionPnL, getStrategyKind, groupTransactionsByPositionId } from '../../lib/utils';
+import { CHART_COLORS, CHART_FONT_MONO } from '../../lib/chartTheme';
 
 interface DisciplineCardProps {
     closedPositions: Position[];
@@ -18,16 +19,17 @@ interface DisciplineCardProps {
 
 type ExitType = 'TP' | 'SL' | 'TIME' | 'MANUAL' | 'ROLL' | 'EXP_PROFIT' | 'EXP_LOSS' | 'EARLY_PROFIT' | 'EARLY_DEFENSE' | 'Unknown';
 
+// Phosphor-aligned exit-type palette: green for healthy outcomes, amber for time/manual, red for losses, dim for ambiguous.
 const EXIT_COLORS: Record<ExitType, string> = {
-    TP: '#4EBE96',
-    SL: '#FF6B6B',
-    TIME: '#FFD60A',
-    MANUAL: '#A3A3A3',
-    ROLL: '#479FFA',
-    EXP_PROFIT: '#4EBE96',
-    EXP_LOSS: '#FF6B6B',
-    EARLY_PROFIT: '#6EEDB4',
-    EARLY_DEFENSE: '#FFA16C',
+    TP: '#00FF41',         // phosphor green — clean profit target
+    SL: '#FF2D00',         // phosphor red — stop hit
+    TIME: '#FFB000',       // phosphor amber — expiry without TP/SL
+    MANUAL: '#868F97',     // neutral — manual close
+    ROLL: '#00CC33',       // phosphor dim — roll (defensive but disciplined)
+    EXP_PROFIT: '#00FF41', // phosphor green
+    EXP_LOSS: '#FF2D00',   // phosphor red
+    EARLY_PROFIT: '#7FFF00', // chartreuse — early-profit close
+    EARLY_DEFENSE: '#FFB000', // phosphor amber — defensive
     Unknown: '#555555',
 };
 
@@ -127,12 +129,13 @@ export const DisciplineCard: React.FC<DisciplineCardProps> = ({ closedPositions,
 
     if (metrics.withExitType === 0) {
         return (
-            <div className="card p-6 text-center">
-                <p className="text-text-tertiary text-sm">
+            <div className="terminal-panel p-6 text-center">
+                <p className="text-phosphor-green text-glow-green text-sm font-mono uppercase tracking-widest font-bold">▌ NO_EXIT_DATA</p>
+                <p className="text-text-tertiary text-xs font-mono mt-2">
                     Exit types will appear once you close trades with the updated app.
                 </p>
-                <p className="text-text-tertiary/60 text-xs mt-2">
-                    Future closes will auto-detect TP, SL, Expiry, Manual, or Roll.
+                <p className="text-text-tertiary/60 text-[10px] font-mono mt-1">
+                    Future closes auto-detect TP, SL, Expiry, Manual, or Roll.
                 </p>
             </div>
         );
@@ -142,23 +145,23 @@ export const DisciplineCard: React.FC<DisciplineCardProps> = ({ closedPositions,
         <div className="space-y-4">
             {/* Data coverage note */}
             {metrics.withExitType < metrics.total && (
-                <div className="text-xs text-text-tertiary bg-white/[0.03] rounded-lg px-3 py-2">
-                    {metrics.withExitType} of {metrics.total} trades have exit data
+                <div className="text-[11px] text-phosphor-amber font-mono uppercase tracking-wider bg-phosphor-amber/[0.04] border border-phosphor-amber/20 rounded-md px-3 py-2">
+                    ▌ {metrics.withExitType} OF {metrics.total} TRADES HAVE EXIT DATA
                 </div>
             )}
 
             {/* Hero: TP/SL Win Rate */}
-            <div className="card p-5">
-                <div className="text-text-tertiary text-xs uppercase tracking-wider mb-2">TP / SL Win Rate</div>
-                <div className="flex items-baseline gap-3">
-                    <span className={`text-4xl font-bold ${metrics.tpSlWinRate != null && metrics.tpSlWinRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>
+            <div className="terminal-panel p-5">
+                <span className="label-mono">▌ TP / SL WIN RATE</span>
+                <div className="flex items-baseline gap-3 mt-1">
+                    <span className={`text-4xl font-bold font-mono tabular-nums ${metrics.tpSlWinRate != null && metrics.tpSlWinRate >= 50 ? 'metric-glow-pos' : 'metric-glow-neg'}`}>
                         {metrics.tpSlWinRate != null ? `${metrics.tpSlWinRate.toFixed(1)}%` : '—'}
                     </span>
                     {metrics.byType.TP.count + metrics.byType.SL.count > 0 && (
-                        <span className="text-sm text-text-tertiary">
-                            <span className="text-accent-green">{metrics.byType.TP.count} TP</span>
+                        <span className="text-[11px] text-text-tertiary font-mono uppercase tracking-wider">
+                            <span className="text-phosphor-green">{metrics.byType.TP.count} TP</span>
                             {' / '}
-                            <span className="text-accent-red">{metrics.byType.SL.count} SL</span>
+                            <span className="text-phosphor-red">{metrics.byType.SL.count} SL</span>
                         </span>
                     )}
                 </div>
@@ -166,44 +169,46 @@ export const DisciplineCard: React.FC<DisciplineCardProps> = ({ closedPositions,
 
             {/* Secondary metrics */}
             <div className="grid grid-cols-2 gap-3">
-                <div className="card p-4">
-                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Discipline Rate</div>
-                    <div className={`text-xl font-bold ${metrics.disciplineRate != null && metrics.disciplineRate >= 50 ? 'text-accent-green' : 'text-text-secondary'}`}>
+                <div className="terminal-panel p-4">
+                    <span className="label-mono">DISCIPLINE RATE</span>
+                    <div className={`text-xl font-bold font-mono tabular-nums mt-1 ${metrics.disciplineRate != null && metrics.disciplineRate >= 50 ? 'metric-glow-pos' : 'text-text-secondary'}`}>
                         {metrics.disciplineRate != null ? `${metrics.disciplineRate.toFixed(1)}%` : '—'}
                     </div>
-                    <div className="text-[11px] text-text-tertiary mt-0.5">TP+SL / total closes</div>
+                    <div className="text-[10px] text-text-tertiary font-mono mt-0.5">TP+SL / total closes</div>
                 </div>
-                <div className="card p-4">
-                    <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Expectancy</div>
-                    <div className={`text-xl font-bold font-mono ${metrics.expectancy != null && metrics.expectancy >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                <div className="terminal-panel p-4">
+                    <span className="label-mono">EXPECTANCY</span>
+                    <div className={`text-xl font-bold font-mono tabular-nums mt-1 ${metrics.expectancy != null && metrics.expectancy >= 0 ? 'metric-glow-pos' : 'metric-glow-neg'}`}>
                         {metrics.expectancy != null ? `${metrics.expectancy >= 0 ? '+' : ''}${formatCurrency(metrics.expectancy)}` : '—'}
                     </div>
-                    <div className="text-[11px] text-text-tertiary mt-0.5">per TP/SL trade</div>
+                    <div className="text-[10px] text-text-tertiary font-mono mt-0.5">per TP/SL trade</div>
                 </div>
             </div>
 
             {/* Exit type bar chart */}
             {metrics.barData.length > 0 && (
-                <div className="card p-4">
-                    <h4 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">Exit Type Distribution</h4>
+                <div className="terminal-panel p-4">
+                    <h4 className="label-mono mb-3">▌ EXIT_TYPE_DISTRIBUTION</h4>
                     <div className="h-[160px] sm:h-[180px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={metrics.barData} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-                                <XAxis type="number" tick={{ fill: '#888', fontSize: 11 }} axisLine={false} tickLine={false} />
+                                <XAxis type="number" tick={{ fill: CHART_COLORS.axisText, fontSize: 11, fontFamily: CHART_FONT_MONO }} axisLine={false} tickLine={false} />
                                 <YAxis
                                     type="category"
                                     dataKey="name"
-                                    tick={{ fill: '#ccc', fontSize: 12 }}
+                                    tick={{ fill: '#ccc', fontSize: 12, fontFamily: CHART_FONT_MONO }}
                                     axisLine={false}
                                     tickLine={false}
                                     width={80}
                                 />
                                 <Tooltip
                                     contentStyle={{
-                                        background: '#1C1C1E',
-                                        border: '1px solid rgba(255,255,255,0.1)',
-                                        borderRadius: 12,
-                                        fontSize: 13,
+                                        background: CHART_COLORS.tooltipBg,
+                                        border: `1px solid ${CHART_COLORS.tooltipBorder}`,
+                                        borderRadius: 6,
+                                        fontSize: 12,
+                                        fontFamily: CHART_FONT_MONO,
+                                        boxShadow: CHART_COLORS.tooltipShadow,
                                     }}
                                     formatter={(value: number | undefined) => [value ?? 0, 'Trades']}
                                 />
@@ -221,37 +226,37 @@ export const DisciplineCard: React.FC<DisciplineCardProps> = ({ closedPositions,
             {/* Rule Adherence */}
             {(metrics.entryTotal > 0 || metrics.exitTotal > 0) && (
                 <div className="grid grid-cols-2 gap-3">
-                    <div className="card p-4">
-                        <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Entry Rules</div>
-                        <div className={`text-xl font-bold ${metrics.entryCompliancePct != null && metrics.entryCompliancePct >= 80 ? 'text-accent-green' : metrics.entryCompliancePct != null && metrics.entryCompliancePct >= 60 ? 'text-accent-yellow' : 'text-accent-red'}`}>
+                    <div className="terminal-panel p-4">
+                        <span className="label-mono">ENTRY RULES</span>
+                        <div className={`text-xl font-bold font-mono tabular-nums mt-1 ${metrics.entryCompliancePct != null && metrics.entryCompliancePct >= 80 ? 'metric-glow-pos' : metrics.entryCompliancePct != null && metrics.entryCompliancePct >= 60 ? 'metric-glow-warn' : 'metric-glow-neg'}`}>
                             {metrics.entryCompliancePct != null ? `${metrics.entryCompliancePct.toFixed(0)}%` : '—'}
                         </div>
-                        <div className="text-[11px] text-text-tertiary mt-0.5">{metrics.entryCompliant}/{metrics.entryTotal} compliant</div>
-                        <div className="text-[10px] text-text-tertiary/60 mt-1">IV Rank + Width check</div>
+                        <div className="text-[10px] text-text-tertiary font-mono mt-0.5">{metrics.entryCompliant}/{metrics.entryTotal} compliant</div>
+                        <div className="text-[10px] text-text-tertiary/60 font-mono mt-1">IV Rank + Width check</div>
                     </div>
-                    <div className="card p-4">
-                        <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Exit Rules</div>
-                        <div className={`text-xl font-bold ${metrics.exitCompliancePct != null && metrics.exitCompliancePct >= 80 ? 'text-accent-green' : metrics.exitCompliancePct != null && metrics.exitCompliancePct >= 60 ? 'text-accent-yellow' : 'text-accent-red'}`}>
+                    <div className="terminal-panel p-4">
+                        <span className="label-mono">EXIT RULES</span>
+                        <div className={`text-xl font-bold font-mono tabular-nums mt-1 ${metrics.exitCompliancePct != null && metrics.exitCompliancePct >= 80 ? 'metric-glow-pos' : metrics.exitCompliancePct != null && metrics.exitCompliancePct >= 60 ? 'metric-glow-warn' : 'metric-glow-neg'}`}>
                             {metrics.exitCompliancePct != null ? `${metrics.exitCompliancePct.toFixed(0)}%` : '—'}
                         </div>
-                        <div className="text-[11px] text-text-tertiary mt-0.5">{metrics.exitCompliant}/{metrics.exitTotal} TP/TIME</div>
-                        <div className="text-[10px] text-text-tertiary/60 mt-1">vs MANUAL/SL exits</div>
+                        <div className="text-[10px] text-text-tertiary font-mono mt-0.5">{metrics.exitCompliant}/{metrics.exitTotal} TP/TIME</div>
+                        <div className="text-[10px] text-text-tertiary/60 font-mono mt-1">vs MANUAL/SL exits</div>
                     </div>
                 </div>
             )}
 
             {/* Avg P&L by exit type */}
-            <div className="card p-4">
-                <h4 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3">Avg P&L by Exit Type</h4>
+            <div className="terminal-panel p-4">
+                <h4 className="label-mono mb-3">▌ AVG_P&L_BY_EXIT_TYPE</h4>
                 <div className="space-y-2">
                     {metrics.barData.map(d => (
-                        <div key={d.name} className="flex justify-between items-center py-1.5 border-b border-white/[0.04] last:border-0">
+                        <div key={d.name} className="flex justify-between items-center py-1.5 border-b border-phosphor-green/10 last:border-0">
                             <div className="flex items-center gap-2">
-                                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                                <span className="text-sm text-text-primary">{d.name}</span>
-                                <span className="text-xs text-text-tertiary">({d.count})</span>
+                                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color, boxShadow: `0 0 6px ${d.color}88` }} />
+                                <span className="text-sm text-text-primary font-mono uppercase tracking-wider">{d.name}</span>
+                                <span className="text-xs text-text-tertiary font-mono">({d.count})</span>
                             </div>
-                            <span className={`font-mono font-semibold text-sm ${d.avgPnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                            <span className={`font-mono font-bold tabular-nums text-sm ${d.avgPnl >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>
                                 {d.avgPnl >= 0 ? '+' : ''}{formatCurrency(d.avgPnl)}
                             </span>
                         </div>
