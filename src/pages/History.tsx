@@ -17,20 +17,25 @@ interface HistoryPageProps {
 
 function exitTypeBadge(type: Position['exit_type']) {
     if (!type) return null;
+    // Phosphor-aligned exit-type badges. Green = clean profit, red = loss, amber = time/defensive, dim = manual/roll.
+    const G = 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/30';
+    const R = 'bg-phosphor-red/10 text-phosphor-red text-glow-red border border-phosphor-red/30';
+    const A = 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/30';
+    const N = 'bg-terminal-panel text-phosphor-dim border border-phosphor-green/20';
     const map: Record<string, { label: string; cls: string }> = {
-        TP:     { label: 'TP Hit',   cls: 'bg-green-500/15 text-green-400 border border-green-500/25' },
-        SL:     { label: 'SL Hit',   cls: 'bg-red-500/15 text-red-400 border border-red-500/25' },
-        TIME:   { label: 'Time',     cls: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25' },
-        MANUAL: { label: 'Manual',   cls: 'bg-gray-500/15 text-gray-400 border border-gray-500/25' },
-        ROLL:          { label: 'Rolled',        cls: 'bg-blue-500/15 text-blue-400 border border-blue-500/25' },
-        EXP_PROFIT:    { label: 'Expired +',      cls: 'bg-green-500/15 text-green-400 border border-green-500/25' },
-        EXP_LOSS:      { label: 'Expired −',      cls: 'bg-red-500/15 text-red-400 border border-red-500/25' },
-        EARLY_PROFIT:  { label: 'Early Profit',   cls: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25' },
-        EARLY_DEFENSE: { label: 'Early Defense',  cls: 'bg-orange-500/15 text-orange-400 border border-orange-500/25' },
+        TP:            { label: 'TP HIT',         cls: G },
+        SL:            { label: 'SL HIT',         cls: R },
+        TIME:          { label: 'TIME',           cls: A },
+        MANUAL:        { label: 'MANUAL',         cls: N },
+        ROLL:          { label: 'ROLLED',         cls: N },
+        EXP_PROFIT:    { label: 'EXPIRED +',      cls: G },
+        EXP_LOSS:      { label: 'EXPIRED −',      cls: R },
+        EARLY_PROFIT:  { label: 'EARLY PROFIT',   cls: G },
+        EARLY_DEFENSE: { label: 'EARLY DEFENSE',  cls: A },
     };
     const m = map[type];
     if (!m) return null;
-    return <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${m.cls}`}>{m.label}</span>;
+    return <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider font-bold ${m.cls}`}>{m.label}</span>;
 }
 
 export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsProp, transactions: transactionsProp, loading: loadingProp, onDelete: onDeleteProp, onUpdateOwner: onUpdateOwnerProp }) => {
@@ -86,66 +91,65 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
             <div className="lg:w-1/3 lg:sticky lg:top-20 lg:self-start">
                 {/* Summary Stats */}
                 {closedPositions.length > 0 && (
-                    <div className="mb-6 pb-4 border-b border-white/[0.1]">
+                    <div className="mb-6 pb-4 border-b border-phosphor-green/15">
                         {/* Total P&L */}
-                        <div className="mb-3">
-                            <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Total P&L</div>
-                            <div className={`hero-number text-4xl font-bold font-mono ${overallStats.totalPnL >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                        <div className="terminal-panel p-4 mb-3">
+                            <span className="label-mono">▌ TOTAL P&L</span>
+                            <div className={`text-4xl font-bold font-mono tabular-nums mt-1 ${overallStats.totalPnL >= 0 ? 'metric-glow-pos' : 'metric-glow-neg'}`}>
                                 {overallStats.totalPnL >= 0 ? '+' : '-'}${Math.abs(overallStats.totalPnL).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                         </div>
                         {/* Stats Strip */}
-                        <div className="flex items-center gap-6">
-                            <div>
-                                <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Win Rate</div>
-                                <div className={`text-xl font-bold ${overallStats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'}`}>
+                        <div className="grid grid-cols-3 gap-2">
+                            <div className="terminal-panel p-3">
+                                <span className="label-mono">WIN RATE</span>
+                                <div className={`text-xl font-bold font-mono tabular-nums mt-1 ${overallStats.winRate >= 50 ? 'metric-glow-pos' : 'metric-glow-neg'}`}>
                                     {overallStats.winRate.toFixed(0)}%
                                 </div>
                             </div>
-                            <div>
-                                <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Wins</div>
-                                <div className="text-xl font-bold text-accent-green">{overallStats.wins}</div>
+                            <div className="terminal-panel p-3">
+                                <span className="label-mono">WINS</span>
+                                <div className="text-xl font-bold font-mono tabular-nums mt-1 metric-glow-pos">{overallStats.wins}</div>
                             </div>
-                            <div>
-                                <div className="text-text-tertiary text-xs uppercase tracking-wider mb-1">Losses</div>
-                                <div className="text-xl font-bold text-accent-red">{overallStats.losses}</div>
+                            <div className="terminal-panel p-3">
+                                <span className="label-mono">LOSSES</span>
+                                <div className="text-xl font-bold font-mono tabular-nums mt-1 metric-glow-neg">{overallStats.losses}</div>
                             </div>
                         </div>
                     </div>
                 )}
 
                 {/* Owner Filter */}
-                <div className="flex items-center gap-1.5 mb-4">
-                    {(['All', 'Yuchen', 'Annie'] as const).map(value => (
-                        <button
-                            key={value}
-                            type="button"
-                            onClick={() => setOwnerFilter(value)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${ownerFilter === value
-                                ? value === 'Yuchen'
-                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                    : value === 'Annie'
-                                        ? 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
-                                        : 'bg-white/10 text-text-primary border border-white/20'
-                                : 'bg-bg-secondary/30 text-text-tertiary border border-border-default/50 hover:text-text-secondary'
-                                }`}
-                        >
-                            {value}
-                        </button>
-                    ))}
+                <div>
+                    <span className="label-mono mb-1.5 block">▌ OWNER</span>
+                    <div className="flex items-center gap-1.5 mb-4">
+                        {(['All', 'Yuchen', 'Annie'] as const).map(value => (
+                            <button
+                                key={value}
+                                type="button"
+                                onClick={() => setOwnerFilter(value)}
+                                className={`px-3 py-1.5 rounded-md text-[11px] font-mono uppercase tracking-wider transition-all min-h-[36px] cursor-pointer ${ownerFilter === value
+                                    ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                    : 'bg-terminal-panel text-text-tertiary border border-border-default/50 hover:text-phosphor-dim hover:border-phosphor-green/20'
+                                    }`}
+                            >
+                                {value}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
             {/* Main content — trade list */}
             <div className="lg:w-2/3">
-                <h2 className="text-2xl font-bold mb-6">Trade History</h2>
+                <h2 className="text-xl sm:text-2xl font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green mb-6">▌ TRADE_HISTORY</h2>
 
                 {closedPositions.length === 0 ? (
-                    <div className="text-center py-16 text-text-secondary">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-bg-tertiary flex items-center justify-center">
-                            <History size={32} strokeWidth={1.5} />
+                    <div className="terminal-panel text-center py-16">
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-phosphor-green/[0.08] border border-phosphor-green/30 flex items-center justify-center">
+                            <History size={32} strokeWidth={1.5} className="text-phosphor-green" />
                         </div>
-                        <p>No closed trades yet</p>
+                        <p className="text-phosphor-green text-glow-green text-sm font-mono uppercase tracking-widest font-bold">▌ NO_CLOSED_TRADES</p>
                     </div>
                 ) : (
                     <div className="space-y-3">
@@ -153,11 +157,11 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
                             const { pnl, pnlPct, holdDays } = getStats(p);
                             const isWin = pnl >= 0;
                             return (
-                                <div key={p.id} className="py-4 sm:py-5 border-b border-white/[0.04]">
+                                <div key={p.id} className={`terminal-panel ${isWin ? '' : 'terminal-panel-red'} p-4 sm:p-5`}>
                                     <div className="flex justify-between items-start gap-3">
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
-                                                <span className="text-lg sm:text-xl font-bold">{p.ticker}</span>
+                                                <span className="text-lg sm:text-xl font-mono font-bold uppercase tracking-wider text-phosphor-green text-glow-green">{p.ticker}</span>
                                                 {p.owner && (
                                                     <button
                                                         onClick={() => {
@@ -165,36 +169,33 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
                                                             const next = p.owner === 'Yuchen' ? 'Annie' : 'Yuchen';
                                                             onUpdateOwner(p.id, next);
                                                         }}
-                                                        className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-semibold cursor-pointer transition-colors ${p.owner === 'Yuchen'
-                                                            ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
-                                                            : 'bg-pink-500/20 text-pink-400 hover:bg-pink-500/30'
-                                                            }`}
+                                                        className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider font-bold cursor-pointer transition-colors bg-terminal-panel text-phosphor-dim border border-phosphor-green/20 hover:border-phosphor-green/40 hover:text-phosphor-green"
                                                         title={`Owner: ${p.owner}`}
                                                     >
-                                                        {p.owner}
+                                                        ▌ {p.owner}
                                                     </button>
                                                 )}
-                                                <span className={`badge bg-bg-elevated text-white border border-white/[0.1]`}>{p.type}</span>
-                                                {p.setup && <span className={`badge bg-yellow-500/10 text-yellow-500 border border-yellow-500/20`}>{p.setup}</span>}
-                                                {p.strategy && <span className={`badge bg-violet-500/10 text-violet-400 border border-violet-500/20`}>{p.strategy}</span>}
-                                                <span className={`badge ${isWin ? 'badge-green' : 'badge-red'} flex items-center gap-1`}>
-                                                    {isWin ? <><Check size={12} /> Win</> : 'Loss'}
+                                                <span className="badge bg-terminal-panel text-text-primary border border-border-default font-mono uppercase tracking-wider text-[10px]">{p.type}</span>
+                                                {p.setup && <span className="badge bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/30 font-mono uppercase tracking-wider text-[10px]">{p.setup}</span>}
+                                                {p.strategy && <span className="badge bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/30 font-mono uppercase tracking-wider text-[10px]">{p.strategy}</span>}
+                                                <span className={`badge font-mono uppercase tracking-wider text-[10px] flex items-center gap-1 ${isWin ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/30' : 'bg-phosphor-red/10 text-phosphor-red text-glow-red border border-phosphor-red/30'}`}>
+                                                    {isWin ? <><Check size={12} /> WIN</> : 'LOSS'}
                                                 </span>
                                             </div>
-                                            <div className="text-text-secondary text-xs sm:text-sm flex items-center flex-wrap gap-1.5">
-                                                <span className="font-mono">${p.strike}</span>
-                                                {p.spread_width != null && <span className="text-text-tertiary">${p.spread_width}w</span>}
+                                            <div className="text-text-secondary text-xs font-mono uppercase tracking-wider flex items-center flex-wrap gap-1.5">
+                                                <span className="tabular-nums">${p.strike}</span>
+                                                {p.spread_width != null && <span className="text-text-tertiary tabular-nums">${p.spread_width}W</span>}
                                                 <span>·</span>
-                                                <span>{holdDays}d hold</span>
+                                                <span className="tabular-nums">{holdDays}D HOLD</span>
                                                 {exitTypeBadge(p.exit_type)}
                                             </div>
                                         </div>
                                         <div className="flex flex-col items-end gap-2 sm:gap-3 shrink-0">
                                             <div className="text-right">
-                                                <div className={`text-2xl sm:text-3xl font-bold tracking-tight leading-none ${isWin ? 'text-accent-green' : 'text-accent-red'}`}>
+                                                <div className={`text-2xl sm:text-3xl font-bold font-mono tabular-nums tracking-tight leading-none ${isWin ? 'metric-glow-pos' : 'metric-glow-neg'}`}>
                                                     {formatPercent(pnlPct)}
                                                 </div>
-                                                <div className={`text-xs sm:text-sm font-mono ${isWin ? 'text-accent-green' : 'text-accent-red'}`}>
+                                                <div className={`text-xs sm:text-sm font-mono tabular-nums ${isWin ? 'text-phosphor-green' : 'text-phosphor-red'}`}>
                                                     {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
                                                 </div>
                                             </div>
@@ -203,11 +204,11 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ positions: positionsPr
                                                     e.stopPropagation();
                                                     onDelete(p.id);
                                                 }}
-                                                className="p-2.5 min-w-[44px] min-h-[44px] text-text-tertiary hover:text-accent-red hover:bg-accent-red/10 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 text-xs"
+                                                className="btn-terminal-danger min-w-[44px] flex items-center gap-1"
                                                 title="Delete Record"
                                             >
                                                 <Trash2 size={14} />
-                                                <span className="hidden sm:inline">Delete</span>
+                                                <span className="hidden sm:inline">DELETE</span>
                                             </button>
                                         </div>
                                     </div>

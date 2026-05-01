@@ -233,19 +233,19 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div>
-            <h3 className="text-sm font-semibold text-white">Open PMCC Position</h3>
-            <p className="text-[11px] text-text-tertiary mt-0.5">
+            <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green">▌ OPEN_PMCC_POSITION</h3>
+            <p className="text-[11px] text-text-tertiary font-mono mt-0.5">
               {profile.subtitle}
             </p>
           </div>
-          <button onClick={onClose} className="text-text-tertiary hover:text-text-secondary p-1" aria-label="Close">
+          <button onClick={onClose} className="text-text-tertiary hover:text-phosphor-amber p-1 cursor-pointer" aria-label="Close">
             <X size={16} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="px-5 pb-5 space-y-4">
           <div>
-            <label className="block text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">Ticker</label>
+            <label className="label-mono mb-1 block">▌ TICKER</label>
             <input
               className="input-field"
               value={ticker}
@@ -255,20 +255,20 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
           </div>
 
           {/* Long LEAP leg */}
-          <div className="rounded-lg border border-blue-500/20 bg-blue-500/[0.03] px-3 py-3">
+          <div className="terminal-panel border-phosphor-green/30 px-3 py-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] font-semibold text-blue-400 uppercase tracking-wider">
-                Long LEAP leg · δ {profile.longDeltaMin?.toFixed(2)}–{profile.longDeltaMax?.toFixed(2)}
+              <p className="text-[11px] font-mono font-bold text-phosphor-green text-glow-green uppercase tracking-widest">
+                ▌ LONG LEAP · δ {profile.longDeltaMin?.toFixed(2)}–{profile.longDeltaMax?.toFixed(2)}
               </p>
               {leapQuery.isFetching && (
-                <span className="text-[10px] text-text-tertiary">Loading…</span>
+                <span className="text-[10px] text-phosphor-dim font-mono uppercase tracking-wider">Loading…</span>
               )}
             </div>
             {/* LEAP suggestions */}
             {leapCandidates.length > 0 && (
               <div className="space-y-1 mb-2.5">
-                <div className="flex items-center gap-1 text-[10px] text-text-tertiary">
-                  <Sparkles size={10} className="text-blue-400" /> suggested LEAPs
+                <div className="flex items-center gap-1 text-[10px] text-text-tertiary font-mono uppercase tracking-wider">
+                  <Sparkles size={10} className="text-phosphor-green" /> suggested LEAPs
                 </div>
                 {leapCandidates.map(opt => {
                   const isPicked = pickedLeap?.strike === opt.strike && pickedLeap?.expiration === opt.expiration;
@@ -277,13 +277,13 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       key={`${opt.expiration}-${opt.strike}`}
                       type="button"
                       onClick={() => applyLeap(opt)}
-                      className={`w-full text-left rounded-md px-2 py-1.5 text-[11px] transition-colors ${isPicked ? 'bg-blue-500/15 border border-blue-500/50' : 'bg-bg-tertiary/40 border border-transparent hover:border-border-default/50'}`}
+                      className={`w-full text-left rounded-md px-2 py-1.5 text-[11px] font-mono transition-colors cursor-pointer ${isPicked ? 'bg-phosphor-green/10 border border-phosphor-green/45 text-glow-green' : 'bg-terminal-panel border border-border-default/50 hover:border-phosphor-green/30'}`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-mono text-text-primary">
+                        <span className="font-mono text-text-primary tabular-nums">
                           ${opt.strike} · {formatDate(opt.expiration)} ({opt.dte}d)
                         </span>
-                        <span className="font-mono text-blue-300">δ{Math.abs(opt.greeks.delta).toFixed(2)} · ${opt.price.toFixed(2)}</span>
+                        <span className="font-mono text-phosphor-green tabular-nums">δ{Math.abs(opt.greeks.delta).toFixed(2)} · ${opt.price.toFixed(2)}</span>
                       </div>
                     </button>
                   );
@@ -291,14 +291,14 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
               </div>
             )}
             {leapQuery.isError && (
-              <p className="text-[10px] text-amber-400 mb-2">Couldn't load LEAP chain — enter manually.</p>
+              <p className="text-[10px] text-phosphor-amber font-mono mb-2">Couldn't load LEAP chain — enter manually.</p>
             )}
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-[10px] text-text-tertiary mb-1">
-                  Expiration
+                <label className="label-mono mb-1 block">
+                  EXPIRATION
                   {longDte != null && (
-                    <span className={`ml-1 text-[9px] font-mono px-1 py-0.5 rounded ${longDteInRange ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                    <span className={`ml-1 text-[9px] font-mono px-1 py-0.5 rounded ${longDteInRange ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/30' : 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/30'}`}>
                       {longDte}d
                     </span>
                   )}
@@ -312,7 +312,7 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-text-tertiary mb-1">Strike</label>
+                <label className="label-mono mb-1 block">STRIKE</label>
                 <input
                   type="number"
                   step="0.5"
@@ -324,7 +324,7 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-text-tertiary mb-1">Debit paid</label>
+                <label className="label-mono mb-1 block">DEBIT PAID</label>
                 <input
                   type="number"
                   step="0.01"
@@ -339,20 +339,20 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
           </div>
 
           {/* Short leg */}
-          <div className="rounded-lg border border-rose-500/20 bg-rose-500/[0.03] px-3 py-3">
+          <div className="terminal-panel terminal-panel-amber px-3 py-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] font-semibold text-rose-400 uppercase tracking-wider">
-                Short monthly leg · δ {profile.shortDeltaMin?.toFixed(2)}–{profile.shortDeltaMax?.toFixed(2)}
+              <p className="text-[11px] font-mono font-bold text-phosphor-amber text-glow-amber uppercase tracking-widest">
+                ▌ SHORT MONTHLY · δ {profile.shortDeltaMin?.toFixed(2)}–{profile.shortDeltaMax?.toFixed(2)}
               </p>
               {shortQuery.isFetching && (
-                <span className="text-[10px] text-text-tertiary">Loading…</span>
+                <span className="text-[10px] text-phosphor-dim font-mono uppercase tracking-wider">Loading…</span>
               )}
             </div>
             {/* Short suggestions — shown once a LEAP strike exists to filter by. */}
             {shortCandidates.length > 0 && (
               <div className="space-y-1 mb-2.5">
-                <div className="flex items-center gap-1 text-[10px] text-text-tertiary">
-                  <Sparkles size={10} className="text-rose-400" /> suggested shorts (strike &gt; LEAP ${pickedLeap?.strike ?? longStrikeNum})
+                <div className="flex items-center gap-1 text-[10px] text-text-tertiary font-mono uppercase tracking-wider">
+                  <Sparkles size={10} className="text-phosphor-amber" /> suggested shorts (strike &gt; LEAP ${pickedLeap?.strike ?? longStrikeNum})
                 </div>
                 {shortCandidates.map(opt => {
                   const isPicked = pickedShort?.strike === opt.strike && pickedShort?.expiration === opt.expiration;
@@ -361,13 +361,13 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                       key={`${opt.expiration}-${opt.strike}`}
                       type="button"
                       onClick={() => applyShort(opt)}
-                      className={`w-full text-left rounded-md px-2 py-1.5 text-[11px] transition-colors ${isPicked ? 'bg-rose-500/15 border border-rose-500/50' : 'bg-bg-tertiary/40 border border-transparent hover:border-border-default/50'}`}
+                      className={`w-full text-left rounded-md px-2 py-1.5 text-[11px] font-mono transition-colors cursor-pointer ${isPicked ? 'bg-phosphor-amber/10 border border-phosphor-amber/45 text-glow-amber' : 'bg-terminal-panel border border-border-default/50 hover:border-phosphor-amber/30'}`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-mono text-text-primary">
+                        <span className="font-mono text-text-primary tabular-nums">
                           ${opt.strike} · {formatDate(opt.expiration)} ({opt.dte}d)
                         </span>
-                        <span className="font-mono text-rose-300">δ{Math.abs(opt.greeks.delta).toFixed(2)} · ${opt.price.toFixed(2)}</span>
+                        <span className="font-mono text-phosphor-amber tabular-nums">δ{Math.abs(opt.greeks.delta).toFixed(2)} · ${opt.price.toFixed(2)}</span>
                       </div>
                     </button>
                   );
@@ -375,17 +375,17 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
               </div>
             )}
             {shortQuery.isError && (
-              <p className="text-[10px] text-amber-400 mb-2">Couldn't load short chain — enter manually.</p>
+              <p className="text-[10px] text-phosphor-amber font-mono mb-2">Couldn't load short chain — enter manually.</p>
             )}
             {!pickedLeap && isNaN(longStrikeNum) && !shortQuery.isFetching && (
-              <p className="text-[10px] text-text-tertiary mb-2">Pick a LEAP above to filter short candidates by strike.</p>
+              <p className="text-[10px] text-text-tertiary font-mono mb-2">Pick a LEAP above to filter short candidates by strike.</p>
             )}
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-[10px] text-text-tertiary mb-1">
-                  Expiration
+                <label className="label-mono mb-1 block">
+                  EXPIRATION
                   {shortDte != null && (
-                    <span className={`ml-1 text-[9px] font-mono px-1 py-0.5 rounded ${shortDteInRange ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                    <span className={`ml-1 text-[9px] font-mono px-1 py-0.5 rounded ${shortDteInRange ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/30' : 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/30'}`}>
                       {shortDte}d
                     </span>
                   )}
@@ -399,7 +399,7 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-text-tertiary mb-1">Strike</label>
+                <label className="label-mono mb-1 block">STRIKE</label>
                 <input
                   type="number"
                   step="0.5"
@@ -411,7 +411,7 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-text-tertiary mb-1">Credit received</label>
+                <label className="label-mono mb-1 block">CREDIT RECEIVED</label>
                 <input
                   type="number"
                   step="0.01"
@@ -426,8 +426,8 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">
-              Contracts <span className="text-text-tertiary/70 normal-case font-normal">(suggested {suggestedContracts})</span>
+            <label className="label-mono mb-1 block">
+              ▌ CONTRACTS <span className="text-text-tertiary/70 normal-case font-normal">(suggested {suggestedContracts})</span>
             </label>
             <input
               type="number"
@@ -442,24 +442,24 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
           {/* Summary strip */}
           {netDebit != null && maxLossPerContract != null && contracts > 0 && (
-            <div className="rounded-lg bg-bg-secondary/30 border border-border-default/30 px-3 py-2.5 text-xs space-y-1">
+            <div className="terminal-panel px-3 py-2.5 text-xs font-mono space-y-1">
               <div className="flex justify-between">
-                <span className="text-text-tertiary">Net debit / contract</span>
-                <span className="text-text-primary font-mono">${netDebit.toFixed(2)}</span>
+                <span className="label-mono">NET DEBIT / CONTRACT</span>
+                <span className="text-text-primary tabular-nums">${netDebit.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-text-tertiary">Max loss (LEAP cost)</span>
-                <span className="text-accent-red font-mono">${(maxLossPerContract * contracts).toFixed(0)}</span>
+                <span className="label-mono">MAX LOSS (LEAP COST)</span>
+                <span className="text-phosphor-red text-glow-red tabular-nums">${(maxLossPerContract * contracts).toFixed(0)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-text-tertiary">Long PT (+{((profile.longProfitTarget ?? 0.60) * 100).toFixed(0)}%)</span>
-                <span className="text-accent-green font-mono">
+                <span className="label-mono">LONG PT (+{((profile.longProfitTarget ?? 0.60) * 100).toFixed(0)}%)</span>
+                <span className="text-phosphor-green text-glow-green tabular-nums">
                   +${(maxLossPerContract * (profile.longProfitTarget ?? 0.60) * contracts).toFixed(0)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-text-tertiary">% of capital</span>
-                <span className="text-text-primary font-mono">
+                <span className="label-mono">% OF CAPITAL</span>
+                <span className="text-text-primary tabular-nums">
                   {capital > 0 ? ((maxLossPerContract * contracts / capital) * 100).toFixed(1) : '—'}%
                 </span>
               </div>
@@ -470,22 +470,22 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
             <button
               type="button"
               onClick={onClose}
-              className="action-btn btn-secondary text-xs"
+              className="btn-terminal-danger flex-1"
               disabled={submitting}
             >
-              Cancel
+              CANCEL
             </button>
             <button
               type="submit"
-              className="action-btn btn-primary text-xs"
+              className="btn-terminal flex-1"
               disabled={!canSubmit || submitting}
             >
-              {submitting ? 'Opening...' : 'Open PMCC Position'}
+              {submitting ? '▌ OPENING...' : '▌ OPEN PMCC'}
             </button>
           </div>
 
-          <p className="text-[10px] text-text-tertiary">
-            Entered as paper trade by default. Short leg rolls are tracked as roll transactions in Phase D.
+          <p className="text-[10px] text-text-tertiary font-mono">
+            ▌ Entered as paper by default. Short leg rolls tracked as roll transactions.
           </p>
         </form>
       </motion.div>

@@ -25,13 +25,13 @@ export const MFEMAEChart: React.FC = () => {
     return { valid, avgMFE, avgMAE, avgFinal, captureRatio, winners, losers, scale };
   }, [outcomes]);
 
-  if (isLoading) return <p className="text-xs text-text-tertiary py-8 text-center">Loading trade outcomes...</p>;
-  if (error) return <p className="text-xs text-red-400 py-8 text-center">Error: {(error as Error).message}</p>;
+  if (isLoading) return <p className="text-xs text-phosphor-dim font-mono uppercase tracking-wider py-8 text-center">▌ LOADING_TRADE_OUTCOMES...</p>;
+  if (error) return <p className="text-xs text-phosphor-red text-glow-red font-mono py-8 text-center">▌ ERROR: {(error as Error).message}</p>;
   if (!stats) {
     return (
-      <div className="bg-bg-secondary rounded-lg border border-white/10 p-6 text-center">
-        <p className="text-sm text-text-tertiary">No trade outcomes computed yet.</p>
-        <p className="text-xs text-text-tertiary mt-1">The MFE/MAE cron runs daily after market close for closed trades.</p>
+      <div className="terminal-panel p-6 text-center">
+        <p className="text-phosphor-green text-glow-green text-sm font-mono uppercase tracking-widest font-bold">▌ NO_OUTCOMES_YET</p>
+        <p className="text-text-tertiary text-xs font-mono mt-2">The MFE/MAE cron runs daily after market close for closed trades.</p>
       </div>
     );
   }
@@ -56,17 +56,17 @@ export const MFEMAEChart: React.FC = () => {
     <div className="space-y-4">
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Avg MFE" value={`+${avgMFE.toFixed(1)}%`} color="text-green-400" />
-        <StatCard label="Avg MAE" value={`-${avgMAE.toFixed(1)}%`} color="text-red-400" />
-        <StatCard label="Avg P&L" value={`${avgFinal >= 0 ? '+' : ''}${avgFinal.toFixed(1)}%`}
-          color={avgFinal >= 0 ? 'text-green-400' : 'text-red-400'} />
-        <StatCard label="Capture" value={`${captureRatio.toFixed(0)}%`}
-          sub={`of MFE captured`} color="text-accent-green" />
+        <StatCard label="AVG MFE" value={`+${avgMFE.toFixed(1)}%`} color="text-phosphor-green text-glow-green" />
+        <StatCard label="AVG MAE" value={`-${avgMAE.toFixed(1)}%`} color="text-phosphor-red text-glow-red" />
+        <StatCard label="AVG P&L" value={`${avgFinal >= 0 ? '+' : ''}${avgFinal.toFixed(1)}%`}
+          color={avgFinal >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'} />
+        <StatCard label="CAPTURE" value={`${captureRatio.toFixed(0)}%`}
+          sub={`of MFE captured`} color="text-phosphor-amber text-glow-amber" />
       </div>
 
       {/* Scatter plot (CSS-based) */}
-      <div className="bg-bg-secondary rounded-lg border border-white/10 p-4">
-        <h3 className="text-sm font-medium mb-3">MFE vs MAE Scatter ({valid.length} trades)</h3>
+      <div className="terminal-panel p-4">
+        <h3 className="label-mono mb-3">▌ MFE vs MAE SCATTER ({valid.length} TRADES)</h3>
         <div className="relative w-full" style={{ paddingBottom: '60%' }}>
           <div className="absolute inset-0">
             {/* Axes */}
@@ -88,10 +88,11 @@ export const MFEMAEChart: React.FC = () => {
               return (
                 <div
                   key={i}
-                  className={`absolute w-2 h-2 rounded-full ${isWin ? 'bg-green-400' : 'bg-red-400'} opacity-70 hover:opacity-100 transition-opacity`}
+                  className={`absolute w-2 h-2 rounded-full ${isWin ? 'bg-phosphor-green' : 'bg-phosphor-red'} opacity-70 hover:opacity-100 transition-opacity`}
                   style={{
                     left: `calc(12px + ${x}% * 0.85)`,
                     bottom: `calc(${y}% * 0.85)`,
+                    boxShadow: isWin ? '0 0 6px rgba(0,255,65,0.55)' : '0 0 6px rgba(255,45,0,0.55)',
                   }}
                   title={`${o.ticker}: MFE +${o.mfe_pct!.toFixed(1)}%, MAE ${o.mae_pct!.toFixed(1)}%, P&L ${o.final_pct!.toFixed(1)}%`}
                 />
@@ -100,7 +101,7 @@ export const MFEMAEChart: React.FC = () => {
 
             {/* Avg lines */}
             <div
-              className="absolute h-px bg-green-400/30 border-t border-dashed border-green-400/40"
+              className="absolute h-px bg-phosphor-green/30 border-t border-dashed border-phosphor-green/50"
               style={{
                 left: '12px',
                 right: '16px',
@@ -108,7 +109,7 @@ export const MFEMAEChart: React.FC = () => {
               }}
             />
             <div
-              className="absolute w-px bg-red-400/30 border-l border-dashed border-red-400/40"
+              className="absolute w-px bg-phosphor-red/30 border-l border-dashed border-phosphor-red/50"
               style={{
                 top: '16px',
                 bottom: '0',
@@ -119,34 +120,34 @@ export const MFEMAEChart: React.FC = () => {
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 mt-2 text-[10px] text-text-tertiary">
+        <div className="flex items-center gap-4 mt-2 text-[10px] text-text-tertiary font-mono uppercase tracking-wider">
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-green-400 inline-block" /> Winner ({winners.length})
+            <span className="w-2 h-2 rounded-full bg-phosphor-green inline-block" /> Winner ({winners.length})
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-red-400 inline-block" /> Loser ({losers.length})
+            <span className="w-2 h-2 rounded-full bg-phosphor-red inline-block" /> Loser ({losers.length})
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-4 border-t border-dashed border-green-400/40 inline-block" /> Avg MFE
+            <span className="w-4 border-t border-dashed border-phosphor-green/50 inline-block" /> Avg MFE
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-4 border-t border-dashed border-red-400/40 inline-block" /> Avg MAE
+            <span className="w-4 border-t border-dashed border-phosphor-red/50 inline-block" /> Avg MAE
           </span>
         </div>
       </div>
 
       {/* Insight */}
-      <div className="bg-bg-secondary rounded-lg border border-white/10 p-4">
-        <p className="text-xs text-text-secondary">{insight}</p>
+      <div className="terminal-panel p-4">
+        <p className="text-xs text-text-secondary font-mono">{insight}</p>
       </div>
     </div>
   );
 };
 
 const StatCard: React.FC<{ label: string; value: string; color: string; sub?: string }> = ({ label, value, color, sub }) => (
-  <div className="bg-bg-secondary rounded-lg border border-white/10 p-3">
-    <p className="text-[10px] text-text-tertiary uppercase tracking-wider">{label}</p>
-    <p className={`text-lg font-semibold font-mono ${color}`}>{value}</p>
-    {sub && <p className="text-[10px] text-text-tertiary mt-0.5">{sub}</p>}
+  <div className="terminal-panel p-3">
+    <p className="label-mono">{label}</p>
+    <p className={`text-lg font-bold font-mono tabular-nums mt-1 ${color}`}>{value}</p>
+    {sub && <p className="text-[10px] text-text-tertiary font-mono mt-0.5">{sub}</p>}
   </div>
 );

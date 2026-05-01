@@ -11,6 +11,7 @@ import { PositionCard } from '../components/PositionCard';
 import type { Position, PositionAction as PositionActionType } from '../lib/types';
 import { computePositionPnL, getStrategyKind, groupTransactionsByPositionId } from '../lib/utils';
 import { ACTIVE_STRATEGIES, STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
+import { CHART_COLORS, CHART_FONT_MONO, axisProps } from '../lib/chartTheme';
 
 export function DashboardPage() {
   const { settings } = useAppSettings();
@@ -104,52 +105,84 @@ export function DashboardPage() {
     [updatePrice]
   );
 
-  const chartColor = perfStats.pnl >= 0 ? '#4EBE96' : '#FF6B6B';
+  const chartColor = perfStats.pnl >= 0 ? CHART_COLORS.positive : CHART_COLORS.negative;
 
   return (
     <PageTransition>
+      {/* ── HERO STRIP — terminal headline + 3 KPI tiles with scanlines ── */}
+      <StaggerItem className="mb-6">
+        <div className="terminal-panel scanlines px-4 sm:px-5 py-4 sm:py-5">
+          <motion.h1
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4 }}
+            className="text-[11px] sm:text-xs font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green mb-4"
+          >
+            ▌ STRATEGY_OPS // <span className="text-phosphor-amber text-glow-amber">[LIVE]</span><span className="cursor-blink" aria-hidden="true"></span>
+          </motion.h1>
+          <div className="grid grid-cols-3 gap-3 sm:gap-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
+            >
+              <span className="label-mono">NET P&L</span>
+              <p className={`font-mono font-bold tabular-nums leading-none mt-1 ${perfStats.pnl >= 0 ? 'metric-glow-pos' : 'metric-glow-neg'}`}
+                 style={{ fontSize: 'clamp(1.5rem, 5.5vw, 2.75rem)' }}>
+                {perfStats.pnl >= 0 ? '+' : ''}${Math.abs(perfStats.pnl).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </p>
+              <span className={`inline-flex items-center gap-1 mt-2 text-[10px] sm:text-xs font-mono font-semibold ${
+                returnPct >= 0 ? 'text-phosphor-green' : 'text-phosphor-red'
+              }`}>
+                {returnPct >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                {returnPct >= 0 ? '+' : ''}{returnPct.toFixed(2)}%
+              </span>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.15 }}
+            >
+              <span className="label-mono">WIN RATE</span>
+              <p className="font-mono font-bold tabular-nums leading-none mt-1 text-text-primary"
+                 style={{ fontSize: 'clamp(1.5rem, 5.5vw, 2.75rem)' }}>
+                {perfStats.winRate}<span className="text-text-tertiary text-base">%</span>
+              </p>
+              <span className="inline-block mt-2 text-[10px] sm:text-xs font-mono text-text-tertiary">
+                CLOSED_TRADES_BASIS
+              </span>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.2 }}
+            >
+              <span className="label-mono">TRADES</span>
+              <p className="font-mono font-bold tabular-nums leading-none mt-1 text-text-primary"
+                 style={{ fontSize: 'clamp(1.5rem, 5.5vw, 2.75rem)' }}>
+                {perfStats.trades}
+              </p>
+              <span className="inline-block mt-2 text-[10px] sm:text-xs font-mono text-text-tertiary">
+                {ACTIVE_STRATEGIES.length} ACTIVE_STRATS
+              </span>
+            </motion.div>
+          </div>
+        </div>
+      </StaggerItem>
+
       {/* ── TOP: Two-column ── */}
       <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
 
-        {/* ── LEFT — P&L + Chart ── */}
+        {/* ── LEFT — Chart ── */}
         <StaggerItem className="lg:w-7/12 xl:w-2/3">
           <div className="mb-1">
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.4 }}
-              className="text-text-tertiary text-xs uppercase tracking-[0.15em] font-semibold mb-2"
+              className="text-phosphor-dim/70 text-[10px] uppercase tracking-widest font-mono font-semibold mb-2"
             >
-              Net P&L · BCD + PMCC
-            </motion.p>
-            <div className="flex items-baseline gap-3 flex-wrap">
-              <motion.span
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
-                className={`hero-number ${perfStats.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}
-              >
-                {perfStats.pnl >= 0 ? '+' : ''}${Math.abs(perfStats.pnl).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-              </motion.span>
-              <motion.span
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.4, delay: 0.3 }}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${
-                  returnPct >= 0 ? 'bg-accent-green/10 text-accent-green' : 'bg-accent-red/10 text-accent-red'
-                }`}
-              >
-                {returnPct >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                {returnPct >= 0 ? '+' : ''}{returnPct.toFixed(2)}%
-              </motion.span>
-            </div>
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4, delay: 0.2 }}
-              className="text-text-tertiary text-xs mt-1.5 font-mono"
-            >
-              {perfStats.trades} trades · {perfStats.winRate}% WR · {ACTIVE_STRATEGIES.length} active strategies
+              ▌ EQUITY_CURVE // CUMULATIVE_P&L
             </motion.p>
           </div>
 
@@ -165,22 +198,22 @@ export function DashboardPage() {
                 <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                   <defs>
                     <linearGradient id="pnlGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={chartColor} stopOpacity={0.2} />
+                      <stop offset="5%" stopColor={chartColor} stopOpacity={0.28} />
                       <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" />
-                  <XAxis dataKey="trade" tick={{ fill: '#666', fontSize: 11 }} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} />
-                  <YAxis tick={{ fill: '#666', fontSize: 11 }} tickLine={false} axisLine={false}
+                  <CartesianGrid stroke={CHART_COLORS.grid} strokeDasharray="3 3" />
+                  <XAxis dataKey="trade" {...axisProps} axisLine={{ stroke: CHART_COLORS.axisLine }} />
+                  <YAxis {...axisProps} axisLine={false}
                     tickFormatter={(v: number) => `$${v >= 0 ? '' : '-'}${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(1) + 'K' : Math.abs(v).toFixed(0)}`}
                   />
                   <Tooltip
-                    contentStyle={{ background: '#1A1A1A', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, fontSize: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
+                    contentStyle={{ background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.tooltipBorder}`, borderRadius: 6, fontSize: 12, fontFamily: CHART_FONT_MONO, boxShadow: CHART_COLORS.tooltipShadow }}
                     formatter={(value: number | undefined) => [`$${(value ?? 0) >= 0 ? '+' : ''}${(value ?? 0).toFixed(0)}`, 'P&L']}
-                    labelFormatter={(label) => `Trade #${label}`}
+                    labelFormatter={(label) => `TRADE #${label}`}
                   />
                   <Area type="monotone" dataKey="pnl" stroke={chartColor} strokeWidth={2} fill="url(#pnlGrad)" dot={false}
-                    activeDot={{ r: 4, fill: chartColor, stroke: '#000', strokeWidth: 2 }}
+                    activeDot={{ r: 4, fill: chartColor, stroke: CHART_COLORS.tooltipBg, strokeWidth: 2 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -202,13 +235,15 @@ export function DashboardPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.4, delay: 0.5 }}
-            className="flex items-center gap-4 mt-3 text-text-tertiary text-xs flex-wrap"
+            className="flex items-center gap-4 mt-3 text-text-tertiary text-[10px] font-mono uppercase tracking-wider flex-wrap"
           >
             {boards.map(b => (
               <span key={b.strategy} className="flex items-center gap-1.5">
-                <span className={`w-1 h-3 rounded-full ${b.open ? 'bg-accent-green' : 'bg-text-tertiary/30'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${b.open ? 'bg-phosphor-green pulse-glow' : 'bg-text-tertiary/30'}`} />
                 {b.profile.shortLabel}
-                {b.open ? ' · live' : ' · flat'}
+                <span className={b.open ? 'text-phosphor-green' : 'text-text-tertiary'}>
+                  {b.open ? '· LIVE' : '· FLAT'}
+                </span>
               </span>
             ))}
           </motion.div>
@@ -217,8 +252,8 @@ export function DashboardPage() {
         {/* ── RIGHT — Strategy Boards + Capital ── */}
         <SlideRight className="lg:w-5/12 xl:w-1/3" delay={0.2}>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-text-primary text-sm font-semibold">Strategies</h2>
-            <span className="text-text-tertiary text-[10px] font-mono">F1 adopted</span>
+            <h2 className="text-phosphor-green text-glow-green text-xs font-mono font-bold uppercase tracking-widest">▌ STRATEGIES</h2>
+            <span className="text-phosphor-dim/70 text-[10px] font-mono uppercase tracking-wider">F1_ADOPTED</span>
           </div>
           <div className="space-y-3">
             {boards.map((b, i) => (
@@ -227,28 +262,29 @@ export function DashboardPage() {
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, delay: 0.3 + i * 0.08 }}
-                className="card-glass px-4 py-3"
+                className={`terminal-panel px-4 py-3 ${b.open ? '' : ''}`}
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-text-primary text-sm font-semibold">{b.profile.shortLabel}</span>
-                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase ${
-                      b.open ? 'bg-accent-green/15 text-accent-green ring-1 ring-accent-green/20'
+                    <span className="text-text-primary font-mono text-sm font-bold uppercase tracking-wider">{b.profile.shortLabel}</span>
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider uppercase ${
+                      b.open
+                        ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green ring-1 ring-phosphor-green/30'
                         : 'bg-white/[0.04] text-text-tertiary ring-1 ring-white/[0.06]'
                     }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${b.open ? 'bg-accent-green pulse-glow' : 'bg-text-tertiary/30'}`} />
-                      {b.open ? 'Open' : 'Flat'}
+                      <span className={`w-1.5 h-1.5 rounded-full ${b.open ? 'bg-phosphor-green pulse-glow' : 'bg-text-tertiary/30'}`} />
+                      {b.open ? 'OPEN' : 'FLAT'}
                     </span>
                   </div>
-                  <span className="text-text-tertiary text-[10px] font-mono">${b.capital.toLocaleString()}</span>
+                  <span className="text-phosphor-dim/70 text-[10px] font-mono tabular-nums">${b.capital.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-text-tertiary">{b.closedCount} trades · {b.winRate}% WR</span>
-                  <span className={`font-mono font-semibold ${b.pnl >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                  <span className="text-text-tertiary font-mono">{b.closedCount} TRADES · {b.winRate}% WR</span>
+                  <span className={`font-mono font-bold tabular-nums ${b.pnl >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>
                     {b.pnl >= 0 ? '+' : ''}${Math.abs(b.pnl).toFixed(0)}
                   </span>
                 </div>
-                <p className="text-text-tertiary text-[10px] mt-1 truncate">{b.profile.subtitle}</p>
+                <p className="text-text-tertiary text-[10px] font-mono mt-1 truncate">{b.profile.subtitle}</p>
               </motion.div>
             ))}
           </div>
@@ -258,20 +294,20 @@ export function DashboardPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.5 }}
-            className="mt-6 pt-4 border-t border-white/[0.06]"
+            className="mt-6 pt-4 border-t border-phosphor-green/15"
           >
-            <h2 className="text-text-primary text-sm font-semibold mb-3">Capital</h2>
+            <h2 className="text-phosphor-green text-glow-green text-xs font-mono font-bold uppercase tracking-widest mb-3">▌ CAPITAL</h2>
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-text-tertiary text-xs">Total allocated</span>
-                <span className="text-text-primary text-sm font-mono font-semibold">${totalCapital.toLocaleString()}</span>
+                <span className="text-text-tertiary text-[11px] font-mono uppercase tracking-wider">Total allocated</span>
+                <span className="text-text-primary text-sm font-mono font-bold tabular-nums">${totalCapital.toLocaleString()}</span>
               </div>
               {boards.map(b => {
                 const riskDollars = b.capital * (b.riskPctPerTrade / 100);
                 return (
                   <div key={b.strategy} className="flex items-center justify-between">
-                    <span className="text-text-tertiary text-xs">{b.profile.shortLabel} risk / trade</span>
-                    <span className="text-accent-coral text-sm font-mono font-semibold">
+                    <span className="text-text-tertiary text-[11px] font-mono uppercase tracking-wider">{b.profile.shortLabel} risk / trade</span>
+                    <span className="text-phosphor-amber text-glow-amber text-sm font-mono font-bold tabular-nums">
                       ${riskDollars.toFixed(0)} ({b.riskPctPerTrade}%)
                     </span>
                   </div>
@@ -284,9 +320,9 @@ export function DashboardPage() {
 
       {/* ── BOTTOM: Active positions ── */}
       {activePositions.length > 0 && (
-        <StaggerItem className="mt-8 pt-6 border-t border-white/[0.06]">
-          <h2 className="text-text-primary text-sm font-semibold mb-4">
-            Active Positions <span className="text-text-tertiary font-normal ml-2">{activePositions.length}</span>
+        <StaggerItem className="mt-8 pt-6 border-t border-phosphor-green/15">
+          <h2 className="text-phosphor-green text-glow-green text-xs font-mono font-bold uppercase tracking-widest mb-4">
+            ▌ ACTIVE_POSITIONS <span className="text-phosphor-dim/70 font-normal ml-2">[{activePositions.length}]</span>
           </h2>
           <div className="space-y-3">
             {activePositions.map((pos, i) => (
@@ -315,13 +351,13 @@ export function DashboardPage() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="card-glass px-6 py-12 text-center"
+            className="terminal-panel px-6 py-12 text-center"
           >
-            <div className="w-12 h-12 rounded-full bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
-              <Zap size={20} className="text-text-tertiary" />
+            <div className="w-12 h-12 rounded-full bg-phosphor-green/[0.08] border border-phosphor-green/30 flex items-center justify-center mx-auto mb-4">
+              <Zap size={20} className="text-phosphor-green" />
             </div>
-            <p className="text-text-secondary text-sm font-medium">No positions yet</p>
-            <p className="text-text-tertiary text-xs mt-1">BCD and PMCC entries will appear on the Signals page once live trading begins.</p>
+            <p className="text-phosphor-green text-glow-green text-sm font-mono uppercase tracking-wider font-bold">▌ AWAITING_SIGNAL</p>
+            <p className="text-text-tertiary text-xs font-mono mt-2">BCD and PMCC entries will appear on the Signals page once live trading begins.</p>
           </motion.div>
         </StaggerItem>
       )}

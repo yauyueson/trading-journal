@@ -185,17 +185,17 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     };
 
     const getScoreColor = (score: number) => {
-        if (score >= 75) return 'text-green-400';
-        if (score >= 60) return 'text-yellow-400';
-        if (score >= 45) return 'text-orange-400';
-        return 'text-red-400';
+        if (score >= 75) return 'text-phosphor-green text-glow-green';
+        if (score >= 60) return 'text-phosphor-amber';
+        if (score >= 45) return 'text-phosphor-amber';
+        return 'text-phosphor-red text-glow-red';
     };
 
     const getCategoryBadge = (category: StrategyCategory | string) => {
         switch (category) {
-            case 'CREDIT_SPREAD': return { label: 'Credit', color: 'bg-red-500/20 text-red-400 border-red-500/30' };
-            case 'DEBIT_SPREAD': return { label: 'Debit', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
-            case 'SINGLE_LEG': return { label: 'Long', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' };
+            case 'CREDIT_SPREAD': return { label: 'Credit', color: 'bg-phosphor-red/10 text-phosphor-red text-glow-red border-phosphor-red/30' };
+            case 'DEBIT_SPREAD': return { label: 'Debit', color: 'bg-phosphor-green/10 text-phosphor-green text-glow-green border-phosphor-green/30' };
+            case 'SINGLE_LEG': return { label: 'Long', color: 'bg-terminal-panel text-phosphor-dim border-phosphor-green/20' };
             default: return { label: category, color: 'bg-gray-500/20 text-text-tertiary border-gray-500/30' };
         }
     };
@@ -325,62 +325,62 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
     }, [onAddDirect, result, openPosQty, openPosPrice, openPosOwner, direction, isSpread, activeStrategy, openPosTP]);
 
     return (
-        <div className="stagger-fade-in pb-24 sm:pb-0 font-sans">
+        <div className="stagger-fade-in pb-24 sm:pb-0">
             {/* Header */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <Activity className="text-accent-green" />
-                    Spread Builder
+                <h1 className="text-xl sm:text-2xl font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green flex items-center gap-2">
+                    <Activity className="text-phosphor-green" />
+                    ▌ SPREAD_BUILDER
                 </h1>
-                <p className="text-text-tertiary text-sm mt-1">{`Credit spread recommendations · ${profile.subtitle}`}</p>
+                <p className="text-text-tertiary text-[11px] font-mono uppercase tracking-wider mt-1">{`CREDIT SPREAD RECOMMENDATIONS · ${profile.subtitle}`}</p>
             </div>
 
             {/* Two-column layout */}
             <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
                 {/* Sidebar — settings/controls */}
                 <div className="lg:w-1/3 lg:sticky lg:top-20 lg:self-start space-y-4">
-                    <div className="bg-bg-tertiary border border-white/[0.08] rounded-xl p-4 sm:p-6 shadow-sm space-y-4">
+                    <div className="terminal-panel p-4 sm:p-6 space-y-4">
                         {/* Ticker + Analyze */}
                         <div>
-                            <label className="text-xs text-text-tertiary font-medium mb-1.5 block uppercase tracking-wider">Ticker</label>
+                            <label className="label-mono mb-1.5 block">▌ TICKER</label>
                             <div className="relative">
                                 <input
                                     ref={tickerRef}
                                     type="text"
                                     value={ticker}
                                     onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                                    className="w-full bg-bg-primary border border-white/[0.08] text-white rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:border-accent-green text-xl font-black tracking-wide placeholder-gray-600 transition-colors"
+                                    className="w-full bg-terminal-black text-phosphor-green text-glow-green rounded-md pl-10 pr-4 py-3 text-xl font-mono font-bold uppercase tracking-widest placeholder-text-tertiary/40"
                                     placeholder="SPY"
                                     onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
                                 />
-                                <Search className="absolute left-3 top-3.5 text-gray-500" size={20} />
+                                <Search className="absolute left-3 top-3.5 text-phosphor-dim/60" size={20} />
                             </div>
                         </div>
 
                         <button
                             onClick={handleAnalyze}
                             disabled={loading || !ticker}
-                            className="w-full bg-accent-green hover:bg-accent-green/90 text-bg-primary font-bold py-3 px-6 rounded-lg transition-all shadow-lg shadow-accent-green/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="btn-terminal w-full text-sm py-3 flex items-center justify-center gap-2"
                         >
-                            {loading ? <div className="w-5 h-5 border-2 border-bg-primary/30 border-t-bg-primary rounded-full animate-spin" /> : <Activity size={20} />}
-                            Analyze
+                            {loading ? <div className="w-4 h-4 border-2 border-phosphor-green/30 border-t-phosphor-green rounded-full animate-spin" /> : <Activity size={16} />}
+                            ▌ ANALYZE
                         </button>
 
                         {/* Portfolio / Risk Settings */}
-                        <div className="border border-white/[0.08] rounded-lg overflow-hidden">
+                        <div className="terminal-panel overflow-hidden">
                             <button
                                 type="button"
                                 onClick={() => setShowSettings(!showSettings)}
-                                className="w-full flex items-center justify-between px-4 py-2.5 bg-bg-primary hover:bg-bg-secondary transition-colors text-left"
+                                className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-phosphor-green/5 transition-colors text-left cursor-pointer"
                             >
-                                <span className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                                    <Settings2 size={16} className="text-accent-green" />
-                                    Portfolio / Risk Settings
+                                <span className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-phosphor-dim">
+                                    <Settings2 size={14} className="text-phosphor-green text-glow-green" />
+                                    ▌ PORTFOLIO / RISK SETTINGS
                                 </span>
-                                <ChevronDown size={18} className={`text-gray-500 transition-transform ${showSettings ? 'rotate-180' : ''}`} />
+                                <ChevronDown size={16} className={`text-phosphor-dim/70 transition-transform ${showSettings ? 'rotate-180' : ''}`} />
                             </button>
                             {showSettings && (
-                                <div className="p-4 bg-bg-secondary border-t border-white/[0.08]">
+                                <div className="p-4 bg-terminal-black border-t border-phosphor-green/15">
                                     <PortfolioSettingsForm variant="full" />
                                 </div>
                             )}
@@ -388,21 +388,21 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
                         {/* Direction */}
                         <div>
-                            <label className="text-xs text-text-tertiary font-medium mb-1.5 block uppercase tracking-wider">Direction</label>
-                            <div className="grid grid-cols-2 gap-2 bg-bg-primary p-1 rounded-lg border border-white/[0.08]">
+                            <label className="label-mono mb-1.5 block">▌ DIRECTION</label>
+                            <div className="grid grid-cols-2 gap-2 bg-terminal-black p-1 rounded-md border border-phosphor-green/20">
                                 {(['BULL', 'BEAR'] as const).map((d) => (
                                     <button
                                         key={d}
                                         type="button"
                                         onClick={() => setDirection(d)}
-                                        className={`py-2.5 rounded text-xs font-bold transition-all ${direction === d
+                                        className={`py-2.5 rounded text-[11px] font-mono uppercase tracking-wider transition-all cursor-pointer ${direction === d
                                             ? d === 'BULL'
-                                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                                : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                                            : 'text-gray-500 hover:text-gray-300'
+                                                ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                                : 'bg-phosphor-red/10 text-phosphor-red text-glow-red border border-phosphor-red/40'
+                                            : 'text-text-tertiary hover:text-phosphor-dim border border-transparent'
                                             }`}
                                     >
-                                        {d === 'BULL' ? '🐂' : '🐻'} {d}
+                                        {d === 'BULL' ? '▲ BULL' : '▼ BEAR'}
                                     </button>
                                 ))}
                             </div>
@@ -410,50 +410,50 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
                         {/* Target DTE */}
                         <div>
-                            <label className="text-xs text-text-tertiary font-medium mb-1.5 block uppercase tracking-wider">Target DTE</label>
-                            <div className="bg-bg-primary p-1.5 rounded-lg border border-white/[0.08]">
+                            <label className="label-mono mb-1.5 block">▌ TARGET DTE</label>
+                            <div className="bg-terminal-black p-1.5 rounded-md border border-phosphor-green/20">
                                 <div className="flex flex-col gap-2">
                                     {/* Short-Term group */}
                                     <div>
-                                        <div className="text-[9px] text-blue-400 font-semibold uppercase tracking-wider text-center mb-1.5 mt-0.5">Short-Term</div>
+                                        <div className="text-[9px] text-phosphor-green text-glow-green font-mono font-bold uppercase tracking-widest text-center mb-1.5 mt-0.5">▌ SHORT-TERM</div>
                                         <div className="grid grid-cols-3 gap-1">
                                             {STRATEGY_PROFILES.shortTerm.dteOptions.map((opt) => (
                                                 <button
                                                     key={opt.val}
                                                     type="button"
                                                     onClick={() => handleDteSelect(opt.val)}
-                                                    className={`py-1.5 rounded px-1 text-xs font-bold transition-all ${targetDte === opt.val
-                                                        ? 'bg-blue-500/20 text-blue-400 shadow-sm border border-blue-500/30'
-                                                        : 'text-gray-500 hover:text-gray-300'
+                                                    className={`py-1.5 rounded px-1 font-mono uppercase tracking-wider transition-all cursor-pointer ${targetDte === opt.val
+                                                        ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                                        : 'text-text-tertiary hover:text-phosphor-dim border border-transparent'
                                                     }`}
                                                 >
                                                     <div className="flex flex-col items-center">
-                                                        <span className="text-[10px]">{opt.label}</span>
-                                                        <span className="text-[9px] font-normal opacity-70">{opt.text}</span>
+                                                        <span className="text-[10px] font-bold">{opt.label}</span>
+                                                        <span className="text-[9px] font-normal opacity-70 tabular-nums">{opt.text}</span>
                                                     </div>
                                                 </button>
                                             ))}
                                         </div>
                                     </div>
                                     {/* Divider */}
-                                    <div className="h-px bg-white/[0.1]" />
+                                    <div className="h-px bg-phosphor-green/15" />
                                     {/* Swing group */}
                                     <div>
-                                        <div className="text-[9px] text-green-400 font-semibold uppercase tracking-wider text-center mb-1.5 mt-0.5">Swing</div>
+                                        <div className="text-[9px] text-phosphor-green text-glow-green font-mono font-bold uppercase tracking-widest text-center mb-1.5 mt-0.5">▌ SWING</div>
                                         <div className="grid grid-cols-3 gap-1">
                                             {STRATEGY_PROFILES.swing.dteOptions.map((opt) => (
                                                 <button
                                                     key={opt.val}
                                                     type="button"
                                                     onClick={() => handleDteSelect(opt.val)}
-                                                    className={`py-1.5 rounded px-1 text-xs font-bold transition-all ${targetDte === opt.val
-                                                        ? 'bg-green-500/20 text-green-400 shadow-sm border border-green-500/30'
-                                                        : 'text-gray-500 hover:text-gray-300'
+                                                    className={`py-1.5 rounded px-1 font-mono uppercase tracking-wider transition-all cursor-pointer ${targetDte === opt.val
+                                                        ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                                        : 'text-text-tertiary hover:text-phosphor-dim border border-transparent'
                                                     }`}
                                                 >
                                                     <div className="flex flex-col items-center">
-                                                        <span className="text-[10px]">{opt.label}</span>
-                                                        <span className="text-[9px] font-normal opacity-70">{opt.text}</span>
+                                                        <span className="text-[10px] font-bold">{opt.label}</span>
+                                                        <span className="text-[9px] font-normal opacity-70 tabular-nums">{opt.text}</span>
                                                     </div>
                                                 </button>
                                             ))}
@@ -465,16 +465,16 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
                         {/* Spread Width */}
                         <div>
-                            <label className="text-xs text-text-tertiary font-medium mb-1.5 block uppercase tracking-wider">Spread Width</label>
-                            <div className="grid grid-cols-4 gap-1.5 bg-bg-primary p-1 rounded-lg border border-white/[0.08]">
+                            <label className="label-mono mb-1.5 block">▌ SPREAD WIDTH</label>
+                            <div className="grid grid-cols-4 gap-1.5 bg-terminal-black p-1 rounded-md border border-phosphor-green/20">
                                 {profile.widthOptions.map((opt) => (
                                     <button
                                         key={opt.val}
                                         type="button"
                                         onClick={() => setSpreadWidth(opt.val)}
-                                        className={`py-2 rounded px-1 text-xs font-bold transition-all ${spreadWidth === opt.val
-                                            ? 'bg-white/[0.12] text-white shadow-sm'
-                                            : 'text-gray-500 hover:text-gray-300'
+                                        className={`py-2 rounded px-1 text-[11px] font-mono font-bold tabular-nums uppercase tracking-wider transition-all cursor-pointer ${spreadWidth === opt.val
+                                            ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                            : 'text-text-tertiary hover:text-phosphor-dim border border-transparent'
                                             }`}
                                     >
                                         {opt.label}
@@ -489,7 +489,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                 <div className="lg:w-2/3">
 
             {error && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl mb-6 flex items-center gap-3">
+                <div className="bg-phosphor-red/10 border border-phosphor-red/30 text-phosphor-red text-glow-red p-4 rounded-xl mb-6 flex items-center gap-3">
                     <AlertCircle size={24} />
                     <span className="font-medium">{error}</span>
                 </div>
@@ -497,11 +497,11 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
             {/* Auto-backfill notice: shown when ticker's IV history was just backfilled from RV proxy */}
             {result?.autoBackfillTriggered && (
-                <div className="bg-blue-500/10 border border-blue-500/30 text-blue-300 p-3 rounded-xl mb-4 flex items-start gap-3">
-                    <RefreshCw size={16} className="mt-0.5 shrink-0 text-blue-400" />
-                    <div className="text-xs text-blue-400/80 leading-relaxed">
+                <div className="bg-phosphor-green/10 border border-phosphor-green/30 text-phosphor-green p-3 rounded-xl mb-4 flex items-start gap-3">
+                    <RefreshCw size={16} className="mt-0.5 shrink-0 text-phosphor-green" />
+                    <div className="text-xs text-phosphor-green/80 leading-relaxed">
                         IV history for <strong>{result.context.ticker}</strong> was auto-backfilled from realized volatility (~{result.regime.ivRankSampleDays || 0}d).
-                        IV Rank shown as <span className="text-yellow-400">(est.)</span> — live IV snapshots will replace over time.
+                        IV Rank shown as <span className="text-phosphor-amber">(est.)</span> — live IV snapshots will replace over time.
                     </div>
                 </div>
             )}
@@ -510,22 +510,22 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             {result?.dataSource === 'CBOE' && (
                 <div className={`border p-3 rounded-xl mb-4 flex items-center gap-3 ${
                     result?.scoresReliable === false
-                        ? 'bg-red-500/15 border-red-500/40 text-red-300'
-                        : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                        ? 'bg-phosphor-red/10 border border-phosphor-red/40 text-phosphor-red'
+                        : 'bg-phosphor-amber/10 border border-phosphor-amber/30 text-phosphor-amber'
                 }`}>
-                    <AlertCircle size={16} className={`shrink-0 ${result?.scoresReliable === false ? 'text-red-400' : 'text-amber-400'}`} />
+                    <AlertCircle size={16} className={`shrink-0 ${result?.scoresReliable === false ? 'text-phosphor-red text-glow-red' : 'text-phosphor-amber text-glow-amber'}`} />
                     <span className="text-xs font-medium">
                         {result?.scoresReliable === false ? (
                             <>
                                 <span className="font-bold text-red-200">Scores Unreliable — CBOE (No Greeks)</span>
                                 {' '}— CBOE data has no real Greeks. All LOQ/CSQ scores are ~50 (random).
-                                Do NOT act on these scores. Set <code className="bg-black/40 px-1 rounded text-red-300">DATA_SOURCE=ORATS</code> for real scoring.
+                                Do NOT act on these scores. Set <code className="bg-black/40 px-1 rounded text-phosphor-red">DATA_SOURCE=ORATS</code> for real scoring.
                             </>
                         ) : (
                             <>
                                 <span className="font-bold text-amber-200">Data Source: CBOE</span>
                                 {' '}— Options quotes are <span className="font-bold">15 minutes delayed</span>.
-                                For real-time Greeks &amp; IV, set <code className="bg-black/40 px-1 rounded text-amber-300">DATA_SOURCE=ORATS</code> in your environment.
+                                For real-time Greeks &amp; IV, set <code className="bg-black/40 px-1 rounded text-phosphor-amber">DATA_SOURCE=ORATS</code> in your environment.
                             </>
                         )}
                     </span>
@@ -535,7 +535,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
             {/* Degraded data warning: >50% of options have zero Greeks */}
             {result?.dataQuality === 'degraded' && (
                 <div className="bg-yellow-500/10 border border-yellow-500/40 text-yellow-300 p-3 rounded-xl mb-4 flex items-center gap-3">
-                    <AlertCircle size={16} className="shrink-0 text-yellow-400" />
+                    <AlertCircle size={16} className="shrink-0 text-phosphor-amber" />
                     <span className="text-xs font-medium">
                         <span className="font-bold text-yellow-200">Degraded Data Quality</span>
                         {' '}— More than half of the options in this chain have zero Greeks.
@@ -546,8 +546,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
             {/* Stale quote warning: quotes older than 5 minutes */}
             {result?.quoteFreshness?.isStale && (
-                <div className="bg-orange-500/10 border border-orange-500/40 text-orange-300 p-3 rounded-xl mb-4 flex items-center gap-3">
-                    <AlertCircle size={16} className="shrink-0 text-orange-400" />
+                <div className="bg-phosphor-amber/10 border border-phosphor-amber/40 text-phosphor-amber p-3 rounded-xl mb-4 flex items-center gap-3">
+                    <AlertCircle size={16} className="shrink-0 text-phosphor-amber" />
                     <span className="text-xs font-medium">
                         <span className="font-bold text-orange-200">Stale Quotes</span>
                         {' '}— {result.quoteFreshness.staleQuotes} options have quotes older than 5 minutes
@@ -564,7 +564,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                     {hasSignalContext && (
                         <div className="bg-bg-tertiary border border-white/[0.08] rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-3">
-                                <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded px-2 py-0.5 text-xs font-bold">
+                                <span className="bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/30 rounded px-2 py-0.5 text-xs font-bold">
                                     WFA Validated
                                 </span>
                                 <span className="text-xs text-gray-500">Signal context from {urlSignalType || 'EMA'} scan</span>
@@ -579,7 +579,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                 {direction && (
                                     <div>
                                         <div className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-0.5">Direction</div>
-                                        <div className={`text-sm font-bold ${direction === 'BULL' ? 'text-green-400' : 'text-red-400'}`}>{direction}</div>
+                                        <div className={`text-sm font-bold ${direction === 'BULL' ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>{direction}</div>
                                     </div>
                                 )}
                                 {urlScore != null && (
@@ -622,40 +622,40 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                         const topRec = recs[0];
                         const { profile: tradeProfile } = topRec ? computeTradeProfile(topRec) : { profile: '' };
                         const profileColors: Record<string, string> = {
-                            'Gamma Burst': 'bg-purple-500/15 text-purple-300 border-purple-500/30',
-                            'Delta Trend': 'bg-blue-500/15 text-blue-300 border-blue-500/30',
-                            'Theta Harvest': 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-                            'Vega Expansion': 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-                            'Vega Crush': 'bg-orange-500/15 text-orange-300 border-orange-500/30',
+                            'Gamma Burst': 'bg-terminal-panel text-phosphor-dim border border-phosphor-green/20',
+                            'Delta Trend': 'bg-phosphor-green/10 text-phosphor-green border border-phosphor-green/30',
+                            'Theta Harvest': 'bg-phosphor-green/10 text-phosphor-green text-glow-green border border-phosphor-green/30',
+                            'Vega Expansion': 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber border border-phosphor-amber/30',
+                            'Vega Crush': 'bg-phosphor-amber/10 text-phosphor-amber border border-phosphor-amber/30',
                         };
                         const profileIcons: Record<string, string> = {
-                            'Gamma Burst': '⚡',
+                            'Gamma Burst': '※',
                             'Delta Trend': '→',
                             'Theta Harvest': 'θ',
                             'Vega Expansion': '↑V',
                             'Vega Crush': '↓V',
                         };
                         return (
-                            <div className={`border rounded-xl p-4 sm:p-5 relative overflow-hidden ${result.regime.mode === 'CREDIT' ? 'bg-red-900/10 border-red-500/30' :
-                                result.regime.mode === 'DEBIT' ? 'bg-green-900/10 border-green-500/30' :
-                                    'bg-bg-tertiary border-white/[0.08]'
+                            <div className={`terminal-panel p-4 sm:p-5 relative overflow-hidden ${result.regime.mode === 'CREDIT' ? 'border-phosphor-red/45' :
+                                result.regime.mode === 'DEBIT' ? 'border-phosphor-green/45' :
+                                    ''
                                 }`}>
                                 <div className="flex flex-col gap-4 relative z-10">
                                     {/* Upper half: Ticker + explanation */}
                                     <div className="min-w-0">
-                                        <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 sm:gap-3 flex-wrap">
+                                        <h2 className="text-xl sm:text-2xl font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green flex items-center gap-2 sm:gap-3 flex-wrap">
                                             {result.context.ticker}
-                                            <span className="text-base sm:text-lg font-normal text-text-tertiary font-mono">${(result.context.currentPrice || 0).toFixed(2)}</span>
-                                            <span className={`text-xs font-bold px-2 py-0.5 rounded border ${result.context.direction === 'BULL' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'
+                                            <span className="text-base sm:text-lg font-normal text-text-tertiary font-mono normal-case tracking-normal">${(result.context.currentPrice || 0).toFixed(2)}</span>
+                                            <span className={`text-xs font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${result.context.direction === 'BULL' ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green border-phosphor-green/40' : 'bg-phosphor-red/10 text-phosphor-red text-glow-red border-phosphor-red/40'
                                                 }`}>
-                                                {result.context.direction} {result.context.direction === 'BULL' ? '🐂' : '🐻'}
+                                                {result.context.direction === 'BULL' ? '▲ BULL' : '▼ BEAR'}
                                             </span>
                                             <span className={`text-xs font-bold px-2 py-0.5 rounded border ${profileColors[tradeProfile]}`}>
                                                 {profileIcons[tradeProfile]} {tradeProfile}
                                             </span>
                                         </h2>
-                                        <p className={`mt-2 font-medium flex items-center gap-2 text-sm sm:text-base ${result.regime.mode === 'CREDIT' ? 'text-red-400' :
-                                            result.regime.mode === 'DEBIT' ? 'text-green-400' : 'text-gray-300'
+                                        <p className={`mt-2 font-medium flex items-center gap-2 text-sm sm:text-base ${result.regime.mode === 'CREDIT' ? 'text-phosphor-red text-glow-red' :
+                                            result.regime.mode === 'DEBIT' ? 'text-phosphor-green text-glow-green' : 'text-phosphor-dim'
                                             }`}>
                                             {result.regime.mode === 'CREDIT' && <TrendingDown size={18} />}
                                             {result.regime.mode === 'DEBIT' && <TrendingUp size={18} />}
@@ -679,20 +679,20 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                         return (
                                             <div className="flex flex-wrap items-center gap-2 text-xs">
                                                 {hasRealEarnings && (
-                                                    <span className={`font-bold px-2 py-0.5 rounded border ${result.context.daysUntilEarnings! <= 7
-                                                        ? 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400'
-                                                        : 'bg-gray-500/10 border-gray-500/30 text-text-tertiary'
+                                                    <span className={`font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${result.context.daysUntilEarnings! <= 7
+                                                        ? 'bg-phosphor-amber/10 border-phosphor-amber/40 text-phosphor-amber text-glow-amber'
+                                                        : 'bg-terminal-panel border-phosphor-green/15 text-text-tertiary'
                                                         }`}>
                                                         Earnings in {result.context.daysUntilEarnings}d
                                                     </span>
                                                 )}
                                                 {hasRealEarnings && result.context.impErnMvPct != null && result.context.impErnMvPct > 0 && (
-                                                    <span className="font-mono text-yellow-300 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/20">
+                                                    <span className="font-mono text-phosphor-amber bg-phosphor-amber/10 px-2 py-0.5 rounded border border-phosphor-amber/30">
                                                         &plusmn;{result.context.impErnMvPct.toFixed(1)}% earnings move
                                                     </span>
                                                 )}
                                                 {hasImpliedMove && (
-                                                    <span className="font-mono text-gray-300 bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                                                    <span className="font-mono text-phosphor-dim bg-white/5 px-2 py-0.5 rounded border border-white/10">
                                                         &plusmn;{result.context.impliedMovePct!.toFixed(1)}% implied
                                                         <span className="text-gray-500 ml-1">
                                                             (${(result.context.currentPrice * (1 - result.context.impliedMovePct! / 100)).toFixed(0)}–${(result.context.currentPrice * (1 + result.context.impliedMovePct! / 100)).toFixed(0)})
@@ -705,7 +705,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
                                     {/* Takeover warning — options are mispriced during M&A */}
                                     {result.context.tkOver && (
-                                        <div className="flex items-center gap-2 text-xs bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 text-red-300">
+                                        <div className="flex items-center gap-2 text-xs bg-phosphor-red/10 border border-phosphor-red/30 rounded-md px-3 py-2 text-phosphor-red">
                                             <AlertCircle size={14} className="shrink-0" />
                                             <span>
                                                 <strong>Takeover target</strong> — options pricing may be unreliable during active M&A activity. Exercise caution with all strategies.
@@ -715,7 +715,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
                                     {/* Rising IV warning — prominent, above indicators */}
                                     {result.regime.ivTrend === 'rising' && result.regime.mode === 'CREDIT' && (
-                                        <div className="flex items-center gap-2 text-xs bg-orange-500/10 border border-orange-500/30 rounded-lg px-3 py-2 text-orange-300">
+                                        <div className="flex items-center gap-2 text-xs bg-phosphor-amber/10 border border-phosphor-amber/30 rounded-md px-3 py-2 text-phosphor-amber">
                                             <AlertCircle size={14} className="shrink-0" />
                                             <span>
                                                 <strong>IV is rising ({result.regime.iv5dChange != null ? `${result.regime.iv5dChange > 0 ? '+' : ''}${result.regime.iv5dChange}pp` : '5d'})</strong> — selling premium into rising IV risks mark-to-market losses. Credit spreads are still regime-appropriate (high IV rank, backwardation) but consider <strong>wider strikes</strong> or <strong>shorter DTE</strong> to reduce vega exposure.
@@ -729,9 +729,9 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                             <div className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-wider">Technical indicators</div>
                                             {result.regime.ivTrend && (
                                                 <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border ${result.regime.ivTrend === 'rising'
-                                                    ? 'bg-orange-500/10 border-orange-500/30 text-orange-400'
+                                                    ? 'bg-orange-500/10 border-orange-500/30 text-phosphor-amber'
                                                     : result.regime.ivTrend === 'falling'
-                                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-phosphor-green text-glow-green'
                                                         : 'bg-gray-500/10 border-gray-500/30 text-text-tertiary'
                                                     }`}>
                                                     IV {result.regime.ivTrend === 'rising' ? '▲' : result.regime.ivTrend === 'falling' ? '▼' : '—'}
@@ -747,10 +747,10 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     IV Rank
                                                     <Tooltip label="" explanation="IV Rank: current IV30 in 252d min–max range (0–100%). Low = IV cheap (buyers); high = IV expensive (sellers)." />
                                                 </div>
-                                                <div className={`text-lg sm:text-xl font-mono font-bold ${result.regime.ivRank != null ? (result.regime.ivRank < 0.3 ? 'text-emerald-400' : result.regime.ivRank > 0.7 ? 'text-amber-400' : 'text-white') : 'text-gray-500'}`}>
+                                                <div className={`text-lg sm:text-xl font-mono font-bold ${result.regime.ivRank != null ? (result.regime.ivRank < 0.3 ? 'text-phosphor-green text-glow-green' : result.regime.ivRank > 0.7 ? 'text-phosphor-amber text-glow-amber' : 'text-white') : 'text-gray-500'}`}>
                                                     {result.regime.ivRank != null ? `${(result.regime.ivRank * 100).toFixed(0)}%` : 'N/A'}
                                                     {result.regime.ivRank != null && result.regime.ivRankSource === 'rv_proxy' && (
-                                                        <span className="text-[9px] text-yellow-400/70 ml-0.5">est</span>
+                                                        <span className="text-[9px] text-phosphor-amber/70 ml-0.5">est</span>
                                                     )}
                                                 </div>
                                                 <div className="text-[9px] text-gray-600 font-mono">
@@ -762,7 +762,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     IV Ratio
                                                     <Tooltip label="" explanation="IV30/IV90 term structure. &lt;1 = contango (sell premium), &gt;1 = backwardation (buy premium)." />
                                                 </div>
-                                                <div className={`text-lg sm:text-xl font-mono font-bold ${(result.regime.ivRatio ?? 1) < 0.95 ? 'text-emerald-400' : (result.regime.ivRatio ?? 1) > 1.05 ? 'text-amber-400' : 'text-white'}`}>
+                                                <div className={`text-lg sm:text-xl font-mono font-bold ${(result.regime.ivRatio ?? 1) < 0.95 ? 'text-phosphor-green text-glow-green' : (result.regime.ivRatio ?? 1) > 1.05 ? 'text-phosphor-amber text-glow-amber' : 'text-white'}`}>
                                                     {result.regime.ivRatio != null ? result.regime.ivRatio.toFixed(2) : 'N/A'}
                                                 </div>
                                                 <div className="text-[9px] text-gray-600 font-mono">
@@ -776,7 +776,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     IV/RV
                                                     <Tooltip label="" explanation="IV30 vs realized vol. &gt;1 = implied expensive (sell); &lt;1 = implied cheap (buy)." />
                                                 </div>
-                                                <div className={`text-lg sm:text-xl font-mono font-bold ${(result.regime.ivRvRatio ?? 1) > 1.1 ? 'text-amber-400' : (result.regime.ivRvRatio ?? 1) < 0.9 ? 'text-emerald-400' : 'text-white'}`}>
+                                                <div className={`text-lg sm:text-xl font-mono font-bold ${(result.regime.ivRvRatio ?? 1) > 1.1 ? 'text-phosphor-amber text-glow-amber' : (result.regime.ivRvRatio ?? 1) < 0.9 ? 'text-phosphor-green text-glow-green' : 'text-white'}`}>
                                                     {result.regime.ivRvRatio != null ? result.regime.ivRvRatio.toFixed(2) : 'N/A'}
                                                 </div>
                                                 <div className="text-[9px] text-gray-600 font-mono">
@@ -789,7 +789,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                         P/C
                                                         <Tooltip label="" explanation="Put/Call volume ratio. &gt;1.2 = bearish (more puts), &lt;0.8 = bullish (more calls)." />
                                                     </div>
-                                                    <div className={`text-lg sm:text-xl font-mono font-bold ${result.context.putCallRatio > 1.2 ? 'text-amber-400' : result.context.putCallRatio < 0.8 ? 'text-emerald-400' : 'text-white'}`}>
+                                                    <div className={`text-lg sm:text-xl font-mono font-bold ${result.context.putCallRatio > 1.2 ? 'text-phosphor-amber text-glow-amber' : result.context.putCallRatio < 0.8 ? 'text-phosphor-green text-glow-green' : 'text-white'}`}>
                                                         {result.context.putCallRatio.toFixed(2)}
                                                     </div>
                                                     <div className="text-[9px] text-gray-600 font-mono">
@@ -803,7 +803,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                         Term
                                                         <Tooltip label="" explanation="Contango (positive) = front IV &lt; back IV, sell premium friendly. Backwardation (negative) = front IV &gt; back IV." />
                                                     </div>
-                                                    <div className={`text-lg sm:text-xl font-mono font-bold ${result.context.contango > 0 ? 'text-emerald-400' : result.context.contango < 0 ? 'text-amber-400' : 'text-white'}`}>
+                                                    <div className={`text-lg sm:text-xl font-mono font-bold ${result.context.contango > 0 ? 'text-phosphor-green text-glow-green' : result.context.contango < 0 ? 'text-phosphor-amber text-glow-amber' : 'text-white'}`}>
                                                         {result.context.contango > 0 ? '+' : ''}{result.context.contango.toFixed(2)}
                                                     </div>
                                                     <div className="text-[9px] text-gray-600 font-mono">
@@ -828,7 +828,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                         IV %
                                                         <Tooltip label="" explanation="IV Percentile: % of past days with IV30 below current." />
                                                     </div>
-                                                    <div className={`text-lg sm:text-xl font-mono font-bold ${result.regime.ivPercentile < 0.3 ? 'text-emerald-400' : result.regime.ivPercentile > 0.7 ? 'text-amber-400' : 'text-white'}`}>
+                                                    <div className={`text-lg sm:text-xl font-mono font-bold ${result.regime.ivPercentile < 0.3 ? 'text-phosphor-green text-glow-green' : result.regime.ivPercentile > 0.7 ? 'text-phosphor-amber text-glow-amber' : 'text-white'}`}>
                                                         {(result.regime.ivPercentile * 100).toFixed(0)}%
                                                     </div>
                                                 </div>
@@ -841,7 +841,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     </div>
                                                     <div className={`text-lg sm:text-xl font-mono font-bold ${
                                                         result.regime.iv30 != null
-                                                            ? (result.context.volForecast.fcst20d > result.regime.iv30 * 100 * 1.05 ? 'text-amber-400' : result.context.volForecast.fcst20d < result.regime.iv30 * 100 * 0.95 ? 'text-emerald-400' : 'text-white')
+                                                            ? (result.context.volForecast.fcst20d > result.regime.iv30 * 100 * 1.05 ? 'text-phosphor-amber text-glow-amber' : result.context.volForecast.fcst20d < result.regime.iv30 * 100 * 0.95 ? 'text-phosphor-green text-glow-green' : 'text-white')
                                                             : 'text-white'
                                                     }`}>
                                                         {result.context.volForecast.fcst20d.toFixed(1)}%
@@ -857,7 +857,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                         Opt Vol
                                                         <Tooltip label="" explanation="20-day average option volume (contracts/day). Higher = better fills and tighter spreads." />
                                                     </div>
-                                                    <div className={`text-lg sm:text-xl font-mono font-bold ${result.context.avgOptVolu20d < 1000 ? 'text-amber-400' : 'text-white'}`}>
+                                                    <div className={`text-lg sm:text-xl font-mono font-bold ${result.context.avgOptVolu20d < 1000 ? 'text-phosphor-amber text-glow-amber' : 'text-white'}`}>
                                                         {result.context.avgOptVolu20d >= 1000
                                                             ? `${(result.context.avgOptVolu20d / 1000).toFixed(1)}K`
                                                             : result.context.avgOptVolu20d.toFixed(0)}
@@ -894,7 +894,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                     return (
                                         <div
                                             key={idx}
-                                            className={`bg-bg-tertiary border border-white/[0.08] rounded-xl overflow-hidden transition-all duration-300 ${expandedCard === idx ? 'ring-1 ring-accent-green/50 shadow-lg shadow-green-900/10' : 'hover:border-white/[0.14]'
+                                            className={`terminal-panel overflow-hidden transition-all duration-300 ${expandedCard === idx ? 'border-phosphor-green/50 shadow-[0_0_24px_rgba(0,255,65,0.12)]' : 'hover:border-phosphor-green/30'
                                                 }`}
                                         >
                                             {/* Card Header (Clickable) */}
@@ -904,7 +904,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                             >
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 sm:gap-3 mb-1">
-                                                        <div className={`text-3xl sm:text-4xl font-black ${getScoreColor(displayScore)}`}>{displayScore}</div>
+                                                        <div className={`text-3xl sm:text-4xl font-mono font-bold tabular-nums ${getScoreColor(displayScore)}`}>{displayScore}</div>
                                                         <div className="min-w-0">
                                                             <div className="font-bold text-base sm:text-lg text-white flex items-center gap-1.5 sm:gap-2 flex-wrap">
                                                                 <span className="truncate">{rec.type}</span>
@@ -946,7 +946,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                 {rec.netCredit && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[10px] text-gray-500 uppercase font-bold">Credit</span>
-                                                                        <span className="text-accent-green font-mono font-bold">${rec.netCredit}</span>
+                                                                        <span className="text-phosphor-green text-glow-green font-mono font-bold">${rec.netCredit}</span>
                                                                     </div>
                                                                 )}
                                                                 {rec.netDebit && (
@@ -958,7 +958,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                 {rec.roi && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[10px] text-gray-500 uppercase font-bold">ROI</span>
-                                                                        <span className="text-accent-green font-mono font-bold">{rec.roi}%</span>
+                                                                        <span className="text-phosphor-green text-glow-green font-mono font-bold">{rec.roi}%</span>
                                                                     </div>
                                                                 )}
                                                                 {rec.pop && (
@@ -970,7 +970,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                 {rec.riskReward && (
                                                                     <div className="flex flex-col">
                                                                         <span className="text-[10px] text-gray-500 uppercase font-bold">R:R</span>
-                                                                        <span className="text-accent-green font-mono font-bold">{rec.riskReward}</span>
+                                                                        <span className="text-phosphor-green text-glow-green font-mono font-bold">{rec.riskReward}</span>
                                                                     </div>
                                                                 )}
                                                                 {(rec as SpreadRecommendation).evHold !== undefined && (
@@ -978,7 +978,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                         <span className="text-[10px] text-gray-500 uppercase font-bold">
                                                                             EV (Hold)
                                                                         </span>
-                                                                        <span className={`font-mono font-bold ${(rec as SpreadRecommendation).evHold! > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                        <span className={`font-mono font-bold ${(rec as SpreadRecommendation).evHold! > 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>
                                                                             ${(rec as SpreadRecommendation).evHold}
                                                                         </span>
                                                                         {(rec as SpreadRecommendation).evDaily !== undefined && (
@@ -990,7 +990,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                 )}
                                                                 <div className="flex flex-col">
                                                                     <span className="text-[10px] text-gray-500 uppercase font-bold">Max Risk</span>
-                                                                    <span className="text-red-400 font-mono font-bold">${rec.maxRisk}</span>
+                                                                    <span className="text-phosphor-red text-glow-red font-mono font-bold">${rec.maxRisk}</span>
                                                                 </div>
                                                                 {rec.maxRisk > 0 && (() => {
                                                                     const maxRiskPerTrade = portfolioTotal * riskPct / 100;
@@ -1021,7 +1021,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                 </div>
                                                                 <div className="flex flex-col">
                                                                     <span className="text-[10px] text-gray-500 uppercase font-bold">Theta</span>
-                                                                    <span className="text-red-400 font-mono font-bold">{(rec as SingleLegRecommendation).theta?.toFixed(3)}</span>
+                                                                    <span className="text-phosphor-red text-glow-red font-mono font-bold">{(rec as SingleLegRecommendation).theta?.toFixed(3)}</span>
                                                                 </div>
                                                                 <div className="flex flex-col">
                                                                     <span className="text-[10px] text-gray-500 uppercase font-bold">Vega</span>
@@ -1029,7 +1029,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                 </div>
                                                                 <div className="flex flex-col">
                                                                     <span className="text-[10px] text-gray-500 uppercase font-bold">Lambda</span>
-                                                                    <span className="text-accent-green font-mono font-bold">{(rec as SingleLegRecommendation).lambda?.toFixed(1)}</span>
+                                                                    <span className="text-phosphor-green text-glow-green font-mono font-bold">{(rec as SingleLegRecommendation).lambda?.toFixed(1)}</span>
                                                                 </div>
                                                                 <div className="flex flex-col">
                                                                     <span className="text-[10px] text-gray-500 uppercase font-bold">Volume</span>
@@ -1058,7 +1058,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                             <div className="bg-bg-tertiary px-3 sm:px-5 py-2 border-t border-white/[0.1] space-y-1">
                                                 <div className="flex items-start gap-2">
                                                     <Info size={14} className="text-yellow-500 shrink-0 mt-0.5" />
-                                                    <span className="text-xs sm:text-sm text-gray-300 italic">{rec.whyThis}</span>
+                                                    <span className="text-xs sm:text-sm text-phosphor-dim italic">{rec.whyThis}</span>
                                                 </div>
                                                 {(() => {
                                                     const sizing = getSuggestedContracts(rec, portfolioTotal, riskPct, { useKelly: true, stopOutFraction });
@@ -1067,10 +1067,10 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     const budgetConsumed = sizing.riskCapDollars > 0 ? (riskAtStopOut / sizing.riskCapDollars) * 100 : 0;
                                                     return (
                                                         <div className="text-[10px] sm:text-xs text-text-tertiary font-mono pl-6 leading-relaxed">
-                                                            Size: <span className="text-accent-green font-bold">{sizing.suggestedContracts}</span> contracts
+                                                            Size: <span className="text-phosphor-green text-glow-green font-bold">{sizing.suggestedContracts}</span> contracts
                                                             {sizing.suggestedContracts > 0 && (
                                                                 <>
-                                                                    {' '}· at-risk: <span className={`font-bold ${riskPctActual > 5 ? 'text-accent-red' : riskPctActual > 2.5 ? 'text-accent-yellow' : 'text-text-primary'}`}>{formatCurrency(riskAtStopOut)} ({riskPctActual.toFixed(1)}%)</span>
+                                                                    {' '}· at-risk: <span className={`font-bold ${riskPctActual > 5 ? 'text-phosphor-red text-glow-red' : riskPctActual > 2.5 ? 'text-phosphor-amber text-glow-amber' : 'text-text-primary'}`}>{formatCurrency(riskAtStopOut)} ({riskPctActual.toFixed(1)}%)</span>
                                                                     <span className="hidden sm:inline text-gray-500"> · budget {budgetConsumed.toFixed(0)}% · max-loss/contract {formatCurrency(sizing.maxLossPerContractDollars)}</span>
                                                                 </>
                                                             )}
@@ -1094,11 +1094,11 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                         <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                                                             {rec.recommendation.note.includes('✅') && (
                                                                 <div className="bg-green-500/5 border border-green-500/20 p-4 rounded-xl">
-                                                                    <h4 className="text-xs font-bold text-green-400 uppercase mb-2 flex items-center gap-2">
+                                                                    <h4 className="text-xs font-bold text-phosphor-green text-glow-green uppercase mb-2 flex items-center gap-2">
                                                                         <TrendingUp size={14} />
                                                                         Why This Strategy Works
                                                                     </h4>
-                                                                    <p className="text-sm text-gray-300 leading-relaxed">
+                                                                    <p className="text-sm text-phosphor-dim leading-relaxed">
                                                                         {rec.recommendation.note.split('⚠️')[0].replace('✅ Pros:', '').trim().replace(/\.$/, '')}
                                                                     </p>
                                                                 </div>
@@ -1106,11 +1106,11 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
 
                                                             {rec.recommendation.note.includes('⚠️') && (
                                                                 <div className="bg-red-500/5 border border-red-500/20 p-4 rounded-xl">
-                                                                    <h4 className="text-xs font-bold text-red-400 uppercase mb-2 flex items-center gap-2">
+                                                                    <h4 className="text-xs font-bold text-phosphor-red text-glow-red uppercase mb-2 flex items-center gap-2">
                                                                         <AlertCircle size={14} />
                                                                         Risks & Drawbacks
                                                                     </h4>
-                                                                    <p className="text-sm text-gray-300 leading-relaxed">
+                                                                    <p className="text-sm text-phosphor-dim leading-relaxed">
                                                                         {rec.recommendation.note.split('⚠️ Cons:')[1]?.trim() || ''}
                                                                     </p>
                                                                 </div>
@@ -1120,11 +1120,11 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     {!isSpread(rec) && (rec as SingleLegRecommendation).recommendation?.note && (
                                                         <div className="mb-6">
                                                             <div className="bg-green-500/5 border border-green-500/20 p-4 rounded-xl">
-                                                                <h4 className="text-xs font-bold text-green-400 uppercase mb-2 flex items-center gap-2">
+                                                                <h4 className="text-xs font-bold text-phosphor-green text-glow-green uppercase mb-2 flex items-center gap-2">
                                                                     <TrendingUp size={14} />
                                                                     Why This Option Is a Good Choice
                                                                 </h4>
-                                                                <p className="text-sm text-gray-300 leading-relaxed">
+                                                                <p className="text-sm text-phosphor-dim leading-relaxed">
                                                                     {(rec as SingleLegRecommendation).recommendation!.note!.replace(/^✅\s*/, '').trim()}
                                                                 </p>
                                                             </div>
@@ -1148,7 +1148,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                 {rec.shortLeg && (
                                                                     <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-3">
                                                                         <div className="flex justify-between items-center mb-1">
-                                                                            <span className="text-red-400 font-bold text-xs uppercase">Short (Sell)</span>
+                                                                            <span className="text-phosphor-red text-glow-red font-bold text-xs uppercase">Short (Sell)</span>
                                                                             <span className="font-mono text-white">${rec.shortLeg.strike}</span>
                                                                         </div>
                                                                         <div className="flex justify-between text-xs text-text-tertiary mb-1">
@@ -1165,7 +1165,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                 {rec.longLeg && (
                                                                     <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3">
                                                                         <div className="flex justify-between items-center mb-1">
-                                                                            <span className="text-green-400 font-bold text-xs uppercase">Long (Buy)</span>
+                                                                            <span className="text-phosphor-green text-glow-green font-bold text-xs uppercase">Long (Buy)</span>
                                                                             <span className="font-mono text-white">${rec.longLeg.strike}</span>
                                                                         </div>
                                                                         <div className="flex justify-between text-xs text-text-tertiary mb-1">
@@ -1198,7 +1198,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                             </div>
                                                             <div className="p-3 bg-bg-tertiary rounded-lg">
                                                                 <div className="text-gray-500 text-[10px] uppercase">Theta</div>
-                                                                <div className="text-red-400 font-mono">{(rec as SingleLegRecommendation).theta?.toFixed(4)}</div>
+                                                                <div className="text-phosphor-red text-glow-red font-mono">{(rec as SingleLegRecommendation).theta?.toFixed(4)}</div>
                                                             </div>
                                                             <div className="p-3 bg-bg-tertiary rounded-lg">
                                                                 <div className="text-gray-500 text-[10px] uppercase">Vega</div>
@@ -1217,7 +1217,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                     </div>
                                                                     <div>
                                                                         <div className="text-gray-500 text-[10px] uppercase">Gamma Eff</div>
-                                                                        <div className="text-accent-green font-mono">{(rec as SingleLegRecommendation).dollarGamma?.toFixed(4)}</div>
+                                                                        <div className="text-phosphor-green text-glow-green font-mono">{(rec as SingleLegRecommendation).dollarGamma?.toFixed(4)}</div>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1228,41 +1228,41 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                     <div className="mt-6 pt-4 border-t border-white/[0.1]">
                                                         {openPosIdx === idx ? (
                                                             /* Inline Open Position form */
-                                                            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4 space-y-3">
-                                                                <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                            <div className="terminal-panel border-phosphor-green/40 p-4 space-y-3">
+                                                                <div className="text-xs font-mono font-bold text-phosphor-green text-glow-green uppercase tracking-wider flex items-center gap-1.5">
                                                                     <ShoppingCart size={14} />
-                                                                    Open Position
+                                                                    ▌ OPEN_POSITION
                                                                 </div>
                                                                 <div className="flex flex-wrap gap-3 items-end">
                                                                     <div className="w-20">
-                                                                        <label className="text-[10px] text-gray-500 uppercase block mb-1">Qty</label>
+                                                                        <label className="label-mono block mb-1">Qty</label>
                                                                         <input
                                                                             type="number"
                                                                             min="1"
                                                                             value={openPosQty}
                                                                             onChange={(e) => setOpenPosQty(e.target.value)}
-                                                                            className="w-full bg-bg-primary border border-white/[0.08] text-white rounded px-2 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500"
+                                                                            className="w-full px-2 py-2 text-sm"
                                                                             placeholder="1"
                                                                             autoFocus
                                                                         />
                                                                     </div>
                                                                     <div className="w-28">
-                                                                        <label className="text-[10px] text-gray-500 uppercase block mb-1">Entry $</label>
+                                                                        <label className="label-mono block mb-1">Entry $</label>
                                                                         <input
                                                                             type="number"
                                                                             step="0.01"
                                                                             value={openPosPrice}
                                                                             onChange={(e) => setOpenPosPrice(e.target.value)}
-                                                                            className="w-full bg-bg-primary border border-white/[0.08] text-white rounded px-2 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500"
+                                                                            className="w-full px-2 py-2 text-sm"
                                                                             placeholder="0.00"
                                                                         />
                                                                     </div>
                                                                     {openPosPrice && (
                                                                         <div className="w-28">
-                                                                            <label className="text-[10px] text-gray-500 uppercase block mb-1">
+                                                                            <label className="label-mono block mb-1">
                                                                                 TP $
                                                                                 {openPosTP && (
-                                                                                    <span className="text-emerald-400 ml-1 normal-case">
+                                                                                    <span className="text-phosphor-green text-glow-green ml-1 normal-case">
                                                                                         ({((parseFloat(openPosTP) / (parseFloat(openPosPrice) || 1)) * 100).toFixed(0)}%)
                                                                                     </span>
                                                                                 )}
@@ -1272,7 +1272,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                                 step="0.01"
                                                                                 value={openPosTP}
                                                                                 onChange={(e) => setOpenPosTP(e.target.value)}
-                                                                                className="w-full bg-bg-primary border border-white/[0.08] text-white rounded px-2 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500"
+                                                                                className="w-full px-2 py-2 text-sm"
                                                                                 placeholder="0.00"
                                                                             />
                                                                         </div>
@@ -1283,14 +1283,12 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                                 key={name}
                                                                                 type="button"
                                                                                 onClick={() => setOpenPosOwner(name)}
-                                                                                className={`px-2.5 py-2 rounded text-xs font-semibold transition-all ${openPosOwner === name
-                                                                                    ? name === 'Yuchen'
-                                                                                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                                                                                        : 'bg-pink-500/20 text-pink-400 border border-pink-500/40'
-                                                                                    : 'bg-bg-secondary text-gray-500 border border-white/[0.08] hover:text-gray-300'
+                                                                                className={`px-2.5 py-2 rounded-md text-xs font-mono font-semibold uppercase tracking-wider transition-all ${openPosOwner === name
+                                                                                    ? 'bg-phosphor-green/15 text-phosphor-green text-glow-green border border-phosphor-green/40'
+                                                                                    : 'bg-terminal-black text-text-tertiary border border-phosphor-green/15 hover:text-phosphor-dim hover:border-phosphor-green/30'
                                                                                     }`}
                                                                             >
-                                                                                {name}
+                                                                                ▌ {name.charAt(0)} {name}
                                                                             </button>
                                                                         ))}
                                                                     </div>
@@ -1300,14 +1298,14 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                             handleOpenPosition(rec);
                                                                         }}
                                                                         disabled={openPosSubmitting || !openPosPrice}
-                                                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-1.5"
+                                                                        className="btn-terminal text-xs flex items-center gap-1.5"
                                                                     >
                                                                         {openPosSubmitting ? <RefreshCw size={14} className="animate-spin" /> : <ShoppingCart size={14} />}
-                                                                        Confirm
+                                                                        ▌ CONFIRM
                                                                     </button>
                                                                     <button
                                                                         onClick={(e) => { e.stopPropagation(); setOpenPosIdx(null); setOpenPosTP(''); }}
-                                                                        className="px-3 py-2 text-gray-500 hover:text-gray-300 text-sm transition-colors"
+                                                                        className="px-3 py-2 text-text-tertiary hover:text-phosphor-dim text-xs font-mono uppercase tracking-wider transition-colors"
                                                                     >
                                                                         Cancel
                                                                     </button>
@@ -1320,10 +1318,10 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                         e.stopPropagation();
                                                                         handleAddToWatchlist(rec);
                                                                     }}
-                                                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg text-sm font-bold transition-all border border-blue-500/30 hover:border-blue-500/50"
+                                                                    className="btn-terminal text-xs flex items-center gap-2"
                                                                 >
                                                                     <Bookmark size={16} />
-                                                                    Watchlist
+                                                                    ▌ WATCHLIST
                                                                 </button>
                                                                 {(
                                                                     <button
@@ -1338,10 +1336,10 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                                                             setOpenPosPrice(String(prefillPrice));
                                                                             setOpenPosIdx(idx);
                                                                         }}
-                                                                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-lg text-sm font-bold transition-all border border-emerald-500/30 hover:border-emerald-500/50"
+                                                                        className="btn-terminal text-xs flex items-center gap-2"
                                                                     >
                                                                         <ShoppingCart size={16} />
-                                                                        Open Position
+                                                                        ▌ OPEN_POSITION
                                                                     </button>
                                                                 )}
                                                             </div>
@@ -1422,8 +1420,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                 {showIvGate && (
                                     <div className="absolute inset-0 flex items-center justify-center z-10">
                                         <div className="bg-bg-tertiary border border-amber-500/40 rounded-xl p-6 max-w-md mx-4 shadow-2xl text-center">
-                                            <AlertCircle className="text-amber-400 mx-auto mb-3" size={28} />
-                                            <p className="text-amber-300 font-bold mb-1">IV Rank below WFA threshold</p>
+                                            <AlertCircle className="text-phosphor-amber text-glow-amber mx-auto mb-3" size={28} />
+                                            <p className="text-phosphor-amber font-bold mb-1">IV Rank below WFA threshold</p>
                                             <p className="text-text-tertiary text-sm mb-4">
                                                 {ivBelowThreshold
                                                     ? `IV Rank ${ivRankPct!.toFixed(0)}% is below the ${ivRankMin}% WFA threshold for ${activeStrategy} trades`
@@ -1431,7 +1429,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({ onAddToWatchlist
                                             </p>
                                             <button
                                                 onClick={() => setIvGateDismissed(true)}
-                                                className="px-4 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-lg text-sm font-bold transition-all"
+                                                className="px-4 py-2 bg-phosphor-amber/10 hover:bg-phosphor-amber/20 text-phosphor-amber border border-phosphor-amber/40 rounded-lg text-sm font-bold transition-all"
                                             >
                                                 I understand the risk — proceed
                                             </button>

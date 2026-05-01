@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { TrendingUp, BarChart3, Layers, Target, Filter } from 'lucide-react';
 import dashboardData from '../../data/dte5-dashboard.json';
+import { CHART_COLORS, CHART_FONT_MONO, SERIES_PALETTE } from '../lib/chartTheme';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,15 +46,26 @@ function fmt$(v: number): string { return '$' + v.toLocaleString(undefined, { ma
 function fmtPct(v: number | null): string { return v != null ? v.toFixed(1) + '%' : 'N/A'; }
 
 function scoreColor(sharpe: number): string {
-    if (sharpe >= 0.7) return 'text-emerald-400';
-    if (sharpe >= 0.4) return 'text-yellow-400';
-    if (sharpe >= 0.1) return 'text-orange-400';
-    return 'text-red-400';
+    if (sharpe >= 0.7) return 'text-phosphor-green text-glow-green';
+    if (sharpe >= 0.4) return 'text-phosphor-amber text-glow-amber';
+    if (sharpe >= 0.1) return 'text-phosphor-amber';
+    return 'text-phosphor-red text-glow-red';
 }
 
-const RISK_COLORS: Record<number, string> = { 0.05: '#22c55e', 0.1: '#3b82f6', 0.15: '#f59e0b', 0.2: '#ef4444' };
-const TICKER_COLORS: Record<string, string> = { QQQ: '#3b82f6', SPY: '#22c55e', IWM: '#f59e0b' };
-const SPREAD_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1', '#14b8a6'];
+// All multi-series Backtest charts use SERIES_PALETTE — picked CRT-friendly hues
+// distinguishable across up to ~11 simultaneously rendered series. See chartTheme.ts.
+const RISK_COLORS: Record<number, string> = {
+    0.05: SERIES_PALETTE[0], // green — safest tier
+    0.1:  SERIES_PALETTE[1], // amber
+    0.15: SERIES_PALETTE[3], // dimmed amber
+    0.2:  SERIES_PALETTE[4], // red — riskiest tier
+};
+const TICKER_COLORS: Record<string, string> = {
+    QQQ: SERIES_PALETTE[0],
+    SPY: SERIES_PALETTE[1],
+    IWM: SERIES_PALETTE[3],
+};
+const SPREAD_COLORS = SERIES_PALETTE;
 
 type Tab = 'overview' | 'spreads' | 'ema' | 'equity';
 
@@ -108,20 +120,20 @@ export function BacktestPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-bold">DTE5 Strategy Analysis</h1>
-                    <p className="text-xs text-text-tertiary">
-                        {tickers.join(', ')} Bull Put • EMA34 • True Portfolio Growth WFA • {data.dataStart} → {data.dataEnd}
+                    <h1 className="text-xl sm:text-2xl font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green">▌ WFA_BACKTEST</h1>
+                    <p className="text-[11px] text-text-tertiary font-mono uppercase tracking-wider mt-1">
+                        {tickers.join(', ')} BULL PUT • EMA34 • TRUE PORTFOLIO GROWTH WFA • {data.dataStart} → {data.dataEnd}
                     </p>
                 </div>
-                <span className="text-xs text-text-tertiary">Generated {new Date(data.generatedAt).toLocaleDateString()}</span>
+                <span className="text-[11px] text-phosphor-dim/70 font-mono uppercase tracking-wider">GEN {new Date(data.generatedAt).toLocaleDateString()}</span>
             </div>
 
             {/* Tab Nav */}
-            <div className="flex gap-1 bg-bg-secondary rounded-lg p-1">
+            <div className="flex gap-1 terminal-panel p-1">
                 {TABS.map(tab => (
                     <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                            activeTab === tab.key ? 'bg-amber-500/20 text-amber-400' : 'text-text-tertiary hover:text-text-secondary'
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider rounded-md transition-colors cursor-pointer ${
+                            activeTab === tab.key ? 'bg-phosphor-amber/15 text-phosphor-amber text-glow-amber border border-phosphor-amber/40' : 'text-text-tertiary hover:text-phosphor-dim border border-transparent'
                         }`}
                     >{tab.icon} {tab.label}</button>
                 ))}
@@ -131,9 +143,9 @@ export function BacktestPage() {
             {activeTab === 'overview' && (
                 <div className="space-y-4">
                     {/* Cross-ticker summary */}
-                    <div className="bg-bg-secondary rounded-xl border border-white/5 p-4">
+                    <div className="terminal-panel p-4">
                         <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                            <Target size={14} className="text-amber-400" /> Best Config Per Ticker at 10% Risk
+                            <Target size={14} className="text-phosphor-amber text-glow-amber" /> Best Config Per Ticker at 10% Risk
                             <span className="text-xs text-text-tertiary font-normal">(MinEq &ge; $5K filter)</span>
                         </h2>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -142,10 +154,10 @@ export function BacktestPage() {
                                 if (!best) return <div key={ticker} className="rounded-lg border border-white/10 p-3"><span className="text-text-tertiary text-sm">{ticker}: no viable config</span></div>;
                                 const isActive = ticker === 'QQQ';
                                 return (
-                                    <div key={ticker} className={`rounded-lg border p-3 ${isActive ? 'border-amber-500/40 bg-amber-500/5' : 'border-white/10 bg-bg-primary'}`}>
+                                    <div key={ticker} className={`rounded-lg border p-3 ${isActive ? 'border-phosphor-amber/40 bg-phosphor-amber/5' : 'border-white/10 bg-bg-primary'}`}>
                                         <div className="flex items-center justify-between mb-2">
                                             <span className="text-base font-bold" style={{ color: TICKER_COLORS[ticker] }}>{ticker}</span>
-                                            {isActive && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">ACTIVE</span>}
+                                            {isActive && <span className="text-[10px] px-1.5 py-0.5 rounded bg-phosphor-amber/20 text-phosphor-amber text-glow-amber font-medium">ACTIVE</span>}
                                         </div>
                                         <div className="text-lg font-bold">{best.label}</div>
                                         <div className="grid grid-cols-2 gap-1 mt-2 text-xs">
@@ -163,9 +175,9 @@ export function BacktestPage() {
                     </div>
 
                     {/* Best per risk tier for all tickers */}
-                    <div className="bg-bg-secondary rounded-xl border border-white/5 p-4">
+                    <div className="terminal-panel p-4">
                         <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                            <BarChart3 size={14} className="text-blue-400" /> Best Spread Per Risk Tier
+                            <BarChart3 size={14} className="text-phosphor-green" /> Best Spread Per Risk Tier
                         </h2>
                         <div className="overflow-x-auto">
                             <table className="w-full text-xs">
@@ -188,13 +200,13 @@ export function BacktestPage() {
                                             if (!best) return null;
                                             const isActive = ticker === 'QQQ' && risk === 0.1;
                                             return (
-                                                <tr key={`${ticker}-${risk}`} className={`border-b border-white/5 ${isActive ? 'bg-amber-500/5' : 'hover:bg-white/5'}`}>
+                                                <tr key={`${ticker}-${risk}`} className={`border-b border-phosphor-green/10 ${isActive ? 'bg-phosphor-amber/5' : 'hover:bg-phosphor-green/5'}`}>
                                                     <td className="py-1.5 px-2 font-medium" style={{ color: TICKER_COLORS[ticker] }}>{ticker}</td>
                                                     <td className="py-1.5 px-2" style={{ color: RISK_COLORS[risk] }}>{(risk * 100).toFixed(0)}%</td>
                                                     <td className="py-1.5 px-2 font-medium">{best.label}{isActive ? ' ✦' : ''}</td>
                                                     <td className={`py-1.5 px-2 text-right font-medium ${scoreColor(best.sharpe)}`}>{best.sharpe.toFixed(3)}</td>
-                                                    <td className={`py-1.5 px-2 text-right ${(best.cagr ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPct(best.cagr)}</td>
-                                                    <td className={`py-1.5 px-2 text-right hidden sm:table-cell ${best.maxDD > 50 ? 'text-red-400' : best.maxDD > 30 ? 'text-yellow-400' : ''}`}>{fmtPct(best.maxDD)}</td>
+                                                    <td className={`py-1.5 px-2 text-right ${(best.cagr ?? 0) >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>{fmtPct(best.cagr)}</td>
+                                                    <td className={`py-1.5 px-2 text-right hidden sm:table-cell ${best.maxDD > 50 ? 'text-phosphor-red text-glow-red' : best.maxDD > 30 ? 'text-phosphor-amber' : ''}`}>{fmtPct(best.maxDD)}</td>
                                                     <td className="py-1.5 px-2 text-right hidden sm:table-cell">{fmt$(best.finalEquity)}</td>
                                                     <td className="py-1.5 px-2 text-right hidden sm:table-cell">{best.winRate.toFixed(0)}%</td>
                                                 </tr>
@@ -207,17 +219,17 @@ export function BacktestPage() {
                     </div>
 
                     {/* Equity overlay — top config per ticker at 10% */}
-                    <div className="bg-bg-secondary rounded-xl border border-white/5 p-4">
+                    <div className="terminal-panel p-4">
                         <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                            <TrendingUp size={14} className="text-emerald-400" /> Portfolio Growth — Best Config Per Ticker at 10% Risk
+                            <TrendingUp size={14} className="text-phosphor-green text-glow-green" /> Portfolio Growth — Best Config Per Ticker at 10% Risk
                         </h2>
                         <div className="chart-container">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#888' }} tickFormatter={d => d?.slice(0, 7) || ''} />
-                                    <YAxis tick={{ fontSize: 10, fill: '#888' }} tickFormatter={v => `$${(Number(v) / 1000).toFixed(0)}K`} />
-                                    <RechartsTooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8, fontSize: 12 }} formatter={(v) => [fmt$(Number(v)), '']} labelFormatter={(l) => String(l)?.slice(0, 7) || ''} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+                                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: CHART_COLORS.axisText, fontFamily: CHART_FONT_MONO }} tickFormatter={d => d?.slice(0, 7) || ''} />
+                                    <YAxis tick={{ fontSize: 10, fill: CHART_COLORS.axisText, fontFamily: CHART_FONT_MONO }} tickFormatter={v => `$${(Number(v) / 1000).toFixed(0)}K`} />
+                                    <RechartsTooltip contentStyle={{ background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.tooltipBorder}`, borderRadius: 6, fontSize: 12, fontFamily: CHART_FONT_MONO, boxShadow: CHART_COLORS.tooltipShadow }} formatter={(v) => [fmt$(Number(v)), '']} labelFormatter={(l) => String(l)?.slice(0, 7) || ''} />
                                     {tickers.map(ticker => {
                                         const best = bestPerTickerRisk[ticker]?.[0.1];
                                         if (!best) return null;
@@ -263,15 +275,15 @@ export function BacktestPage() {
                     </div>
 
                     {/* Bar chart */}
-                    <div className="bg-bg-secondary rounded-xl border border-white/5 p-4">
+                    <div className="terminal-panel p-4">
                         <h2 className="text-sm font-semibold mb-3">Sharpe by Spread — {selectedTicker} at {(selectedRisk * 100).toFixed(0)}% Risk</h2>
                         <div className="chart-container">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={spreadsForTickerRisk} layout="vertical">
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                    <XAxis type="number" tick={{ fontSize: 10, fill: '#888' }} domain={[Math.min(0, ...spreadsForTickerRisk.map(r => r.sharpe)) - 0.1, 'auto']} />
-                                    <YAxis type="category" dataKey="label" tick={{ fontSize: 10, fill: '#888' }} width={60} />
-                                    <RechartsTooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8, fontSize: 12 }} formatter={(v) => [Number(v).toFixed(3), 'Sharpe']} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+                                    <XAxis type="number" tick={{ fontSize: 10, fill: CHART_COLORS.axisText, fontFamily: CHART_FONT_MONO }} domain={[Math.min(0, ...spreadsForTickerRisk.map(r => r.sharpe)) - 0.1, 'auto']} />
+                                    <YAxis type="category" dataKey="label" tick={{ fontSize: 10, fill: CHART_COLORS.axisText, fontFamily: CHART_FONT_MONO }} width={60} />
+                                    <RechartsTooltip contentStyle={{ background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.tooltipBorder}`, borderRadius: 6, fontSize: 12, fontFamily: CHART_FONT_MONO, boxShadow: CHART_COLORS.tooltipShadow }} formatter={(v) => [Number(v).toFixed(3), 'Sharpe']} />
                                     <Bar dataKey="sharpe" radius={[0, 4, 4, 0]}>
                                         {spreadsForTickerRisk.map((entry, i) => (
                                             <Cell key={i} fill={entry.sharpe >= 0.7 ? '#22c55e' : entry.sharpe >= 0.4 ? '#eab308' : entry.sharpe >= 0.1 ? '#f97316' : '#ef4444'}
@@ -284,7 +296,7 @@ export function BacktestPage() {
                     </div>
 
                     {/* Full table */}
-                    <div className="bg-bg-secondary rounded-xl border border-white/5 p-4">
+                    <div className="terminal-panel p-4">
                         <h2 className="text-sm font-semibold mb-3">All Configs — {selectedTicker} {(selectedRisk * 100).toFixed(0)}% — $10K Start</h2>
                         <div className="overflow-x-auto">
                             <table className="w-full text-xs">
@@ -305,16 +317,16 @@ export function BacktestPage() {
                                     {spreadsForTickerRisk.map((r, i) => {
                                         const isTop = i === 0;
                                         return (
-                                            <tr key={i} className={`border-b border-white/5 transition-colors ${isTop ? 'bg-emerald-500/5' : 'hover:bg-white/5'}`}>
+                                            <tr key={i} className={`border-b border-phosphor-green/10 transition-colors ${isTop ? 'bg-phosphor-green/5' : 'hover:bg-phosphor-green/5'}`}>
                                                 <td className="py-1.5 px-2 font-medium">
                                                     {r.label}
-                                                    {isTop && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400">BEST</span>}
+                                                    {isTop && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-phosphor-green/15 text-phosphor-green text-glow-green border border-phosphor-green/30">BEST</span>}
                                                 </td>
                                                 <td className="py-1.5 px-2 text-right font-medium">{fmt$(r.finalEquity)}</td>
-                                                <td className={`py-1.5 px-2 text-right ${(r.cagr ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPct(r.cagr)}</td>
+                                                <td className={`py-1.5 px-2 text-right ${(r.cagr ?? 0) >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>{fmtPct(r.cagr)}</td>
                                                 <td className={`py-1.5 px-2 text-right font-medium ${scoreColor(r.sharpe)}`}>{r.sharpe.toFixed(3)}</td>
-                                                <td className={`py-1.5 px-2 text-right ${r.maxDD > 50 ? 'text-red-400' : r.maxDD > 30 ? 'text-yellow-400' : ''}`}>{fmtPct(r.maxDD)}</td>
-                                                <td className={`py-1.5 px-2 text-right hidden sm:table-cell ${r.minEquity < 5000 ? 'text-red-400' : ''}`}>{fmt$(r.minEquity)}</td>
+                                                <td className={`py-1.5 px-2 text-right ${r.maxDD > 50 ? 'text-phosphor-red text-glow-red' : r.maxDD > 30 ? 'text-phosphor-amber' : ''}`}>{fmtPct(r.maxDD)}</td>
+                                                <td className={`py-1.5 px-2 text-right hidden sm:table-cell ${r.minEquity < 5000 ? 'text-phosphor-red text-glow-red' : ''}`}>{fmt$(r.minEquity)}</td>
                                                 <td className="py-1.5 px-2 text-right hidden sm:table-cell">{r.winRate.toFixed(0)}%</td>
                                                 <td className="py-1.5 px-2 text-right hidden sm:table-cell">{r.trades}</td>
                                                 <td className="py-1.5 px-2 text-right hidden sm:table-cell">{r.posWindows}/{r.totalWindows}</td>
@@ -327,7 +339,7 @@ export function BacktestPage() {
                     </div>
 
                     {/* Equity overlay */}
-                    <div className="bg-bg-secondary rounded-xl border border-white/5 p-4">
+                    <div className="terminal-panel p-4">
                         <h2 className="text-sm font-semibold mb-2">Equity Curves — {selectedTicker} {(selectedRisk * 100).toFixed(0)}%</h2>
                         <div className="flex flex-wrap gap-1 mb-3">
                             {spreadsForTickerRisk.slice(0, 8).map((r, i) => (
@@ -340,10 +352,10 @@ export function BacktestPage() {
                         <div className="chart-container">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#888' }} tickFormatter={d => d?.slice(0, 7) || ''} />
-                                    <YAxis tick={{ fontSize: 10, fill: '#888' }} tickFormatter={v => `$${(Number(v) / 1000).toFixed(0)}K`} />
-                                    <RechartsTooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8, fontSize: 12 }} formatter={(v) => [fmt$(Number(v)), '']} labelFormatter={(l) => String(l)?.slice(0, 7) || ''} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+                                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: CHART_COLORS.axisText, fontFamily: CHART_FONT_MONO }} tickFormatter={d => d?.slice(0, 7) || ''} />
+                                    <YAxis tick={{ fontSize: 10, fill: CHART_COLORS.axisText, fontFamily: CHART_FONT_MONO }} tickFormatter={v => `$${(Number(v) / 1000).toFixed(0)}K`} />
+                                    <RechartsTooltip contentStyle={{ background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.tooltipBorder}`, borderRadius: 6, fontSize: 12, fontFamily: CHART_FONT_MONO, boxShadow: CHART_COLORS.tooltipShadow }} formatter={(v) => [fmt$(Number(v)), '']} labelFormatter={(l) => String(l)?.slice(0, 7) || ''} />
                                     {spreadsForTickerRisk.slice(0, 8).map((r, i) => {
                                         if (!highlightedSpreads.has(r.label)) return null;
                                         const curveData = [{ date: '', equity: data.startingCapital }, ...r.equityCurve];
@@ -375,22 +387,22 @@ export function BacktestPage() {
                             <span className="text-xs text-text-tertiary">Spread:</span>
                             {['sp25/15', 'sp30/20'].map(sp => (
                                 <button key={sp} onClick={() => setSelectedSpread(sp)}
-                                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${selectedSpread === sp ? 'bg-blue-500/20 text-blue-400' : 'text-text-tertiary hover:text-text-secondary'}`}
+                                    className={`px-3 py-1 text-xs font-mono font-medium uppercase tracking-wider rounded-md transition-colors ${selectedSpread === sp ? 'bg-phosphor-green/15 text-phosphor-green text-glow-green border border-phosphor-green/30' : 'text-text-tertiary hover:text-phosphor-dim'}`}
                                 >{sp}</button>
                             ))}
                         </div>
                     </div>
 
                     {/* Bar chart */}
-                    <div className="bg-bg-secondary rounded-xl border border-white/5 p-4">
+                    <div className="terminal-panel p-4">
                         <h2 className="text-sm font-semibold mb-3">Sharpe by EMA — {selectedTicker} {selectedSpread} at 10% Risk</h2>
                         <div className="chart-container">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={emasForTickerSpread.map(r => ({ ...r, label: r.ema === null ? 'None' : `EMA${r.ema}` }))}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#888' }} />
-                                    <YAxis tick={{ fontSize: 10, fill: '#888' }} />
-                                    <RechartsTooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8, fontSize: 12 }} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+                                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: CHART_COLORS.axisText, fontFamily: CHART_FONT_MONO }} />
+                                    <YAxis tick={{ fontSize: 10, fill: CHART_COLORS.axisText, fontFamily: CHART_FONT_MONO }} />
+                                    <RechartsTooltip contentStyle={{ background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.tooltipBorder}`, borderRadius: 6, fontSize: 12, fontFamily: CHART_FONT_MONO, boxShadow: CHART_COLORS.tooltipShadow }} />
                                     <Bar dataKey="sharpe" name="Sharpe" radius={[4, 4, 0, 0]}>
                                         {emasForTickerSpread.map((entry, i) => (
                                             <Cell key={i} fill={entry.ema === 34 ? '#f59e0b' : entry.sharpe >= 0.5 ? '#3b82f6' : entry.sharpe >= 0 ? '#6366f1' : '#ef4444'}
@@ -403,7 +415,7 @@ export function BacktestPage() {
                     </div>
 
                     {/* Table */}
-                    <div className="bg-bg-secondary rounded-xl border border-white/5 p-4">
+                    <div className="terminal-panel p-4">
                         <h2 className="text-sm font-semibold mb-3">Full EMA Comparison — {selectedTicker} {selectedSpread} at 10% Risk</h2>
                         <div className="overflow-x-auto">
                             <table className="w-full text-xs">
@@ -427,14 +439,14 @@ export function BacktestPage() {
                                             <tr key={i} className={`border-b border-white/5 transition-colors ${isEMA34 ? 'bg-amber-500/5' : 'hover:bg-white/5'}`}>
                                                 <td className="py-1.5 px-2 font-medium">
                                                     {label}
-                                                    {isEMA34 && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-400">ACTIVE</span>}
-                                                    {r.ema === null && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-red-500/20 text-red-400">NO FILTER</span>}
+                                                    {isEMA34 && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-phosphor-amber/20 text-phosphor-amber text-glow-amber">ACTIVE</span>}
+                                                    {r.ema === null && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-red-500/20 text-phosphor-red text-glow-red">NO FILTER</span>}
                                                 </td>
                                                 <td className="py-1.5 px-2 text-right font-medium">{fmt$(r.finalEquity)}</td>
-                                                <td className={`py-1.5 px-2 text-right ${(r.cagr ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPct(r.cagr)}</td>
+                                                <td className={`py-1.5 px-2 text-right ${(r.cagr ?? 0) >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>{fmtPct(r.cagr)}</td>
                                                 <td className={`py-1.5 px-2 text-right font-medium ${scoreColor(r.sharpe)}`}>{r.sharpe.toFixed(3)}</td>
-                                                <td className={`py-1.5 px-2 text-right ${r.maxDD > 50 ? 'text-red-400' : r.maxDD > 30 ? 'text-yellow-400' : ''}`}>{fmtPct(r.maxDD)}</td>
-                                                <td className={`py-1.5 px-2 text-right hidden sm:table-cell ${r.minEquity < 5000 ? 'text-red-400' : ''}`}>{fmt$(r.minEquity)}</td>
+                                                <td className={`py-1.5 px-2 text-right ${r.maxDD > 50 ? 'text-phosphor-red text-glow-red' : r.maxDD > 30 ? 'text-phosphor-amber' : ''}`}>{fmtPct(r.maxDD)}</td>
+                                                <td className={`py-1.5 px-2 text-right hidden sm:table-cell ${r.minEquity < 5000 ? 'text-phosphor-red text-glow-red' : ''}`}>{fmt$(r.minEquity)}</td>
                                                 <td className="py-1.5 px-2 text-right hidden sm:table-cell">{r.winRate.toFixed(0)}%</td>
                                                 <td className="py-1.5 px-2 text-right hidden sm:table-cell">{r.trades}</td>
                                             </tr>
@@ -446,15 +458,15 @@ export function BacktestPage() {
                     </div>
 
                     {/* EMA equity overlay */}
-                    <div className="bg-bg-secondary rounded-xl border border-white/5 p-4">
+                    <div className="terminal-panel p-4">
                         <h2 className="text-sm font-semibold mb-3">Equity — No EMA vs EMA34 vs EMA55 ({selectedTicker} {selectedSpread})</h2>
                         <div className="chart-container">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#888' }} tickFormatter={d => d?.slice(0, 7) || ''} />
-                                    <YAxis tick={{ fontSize: 10, fill: '#888' }} tickFormatter={v => `$${(Number(v) / 1000).toFixed(0)}K`} />
-                                    <RechartsTooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8, fontSize: 12 }} formatter={(v) => [fmt$(Number(v)), '']} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+                                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: CHART_COLORS.axisText, fontFamily: CHART_FONT_MONO }} tickFormatter={d => d?.slice(0, 7) || ''} />
+                                    <YAxis tick={{ fontSize: 10, fill: CHART_COLORS.axisText, fontFamily: CHART_FONT_MONO }} tickFormatter={v => `$${(Number(v) / 1000).toFixed(0)}K`} />
+                                    <RechartsTooltip contentStyle={{ background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.tooltipBorder}`, borderRadius: 6, fontSize: 12, fontFamily: CHART_FONT_MONO, boxShadow: CHART_COLORS.tooltipShadow }} formatter={(v) => [fmt$(Number(v)), '']} />
                                     {([null, 34, 55] as Array<number | null>).map((ema, i) => {
                                         const r = emasForTickerSpread.find(e => e.ema === ema);
                                         if (!r) return null;
@@ -494,7 +506,7 @@ export function BacktestPage() {
                         const tagColors: Record<string, string> = { RECOMMENDED: '#f59e0b', CONSERVATIVE: '#22c55e', AGGRESSIVE: '#ef4444', PREVIOUS: '#3b82f6' };
                         const tagColor = tagColors[curve.tag] || '#888';
                         return (
-                            <div key={idx} className="bg-bg-secondary rounded-xl border border-white/5 p-4">
+                            <div key={idx} className="terminal-panel p-4">
                                 <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center gap-2">
                                         <h2 className="text-sm font-semibold">{curve.label}</h2>
@@ -503,17 +515,17 @@ export function BacktestPage() {
                                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-tertiary">
                                         <span>Sharpe <span className={scoreColor(s.sharpe)}>{s.sharpe.toFixed(3)}</span></span>
                                         <span>CAGR <span className="text-text-primary">{fmtPct(s.cagr)}</span></span>
-                                        <span className="hidden sm:inline">MaxDD <span className={s.maxDD > 50 ? 'text-red-400' : 'text-text-primary'}>{fmtPct(s.maxDD)}</span></span>
-                                        <span>Final <span className="text-emerald-400">{fmt$(s.finalEquity)}</span></span>
+                                        <span className="hidden sm:inline">MaxDD <span className={s.maxDD > 50 ? 'text-phosphor-red text-glow-red' : 'text-text-primary'}>{fmtPct(s.maxDD)}</span></span>
+                                        <span>Final <span className="text-phosphor-green text-glow-green">{fmt$(s.finalEquity)}</span></span>
                                     </div>
                                 </div>
                                 <div className="chart-container">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <AreaChart data={curveData}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#888' }} tickFormatter={d => d?.slice(0, 7) || ''} />
-                                            <YAxis tick={{ fontSize: 10, fill: '#888' }} tickFormatter={v => `$${(Number(v) / 1000).toFixed(0)}K`} />
-                                            <RechartsTooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: 8, fontSize: 12 }} formatter={(v) => [fmt$(Number(v)), 'Equity']} />
+                                            <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+                                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: CHART_COLORS.axisText, fontFamily: CHART_FONT_MONO }} tickFormatter={d => d?.slice(0, 7) || ''} />
+                                            <YAxis tick={{ fontSize: 10, fill: CHART_COLORS.axisText, fontFamily: CHART_FONT_MONO }} tickFormatter={v => `$${(Number(v) / 1000).toFixed(0)}K`} />
+                                            <RechartsTooltip contentStyle={{ background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.tooltipBorder}`, borderRadius: 6, fontSize: 12, fontFamily: CHART_FONT_MONO, boxShadow: CHART_COLORS.tooltipShadow }} formatter={(v) => [fmt$(Number(v)), 'Equity']} />
                                             <Area type="monotone" dataKey="equity" stroke={tagColor} fill={tagColor} fillOpacity={0.15} strokeWidth={2} dot={{ r: 3, fill: tagColor }} />
                                         </AreaChart>
                                     </ResponsiveContainer>
@@ -541,9 +553,9 @@ export function BacktestPage() {
                                                         <td className="py-1 px-1.5">W{i + 1}</td>
                                                         <td className="py-1 px-1.5 text-text-tertiary">{w.testStart.slice(2, 7)}→{w.testEnd.slice(2, 7)}</td>
                                                         <td className="py-1 px-1.5 text-right hidden sm:table-cell">{fmt$(w.startEq)}</td>
-                                                        <td className={`py-1 px-1.5 text-right ${w.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{w.pnl >= 0 ? '+' : ''}{fmt$(w.pnl)}</td>
+                                                        <td className={`py-1 px-1.5 text-right ${w.pnl >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>{w.pnl >= 0 ? '+' : ''}{fmt$(w.pnl)}</td>
                                                         <td className="py-1 px-1.5 text-right hidden sm:table-cell">{fmt$(w.endEq)}</td>
-                                                        <td className={`py-1 px-1.5 text-right ${ret >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{ret.toFixed(1)}%</td>
+                                                        <td className={`py-1 px-1.5 text-right ${ret >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>{ret.toFixed(1)}%</td>
                                                         <td className="py-1 px-1.5 text-right hidden sm:table-cell">{w.trades}</td>
                                                         <td className="py-1 px-1.5 text-right hidden sm:table-cell">{w.wr.toFixed(0)}%</td>
                                                     </tr>

@@ -25,6 +25,19 @@ export default {
                     coral: '#FFA16C',
                     coralDim: '#FFA16C20',
                 },
+                // Phosphor / terminal palette — used by signature pages (Dashboard, Portfolio, PositionCard).
+                // Brand voice: vintage-CRT phosphor on terminal black. Numeric data glows.
+                phosphor: {
+                    green: '#00FF41',
+                    dim: '#00CC33',
+                    amber: '#FFB000',
+                    red: '#FF2D00',
+                },
+                terminal: {
+                    black: '#0A0A0A',
+                    dark: '#1A1A1A',
+                    panel: '#141414',
+                },
                 border: { default: '#2A2A2A', light: '#333333' }
             },
         },

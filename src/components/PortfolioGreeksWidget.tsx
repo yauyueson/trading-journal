@@ -6,60 +6,60 @@ interface Props {
 }
 
 export const PortfolioGreeksWidget: React.FC<Props> = ({ greeks }) => (
-    <div className="rounded-xl border border-border-default/30 bg-bg-secondary/20 p-4">
+    <div className="terminal-panel p-4">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">
-                Portfolio Greeks — {greeks.positionsWithData} position{greeks.positionsWithData !== 1 ? 's' : ''} with live data
+            <span className="label-mono">
+                ▌ PORTFOLIO_GREEKS — {greeks.positionsWithData} POSITION{greeks.positionsWithData !== 1 ? 'S' : ''} LIVE
             </span>
             {Math.abs(greeks.netDelta) > 200 && (
-                <span className="text-[10px] font-bold text-orange-400 border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 rounded">
+                <span className="text-[10px] font-mono uppercase tracking-wider font-bold text-phosphor-amber text-glow-amber border border-phosphor-amber/40 bg-phosphor-amber/10 px-2 py-0.5 rounded">
                     HIGH DIRECTIONAL EXPOSURE
                 </span>
             )}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
             <div>
-                <div className={`text-base sm:text-lg font-bold font-mono ${greeks.netDelta > 150 ? 'text-emerald-400' :
-                        greeks.netDelta < -150 ? 'text-accent-red' :
+                <div className={`text-base sm:text-lg font-bold font-mono tabular-nums ${greeks.netDelta > 150 ? 'metric-glow-pos' :
+                        greeks.netDelta < -150 ? 'metric-glow-neg' :
                             'text-text-primary'
                     }`}>
                     {greeks.netDelta > 0 ? '+' : ''}{greeks.netDelta.toFixed(0)}
                 </div>
-                <div className="text-[10px] text-text-tertiary mt-0.5">Net Delta (shares)</div>
+                <div className="label-mono mt-0.5">NET DELTA (SHARES)</div>
             </div>
             <div>
-                <div className={`text-base sm:text-lg font-bold font-mono ${greeks.netTheta > 15 ? 'text-emerald-400' :
-                        greeks.netTheta < -25 ? 'text-accent-red' :
+                <div className={`text-base sm:text-lg font-bold font-mono tabular-nums ${greeks.netTheta > 15 ? 'metric-glow-pos' :
+                        greeks.netTheta < -25 ? 'metric-glow-neg' :
                             'text-text-primary'
                     }`}>
                     {greeks.netTheta >= 0 ? '+' : ''}${greeks.netTheta.toFixed(0)}/d
                 </div>
-                <div className="text-[10px] text-text-tertiary mt-0.5">Net Theta</div>
+                <div className="label-mono mt-0.5">NET THETA</div>
             </div>
             <div>
-                <div className={`text-base sm:text-lg font-bold font-mono ${greeks.netVega > 0 ? 'text-accent-yellow' :
-                        greeks.netVega < 0 ? 'text-blue-400' :
+                <div className={`text-base sm:text-lg font-bold font-mono tabular-nums ${greeks.netVega > 0 ? 'metric-glow-warn' :
+                        greeks.netVega < 0 ? 'text-phosphor-dim' :
                             'text-text-primary'
                     }`}>
                     {greeks.netVega >= 0 ? '+' : ''}${greeks.netVega.toFixed(0)}
                 </div>
-                <div className="text-[10px] text-text-tertiary mt-0.5">Net Vega (per 1% IV)</div>
+                <div className="label-mono mt-0.5">NET VEGA (PER 1% IV)</div>
             </div>
             <div>
-                <div className={`text-base sm:text-lg font-bold font-mono ${greeks.netGamma > 20 ? 'text-emerald-400' :
-                        greeks.netGamma < -20 ? 'text-accent-red' :
+                <div className={`text-base sm:text-lg font-bold font-mono tabular-nums ${greeks.netGamma > 20 ? 'metric-glow-pos' :
+                        greeks.netGamma < -20 ? 'metric-glow-neg' :
                             'text-text-primary'
                     }`}>
                     {greeks.netGamma >= 0 ? '+' : ''}{greeks.netGamma.toFixed(2)}
                 </div>
-                <div className="text-[10px] text-text-tertiary mt-0.5">Net Gamma</div>
+                <div className="label-mono mt-0.5">NET GAMMA</div>
             </div>
         </div>
         {greeks.largestRiskTicker && greeks.largestRiskPct > 0 && (
-            <div className="mt-3 pt-3 border-t border-border-default/20 flex items-center gap-2 text-[11px]">
-                <span className="text-text-tertiary">Largest position risk:</span>
-                <span className={`font-mono font-semibold ${greeks.largestRiskPct > 10 ? 'text-accent-red' :
-                        greeks.largestRiskPct > 5 ? 'text-accent-yellow' :
+            <div className="mt-3 pt-3 border-t border-phosphor-green/15 flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider">
+                <span className="text-text-tertiary">▌ LARGEST POSITION RISK:</span>
+                <span className={`font-mono font-bold tabular-nums ${greeks.largestRiskPct > 10 ? 'text-phosphor-red text-glow-red' :
+                        greeks.largestRiskPct > 5 ? 'text-phosphor-amber text-glow-amber' :
                             'text-text-primary'
                     }`}>{greeks.largestRiskTicker} {greeks.largestRiskPct.toFixed(1)}%</span>
             </div>
@@ -67,9 +67,9 @@ export const PortfolioGreeksWidget: React.FC<Props> = ({ greeks }) => (
         {greeks.concentrationWarnings && greeks.concentrationWarnings.length > 0 && (
             <div className="mt-2 space-y-1">
                 {greeks.concentrationWarnings.map((w, i) => (
-                    <div key={i} className="flex items-center gap-2 text-[11px] text-accent-red/90">
-                        <span className="font-semibold">CONCENTRATION:</span>
-                        <span className="font-mono">{w.label} @ {w.pct}%</span>
+                    <div key={i} className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-phosphor-red/90">
+                        <span className="font-bold">▌ CONCENTRATION:</span>
+                        <span className="font-mono tabular-nums">{w.label} @ {w.pct}%</span>
                         <span className="text-text-tertiary">(limit {w.limit}%)</span>
                     </div>
                 ))}
