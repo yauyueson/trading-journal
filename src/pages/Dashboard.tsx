@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { TrendingUp, TrendingDown, Zap } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { PageTransition, StaggerItem, SlideRight, motion } from '../components/Motion';
@@ -7,7 +7,11 @@ import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 import { usePositionAction, useUpdatePrice } from '../hooks/usePositionMutations';
 import { useAutoCloseStuckPositions } from '../hooks/useAutoCloseStuckPositions';
+import { useStrategyStatus } from '../hooks/useStrategyStatus';
 import { PositionCard } from '../components/PositionCard';
+import { StrategyActionCard } from '../components/StrategyActionCard';
+import { BCDEntryModal } from '../components/BCDEntryModal';
+import { PMCCEntryModal } from '../components/PMCCEntryModal';
 import type { Position, PositionAction as PositionActionType } from '../lib/types';
 import { computePositionPnL, getStrategyKind, groupTransactionsByPositionId } from '../lib/utils';
 import { ACTIVE_STRATEGIES, STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
@@ -23,6 +27,8 @@ export function DashboardPage() {
     () => groupTransactionsByPositionId(transactions),
     [transactions],
   );
+  const strategyStatuses = useStrategyStatus();
+  const [entryModal, setEntryModal] = useState<StrategyType | null>(null);
 
   useAutoCloseStuckPositions(positions, transactions);
 
@@ -109,6 +115,36 @@ export function DashboardPage() {
 
   return (
     <PageTransition>
+      {/* ── TIER 1 — TODAY / ACTION strip: per-strategy status + entry CTA ── */}
+      <StaggerItem className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-phosphor-green text-glow-green text-xs font-mono font-bold uppercase tracking-widest">
+            ▌ TODAY <span className="text-phosphor-dim/70 font-normal ml-2">// SIGNAL_QUEUE</span>
+          </h2>
+          <span className="text-phosphor-dim/70 text-[10px] font-mono uppercase tracking-wider">
+            {strategyStatuses.filter(s => s.state === 'ready').length} READY · {strategyStatuses.filter(s => s.state === 'open').length} OPEN
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          {strategyStatuses.map((status, i) => (
+            <motion.div
+              key={status.strategy}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: i * 0.06 }}
+            >
+              <StrategyActionCard
+                status={status}
+                positionTransactions={
+                  status.openPosition ? transactionsByPosition[status.openPosition.id] ?? [] : []
+                }
+                onEnter={() => setEntryModal(status.strategy)}
+              />
+            </motion.div>
+          ))}
+        </div>
+      </StaggerItem>
+
       {/* ── HERO STRIP — terminal headline + 3 KPI tiles with scanlines ── */}
       <StaggerItem className="mb-6">
         <div className="terminal-panel scanlines px-4 sm:px-5 py-4 sm:py-5">
@@ -230,23 +266,6 @@ export function DashboardPage() {
             )}
           </motion.div>
 
-          {/* Per-strategy status chips */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, delay: 0.5 }}
-            className="flex items-center gap-4 mt-3 text-text-tertiary text-[10px] font-mono uppercase tracking-wider flex-wrap"
-          >
-            {boards.map(b => (
-              <span key={b.strategy} className="flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full ${b.open ? 'bg-phosphor-green pulse-glow' : 'bg-text-tertiary/30'}`} />
-                {b.profile.shortLabel}
-                <span className={b.open ? 'text-phosphor-green' : 'text-text-tertiary'}>
-                  {b.open ? '· LIVE' : '· FLAT'}
-                </span>
-              </span>
-            ))}
-          </motion.div>
         </StaggerItem>
 
         {/* ── RIGHT — Strategy Boards + Capital ── */}
@@ -344,23 +363,14 @@ export function DashboardPage() {
         </StaggerItem>
       )}
 
-      {/* Empty state */}
-      {activePositions.length === 0 && perfStats.trades === 0 && (
-        <StaggerItem className="mt-8">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="terminal-panel px-6 py-12 text-center"
-          >
-            <div className="w-12 h-12 rounded-full bg-phosphor-green/[0.08] border border-phosphor-green/30 flex items-center justify-center mx-auto mb-4">
-              <Zap size={20} className="text-phosphor-green" />
-            </div>
-            <p className="text-phosphor-green text-glow-green text-sm font-mono uppercase tracking-wider font-bold">▌ AWAITING_SIGNAL</p>
-            <p className="text-text-tertiary text-xs font-mono mt-2">BCD and PMCC entries will appear on the Signals page once live trading begins.</p>
-          </motion.div>
-        </StaggerItem>
-      )}
+      <BCDEntryModal
+        isOpen={entryModal === 'bcd'}
+        onClose={() => setEntryModal(null)}
+      />
+      <PMCCEntryModal
+        isOpen={entryModal === 'pmcc'}
+        onClose={() => setEntryModal(null)}
+      />
     </PageTransition>
   );
 }
