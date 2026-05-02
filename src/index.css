@@ -10,7 +10,7 @@
     body {
         @apply text-text-secondary m-0 p-0;
         min-height: 100dvh;
-        background: #0A0A0E;
+        background: #0A0A0A;
         font-feature-settings: 'ss01' on, 'ss02' on;
         font-variant-numeric: tabular-nums;
         line-height: 1.4;
@@ -19,7 +19,8 @@
         overscroll-behavior: none;
     }
 
-    /* Radial gradient background — iOS-safe (no background-attachment: fixed) */
+    /* Phosphor terminal backdrop — flat black with a single dim green
+       radial at top-center (reads as CRT bloom, not Fey glass). iOS-safe. */
     body::before {
         content: '';
         position: fixed;
@@ -27,11 +28,8 @@
         z-index: -1;
         pointer-events: none;
         background:
-            radial-gradient(ellipse 90% 60% at 50% -15%, rgba(78, 190, 150, 0.22), transparent 55%),
-            radial-gradient(ellipse 70% 50% at 85% 55%, rgba(71, 159, 250, 0.12), transparent 50%),
-            radial-gradient(ellipse 60% 55% at 15% 75%, rgba(168, 85, 247, 0.08), transparent 50%),
-            radial-gradient(ellipse 50% 40% at 50% 100%, rgba(255, 161, 108, 0.06), transparent 50%),
-            #0A0A0E;
+            radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 255, 65, 0.05), transparent 60%),
+            #0A0A0A;
     }
 
     /* Noise texture overlay — z-10, below everything interactive */
@@ -226,7 +224,7 @@
     input:-webkit-autofill,
     input:-webkit-autofill:hover,
     input:-webkit-autofill:focus {
-        -webkit-box-shadow: 0 0 0 1000px #0A0A0E inset !important;
+        -webkit-box-shadow: 0 0 0 1000px #0A0A0A inset !important;
         -webkit-text-fill-color: #FFFFFF !important;
         caret-color: #FFFFFF;
         transition: background-color 5000s ease-in-out 0s;
@@ -521,40 +519,6 @@
         font-variant-numeric: tabular-nums;
     }
 
-    /* Ambient glow — animated blurred color orbs */
-    .ambient-glow {
-        position: relative;
-        overflow: clip;
-    }
-
-    .ambient-glow::before,
-    .ambient-glow::after {
-        content: '';
-        position: absolute;
-        pointer-events: none;
-        z-index: 0;
-        border-radius: 50%;
-        filter: blur(80px);
-    }
-
-    .ambient-glow::before {
-        top: -100px;
-        left: 10%;
-        width: min(500px, 80vw);
-        height: min(400px, 60vw);
-        background: radial-gradient(circle, rgba(78, 190, 150, 0.05) 0%, transparent 70%);
-        animation: orbFloat 12s ease-in-out infinite;
-    }
-
-    .ambient-glow::after {
-        top: 100px;
-        right: 5%;
-        width: min(400px, 70vw);
-        height: min(350px, 50vw);
-        background: radial-gradient(circle, rgba(71, 159, 250, 0.04) 0%, transparent 70%);
-        animation: orbFloat 15s ease-in-out infinite reverse;
-    }
-
     /* Staggered fade-in — Fey-style sequential reveal */
     .stagger-fade-in>* {
         opacity: 0;
@@ -573,11 +537,6 @@
     .stagger-fade-in>*:nth-child(10) { animation-delay: 0.4s; }
     .stagger-fade-in>*:nth-child(11) { animation-delay: 0.45s; }
     .stagger-fade-in>*:nth-child(12) { animation-delay: 0.5s; }
-
-    /* Subtle page background gradient */
-    .page-gradient {
-        background: radial-gradient(800px circle at 50% 0%, rgba(78, 190, 150, 0.025), transparent 60%);
-    }
 
     /* Live indicator pulse with glow */
     .pulse-glow {
@@ -753,22 +712,6 @@
     }
 }
 
-@keyframes orbFloat {
-
-    0%,
-    100% {
-        transform: translate(0, 0) scale(1);
-    }
-
-    33% {
-        transform: translate(30px, -20px) scale(1.05);
-    }
-
-    66% {
-        transform: translate(-20px, 15px) scale(0.95);
-    }
-}
-
 @keyframes pulseGlow {
 
     0%,
@@ -844,11 +787,6 @@ select {
         background: none !important;
         -webkit-background-clip: unset !important;
         background-clip: unset !important;
-    }
-
-    .ambient-glow::before,
-    .ambient-glow::after {
-        animation: none !important;
     }
 
     .stagger-fade-in>* {

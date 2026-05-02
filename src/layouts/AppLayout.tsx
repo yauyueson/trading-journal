@@ -157,7 +157,7 @@ export function AppLayout() {
       </div>
 
       {/* Content */}
-      <div className="mx-auto px-4 sm:px-6 pt-2 sm:pt-14 pb-safe max-w-7xl ambient-glow">
+      <div className="mx-auto px-4 sm:px-6 pt-2 sm:pt-14 pb-safe max-w-7xl">
         <Outlet />
       </div>
 
