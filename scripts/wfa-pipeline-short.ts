@@ -55,6 +55,7 @@ import {
   type WFAWindow,
 } from '../src/lib/backtest/wfa-options';
 import { signalMapKey } from '../src/lib/backtest/wfa-v3-orchestrator';
+import { loadIVDataFromOptionChainCache } from './wfa-local-cache';
 
 // ── Config Types ────────────────────────────────────────
 
@@ -87,6 +88,11 @@ export interface ShortSweepDimensions {
   timeStopDTEs: number[];
   dirConfTiers?: DirConfTier[];
   creditShortDeltas?: number[];
+  creditDTERanges?: [number, number][];
+  vrpFilters?: number[];
+  contangoFilters?: number[];
+  vrpPctFilters?: number[];
+  contangoPctFilters?: number[];
   periodMultipliers?: PeriodMultiplier[];
 }
 
@@ -94,7 +100,7 @@ export const SHORT_DEFAULTS = {
   tickers: [
     'SPY', 'QQQ', 'AMD', 'IWM', 'TSLA',
     'AAPL', 'JPM', 'NVDA', 'AMZN', 'MSFT',
-    'META', 'NFLX', 'GOOGL', 'GS', 'COST',
+    'META', 'NFLX', 'GOOG', 'GS', 'COST',
   ],
   dataStart: '2023-01-01',
   startDate: '2024-03-01',
@@ -120,17 +126,43 @@ export const SHORT_SWEEP_DEFAULTS: ShortSweepDimensions = {
   periodMultipliers: [2.25, 3.0, 3.75],
 };
 
-// ── Supabase Helper ────────────────────────────────────
+interface VolRegime {
+  vrp?: number;
+  contango?: number;
+  vrpPct?: number;
+  contangoPct?: number;
+}
 
-const SUPABASE_URL = () => process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const SUPABASE_KEY = () => process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+function percentileRank(values: number[], value: number): number | undefined {
+  if (values.length === 0 || !Number.isFinite(value)) return undefined;
+  const countLTE = values.filter(v => v <= value).length;
+  return (countLTE / values.length) * 100;
+}
 
-async function supabaseGet(table: string, query: string): Promise<any[]> {
-  const res = await fetch(`${SUPABASE_URL()}/rest/v1/${table}?${query}`, {
-    headers: { apikey: SUPABASE_KEY(), Authorization: `Bearer ${SUPABASE_KEY()}` },
-  });
-  if (!res.ok) throw new Error(`${table} fetch failed: ${res.status}`);
-  return res.json();
+function buildVolRegimeByDate(ivData: IVDataRow[], lookback = 252): Map<string, VolRegime> {
+  const regimes = new Map<string, VolRegime>();
+  const vrpHistory: number[] = [];
+  const contangoHistory: number[] = [];
+
+  for (const row of ivData) {
+    const iv30 = row.iv30d;
+    const iv60 = row.iv60d;
+    const hv20 = row.hv20d;
+    const vrp = iv30 != null && hv20 != null ? (iv30 * iv30) - (hv20 * hv20) : undefined;
+    const contango = iv30 != null && iv60 != null && iv30 > 0 ? (iv60 / iv30) - 1 : undefined;
+
+    regimes.set(row.date, {
+      vrp,
+      contango,
+      vrpPct: vrp != null ? percentileRank(vrpHistory.slice(-lookback), vrp) : undefined,
+      contangoPct: contango != null ? percentileRank(contangoHistory.slice(-lookback), contango) : undefined,
+    });
+
+    if (vrp != null && Number.isFinite(vrp)) vrpHistory.push(vrp);
+    if (contango != null && Number.isFinite(contango)) contangoHistory.push(contango);
+  }
+
+  return regimes;
 }
 
 // ── Data Helpers ────────────────────────────────────────
@@ -148,18 +180,13 @@ export async function fetchTickerData(ticker: string, dataStart: string, dataEnd
   const candles130m = get130MCandles(intradayDb, ticker, dataStart, dataEnd);
   const dailyCandles = aggregateToDaily(candles130m);
 
-  const ivDbRows = await supabaseGet(
-    'orats_iv_cache',
-    `select=date,iv30d,iv60d,hv20d,hv30d,hv60d&ticker=eq.${ticker}&date=gte.${dataStart}&date=lte.${dataEnd}&order=date.asc&limit=5000`,
-  );
-  const ivData: IVDataRow[] = ivDbRows.map((r: any) => ({
-    date: r.date,
-    iv30d: r.iv30d,
-    iv60d: r.iv60d,
-    hv20d: r.hv20d,
-    hv30d: r.hv30d,
-    hv60d: r.hv60d,
-  }));
+  const ivData: IVDataRow[] = loadIVDataFromOptionChainCache({
+    ticker,
+    startDate: dataStart,
+    endDate: dataEnd,
+    chainDbPath: process.env.WFA_CHAIN_DB_PATH,
+    dailyCandles,
+  });
 
   const ivByDate = new Map(ivData.map(r => [r.date, r.iv30d]));
   const ivSeries = dailyCandles.map(c => ivByDate.get(c.date) ?? null);
@@ -181,6 +208,7 @@ function generateSignalsForPreset(
   const techOptions = SIGNAL_PRESETS[presetKey];
   const signals = precomputeSignals4H(td.candles130m, td.ivData, periodMultiplier, techOptions);
   const entries: EntrySignal[] = [];
+  const volRegimeByDate = buildVolRegimeByDate(td.ivData);
 
   for (const sig of signals) {
     const barDate = sig.date.split('T')[0].split(' ')[0];
@@ -189,6 +217,7 @@ function generateSignalsForPreset(
     if (sig.adx !== undefined && sig.adx < 8) continue;
 
     const idx = td.dateToIdx.get(barDate);
+    const volRegime = volRegimeByDate.get(barDate);
     entries.push({
       ticker: td.ticker,
       date: barDate,
@@ -197,6 +226,10 @@ function generateSignalsForPreset(
       ivRank: idx != null ? (td.ivRanks[idx] ?? undefined) : undefined,
       hv60: sig.ivEstimate60,
       oratsIV60: sig.oratsIV60,
+      vrp: volRegime?.vrp,
+      contango: volRegime?.contango,
+      vrpPct: volRegime?.vrpPct,
+      contangoPct: volRegime?.contangoPct,
       indicatorPeriodMultiplier: periodMultiplier,
       dirConfidence: sig.subScores
         ? Math.round(Object.values(sig.subScores).filter(v => v > 50).length / Object.values(sig.subScores).length * 100)
@@ -228,6 +261,11 @@ export function buildSweepCandidates(
   const dirConfTiers: (DirConfTier | undefined)[] = dims.dirConfTiers ?? [undefined];
   const shortDeltas: (number | undefined)[] = dims.creditShortDeltas ?? [undefined];
   const periodMults: PeriodMultiplier[] = dims.periodMultipliers ?? [2.25, 3.0, 3.75];
+  const dteRanges = dims.creditDTERanges ?? [[7, 21] as [number, number]];
+  const vrpFilters = dims.vrpFilters ?? [undefined];
+  const contangoFilters = dims.contangoFilters ?? [undefined];
+  const vrpPctFilters = dims.vrpPctFilters ?? [undefined];
+  const contangoPctFilters = dims.contangoPctFilters ?? [undefined];
 
   for (const preset of presets) {
     for (const width of dims.spreadWidths) {
@@ -237,28 +275,42 @@ export function buildSweepCandidates(
             for (const ts of dims.timeStopDTEs) {
               for (const dct of dirConfTiers) {
                 for (const delta of shortDeltas) {
-                  for (const periodMult of periodMults) {
-                    candidates.push({
-                      ...DEFAULT_SHORT_CREDIT_CONFIG,
-                      creditDTERange: [7, 21] as [number, number],
-                      creditSpreadWidth: width,
-                      creditProfitTarget: tp,
-                      creditStopLossMultiple: 100,
-                      creditTimeStopDTE: ts,
-                      creditDeltaStop: deltaStop === Infinity ? 0 : deltaStop,
-                      minIVRank: ivMin,
-                      signalWeightPreset: preset,
-                      dirConfTier: dct,
-                      fillMode,
-                      maxPerTicker,
-                      maxPositions,
-                      indicatorPeriodMultiplier: periodMult,
-                      bsmKappa: 4.0,
-                      bsmRiskFreeRate: 0.04,
-                      dailyCalibration: true,
-                      ivThetaSource: 'hv60',
-                      ...(delta != null ? { creditShortDelta: delta } : {}),
-                    } as SimConfig);
+                  for (const dteRange of dteRanges) {
+                    for (const vrpFilter of vrpFilters) {
+                      for (const contangoFilter of contangoFilters) {
+                        for (const vrpPctFilter of vrpPctFilters) {
+                          for (const contangoPctFilter of contangoPctFilters) {
+                            for (const periodMult of periodMults) {
+                              candidates.push({
+                                ...DEFAULT_SHORT_CREDIT_CONFIG,
+                                creditDTERange: dteRange,
+                                creditSpreadWidth: width,
+                                creditProfitTarget: tp,
+                                creditStopLossMultiple: 100,
+                                creditTimeStopDTE: ts,
+                                creditDeltaStop: deltaStop === Infinity ? 0 : deltaStop,
+                                minIVRank: ivMin,
+                                signalWeightPreset: preset,
+                                dirConfTier: dct,
+                                fillMode,
+                                maxPerTicker,
+                                maxPositions,
+                                indicatorPeriodMultiplier: periodMult,
+                                bsmKappa: 4.0,
+                                bsmRiskFreeRate: 0.04,
+                                dailyCalibration: true,
+                                ivThetaSource: 'hv60',
+                                ...(delta != null ? { creditShortDelta: delta } : {}),
+                                ...(vrpFilter != null ? { vrpFilter } : {}),
+                                ...(contangoFilter != null ? { contangoFilter } : {}),
+                                ...(vrpPctFilter != null ? { vrpPctFilter } : {}),
+                                ...(contangoPctFilter != null ? { contangoPctFilter } : {}),
+                              } as SimConfig);
+                            }
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -647,10 +699,13 @@ function configSummary(config: any): string {
   const width = config.creditSpreadWidth ?? config.width ?? 5;
   const ivMin = config.minIVRank ?? config.ivMin ?? 0;
   const periodMult = config.indicatorPeriodMultiplier ?? 2.0;
+  const dteRange = config.creditDTERange ? `/dte${config.creditDTERange[0]}-${config.creditDTERange[1]}` : '';
   const deltaStop = config.creditDeltaStop ?? 0;
   const dsStr = deltaStop > 0 ? `ds${deltaStop}` : 'dsOff';
   const dct = config.dirConfTier ? `/dc${config.dirConfTier}` : '';
-  return `${preset}/d${delta}/tp${(Number(tp) * 100).toFixed(0)}/w${width}/iv${ivMin}/${dsStr}/pm${periodMult}${dct}`;
+  const vrpPct = config.vrpPctFilter != null ? `/vrpPct${config.vrpPctFilter}` : '';
+  const contangoPct = config.contangoPctFilter != null ? `/contPct${config.contangoPctFilter}` : '';
+  return `${preset}/d${delta}/tp${(Number(tp) * 100).toFixed(0)}/w${width}/iv${ivMin}/${dsStr}/pm${periodMult}${dteRange}${dct}${vrpPct}${contangoPct}`;
 }
 
 function printShortReport(result: WFAResult, config: ShortPipelineConfig) {

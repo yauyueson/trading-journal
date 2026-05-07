@@ -20,3 +20,22 @@ wrapper.js
 
 # Scripts directory
 scripts/
+
+# Local build/dependency/cache artifacts
+node_modules/
+dist/
+.git/
+.env
+.env.local
+.env*.local
+.DS_Store
+
+# Local market-data caches and research outputs are huge and must never be
+# packaged into Vercel deployments. Keep only the small JSON files imported by
+# production app/API code.
+data/*
+!data/strategy-config.json
+!data/dte5-dashboard.json
+backtesting history/
+.superpowers/
+.worktrees/

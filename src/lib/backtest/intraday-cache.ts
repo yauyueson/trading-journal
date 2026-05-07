@@ -33,7 +33,11 @@ export interface IntradayCandle {
 export function initIntradayDB(dbPath?: string): DatabaseType {
   const resolved = dbPath ?? path.resolve(process.cwd(), 'data', 'intraday-candles.sqlite');
   const db = new Database(resolved, { readonly: true });
-  db.pragma('journal_mode = WAL');
+  try {
+    db.pragma('journal_mode = WAL');
+  } catch {
+    // Readonly fixtures and immutable cache mounts cannot switch journal mode.
+  }
   db.pragma('mmap_size = 536870912');   // 512MB mmap
   db.pragma('cache_size = -32000');     // 32MB page cache
   return db;

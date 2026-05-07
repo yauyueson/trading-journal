@@ -32,6 +32,33 @@ Full routing table:
 | Quick edit / rename | Gemini (inline) | Fast, free, already there |
 | Research a library or API | Gemini | Native Google Search grounding |
 
+## Role Lens Layer
+
+The engine assignment above answers "which model should do the work?" The role lens answers "which responsibility is being exercised?" Use `docs/08_AGENT_ROLES_AND_KNOWLEDGE_BASE.md` as the source of truth for role responsibilities, knowledge bases, decision rights, and guardrails.
+
+Default mapping:
+
+| Work Type | Primary Role Lens | Common Engine |
+|---|---|---|
+| Strategy hypothesis, pre-registration, factor idea | Quant Research Agent | Gemini first |
+| Backtest skepticism, leakage, overfit, adoption challenge | Research Validation / Model Risk Agent | Gemini first, Claude final for code-level checks |
+| Simulator, scoring, API, test implementation | Quant Dev / Simulation Engineer Agent | Claude |
+| ORATS/Tiingo/Supabase freshness, coverage, lineage | Data Engineering / Data Steward Agent | Gemini for analysis, Claude for fixes |
+| Live entry, roll, no-trade ticket | Trader / Execution Agent | Gemini drafts, Claude validates UI/data path if needed |
+| Position size, drawdown, concentration, Greeks | Risk Manager Agent | Gemini for analysis, Claude for implementation |
+| Workflow design and decision states | Product / UX Discipline Agent | Gemini drafts, Claude implements |
+| React/Tailwind/Query work | Frontend / App Engineer Agent | Claude |
+| Vercel, cron, env, CI, RLS, production readiness | Platform / DevOps / Security Agent | Claude |
+| Trade review, Academy, behavioral feedback | Journal / Education Agent | Gemini drafts, Claude implements |
+| Strategy adoption and capital allocation | Portfolio Governor / CIO Agent | Human decision, with Gemini/Claude support |
+
+Guardrails:
+- Research cannot approve its own model.
+- Risk can veto execution.
+- Data quality issues block performance claims.
+- Human confirmation is required for real-money orders.
+- Trade-affecting UI changes need Product / UX plus Risk review.
+
 ## Handoff Format
 
 Active task lives in `.handoff/current.md`. Schema:

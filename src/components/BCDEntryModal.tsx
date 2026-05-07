@@ -158,6 +158,7 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         max_risk_entry: maxLossPerContract ?? undefined,
         trade_profile: 'debit_spread',
         is_paper: true,
+        execution_account_size: capital,
         target_price: profile.profitTarget,
         legs,
         fill_diagnostics: fillDiagnostics,

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { queryKeys } from '../lib/queryKeys';
 import { formatDate } from '../lib/utils';
 import { requireSupabaseData, throwIfSupabaseError } from '../lib/supabaseResult';
+import { buildExecutionTicketAuditRowFromDirectAdd, isGovernedDirectAddStrategy } from '../lib/executionTickets';
 import type { Position, PositionAction, DirectAddItem, WatchlistItem, RollData } from '../lib/types';
 
 function useInvalidatePositionsAndTransactions() {
@@ -125,8 +126,25 @@ export function useUpdatePaper() {
 
 export function useAddDirect() {
   const invalidate = useInvalidatePositionsAndTransactions();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (item: DirectAddItem) => {
+      let activePositions = queryClient.getQueryData<Position[]>(queryKeys.positions) ?? [];
+      if (isGovernedDirectAddStrategy(item.strategy_type)) {
+        const { data } = throwIfSupabaseError(await supabase
+          .from('positions')
+          .select('id,ticker,strike,type,expiration,status,setup,entry_score,current_score,strategy_type,is_paper,max_risk_entry')
+          .eq('status', 'active'));
+        activePositions = (data ?? []) as Position[];
+      }
+      const ticketAuditRow = buildExecutionTicketAuditRowFromDirectAdd(item, activePositions);
+      if (ticketAuditRow) {
+        throwIfSupabaseError(await supabase.from('execution_tickets').insert([ticketAuditRow]));
+        if (ticketAuditRow.decision === 'blocked') {
+          throw new Error(`Execution ticket blocked: ${ticketAuditRow.blocks.join('; ')}`);
+        }
+      }
+
       const data = requireSupabaseData(await supabase.from('positions').insert([{
         ticker: item.ticker,
         strike: item.strike,
@@ -158,6 +176,13 @@ export function useAddDirect() {
       }]).select(), 'Position insert returned no rows');
 
       if (data && data[0]) {
+        if (ticketAuditRow) {
+          throwIfSupabaseError(await supabase
+            .from('execution_tickets')
+            .update({ position_id: data[0].id })
+            .eq('ticket_id', ticketAuditRow.ticket_id));
+        }
+
         throwIfSupabaseError(await supabase.from('transactions').insert([{
           position_id: data[0].id,
           type: 'Open',

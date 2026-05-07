@@ -251,7 +251,7 @@ async function cache130MCandles(ticker, bars) {
     const key = SUPABASE_SERVICE || SUPABASE_KEY;
     if (!SUPABASE_URL || !key || bars.length === 0) return;
     for (let i = 0; i < bars.length; i += UPSERT_BATCH) {
-        const batch = bars.slice(i, i + BATCH).map(b => ({
+        const batch = bars.slice(i, i + UPSERT_BATCH).map(b => ({
             ticker: ticker.toUpperCase(),
             date: b.date,
             open: b.open,
@@ -474,7 +474,7 @@ async function cacheIVRows(ticker, rows) {
     const key = SUPABASE_SERVICE || SUPABASE_KEY;
     if (!SUPABASE_URL || !key || rows.length === 0) return;
     for (let i = 0; i < rows.length; i += UPSERT_BATCH) {
-        const batch = rows.slice(i, i + BATCH).map(r => ({
+        const batch = rows.slice(i, i + UPSERT_BATCH).map(r => ({
             ticker: ticker.toUpperCase(),
             date: r.date,
             iv30d: r.iv30d,

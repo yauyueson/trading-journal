@@ -15,6 +15,7 @@ import {
 import { signalMapKey } from '../src/lib/backtest/wfa-v3-orchestrator';
 import {
   __testHooks,
+  buildSweepCandidates,
   type ShortPipelineConfig,
 } from '../scripts/wfa-pipeline-short';
 
@@ -26,6 +27,42 @@ afterEach(() => {
 
 afterAll(() => {
   writeSpy.mockRestore();
+});
+
+describe('short pipeline sweep candidates', () => {
+  it('carries exploratory DTE and vol-regime filters into generated configs', () => {
+    const configs = buildSweepCandidates('bidask', {
+      presets: ['em'],
+      profitTargets: [0.50],
+      spreadWidths: [10],
+      ivRankMins: [40],
+      deltaStops: [Infinity],
+      timeStopDTEs: [1],
+      creditShortDeltas: [0.25],
+      creditDTERanges: [[7, 14]],
+      vrpPctFilters: [50],
+      contangoPctFilters: [40],
+      periodMultipliers: [2.25],
+    }, 3, 1);
+
+    expect(configs).toHaveLength(1);
+    expect(configs[0]).toMatchObject({
+      fillMode: 'bidask',
+      signalWeightPreset: 'em',
+      creditDTERange: [7, 14],
+      creditShortDelta: 0.25,
+      creditSpreadWidth: 10,
+      creditProfitTarget: 0.50,
+      minIVRank: 40,
+      creditDeltaStop: 0,
+      creditTimeStopDTE: 1,
+      vrpPctFilter: 50,
+      contangoPctFilter: 40,
+      maxPositions: 3,
+      maxPerTicker: 1,
+      indicatorPeriodMultiplier: 2.25,
+    });
+  });
 });
 
 function buildShortTrade(

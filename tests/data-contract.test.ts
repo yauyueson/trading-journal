@@ -112,6 +112,11 @@ const scanOptionsSrc = readFileSync(
   'utf-8'
 );
 
+const backtestDataSrc = readFileSync(
+  resolve(__dirname, '../api/backtest-data.js'),
+  'utf-8'
+);
+
 describe('STRAT-01 — strategy-recommend.js strategy defaults enrichment', () => {
   it('_loadStrategyDefaults should produce profitTarget for both profiles', () => {
     const fnStart = stratRecommendSrc.indexOf('function _loadStrategyDefaults');
@@ -189,6 +194,21 @@ describe('STRAT-02 — scan-options.js profile-specific delta defaults', () => {
   it('scan-options.js strategy param (long/short LOQ/CSQ) should NOT be modified', () => {
     // strategy = 'long' default must remain for LOQ/CSQ toggle
     expect(scanOptionsSrc).toContain("strategy = 'long'");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DATA-01: backtest-data cache writes use the declared UPSERT_BATCH constant
+// ---------------------------------------------------------------------------
+
+describe('DATA-01 — backtest-data cache batch constant', () => {
+  it('api/backtest-data.js should not reference an undefined BATCH variable', () => {
+    expect(backtestDataSrc).not.toMatch(/\bBATCH\b/);
+  });
+
+  it('api/backtest-data.js should use UPSERT_BATCH for 130M and IV slice bounds', () => {
+    expect(backtestDataSrc).toContain('bars.slice(i, i + UPSERT_BATCH)');
+    expect(backtestDataSrc).toContain('rows.slice(i, i + UPSERT_BATCH)');
   });
 });
 

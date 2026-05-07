@@ -1,0 +1,284 @@
+{
+  "artifact": {
+    "schemaVersion": 1,
+    "generatedBy": "scripts/wfa-cache-quality.ts",
+    "decision": "blocked",
+    "mode": "local-cache-only"
+  },
+  "report": {
+    "generatedAt": "2026-05-06T23:30:56.305Z",
+    "profile": "swing",
+    "mode": "local-cache-only",
+    "decision": "blocked",
+    "thresholds": {
+      "minCandleDates": 1,
+      "minIVProxyCoveragePct": 80
+    },
+    "request": {
+      "tickers": [
+        "SPY",
+        "QQQ",
+        "AMD",
+        "IWM",
+        "TSLA",
+        "AAPL",
+        "JPM",
+        "NVDA",
+        "AMZN",
+        "MSFT",
+        "META",
+        "NFLX",
+        "GOOG",
+        "GS"
+      ],
+      "dataStart": "2017-01-01",
+      "endDate": "2026-02-28"
+    },
+    "caches": {
+      "intradayDbPath": "/Users/yuchenqiu/03_Projects/trading-journal/data/intraday-candles.sqlite",
+      "chainDbPath": "/Users/yuchenqiu/03_Projects/trading-journal/data/option-chains.sqlite"
+    },
+    "tickers": [
+      {
+        "ticker": "SPY",
+        "candleDates": 2406,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 1145,
+        "firstIVProxyDate": "2017-01-12",
+        "lastIVProxyDate": "2026-02-27",
+        "ivProxyCoveragePct": 47.59,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 47.59% < 80%"
+        ]
+      },
+      {
+        "ticker": "QQQ",
+        "candleDates": 2405,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 1077,
+        "firstIVProxyDate": "2017-01-12",
+        "lastIVProxyDate": "2026-02-27",
+        "ivProxyCoveragePct": 44.78,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 44.78% < 80%"
+        ]
+      },
+      {
+        "ticker": "AMD",
+        "candleDates": 2405,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 701,
+        "firstIVProxyDate": "2017-02-16",
+        "lastIVProxyDate": "2026-02-20",
+        "ivProxyCoveragePct": 29.15,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 29.15% < 80%"
+        ]
+      },
+      {
+        "ticker": "IWM",
+        "candleDates": 2405,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 1021,
+        "firstIVProxyDate": "2017-01-12",
+        "lastIVProxyDate": "2026-02-20",
+        "ivProxyCoveragePct": 42.45,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 42.45% < 80%"
+        ]
+      },
+      {
+        "ticker": "TSLA",
+        "candleDates": 2405,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 735,
+        "firstIVProxyDate": "2017-01-12",
+        "lastIVProxyDate": "2026-02-20",
+        "ivProxyCoveragePct": 30.56,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 30.56% < 80%"
+        ]
+      },
+      {
+        "ticker": "AAPL",
+        "candleDates": 2405,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 731,
+        "firstIVProxyDate": "2017-01-12",
+        "lastIVProxyDate": "2026-02-20",
+        "ivProxyCoveragePct": 30.4,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 30.4% < 80%"
+        ]
+      },
+      {
+        "ticker": "JPM",
+        "candleDates": 2400,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 713,
+        "firstIVProxyDate": "2017-01-12",
+        "lastIVProxyDate": "2026-02-20",
+        "ivProxyCoveragePct": 29.71,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 29.71% < 80%"
+        ]
+      },
+      {
+        "ticker": "NVDA",
+        "candleDates": 2405,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 737,
+        "firstIVProxyDate": "2017-01-12",
+        "lastIVProxyDate": "2026-02-20",
+        "ivProxyCoveragePct": 30.64,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 30.64% < 80%"
+        ]
+      },
+      {
+        "ticker": "AMZN",
+        "candleDates": 2405,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 737,
+        "firstIVProxyDate": "2017-01-12",
+        "lastIVProxyDate": "2026-02-20",
+        "ivProxyCoveragePct": 30.64,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 30.64% < 80%"
+        ]
+      },
+      {
+        "ticker": "MSFT",
+        "candleDates": 2405,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 737,
+        "firstIVProxyDate": "2017-01-12",
+        "lastIVProxyDate": "2026-02-20",
+        "ivProxyCoveragePct": 30.64,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 30.64% < 80%"
+        ]
+      },
+      {
+        "ticker": "META",
+        "candleDates": 2405,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 576,
+        "firstIVProxyDate": "2019-01-10",
+        "lastIVProxyDate": "2026-02-20",
+        "ivProxyCoveragePct": 23.95,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 23.95% < 80%"
+        ]
+      },
+      {
+        "ticker": "NFLX",
+        "candleDates": 2403,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 576,
+        "firstIVProxyDate": "2019-01-10",
+        "lastIVProxyDate": "2026-02-20",
+        "ivProxyCoveragePct": 23.97,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 23.97% < 80%"
+        ]
+      },
+      {
+        "ticker": "GOOG",
+        "candleDates": 2405,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 644,
+        "firstIVProxyDate": "2018-01-11",
+        "lastIVProxyDate": "2026-02-20",
+        "ivProxyCoveragePct": 26.78,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 26.78% < 80%"
+        ]
+      },
+      {
+        "ticker": "GS",
+        "candleDates": 2389,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 553,
+        "firstIVProxyDate": "2019-01-10",
+        "lastIVProxyDate": "2026-02-20",
+        "ivProxyCoveragePct": 23.15,
+        "stale": true,
+        "failures": [
+          "stale cache before 2026-02-28",
+          "IV proxy coverage 23.15% < 80%"
+        ]
+      }
+    ],
+    "failures": [
+      "SPY: stale cache before 2026-02-28",
+      "SPY: IV proxy coverage 47.59% < 80%",
+      "QQQ: stale cache before 2026-02-28",
+      "QQQ: IV proxy coverage 44.78% < 80%",
+      "AMD: stale cache before 2026-02-28",
+      "AMD: IV proxy coverage 29.15% < 80%",
+      "IWM: stale cache before 2026-02-28",
+      "IWM: IV proxy coverage 42.45% < 80%",
+      "TSLA: stale cache before 2026-02-28",
+      "TSLA: IV proxy coverage 30.56% < 80%",
+      "AAPL: stale cache before 2026-02-28",
+      "AAPL: IV proxy coverage 30.4% < 80%",
+      "JPM: stale cache before 2026-02-28",
+      "JPM: IV proxy coverage 29.71% < 80%",
+      "NVDA: stale cache before 2026-02-28",
+      "NVDA: IV proxy coverage 30.64% < 80%",
+      "AMZN: stale cache before 2026-02-28",
+      "AMZN: IV proxy coverage 30.64% < 80%",
+      "MSFT: stale cache before 2026-02-28",
+      "MSFT: IV proxy coverage 30.64% < 80%",
+      "META: stale cache before 2026-02-28",
+      "META: IV proxy coverage 23.95% < 80%",
+      "NFLX: stale cache before 2026-02-28",
+      "NFLX: IV proxy coverage 23.97% < 80%",
+      "GOOG: stale cache before 2026-02-28",
+      "GOOG: IV proxy coverage 26.78% < 80%",
+      "GS: stale cache before 2026-02-28",
+      "GS: IV proxy coverage 23.15% < 80%"
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 # Entry Timing Analysis — DTE5 Credit Spreads
 
-**Date:** 2026-04-01
+**Date:** 2026-05-06
 **Method:** Stock price open vs close as proxy for option credit change
 **Formula:** credit_delta ≈ -short_delta × (close - open), where delta = 0.35
 **Period:** 2019-06-01 to 2026-02-28

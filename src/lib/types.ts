@@ -153,6 +153,8 @@ export interface DirectAddItem {
     strategy_type?: 'swing' | 'shortTerm' | 'dte5' | 'bcd' | 'pmcc';
     /** Paper trade (not real money). */
     is_paper?: boolean;
+    /** Account size used by the execution-ticket risk gate for active strategies. */
+    execution_account_size?: number;
     /** Take-profit target price, stored as a percentage (e.g., 0.30 = 30%). */
     target_price?: number;
     /** Optional fill-quality capture (BCD/PMCC modals). Persisted to fill_diagnostics. */

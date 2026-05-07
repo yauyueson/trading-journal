@@ -24,6 +24,7 @@
     "api/check-alerts.js": { "maxDuration": 60 },
     "api/daily-recap.js": { "maxDuration": 60 },
     "api/backtest-data.js": { "maxDuration": 15 },
+    "api/paper-autopilot.js": { "maxDuration": 60 },
     "api/cron-trade-outcomes.js": { "maxDuration": 30 },
     "api/cron-iv.js": { "maxDuration": 120 }
   },
@@ -31,6 +32,10 @@
     {
       "path": "/api/cron-iv?job=backfill",
       "schedule": "0 22 * * 1-5"
+    },
+    {
+      "path": "/api/paper-autopilot",
+      "schedule": "0 15 * * 1-5"
     }
   ],
   "headers": [
