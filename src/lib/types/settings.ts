@@ -180,13 +180,13 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     maxConcurrentPositions: 1,
   },
   bcdCapital: {
-    startingCapital: 2000,
-    riskPctPerTrade: 15,
+    startingCapital: 5000,
+    riskPctPerTrade: 30,
     maxConcurrentPositions: 1,
   },
   pmccCapital: {
-    startingCapital: 10000,
-    riskPctPerTrade: 50,
+    startingCapital: 20000,
+    riskPctPerTrade: 75,
     maxConcurrentPositions: 1,
   },
 };

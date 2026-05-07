@@ -41,8 +41,8 @@
         ]
       },
       "capitalTier": {
-        "startingCapital": 2000,
-        "riskPctPerTrade": 15,
+        "startingCapital": 5000,
+        "riskPctPerTrade": 30,
         "maxConcurrentPositions": 1
       },
       "riskPolicy": {
@@ -75,8 +75,8 @@
         ]
       },
       "capitalTier": {
-        "startingCapital": 10000,
-        "riskPctPerTrade": 50,
+        "startingCapital": 20000,
+        "riskPctPerTrade": 75,
         "maxConcurrentPositions": 1
       },
       "riskPolicy": {

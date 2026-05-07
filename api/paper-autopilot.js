@@ -22,8 +22,18 @@ function authOk(req) {
   return Boolean(expected && secret === expected);
 }
 
-function ticketId(date, strategyType) {
-  return `autopilot-${date}-${strategyType}`;
+function ticketId(date, strategyType, attemptIdx = 1) {
+  const base = `autopilot-${date}-${strategyType}`;
+  return attemptIdx > 1 ? `${base}-r${attemptIdx}` : base;
+}
+
+async function findExistingAttempts(supabase, date, strategyType) {
+  const { data, error } = await supabase
+    .from('execution_tickets')
+    .select('ticket_id,decision,position_id')
+    .like('ticket_id', `autopilot-${date}-${strategyType}%`);
+  if (error) throw new Error(`existing-ticket lookup failed: ${error.message}`);
+  return data ?? [];
 }
 
 function ticketEvaluation(item, activePositions) {
@@ -66,11 +76,11 @@ function ticketEvaluation(item, activePositions) {
   };
 }
 
-function buildTicketRow({ date, item, evaluation, activePositions }) {
+function buildTicketRow({ date, item, evaluation, activePositions, attemptIdx = 1 }) {
   const strategyType = item.strategy_type;
   const strategyLabel = strategyType === 'bcd' ? 'BCD QQQ wide' : 'PMCC QQQ pt60';
   return {
-    ticket_id: ticketId(date, strategyType),
+    ticket_id: ticketId(date, strategyType, attemptIdx),
     status: evaluation.status,
     decision: evaluation.decision,
     strategy_type: strategyType,
@@ -111,7 +121,7 @@ function buildTicketRow({ date, item, evaluation, activePositions }) {
   };
 }
 
-async function insertBlockedTicket(supabase, date, strategyType, blockReason, activePositions) {
+async function insertBlockedTicket(supabase, date, strategyType, blockReason, activePositions, attemptIdx = 1) {
   const item = {
     ticker: PAPER_AUTOPILOT.ticker,
     strategy_type: strategyType,
@@ -130,7 +140,7 @@ async function insertBlockedTicket(supabase, date, strategyType, blockReason, ac
   evaluation.blocks = [blockReason];
   evaluation.decision = 'blocked';
   evaluation.status = 'blocked';
-  const row = buildTicketRow({ date, item, evaluation, activePositions });
+  const row = buildTicketRow({ date, item, evaluation, activePositions, attemptIdx });
   const { error } = await supabase.from('execution_tickets').upsert(row, { onConflict: 'ticket_id' });
   if (error) throw new Error(`execution_tickets blocked insert failed: ${error.message}`);
   return { strategyType, decision: 'blocked', blocks: evaluation.blocks };
@@ -186,15 +196,12 @@ async function openPaperPosition(supabase, item) {
 }
 
 async function executeAttempt({ supabase, date, attempt, activePositions }) {
-  const existing = await supabase
-    .from('execution_tickets')
-    .select('ticket_id,decision,position_id')
-    .eq('ticket_id', ticketId(date, attempt.strategyType))
-    .maybeSingle();
-  if (existing.error) throw new Error(`ticket duplicate check failed: ${existing.error.message}`);
-  if (existing.data) {
-    return { strategyType: attempt.strategyType, decision: 'skipped', reason: 'ticket_exists', ticketId: existing.data.ticket_id };
+  const existing = await findExistingAttempts(supabase, date, attempt.strategyType);
+  const opened = existing.find(t => t.decision === 'approved' && t.position_id);
+  if (opened) {
+    return { strategyType: attempt.strategyType, decision: 'skipped', reason: 'already_opened', ticketId: opened.ticket_id };
   }
+  const attemptIdx = existing.length + 1;
 
   const { getOptionChain } = await import('../lib/orats-client.js');
   let item = null;
@@ -202,18 +209,18 @@ async function executeAttempt({ supabase, date, attempt, activePositions }) {
   if (attempt.strategyType === 'bcd') {
     const chain = await getOptionChain(PAPER_AUTOPILOT.ticker, { minDte: 30, maxDte: 60, side: 'call' });
     const candidate = chooseBcdCandidate(chain);
-    if (!candidate) return insertBlockedTicket(supabase, date, 'bcd', 'no valid BCD option candidate found', activePositions);
+    if (!candidate) return insertBlockedTicket(supabase, date, 'bcd', 'no valid BCD option candidate found', activePositions, attemptIdx);
     item = buildBcdPaperPosition(candidate);
   } else {
     const longChain = await getOptionChain(PAPER_AUTOPILOT.ticker, { minDte: 240, maxDte: 300, side: 'call' });
     const shortChain = await getOptionChain(PAPER_AUTOPILOT.ticker, { minDte: 30, maxDte: 45, side: 'call' });
     const candidate = choosePmccCandidate(longChain, shortChain);
-    if (!candidate) return insertBlockedTicket(supabase, date, 'pmcc', 'no valid PMCC option candidate found', activePositions);
+    if (!candidate) return insertBlockedTicket(supabase, date, 'pmcc', 'no valid PMCC option candidate found', activePositions, attemptIdx);
     item = buildPmccPaperPosition(candidate);
   }
 
   const evaluation = ticketEvaluation(item, activePositions);
-  const row = buildTicketRow({ date, item, evaluation, activePositions });
+  const row = buildTicketRow({ date, item, evaluation, activePositions, attemptIdx });
   const { error: ticketError } = await supabase.from('execution_tickets').insert([row]);
   if (ticketError) throw new Error(`execution_tickets insert failed: ${ticketError.message}`);
 

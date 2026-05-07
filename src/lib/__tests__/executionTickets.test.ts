@@ -45,9 +45,9 @@ describe('execution ticket risk gate', () => {
   });
 
   it('blocks tickets that exceed capital-tier risk or same-strategy concurrency', () => {
-    const oversized = evaluateExecutionTicket({ ...baseInput, maxRiskPerContract: 350 });
+    const oversized = evaluateExecutionTicket({ ...baseInput, maxRiskPerContract: 1600 });
     expect(oversized.decision).toBe('blocked');
-    expect(oversized.blocks).toContain('risk $350.00 exceeds strategy tier cap $300.00');
+    expect(oversized.blocks).toContain('risk $1600.00 exceeds strategy tier cap $1500.00');
 
     const duplicate = evaluateExecutionTicket({
       ...baseInput,
@@ -161,7 +161,7 @@ describe('execution ticket risk gate', () => {
       ticker: 'QQQ',
       quantity: 1,
       max_risk_dollars: 250,
-      risk_cap_dollars: 300,
+      risk_cap_dollars: 1500,
       evidence_path: 'docs/wfa/QQQ-CLEAN-SHEET-VALIDATION-RESULTS-2026-05-07.md',
       governance_version: 1,
       blocks: [],
