@@ -5,6 +5,7 @@ import { PositionActionForm } from './position/PositionActionForm';
 import { NotesEditor } from './position/NotesEditor';
 import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory, PositionAction } from '../lib/types';
+import { splitPMCCLegs, cycleRealizedPnL, totalRealizedShortPnL, legDte } from '../lib/pmccCycles';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
@@ -592,7 +593,17 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                 <option value="Annie" className="bg-bg-primary text-phosphor-dim">▌ A · ANNIE</option>
                             </select>
                         )}
-                        {isSpread ? (
+                        {isSpread && position.strategy_type === 'pmcc' ? (
+                            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-text-secondary font-medium uppercase tracking-wide">
+                                <span className="text-text-primary">
+                                    LEAP&nbsp;${position.legs?.find(l => l.side === 'long' && !l.closedAt)?.strike}C
+                                    <span className="mx-1">/</span>
+                                    Short&nbsp;${position.legs?.find(l => l.side === 'short' && !l.closedAt)?.strike}C
+                                </span>
+                                <span className="hidden sm:inline text-[15.5px]">PMCC Diagonal</span>
+                                <span className="sm:hidden">PMCC</span>
+                            </div>
+                        ) : isSpread ? (
                             <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-text-secondary font-medium uppercase tracking-wide">
                                 <span className="text-text-primary">
                                     ${position.legs?.find(l => l.side === 'short')?.strike}{position.legs?.[0]?.type?.charAt(0)}
@@ -712,7 +723,139 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                 </div>
             )}
 
-            {/* Metrics Grid */}
+            {/* PMCC-specific body: split LEAP + active short, plus past-shorts collapsible */}
+            {position.strategy_type === 'pmcc' && (() => {
+                const { longLeg, activeShort, closedShorts } = splitPMCCLegs(position);
+                const longDte = legDte(longLeg);
+                const shortDte = legDte(activeShort);
+                const realizedShortPnL = totalRealizedShortPnL(position);
+                const longPT = 0.60;
+                const longSL = 0.35;
+                return (
+                    <div className="flex flex-col gap-3 mb-4 py-4 border-y border-border-default">
+                        {/* LEAP anchor */}
+                        <div className="terminal-panel border-phosphor-green/25 p-3">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="text-[11px] font-mono uppercase tracking-widest text-phosphor-green text-glow-green">▌ LEAP_ANCHOR</div>
+                                <div className="text-[11px] font-mono text-text-tertiary">long δ 0.70-0.80 · PT +60% · SL -35%</div>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                                <div>
+                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Strike</div>
+                                    <div className="text-text-primary text-base">${longLeg?.strike ?? '—'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Expiration</div>
+                                    <div className="text-text-primary">{longLeg?.expiration ? formatDate(longLeg.expiration) : '—'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">DTE</div>
+                                    <div className={`text-base font-bold ${longDte == null ? 'text-text-tertiary' : longDte <= 30 ? 'text-phosphor-amber text-glow-amber' : 'text-phosphor-green text-glow-green'}`}>
+                                        {longDte != null ? `${longDte}d` : '—'}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Targets</div>
+                                    <div className="text-text-primary">+{Math.round(longPT * 100)}% / -{Math.round(longSL * 100)}%</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Active short */}
+                        <div className="terminal-panel border-phosphor-amber/30 p-3">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="text-[11px] font-mono uppercase tracking-widest text-phosphor-amber text-glow-amber">▌ ACTIVE_SHORT</div>
+                                <div className="text-[11px] font-mono text-text-tertiary">short δ 0.20-0.30 · PT +50% · roll if K within 2%</div>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                                <div>
+                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Strike</div>
+                                    <div className="text-text-primary text-base">{activeShort ? `$${activeShort.strike}` : '—'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Expiration</div>
+                                    <div className="text-text-primary">{activeShort?.expiration ? formatDate(activeShort.expiration) : '—'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">DTE</div>
+                                    <div className={`text-base font-bold ${shortDte == null ? 'text-text-tertiary' : shortDte <= 7 ? 'text-phosphor-red text-glow-red' : shortDte <= 21 ? 'text-phosphor-amber text-glow-amber' : 'text-phosphor-green text-glow-green'}`}>
+                                        {shortDte != null ? `${shortDte}d` : '—'}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Open credit</div>
+                                    <div className="text-phosphor-green text-glow-green">
+                                        {activeShort?.openedCredit != null ? `$${activeShort.openedCredit.toFixed(2)}` : '—'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Combined Greeks (compact) */}
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 sm:gap-4 pt-2">
+                            <div>
+                                <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">Delta</div>
+                                <div className="metric-value text-text-primary">{liveData.delta !== undefined ? liveData.delta.toFixed(2) : '—'}</div>
+                            </div>
+                            <div>
+                                <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">Gamma</div>
+                                <div className="metric-value text-text-primary">{liveData.gamma !== undefined ? liveData.gamma.toFixed(3) : '—'}</div>
+                            </div>
+                            <div>
+                                <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">Theta</div>
+                                <div className="metric-value text-text-primary">{liveData.theta !== undefined ? liveData.theta.toFixed(3) : '—'}</div>
+                            </div>
+                            <div>
+                                <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">Vega</div>
+                                <div className="metric-value text-text-primary">{liveData.vega !== undefined ? liveData.vega.toFixed(3) : '—'}</div>
+                            </div>
+                            <div>
+                                <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">IV</div>
+                                <div className="metric-value text-text-primary">{liveData.iv !== undefined ? (liveData.iv * 100).toFixed(1) + '%' : '—'}</div>
+                            </div>
+                            <div>
+                                <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">Realized rolls</div>
+                                <div className={`metric-value font-bold ${realizedShortPnL > 0 ? 'text-phosphor-green text-glow-green' : realizedShortPnL < 0 ? 'text-phosphor-red text-glow-red' : 'text-text-tertiary'}`}>
+                                    {closedShorts.length === 0 ? '—' : `${realizedShortPnL >= 0 ? '+' : ''}${formatCurrency(realizedShortPnL)}`}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Past shorts collapsible */}
+                        {closedShorts.length > 0 && (
+                            <details className="text-xs font-mono pt-2">
+                                <summary className="cursor-pointer text-text-secondary hover:text-phosphor-dim transition-colors">
+                                    Past shorts ({closedShorts.length} {closedShorts.length === 1 ? 'roll' : 'rolls'})
+                                </summary>
+                                <div className="mt-2 space-y-1">
+                                    {closedShorts.map((leg, i) => {
+                                        const pnl = cycleRealizedPnL(leg);
+                                        return (
+                                            <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1.5 rounded bg-terminal-black/50 border border-border-default/40">
+                                                <span className="text-text-tertiary text-[10px]">#{closedShorts.length - i}</span>
+                                                <span className="text-text-primary">K=${leg.strike}</span>
+                                                <span className="text-text-secondary">exp {formatDate(leg.expiration)}</span>
+                                                <span className="text-text-tertiary">cr ${leg.openedCredit?.toFixed(2) ?? '—'} → cl ${leg.closedCost?.toFixed(2) ?? '—'}</span>
+                                                {pnl != null && (
+                                                    <span className={`ml-auto ${pnl >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>
+                                                        {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
+                                                    </span>
+                                                )}
+                                                {leg.closedAt && (
+                                                    <span className="text-text-tertiary text-[10px]">{leg.closedAt.slice(0, 10)}</span>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </details>
+                        )}
+                    </div>
+                );
+            })()}
+
+            {/* Metrics Grid (non-PMCC) */}
+            {position.strategy_type !== 'pmcc' && (
             <div className="flex flex-col gap-4 mb-4 py-4 border-y border-border-default">
                 {/* Row 1: Trade Management */}
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 sm:gap-4">
@@ -832,9 +975,10 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                     </div>
                 </div>
             </div>
+            )}
 
-            {/* TP Progress Bar */}
-            {tpProgress != null && entryPrice > 0 && (
+            {/* TP Progress Bar (non-PMCC) */}
+            {position.strategy_type !== 'pmcc' && tpProgress != null && entryPrice > 0 && (
                 <div className="mb-4">
                     <div className="flex items-center justify-between text-xs mb-1.5">
                         <span className="text-text-tertiary uppercase tracking-wider font-medium">
