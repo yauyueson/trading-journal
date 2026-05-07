@@ -11,6 +11,7 @@
     "audit:governance": "tsx scripts/governance-audit.ts",
     "audit:data-coverage": "tsx scripts/data-coverage-report.ts",
     "audit:wfa-cache-quality": "tsx scripts/wfa-cache-quality.ts",
+    "check:paper-autopilot": "tsx scripts/check-paper-autopilot.ts",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest"
   },
