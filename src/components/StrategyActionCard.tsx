@@ -2,7 +2,8 @@ import React from 'react';
 import { ChevronRight } from 'lucide-react';
 import type { StrategyStatus } from '../hooks/useStrategyStatus';
 import type { Transaction } from '../lib/types';
-import { computePositionPnL, formatCurrency, getStrategyKind } from '../lib/utils';
+import { formatCurrency, getStrategyKind } from '../lib/utils';
+import { computeLivePnL } from '../lib/legPnL';
 
 interface Props {
   status: StrategyStatus;
@@ -43,7 +44,7 @@ export const StrategyActionCard: React.FC<Props> = ({
   const ticker = profile.tickers?.[0] ?? 'QQQ';
 
   const livePnl = openPosition
-    ? computePositionPnL(positionTransactions, getStrategyKind(openPosition))
+    ? computeLivePnL(openPosition, positionTransactions, getStrategyKind(openPosition) === 'credit')
     : 0;
 
   const pill = PILL_BY_STATE[state];

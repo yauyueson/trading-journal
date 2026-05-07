@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeLegBasedPnL, isCycleRollTransaction } from '../legPnL';
+import { computeLegBasedPnL, isCycleRollTransaction, filterCycleRolls, computeLivePnL } from '../legPnL';
 import type { Position } from '../types';
 
 const basePosition: Position = {
@@ -98,6 +98,55 @@ describe('computeLegBasedPnL', () => {
     // short unrealized = (0.5-0.4)*100 = 10
     expect(result.unrealized).toBeCloseTo(310);
     expect(result.realized).toBe(0);
+  });
+});
+
+describe('filterCycleRolls + computeLivePnL', () => {
+  it('filterCycleRolls drops PMCC roll transactions only', () => {
+    const txns = [
+      { quantity: 1, price: 100, note: 'Open' },
+      { quantity: 1, price: 1.5, note: 'PMCC roll: close short K=700 exp=2026-06-15' },
+      { quantity: -1, price: 4, note: 'PMCC roll: open short K=720 exp=2026-07-15' },
+      { quantity: -1, price: 110, note: 'Take Profit' },
+    ];
+    const filtered = filterCycleRolls(txns);
+    expect(filtered).toHaveLength(2);
+    expect(filtered[0].note).toBe('Open');
+    expect(filtered[1].note).toBe('Take Profit');
+  });
+
+  it('computeLivePnL sums cash flow excluding rolls and adds cycle realized', () => {
+    const position: Position = {
+      ...basePosition,
+      legs: [
+        { strike: 600, type: 'Call', side: 'long', expiration: '2027-01-15', openedDebit: 100, cycleQty: 1 },
+        { strike: 720, type: 'Call', side: 'short', expiration: '2026-07-15', openedCredit: 5, cycleQty: 1 },
+        { strike: 700, type: 'Call', side: 'short', expiration: '2026-06-15', openedCredit: 4, closedCost: 1.5, closedAt: '2026-05-15T20:00:00Z', cycleQty: 1 },
+      ],
+    };
+    // Position-level transactions: original Open at $99 net debit + roll pair
+    const txns = [
+      { quantity: 1, price: 99, note: 'Open' },
+      { quantity: 1, price: 1.5, note: 'PMCC roll: close short K=700 exp=2026-06-15' },
+      { quantity: -1, price: 5, note: 'PMCC roll: open short K=720 exp=2026-07-15' },
+    ];
+    // For diagonal kind (treated as debit): cashFlow = proceeds − cost (excluding rolls)
+    //   filtered = [Open at 99]; cost = 1*99*100 = 9900; proceeds = 0; cashFlow = -9900
+    // cycleRealized: closed short = (4 - 1.5)*100 = 250
+    // Total = -9900 + 250 = -9650
+    const live = computeLivePnL(position, txns, false);
+    expect(live).toBeCloseTo(-9650);
+  });
+
+  it('computeLivePnL handles a credit-strategy entry without rolls (legacy DTE5 case)', () => {
+    const position: Position = {
+      ...basePosition,
+      type: 'Credit Put Spread',
+      legs: undefined,
+    };
+    const txns = [{ quantity: 1, price: 1.5, note: 'Open' }];
+    // For credit kind: cost - proceeds = 150 - 0 = +150 (banked credit)
+    expect(computeLivePnL(position, txns, true)).toBeCloseTo(150);
   });
 });
 

@@ -169,9 +169,18 @@ export default async function handler(req, res) {
         const firstBuy = posTxns.find(function (t) { return t.quantity > 0; });
         const entryPrice = firstBuy ? Math.abs(firstBuy.price) : 0;
 
+        // PMCC rolls insert paired Take-Profit txns whose net cash flow is
+        // already captured on position.legs (closedCost / openedCredit). Skip
+        // them so they don't decrement quantity twice or trip the
+        // taken-profit heuristic for stop calc.
+        const isRollTxn = function (t) {
+          return t && typeof t.note === 'string' && t.note.startsWith('PMCC roll:');
+        };
+        const accountingTxns = posTxns.filter(function (t) { return !isRollTxn(t); });
+
         // Compute remaining quantity
         let quantity = 0;
-        for (const t of posTxns) {
+        for (const t of accountingTxns) {
           if (t.type === 'Open' || t.type === 'Size Up') quantity += t.quantity;
           else if (t.type === 'Size Down' || t.type === 'Take Profit' || t.type === 'Close') quantity -= Math.abs(t.quantity);
         }
@@ -182,7 +191,7 @@ export default async function handler(req, res) {
         const isCredit = (pos.type && (pos.type.includes('Credit') || pos.type.includes('Short'))) || false;
 
         // Stop price: manual > calculated fallback
-        const hasTakenProfit = posTxns.some(function (t) { return t.type === 'Take Profit'; });
+        const hasTakenProfit = accountingTxns.some(function (t) { return t.type === 'Take Profit'; });
         const calculatedStop = isCredit
           ? entryPrice * 1.5
           : (hasTakenProfit ? entryPrice * 0.75 : entryPrice * 0.5);
