@@ -7,6 +7,7 @@ import { LegPanel } from './position/LegPanel';
 import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory, PositionAction } from '../lib/types';
 import { splitPMCCLegs, cycleRealizedPnL, totalRealizedShortPnL } from '../lib/pmccCycles';
+import { computeLegBasedPnL, isCycleRollTransaction } from '../lib/legPnL';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
@@ -484,7 +485,11 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const targetPrice = position.target_price || calculatedTarget;
 
     let realizedPnL = 0;
+    // Skip cycle-roll transactions (PMCC short rolls) — their cash flow is
+    // already captured at the leg level via openedCredit / closedCost on
+    // position.legs, and treating them as open/close exits double-counts.
     positionTxns.forEach(t => {
+        if (isCycleRollTransaction(t.note)) return;
         if (t.type === 'Take Profit' || t.type === 'Close' || t.type === 'Size Down') {
             const exitPricePerContract = t.price * CONTRACT_MULTIPLIER;
             const qtySold = Math.abs(t.quantity);
@@ -495,6 +500,12 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
             }
         }
     });
+
+    // Add leg-level realized P&L (PMCC closed-short cycles, BCD legs once
+    // per-leg close prices land). When the position has rich leg data, this
+    // is the authoritative number for inter-cycle profit.
+    const legPnL = computeLegBasedPnL(position, liveData.legPrices ?? []);
+    if (legPnL) realizedPnL += legPnL.realized;
 
     const daysToExp = daysUntil(position.expiration);
 
