@@ -100,3 +100,40 @@ export function computeLegBasedPnL(
 export function isCycleRollTransaction(note: string | null | undefined): boolean {
   return !!note && note.startsWith('PMCC roll:');
 }
+
+/**
+ * Filter cycle-roll transactions out of a list. PMCC rolls insert paired
+ * Take-Profit transactions whose net cash flow is captured on
+ * position.legs (closedCost / openedCredit). Any aggregator that sums
+ * Take-Profit / Close transactions naively will double-count them.
+ */
+export function filterCycleRolls<T extends { note?: string | null }>(transactions: T[]): T[] {
+  return transactions.filter(t => !isCycleRollTransaction(t.note));
+}
+
+/**
+ * Leg-aware running P&L for an open or closed position. Wraps the legacy
+ * cost/proceeds sum but skips cycle-roll transactions and adds leg-level
+ * cycle realized. Use for status lines on dashboards, daily recaps, and
+ * any place that wants "net cash flow + cycle credits" for the position.
+ *
+ * Note: this returns a single number (legacy compat); for split realized
+ * vs unrealized use computeLegBasedPnL plus a current price.
+ */
+export function computeLivePnL(
+  position: Position,
+  transactions: Array<{ quantity: number; price: number; note?: string | null }>,
+  kindIsCredit: boolean,
+): number {
+  const filtered = filterCycleRolls(transactions);
+  let cost = 0;
+  let proceeds = 0;
+  for (const t of filtered) {
+    const dollars = t.price * CONTRACT_MULTIPLIER;
+    if (t.quantity > 0) cost += t.quantity * dollars;
+    else proceeds += Math.abs(t.quantity) * dollars;
+  }
+  const cashFlow = kindIsCredit ? cost - proceeds : proceeds - cost;
+  const cycleRealized = computeLegBasedPnL(position)?.realized ?? 0;
+  return cashFlow + cycleRealized;
+}
