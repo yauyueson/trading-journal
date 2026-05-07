@@ -10,7 +10,7 @@ import { X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRollPMCCShort } from '../hooks/usePositionMutations';
 import { splitPMCCLegs } from '../lib/pmccCycles';
-import { formatDate } from '../lib/utils';
+import { formatDateWithYear } from '../lib/utils';
 import type { Position } from '../lib/types';
 
 interface Props {
@@ -107,7 +107,7 @@ export const PMCCRollShortModal: React.FC<Props> = ({ position, isOpen, onClose 
           <div className="terminal-panel terminal-panel-red p-4">
             <h4 className="text-xs font-mono font-bold text-phosphor-red text-glow-red mb-2 uppercase tracking-widest">▌ CLOSE_CURRENT_SHORT</h4>
             <div className="text-xs font-mono text-text-secondary mb-3 tabular-nums">
-              K={activeShort.strike} {activeShort.type} · {formatDate(activeShort.expiration)}
+              K={activeShort.strike} {activeShort.type} · {formatDateWithYear(activeShort.expiration)}
               {activeShort.openedCredit != null && (
                 <span className="ml-2 text-phosphor-green">credit ${activeShort.openedCredit.toFixed(2)}</span>
               )}

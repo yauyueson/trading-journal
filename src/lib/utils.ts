@@ -16,6 +16,20 @@ export const formatDate = (d: string | null | undefined): string => {
     return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
+/** Like formatDate but includes a 2-digit year suffix — disambiguates LEAPs vs short-DTE. */
+export const formatDateWithYear = (d: string | null | undefined): string => {
+    if (!d) return '—';
+    if (typeof d === 'string' && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = d.split('-');
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        const yy = year.slice(-2);
+        return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} '${yy}`;
+    }
+    const dt = new Date(d);
+    const yy = dt.getFullYear().toString().slice(-2);
+    return `${dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} '${yy}`;
+};
+
 export const formatCurrency = (n: number | string): string => {
     const num = Number(n);
     if (isNaN(num)) return '$0.00';

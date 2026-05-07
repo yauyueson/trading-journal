@@ -3,12 +3,13 @@ import { Calendar, ChevronDown } from 'lucide-react';
 import { InlineEditField } from './position/InlineEditField';
 import { PositionActionForm } from './position/PositionActionForm';
 import { NotesEditor } from './position/NotesEditor';
+import { LegPanel } from './position/LegPanel';
 import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory, PositionAction } from '../lib/types';
-import { splitPMCCLegs, cycleRealizedPnL, totalRealizedShortPnL, legDte } from '../lib/pmccCycles';
+import { splitPMCCLegs, cycleRealizedPnL, totalRealizedShortPnL } from '../lib/pmccCycles';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
-import { formatDate, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
+import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
 import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQWithFactors } from '../lib/scoring';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
 import { STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
@@ -623,7 +624,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         )}
                     </div>
                     <div className="text-text-secondary text-xs sm:text-sm flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                        <span>{formatDate(position.expiration)}</span>
+                        <span>{formatDateWithYear(position.expiration)}</span>
                         {position.strategy_type === 'dte5' && position.expiration && (() => {
                             const dte = Math.round((new Date(position.expiration + 'T16:00:00').getTime() - Date.now()) / 86400000);
                             return (
@@ -725,71 +726,36 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
 
             {/* PMCC-specific body: split LEAP + active short, plus past-shorts collapsible */}
             {position.strategy_type === 'pmcc' && (() => {
-                const { longLeg, activeShort, closedShorts } = splitPMCCLegs(position);
-                const longDte = legDte(longLeg);
-                const shortDte = legDte(activeShort);
+                const { closedShorts } = splitPMCCLegs(position);
                 const realizedShortPnL = totalRealizedShortPnL(position);
-                const longPT = 0.60;
-                const longSL = 0.35;
+                const legs = position.legs ?? [];
+                const longLegIdx = legs.findIndex(l => l.side === 'long' && !l.closedAt);
+                const activeShortIdx = legs.findIndex(l => l.side === 'short' && !l.closedAt);
                 return (
                     <div className="flex flex-col gap-3 mb-4 py-4 border-y border-border-default">
-                        {/* LEAP anchor */}
-                        <div className="terminal-panel border-phosphor-green/25 p-3">
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="text-[11px] font-mono uppercase tracking-widest text-phosphor-green text-glow-green">▌ LEAP_ANCHOR</div>
-                                <div className="text-[11px] font-mono text-text-tertiary">long δ 0.70-0.80 · PT +60% · SL -35%</div>
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-                                <div>
-                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Strike</div>
-                                    <div className="text-text-primary text-base">${longLeg?.strike ?? '—'}</div>
-                                </div>
-                                <div>
-                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Expiration</div>
-                                    <div className="text-text-primary">{longLeg?.expiration ? formatDate(longLeg.expiration) : '—'}</div>
-                                </div>
-                                <div>
-                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">DTE</div>
-                                    <div className={`text-base font-bold ${longDte == null ? 'text-text-tertiary' : longDte <= 30 ? 'text-phosphor-amber text-glow-amber' : 'text-phosphor-green text-glow-green'}`}>
-                                        {longDte != null ? `${longDte}d` : '—'}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Targets</div>
-                                    <div className="text-text-primary">+{Math.round(longPT * 100)}% / -{Math.round(longSL * 100)}%</div>
-                                </div>
-                            </div>
-                        </div>
+                        {/* LEAP anchor — clickable to edit */}
+                        {longLegIdx >= 0 && (
+                            <LegPanel
+                                position={position}
+                                legIndex={longLegIdx}
+                                role="leap"
+                                tone="green"
+                                title="LEAP_ANCHOR"
+                                hint="long δ 0.70-0.80 · PT +60% · SL -35%"
+                            />
+                        )}
 
-                        {/* Active short */}
-                        <div className="terminal-panel border-phosphor-amber/30 p-3">
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="text-[11px] font-mono uppercase tracking-widest text-phosphor-amber text-glow-amber">▌ ACTIVE_SHORT</div>
-                                <div className="text-[11px] font-mono text-text-tertiary">short δ 0.20-0.30 · PT +50% · roll if K within 2%</div>
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-                                <div>
-                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Strike</div>
-                                    <div className="text-text-primary text-base">{activeShort ? `$${activeShort.strike}` : '—'}</div>
-                                </div>
-                                <div>
-                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Expiration</div>
-                                    <div className="text-text-primary">{activeShort?.expiration ? formatDate(activeShort.expiration) : '—'}</div>
-                                </div>
-                                <div>
-                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">DTE</div>
-                                    <div className={`text-base font-bold ${shortDte == null ? 'text-text-tertiary' : shortDte <= 7 ? 'text-phosphor-red text-glow-red' : shortDte <= 21 ? 'text-phosphor-amber text-glow-amber' : 'text-phosphor-green text-glow-green'}`}>
-                                        {shortDte != null ? `${shortDte}d` : '—'}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Open credit</div>
-                                    <div className="text-phosphor-green text-glow-green">
-                                        {activeShort?.openedCredit != null ? `$${activeShort.openedCredit.toFixed(2)}` : '—'}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        {/* Active short — clickable to edit */}
+                        {activeShortIdx >= 0 && (
+                            <LegPanel
+                                position={position}
+                                legIndex={activeShortIdx}
+                                role="active-short"
+                                tone="amber"
+                                title="ACTIVE_SHORT"
+                                hint="short δ 0.20-0.30 · PT +50% · roll if K within 2%"
+                            />
+                        )}
 
                         {/* Combined Greeks (compact) */}
                         <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 sm:gap-4 pt-2">
@@ -834,7 +800,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                             <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1.5 rounded bg-terminal-black/50 border border-border-default/40">
                                                 <span className="text-text-tertiary text-[10px]">#{closedShorts.length - i}</span>
                                                 <span className="text-text-primary">K=${leg.strike}</span>
-                                                <span className="text-text-secondary">exp {formatDate(leg.expiration)}</span>
+                                                <span className="text-text-secondary">exp {formatDateWithYear(leg.expiration)}</span>
                                                 <span className="text-text-tertiary">cr ${leg.openedCredit?.toFixed(2) ?? '—'} → cl ${leg.closedCost?.toFixed(2) ?? '—'}</span>
                                                 {pnl != null && (
                                                     <span className={`ml-auto ${pnl >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>
