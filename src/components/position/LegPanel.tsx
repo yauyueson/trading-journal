@@ -1,15 +1,19 @@
 /**
  * LegPanel — clickable, expandable card for one leg of a multi-leg position.
  *
- * Collapsed state shows summary (strike, expiration, DTE, credit/debit, P&L).
- * Click to expand → inline edit form for strike / expiration / opened
- * credit-or-debit. Save persists via useUpdateLeg; cancel reverts.
+ * Collapsed state shows summary (strike, expiration, DTE, fill, P&L).
+ * Click the title to expand → inline edit form for strike / expiration /
+ * opened credit (short) or opened debit (long). Save persists via
+ * useUpdateLeg; cancel reverts.
+ *
+ * Per-leg unrealized P&L is computed from the leg's openedCredit/Debit and
+ * a `currentValue` prop (per-share mark) supplied by the parent card.
  */
 import React, { useState } from 'react';
 import { Pencil, Check, X as XIcon } from 'lucide-react';
 import type { Position, PositionLeg } from '../../lib/types';
 import { useUpdateLeg } from '../../hooks/usePositionMutations';
-import { formatDateWithYear, formatCurrency } from '../../lib/utils';
+import { formatDateWithYear, formatCurrency, CONTRACT_MULTIPLIER } from '../../lib/utils';
 import { legDte } from '../../lib/pmccCycles';
 
 export type LegRole = 'leap' | 'active-short' | 'long' | 'short';
@@ -24,9 +28,9 @@ export interface LegPanelProps {
   title: string;
   /** Right-side hint text describing strategy parameters for this leg. */
   hint?: string;
-  /** Currency-formatted P&L for this leg, if known. Undefined → render '—'. */
-  legPnL?: number;
-  /** Right-side P&L label (e.g., "Unrealized" / "Realized"). */
+  /** Current per-share mark for this leg (mid or last). Used for unrealized P&L. */
+  currentValue?: number;
+  /** Optional override for the right-side P&L cell label. */
   pnlLabel?: string;
 }
 
@@ -42,6 +46,22 @@ const TITLE_CLASS: Record<NonNullable<LegPanelProps['tone']>, string> = {
   dim: 'text-text-secondary',
 };
 
+/**
+ * Per-leg unrealized P&L (in dollars) for an open leg.
+ * - Long: (currentValue - openedDebit) × 100 × qty
+ * - Short: (openedCredit - currentValue) × 100 × qty
+ * Returns undefined if either price is missing.
+ */
+export function legUnrealizedPnL(leg: PositionLeg, currentValue: number | undefined, qty: number): number | undefined {
+  if (currentValue == null || !Number.isFinite(currentValue)) return undefined;
+  if (leg.side === 'long') {
+    if (leg.openedDebit == null) return undefined;
+    return (currentValue - leg.openedDebit) * CONTRACT_MULTIPLIER * qty;
+  }
+  if (leg.openedCredit == null) return undefined;
+  return (leg.openedCredit - currentValue) * CONTRACT_MULTIPLIER * qty;
+}
+
 export const LegPanel: React.FC<LegPanelProps> = ({
   position,
   legIndex,
@@ -49,7 +69,7 @@ export const LegPanel: React.FC<LegPanelProps> = ({
   tone = 'dim',
   title,
   hint,
-  legPnL,
+  currentValue,
   pnlLabel,
 }) => {
   const leg = position.legs?.[legIndex];
@@ -58,11 +78,10 @@ export const LegPanel: React.FC<LegPanelProps> = ({
   const [expiration, setExpiration] = useState(leg?.expiration ?? '');
   const isShort = role === 'short' || role === 'active-short';
   const fillFieldLabel = isShort ? 'Open credit' : 'Entry debit';
-  const [fillPrice, setFillPrice] = useState(
-    isShort
-      ? (leg?.openedCredit?.toString() ?? '')
-      : '',
-  );
+  const initialFill = isShort
+    ? (leg?.openedCredit?.toString() ?? '')
+    : (leg?.openedDebit?.toString() ?? '');
+  const [fillPrice, setFillPrice] = useState(initialFill);
   const updateLeg = useUpdateLeg();
   const [error, setError] = useState<string | null>(null);
 
@@ -80,10 +99,13 @@ export const LegPanel: React.FC<LegPanelProps> = ({
     : dte <= 21 ? 'text-phosphor-amber text-glow-amber'
     : 'text-phosphor-green text-glow-green';
 
+  const qty = leg.cycleQty ?? 1;
+  const pnl = legUnrealizedPnL(leg, currentValue, qty);
+
   const reset = () => {
     setStrike(leg.strike?.toString() ?? '');
     setExpiration(leg.expiration ?? '');
-    setFillPrice(isShort ? (leg.openedCredit?.toString() ?? '') : '');
+    setFillPrice(isShort ? (leg.openedCredit?.toString() ?? '') : (leg.openedDebit?.toString() ?? ''));
     setError(null);
   };
 
@@ -105,6 +127,7 @@ export const LegPanel: React.FC<LegPanelProps> = ({
     }
     const patch: Partial<PositionLeg> = { strike: strikeNum, expiration };
     if (isShort) patch.openedCredit = fillNum;
+    else patch.openedDebit = fillNum;
     try {
       await updateLeg.mutateAsync({ position, legIndex, patch });
       setEditing(false);
@@ -117,6 +140,11 @@ export const LegPanel: React.FC<LegPanelProps> = ({
     reset();
     setEditing(false);
   };
+
+  const fillDisplay = isShort
+    ? (leg.openedCredit != null ? `$${leg.openedCredit.toFixed(2)}` : '—')
+    : (leg.openedDebit != null ? `$${leg.openedDebit.toFixed(2)}` : '—');
+  const fillColor = isShort ? 'text-phosphor-green text-glow-green' : 'text-text-primary';
 
   return (
     <div className={`terminal-panel p-3 ${TONE_CLASS[tone]} transition-colors ${editing ? 'ring-1 ring-phosphor-green/30' : ''}`}>
@@ -151,16 +179,12 @@ export const LegPanel: React.FC<LegPanelProps> = ({
           </div>
           <div>
             <div className="text-text-tertiary uppercase tracking-wider mb-0.5">{fillFieldLabel}</div>
-            <div className={isShort ? 'text-phosphor-green text-glow-green' : 'text-text-primary'}>
-              {isShort
-                ? (leg.openedCredit != null ? `$${leg.openedCredit.toFixed(2)}` : '—')
-                : '—'}
-            </div>
+            <div className={fillColor}>{fillDisplay}</div>
           </div>
           <div>
-            <div className="text-text-tertiary uppercase tracking-wider mb-0.5">{pnlLabel ?? 'P&L'}</div>
-            <div className={`font-bold ${legPnL == null ? 'text-text-tertiary' : legPnL > 0 ? 'text-phosphor-green text-glow-green' : legPnL < 0 ? 'text-phosphor-red text-glow-red' : 'text-text-tertiary'}`}>
-              {legPnL == null ? '—' : `${legPnL >= 0 ? '+' : ''}${formatCurrency(legPnL)}`}
+            <div className="text-text-tertiary uppercase tracking-wider mb-0.5">{pnlLabel ?? 'Unrealized'}</div>
+            <div className={`font-bold ${pnl == null ? 'text-text-tertiary' : pnl > 0 ? 'text-phosphor-green text-glow-green' : pnl < 0 ? 'text-phosphor-red text-glow-red' : 'text-text-tertiary'}`}>
+              {pnl == null ? '—' : `${pnl >= 0 ? '+' : ''}${formatCurrency(pnl)}`}
             </div>
           </div>
         </div>
@@ -188,20 +212,18 @@ export const LegPanel: React.FC<LegPanelProps> = ({
                 className="w-full px-3 py-2 rounded-md font-mono text-sm bg-terminal-black border border-border-default text-white"
               />
             </div>
-            {isShort && (
-              <div>
-                <label className="label-mono mb-1 block">{fillFieldLabel}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={fillPrice}
-                  onChange={e => setFillPrice(e.target.value)}
-                  className="w-full px-3 py-2 rounded-md font-mono text-sm bg-terminal-black border border-border-default text-white"
-                  placeholder="per share"
-                />
-              </div>
-            )}
+            <div>
+              <label className="label-mono mb-1 block">{fillFieldLabel}</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={fillPrice}
+                onChange={e => setFillPrice(e.target.value)}
+                className="w-full px-3 py-2 rounded-md font-mono text-sm bg-terminal-black border border-border-default text-white"
+                placeholder="per share"
+              />
+            </div>
           </div>
           {error && (
             <div className="text-[11px] font-mono text-phosphor-red text-glow-red">▌ {error}</div>

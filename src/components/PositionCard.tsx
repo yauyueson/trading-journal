@@ -296,6 +296,17 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                     compositeFactors = loq?.factors;
                 }
 
+                // Per-leg mid price for unrealized P&L inside LegPanel.
+                // Use mid (midpoint of bid/ask) where available, otherwise fall back
+                // to the broker-quoted price field.
+                const legPrices: Array<number | undefined> = results.map(d => {
+                    if (!d) return undefined;
+                    const bid = typeof d.bid === 'number' ? d.bid : undefined;
+                    const ask = typeof d.ask === 'number' ? d.ask : undefined;
+                    if (bid != null && ask != null && ask > 0) return (bid + ask) / 2;
+                    return typeof d.price === 'number' ? Math.abs(d.price) : undefined;
+                });
+
                 setLiveData({
                     delta: netDelta,
                     gamma: netGamma,
@@ -304,7 +315,8 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                     iv: netIv,
                     price: netPrice,
                     score: compositeScore,
-                    factors: compositeFactors
+                    factors: compositeFactors,
+                    legPrices,
                 });
 
                 if (netDelta !== 0) saveGreeksHistory(position.id, netIv, netDelta);
@@ -742,6 +754,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                 tone="green"
                                 title="LEAP_ANCHOR"
                                 hint="long δ 0.70-0.80 · PT +60% · SL -35%"
+                                currentValue={liveData.legPrices?.[longLegIdx]}
                             />
                         )}
 
@@ -754,6 +767,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                 tone="amber"
                                 title="ACTIVE_SHORT"
                                 hint="short δ 0.20-0.30 · PT +50% · roll if K within 2%"
+                                currentValue={liveData.legPrices?.[activeShortIdx]}
                             />
                         )}
 
@@ -820,8 +834,68 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                 );
             })()}
 
-            {/* Metrics Grid (non-PMCC) */}
-            {position.strategy_type !== 'pmcc' && (
+            {/* BCD-specific body: long + short LegPanels (debit spread) */}
+            {position.strategy_type === 'bcd' && (() => {
+                const legs = position.legs ?? [];
+                const longIdx = legs.findIndex(l => l.side === 'long');
+                const shortIdx = legs.findIndex(l => l.side === 'short');
+                return (
+                    <div className="flex flex-col gap-3 mb-4 py-4 border-y border-border-default">
+                        {longIdx >= 0 && (
+                            <LegPanel
+                                position={position}
+                                legIndex={longIdx}
+                                role="long"
+                                tone="green"
+                                title="LONG_CALL"
+                                hint="long δ ≈ 0.50 · pays debit"
+                                currentValue={liveData.legPrices?.[longIdx]}
+                            />
+                        )}
+                        {shortIdx >= 0 && (
+                            <LegPanel
+                                position={position}
+                                legIndex={shortIdx}
+                                role="short"
+                                tone="amber"
+                                title="SHORT_CALL"
+                                hint="short δ ≈ 0.20 · receives credit · same expiry"
+                                currentValue={liveData.legPrices?.[shortIdx]}
+                            />
+                        )}
+                        {/* Combined Greeks compact */}
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 sm:gap-4 pt-2">
+                            <div>
+                                <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">Delta</div>
+                                <div className="metric-value text-text-primary">{liveData.delta !== undefined ? liveData.delta.toFixed(2) : '—'}</div>
+                            </div>
+                            <div>
+                                <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">Gamma</div>
+                                <div className="metric-value text-text-primary">{liveData.gamma !== undefined ? liveData.gamma.toFixed(3) : '—'}</div>
+                            </div>
+                            <div>
+                                <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">Theta</div>
+                                <div className="metric-value text-text-primary">{liveData.theta !== undefined ? liveData.theta.toFixed(3) : '—'}</div>
+                            </div>
+                            <div>
+                                <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">Vega</div>
+                                <div className="metric-value text-text-primary">{liveData.vega !== undefined ? liveData.vega.toFixed(3) : '—'}</div>
+                            </div>
+                            <div>
+                                <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">IV</div>
+                                <div className="metric-value text-text-primary">{liveData.iv !== undefined ? (liveData.iv * 100).toFixed(1) + '%' : '—'}</div>
+                            </div>
+                            <div>
+                                <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">Net debit</div>
+                                <div className="metric-value text-text-primary">{formatPrice(entryPrice)}</div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Metrics Grid (non-PMCC, non-BCD) */}
+            {position.strategy_type !== 'pmcc' && position.strategy_type !== 'bcd' && (
             <div className="flex flex-col gap-4 mb-4 py-4 border-y border-border-default">
                 {/* Row 1: Trade Management */}
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 sm:gap-4">
@@ -943,7 +1017,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
             </div>
             )}
 
-            {/* TP Progress Bar (non-PMCC) */}
+            {/* TP Progress Bar (non-PMCC — BCD keeps it since the spread has a single TP target) */}
             {position.strategy_type !== 'pmcc' && tpProgress != null && entryPrice > 0 && (
                 <div className="mb-4">
                     <div className="flex items-center justify-between text-xs mb-1.5">

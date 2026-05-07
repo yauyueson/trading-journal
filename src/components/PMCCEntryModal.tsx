@@ -162,7 +162,7 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
     setSubmitting(true);
     try {
       const legs: PositionLeg[] = [
-        { strike: longStrikeNum, type: 'Call', side: 'long', expiration: longExpiration },
+        { strike: longStrikeNum, type: 'Call', side: 'long', expiration: longExpiration, openedDebit: longDebitNum, cycleQty: contracts },
         { strike: shortStrikeNum, type: 'Call', side: 'short', expiration: shortExpiration, openedCredit: shortCreditNum, cycleQty: contracts },
       ];
       const fetchedAtMs = Math.max(leapQuery.dataUpdatedAt ?? 0, shortQuery.dataUpdatedAt ?? 0);
