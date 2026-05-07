@@ -158,7 +158,7 @@ async function loadActivePositions(supabase) {
   return data ?? [];
 }
 
-async function openPaperPosition(supabase, item) {
+async function openPaperPosition(supabase, item, candidate) {
   const { data, error } = await supabase.from('positions').insert([{
     ticker: item.ticker,
     strike: item.strike,
@@ -192,6 +192,31 @@ async function openPaperPosition(supabase, item) {
     note: 'Paper autopilot entry',
   }]);
   if (tx.error) throw new Error(`transaction insert failed: ${tx.error.message}`);
+
+  // Persist per-leg fill diagnostics so post-hoc analytics can show the
+  // actual debit/credit collected per leg, not just the net.
+  if (candidate) {
+    const longLeg = candidate.longLeg;
+    const shortLeg = candidate.shortLeg;
+    const longDebit = candidate.longDebit ?? null;
+    const shortCredit = candidate.shortCredit ?? null;
+    const fillRow = {
+      position_id: position.id,
+      strategy_type: item.strategy_type,
+      quantity: item.quantity,
+      actual_net_debit: item.entry_price,
+      actual_long_debit: longDebit,
+      actual_short_credit: shortCredit,
+      legs: [
+        { side: 'long', strike: longLeg.strike, type: longLeg.type, expiration: longLeg.expiration, fill: longDebit },
+        { side: 'short', strike: shortLeg.strike, type: shortLeg.type, expiration: shortLeg.expiration, fill: shortCredit },
+      ],
+      notes: 'paper autopilot — per-leg fills captured at entry',
+    };
+    const fd = await supabase.from('fill_diagnostics').insert([fillRow]);
+    if (fd.error) console.warn(`[paper-autopilot] fill_diagnostics insert failed (non-fatal): ${fd.error.message}`);
+  }
+
   return position.id;
 }
 
@@ -205,18 +230,21 @@ async function executeAttempt({ supabase, date, attempt, activePositions }) {
 
   const { getOptionChain } = await import('../lib/orats-client.js');
   let item = null;
+  let chosenCandidate = null;
 
   if (attempt.strategyType === 'bcd') {
     const chain = await getOptionChain(PAPER_AUTOPILOT.ticker, { minDte: 30, maxDte: 60, side: 'call' });
     const candidate = chooseBcdCandidate(chain);
     if (!candidate) return insertBlockedTicket(supabase, date, 'bcd', 'no valid BCD option candidate found', activePositions, attemptIdx);
     item = buildBcdPaperPosition(candidate);
+    chosenCandidate = candidate;
   } else {
     const longChain = await getOptionChain(PAPER_AUTOPILOT.ticker, { minDte: 240, maxDte: 300, side: 'call' });
     const shortChain = await getOptionChain(PAPER_AUTOPILOT.ticker, { minDte: 30, maxDte: 45, side: 'call' });
     const candidate = choosePmccCandidate(longChain, shortChain);
     if (!candidate) return insertBlockedTicket(supabase, date, 'pmcc', 'no valid PMCC option candidate found', activePositions, attemptIdx);
     item = buildPmccPaperPosition(candidate);
+    chosenCandidate = candidate;
   }
 
   const evaluation = ticketEvaluation(item, activePositions);
@@ -228,7 +256,7 @@ async function executeAttempt({ supabase, date, attempt, activePositions }) {
     return { strategyType: attempt.strategyType, decision: 'blocked', blocks: evaluation.blocks, ticketId: row.ticket_id };
   }
 
-  const positionId = await openPaperPosition(supabase, item);
+  const positionId = await openPaperPosition(supabase, item, chosenCandidate);
   const { error: updateError } = await supabase
     .from('execution_tickets')
     .update({ position_id: positionId })

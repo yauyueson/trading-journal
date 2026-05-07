@@ -10,7 +10,7 @@
  * a `currentValue` prop (per-share mark) supplied by the parent card.
  */
 import React, { useState } from 'react';
-import { Pencil, Check, X as XIcon } from 'lucide-react';
+import { ChevronDown, Check, X as XIcon } from 'lucide-react';
 import type { Position, PositionLeg } from '../../lib/types';
 import { useUpdateLeg } from '../../hooks/usePositionMutations';
 import { formatDateWithYear, formatCurrency, CONTRACT_MULTIPLIER } from '../../lib/utils';
@@ -148,50 +148,63 @@ export const LegPanel: React.FC<LegPanelProps> = ({
 
   return (
     <div className={`terminal-panel p-3 ${TONE_CLASS[tone]} transition-colors ${editing ? 'ring-1 ring-phosphor-green/30' : ''}`}>
-      <div className="flex items-center justify-between mb-2">
+      {!editing && (
         <button
           type="button"
-          onClick={() => !editing && setEditing(true)}
-          className={`text-[11px] font-mono uppercase tracking-widest ${TITLE_CLASS[tone]} flex items-center gap-1.5 hover:underline`}
+          onClick={() => setEditing(true)}
+          className="w-full text-left group cursor-pointer"
           aria-label={`Edit ${title}`}
         >
-          ▌ {title}
-          {!editing && <Pencil size={10} className="opacity-60" />}
+          <div className="flex items-center justify-between mb-2">
+            <div className={`text-[11px] font-mono uppercase tracking-widest ${TITLE_CLASS[tone]}`}>
+              ▌ {title}
+            </div>
+            <div className="flex items-center gap-2">
+              {hint && <div className="text-[11px] font-mono text-text-tertiary truncate hidden sm:block">{hint}</div>}
+              <ChevronDown
+                size={14}
+                className="text-text-tertiary group-hover:text-phosphor-dim transition-colors"
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs font-mono">
+            <div>
+              <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Strike</div>
+              <div className="text-text-primary text-base">${leg.strike}</div>
+            </div>
+            <div>
+              <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Expiration</div>
+              <div className="text-text-primary">{formatDateWithYear(leg.expiration)}</div>
+            </div>
+            <div>
+              <div className="text-text-tertiary uppercase tracking-wider mb-0.5">DTE</div>
+              <div className={`text-base font-bold ${dteClass}`}>
+                {dte != null ? `${dte}d` : '—'}
+              </div>
+            </div>
+            <div>
+              <div className="text-text-tertiary uppercase tracking-wider mb-0.5">{fillFieldLabel}</div>
+              <div className={fillColor}>{fillDisplay}</div>
+            </div>
+            <div>
+              <div className="text-text-tertiary uppercase tracking-wider mb-0.5">{pnlLabel ?? 'Unrealized'}</div>
+              <div className={`font-bold ${pnl == null ? 'text-text-tertiary' : pnl > 0 ? 'text-phosphor-green text-glow-green' : pnl < 0 ? 'text-phosphor-red text-glow-red' : 'text-text-tertiary'}`}>
+                {pnl == null ? '—' : `${pnl >= 0 ? '+' : ''}${formatCurrency(pnl)}`}
+              </div>
+            </div>
+          </div>
         </button>
-        {hint && <div className="text-[11px] font-mono text-text-tertiary truncate">{hint}</div>}
-      </div>
-
-      {!editing && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs font-mono">
-          <div>
-            <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Strike</div>
-            <div className="text-text-primary text-base">${leg.strike}</div>
-          </div>
-          <div>
-            <div className="text-text-tertiary uppercase tracking-wider mb-0.5">Expiration</div>
-            <div className="text-text-primary">{formatDateWithYear(leg.expiration)}</div>
-          </div>
-          <div>
-            <div className="text-text-tertiary uppercase tracking-wider mb-0.5">DTE</div>
-            <div className={`text-base font-bold ${dteClass}`}>
-              {dte != null ? `${dte}d` : '—'}
-            </div>
-          </div>
-          <div>
-            <div className="text-text-tertiary uppercase tracking-wider mb-0.5">{fillFieldLabel}</div>
-            <div className={fillColor}>{fillDisplay}</div>
-          </div>
-          <div>
-            <div className="text-text-tertiary uppercase tracking-wider mb-0.5">{pnlLabel ?? 'Unrealized'}</div>
-            <div className={`font-bold ${pnl == null ? 'text-text-tertiary' : pnl > 0 ? 'text-phosphor-green text-glow-green' : pnl < 0 ? 'text-phosphor-red text-glow-red' : 'text-text-tertiary'}`}>
-              {pnl == null ? '—' : `${pnl >= 0 ? '+' : ''}${formatCurrency(pnl)}`}
-            </div>
-          </div>
-        </div>
       )}
 
       {editing && (
         <div className="space-y-2 pt-1">
+          <div className="flex items-center justify-between mb-2">
+            <div className={`text-[11px] font-mono uppercase tracking-widest ${TITLE_CLASS[tone]}`}>
+              ▌ {title} · EDIT
+            </div>
+            {hint && <div className="text-[11px] font-mono text-text-tertiary truncate hidden sm:block">{hint}</div>}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
               <label className="label-mono mb-1 block">Strike</label>
