@@ -127,6 +127,10 @@ export function evaluateCreditSpread4H(
       ((signal as any).vrp == null || (signal as any).vrp < (config as any).vrpFilter)) return null;
   if ((config as any).contangoFilter && (config as any).contangoFilter > 0 &&
       ((signal as any).contango == null || (signal as any).contango < (config as any).contangoFilter)) return null;
+  if ((config as any).vrpPctFilter && (config as any).vrpPctFilter > 0 &&
+      ((signal as any).vrpPct == null || (signal as any).vrpPct < (config as any).vrpPctFilter)) return null;
+  if ((config as any).contangoPctFilter && (config as any).contangoPctFilter > 0 &&
+      ((signal as any).contangoPct == null || (signal as any).contangoPct < (config as any).contangoPctFilter)) return null;
   if ((config as any).slopeFilter && (config as any).slopeFilter > 0 &&
       ((signal as any).slope == null || (signal as any).slope < (config as any).slopeFilter)) return null;
 

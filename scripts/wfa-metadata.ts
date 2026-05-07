@@ -3,6 +3,7 @@
  */
 import { execSync } from 'child_process';
 import os from 'os';
+import type { WFARunDataPolicy } from './wfa-data-policy';
 
 export interface WFARunMetadata {
   version: 'unified-v1';
@@ -17,6 +18,7 @@ export interface WFARunMetadata {
   elapsedMs: number;
   hostname: string;
   nodeVersion: string;
+  dataPolicy?: WFARunDataPolicy;
 }
 
 export function buildMetadata(opts: {
@@ -25,6 +27,7 @@ export function buildMetadata(opts: {
   seed: number;
   config: Record<string, unknown>;
   elapsedMs: number;
+  dataPolicy?: WFARunDataPolicy;
 }): WFARunMetadata {
   let gitHash = 'unknown';
   let gitDirty = false;
@@ -48,6 +51,7 @@ export function buildMetadata(opts: {
     elapsedMs: opts.elapsedMs,
     hostname: os.hostname(),
     nodeVersion: process.version,
+    dataPolicy: opts.dataPolicy,
   };
 }
 

@@ -1,0 +1,26 @@
+{
+  "tickers": ["QQQ", "IWM"],
+  "dataStart": "2023-01-01",
+  "startDate": "2024-03-01",
+  "endDate": "2026-02-28",
+  "trainWindowDays": 189,
+  "forwardStepDays": 42,
+  "purgeGapDays": 14,
+  "maxPositions": 3,
+  "maxPerTicker": 1,
+  "periodMultipliers": [2.25],
+  "presets": ["em", "vol"],
+  "sweepOverrides": {
+    "presets": ["em", "vol"],
+    "profitTargets": [0.30, 0.50],
+    "spreadWidths": [5, 10],
+    "ivRankMins": [20, 40, 50],
+    "deltaStops": [0.65, 0],
+    "timeStopDTEs": [1],
+    "creditShortDeltas": [0.20, 0.25, 0.30],
+    "creditDTERanges": [[7, 14]],
+    "vrpPctFilters": [0, 50],
+    "contangoPctFilters": [0, 50],
+    "periodMultipliers": [2.25]
+  }
+}

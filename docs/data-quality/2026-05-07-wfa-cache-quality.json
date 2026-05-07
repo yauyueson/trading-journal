@@ -1,0 +1,45 @@
+{
+  "artifact": {
+    "schemaVersion": 1,
+    "generatedBy": "scripts/wfa-cache-quality.ts",
+    "decision": "pass",
+    "mode": "local-cache-only"
+  },
+  "report": {
+    "generatedAt": "2026-05-07T16:49:13.929Z",
+    "profile": "swing",
+    "mode": "local-cache-only",
+    "decision": "pass",
+    "thresholds": {
+      "minCandleDates": 1,
+      "minIVProxyCoveragePct": 80,
+      "maxStaleCalendarDays": 3
+    },
+    "request": {
+      "tickers": [
+        "QQQ"
+      ],
+      "dataStart": "2017-01-01",
+      "endDate": "2026-02-28"
+    },
+    "caches": {
+      "intradayDbPath": "/Users/yuchenqiu/03_Projects/trading-journal/data/intraday-candles.sqlite",
+      "chainDbPath": "/Users/yuchenqiu/03_Projects/trading-journal/data/option-chains.sqlite"
+    },
+    "tickers": [
+      {
+        "ticker": "QQQ",
+        "candleDates": 2405,
+        "firstCandleDate": "2017-01-03",
+        "lastCandleDate": "2026-02-28",
+        "ivProxyDates": 2075,
+        "firstIVProxyDate": "2017-01-05",
+        "lastIVProxyDate": "2026-02-27",
+        "ivProxyCoveragePct": 86.28,
+        "stale": false,
+        "failures": []
+      }
+    ],
+    "failures": []
+  }
+}

@@ -142,7 +142,20 @@
 
 ---
 
-### 8️⃣ [设计系统](./DESIGN-SYSTEM.md)
+### 8️⃣ [Agent Roles and Knowledge Base](./08_AGENT_ROLES_AND_KNOWLEDGE_BASE.md) **NEW**
+**适合**: 量化研究、风控、执行、数据、产品、前端与平台协作
+
+**内容**:
+- 平台内 11 个 agent role 的职责、权限和知识库
+- Research / Live Trading / Product 三条工作流
+- 策略采用、执行、风控、数据修复、UI 变更的 decision rights
+- 可直接复用的 role prompt starters
+
+**阅读时间**: 15分钟
+
+---
+
+### 9️⃣ [设计系统](./DESIGN-SYSTEM.md)
 **适合**: 前端开发者、UI/UX 设计
 **内容**: 颜色令牌、排版、布局规范、交互动画、反模式
 **阅读时间**: 10分钟
@@ -184,6 +197,7 @@ docs/
 ├── 05_API文档.md                # API 接口与数据源配置
 ├── 06_用户工作流.md             # 使用指南和最佳实践
 ├── 07_止损与目标价短信提醒方案.md  # Discord 提醒实现方案
+├── 08_AGENT_ROLES_AND_KNOWLEDGE_BASE.md # Agent roles, knowledge bases, routing
 ├── DESIGN-SYSTEM.md              # UI/UX 设计系统规范
 ├── 算法改进总览_OSS_v2.8.md     # OSS v2.8 改进记录（当前版本）
 ├── AUDIT_10D_v1.md              # 10 维度独立审计报告
@@ -191,11 +205,37 @@ docs/
 ```
 
 ### Backtesting & WFA Reports (historical, pre-sealed-holdout era)
+- [WFA Clean-Sheet Reset](./wfa/CLEAN-SHEET-RESET-2026-05-06.md) — 2026-05-06 policy: old WFA artifacts are historical-only, not current adoption evidence
+- [QQQ Clean-Sheet Validation Plan](./wfa/QQQ-CLEAN-SHEET-VALIDATION-2026-05-07.md) — freezes the next QQQ-only validation scope for BCD/PMCC under cache-first evidence rules
 - [Swing Strategy Sign-Off](./wfa/FINAL-SIGN-OFF.md) — Production validation for swing (1D, 45-65 DTE) — SUPERSEDED, strategy retired
 - [Short-Term Results](./wfa/SHORT-TERM-RESULTS.md) — Short-term WFA validation results — SUPERSEDED
 - [WFA Journey Summary](./wfa/WFA-JOURNEY-SUMMARY.md) — Historical record of the WFA investigation
 
 For current validated strategies, see `docs/audit-rows/` (pre-reg audit trail) and `docs/holdout-evaluations/` (sealed seal files).
+
+Current strategy governance can be checked with:
+
+```bash
+npm run audit:governance
+```
+
+Cache-only active-strategy data coverage can be checked with:
+
+```bash
+npm run audit:data-coverage
+```
+
+This writes a citeable JSON artifact under `docs/data-coverage/`. Unified WFA runs embed that coverage artifact path and SHA in metadata; reports without this data-policy envelope are not clean-sheet evidence.
+
+Unified WFA runs are local-cache-first: daily/130M candles come from `data/intraday-candles.sqlite`, option-chain and IV proxy inputs come from `data/option-chains.sqlite`, and WFA pipelines must not call vendor or Supabase REST APIs.
+
+WFA cache quality can be checked with:
+
+```bash
+npm run audit:wfa-cache-quality
+```
+
+This writes a citeable JSON artifact under `docs/data-quality/` and exits non-zero when candles or IV proxy coverage are stale/sparse. A blocked audit means the next step is explicit cache refresh or a narrower clean-sheet universe/window.
 
 ---
 

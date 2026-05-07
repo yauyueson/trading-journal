@@ -39,6 +39,7 @@ import {
 } from '../src/lib/backtest/credit-spread-exit';
 import type { FillMode } from '../src/lib/backtest/types';
 import { applyFill, applySpreadFill } from '../src/lib/backtest/slippage';
+import { buildLocalSwingTickerData } from './wfa-local-cache';
 import {
   buildConfiguredSignalsForWindow,
   buildWFAWindows,
@@ -92,7 +93,7 @@ export const SWING_DEFAULTS = {
   tickers: [
     'SPY', 'QQQ', 'AMD', 'IWM', 'TSLA',
     'AAPL', 'JPM', 'NVDA', 'AMZN', 'MSFT',
-    'META', 'NFLX', 'GOOGL', 'GS',
+    'META', 'NFLX', 'GOOG', 'GS',
   ],
   dataStart: '2017-01-01',
   startDate: '2018-01-01',
@@ -115,19 +116,6 @@ export const SWING_SWEEP_DEFAULTS: SwingSweepDimensions = {
   deltaStops: [0.75, 0.80, Infinity],
   timeStopDTEs: [7, 14],
 };
-
-// ── Supabase Helper ────────────────────────────────────
-
-const SUPABASE_URL = () => process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const SUPABASE_KEY = () => process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
-
-async function supabaseGet(table: string, query: string): Promise<any[]> {
-  const res = await fetch(`${SUPABASE_URL()}/rest/v1/${table}?${query}`, {
-    headers: { 'apikey': SUPABASE_KEY(), 'Authorization': `Bearer ${SUPABASE_KEY()}` },
-  });
-  if (!res.ok) throw new Error(`${table} fetch failed: ${res.status}`);
-  return res.json();
-}
 
 function computeRollingPercentile(values: (number | undefined)[], window = 252): (number | undefined)[] {
   return values.map((v, i) => {
@@ -162,63 +150,13 @@ export async function fetchTickerData(ticker: string, dataStart: string, dataEnd
   const cacheKey = `${ticker}|${dataStart}|${dataEnd}`;
   if (candleCache.has(cacheKey)) return candleCache.get(cacheKey)!;
 
-  const candles: BacktestCandle[] = (await supabaseGet('stock_candles',
-    `select=date,open,high,low,close,volume&ticker=eq.${ticker}&timeframe=eq.1D&date=gte.${dataStart}&date=lte.${dataEnd}&order=date.asc&limit=5000`
-  )).map(r => ({
-    date: r.date, timestamp: new Date(r.date + 'T00:00:00Z').getTime(),
-    open: +r.open, high: +r.high, low: +r.low, close: +r.close, volume: +r.volume,
-  }));
-
-  const ivData = await supabaseGet('orats_iv_cache',
-    `select=date,iv30d,iv60d,hv30d&ticker=eq.${ticker}&date=gte.${dataStart}&date=lte.${dataEnd}&order=date.asc&limit=5000`);
-  let coresData: { trade_date: string; slope: number | null }[] = [];
-  try {
-    coresData = await supabaseGet('orats_cores_cache',
-      `select=trade_date,slope&ticker=eq.${ticker}&trade_date=gte.${dataStart}&trade_date=lte.${dataEnd}&order=trade_date.asc&limit=5000`);
-  } catch { /* optional */ }
-
-  const ivByDate = new Map(ivData.map((r: any) => [r.date, Number(r.iv30d)]));
-  const regimeByDate = new Map<string, {
-    vrp?: number; contango?: number; slope?: number; vrpPct?: number; contangoPct?: number;
-  }>();
-  const slopeByDate = new Map<string, number>();
-  const contangoByDate = new Map<string, number>();
-  const vrpByDate = new Map<string, number>();
-
-  for (const row of coresData) {
-    if (row?.slope != null && Number.isFinite(row.slope)) slopeByDate.set(row.trade_date, Number(row.slope));
-  }
-  for (const r of ivData as any[]) {
-    const iv30 = Number(r.iv30d), iv60 = Number(r.iv60d), hv30 = Number(r.hv30d);
-    const contango = Number.isFinite(iv30) && iv30 > 0 && Number.isFinite(iv60) ? (iv60 / iv30) - 1 : undefined;
-    const vrp = Number.isFinite(iv30) && Number.isFinite(hv30) ? (iv30 * iv30) - (hv30 * hv30) : undefined;
-    if (contango != null) contangoByDate.set(r.date, contango);
-    if (vrp != null) vrpByDate.set(r.date, vrp);
-  }
-
-  const orderedDates = candles.map(c => c.date);
-  const contangoPctSeries = computeRollingPercentile(orderedDates.map(d => contangoByDate.get(d)));
-  const vrpPctSeries = computeRollingPercentile(orderedDates.map(d => vrpByDate.get(d)));
-  const contangoPctByDate = new Map<string, number>();
-  const vrpPctByDate = new Map<string, number>();
-  for (let i = 0; i < orderedDates.length; i++) {
-    const cPct = contangoPctSeries[i];
-    const vPct = vrpPctSeries[i];
-    if (cPct != null) contangoPctByDate.set(orderedDates[i], cPct);
-    if (vPct != null) vrpPctByDate.set(orderedDates[i], vPct);
-  }
-  for (const r of ivData as any[]) {
-    regimeByDate.set(r.date, {
-      vrp: vrpByDate.get(r.date), contango: contangoByDate.get(r.date),
-      slope: slopeByDate.get(r.date), vrpPct: vrpPctByDate.get(r.date),
-      contangoPct: contangoPctByDate.get(r.date),
-    });
-  }
-
-  const ivSeries = candles.map(c => ivByDate.get(c.date) ?? null);
-  const ivRanks = computeIVRankMinMax(ivSeries);
-  const dateToIdx = new Map(candles.map((c, i) => [c.date, i]));
-  const data = { ticker, candles, ivRanks, dateToIdx, regimeByDate };
+  const data = buildLocalSwingTickerData({
+    ticker,
+    dataStart,
+    dataEnd,
+    intradayDbPath: process.env.WFA_INTRADAY_DB_PATH,
+    chainDbPath: process.env.WFA_CHAIN_DB_PATH,
+  });
   candleCache.set(cacheKey, data);
   return data;
 }

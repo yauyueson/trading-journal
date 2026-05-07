@@ -50,6 +50,7 @@ import {
   type ShortSweepDimensions,
 } from './wfa-pipeline-short';
 import { buildMetadata, generateRunFilename } from './wfa-metadata';
+import { createWFARunDataPolicy } from './wfa-data-policy';
 import {
   buyAndHoldBenchmark,
   mechanicalPutSellBenchmark,
@@ -215,6 +216,20 @@ async function main() {
   if (smoke) console.log(`  Mode:     SMOKE (minimal sweep)`);
   console.log('');
 
+  const dataPolicy = createWFARunDataPolicy({
+    repoRoot: path.resolve(__dirname, '..'),
+    qualityRequest: {
+      profile,
+      tickers,
+      dataStart: defaults.dataStart,
+      endDate: defaults.endDate,
+    },
+  });
+  console.log(`  Data:     ${dataPolicy.mode} (${dataPolicy.vendorApiCalls})`);
+  console.log(`  Coverage: ${dataPolicy.coverageArtifactPath}`);
+  console.log(`  SHA256:   ${dataPolicy.coverageArtifactSha256}`);
+  console.log('');
+
   const t0 = Date.now();
 
   // Route to appropriate pipeline
@@ -229,6 +244,7 @@ async function main() {
       seed,
       config: pipelineConfig as unknown as Record<string, unknown>,
       elapsedMs,
+      dataPolicy,
     });
 
     const exportResult = {
@@ -353,6 +369,7 @@ async function main() {
       seed,
       config: shortConfig as unknown as Record<string, unknown>,
       elapsedMs,
+      dataPolicy,
     });
 
     const exportResult = {
