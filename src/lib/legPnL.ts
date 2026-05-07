@@ -95,20 +95,25 @@ export function computeLegBasedPnL(
 /**
  * Returns true when a transaction should be excluded from the legacy
  * realized-P&L sum because its cash flow is already captured at the leg
- * level (PMCC roll close + open pair).
+ * level. Currently flags PMCC short rolls and per-leg close transactions.
  */
-export function isCycleRollTransaction(note: string | null | undefined): boolean {
-  return !!note && note.startsWith('PMCC roll:');
+export function isLegLevelTransaction(note: string | null | undefined): boolean {
+  if (!note) return false;
+  return note.startsWith('PMCC roll:') || note.startsWith('Close leg:');
 }
 
+/** @deprecated use isLegLevelTransaction — kept for back-compat with older callers. */
+export const isCycleRollTransaction = isLegLevelTransaction;
+
 /**
- * Filter cycle-roll transactions out of a list. PMCC rolls insert paired
- * Take-Profit transactions whose net cash flow is captured on
- * position.legs (closedCost / openedCredit). Any aggregator that sums
- * Take-Profit / Close transactions naively will double-count them.
+ * Filter leg-level transactions (rolls, per-leg closes) out of a list.
+ * PMCC rolls and explicit per-leg closes insert Take-Profit transactions
+ * whose net cash flow is captured on position.legs (closedCost,
+ * openedCredit, openedDebit). Any aggregator that sums Take-Profit /
+ * Close transactions naively will double-count them.
  */
 export function filterCycleRolls<T extends { note?: string | null }>(transactions: T[]): T[] {
-  return transactions.filter(t => !isCycleRollTransaction(t.note));
+  return transactions.filter(t => !isLegLevelTransaction(t.note));
 }
 
 /**

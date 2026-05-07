@@ -337,6 +337,47 @@ export function useAddLeg() {
 }
 
 /**
+ * Close a single leg on a position. Marks the leg with closedAt + closedCost,
+ * leaves the rest of the position open. Inserts a Take-Profit transaction
+ * with a 'Close leg:' note so leg-aware aggregators can skip it (the cash
+ * flow is captured at the leg level).
+ *
+ * For shorts: closeFill is the debit paid to buy back. Insert with positive
+ * quantity (cost). For longs: closeFill is the credit received from sale.
+ * Insert with negative quantity (proceeds).
+ */
+export function useCloseLeg() {
+  const invalidate = useInvalidatePositionsAndTransactions();
+  return useMutation({
+    mutationFn: async ({ position, legIndex, closeFill, closeQty }: {
+      position: Position;
+      legIndex: number;
+      closeFill: number;
+      closeQty: number;
+    }) => {
+      const legs = position.legs ?? [];
+      if (legIndex < 0 || legIndex >= legs.length) throw new Error(`leg index ${legIndex} out of range`);
+      const leg = legs[legIndex];
+      if (leg.closedAt) throw new Error('leg is already closed');
+      const updated = legs.map((l, i) =>
+        i === legIndex
+          ? { ...l, closedAt: new Date().toISOString(), closedCost: closeFill, cycleQty: closeQty }
+          : l,
+      );
+      throwIfSupabaseError(await supabase.from('positions').update({ legs: updated }).eq('id', position.id));
+      throwIfSupabaseError(await supabase.from('transactions').insert([{
+        position_id: position.id,
+        type: 'Take Profit',
+        quantity: leg.side === 'short' ? closeQty : -closeQty,
+        price: closeFill,
+        note: `Close leg: ${leg.side} ${leg.type} K=${leg.strike} exp=${leg.expiration}`,
+      }]));
+    },
+    onSuccess: invalidate,
+  });
+}
+
+/**
  * Update a single leg's metadata (strike, expiration, openedCredit/Debit) on a position.
  * Identifies the leg by index in position.legs. Used by the click-to-edit subleg UI.
  */
