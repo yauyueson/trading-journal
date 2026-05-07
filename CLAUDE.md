@@ -82,6 +82,7 @@ All in `api/` as ESM `.js` files. Key routes:
 - `backtest-data.js` (15s) — unified backtest endpoint (`?type=candles` or `?type=iv`)
 - `check-alerts.js` (60s) — Discord alerts for stop-loss / trailing-lock triggers. **Filters out `strategy_type in ('bcd','pmcc')`** — those strategies use their own PT/roll rules in-UI, not the legacy DTE5 SL 2.5x / TL 50/50 path.
 - `daily-recap.js` (60s) — daily summary → Discord
+- `paper-autopilot.js` (60s) — one-month paper-autopilot cron (Vercel cron `0 15 * * 1-5`, window `2026-05-08 → 2026-06-07`). QQQ-only, paper-only, BCD 10-day cadence + PMCC always-in. Writes a row in `execution_tickets` before any paper position insert; blocked rows are retained as audit. See [docs/execution/QQQ-PAPER-AUTOPILOT-EXPERIMENT-2026-05-08.md](docs/execution/QQQ-PAPER-AUTOPILOT-EXPERIMENT-2026-05-08.md).
 
 **Retired**: `api/cron-signal-scan.js` (782-line DTE5 EMA55 scanner) deleted 2026-04-24 when BCD adopted a 10-day manual cadence and PMCC went always-in. External cron still pointed at it returns 404 — expected no-op.
 
@@ -120,6 +121,11 @@ Located in `scripts/autoresearch/`:
 
 Study results go in `backtesting history/credit-spread/reports/<study-name>/` with a `README.md` + data outputs; sealed holdouts go in `docs/holdout-evaluations/`; audit rows in `docs/audit-rows/`.
 
+**Clean-sheet WFA reset (2026-05-06)**: pre-2026-05-06 WFA artifacts are historical-only — they may not be cited as current adoption evidence (see [docs/wfa/CLEAN-SHEET-RESET-2026-05-06.md](docs/wfa/CLEAN-SHEET-RESET-2026-05-06.md)). The unified WFA pipeline (`scripts/wfa-run-unified.ts` + `wfa-pipeline-{swing,short}.ts`) is now **local-cache-only** — daily/130M candles come from `data/intraday-candles.sqlite`, IV30/60 proxies and chains from `data/option-chains.sqlite`. Vendor and Supabase REST calls inside WFA are forbidden; missing cache must be filled by an explicit prefetch step before the run. Promotable runs embed a `dataPolicy` envelope (mode + artifact path + SHA256) in result metadata via `scripts/wfa-data-policy.ts` — output without that envelope is historical-only. Three citeable audits gate this:
+- `npm run audit:governance` ([scripts/governance-audit.ts](scripts/governance-audit.ts)) — verifies `config/strategy-governance.json` hashes match the declared dataset manifest, adoption gates, and seal files.
+- `npm run audit:data-coverage` ([scripts/data-coverage-report.ts](scripts/data-coverage-report.ts)) — cache-only DTE-band coverage for active strategies; writes `docs/data-coverage/YYYY-MM-DD-cache-only-coverage.json`.
+- `npm run audit:wfa-cache-quality` ([scripts/wfa-cache-quality.ts](scripts/wfa-cache-quality.ts)) — cache-only candle + IV proxy coverage; writes `docs/data-quality/YYYY-MM-DD-wfa-cache-quality.json` and exits non-zero if stale/sparse.
+
 **Zero-API research tooling**: `scripts/attribution/` and the `lean-wfa-*` family run pure cache-only studies — no ORATS calls, no dsrM cost, no sealer involvement. Use these for exploration before pre-registering anything:
 - `scripts/attribution/sealed-anchors-attribution.ts` — replays sealed F1 anchors through their WFA, tags entries by pre-declared regime features, produces what-if-gate tables.
 - `scripts/attribution/liquidity-eligibility.ts` — sweeps any cached ticker set through monthly snapshots for BCD/PMCC constructability + leg liquidity stats.
@@ -138,7 +144,7 @@ Study results go in `backtesting history/credit-spread/reports/<study-name>/` wi
 
 ### Testing
 
-Vitest configured in `vite.config.ts` (not a separate config). **1232 tests across 55 files**. Tests in two locations:
+Vitest configured in `vite.config.ts` (not a separate config). **1277 tests across 64 files**. Tests in two locations:
 - `tests/` — integration/parity tests (scoring parity, BSM, WFA, option-sim, F0 boundary, evaluate-holdout, adoption gates, migration, analytics-pnl sign conventions)
 - `src/lib/__tests__/` — unit tests (oss-core, riskSizing, computePositionPnL, chainCandidates, supabaseResult)
 
@@ -148,13 +154,15 @@ Test environment: jsdom with globals enabled. Setup file: `src/test/setup.ts`.
 
 - **Backtest trust gotchas**: Before making any claim about a strategy's performance, read `docs/backtest-trust-gotchas.md`. It catalogues every simulator bug and trap that has produced fake results in this project. Any new gotcha found must be added there. The runner enforces `MAX_SANE_OOS_SHARPE = 3.0` — anything higher is almost always a structural bug.
 - **Scoring parity**: `oss-core.ts` ↔ `scoring.cjs` must match. Run `npx vitest run tests/scoring-parity.test.ts` after any scoring change.
-- **All tests must pass**: 1232 tests. Never merge with failures.
+- **All tests must pass**: 1277 tests. Never merge with failures.
 - **Sealed holdout protocol**: Any new strategy adoption requires (1) pre-registration committed to `.handoff/current.md` **before** running the runner, (2) a singleton strategy file with a named anchor (no variants), (3) the sealer (`scripts/evaluate-holdout.ts`) machine-enforcing 6/6 gates. See `docs/sealed-holdout.md` + `docs/phase-f0-clean-slate-declaration.md`.
 - **Backtesting reports**: Must go in `backtesting history/credit-spread/reports/<study-name>/`. Each study folder gets a `README.md` plus data outputs. Never scatter results across `data/`, `scripts/`, or project root.
 - **ESLint**: Lints only `src/**/*.{ts,tsx}`. Ignores `api/`, `lib/`, `*.cjs`. Max 25 warnings.
 - **API route pattern**: `api/strategy-recommend.js` uses raw `fetch()` for Supabase REST (env: `SUPABASE_URL`/`SUPABASE_ANON_KEY`). `api/cron-iv.js` uses `@supabase/supabase-js` createClient.
 - **Paper trading**: Positions have `is_paper` boolean. Paper and live positions coexist; filter via the portfolio's paper/live toggle.
 - **Strategy config consistency**: When changing strategy parameters (deltas, DTE, PT/SL, tickers), update ALL of: `data/strategy-config.json`, `src/lib/strategyProfiles.ts`, `lib/_shared/strategyConfig.js`, `src/lib/types/settings.ts`, `src/pages/Signals.tsx`, `src/pages/Dashboard.tsx`, `src/components/PositionCard.tsx`, `src/components/BCDEntryModal.tsx` / `src/components/PMCCEntryModal.tsx` (if entry defaults move), `api/check-alerts.js`, and `CLAUDE.md`. Run `npx tsc --noEmit && npm run test && npm run build` to verify.
+- **Strategy governance vs. parameters**: status/permissions live in [config/strategy-governance.json](config/strategy-governance.json) (paper-approved / live-adopted / retired, capital tier, paper/live permission, canonical seal hash). Strategy *parameters* still live in `strategyProfiles.ts` etc. Don't conflate the two. Live adoption requires `permission.live = true` plus all `liveRequires` items signed off — currently both BCD and PMCC are `paper-approved` only.
+- **Execution-ticket gate (BCD/PMCC)**: every paper entry through `useAddDirect` writes a row to `execution_tickets` ([src/lib/executionTickets.ts](src/lib/executionTickets.ts)) before inserting the position. Blocked tickets are persisted with `decision='blocked'` for audit. The gate enforces capital-tier risk caps, QQQ-only, duplicate active-position checks, and live-mode permission. The hook re-fetches active positions from Supabase before evaluating so the duplicate check doesn't rely on stale React Query cache. The autopilot cron (`api/paper-autopilot.js`) and modals (`BCDEntryModal` / `PMCCEntryModal`) both pass `execution_account_size`. Schema in `supabase/migrations/20260507_018_execution_tickets.sql`.
 - **ORATS data quirk**: `orats_iv_cache.hv30d` is always NULL — ORATS `/hist/cores` doesn't provide `clsHv30d` (skips from 20d to 60d). Use `hv20d` for VRP computation (IV30² - HV20²).
 - **Chain cache coverage debugging** (gotcha #43): If a per-day chain query returns `[]` for tickers that should be liquid, suspect stale `NULL/NULL` fetch_log entries before declaring the ticker market-illiquid. `isCovered()` treats NULL/NULL as "everything fetched" even when the original ORATS call used a DTE-range filter, so subsequent re-fetches with `--dte-range` get silently no-op'd. Diagnostic: run `scripts/attribution/probe-orats-dte-coverage.ts` (single API call) to compare ORATS reality against the cache. Recovery: purge NULL/NULL entries from both `fetch_log` and `fetch_log_intervals` (option_chains rows preserved), re-run prefetch with explicit `--dte-range`. Back up the SQLite first.
 
@@ -171,11 +179,13 @@ Migrations in `supabase/migrations/` as raw SQL (no ORM).
 
 ## Active Strategies
 
-Two F1 sealed adoptions (post-F0 clean-slate, 2026-04-23) run concurrently — different capital tiers, both QQQ-only:
+Two F1 sealed adoptions (post-F0 clean-slate, 2026-04-23) run concurrently — different capital tiers, both QQQ-only. **Both are `paper-approved` only** under the 2026-05-06 clean-sheet reset; live adoption is blocked pending forward-data review, execution ticket workflow in production use, risk-manager signoff, and human broker confirmation. See [config/strategy-governance.json](config/strategy-governance.json) for the canonical status registry.
 
 **BCD QQQ wide** (`strategy_type: 'bcd'`, `$2K` tier): bull call debit spread. Long call δ 0.50 / short call δ 0.20, same expiry, DTE 30-60, profit target 50%, bid/ask fills. Entered every 10 trading days when flat (10-day emission + `maxPositions=1` flat gate — not a strict cadence). Seal: [docs/holdout-evaluations/2026-04-23-25880326cfe1.md](docs/holdout-evaluations/2026-04-23-25880326cfe1.md) — oosSharpe 0.97, holdoutSharpe 1.22, holdoutSpyIR +0.40, dsrM (F0-eff N=30) +0.065 (all 6 gates pass).
 
 **PMCC QQQ pt60** (`strategy_type: 'pmcc'`, `$10K+` tier): diagonal. Long LEAP call δ 0.70–0.80, DTE 240-300; short monthly call δ 0.20-0.30, DTE 30-45. Long PT 60%, short PT 50%, long SL 35%, roll short when underlying within 2% of short strike. Always-in (enter when flat). Seal: [docs/holdout-evaluations/2026-04-23-7e9c2026f3df.md](docs/holdout-evaluations/2026-04-23-7e9c2026f3df.md) — oosSharpe 1.72, holdoutSharpe 1.63, holdoutSpyIR +0.15, dsrM (F0-eff N=25) +0.845.
+
+**Clean-sheet validation** ([docs/wfa/QQQ-CLEAN-SHEET-VALIDATION-RESULTS-2026-05-07.md](docs/wfa/QQQ-CLEAN-SHEET-VALIDATION-RESULTS-2026-05-07.md)): both anchors re-evaluated under cache-only data policy (0 API calls). BCD `paper_candidate` (Hold Sharpe 1.14, IR 0.44, 23 trades). PMCC `paper_candidate` (Hold Sharpe 1.84, IR 0.20, 11 trades). Live deployment remains blocked by governance.
 
 `STRATEGY_PROFILES` in [src/lib/strategyProfiles.ts](src/lib/strategyProfiles.ts) defines five types. `ACTIVE_STRATEGIES = ['bcd', 'pmcc']`; `RETIRED_STRATEGIES = {'swing', 'shortTerm', 'dte5'}`. Retired rows remain viewable under the "Legacy" filter on Portfolio / Stats; their code paths are untouched.
 
