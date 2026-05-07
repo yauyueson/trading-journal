@@ -284,6 +284,58 @@ export function useRollPosition() {
   });
 }
 
+export interface AddLegInput {
+  position: Position;
+  newLeg: PositionLeg;
+  /** Per-share fill price for the new leg (debit if long, credit if short). */
+  fillPrice: number;
+  /** Quantity for this leg. */
+  qty: number;
+}
+
+/**
+ * Append a leg to a position. Handles two cases:
+ *  - If position has no legs[]: synthesize a 'long' leg from position.strike /
+ *    type / expiration first, then append the new one (single → spread).
+ *  - If position already has legs[]: append the new leg to the array.
+ *
+ * Always inserts an Open transaction recording the new leg's cash flow:
+ * positive quantity (debit) for long, negative quantity (credit) for short.
+ */
+export function useAddLeg() {
+  const invalidate = useInvalidatePositionsAndTransactions();
+  return useMutation({
+    mutationFn: async ({ position, newLeg, fillPrice, qty }: AddLegInput) => {
+      const existingLegs = position.legs ?? [];
+      let legs: PositionLeg[];
+      if (existingLegs.length === 0) {
+        const inferredOriginal: PositionLeg = {
+          strike: position.strike,
+          type: position.type ?? 'Call',
+          side: 'long',
+          expiration: position.expiration,
+          cycleQty: qty,
+        };
+        const enriched: PositionLeg = { ...newLeg, cycleQty: qty };
+        legs = [inferredOriginal, enriched];
+      } else {
+        const enriched: PositionLeg = { ...newLeg, cycleQty: qty };
+        legs = [...existingLegs, enriched];
+      }
+
+      throwIfSupabaseError(await supabase.from('positions').update({ legs }).eq('id', position.id));
+      throwIfSupabaseError(await supabase.from('transactions').insert([{
+        position_id: position.id,
+        type: 'Open',
+        quantity: newLeg.side === 'short' ? -qty : qty,
+        price: fillPrice,
+        note: `Add leg: ${newLeg.side} ${newLeg.type} K=${newLeg.strike} exp=${newLeg.expiration}`,
+      }]));
+    },
+    onSuccess: invalidate,
+  });
+}
+
 /**
  * Update a single leg's metadata (strike, expiration, openedCredit/Debit) on a position.
  * Identifies the leg by index in position.legs. Used by the click-to-edit subleg UI.
