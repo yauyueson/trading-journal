@@ -434,7 +434,7 @@ const ActionMenu: React.FC<{
         onClick={onRoll}
         icon={<ArrowRightLeft size={14} />}
         label="Roll this leg"
-        sublabel={isShort ? 'Close + open new strike/expiry' : 'Extend out + reset'}
+        sublabel={isShort ? 'Close + open at new strike / expiry' : 'Roll out + restrike the long leg'}
         delay={0.04}
         accent="warn"
       />

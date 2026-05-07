@@ -336,6 +336,80 @@ export function useAddLeg() {
   });
 }
 
+export interface RollLegInput {
+  position: Position;
+  legIndex: number;
+  /** Close fill (debit paid for shorts, credit received for longs) per share. */
+  closeFill: number;
+  /** New leg's strike. */
+  newStrike: number;
+  /** New leg's expiration (YYYY-MM-DD). */
+  newExpiration: string;
+  /** New leg's fill (debit for longs, credit for shorts) per share. */
+  newFill: number;
+  /** Quantity for the cycle (defaults to existing leg.cycleQty or 1). */
+  cycleQty?: number;
+}
+
+/**
+ * Roll any leg (long or short) on a position. Closes the existing leg
+ * (marks closedAt + closedCost on its index), and writes a new active
+ * leg in its place. Side and option type carry over from the original.
+ *
+ * Inserts paired Take-Profit transactions tagged 'Roll leg:' for audit;
+ * leg-aware aggregators skip them via isLegLevelTransaction.
+ */
+export function useRollLeg() {
+  const invalidate = useInvalidatePositionsAndTransactions();
+  return useMutation({
+    mutationFn: async ({ position, legIndex, closeFill, newStrike, newExpiration, newFill, cycleQty }: RollLegInput) => {
+      const legs = position.legs ?? [];
+      if (legIndex < 0 || legIndex >= legs.length) throw new Error(`leg index ${legIndex} out of range`);
+      const oldLeg = legs[legIndex];
+      if (oldLeg.closedAt) throw new Error('leg is already closed');
+      const qty = cycleQty ?? oldLeg.cycleQty ?? 1;
+
+      const closedLeg: PositionLeg = {
+        ...oldLeg,
+        closedAt: new Date().toISOString(),
+        closedCost: closeFill,
+        cycleQty: qty,
+      };
+      const newLeg: PositionLeg = {
+        strike: newStrike,
+        type: oldLeg.type,
+        side: oldLeg.side,
+        expiration: newExpiration,
+        cycleQty: qty,
+        ...(oldLeg.side === 'short' ? { openedCredit: newFill } : { openedDebit: newFill }),
+      };
+
+      const updatedLegs = [...legs];
+      updatedLegs[legIndex] = newLeg;
+      updatedLegs.push(closedLeg);
+
+      throwIfSupabaseError(await supabase.from('positions').update({ legs: updatedLegs }).eq('id', position.id));
+      throwIfSupabaseError(await supabase.from('transactions').insert([
+        {
+          position_id: position.id,
+          type: 'Take Profit',
+          quantity: oldLeg.side === 'short' ? qty : -qty,
+          price: closeFill,
+          note: `Roll leg: close ${oldLeg.side} K=${oldLeg.strike} exp=${oldLeg.expiration}`,
+        },
+        {
+          position_id: position.id,
+          type: 'Take Profit',
+          quantity: oldLeg.side === 'short' ? -qty : qty,
+          price: newFill,
+          note: `Roll leg: open ${oldLeg.side} K=${newStrike} exp=${newExpiration}`,
+        },
+      ]));
+    },
+    onSuccess: invalidate,
+  });
+}
+
 /**
  * Close a single leg on a position. Marks the leg with closedAt + closedCost,
  * leaves the rest of the position open. Inserts a Take-Profit transaction

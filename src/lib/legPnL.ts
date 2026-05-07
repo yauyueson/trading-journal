@@ -99,7 +99,9 @@ export function computeLegBasedPnL(
  */
 export function isLegLevelTransaction(note: string | null | undefined): boolean {
   if (!note) return false;
-  return note.startsWith('PMCC roll:') || note.startsWith('Close leg:');
+  return note.startsWith('PMCC roll:')
+    || note.startsWith('Close leg:')
+    || note.startsWith('Roll leg:');
 }
 
 /** @deprecated use isLegLevelTransaction — kept for back-compat with older callers. */
