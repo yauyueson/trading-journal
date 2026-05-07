@@ -4,7 +4,21 @@ import { queryKeys } from '../lib/queryKeys';
 import { formatDate } from '../lib/utils';
 import { requireSupabaseData, throwIfSupabaseError } from '../lib/supabaseResult';
 import { buildExecutionTicketAuditRowFromDirectAdd, isGovernedDirectAddStrategy } from '../lib/executionTickets';
-import type { Position, PositionAction, DirectAddItem, WatchlistItem, RollData } from '../lib/types';
+import type { Position, PositionAction, DirectAddItem, WatchlistItem, RollData, PositionLeg } from '../lib/types';
+
+export interface PMCCRollShortInput {
+  position: Position;
+  /** Debit paid per share to close the existing short leg. */
+  closeCost: number;
+  /** New short leg strike. */
+  newStrike: number;
+  /** New short leg expiration (YYYY-MM-DD). */
+  newExpiration: string;
+  /** Credit received per share for the new short leg. */
+  newCredit: number;
+  /** Quantity for the cycle (defaults to existing cycle qty / position qty). */
+  cycleQty?: number;
+}
 
 function useInvalidatePositionsAndTransactions() {
   const queryClient = useQueryClient();
@@ -265,6 +279,64 @@ export function useRollPosition() {
           note: 'Rolled from prev position',
         }]));
       }
+    },
+    onSuccess: invalidate,
+  });
+}
+
+/**
+ * Roll the SHORT leg of a PMCC diagonal, leaving the long LEAP untouched.
+ * Marks the current active short as closed (with closedAt + closedCost) and
+ * appends a new active short leg. Records two transactions for cycle audit.
+ */
+export function useRollPMCCShort() {
+  const invalidate = useInvalidatePositionsAndTransactions();
+  return useMutation({
+    mutationFn: async ({ position, closeCost, newStrike, newExpiration, newCredit, cycleQty }: PMCCRollShortInput) => {
+      const legs = position.legs ?? [];
+      const activeShortIdx = legs.findIndex(l => l.side === 'short' && !l.closedAt);
+      if (activeShortIdx < 0) throw new Error('PMCC has no active short leg to roll');
+      const oldShort = legs[activeShortIdx];
+      const qty = cycleQty ?? oldShort.cycleQty ?? 1;
+
+      const closedShort: PositionLeg = {
+        ...oldShort,
+        closedAt: new Date().toISOString(),
+        closedCost: closeCost,
+        cycleQty: qty,
+      };
+      const newShort: PositionLeg = {
+        strike: newStrike,
+        type: oldShort.type,
+        side: 'short',
+        expiration: newExpiration,
+        openedCredit: newCredit,
+        cycleQty: qty,
+      };
+      const updatedLegs = [...legs];
+      updatedLegs[activeShortIdx] = newShort;
+      updatedLegs.push(closedShort);
+
+      throwIfSupabaseError(await supabase.from('positions').update({
+        legs: updatedLegs,
+      }).eq('id', position.id));
+
+      throwIfSupabaseError(await supabase.from('transactions').insert([
+        {
+          position_id: position.id,
+          type: 'Take Profit',
+          quantity: qty,
+          price: closeCost,
+          note: `PMCC roll: close short K=${oldShort.strike} exp=${oldShort.expiration}`,
+        },
+        {
+          position_id: position.id,
+          type: 'Take Profit',
+          quantity: -qty,
+          price: newCredit,
+          note: `PMCC roll: open short K=${newStrike} exp=${newExpiration}`,
+        },
+      ]));
     },
     onSuccess: invalidate,
   });

@@ -163,7 +163,7 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
     try {
       const legs: PositionLeg[] = [
         { strike: longStrikeNum, type: 'Call', side: 'long', expiration: longExpiration },
-        { strike: shortStrikeNum, type: 'Call', side: 'short', expiration: shortExpiration },
+        { strike: shortStrikeNum, type: 'Call', side: 'short', expiration: shortExpiration, openedCredit: shortCreditNum, cycleQty: contracts },
       ];
       const fetchedAtMs = Math.max(leapQuery.dataUpdatedAt ?? 0, shortQuery.dataUpdatedAt ?? 0);
       const fillDiagnostics = buildPmccFillDiagnostics({

@@ -4,6 +4,7 @@ import { Position, Transaction, PositionAction, DirectAddItem, RollData } from '
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PositionCard } from '../components/PositionCard';
 import { RollModal } from '../components/RollModal';
+import { PMCCRollShortModal } from '../components/PMCCRollShortModal';
 import { DataFooter } from '../components/DataFooter';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { QuickAddPositionForm } from '../components/QuickAddPositionForm';
@@ -470,7 +471,14 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                 </div>
             </div>
 
-            {rollingPosition && (
+            {rollingPosition && rollingPosition.position.strategy_type === 'pmcc' && (
+                <PMCCRollShortModal
+                    position={rollingPosition.position}
+                    isOpen={true}
+                    onClose={() => setRollingPosition(null)}
+                />
+            )}
+            {rollingPosition && rollingPosition.position.strategy_type !== 'pmcc' && (
                 <RollModal
                     position={rollingPosition.position}
                     currentQuantity={rollingPosition.qty}

@@ -55,6 +55,14 @@ export interface PositionLeg {
     type: string;
     side: 'long' | 'short';
     expiration: string;
+    /** PMCC short-leg cycle metadata. Set when this leg has been rolled. */
+    closedAt?: string;
+    /** Credit received per share when this short leg was opened (PMCC). */
+    openedCredit?: number;
+    /** Debit paid per share when this short leg was closed (PMCC roll). */
+    closedCost?: number;
+    /** Quantity (contracts) for this cycle — defaults to position quantity when unset. */
+    cycleQty?: number;
 }
 
 export interface Transaction {
