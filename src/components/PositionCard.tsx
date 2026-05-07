@@ -66,6 +66,7 @@ interface PositionCardProps {
     index?: number;
     onRollClick?: (qty: number) => void;
     onAddLegClick?: () => void;
+    onRollLegClick?: (legIndex: number) => void;
     portfolioTotal?: number;
     initialData?: any[];
     fetchEarningsForTicker?: (ticker: string) => Promise<{ daysUntil: number | null; date: string | null }>;
@@ -82,6 +83,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
         index = 0,
         onRollClick,
         onAddLegClick,
+        onRollLegClick,
         portfolioTotal: portfolioTotalProp,
         initialData,
         fetchEarningsForTicker,
@@ -758,7 +760,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                 const activeShortIdx = legs.findIndex(l => l.side === 'short' && !l.closedAt);
                 return (
                     <div className="flex flex-col gap-3 mb-4 py-4 border-y border-border-default">
-                        {/* LEAP anchor — clickable to edit */}
+                        {/* LEAP anchor — clickable to manage (Roll / Close / Edit) */}
                         {longLegIdx >= 0 && (
                             <LegPanel
                                 position={position}
@@ -768,10 +770,11 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                 title="LEAP_ANCHOR"
                                 hint="long δ 0.70-0.80 · PT +60% · SL -35%"
                                 currentValue={liveData.legPrices?.[longLegIdx]}
+                                onRollClick={onRollLegClick ? () => onRollLegClick(longLegIdx) : undefined}
                             />
                         )}
 
-                        {/* Active short — clickable to edit */}
+                        {/* Active short — clickable to manage (Roll / Close / Edit) */}
                         {activeShortIdx >= 0 && (
                             <LegPanel
                                 position={position}
@@ -781,7 +784,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                 title="ACTIVE_SHORT"
                                 hint="short δ 0.20-0.30 · PT +50% · roll if K within 2%"
                                 currentValue={liveData.legPrices?.[activeShortIdx]}
-                                onRollClick={onRollClick ? () => onRollClick(totalQty) : undefined}
+                                onRollClick={onRollLegClick ? () => onRollLegClick(activeShortIdx) : undefined}
                             />
                         )}
 
@@ -864,6 +867,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                 title="LONG_CALL"
                                 hint="long δ ≈ 0.50 · pays debit"
                                 currentValue={liveData.legPrices?.[longIdx]}
+                                onRollClick={onRollLegClick ? () => onRollLegClick(longIdx) : undefined}
                             />
                         )}
                         {shortIdx >= 0 && (
@@ -875,6 +879,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                 title="SHORT_CALL"
                                 hint="short δ ≈ 0.20 · receives credit · same expiry"
                                 currentValue={liveData.legPrices?.[shortIdx]}
+                                onRollClick={onRollLegClick ? () => onRollLegClick(shortIdx) : undefined}
                             />
                         )}
                         {/* Combined Greeks compact */}
