@@ -11,6 +11,7 @@
  */
 import React, { useState } from 'react';
 import { ChevronDown, Check, X as XIcon } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { Position, PositionLeg } from '../../lib/types';
 import { useUpdateLeg } from '../../hooks/usePositionMutations';
 import { formatDateWithYear, formatCurrency, CONTRACT_MULTIPLIER } from '../../lib/utils';
@@ -197,70 +198,114 @@ export const LegPanel: React.FC<LegPanelProps> = ({
         </button>
       )}
 
-      {editing && (
-        <div className="space-y-2 pt-1">
-          <div className="flex items-center justify-between mb-2">
-            <div className={`text-[11px] font-mono uppercase tracking-widest ${TITLE_CLASS[tone]}`}>
-              ▌ {title} · EDIT
+      <AnimatePresence initial={false}>
+        {editing && (
+          <motion.div
+            key="edit-form"
+            initial={{ opacity: 0, y: -6, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -6, height: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="overflow-hidden"
+          >
+            <div className="pt-2">
+              {/* Edit-mode header bar */}
+              <div className="flex items-center justify-between pb-2 mb-3 border-b border-phosphor-green/15">
+                <div className={`text-[11px] font-mono uppercase tracking-widest ${TITLE_CLASS[tone]} flex items-center gap-1.5`}>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-phosphor-green animate-pulse" aria-hidden="true" />
+                  ▌ {title} · EDIT
+                </div>
+                {hint && (
+                  <div className="text-[11px] font-mono text-text-tertiary truncate hidden sm:block">
+                    {hint}
+                  </div>
+                )}
+              </div>
+
+              {/* Inputs — uniform height, focus ring, staggered entrance */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { key: 'strike', label: 'Strike', node: (
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={strike}
+                      onChange={e => setStrike(e.target.value)}
+                      className="leg-edit-input"
+                      autoFocus
+                    />
+                  )},
+                  { key: 'expiration', label: 'Expiration', node: (
+                    <input
+                      type="date"
+                      value={expiration}
+                      onChange={e => setExpiration(e.target.value)}
+                      className="leg-edit-input"
+                    />
+                  )},
+                  { key: 'fill', label: fillFieldLabel, node: (
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={fillPrice}
+                      onChange={e => setFillPrice(e.target.value)}
+                      className="leg-edit-input"
+                      placeholder="per share"
+                    />
+                  )},
+                ].map((field, i) => (
+                  <motion.div
+                    key={field.key}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.18, delay: 0.04 + i * 0.04, ease: 'easeOut' }}
+                  >
+                    <label className="label-mono mb-1.5 block">{field.label}</label>
+                    {field.node}
+                  </motion.div>
+                ))}
+              </div>
+
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-3 px-2.5 py-1.5 rounded border border-phosphor-red/30 bg-phosphor-red/5 text-[11px] font-mono text-phosphor-red text-glow-red"
+                >
+                  ▌ {error}
+                </motion.div>
+              )}
+
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.18, delay: 0.18, ease: 'easeOut' }}
+                className="flex gap-2 mt-4 pt-3 border-t border-border-default/40"
+              >
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={updateLeg.isPending}
+                  className="btn-terminal flex items-center justify-center gap-1.5 px-4 h-9 text-xs flex-1 sm:flex-none sm:min-w-[120px]"
+                >
+                  <Check size={13} />
+                  {updateLeg.isPending ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancel}
+                  disabled={updateLeg.isPending}
+                  className="btn-terminal-danger flex items-center justify-center gap-1.5 px-4 h-9 text-xs flex-1 sm:flex-none sm:min-w-[120px]"
+                >
+                  <XIcon size={13} />
+                  Cancel
+                </button>
+              </motion.div>
             </div>
-            {hint && <div className="text-[11px] font-mono text-text-tertiary truncate hidden sm:block">{hint}</div>}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <div>
-              <label className="label-mono mb-1 block">Strike</label>
-              <input
-                type="number"
-                step="0.5"
-                value={strike}
-                onChange={e => setStrike(e.target.value)}
-                className="w-full px-3 py-2 rounded-md font-mono text-sm bg-terminal-black border border-border-default text-white"
-              />
-            </div>
-            <div>
-              <label className="label-mono mb-1 block">Expiration</label>
-              <input
-                type="date"
-                value={expiration}
-                onChange={e => setExpiration(e.target.value)}
-                className="w-full px-3 py-2 rounded-md font-mono text-sm bg-terminal-black border border-border-default text-white"
-              />
-            </div>
-            <div>
-              <label className="label-mono mb-1 block">{fillFieldLabel}</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={fillPrice}
-                onChange={e => setFillPrice(e.target.value)}
-                className="w-full px-3 py-2 rounded-md font-mono text-sm bg-terminal-black border border-border-default text-white"
-                placeholder="per share"
-              />
-            </div>
-          </div>
-          {error && (
-            <div className="text-[11px] font-mono text-phosphor-red text-glow-red">▌ {error}</div>
-          )}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={updateLeg.isPending}
-              className="btn-terminal flex items-center gap-1.5 px-3 py-1.5 text-xs"
-            >
-              <Check size={12} /> {updateLeg.isPending ? 'Saving…' : 'Save'}
-            </button>
-            <button
-              type="button"
-              onClick={cancel}
-              disabled={updateLeg.isPending}
-              className="btn-terminal-danger flex items-center gap-1.5 px-3 py-1.5 text-xs"
-            >
-              <XIcon size={12} /> Cancel
-            </button>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

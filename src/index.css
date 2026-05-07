@@ -594,6 +594,24 @@
         @apply font-mono uppercase tracking-wider text-[10px] text-text-tertiary;
     }
 
+    /* Terminal-style edit input — uniform height, focus glow, used in LegPanel & similar inline editors */
+    .leg-edit-input {
+        @apply w-full h-10 px-3 rounded-md font-mono text-sm bg-terminal-black text-white
+               border border-border-default outline-none transition-colors;
+    }
+    .leg-edit-input:hover:not(:focus) {
+        border-color: rgba(0, 255, 65, 0.25);
+    }
+    .leg-edit-input:focus {
+        border-color: rgba(0, 255, 65, 0.55);
+        box-shadow: 0 0 0 2px rgba(0, 255, 65, 0.18);
+    }
+    /* Date input internal calendar icon — keep visible against dark bg */
+    .leg-edit-input[type="date"]::-webkit-calendar-picker-indicator {
+        filter: invert(0.7);
+        cursor: pointer;
+    }
+
     /* Metric glow wrappers — apply to numeric values so positive/negative reads pre-attentively */
     .metric-glow-pos {
         @apply text-phosphor-green text-glow-green;
