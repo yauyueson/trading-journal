@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-05-06",
+  "purpose": "Canonical governance registry for strategies allowed to appear as active platform strategies. This file governs status and permissions; strategy parameters remain in src/lib/strategyProfiles.ts and data/strategy-config.json.",
+  "statusDefinitions": {
+    "research": "Exploratory only; cannot appear as an active strategy or trade ticket.",
+    "sealed-pass": "Passed a sealed evaluation, but no platform trading permission is implied.",
+    "paper-approved": "Allowed for paper trading and platform workflow validation only.",
+    "live-adopted": "Allowed for live trading after model-risk, data, execution, and risk signoff.",
+    "retired": "Historical only; retained for audit and legacy position display."
+  },
+  "globalPolicy": {
+    "currentManifestPath": "config/dataset-manifest.json",
+    "currentManifestSha256": "4bde4339e7cb212ab59bb19dc727321d020d410f7b3e394c5389a16c06e7dbc9",
+    "adoptionGatesPath": "config/adoption-gates.json",
+    "adoptionGatesSha256": "8b8830e7b655ee9c1f30664ae8dd1fe3d63fd2d037c4922b0ff85774e7c49f09",
+    "wfaEvidenceCutoffDate": "2026-05-06",
+    "preCutoffWfaEvidenceStatus": "historical-only",
+    "nextFreshHoldoutBackstopDate": "2026-10-20",
+    "liveTradingRequiresHumanConfirmation": true,
+    "liveTradingDefaultPermission": false
+  },
+  "strategies": {
+    "bcd": {
+      "label": "BCD QQQ wide",
+      "status": "paper-approved",
+      "canonicalSealPath": "docs/holdout-evaluations/2026-04-23-25880326cfe1.md",
+      "canonicalSealSha256": "b01710337265995627ba9f0512436873b07467f386baccea524fcb78bec3bfe3",
+      "supersedesSealPaths": [
+        "docs/holdout-evaluations/2026-04-23-e281292f4870.md"
+      ],
+      "strategyType": "bcd",
+      "permission": {
+        "paper": true,
+        "live": false,
+        "liveRequires": [
+          "fresh forward-data review",
+          "execution ticket workflow",
+          "risk-manager signoff",
+          "human broker confirmation"
+        ]
+      },
+      "capitalTier": {
+        "startingCapital": 2000,
+        "riskPctPerTrade": 15,
+        "maxConcurrentPositions": 1
+      },
+      "riskPolicy": {
+        "underlying": "QQQ",
+        "maxConcurrentPositions": 1,
+        "aggregateQqqExposureGroup": "qqq-directional-f1",
+        "paperToLivePromotion": "blocked until clean-sheet forward review"
+      },
+      "lowSampleWaiver": {
+        "required": true,
+        "approvedBy": "model-risk",
+        "reason": "low-frequency sealed strategy with reviewer-invalid row under legacy minOosTrades, accepted only as paper-approved evidence pending clean-sheet forward review"
+      }
+    },
+    "pmcc": {
+      "label": "PMCC QQQ pt60",
+      "status": "paper-approved",
+      "canonicalSealPath": "docs/holdout-evaluations/2026-04-23-7e9c2026f3df.md",
+      "canonicalSealSha256": "3c947dfc6661b4ea5226dbd76e5dee9d7c97ba0f750f7904ecf25694da5f517a",
+      "supersedesSealPaths": [],
+      "strategyType": "pmcc",
+      "permission": {
+        "paper": true,
+        "live": false,
+        "liveRequires": [
+          "fresh forward-data review",
+          "PMCC short-leg roll workflow",
+          "risk-manager signoff",
+          "human broker confirmation"
+        ]
+      },
+      "capitalTier": {
+        "startingCapital": 10000,
+        "riskPctPerTrade": 50,
+        "maxConcurrentPositions": 1
+      },
+      "riskPolicy": {
+        "underlying": "QQQ",
+        "maxConcurrentPositions": 1,
+        "aggregateQqqExposureGroup": "qqq-directional-f1",
+        "paperToLivePromotion": "blocked until clean-sheet forward review"
+      },
+      "lowSampleWaiver": {
+        "required": true,
+        "approvedBy": "model-risk",
+        "reason": "low-frequency sealed strategy with reviewer-invalid row under legacy minOosTrades, accepted only as paper-approved evidence pending clean-sheet forward review"
+      }
+    }
+  },
+  "retiredStrategies": {
+    "dte5": {
+      "status": "retired",
+      "evidenceStatus": "historical-only",
+      "reason": "Retired under Phase F0/F1 platform revamp; retained for legacy rows and simulator history."
+    },
+    "swing": {
+      "status": "retired",
+      "evidenceStatus": "historical-only",
+      "reason": "Pre-F1 strategy evidence is not current adoption evidence."
+    },
+    "shortTerm": {
+      "status": "retired",
+      "evidenceStatus": "historical-only",
+      "reason": "Pre-F1 strategy evidence is not current adoption evidence."
+    }
+  }
+}

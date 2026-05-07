@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trading-journal.local/schemas/data-run-ledger.schema.json",
+  "title": "Trading Journal Data Run Ledger",
+  "type": "object",
+  "required": ["version", "generatedAt", "mode", "runs"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "mode": {
+      "type": "string",
+      "enum": ["cache-only", "fetch-allowed"]
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "source",
+          "purpose",
+          "ticker",
+          "startDate",
+          "endDate",
+          "rowCount",
+          "paramsHash",
+          "codeSha"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": ["orats-chain-cache", "orats-iv-cache", "tiingo-candle-cache", "supabase-cache", "orats-api", "tiingo-api"]
+          },
+          "purpose": {
+            "type": "string",
+            "enum": ["live", "exploration", "sealed-research", "audit"]
+          },
+          "ticker": { "type": "string" },
+          "startDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+          "endDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+          "rowCount": { "type": "integer", "minimum": 0 },
+          "nullCounts": {
+            "type": "object",
+            "additionalProperties": { "type": "integer", "minimum": 0 }
+          },
+          "paramsHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "codeSha": { "type": "string" },
+          "fetchedAt": { "type": "string", "format": "date-time" },
+          "notes": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
