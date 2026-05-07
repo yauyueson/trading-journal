@@ -18,6 +18,7 @@ import type { Position, PositionLeg } from '../../lib/types';
 import { useUpdateLeg, useCloseLeg } from '../../hooks/usePositionMutations';
 import { formatDateWithYear, formatCurrency, CONTRACT_MULTIPLIER } from '../../lib/utils';
 import { legDte } from '../../lib/pmccCycles';
+import { LegRollModal } from '../LegRollModal';
 
 export type LegRole = 'leap' | 'active-short' | 'long' | 'short';
 
@@ -35,8 +36,6 @@ export interface LegPanelProps {
   currentValue?: number;
   /** Optional override for the right-side P&L cell label. */
   pnlLabel?: string;
-  /** When set, a Roll button appears in the action menu and calls this on click. */
-  onRollClick?: () => void;
 }
 
 type Mode = 'collapsed' | 'menu' | 'edit' | 'close';
@@ -75,10 +74,10 @@ export const LegPanel: React.FC<LegPanelProps> = ({
   hint,
   currentValue,
   pnlLabel,
-  onRollClick,
 }) => {
   const leg = position.legs?.[legIndex];
   const [mode, setMode] = useState<Mode>('collapsed');
+  const [showRollModal, setShowRollModal] = useState(false);
   const isShort = role === 'short' || role === 'active-short';
   const fillFieldLabel = isShort ? 'Open credit' : 'Entry debit';
 
@@ -287,7 +286,7 @@ export const LegPanel: React.FC<LegPanelProps> = ({
               <ActionMenu
                 onEdit={() => { setError(null); setMode('edit'); }}
                 onClose={() => { setError(null); setMode('close'); }}
-                onRoll={onRollClick ? () => { onRollClick(); collapse(); } : undefined}
+                onRoll={() => { setShowRollModal(true); collapse(); }}
                 isShort={isShort}
               />
             )}
@@ -373,6 +372,14 @@ export const LegPanel: React.FC<LegPanelProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Self-mounted roll modal — works wherever the LegPanel renders. */}
+      <LegRollModal
+        position={position}
+        legIndex={legIndex}
+        isOpen={showRollModal}
+        onClose={() => setShowRollModal(false)}
+      />
     </div>
   );
 };
