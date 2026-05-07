@@ -781,6 +781,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                 title="ACTIVE_SHORT"
                                 hint="short δ 0.20-0.30 · PT +50% · roll if K within 2%"
                                 currentValue={liveData.legPrices?.[activeShortIdx]}
+                                onRollClick={onRollClick ? () => onRollClick(totalQty) : undefined}
                             />
                         )}
 
