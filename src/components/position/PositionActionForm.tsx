@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, Trash2, ArrowRightLeft } from 'lucide-react';
+import { RefreshCw, Trash2, ArrowRightLeft, Plus } from 'lucide-react';
 import type { Position, PositionAction } from '../../lib/types';
 
 interface PositionActionFormProps {
@@ -10,6 +10,7 @@ interface PositionActionFormProps {
   onDelete: (id: string) => Promise<void>;
   onRefresh: () => void;
   onRollClick?: (qty: number) => void;
+  onAddLegClick?: () => void;
 }
 
 export const PositionActionForm: React.FC<PositionActionFormProps> = ({
@@ -20,6 +21,7 @@ export const PositionActionForm: React.FC<PositionActionFormProps> = ({
   onDelete,
   onRefresh,
   onRollClick,
+  onAddLegClick,
 }) => {
   const [actionMode, setActionMode] = useState<'Add' | 'TakeProfit' | 'Close' | null>(null);
   const [actionQty, setActionQty] = useState(1);
@@ -51,6 +53,11 @@ export const PositionActionForm: React.FC<PositionActionFormProps> = ({
           <span className="hidden sm:inline">Refresh</span>
         </button>
         <button onClick={() => setActionMode('Add')} className="btn-terminal">+ Add</button>
+        {onAddLegClick && (
+          <button onClick={onAddLegClick} className="btn-terminal flex items-center gap-1" title="Append a new leg to this position">
+            <Plus size={14} /> Add Leg
+          </button>
+        )}
         <button onClick={() => setActionMode('TakeProfit')} className="btn-terminal">Profit</button>
         {onRollClick && (
           <button onClick={() => onRollClick(totalQty)} className="btn-terminal-warn flex items-center gap-1">

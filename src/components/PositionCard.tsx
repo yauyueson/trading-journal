@@ -65,6 +65,7 @@ interface PositionCardProps {
     needsFallbackPriceRefresh?: boolean;
     index?: number;
     onRollClick?: (qty: number) => void;
+    onAddLegClick?: () => void;
     portfolioTotal?: number;
     initialData?: any[];
     fetchEarningsForTicker?: (ticker: string) => Promise<{ daysUntil: number | null; date: string | null }>;
@@ -80,6 +81,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
         needsFallbackPriceRefresh = false,
         index = 0,
         onRollClick,
+        onAddLegClick,
         portfolioTotal: portfolioTotalProp,
         initialData,
         fetchEarningsForTicker,
@@ -1090,6 +1092,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                 onDelete={onDelete}
                 onRefresh={() => void fetchGreeksAndPrice()}
                 onRollClick={onRollClick}
+                onAddLegClick={(position.legs?.length ?? 0) <= 1 && position.status === 'active' ? onAddLegClick : undefined}
             />
         </div>
     );

@@ -5,6 +5,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { PositionCard } from '../components/PositionCard';
 import { RollModal } from '../components/RollModal';
 import { PMCCRollShortModal } from '../components/PMCCRollShortModal';
+import { AddLegModal } from '../components/AddLegModal';
 import { DataFooter } from '../components/DataFooter';
 import { PortfolioSettingsForm } from '../components/PortfolioSettingsForm';
 import { QuickAddPositionForm } from '../components/QuickAddPositionForm';
@@ -102,6 +103,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const [showForm, setShowForm] = useState(false);
     const [showAccountSettings, setShowAccountSettings] = useState(false);
     const [rollingPosition, setRollingPosition] = useState<{ position: Position, qty: number } | null>(null);
+    const [addingLegFor, setAddingLegFor] = useState<Position | null>(null);
     const [sortBy] = useState('expiration');
     const [ownerFilter, setOwnerFilter] = useState<'All' | 'Yuchen' | 'Annie'>('All');
     const [strategyFilter, setStrategyFilter] = useState<'All' | 'bcd' | 'pmcc' | 'legacy' | 'untagged'>('All');
@@ -226,6 +228,14 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
         const handlers: Record<string, (qty: number) => void> = {};
         for (const position of sortedPositions) {
             handlers[position.id] = (qty: number) => setRollingPosition({ position, qty });
+        }
+        return handlers;
+    }, [sortedPositions]);
+
+    const addLegClickHandlers = useMemo(() => {
+        const handlers: Record<string, () => void> = {};
+        for (const position of sortedPositions) {
+            handlers[position.id] = () => setAddingLegFor(position);
         }
         return handlers;
     }, [sortedPositions]);
@@ -459,6 +469,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                                     needsFallbackPriceRefresh={failedPricePositionIds.has(position.id)}
                                     index={index}
                                     onRollClick={rollClickHandlers[position.id]}
+                                    onAddLegClick={addLegClickHandlers[position.id]}
                                     portfolioTotal={portfolioTotal}
                                     initialData={bulkData[position.id]}
                                     fetchEarningsForTicker={fetchEarningsForTicker}
@@ -470,6 +481,14 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
                     <DataFooter timestamp={lastTimestamp} />
                 </div>
             </div>
+
+            {addingLegFor && (
+                <AddLegModal
+                    position={addingLegFor}
+                    isOpen={true}
+                    onClose={() => setAddingLegFor(null)}
+                />
+            )}
 
             {rollingPosition && rollingPosition.position.strategy_type === 'pmcc' && (
                 <PMCCRollShortModal
