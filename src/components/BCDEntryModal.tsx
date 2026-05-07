@@ -6,7 +6,7 @@
  *   - Short call at δ ≈ 0.20
  *   - Same expiry, DTE 30-60
  *   - Net debit = long debit − short credit
- *   - Capital tier $2K (bcdCapital.startingCapital)
+ *   - Capital tier $5K (bcdCapital.startingCapital)
  *
  * The user supplies the long/short strikes and the net debit observed at
  * their broker; the form computes spread width, max loss (= debit × 100 × qty),
@@ -36,8 +36,8 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const addDirect = useAddDirect();
   const profile = STRATEGY_PROFILES.bcd;
 
-  const capital = settings.bcdCapital?.startingCapital ?? 2000;
-  const riskPct = settings.bcdCapital?.riskPctPerTrade ?? 15;
+  const capital = settings.bcdCapital?.startingCapital ?? 5000;
+  const riskPct = settings.bcdCapital?.riskPctPerTrade ?? 30;
   const budget = capital * (riskPct / 100);
 
   const [ticker, setTicker] = useState(profile.tickers?.[0] ?? 'QQQ');

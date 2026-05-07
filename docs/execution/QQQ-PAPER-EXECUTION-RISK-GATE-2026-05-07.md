@@ -66,8 +66,8 @@ The gate warns, but does not automatically block, when another QQQ directional s
 
 | Strategy | Tier capital | Risk pct | Max ticket risk | Max active |
 |---|---:|---:|---:|---:|
-| BCD QQQ wide | $2,000 | 15% | $300 | 1 |
-| PMCC QQQ pt60 | $10,000 | 50% | $5,000 | 1 |
+| BCD QQQ wide | $5,000 | 30% | $1,500 | 1 |
+| PMCC QQQ pt60 | $20,000 | 75% | $15,000 | 1 |
 
 ## Approval Roles
 

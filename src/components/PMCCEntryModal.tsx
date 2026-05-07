@@ -6,7 +6,7 @@
  *   - Short monthly call at δ 0.20-0.30, DTE 30-45
  *   - Net debit = long LEAP debit − short credit received
  *   - Max loss = LEAP debit × 100 × qty (short legs are rolled indefinitely)
- *   - Capital tier $10K (pmccCapital.startingCapital)
+ *   - Capital tier $20K (pmccCapital.startingCapital)
  *
  * User inputs each leg's strike, expiry, and fill price. The form computes
  * net debit, max loss, and suggested contract count based on the pmccCapital
@@ -39,8 +39,8 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const addDirect = useAddDirect();
   const profile = STRATEGY_PROFILES.pmcc;
 
-  const capital = settings.pmccCapital?.startingCapital ?? 10000;
-  const riskPct = settings.pmccCapital?.riskPctPerTrade ?? 50;
+  const capital = settings.pmccCapital?.startingCapital ?? 20000;
+  const riskPct = settings.pmccCapital?.riskPctPerTrade ?? 75;
   const budget = capital * (riskPct / 100);
 
   const [ticker, setTicker] = useState(profile.tickers?.[0] ?? 'QQQ');
