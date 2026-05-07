@@ -57,9 +57,11 @@ export interface PositionLeg {
     expiration: string;
     /** PMCC short-leg cycle metadata. Set when this leg has been rolled. */
     closedAt?: string;
-    /** Credit received per share when this short leg was opened (PMCC). */
+    /** Credit received per share when this short leg was opened. */
     openedCredit?: number;
-    /** Debit paid per share when this short leg was closed (PMCC roll). */
+    /** Debit paid per share when this long leg was opened. */
+    openedDebit?: number;
+    /** Debit paid per share when a short leg was closed (PMCC roll). */
     closedCost?: number;
     /** Quantity (contracts) for this cycle — defaults to position quantity when unset. */
     cycleQty?: number;
@@ -88,6 +90,8 @@ export interface LiveData {
     ivRatio?: number;
     /** Explainability: top contributors and penalties for Opt Score (when computed). */
     factors?: ScoreFactor[];
+    /** Per-leg mid price (or fallback) keyed by index in position.legs. Populated for spreads. */
+    legPrices?: Array<number | undefined>;
 }
 
 export interface GreeksHistory {
