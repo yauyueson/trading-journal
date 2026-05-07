@@ -285,6 +285,23 @@ export function useRollPosition() {
 }
 
 /**
+ * Update a single leg's metadata (strike, expiration, openedCredit/Debit) on a position.
+ * Identifies the leg by index in position.legs. Used by the click-to-edit subleg UI.
+ */
+export function useUpdateLeg() {
+  const invalidate = useInvalidatePositions();
+  return useMutation({
+    mutationFn: async ({ position, legIndex, patch }: { position: Position; legIndex: number; patch: Partial<PositionLeg> }) => {
+      const legs = position.legs ?? [];
+      if (legIndex < 0 || legIndex >= legs.length) throw new Error(`leg index ${legIndex} out of range`);
+      const updated = legs.map((leg, i) => i === legIndex ? { ...leg, ...patch } : leg);
+      throwIfSupabaseError(await supabase.from('positions').update({ legs: updated }).eq('id', position.id));
+    },
+    onSuccess: invalidate,
+  });
+}
+
+/**
  * Roll the SHORT leg of a PMCC diagonal, leaving the long LEAP untouched.
  * Marks the current active short as closed (with closedAt + closedCost) and
  * appends a new active short leg. Records two transactions for cycle audit.
