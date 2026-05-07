@@ -196,6 +196,7 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         max_risk_entry: maxLossPerContract ?? undefined,
         trade_profile: 'diagonal',
         is_paper: true,
+        execution_account_size: capital,
         target_price: profile.longProfitTarget ?? 0.60,
         legs,
         fill_diagnostics: fillDiagnostics,
