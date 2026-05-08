@@ -18,8 +18,8 @@ const GLOSSARY: GlossaryItem[] = [
         term: 'OSS (Options Scoring System)',
         category: 'Metric',
         icon: Brain,
-        explanation: '这是平台的核心大脑，一套专有的多因子量化评分模型。它不仅仅是一个简单的“强弱”指标，而是模仿了顶尖交易员的思维过程。OSS 会根据你选择的策略类型（是做多还是做空，是单腿还是价差）自动调整其评分逻辑。\n\n它综合考量了四个维度的平衡：\n1. 胜率 (Probability of Profit)：这笔交易有多大概率赚钱？\n2. 赔率 (Risk/Reward)：赚一次够亏几次？\n3. 杠杆效率 (Leverage/Lambda)：占用资金的效率如何？\n4. 市场环境 (Regime)：现在是恐慌还是贪婪？\n\n最终得出一个 0-100 的分数。>80分通常意味着这是一个“胖点球”机会——胜率高、赔率好、且顺应市场趋势。',
-        whyItMatters: '让你一眼看出这个期权合约在当前市场环境下是否“值得一做”。100分意味着在所有维度上都达到了最佳平衡点。'
+        explanation: '这是平台的核心引擎，一套多因子量化评分模型。它不是简单的「强弱」指标，而是把顶级交易员的思考流程结构化了出来。OSS 会根据你选择的策略类型（做多 / 做空、单腿 / 价差）自动调整评分逻辑。\n\n综合权衡的四个维度：\n1. 胜率 (Probability of Profit)：这笔交易最终赚钱的概率有多高？\n2. 赔率 (Risk/Reward)：赢一次能覆盖几次输？\n3. 杠杆效率 (Leverage / Lambda)：每一块资金的工作效率如何？\n4. 市场环境 (Regime)：现在偏恐慌还是偏贪婪？\n\n最终输出一个 0–100 的分数。> 80 分通常意味着这是一个高确定性的机会——胜率高、赔率好、并且顺势。',
+        whyItMatters: '让你一眼看出这个合约在当前市场环境下是否「值得做」。100 分代表所有维度都达到了最佳平衡点。'
     },
     {
         id: 'iv-rv',
@@ -27,8 +27,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Metric',
         icon: Shield,
         formula: 'Ratio = Implied Volatility (IV) ÷ Realized Volatility (RV)',
-        explanation: '这是量化交易中最经典的“估值”指标。它可以被理解为“保险公司的利润率”。\n\n隐含波动率 (IV) 是期权现在的“售价”（市场预期的波动）；实际波动率 (RV) 是股票过去的“成本”（实际发生的波动）。\n\n当 IV/RV > 1.25 时，相当于保险公司（期权卖方）卖出的保单价格，比历史上实际发生的赔付金额高出了 25% 以上。这是一个极其昂贵的保费，意味着市场在恐慌性地买入保护。这时候做卖方（Seller），就是在收割这种非理性的恐惧溢价。反之，如果 Ratio < 1.0，说明期权售价甚至覆盖不了历史风险，这时候买入期权（Buyer）更划算。',
-        whyItMatters: 'Ratio > 1.25 说明期权被恐惧情绪推高，适合卖出（做空波动率）。Ratio < 1.0 说明期权便宜，适合买入（做多波动率）。'
+        explanation: '这是量化交易中最经典的「估值」指标，可以理解为保险公司的毛利率。\n\n隐含波动率 (IV) 是期权当下的「售价」——市场预期未来会有多大波动；已实现波动率 (RV) 则是过去真实发生的波动，相当于历史「成本」。\n\n当 IV / RV > 1.25 时，意味着期权卖方收到的保费比历史平均赔付高出 25% 以上——一份非常昂贵的保单，反映出市场正在恐慌性地买入保护。此时做卖方，就是在收割这层非理性的恐惧溢价。反过来，如果 Ratio < 1.0，期权售价甚至覆盖不了历史风险，这时候做买方更划算。',
+        whyItMatters: 'Ratio > 1.25：期权被恐惧情绪推高，适合卖出（做空波动率）。Ratio < 1.0：期权便宜，适合买入（做多波动率）。'
     },
     {
         id: 'pop',
@@ -36,8 +36,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Metric',
         icon: Shield,
         formula: 'POP ≈ 1 - |Delta| (for OTM options)',
-        explanation: '简单来说，这是你这笔交易最终能赚钱的概率。对于虚值期权 (OTM)，Delta 绝对值几乎等同于它最终变成实值 (ITM) 的概率。\n\n所以，POP ≈ 1 - |Delta|。例如，你卖出一个 Delta 为 0.20 的看跌期权（Put），意味着市场认为它有 20% 的概率会跌穿行权价（你会亏损），那么反过来，你有 80% 的概率会赚钱（它归零）。\n\n但要注意：高 POP 必定伴随着低赔率（赚少赔多）。这是金融市场的铁律。卖方策略通常拥有 65%-90% 的 POP，通过大概率的小额盈利积累财富；而买方策略 POP 通常低于 40%，靠的是那一次大爆发的高额回报。',
-        whyItMatters: '核心胜率指标。卖家追求高 POP (>65%)，买家则在牺牲 POP 换取高 Lambda（以小博大）。'
+        explanation: '简单说，这是这笔交易最终赚钱的概率。对于虚值期权 (OTM)，|Delta| 近似等于它最终变成实值的概率。\n\n所以 POP ≈ 1 − |Delta|。例如，卖出一张 Delta = 0.20 的虚值 Put：市场认为它有 20% 的概率会跌穿行权价（你会亏损），反过来你就有 80% 的概率赚钱（期权归零）。\n\n注意：高 POP 必然伴随低赔率（赚少亏多），这是市场的铁律。卖方策略通常 POP 在 65%–90% 之间，靠大量小额盈利累积；买方策略 POP 一般低于 40%，靠的是少数几次爆发的高额回报。',
+        whyItMatters: '核心胜率指标。卖方追求高 POP (> 65%)，买方则用低 POP 换取高杠杆 (Lambda)，以小博大。'
     },
     {
         id: 'seller-edge',
@@ -45,8 +45,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Metric',
         icon: Brain,
         formula: 'EV = (POP × Credit) - ((1-POP) × Max Loss)',
-        explanation: '这是区分赌徒和职业交易员的分水岭。赌徒只看“这把能赚多少”，职业交易员看“这把玩 100 次平均能赚多少”。\n\n期望值 (EV) 结合了胜率 (POP) 和 盈亏比。即使你的胜率只有 40%，但如果你赢一次赚 300，输一次亏 100，你的 EV 依然是正的 (0.4*300 - 0.6*100 = +60)。\n\nSeller\'s Edge 特指在卖方策略中，由于 IV 通常高于 RV（恐惧溢价），长期来看卖方的实际胜率往往高于理论 POP。我们的算法会计算这个数学上的“正期望值”，只有当 EV > 0 时，才值得扣动扳机。',
-        whyItMatters: '职业玩家的标尺。只要 EV 为正，长期重复交易必胜。'
+        explanation: '这是区分赌徒与职业交易员的分水岭。赌徒只盯着「这一把能赚多少」，职业交易员问的是「这把重复 100 次，平均下来能赚多少」。\n\n期望值 (EV) 把胜率和盈亏比放进同一个公式。哪怕胜率只有 40%，只要赢一次赚 300、输一次亏 100，EV 依然为正：0.4 × 300 − 0.6 × 100 = +60。\n\nSeller\'s Edge 特指卖方策略的结构性优势——由于 IV 长期高于 RV（恐惧溢价），卖方的实际胜率通常优于理论 POP。系统会自动计算这个数学期望，只有当 EV > 0 时才值得扣动扳机。',
+        whyItMatters: '职业交易员的标尺。EV 为正，长期重复就一定赚钱；EV 为负，胜率再高也只是慢性亏损。'
     },
 
     // --- GREEKS ---
@@ -56,8 +56,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Greek',
         icon: Activity,
         formula: 'Δ = ∂Price / ∂Underlying',
-        explanation: 'Delta 是期权交易员最重要的指南针，它有三重含义：\n\n1. **速度**：股价涨 $1，期权涨多少钱？Delta 0.5 意味着正股涨 $1，期权涨 $0.5。\n2. **概率**：期权到期时变成实值 (ITM) 的概率。Delta 0.30 约等于 30% 到期概率。\n3. **仓位**：你的期权头寸相当于持有多少股正股。持有一张 Delta 0.5 的 Call，风险敞口等同于持有 50 股股票。\n\n深入理解 Delta，你就能把复杂的期权组合简化成“我到底持有了多少股股票”。卖出一张 Put (Delta -0.30)，等同于你做多了 30 股股票，只是多了个 Gamma 的非线性变化。',
-        whyItMatters: 'Delta 就是你的持仓股数。Delta 0.50 意味着你的风险敞口相当于持有 50 股正股。'
+        explanation: 'Delta 是期权交易员最重要的指南针，一个数字承载三层含义：\n\n1. **速度**：标的涨 $1，期权涨多少。Delta = 0.5 意味着正股涨 $1，期权涨 $0.5。\n2. **概率**：期权到期时变成实值的概率。Delta = 0.30 约等于 30% 的到期概率。\n3. **仓位**：你的期权头寸折合多少股正股。持有一张 Delta 0.5 的 Call，风险敞口约等于持有 50 股股票。\n\n吃透 Delta，你就能把复杂的期权组合简化成一句话——「我到底相当于持有多少股」。卖出一张 Delta = −0.30 的 Put，等于做多 30 股股票，只是额外背了 Gamma 的非线性。',
+        whyItMatters: 'Delta 就是你的实际持仓股数。Delta = 0.50 等于持有 50 股正股的方向敞口。'
     },
     {
         id: 'gamma',
@@ -65,8 +65,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Greek',
         icon: Zap,
         formula: 'Γ = ∂Delta / ∂Underlying',
-        explanation: '如果 Delta 是速度，Gamma 就是加速度。它衡量 Delta 随股价变化的速度。\n\nGamma 是所有期权买家梦寐以求的东西，也是卖家挥之不去的噩梦。当你买入期权时（Long Gamma），如果股价做对了方向，Gamma 会让你的 Delta 变大（赚更多）；如果做错了方向，Gamma 会让 Delta 变小（亏更少）。这叫“凸性优势”。\n\n反之，卖方（Short Gamma）则面临“做对赚得慢、做错亏得快”的风险。特别是在期权快到期（ATM）时，Gamma 会变得无穷大，股价微小的波动都会导致 Delta 剧烈跳动，这就是著名的“Gamma Risk”。',
-        whyItMatters: 'Gamma 是卖家的敌人（因为一旦出错亏损会加速扩大），是买家的朋友（因为做对了利润会加速增长）。'
+        explanation: 'Delta 是速度，Gamma 就是加速度——它衡量 Delta 本身随股价变化的快慢。\n\nGamma 是所有期权买方梦寐以求、卖方挥之不去的存在。买方（Long Gamma）做对方向时，Gamma 让 Delta 越变越大（利润加速膨胀）；做错方向时，Gamma 让 Delta 收缩（亏损减速）——这就是所谓的「凸性优势」。\n\n反过来，卖方（Short Gamma）面对的是「做对赚得慢、做错亏得快」的不对称风险。尤其在期权临近到期且接近实值（ATM）时，Gamma 趋于无穷大，价格的微小波动都会让 Delta 剧烈跳动——这就是著名的「Gamma Risk」。',
+        whyItMatters: 'Gamma 是卖方的敌人（出错时亏损加速放大），是买方的朋友（做对时利润加速增长）。'
     },
     {
         id: 'theta',
@@ -74,8 +74,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Greek',
         icon: Clock,
         formula: 'Θ = ∂Price / ∂Time',
-        explanation: '期权是会过期的资产，Theta 就是它每天“腐烂”的速度。如果你持有一张 Theta 为 -0.05 的 Call，意味着哪怕股价一分钱不动，你每天早上醒以此都要亏 $5。\n\nTheta 的衰减不是线性的，而是指数级的。在离到期还有 90 天时，Theta 很小；但在最后 30 天，特别是最后 7 天，Theta 会像瀑布一样加速流逝。这就是为什么卖方策略（Seller）通常喜欢做 30-45 天的期权——因为这是 Theta 衰减最陡峭、收割时间价值效率最高的甜蜜区。',
-        whyItMatters: '时间是期权买家的敌人，卖家的朋友。最后 30 天的时间衰减会呈指数级加速。'
+        explanation: '期权是有保质期的资产，Theta 衡量的就是它每天「衰减」的速度。如果你持有一张 Theta = −0.05 的 Call，那么哪怕股价一分钱不动，每天醒来你都会损失 $5（−$0.05 × 100）。\n\nTheta 的衰减不是线性的，而是指数级的。距离到期还有 90 天时，Theta 很温和；但在最后 30 天，尤其是最后一周，Theta 会像瀑布一样加速。这正是卖方策略普遍偏好 30–45 DTE 的原因——这一段是时间价值衰减最陡峭、收割效率最高的甜蜜区。',
+        whyItMatters: '时间是买方的敌人、卖方的朋友。最后 30 天的衰减会呈指数级加速。'
     },
     {
         id: 'vega',
@@ -83,8 +83,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Greek',
         icon: BarChart2,
         formula: 'ν = ∂Price / ∂Volatility',
-        explanation: 'Vega 衡量期权价格对“市场情绪变化”的敏感度。如果 Vega 是 0.10，意味着隐含波动率 (IV) 每上涨 1%，期权价格就会上涨 $0.10。\n\n长久期的期权（LEAPS）Vega 极大，因为还有很久才到期，未来充满不确定性。如果你买入长期期权，你实际上是在做多 Vega（做多波动率）。\n\n常见的陷阱是：在财报发布前买入期权。虽然财报后股价大跳了，但由于不确定性落地，IV 瞬间暴跌（Volatility Crush），Vega 亏损掉的价值可能完全抵消 Delta 赚到的钱。',
-        whyItMatters: '如果 Vega 是 0.10，意味着 IV 每涨 1%，期权价格涨 $0.10。长久期期权 Vega 最大。'
+        explanation: 'Vega 衡量期权价格对「市场情绪变化」的敏感度。Vega = 0.10 意味着隐含波动率 (IV) 每上升 1%，期权价格上涨 $0.10。\n\n长久期期权（如 LEAPS）的 Vega 极大——离到期越远，未来不确定性越大。买入长期期权，本质上就是在做多 Vega（做多波动率）。\n\n一个常见的陷阱是「财报前买期权」：财报后股价确实大幅跳动，但由于不确定性落地，IV 瞬间暴跌（Volatility Crush），Vega 端的亏损往往会把 Delta 端赚到的钱完全抵消掉。',
+        whyItMatters: 'Vega = 0.10 意味着 IV 每涨 1%，期权价格涨 $0.10。期权越长久期，Vega 越大。'
     },
 
     // --- CONCEPTS ---
@@ -94,8 +94,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Metric',
         icon: BarChart2,
         formula: 'IV Rank = (Current IV - Low IV) ÷ (High IV - Low IV)',
-        explanation: 'IV 的绝对值没有意义。20% 的 IV 对可口可乐来说可能是惊天巨浪，但对特斯拉来说就是死水微澜。IV Rank 解决了这个问题，它把当前的 IV 放到过去一年的历史中去比较。\n\nIV Rank = 0，说明现在的 IV 是过去一年最低的（极其便宜）；IV Rank = 100，说明是过去一年最高的（极贵）。\n\n交易的核心在于“均值回归”。当 IV Rank 极高时 (>60)，市场处于非理性恐慌，这时卖出期权胜算极大，因为 IV 最终会回落。当 IV Rank 极低时 (<15)，市场过于自满，买入期权成本极低，一旦有风吹草动，IV 飙升会带来暴利。',
-        whyItMatters: '卖方应该在 IV Rank 高 (>50) 时入场，买方应该在 IV Rank 低 (<20) 时入场。'
+        explanation: 'IV 的绝对值没有意义——20% 的 IV 对可口可乐是惊涛骇浪，对特斯拉却是风平浪静。IV Rank 把当前 IV 放到过去一年的范围内做百分位比较，解决了这个跨标的不可比的问题。\n\nIV Rank = 0：当前 IV 是过去一年的最低点（极其便宜）；IV Rank = 100：过去一年的最高点（极其昂贵）。\n\n交易的核心是「均值回归」。当 IV Rank 极高 (> 60) 时，市场处于非理性恐慌，此时卖期权胜算最大，因为 IV 终将回落；当 IV Rank 极低 (< 15) 时，市场过度自满，买期权成本最低，一旦风吹草动，IV 飙升会带来杠杆式收益。',
+        whyItMatters: '卖方在 IV Rank 高 (> 50) 时入场，买方在 IV Rank 低 (< 20) 时入场。'
     },
     {
         id: 'skew',
@@ -103,24 +103,24 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Metric',
         icon: Divide,
         formula: 'Skew = IV(Put) - IV(Call)',
-        explanation: '理论上，同样 Delta 的看涨和看跌期权 IV 应该一样。但现实中，市场总是对“下跌”更恐惧。因此，虚值 Put 的 IV 通常远高于虚值 Call。这就像一个歪嘴笑脸（Smirk）。\n\nSkew 告诉我们市场资金在防守哪一边。如果 Skew 异常高，说明大资金在疯狂买入 Put 避险，Put 极其昂贵。这时候如果你还是机械地做 Iron Condor（双卖），卖 Call 那一端就很不划算。\n\n这时候应该顺势而为：既然 Put 贵，那就卖 Put（Bull Put Spread），赚取这份额外的“恐惧溢价”。',
-        whyItMatters: '顺势而为。如果 Skew 很高，说明 Put 极贵，此时构建 Bull Put Spread (卖Put) 胜率和赔率更佳。'
+        explanation: '理论上，同样 Delta 的 Call 和 Put 应该有相同的 IV。但现实中，市场对「下跌」永远更恐惧——所以虚值 Put 的 IV 普遍高于虚值 Call，整条 IV 曲线呈现出一边高一边低的「歪嘴笑脸」（Smirk）。\n\nSkew 告诉你大资金在哪一边防守。Skew 异常高时，说明机构在疯狂买 Put 避险，Put 极其昂贵——此时机械地做双向卖方（如 Iron Condor）就很不划算，因为卖 Call 那一端的溢价被压扁了。\n\n更聪明的做法是顺势而为：既然 Put 贵，那就卖 Put（Bull Put Spread），把这层额外的恐惧溢价收入囊中。',
+        whyItMatters: '顺势而为。Skew 高时 Put 极贵，做 Bull Put Spread（卖 Put）的胜率和赔率都更佳。'
     },
     {
         id: 'backwardation',
         term: 'Backwardation (倒挂)',
         category: 'Structure',
         icon: AlertTriangle,
-        explanation: '正常市场结构（Contango）是远期 IV 高于近期 IV（因为未来越远，不确定性越大）。\n\nBackwardation 是一种罕见且极端的异常状态：近期 IV 暴涨，远高于远期。这通常只发生在黑天鹅事件、崩盘或重大利空发生的当下。\n\n对于卖方来说，这简直是遍地黄金。因为近期期权被恐慌情绪推到了天价，此时卖出短期期权 (Short Term)，你可以收到极其丰厚的权利金，而且一旦恐慌消退（均值回归），IV 会断崖式下跌，让你迅速获利平仓。',
-        whyItMatters: '卖家的黄金期。短期期权由于恐慌被定价极高，时间损耗极快。'
+        explanation: '正常的市场结构（Contango）是远期 IV 高于近期 IV，因为时间越远，不确定性越多。\n\nBackwardation 则是一种罕见且极端的异常结构：近期 IV 暴涨，反过来高于远期。它通常只在黑天鹅事件、崩盘或重大利空当下短暂出现。\n\n对卖方来说，这简直是遍地黄金。近期期权被恐慌推到天价，此时卖出短期期权可以收到极厚的权利金；一旦恐慌消退（均值回归），IV 断崖式下跌，你能迅速获利平仓。',
+        whyItMatters: '卖方的黄金窗口。短期期权因恐慌被定价过高，且时间价值衰减极快。'
     },
     {
         id: 'contango',
         term: 'Contango (正向)',
         category: 'Structure',
         icon: TrendingUp,
-        explanation: '市场的常态结构。远期 IV > 近期 IV。这意味着随着时间流逝，远期合约会慢慢变成近期合约，IV 会自然下降（Roll Down），但这通常被 Theta 衰减所覆盖。\n\n在 Contango 结构下，买入远期期权（Leaps）通常是比较安稳的策略，因为你没有在对抗极高的近期波动率。同时，可以利用“日历价差 (Calendar Spread)”：卖出较贵的近期期权，买入较便宜的远期期权，套取这个时间结构上的价差。',
-        whyItMatters: '对买家友好。时间流逝在远端比较慢，适合中长线布局。'
+        explanation: '市场的常态结构：远期 IV > 近期 IV。随着时间流逝，远期合约会逐步「滚」成近期合约，IV 自然向下回落（Roll Down），但这部分通常已被 Theta 衰减消化。\n\n在 Contango 结构下，买入远期期权（如 LEAPS）通常比较稳健，因为你不必在高位对抗近期的波动率。也可以利用「日历价差 (Calendar Spread)」：卖出较贵的近期期权、买入较便宜的远期期权，赚取期限结构上的价差。',
+        whyItMatters: '对买方友好。远端时间流逝缓慢，适合中长线布局。'
     },
 
     // --- STRATEGIES ---
@@ -130,8 +130,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Strategy',
         icon: Layers,
         formula: 'Profit = Credit Received',
-        explanation: '这是最经典的“收租”策略。你不需要预测股价涨到哪里，你只需要预测股价“不会跌破哪里”。\n\n操作上，你卖出一个昂贵的期权（Delta 高），同时买入一个便宜的期权（Delta 低）作为保护。这一卖一买之间，你账户里会先收到一笔钱（Credit）。\n\n只要到期时股价没有触及你的卖出价，这笔钱就全是你的了。Credit Spread 的美妙之处在于它利用了期权的所有优势：作为卖方，由于 IV 通常虚高 (IV>RV)，你的胜率天然占优；同时由于有买入腿做保护，你的最大亏损也是锁定的，不会出现“卖裸权”那种一次爆仓的风险。',
-        whyItMatters: '高胜率策略。你的盈利不依赖股价大涨，只要股价“不跌破”或“不涨破”某个点位，你就能赢。利用时间 (Theta) 和波动率下降 (Vega) 获利。'
+        explanation: '这是最经典的「收租」策略。你不需要预测股价会涨到哪里，只需要判断它「不会跌破哪里」。\n\n操作上：卖出一张较贵的期权（Delta 高），同时买入一张较便宜的期权（Delta 低）作为保护。一卖一买之间，账户先收到一笔权利金 (Credit)。\n\n只要到期时股价没有越过你的卖出行权价，这笔钱就全部落袋。Credit Spread 同时利用了期权的两大结构性优势：作为卖方，由于 IV 长期虚高于 RV，胜率天然占优；同时长腿提供了保护，最大亏损在建仓时就被锁定，不会出现「裸卖」那种单次爆仓的风险。',
+        whyItMatters: '高胜率策略。盈利不依赖股价大涨，只要不跌破/涨破某个点位即可。靠 Theta 衰减与 Vega 回落获利。'
     },
     {
         id: 'kelly',
@@ -139,8 +139,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Strategy',
         icon: Percent,
         formula: 'f* = (p(b+1) - 1) ÷ b',
-        explanation: '这是赌博理论和投资管理中的圣杯公式，由香农的同事 John Kelly 提出。它解决了一个终极问题：\n“假设我知道这场赌局的胜率是 60%，赔率是 1:1，我每一把到底该下注多少本金，才能让我的财富增长最快，同时永远不破产？”\n\n答案不是 100%，也不是 1%。凯利公式能给出一个精确的数学最优解。如果超过这个比例（Over-betting），长期来看你的收益反而会下降，甚至归零；如果低于这个比例，你的资金利用率不足。\n\n在期权交易中，由于参数（胜率p）是估算的，为了安全起见，专业交易员通常使用 "Half-Kelly"（半凯利）甚至 "Quarter-Kelly"（1/4 凯利）来决定仓位大小，给自己留足安全边际。',
-        whyItMatters: '很多交易员死于重仓。凯利公式告诉你：即使你有 99% 的胜率，如果在这一次梭哈，你最终破产的概率也是 100%。通常使用 "Half-Kelly" 来控制风险。'
+        explanation: '这是赌博理论与资金管理中的圣杯公式，由香农的同事 John Kelly 提出。它回答了一个终极问题：\n「假设我知道这局赌博胜率 60%、赔率 1:1，每一把该下注多少本金，才能让财富长期增长最快、同时永远不破产？」\n\n答案既不是 100%，也不是 1%。凯利公式给出一个精确的数学最优解：超过这个比例（Over-betting），长期收益反而下降甚至归零；低于这个比例，资金利用率不足。\n\n在期权交易里，胜率 p 永远是估算值，所以专业交易员通常采用 Half-Kelly（半凯利）甚至 Quarter-Kelly（1/4 凯利）来决定仓位，给自己留足安全边际。本平台默认使用 0.25 Kelly。',
+        whyItMatters: '很多交易员死于重仓。凯利的核心警告是：哪怕胜率 99%，只要这一把梭哈，破产概率仍然是 100%。用 Half-Kelly 控制风险才是长期之道。'
     },
 
     // --- ACTIVE F1 ADOPTED STRATEGIES (2026-04-23) ---
@@ -150,8 +150,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Strategy',
         icon: Trophy,
         formula: 'Long δ 0.50 - Short δ 0.20 @ DTE 30-60 · PT 50% · 每 10 交易日',
-        explanation: '✅ **当前活跃策略 #1**（2026-04-23 封存通过 6/6 采纳门槛，dsrM F0-effective N=30 +0.065）。\n\n这是一个 bull call debit spread（看涨借方价差）在 QQQ 上的结构化应用：买入一个 ATM 附近的 long call（δ ≈ 0.50），同时卖出一个更虚值的 short call（δ ≈ 0.20）作为权利金抵消，两腿同一到期日、DTE 在 30 到 60 天之间。净支出（net debit）即为最大亏损；当价差 P&L 达到 +50% 时平仓获利。\n\n**为什么选 debit 而不是 credit？** 2024-2026 的 QQQ 牛市窗口中，bounded-upside credit spread（如 DTE5 Bull Put）系统性地输给"一直做多 SPY"这个 naive baseline（holdoutSpyIR −0.76）。BCD 反过来顺应方向性溢价——long call 腿在方向对时能产生 2-3x 的收益，而 short call 仅作为成本补贴不限制上行。\n\n**入场规则的精妙**：不使用 EMA34 / EMA55 等技术信号门控（F0 null-test 已证明这些指标不增加 alpha），而是采用"每 10 个交易日 + maxPositions=1 flat-gate"的简单节奏。即：上一笔仓位平仓后 10 个交易日才触发下一笔入场。这避免了 5 日节奏的过度交易（holdoutSpyIR −0.19）与 20 日节奏的样本不足（dsrM 未通过）之间的平衡点。\n\n**资本需求**：$2K 起步。每手 debit 约 $400-600（取决于 QQQ 当前价位），maxPositions=1 意味着总占用不超过一手。\n\n**历史回测**：oosSharpe 0.97, holdoutSharpe 1.22, holdoutSpyIR +0.40。封存文件：`docs/holdout-evaluations/2026-04-23-25880326cfe1.md`。',
-        whyItMatters: '这是 2 个 F1 活跃策略之一，占小资金账户的主力。用 Signals 页面的 "Open BCD Position →" 按钮手动触发 `BCDEntryModal` 入场。'
+        explanation: '✅ **当前活跃策略 #1**（2026-04-23 封存通过 6/6 采纳门槛，dsrM F0-effective N = 30，+0.065）。\n\n这是一种结构化的 Bull Call Debit Spread（看涨借方价差）在 QQQ 上的应用：买入一张接近平值的 Long Call（δ ≈ 0.50），同时卖出一张更虚值的 Short Call（δ ≈ 0.20）来抵消部分权利金，两腿到期日相同、DTE 落在 30–60 天。建仓时的净支出 (net debit) 就是最大亏损；当价差 P&L 达到 +50% 时止盈平仓。\n\n**为什么选 Debit 而不是 Credit？** 在 2024–2026 的 QQQ 牛市窗口里，盈利封顶的 Credit Spread（例如 DTE5 Bull Put）系统性输给「一直做多 SPY」这个最简单的对照基准（holdoutSpyIR −0.76）。BCD 则反过来吃下方向性溢价——Long Call 腿在方向对时能贡献 2–3 倍的回报，Short Call 仅起到成本补贴的作用，并不封住上行。\n\n**入场规则的精妙之处**：不使用 EMA34 / EMA55 等技术信号门控（F0 的零假设检验证明这些指标无法贡献 alpha），而是采用「每 10 个交易日 + maxPositions = 1」的简单节奏——上一笔平仓后 10 个交易日才触发下一笔入场。这是在 5 日节奏（过度交易，holdoutSpyIR −0.19）与 20 日节奏（样本不足，dsrM 不通过）之间找到的平衡点。\n\n**资金门槛**：$2K 起步。每手净支出约 $400–600（取决于 QQQ 现价），maxPositions = 1 意味着同一时刻最多只持有一手。\n\n**历史回测**：oosSharpe 0.97 / holdoutSharpe 1.22 / holdoutSpyIR +0.40。封存档案：`docs/holdout-evaluations/2026-04-23-25880326cfe1.md`。',
+        whyItMatters: 'F1 双活跃策略之一，小资金账户的主力。在 Signals 页面点击 "Open BCD Position →" 按钮，由 `BCDEntryModal` 手动触发入场。'
     },
     {
         id: 'pmcc-qqq-pt60',
@@ -159,8 +159,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Strategy',
         icon: Trophy,
         formula: 'Long LEAP δ 0.70-0.80 @ DTE 240-300 + Short monthly δ 0.20-0.30 @ DTE 30-45 · Long PT 60%',
-        explanation: '✅ **当前活跃策略 #2**（2026-04-23 封存通过 6/6 采纳门槛，dsrM F0-effective N=25 +0.845 — 极为宽裕的安全边际）。\n\nPMCC (Poor Man\'s Covered Call) 是 diagonal spread 的一种，模拟"持有 100 股正股 + 卖出一个月看涨期权"的传统 covered call 策略，但用一张深度实值 LEAP call 替代 100 股正股，大幅降低资金门槛。\n\n**结构**：\n1. Long LEAP call（δ 0.70-0.80，DTE 240-300 天）— 这是长期"持股替代物"，占绝大部分资金（$8K-$12K/张）。\n2. Short monthly call（δ 0.20-0.30，DTE 30-45 天）— 在 LEAP 上方卖出一张 OTM call，每月收取权利金。\n\n**管理规则**：\n- **Long PT +60%**：当 LEAP 盈利 60% 时平掉整个头寸。\n- **Short PT +50%**：当 short leg 盈利 50% 时单独平短腿。\n- **Roll 触发**：当 QQQ 现价逼近 short strike（距离 ≤ 2%）时滚动 short 到更远的期权。\n- **Long SL −35%**：如果 LEAP 亏损 35% 则整体止损。\n\n**为什么 pt60 而不是 pt50？** F0 null-test 探索了 50% / 60% / 70% 三种长腿止盈：60% 在 2024-2026 窗口的 holdoutSpyIR 最佳 (+0.15)，且 dsrM 余量最大。pt50 轻微过早止盈，pt70 让利润回吐。\n\n**资本需求**：$10K 起步。适合有稳定收入的账户用作核心持仓。\n\n**相比 BCD 的互补性**：PMCC 是"always-in"（只要没仓位就入场，不等信号），BCD 是"每 10 日节奏"（离散触发）。两者资本 tier 不同、节奏不同、方向敞口不同——可以并行持有，平台 Dashboard 会显示两个独立的 P&L 板。\n\n**历史回测**：oosSharpe 1.72, holdoutSharpe 1.63, holdoutSpyIR +0.15。封存文件：`docs/holdout-evaluations/2026-04-23-7e9c2026f3df.md`。',
-        whyItMatters: '这是 2 个 F1 活跃策略之一，占大资金账户的核心持仓。用 Signals 页面的 "Open PMCC Position →" 按钮手动触发 `PMCCEntryModal`（两条腿独立选择到期日）入场。'
+        explanation: '✅ **当前活跃策略 #2**（2026-04-23 封存通过 6/6 采纳门槛，dsrM F0-effective N = 25，+0.845——极宽裕的安全边际）。\n\nPMCC (Poor Man\'s Covered Call) 是 Diagonal Spread 的一种，模拟传统的「持有 100 股正股 + 每月卖一张 Call」(Covered Call)，但用一张深度实值的 LEAP Call 替代 100 股正股，资金门槛大幅降低。\n\n**结构**：\n1. Long LEAP Call（δ 0.70–0.80，DTE 240–300 天）——长期「持股替代物」，占整笔头寸的绝大部分资金（约 $8K–$12K / 张）。\n2. Short Monthly Call（δ 0.20–0.30，DTE 30–45 天）——在 LEAP 上方卖出一张虚值 Call，每月收取权利金。\n\n**管理规则**：\n- **Long PT +60%**：LEAP 盈利 60% 时整体平仓。\n- **Short PT +50%**：短腿盈利 50% 时单独平短腿。\n- **Roll 触发**：当 QQQ 现价逼近短腿行权价（距离 ≤ 2%）时，把短腿向上 / 向后滚动。\n- **Long SL −35%**：LEAP 亏损 35% 时整体止损。\n\n**为什么是 pt60 而不是 pt50？** F0 零假设检验比较了 50% / 60% / 70% 三种长腿止盈：在 2024–2026 窗口里，60% 的 holdoutSpyIR 最佳 (+0.15)，dsrM 余量最大。pt50 略偏早止盈、pt70 容易让利润回吐。\n\n**资金门槛**：$10K 起步，适合有稳定现金流的账户作为核心持仓。\n\n**与 BCD 的互补性**：PMCC 是「always-in」——只要空仓就入场，不等信号；BCD 是「每 10 日节奏」——离散触发。两者资金等级、节奏、方向敞口都不同，可以并行持有；平台 Dashboard 会显示两个独立的 P&L 面板。\n\n**历史回测**：oosSharpe 1.72 / holdoutSharpe 1.63 / holdoutSpyIR +0.15。封存档案：`docs/holdout-evaluations/2026-04-23-7e9c2026f3df.md`。',
+        whyItMatters: 'F1 双活跃策略之一，大资金账户的核心持仓。在 Signals 页面点击 "Open PMCC Position →" 按钮，由 `PMCCEntryModal`（长短两腿独立选择到期日）手动触发入场。'
     },
     {
         id: 'dsr-mertens',
@@ -168,8 +168,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Metric',
         icon: FlaskConical,
         formula: 'dsrM = Sharpe − SE × E[max(N standard normals)]',
-        explanation: '当你在同一个数据集上测试 100 个策略，即使所有策略都毫无 alpha，你也会看到一些"看起来很牛"的假阳性——这就是多重检验偏差（multiple testing bias）。Deflated Sharpe Ratio 是 Bailey & López de Prado 提出的数学校正：从观测到的 Sharpe 中扣除"如果 N 次都在纯噪声中抽样，最大 Sharpe 的期望值"。\n\n**公式直觉**：\n- 如果 N=1（只测一次），没有多重检验惩罚，dsrM = Sharpe。\n- 如果 N=100（测了 100 种配置），需要扣除约 2.5 × SE ≈ 1.0 Sharpe 单位才能确信不是噪声。\n- 如果 N=1000，惩罚更重。\n\n**Phase F0 clean-slate 的意义**：2026-04-23 之前的 106 次尝试（pre-F0）被标记为"历史证据"，不计入 dsrM 的 N。F0 边界后重新计数（F0-effective N），给新策略一个"清白的起点"。这是一次性声明，至 2026-10 才考虑下次重置。\n\n**6/6 采纳门槛中的角色**：dsrM > 0 是六大门槛之一（其他：holdoutSpyIR ≥ 0, holdoutSharpe ≥ 0.3, oosSharpe ≥ 0.8, passesStability, passesStatConsistency）。BCD 和 PMCC 都是在 F0-effective N（分别为 30 和 25）下通过这一门槛的。',
-        whyItMatters: '防止你把噪声当 alpha。每次运行 runner 都会消耗一次尝试次数（计入 attempts-global.json），所以策略探索必须"想清楚再跑"。'
+        explanation: '在同一个数据集上测试 100 个策略，哪怕全都没有 alpha，你也会看到一些「看起来很惊艳」的假阳性——这就是多重检验偏差 (Multiple Testing Bias)。Deflated Sharpe Ratio (dsrM) 是 Bailey & López de Prado 提出的数学校正：从观测到的 Sharpe 中扣掉「在纯噪声里采 N 次，最大 Sharpe 的期望值」。\n\n**直觉**：\n- N = 1（只测一次）：没有多重检验惩罚，dsrM = Sharpe。\n- N = 100（测了 100 种配置）：大约要扣 2.5 × SE ≈ 1.0 个 Sharpe 单位，才能确信不是噪声。\n- N = 1000：惩罚更重。\n\n**Phase F0 clean-slate 的意义**：2026-04-23 之前的 106 次尝试 (pre-F0) 被标记为「历史证据」，不再计入 dsrM 的 N。F0 边界之后重新计数 (F0-effective N)，给新策略一个干净的起点。这是一次性声明，下一次重置要等到 2026-10。\n\n**在 6 / 6 采纳门槛中的角色**：dsrM > 0 是六大门槛之一（另外五个：holdoutSpyIR ≥ 0、holdoutSharpe ≥ 0.3、oosSharpe ≥ 0.8、passesStability、passesStatConsistency）。BCD 与 PMCC 分别在 F0-effective N = 30 与 25 的条件下通过了这道关卡。',
+        whyItMatters: '防止你把噪声当成 alpha。每跑一次 runner 都会消耗一次尝试次数（写入 attempts-global.json），所以策略探索必须「想清楚再跑」。'
     },
 
     // --- CREDIT SPREAD STRATEGY ---
@@ -179,8 +179,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Strategy',
         icon: Layers,
         formula: 'Width = |Short Strike - Long Strike|',
-        explanation: '价差宽度决定了你的风险/收益比例和资金效率。以 Bull Put Spread 为例：\n\n$5 宽度：每手最大风险 $500，权利金收入约 $50-80。资金需求小，但每手利润也小。\n$10 宽度：每手最大风险 $1000，权利金收入约 $100-160。中等规模，适合短线策略。\n$15 宽度：每手最大风险 $1500，权利金收入约 $150-250。WFA 验证显示资金利用率 64%，线性扩展效果最佳。\n\n关键洞察：宽度越大，权利金收入几乎按比例增长（线性），但胜率基本不变（因为卖出腿相同）。所以在资金允许的情况下，适当加宽价差可以提高绝对收益而不显著增加风险概率。\n\n我们的验证结论：Swing 用 $15 宽度，Short-Term 用 $10 宽度。',
-        whyItMatters: 'Swing 策略验证最优宽度 $15（资金利用率 64%），Short-Term 最优 $10。宽度决定了每手的绝对收益和风险。'
+        explanation: '价差宽度决定了风险 / 收益比例与资金效率。以 Bull Put Spread 为例：\n\n- $5 宽：每手最大风险 $500，权利金约 $50–80。资金需求小，每手利润也小。\n- $10 宽：每手最大风险 $1,000，权利金约 $100–160。中等规模，适合短线策略。\n- $15 宽：每手最大风险 $1,500，权利金约 $150–250。WFA 验证显示资金利用率约 64%，线性扩展效果最佳。\n\n核心洞察：宽度越大，权利金近乎线性增长，但胜率基本不变（因为卖出腿相同）。所以在资金允许的前提下，适当加宽可以放大绝对收益，而不会显著增加亏损概率。\n\n本平台的验证结论：Swing 用 $15 宽度，Short-Term 用 $10 宽度。',
+        whyItMatters: 'WFA 验证：Swing 最优宽度 $15（资金利用率 64%），Short-Term 最优 $10。宽度直接决定了每手的绝对收益与风险。'
     },
     {
         id: 'dte-sweet-spot',
@@ -188,8 +188,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Strategy',
         icon: Target,
         formula: 'Swing: 45-65 DTE | Short-Term: 7-21 DTE',
-        explanation: 'DTE (Days To Expiration) 的选择是 Credit Spread 策略的核心参数之一。\n\n45-65 DTE（Swing）：这是 Theta 衰减曲线的"甜蜜区"。在这个窗口，时间价值的衰减速度开始明显加速，但你还有足够的时间让不利走势自行修正。过早入场（>70 DTE），Theta 衰减太慢，占用资金时间过长；过晚入场（<30 DTE），Gamma 风险急剧上升，股价小幅波动就可能吃掉你所有利润。\n\n7-21 DTE（Short-Term / 130M）：短线策略利用的是 Theta 的"末日加速"效应。在最后 2-3 周，时间价值衰减呈指数级加速。配合 130M（3 bars/day）的信号系统，可以精确捕捉短期趋势。但风险也更高——Gamma 在这个阶段非常敏感，需要更严格的信号过滤。\n\nWFA 研究覆盖了 648 种配置，确认这两个窗口是最优的。',
-        whyItMatters: 'Theta 衰减在 45-65 天开始加速（Swing），7-21 天达到峰值（Short-Term）。偏离这些窗口会降低策略效率。'
+        explanation: 'DTE (Days To Expiration) 的选择是 Credit Spread 策略的核心参数之一。\n\n**45–65 DTE（Swing）**：Theta 衰减曲线的「甜蜜区」。时间价值的衰减开始明显加速，同时还有足够的余地让不利走势自我修复。过早入场（> 70 DTE），Theta 衰减太慢，资金占用时间过长；过晚入场（< 30 DTE），Gamma 风险急剧上升，股价的小幅波动就能吃掉全部利润。\n\n**7–21 DTE（Short-Term / 130M）**：短线策略利用的是 Theta 的「末日加速」效应——最后 2–3 周时间价值呈指数级衰减。配合 130M（每天 3 根 K 线）的信号系统，可以精确捕捉短期趋势。但风险也更高，Gamma 在这一阶段非常敏感，需要更严格的信号过滤。\n\nWFA 研究覆盖了 648 种配置，确认上述两个窗口最优。',
+        whyItMatters: 'Theta 衰减在 45–65 天开始加速（Swing），7–21 天达到峰值（Short-Term）。偏离这两个窗口会显著降低策略效率。'
     },
     {
         id: 'take-profit',
@@ -197,8 +197,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Strategy',
         icon: Trophy,
         formula: 'Swing: 30% of max profit | Short-Term: 50% of max profit',
-        explanation: '为什么不等到 100% 利润？因为 Theta 衰减的边际收益递减。\n\n假设你卖出了一个 Credit Spread，收到 $1.50 的权利金（最大利润）。在头 2-3 周，价差可能已经从 $1.50 缩到了 $1.05（30% 利润）。但要把剩余的 $1.05 也赚到，你可能需要再等 3-4 周，承担股价反转的全部风险。\n\n数学上，前 30% 的利润可能在 40% 的持仓时间内完成；而最后 30% 的利润却需要占用 60% 的时间。这就是"边际递减"。\n\nSwing 30%：较早止盈，释放资金投入新交易，提高资金周转率。WFA 验证略优于 50%。\nShort-Term 50%：短线到期快，Theta 加速更猛，可以贪心一点。WFA 验证 50% 优于 30%。\n\n关键：止盈后不要回头看。如果你发现自己经常在想"早知道不止盈了"，那说明你的止盈规则正在保护你——因为你只记得那些继续赚钱的案例，却忘记了止盈后反转的情况。',
-        whyItMatters: 'WFA 验证：Swing 在 30% 止盈效率最高，Short-Term 在 50%。边际 Theta 衰减递减，早止盈提高资金周转。'
+        explanation: '为什么不等到 100% 利润？因为 Theta 衰减存在明显的边际递减。\n\n假设你卖出一个 Credit Spread，收到 $1.50 权利金（最大利润）。前 2–3 周，价差可能已经从 $1.50 缩到 $1.05（即 30% 利润）。但要把剩下的 $1.05 也吃到嘴里，往往需要再等 3–4 周，并承担股价反转的全部风险。\n\n数学上，前 30% 的利润大约在 40% 的持仓时间内完成；最后 30% 的利润却要占用 60% 的时间。这就是「边际递减」。\n\n- Swing 30%：较早止盈，释放资金给下一笔交易，提高周转率。WFA 验证略优于 50%。\n- Short-Term 50%：短线到期快、Theta 加速更猛，可以贪心一点。WFA 验证 50% 优于 30%。\n\n关键纪律：止盈后不要回头看。如果你经常想「早知道不止盈了」，恰恰说明止盈规则正在保护你——大脑只记得那些继续上涨的案例，却选择性遗忘了止盈后反转的情况。',
+        whyItMatters: 'WFA 验证：Swing 在 30% 止盈效率最高，Short-Term 在 50%。Theta 衰减的边际递减使得早止盈反而能放大资金周转。'
     },
     {
         id: 'time-stop',
@@ -206,8 +206,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Risk',
         icon: Timer,
         formula: 'Swing: DTE ≤ 3 close | Short-Term: DTE ≤ 1 close',
-        explanation: '为什么需要时间止损？因为越接近到期，Gamma 风险呈指数级增长。\n\n在到期前 3 天（Swing）或 1 天（Short-Term），即使你的价差还在赚钱，也应该主动平仓。原因：\n\n1. Gamma 爆炸：股价微小的波动就能让你从盈利变成最大亏损。你的命运完全取决于到期日的收盘价，而不是你的分析。\n2. Pin Risk：如果股价恰好"钉"在你的卖出行权价附近，你可能面临被行权的风险，需要处理底层股票头寸。\n3. 流动性枯竭：临近到期的期权买卖价差会显著扩大，平仓成本上升。\n\n时间止损是一条铁律。不论盈亏，到了 DTE 阈值就平仓。这不是"认输"——这是专业的风险管理。',
-        whyItMatters: 'Gamma 在到期前呈指数级增长。DTE ≤ 3（Swing）或 DTE ≤ 1（Short-Term）必须平仓，无论盈亏。'
+        explanation: '为什么必须设时间止损？因为越接近到期，Gamma 风险呈指数级膨胀。\n\n到期前 3 天（Swing）或 1 天（Short-Term），即使你的价差还在赚钱也要主动平仓。原因有三：\n\n1. **Gamma 爆炸**：股价的微小波动就能让你从盈利瞬间转为最大亏损——结局完全交给到期日收盘价，而不再取决于你的分析。\n2. **Pin Risk**：如果股价恰好「钉」在卖出行权价附近，你可能面临被行权的风险，还要处理底层正股头寸。\n3. **流动性枯竭**：临近到期的期权买卖价差显著扩大，平仓成本上升。\n\n时间止损是一条铁律：不论盈亏，到 DTE 阈值就平仓。这不是「认输」，而是专业的风险管理。',
+        whyItMatters: 'Gamma 临近到期呈指数级增长。DTE ≤ 3（Swing）或 DTE ≤ 1（Short-Term）必须平仓，无论盈亏。'
     },
     {
         id: 'defined-risk',
@@ -215,8 +215,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Risk',
         icon: Lock,
         formula: 'Max Loss = (Width - Credit) × 100 × Contracts',
-        explanation: 'Credit Spread 最优美的特性：你的最大亏损在建仓时就已经锁定，永远不会超过这个数字。\n\n这是因为你同时买入了一个保护腿（Long Leg）。不管标的股票暴跌 50% 还是 80%，你的亏损上限就是 (宽度 - 收到的权利金) × 合约乘数。\n\n这就是为什么我们的策略不需要传统的价格止损 (Stop Loss)：\n1. WFA 回测 7000+ 组合验证：设置 2× 止损反而摧毁收益（OOS Sharpe 从 1.3 降到 0.04）。\n2. 原因：Credit Spread 的盈亏曲线是非线性的。价差在到期前的波动远大于最终结果。在中途触发止损，你会在最终本可以赢的交易上锁定亏损。\n3. 定义好风险（Width × Contracts），让概率去工作。大数定律会保护你。',
-        whyItMatters: 'Credit Spread 的风险在建仓时锁定。WFA 验证：Stop Loss 2× 会摧毁收益（Sharpe 0.04）。不需要止损，让定义好的风险自然运作。'
+        explanation: 'Credit Spread 最优美的特性：最大亏损在建仓那一刻就已锁定，永远不会突破这个上限。\n\n原理是同时买入了一条保护腿（Long Leg）。不管标的股票暴跌 50% 还是 80%，你的亏损上限就是 (宽度 − 收到的权利金) × 100 × 手数。\n\n所以本策略不使用传统的价格止损 (Stop Loss)：\n1. WFA 在 7,000+ 组合上验证：设置 2× 止损反而摧毁收益（OOS Sharpe 从 1.3 跌到 0.04）。\n2. 原因：Credit Spread 的盈亏曲线高度非线性，到期前的中途波动远大于最终结果。中途触发止损，等于在那些本可以赢的交易上提前锁定亏损。\n3. 把风险预先定义好（Width × 手数），剩下的交给概率与大数定律。',
+        whyItMatters: 'Credit Spread 的风险在建仓时已锁定。WFA 验证：2× 止损会摧毁收益（Sharpe 0.04）。不要再加止损，让事先定义好的有限风险自然运作。'
     },
     {
         id: 'iv-regime',
@@ -224,16 +224,16 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Concept',
         icon: BarChart2,
         formula: 'CREDIT: IV30/IV90 > 1.05 | DEBIT: < 0.95 | NEUTRAL: 0.95-1.05',
-        explanation: '市场的波动率不是一个静态数字，它有自己的"情绪周期"——我们称之为 IV Regime（波动率环境）。\n\nCREDIT Regime（卖方环境）：当 IV 的期限结构倒挂（IV30 > IV90，即近期波动率高于远期），说明市场正在恐慌。这时候卖出期权（Credit Spread）胜率极高，因为你在高位卖出了"恐惧溢价"，IV 均值回归会帮你赚钱。\n\nDEBIT Regime（买方环境）：当 IV 正向（IV30 < IV90），说明市场平静到极点。期权便宜，买入看涨/看跌期权（Debit Spread）的成本低，一旦波动爆发，收益巨大。\n\nNEUTRAL：市场正常状态，IV 期限结构平坦。此时 Credit 和 Debit 都没有明显的结构性优势。\n\n我们的系统会自动检测当前 IV Regime，只在 CREDIT Regime 下推荐 Credit Spread 策略。',
-        whyItMatters: '只在 CREDIT Regime 下做 Credit Spread。IV 期限结构倒挂意味着市场恐慌，卖出期权胜率最高。'
+        explanation: '波动率不是一个静态数字，它有自己的「情绪周期」——我们称之为 IV Regime（波动率环境）。\n\n- **CREDIT Regime（卖方环境）**：IV 期限结构倒挂（IV30 > IV90，近期波动率高于远期），说明市场正在恐慌。此时卖出期权（Credit Spread）胜率极高——你在高位卖出了恐惧溢价，IV 均值回归会替你赚钱。\n- **DEBIT Regime（买方环境）**：IV 正向（IV30 < IV90），市场极度平静。期权便宜，买入 Call / Put 或 Debit Spread 的成本最低，一旦波动爆发，收益惊人。\n- **NEUTRAL**：市场正常，IV 期限结构平坦。Credit 与 Debit 都没有明显的结构性优势。\n\n系统会自动检测当前 IV Regime，只在 CREDIT Regime 下推荐 Credit Spread 策略。',
+        whyItMatters: '只在 CREDIT Regime 下做 Credit Spread。IV 期限结构倒挂意味着市场恐慌，是卖期权胜率最高的时刻。'
     },
     {
         id: 'wfa',
         term: 'WFA (Walk-Forward Analysis)',
         category: 'Concept',
         icon: FlaskConical,
-        explanation: 'Walk-Forward Analysis 是我们验证策略参数的核心方法论。它解决了回测中最致命的问题：过拟合。\n\n传统回测的陷阱：你用 5 年数据找到"完美参数"（胜率 95%！），但这些参数只是完美地拟合了历史噪音，对未来毫无预测力。\n\nWFA 的做法：\n1. 将历史数据切成 12 个滚动窗口（如 6 个月训练 + 2 个月测试）\n2. 在每个训练窗口中独立寻找最优参数\n3. 用这些参数在对应的测试窗口（OOS = Out-of-Sample）上验证\n4. 统计所有 OOS 窗口的综合表现\n\n如果一个策略在 12 个独立的 OOS 测试中都保持正收益，那它的稳健性远高于传统回测。\n\n我们的 WFA 结果：Swing 策略 OOS Sharpe 1.275，胜率 89.52%。Short-Term 130M 策略 OOS Sharpe 2.22，胜率 84.6%。这些数字来自 5556+ 条 OOS 交易，横跨 15 只股票和 7-12 个独立时间窗口。',
-        whyItMatters: 'WFA 防止过拟合。我们的策略经过 5556+ 条 OOS 交易验证，不是简单的历史回测结果。'
+        explanation: 'Walk-Forward Analysis 是本平台验证策略参数的核心方法论，解决了回测中最致命的问题——过拟合。\n\n传统回测的陷阱：用 5 年数据找到「完美参数」（胜率 95%！），可那些参数只是完美拟合了历史噪声，对未来毫无预测力。\n\nWFA 的做法：\n1. 把历史数据切成 12 个滚动窗口（例如 6 个月训练 + 2 个月测试）。\n2. 在每个训练窗口里独立挑选最优参数。\n3. 把这些参数应用到对应的样本外测试窗口 (OOS = Out-of-Sample)。\n4. 汇总所有 OOS 窗口的综合表现。\n\n如果一个策略在 12 个独立的 OOS 测试里都能保持正收益，它的稳健性远高于传统单样本回测。\n\nWFA 历史结果：Swing 策略 OOS Sharpe 1.275、胜率 89.52%；Short-Term 130M 策略 OOS Sharpe 2.22、胜率 84.6%。这些数字基于 5,556+ 条 OOS 交易，覆盖 15 只股票、7–12 个独立时间窗口。',
+        whyItMatters: 'WFA 防止过拟合。本平台的策略经过 5,556+ 条 OOS 交易的验证，不是单一区间的传统历史回测结果。'
     },
     {
         id: 'signal-system',
@@ -241,8 +241,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Concept',
         icon: Radio,
         formula: 'EMA = Trend Following | MOM = Momentum Burst | EM = Combined',
-        explanation: '我们的信号系统使用三种预设模式来检测入场时机：\n\nEMA（趋势跟踪）：基于多层指数移动平均线 (EMA Stack) 的方向判断。当短期 EMA > 中期 EMA > 长期 EMA 时，确认上升趋势（BULL）；反之确认下降趋势（BEAR）。优点：稳定可靠，假信号少。缺点：响应慢，可能错过快速反转。\n\nMOM（动量爆发）：基于价格动量和市场偏差 (Market Bias) 的短期强度指标。捕捉的是"价格正在加速运动"的时刻。优点：响应快，抓得住急涨急跌。缺点：在震荡行情中假信号多。\n\nEM（EMA + Momentum 组合）：将趋势方向（EMA）和动量强度（MOM）结合。只有两者同时确认时才发出信号。这是 Short-Term 130M 策略的默认模式。WFA 研究显示 EM 的泛化评级最高（Grade A），因为它同时过滤了趋势假信号和动量噪音。',
-        whyItMatters: 'Swing 使用 EMA 或 MOM，Short-Term 使用 EM（Grade A 泛化评级）。信号决定入场时机，WFA 验证了各预设的最优适用场景。'
+        explanation: '本平台的信号系统提供三种预设模式来判断入场时机：\n\n- **EMA（趋势跟踪）**：基于多层指数移动平均线 (EMA Stack) 的方向判断。短期 > 中期 > 长期 EMA 确认上升趋势 (BULL)，反之确认下降趋势 (BEAR)。优点：稳定可靠、假信号少；缺点：响应慢，容易错过快速反转。\n- **MOM（动量爆发）**：基于价格动量与市场偏差 (Market Bias) 的短期强度指标，捕捉「价格正在加速」的时刻。优点：响应快，抓得住急涨急跌；缺点：在震荡行情里假信号多。\n- **EM（EMA + Momentum 组合）**：把趋势方向 (EMA) 与动量强度 (MOM) 同时纳入，两者一致时才出信号。这是 Short-Term 130M 策略的默认模式，WFA 研究显示 EM 的泛化评级最高（Grade A），因为它同时过滤掉了趋势假信号与动量噪声。',
+        whyItMatters: 'Swing 用 EMA 或 MOM，Short-Term 用 EM（Grade A 泛化评级）。信号决定入场时机，每种预设的最优适用场景都经过 WFA 验证。'
     },
     {
         id: 'max-drawdown',
@@ -250,8 +250,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Risk',
         icon: AlertTriangle,
         formula: 'Max DD = (Peak - Trough) ÷ Peak × 100%',
-        explanation: '最大回撤衡量的是从资产净值最高点到最低点之间的最大跌幅。它是风险管理中最重要的生存指标。\n\n为什么它比胜率更重要？因为回撤直接影响你的心理和资金生存：\n- 10% 回撤：需要 11% 的回报才能回本。可以接受。\n- 25% 回撤：需要 33% 的回报才能回本。开始痛苦。\n- 50% 回撤：需要 100% 的回报才能回本。几乎不可能恢复。\n\n这就是为什么我们将最大回撤控制在 15% 以内（WFA 实际：Swing 4.64%，Short-Term 12.9%）。\n\n一个胜率 90% 但最大回撤 50% 的策略，远不如一个胜率 85% 但最大回撤 10% 的策略。因为前者只需要一次极端事件就能毁掉你的账户，而后者你可以安心地睡觉。',
-        whyItMatters: '回撤 >25% 几乎不可能恢复。我们的策略目标 Max DD <15%（WFA 实际：Swing 4.64%，Short-Term 12.9%）。'
+        explanation: '最大回撤衡量从资产净值最高点跌到最低点的最大幅度，它是风险管理中最重要的「生存指标」。\n\n为什么它比胜率更重要？因为回撤直接决定了心理与资金的双重生存空间：\n- 10% 回撤：需要 11% 的回报才能回本——可以接受。\n- 25% 回撤：需要 33% 的回报才能回本——开始痛苦。\n- 50% 回撤：需要 100% 的回报才能回本——几乎不可能。\n\n这正是本平台把最大回撤目标设在 15% 以内的原因（WFA 实际：Swing 4.64%、Short-Term 12.9%）。\n\n一个胜率 90% 但最大回撤 50% 的策略，远不如一个胜率 85% 但最大回撤 10% 的策略。前者只需一次极端事件就能毁掉账户，后者却能让你安心睡觉。',
+        whyItMatters: '回撤 > 25% 几乎不可能恢复。本平台目标 Max DD < 15%（WFA 实际：Swing 4.64%、Short-Term 12.9%）。'
     },
     {
         id: 'winrate-vs-ev',
@@ -259,8 +259,8 @@ const GLOSSARY: GlossaryItem[] = [
         category: 'Concept',
         icon: Trophy,
         formula: 'Expectancy = (WR × Avg Win) - ((1-WR) × Avg Loss)',
-        explanation: '在 Credit Spread 策略中，高胜率不是虚荣指标——它是策略的核心引擎。\n\n为什么高 WR 对 Credit Spread 特别重要：\n1. 心理稳定性：85%+ 的胜率意味着每 20 笔交易只有 2-3 笔亏损。这让你有信心持续执行系统，不会因为连续亏损而放弃策略。\n2. 复利效应：小额高频盈利比低频大额盈利更利于复利。每笔赚 $150（30% TP），20 笔中 17 笔赢 = +$2550，3 笔输 $1350（假设 Max Loss $450/笔） = 净利 +$1200。\n3. 有界亏损：Credit Spread 的最大亏损被 Width 锁定。所以即使那 15% 的亏损交易触发 Max Loss，你的亏损也是已知的、有限的。这和低胜率策略（30% WR, 大赢小亏）本质不同——低胜率策略的连续亏损可能击穿心理防线。\n\nExpectancy（期望值）结合了胜率和盈亏比。我们的 WFA 验证：Swing Expectancy +$35/trade，Short-Term +$48/trade。',
-        whyItMatters: '85%+ 胜率不是虚荣指标。Credit Spread 的有界亏损 + 高胜率 = 稳定复利。WFA 验证期望值为正。'
+        explanation: '在 Credit Spread 策略里，高胜率不是「虚荣指标」，而是策略的核心引擎。\n\n为什么高胜率对 Credit Spread 尤其关键：\n1. **心理稳定性**：85%+ 的胜率意味着每 20 笔交易只有 2–3 笔亏损。这种节奏让你有信心持续执行系统，不会因为连续亏损而中途放弃。\n2. **复利效应**：小额高频盈利比低频大额盈利更利于复利。每笔赚 $150（30% TP），20 笔里 17 笔赢 = +$2,550；3 笔输 $1,350（假设单笔 Max Loss $450）= 净利 +$1,200。\n3. **有界亏损**：Credit Spread 的最大亏损被 Width 锁死。即使那 15% 的失败交易触发 Max Loss，损失也是已知且有限的。这和低胜率策略（如 30% WR、大赢小亏）有本质差异——后者的连续亏损很容易击穿心理防线。\n\nExpectancy（期望值）把胜率与盈亏比同时纳入。本平台 WFA 验证：Swing Expectancy +$35/trade、Short-Term +$48/trade。',
+        whyItMatters: '85%+ 的胜率不是虚荣指标。Credit Spread 的「有界亏损 + 高胜率」组合 = 稳定复利。WFA 验证期望值为正。'
     },
 
 ];

@@ -426,19 +426,21 @@ describe('STRAT-03 — strategy derived from DTE selection in spread builder', (
 });
 
 // ---------------------------------------------------------------------------
-// STRAT-04: Backtest.tsx — DTE5 dashboard (replaces old swing/shortTerm toggle)
+// STRAT-04: Backtest.tsx — F1 sealed-adoption dashboard (BCD + PMCC)
+// Replaces the legacy DTE5 swing dashboard after the 2026-04-23 platform revamp.
 // ---------------------------------------------------------------------------
-describe('STRAT-04 — Backtest.tsx DTE5 dashboard', () => {
-  it('Backtest.tsx imports dte5-dashboard.json data', () => {
-    expect(backtestSrc).toContain('dte5-dashboard.json');
+describe('STRAT-04 — Backtest.tsx F1 strategy dashboard', () => {
+  it('Backtest.tsx imports strategy-dashboard.json data', () => {
+    expect(backtestSrc).toContain('strategy-dashboard.json');
   });
 
   it('Backtest.tsx has interactive tab navigation', () => {
     expect(backtestSrc).toContain('activeTab');
   });
 
-  it('Backtest.tsx shows spread comparison data', () => {
-    expect(backtestSrc).toContain('spreadComparison');
+  it('Backtest.tsx renders both F1 active strategies', () => {
+    expect(backtestSrc).toContain("'bcd'");
+    expect(backtestSrc).toContain("'pmcc'");
   });
 });
 

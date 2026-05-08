@@ -1,0 +1,213 @@
+{
+  "generatedAt": "2026-05-08T19:34:03.290Z",
+  "evidenceCutoffDate": "2026-05-06",
+  "nextHoldoutRefresh": "2026-10-20",
+  "liveTradingPolicy": "blocked-paper-only",
+  "strategies": [
+    {
+      "id": "bcd",
+      "label": "BCD QQQ wide",
+      "status": "paper-approved",
+      "sealedAt": "2026-04-23T23:27:52.082Z",
+      "sealPath": "docs/holdout-evaluations/2026-04-23-25880326cfe1.md",
+      "hypothesis": "Bull call debit spread on QQQ; long δ 0.50 + short δ 0.20, DTE 30-60, PT 50%, 10-trading-day flat-gate cadence — earns positive risk-adjusted alpha over SPY and clears all 6 sealed adoption gates.",
+      "spec": {
+        "underlying": "QQQ",
+        "structure": "Bull Call Debit Spread",
+        "longLeg": "Long call δ 0.50",
+        "shortLeg": "Short call δ 0.20",
+        "dteRange": "30-60",
+        "profitTarget": "+50% on debit",
+        "stopLoss": "none (defined-risk debit)",
+        "cadence": "Every 10 trading days when flat (maxPositions=1)",
+        "capitalTier": "$5K starting",
+        "riskPerTrade": "30% of equity"
+      },
+      "oos": {
+        "sharpe": 0.9705805465455615,
+        "spyIR": 0.6921889585817521,
+        "spyExcess": 0.2125487731641844,
+        "maxDD": 39.784273380252124,
+        "trades": 59,
+        "winRate": 64.40677966101694,
+        "totalPnl": 7164.646740038742
+      },
+      "holdout": {
+        "sharpe": 1.2229995848980162,
+        "spyIR": 0.39478672058031716,
+        "spyExcess": 0.0661569768795642,
+        "trades": 25,
+        "newTrades": 25,
+        "ratio": 1.2600701603291464
+      },
+      "deflation": {
+        "global": -0.17118265860620618,
+        "f0Effective": 0.065,
+        "attemptsGlobal": 136,
+        "attemptsF0Eff": 30,
+        "stdErr": 0.4290682126516546
+      },
+      "stability": {
+        "wfEfficiency": 1.4702710414342548,
+        "statConsistencyRatio": 1.0048754499267967,
+        "bootstrapCI": [
+          0.07256055425125353,
+          1.7627081981427155
+        ],
+        "passesStability": true,
+        "passesStatConsistency": true
+      },
+      "exitBreakdown": {
+        "PROFIT_TARGET": 30,
+        "TIME_STOP": 11,
+        "FORCE_CLOSE": 18
+      },
+      "gates": [
+        {
+          "name": "holdoutSpyIR ≥ 0",
+          "actual": 0.39478672058031716,
+          "threshold": 0,
+          "pass": true,
+          "fmt": "ratio"
+        },
+        {
+          "name": "holdoutSharpe ≥ 0.3",
+          "actual": 1.2229995848980162,
+          "threshold": 0.3,
+          "pass": true,
+          "fmt": "ratio"
+        },
+        {
+          "name": "oosSharpe ≥ 0.8",
+          "actual": 0.9705805465455615,
+          "threshold": 0.8,
+          "pass": true,
+          "fmt": "ratio"
+        },
+        {
+          "name": "passesStability",
+          "actual": 1,
+          "threshold": 1,
+          "pass": true,
+          "fmt": "bool"
+        },
+        {
+          "name": "passesStatConsistency",
+          "actual": 1,
+          "threshold": 1,
+          "pass": true,
+          "fmt": "bool"
+        },
+        {
+          "name": "deflatedSharpeMertens (F0-eff) > 0",
+          "actual": 0.065,
+          "threshold": 0,
+          "pass": true,
+          "fmt": "ratio"
+        }
+      ]
+    },
+    {
+      "id": "pmcc",
+      "label": "PMCC QQQ pt60",
+      "status": "paper-approved",
+      "sealedAt": "2026-04-23T03:02:19.924Z",
+      "sealPath": "docs/holdout-evaluations/2026-04-23-7e9c2026f3df.md",
+      "hypothesis": "PMCC diagonal on QQQ; long LEAP δ 0.70-0.80 (DTE 240-300) + short monthly δ 0.20-0.30 (DTE 30-45), long PT 60%, short PT 50%, long SL -35%, roll short when underlying within 2% of strike — structural premium-collection edge over LEAP.",
+      "spec": {
+        "underlying": "QQQ",
+        "structure": "PMCC (Diagonal)",
+        "longLeg": "Long LEAP call δ 0.70-0.80, DTE 240-300",
+        "shortLeg": "Short monthly call δ 0.20-0.30, DTE 30-45",
+        "dteRange": "LEAP 240-300 / Short 30-45",
+        "profitTarget": "Long +60%, Short +50%",
+        "stopLoss": "Long -35%",
+        "cadence": "Always-in (enter when flat)",
+        "capitalTier": "$20K starting",
+        "riskPerTrade": "75% of equity (LEAP-heavy)"
+      },
+      "oos": {
+        "sharpe": 1.7238083678549994,
+        "spyIR": 0.8546269116567649,
+        "spyExcess": 0.13739030444929862,
+        "maxDD": 17.515130700906912,
+        "trades": 28,
+        "winRate": 57.14285714285714,
+        "totalPnl": 34407.663036881146
+      },
+      "holdout": {
+        "sharpe": 1.6292681375017988,
+        "spyIR": 0.14901067956248018,
+        "spyExcess": 0.017784193811868687,
+        "trades": 11,
+        "newTrades": 11,
+        "ratio": 0.9451561831836095
+      },
+      "deflation": {
+        "global": 0.579801727844637,
+        "f0Effective": 0.845,
+        "attemptsGlobal": 131,
+        "attemptsF0Eff": 25,
+        "stdErr": 0.43195053417936696
+      },
+      "stability": {
+        "wfEfficiency": 1.2765670603876773,
+        "statConsistencyRatio": 1.0281683926034106,
+        "bootstrapCI": [
+          0.8621216066830223,
+          2.6030637214156487
+        ],
+        "passesStability": true,
+        "passesStatConsistency": true
+      },
+      "exitBreakdown": {
+        "PROFIT_TARGET": 16,
+        "STOP_LOSS": 12
+      },
+      "gates": [
+        {
+          "name": "holdoutSpyIR ≥ 0",
+          "actual": 0.14901067956248018,
+          "threshold": 0,
+          "pass": true,
+          "fmt": "ratio"
+        },
+        {
+          "name": "holdoutSharpe ≥ 0.3",
+          "actual": 1.6292681375017988,
+          "threshold": 0.3,
+          "pass": true,
+          "fmt": "ratio"
+        },
+        {
+          "name": "oosSharpe ≥ 0.8",
+          "actual": 1.7238083678549994,
+          "threshold": 0.8,
+          "pass": true,
+          "fmt": "ratio"
+        },
+        {
+          "name": "passesStability",
+          "actual": 1,
+          "threshold": 1,
+          "pass": true,
+          "fmt": "bool"
+        },
+        {
+          "name": "passesStatConsistency",
+          "actual": 1,
+          "threshold": 1,
+          "pass": true,
+          "fmt": "bool"
+        },
+        {
+          "name": "deflatedSharpeMertens (F0-eff) > 0",
+          "actual": 0.845,
+          "threshold": 0,
+          "pass": true,
+          "fmt": "ratio"
+        }
+      ]
+    }
+  ]
+}

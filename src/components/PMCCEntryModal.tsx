@@ -197,7 +197,10 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         trade_profile: 'diagonal',
         is_paper: true,
         execution_account_size: capital,
-        target_price: profile.longProfitTarget ?? 0.60,
+        // target_price: actual dollar target for the entire position. The PMCC
+        // long-leg PT (default 60%) closes the whole position, so target =
+        // net debit × (1 + longProfitTarget).
+        target_price: (netDebit ?? 0) * (1 + (profile.longProfitTarget ?? 0.60)),
         legs,
         fill_diagnostics: fillDiagnostics,
       });

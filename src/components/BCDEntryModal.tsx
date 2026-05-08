@@ -159,7 +159,9 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         trade_profile: 'debit_spread',
         is_paper: true,
         execution_account_size: capital,
-        target_price: profile.profitTarget,
+        // target_price: actual dollar target = entry debit × (1 + profit-target%).
+        // BCD profit target is on debit paid, so target = debitNum × 1.50 by default.
+        target_price: debitNum * (1 + profile.profitTarget),
         legs,
         fill_diagnostics: fillDiagnostics,
       });
