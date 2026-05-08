@@ -478,13 +478,26 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const stratProfile = position.strategy_type && STRATEGY_PROFILES[position.strategy_type as StrategyType]
         ? STRATEGY_PROFILES[position.strategy_type as StrategyType]
         : null;
-    const tpFraction = isCreditStrategy
-        ? (stratProfile?.profitTarget ?? 0.30)
-        : 0.25; // debit: 25% gain
+    // TP fraction by strategy kind:
+    //   diagonal (PMCC): close the WHOLE position at long-leg PT (longProfitTarget,
+    //     default 60%). The short-leg cycle PT only closes the short leg, not the
+    //     position — so it's not the right anchor for the position-level bar.
+    //   debit_spread (BCD): use the profile's profitTarget (50% on debit paid).
+    //   credit_spread: use the profile's profitTarget.
+    //   No profile / unknown: legacy defaults (credit 30% / debit 25%).
+    const tpFraction = stratProfile?.kind === 'diagonal'
+        ? (stratProfile.longProfitTarget ?? 0.60)
+        : (stratProfile?.profitTarget ?? (isCreditStrategy ? 0.30 : 0.25));
     const calculatedTarget = isCreditStrategy
         ? avgPrice * (1 - tpFraction) // credit: close at (1-TP%) of avg credit
         : avgPrice * (1 + tpFraction);
-    const targetPrice = position.target_price || calculatedTarget;
+    // position.target_price is sometimes stored as a fraction (legacy BCD/PMCC entry rows).
+    // Treat values < 1 as misuse and ignore them — the entry debit on a real spread
+    // is always at least a few dollars, never sub-$1 per contract.
+    const targetPriceRaw = position.target_price;
+    const targetPrice = (targetPriceRaw != null && targetPriceRaw >= 1)
+        ? targetPriceRaw
+        : calculatedTarget;
 
     let realizedPnL = 0;
     // Skip cycle-roll transactions (PMCC short rolls) — their cash flow is
@@ -1030,12 +1043,15 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
             </div>
             )}
 
-            {/* TP Progress Bar (non-PMCC — BCD keeps it since the spread has a single TP target) */}
-            {position.strategy_type !== 'pmcc' && tpProgress != null && entryPrice > 0 && (
+            {/* TP Progress Bar.
+                For PMCC the bar tracks the long-leg PT (60%) — the threshold that
+                closes the entire position. Short-leg cycles use their own short
+                PT (50%) and are managed inside LegPanel. */}
+            {tpProgress != null && entryPrice > 0 && (
                 <div className="mb-4">
                     <div className="flex items-center justify-between text-xs mb-1.5">
                         <span className="text-text-tertiary uppercase tracking-wider font-medium">
-                            TP Progress ({Math.round(tpFraction * 100)}%)
+                            {position.strategy_type === 'pmcc' ? 'Long-leg PT Progress' : 'TP Progress'} ({Math.round(tpFraction * 100)}%)
                         </span>
                         <span className={`font-mono font-semibold ${tpReady ? 'text-phosphor-green text-glow-green' : 'text-text-secondary'}`}>
                             {Math.min(tpProgress, 999).toFixed(0)}%
