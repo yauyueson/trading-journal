@@ -44,7 +44,8 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [expiration, setExpiration] = useState('');
   const [longStrike, setLongStrike] = useState('');
   const [shortStrike, setShortStrike] = useState('');
-  const [netDebit, setNetDebit] = useState('');
+  const [longDebit, setLongDebit] = useState('');
+  const [shortCredit, setShortCredit] = useState('');
   const [quantityOverride, setQuantityOverride] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [pickedExpiration, setPickedExpiration] = useState<string | null>(null);
@@ -92,13 +93,18 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
     setExpiration(c.expiration);
     setLongStrike(String(c.long.strike));
     setShortStrike(String(c.short.strike));
-    setNetDebit(c.netDebit.toFixed(2));
+    setLongDebit(c.long.price.toFixed(2));
+    setShortCredit(c.short.price.toFixed(2));
     setPickedExpiration(c.expiration);
   };
 
   const longStrikeNum = parseFloat(longStrike);
   const shortStrikeNum = parseFloat(shortStrike);
-  const debitNum = parseFloat(netDebit);
+  const longDebitNum = parseFloat(longDebit);
+  const shortCreditNum = parseFloat(shortCredit);
+  const debitNum = !isNaN(longDebitNum) && !isNaN(shortCreditNum)
+    ? longDebitNum - shortCreditNum
+    : NaN;
   const width = !isNaN(longStrikeNum) && !isNaN(shortStrikeNum)
     ? Math.abs(shortStrikeNum - longStrikeNum)
     : null;
@@ -118,7 +124,10 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const dteInRange = dte != null && dte >= profile.dteMin && dte <= profile.dteMax;
 
   const canSubmit = ticker && expiration && !isNaN(longStrikeNum) && !isNaN(shortStrikeNum)
-    && !isNaN(debitNum) && contracts > 0 && width != null && width > 0
+    && !isNaN(longDebitNum) && longDebitNum > 0
+    && !isNaN(shortCreditNum) && shortCreditNum >= 0
+    && debitNum > 0
+    && contracts > 0 && width != null && width > 0
     && longStrikeNum < shortStrikeNum;
 
   if (!isOpen) return null;
@@ -129,8 +138,8 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
     setSubmitting(true);
     try {
       const legs: PositionLeg[] = [
-        { strike: longStrikeNum, type: 'Call', side: 'long', expiration },
-        { strike: shortStrikeNum, type: 'Call', side: 'short', expiration },
+        { strike: longStrikeNum, type: 'Call', side: 'long', expiration, openedDebit: longDebitNum, cycleQty: contracts },
+        { strike: shortStrikeNum, type: 'Call', side: 'short', expiration, openedCredit: shortCreditNum, cycleQty: contracts },
       ];
       const fetchedAtMs = Math.max(longChainQuery.dataUpdatedAt ?? 0, shortChainQuery.dataUpdatedAt ?? 0);
       const fillDiagnostics = buildBcdFillDiagnostics({
@@ -170,7 +179,8 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
       setExpiration('');
       setLongStrike('');
       setShortStrike('');
-      setNetDebit('');
+      setLongDebit('');
+      setShortCredit('');
       setQuantityOverride('');
     } finally {
       setSubmitting(false);
@@ -325,37 +335,58 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label-mono mb-1 block">
-                Net debit / contract
+                Long debit / share
               </label>
               <input
                 type="number"
                 step="0.01"
+                min="0"
                 className="input-field"
-                placeholder="e.g. 4.20"
-                value={netDebit}
-                onChange={e => setNetDebit(e.target.value)}
+                placeholder="e.g. 5.00"
+                value={longDebit}
+                onChange={e => setLongDebit(e.target.value)}
                 required
               />
             </div>
             <div>
               <label className="label-mono mb-1 block">
-                Contracts <span className="text-text-tertiary/70 normal-case font-normal">(suggested {suggestedContracts})</span>
+                Short credit / share
               </label>
               <input
                 type="number"
-                step="1"
-                min="1"
+                step="0.01"
+                min="0"
                 className="input-field"
-                placeholder={String(suggestedContracts || 1)}
-                value={quantityOverride}
-                onChange={e => setQuantityOverride(e.target.value)}
+                placeholder="e.g. 0.80"
+                value={shortCredit}
+                onChange={e => setShortCredit(e.target.value)}
+                required
               />
             </div>
+          </div>
+
+          <div>
+            <label className="label-mono mb-1 block">
+              Contracts <span className="text-text-tertiary/70 normal-case font-normal">(suggested {suggestedContracts})</span>
+            </label>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              className="input-field"
+              placeholder={String(suggestedContracts || 1)}
+              value={quantityOverride}
+              onChange={e => setQuantityOverride(e.target.value)}
+            />
           </div>
 
           {/* Summary strip */}
           {width != null && maxLossPerContract != null && maxProfitPerContract != null && contracts > 0 && (
             <div className="terminal-panel px-3 py-2.5 text-xs font-mono space-y-1">
+              <div className="flex justify-between">
+                <span className="label-mono">NET DEBIT / SHARE</span>
+                <span className="text-text-primary tabular-nums">${debitNum.toFixed(2)}</span>
+              </div>
               <div className="flex justify-between">
                 <span className="label-mono">SPREAD WIDTH</span>
                 <span className="text-text-primary tabular-nums">${width.toFixed(2)}</span>
