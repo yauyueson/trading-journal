@@ -5,12 +5,18 @@
  * mutation. Long LEAP is untouched. Records both legs of the cycle on the
  * position and inserts paired transactions for audit.
  */
-import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Sparkles, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRollPMCCShort } from '../hooks/usePositionMutations';
+import { useChainCandidates } from '../hooks/useChainCandidates';
 import { splitPMCCLegs } from '../lib/pmccCycles';
-import { formatDateWithYear } from '../lib/utils';
+import { STRATEGY_PROFILES } from '../lib/strategyProfiles';
+import { formatDate, formatDateWithYear } from '../lib/utils';
+import {
+  buildPMCCRollShortCandidates,
+  type ChainOption,
+} from '../lib/chainCandidates';
 import type { Position } from '../lib/types';
 
 interface Props {
@@ -21,14 +27,44 @@ interface Props {
 
 export const PMCCRollShortModal: React.FC<Props> = ({ position, isOpen, onClose }) => {
   const rollShort = useRollPMCCShort();
-  const { activeShort } = splitPMCCLegs(position);
+  const profile = STRATEGY_PROFILES.pmcc;
+  const { longLeg, activeShort } = splitPMCCLegs(position);
 
   const [closeCost, setCloseCost] = useState('');
   const [newStrike, setNewStrike] = useState('');
   const [newExpiration, setNewExpiration] = useState('');
   const [newCredit, setNewCredit] = useState('');
+  const [pickedShort, setPickedShort] = useState<ChainOption | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const shortQuery = useChainCandidates(isOpen && position.ticker ? {
+    ticker: position.ticker,
+    direction: 'call',
+    strategy: 'long',
+    dteMin: profile.shortDteMin ?? 30,
+    dteMax: profile.shortDteMax ?? 45,
+    minDelta: profile.shortDeltaMin ?? 0.20,
+    maxDelta: profile.shortDeltaMax ?? 0.30,
+    strikeRange: 0.25,
+    minVolume: 0,
+  } : null);
+
+  const rollCandidates = useMemo(() => {
+    if (!activeShort) return [];
+    return buildPMCCRollShortCandidates(shortQuery.data ?? [], {
+      leapStrike: longLeg?.strike ?? 0,
+      currentShortStrike: activeShort.strike,
+      targetDelta: 0.25,
+    }).slice(0, 5);
+  }, [activeShort, longLeg, shortQuery.data]);
+
+  const applyShort = (opt: ChainOption) => {
+    setNewExpiration(opt.expiration);
+    setNewStrike(String(opt.strike));
+    setNewCredit(opt.price.toFixed(2));
+    setPickedShort(opt);
+  };
 
   if (!isOpen) return null;
 
@@ -77,6 +113,7 @@ export const PMCCRollShortModal: React.FC<Props> = ({ position, isOpen, onClose 
       setNewStrike('');
       setNewExpiration('');
       setNewCredit('');
+      setPickedShort(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -134,13 +171,55 @@ export const PMCCRollShortModal: React.FC<Props> = ({ position, isOpen, onClose 
           {/* Open New Short */}
           <div className="terminal-panel border-phosphor-green/45 p-4">
             <h4 className="text-xs font-mono font-bold text-phosphor-green text-glow-green mb-2 uppercase tracking-widest">▌ OPEN_NEW_SHORT</h4>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] text-text-tertiary font-mono uppercase tracking-wider">
+                δ {profile.shortDeltaMin?.toFixed(2)}–{profile.shortDeltaMax?.toFixed(2)} · {profile.shortDteMin}–{profile.shortDteMax}d
+              </p>
+              {shortQuery.isFetching && (
+                <span className="text-[10px] text-phosphor-dim font-mono uppercase tracking-wider">Loading...</span>
+              )}
+            </div>
+            {rollCandidates.length > 0 && (
+              <div className="space-y-1 mb-3">
+                <div className="flex items-center gap-1 text-[10px] text-text-tertiary font-mono uppercase tracking-wider">
+                  <Sparkles size={10} className="text-phosphor-green" /> suggested roll shorts (K &gt; ${activeShort.strike})
+                </div>
+                {rollCandidates.map(opt => {
+                  const isPicked = pickedShort?.strike === opt.strike && pickedShort?.expiration === opt.expiration;
+                  return (
+                    <button
+                      key={`${opt.expiration}-${opt.strike}`}
+                      type="button"
+                      onClick={() => applyShort(opt)}
+                      className={`w-full text-left rounded-md px-2 py-1.5 text-[11px] font-mono transition-colors cursor-pointer ${isPicked ? 'bg-phosphor-green/10 border border-phosphor-green/45 text-glow-green' : 'bg-terminal-panel border border-border-default/50 hover:border-phosphor-green/30'}`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-text-primary tabular-nums">
+                          ${opt.strike} · {formatDate(opt.expiration)} ({opt.dte}d)
+                        </span>
+                        <span className="font-mono text-phosphor-green tabular-nums">δ{Math.abs(opt.greeks.delta).toFixed(2)} · ${opt.price.toFixed(2)}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {shortQuery.isError && (
+              <p className="text-[10px] text-phosphor-amber font-mono mb-2">Couldn't load roll candidates — enter manually.</p>
+            )}
+            {!shortQuery.isFetching && !shortQuery.isError && rollCandidates.length === 0 && (
+              <p className="text-[10px] text-text-tertiary font-mono mb-2">No strategy-band roll candidates found — enter manually.</p>
+            )}
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
                 <label className="label-mono mb-1 block">EXPIRATION</label>
                 <input
                   type="date"
                   value={newExpiration}
-                  onChange={e => setNewExpiration(e.target.value)}
+                  onChange={e => {
+                    setNewExpiration(e.target.value);
+                    setPickedShort(null);
+                  }}
                   className="w-full px-3 py-2 rounded-md font-mono bg-terminal-black border border-border-default text-white text-xs"
                 />
               </div>
@@ -150,7 +229,10 @@ export const PMCCRollShortModal: React.FC<Props> = ({ position, isOpen, onClose 
                   type="number"
                   step="0.5"
                   value={newStrike}
-                  onChange={e => setNewStrike(e.target.value)}
+                  onChange={e => {
+                    setNewStrike(e.target.value);
+                    setPickedShort(null);
+                  }}
                   className="w-full px-3 py-2 rounded-md font-mono bg-terminal-black border border-border-default text-white text-xs"
                   placeholder="K"
                 />
@@ -162,7 +244,10 @@ export const PMCCRollShortModal: React.FC<Props> = ({ position, isOpen, onClose 
               step="0.01"
               min="0"
               value={newCredit}
-              onChange={e => setNewCredit(e.target.value)}
+              onChange={e => {
+                setNewCredit(e.target.value);
+                setPickedShort(null);
+              }}
               className="w-full px-3 py-2 rounded-md font-mono bg-terminal-black border border-border-default text-white"
               placeholder="e.g. 4.20"
             />

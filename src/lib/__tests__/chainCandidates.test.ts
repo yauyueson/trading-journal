@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildBCDCandidates,
   buildPMCCLeapCandidates,
+  buildPMCCRollShortCandidates,
   buildPMCCShortCandidates,
   findClosestDelta,
   type ChainOption,
@@ -123,5 +124,24 @@ describe('buildPMCCShortCandidates', () => {
     ];
     const candidates = buildPMCCShortCandidates(chain, leapStrike, 0.25);
     expect(candidates.map(o => o.strike)).toEqual([440, 460]);
+  });
+});
+
+describe('buildPMCCRollShortCandidates', () => {
+  it('suggests up-and-out PMCC shorts above both the LEAP and current short strike', () => {
+    const chain: ChainOption[] = [
+      mkOpt({ strike: 430, dte: 35, delta: 0.30, expiration: '2026-06-19' }),
+      mkOpt({ strike: 440, dte: 35, delta: 0.26, expiration: '2026-06-19' }),
+      mkOpt({ strike: 450, dte: 35, delta: 0.24, expiration: '2026-06-19' }),
+      mkOpt({ strike: 460, dte: 42, delta: 0.18, expiration: '2026-06-26' }),
+    ];
+
+    const candidates = buildPMCCRollShortCandidates(chain, {
+      leapStrike: 410,
+      currentShortStrike: 430,
+      targetDelta: 0.25,
+    });
+
+    expect(candidates.map(o => o.strike)).toEqual([440, 450, 460]);
   });
 });

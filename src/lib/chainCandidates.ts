@@ -188,3 +188,21 @@ export function buildPMCCShortCandidates(
             return da - db;
         });
 }
+
+export interface PMCCRollShortCandidateParams {
+    leapStrike: number;
+    currentShortStrike: number;
+    targetDelta?: number;
+}
+
+/**
+ * Roll-short candidates for a PMCC. The strategy rolls the short call up/out,
+ * so suggestions must clear both the long LEAP strike and current short strike.
+ */
+export function buildPMCCRollShortCandidates(
+    options: ChainOption[],
+    params: PMCCRollShortCandidateParams,
+): ChainOption[] {
+    const floor = Math.max(params.leapStrike, params.currentShortStrike);
+    return buildPMCCShortCandidates(options, floor, params.targetDelta ?? 0.25);
+}
