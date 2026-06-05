@@ -31,6 +31,11 @@ const signalsSrc = readFileSync(
   'utf-8'
 );
 
+const legRollModalSrc = readFileSync(
+  resolve(__dirname, '../src/components/LegRollModal.tsx'),
+  'utf-8'
+);
+
 // ---------------------------------------------------------------------------
 // EXIT-02: DirectAddItem type contract
 // ---------------------------------------------------------------------------
@@ -74,6 +79,19 @@ describe('EXIT-02 — useAddDirect mutation insert', () => {
 
   it('usePositionMutations.ts insert maps spread_width from item', () => {
     expect(mutationsSrc).toContain('item.spread_width');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PMCC-ROLL-01: Per-leg PMCC short rolls show strategy-band suggestions
+// ---------------------------------------------------------------------------
+describe('PMCC-ROLL-01 — LegRollModal PMCC short-roll suggestions', () => {
+  it('LegRollModal fetches chain candidates for roll suggestions', () => {
+    expect(legRollModalSrc).toContain('useChainCandidates');
+  });
+
+  it('LegRollModal ranks PMCC roll shorts with the PMCC helper', () => {
+    expect(legRollModalSrc).toContain('buildPMCCRollShortCandidates');
   });
 });
 

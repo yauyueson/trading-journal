@@ -8,8 +8,8 @@
  *   close     → inline form to mark this leg closed (close fill + qty),
  *               leaves the rest of the position open
  *
- * Roll is delegated to a parent-supplied callback (re-uses
- * PMCCRollShortModal for PMCC short legs). Closed legs render read-only.
+ * Roll is self-mounted via LegRollModal so it works from every render site.
+ * Closed legs render read-only.
  */
 import React, { useState } from 'react';
 import { ChevronDown, ChevronLeft, Check, X as XIcon, ArrowRightLeft, Pencil, LogOut } from 'lucide-react';

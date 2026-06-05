@@ -4,11 +4,17 @@
  * short tenants (PMCC short), long anchors (LEAPs), debit/credit spread
  * legs, or naked options.
  */
-import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Sparkles, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRollLeg } from '../hooks/usePositionMutations';
-import { formatDateWithYear, CONTRACT_MULTIPLIER } from '../lib/utils';
+import { useChainCandidates } from '../hooks/useChainCandidates';
+import { STRATEGY_PROFILES } from '../lib/strategyProfiles';
+import { formatDate, formatDateWithYear, CONTRACT_MULTIPLIER } from '../lib/utils';
+import {
+  buildPMCCRollShortCandidates,
+  type ChainOption,
+} from '../lib/chainCandidates';
 import type { Position } from '../lib/types';
 
 interface Props {
@@ -20,14 +26,46 @@ interface Props {
 
 export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onClose }) => {
   const rollLeg = useRollLeg();
+  const profile = STRATEGY_PROFILES.pmcc;
   const leg = position.legs?.[legIndex];
+  const longLeg = position.legs?.find(l => l.side === 'long');
+  const isPMCCShortRoll = position.strategy_type === 'pmcc' && leg?.side === 'short' && leg.type === 'Call';
 
   const [closeFill, setCloseFill] = useState('');
   const [newStrike, setNewStrike] = useState('');
   const [newExpiration, setNewExpiration] = useState('');
   const [newFill, setNewFill] = useState('');
+  const [pickedCandidate, setPickedCandidate] = useState<ChainOption | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const shortQuery = useChainCandidates(isOpen && isPMCCShortRoll && position.ticker ? {
+    ticker: position.ticker,
+    direction: 'call',
+    strategy: 'long',
+    dteMin: profile.shortDteMin ?? 30,
+    dteMax: profile.shortDteMax ?? 45,
+    minDelta: profile.shortDeltaMin ?? 0.20,
+    maxDelta: profile.shortDeltaMax ?? 0.30,
+    strikeRange: 0.25,
+    minVolume: 0,
+  } : null);
+
+  const rollCandidates = useMemo(() => {
+    if (!isPMCCShortRoll || !leg) return [];
+    return buildPMCCRollShortCandidates(shortQuery.data ?? [], {
+      leapStrike: longLeg?.strike ?? 0,
+      currentShortStrike: leg.strike,
+      targetDelta: 0.25,
+    }).slice(0, 5);
+  }, [isPMCCShortRoll, leg, longLeg, shortQuery.data]);
+
+  const applyCandidate = (opt: ChainOption) => {
+    setNewExpiration(opt.expiration);
+    setNewStrike(String(opt.strike));
+    setNewFill(opt.price.toFixed(2));
+    setPickedCandidate(opt);
+  };
 
   if (!isOpen) return null;
 
@@ -91,6 +129,7 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
       setNewStrike('');
       setNewExpiration('');
       setNewFill('');
+      setPickedCandidate(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -152,13 +191,59 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
           {/* Open new */}
           <div className="terminal-panel border-phosphor-green/45 p-4">
             <h4 className="text-xs font-mono font-bold text-phosphor-green text-glow-green mb-2 uppercase tracking-widest">▌ OPEN_NEW</h4>
+            {isPMCCShortRoll && (
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] text-text-tertiary font-mono uppercase tracking-wider">
+                    δ {profile.shortDeltaMin?.toFixed(2)}-{profile.shortDeltaMax?.toFixed(2)} · {profile.shortDteMin}-{profile.shortDteMax}d
+                  </p>
+                  {shortQuery.isFetching && (
+                    <span className="text-[10px] text-phosphor-dim font-mono uppercase tracking-wider">Loading...</span>
+                  )}
+                </div>
+                {rollCandidates.length > 0 && (
+                  <div className="space-y-1 mb-3">
+                    <div className="flex items-center gap-1 text-[10px] text-text-tertiary font-mono uppercase tracking-wider">
+                      <Sparkles size={10} className="text-phosphor-green" /> suggested roll shorts (K &gt; ${leg.strike})
+                    </div>
+                    {rollCandidates.map(opt => {
+                      const isPicked = pickedCandidate?.strike === opt.strike && pickedCandidate?.expiration === opt.expiration;
+                      return (
+                        <button
+                          key={`${opt.expiration}-${opt.strike}`}
+                          type="button"
+                          onClick={() => applyCandidate(opt)}
+                          className={`w-full text-left rounded-md px-2 py-1.5 text-[11px] font-mono transition-colors cursor-pointer ${isPicked ? 'bg-phosphor-green/10 border border-phosphor-green/45 text-glow-green' : 'bg-terminal-panel border border-border-default/50 hover:border-phosphor-green/30'}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-text-primary tabular-nums">
+                              ${opt.strike} · {formatDate(opt.expiration)} ({opt.dte}d)
+                            </span>
+                            <span className="font-mono text-phosphor-green tabular-nums">δ{Math.abs(opt.greeks.delta).toFixed(2)} · ${opt.price.toFixed(2)}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {shortQuery.isError && (
+                  <p className="text-[10px] text-phosphor-amber font-mono mb-2">Couldn't load roll candidates — enter manually.</p>
+                )}
+                {!shortQuery.isFetching && !shortQuery.isError && rollCandidates.length === 0 && (
+                  <p className="text-[10px] text-text-tertiary font-mono mb-2">No strategy-band roll candidates found — enter manually.</p>
+                )}
+              </>
+            )}
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
                 <label className="label-mono mb-1 block">Expiration</label>
                 <input
                   type="date"
                   value={newExpiration}
-                  onChange={e => setNewExpiration(e.target.value)}
+                  onChange={e => {
+                    setNewExpiration(e.target.value);
+                    setPickedCandidate(null);
+                  }}
                   className="leg-edit-input"
                 />
               </div>
@@ -168,7 +253,10 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
                   type="number"
                   step="0.5"
                   value={newStrike}
-                  onChange={e => setNewStrike(e.target.value)}
+                  onChange={e => {
+                    setNewStrike(e.target.value);
+                    setPickedCandidate(null);
+                  }}
                   className="leg-edit-input"
                   placeholder="K"
                 />
@@ -180,7 +268,10 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
               step="0.01"
               min="0"
               value={newFill}
-              onChange={e => setNewFill(e.target.value)}
+              onChange={e => {
+                setNewFill(e.target.value);
+                setPickedCandidate(null);
+              }}
               className="leg-edit-input"
               placeholder="per share"
             />
