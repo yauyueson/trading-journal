@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeLegBasedPnL, isCycleRollTransaction, filterCycleRolls, computeLivePnL } from '../legPnL';
+import { computeLegBasedHeadlinePnL, computeLegBasedPnL, isCycleRollTransaction, filterCycleRolls, computeLivePnL } from '../legPnL';
 import type { Position } from '../types';
 
 const basePosition: Position = {
@@ -98,6 +98,29 @@ describe('computeLegBasedPnL', () => {
     // short unrealized = (0.5-0.4)*100 = 10
     expect(result.unrealized).toBeCloseTo(310);
     expect(result.realized).toBe(0);
+  });
+});
+
+describe('computeLegBasedHeadlinePnL', () => {
+  it('uses open leg marks plus closed roll realized P&L for rolled PMCC headline accounting', () => {
+    const position: Position = {
+      ...basePosition,
+      strategy_type: 'pmcc',
+      legs: [
+        { strike: 630, type: 'Call', side: 'long', expiration: '2027-01-15', openedDebit: 105.28, cycleQty: 1 },
+        { strike: 756, type: 'Call', side: 'short', expiration: '2026-07-17', openedCredit: 7.32, cycleQty: 1 },
+        { strike: 725, type: 'Call', side: 'short', expiration: '2026-06-12', openedCredit: 6.10, closedCost: 4.35, closedAt: '2026-06-05T18:00:00Z', cycleQty: 1 },
+      ],
+    };
+
+    const result = computeLegBasedHeadlinePnL(position, [123.28, 7.315, undefined]);
+
+    expect(result).not.toBeNull();
+    expect(result!.unrealized).toBeCloseTo(1800.5);
+    expect(result!.realized).toBeCloseTo(175);
+    expect(result!.longUnrealized).toBeCloseTo(1800);
+    expect(result!.basis).toBeCloseTo(10528);
+    expect(result!.unrealizedPct).toBeCloseTo(17.10, 2);
   });
 });
 

@@ -33,6 +33,15 @@ export interface LegBasedPnL {
   complete: boolean;
 }
 
+export interface LegBasedHeadlinePnL {
+  realized: number;
+  unrealized: number;
+  longUnrealized: number;
+  unrealizedPct: number;
+  basis: number;
+  perLeg: LegPnLEntry[];
+}
+
 function legRealized(leg: PositionLeg): number | undefined {
   if (!leg.closedAt) return undefined;
   const qty = leg.cycleQty ?? 1;
@@ -90,6 +99,41 @@ export function computeLegBasedPnL(
   });
 
   return { realized, unrealized, perLeg, complete };
+}
+
+/**
+ * Headline P&L for rich leg-based positions.
+ *
+ * PMCC uses the long LEAP debit as the return denominator. Rolled short cycles
+ * are represented as realized P&L, not as changes to the original entry basis.
+ */
+export function computeLegBasedHeadlinePnL(
+  position: Position,
+  legCurrentValues: Array<number | undefined> = [],
+): LegBasedHeadlinePnL | null {
+  const pnl = computeLegBasedPnL(position, legCurrentValues);
+  if (!pnl || !pnl.complete) return null;
+
+  const legs = position.legs ?? [];
+  let longUnrealized = 0;
+  const longDebitBasis = legs.reduce((sum, leg, i) => {
+    if (leg.side !== 'long' || leg.openedDebit == null) return sum;
+    const mark = legCurrentValues[i];
+    if (!leg.closedAt && mark != null && Number.isFinite(mark)) {
+      longUnrealized += (mark - leg.openedDebit) * CONTRACT_MULTIPLIER * (leg.cycleQty ?? 1);
+    }
+    return sum + leg.openedDebit * CONTRACT_MULTIPLIER * (leg.cycleQty ?? 1);
+  }, 0);
+  if (longDebitBasis <= 0) return null;
+
+  return {
+    realized: pnl.realized,
+    unrealized: pnl.unrealized,
+    longUnrealized,
+    unrealizedPct: (pnl.unrealized / longDebitBasis) * 100,
+    basis: longDebitBasis,
+    perLeg: pnl.perLeg,
+  };
 }
 
 /**

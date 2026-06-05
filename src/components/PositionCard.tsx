@@ -7,7 +7,7 @@ import { LegPanel } from './position/LegPanel';
 import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory, PositionAction } from '../lib/types';
 import { splitPMCCLegs, cycleRealizedPnL, totalRealizedShortPnL } from '../lib/pmccCycles';
-import { computeLegBasedPnL, isCycleRollTransaction } from '../lib/legPnL';
+import { computeLegBasedHeadlinePnL, computeLegBasedPnL, isCycleRollTransaction } from '../lib/legPnL';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
@@ -460,10 +460,17 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
 
     const currentPrice = liveData.price !== undefined ? liveData.price : (position.current_price || 0);
 
+    const legHeadlinePnL = position.strategy_type === 'pmcc'
+        ? computeLegBasedHeadlinePnL(position, liveData.legPrices ?? [])
+        : null;
+
     let unrealizedPnL = 0;
     let unrealizedPnLPct = 0;
 
-    if (totalQty > 0 && currentPrice) {
+    if (legHeadlinePnL) {
+        unrealizedPnL = legHeadlinePnL.unrealized;
+        unrealizedPnLPct = legHeadlinePnL.unrealizedPct;
+    } else if (totalQty > 0 && currentPrice) {
         if (isCreditStrategy) {
             unrealizedPnL = (avgPrice - currentPrice) * totalQty * CONTRACT_MULTIPLIER;
             unrealizedPnLPct = avgPrice > 0 ? (unrealizedPnL / (avgPrice * totalQty * CONTRACT_MULTIPLIER)) * 100 : 0;
@@ -517,19 +524,25 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     });
 
     // Add leg-level realized P&L (PMCC closed-short cycles, BCD legs once
-    // per-leg close prices land). When the position has rich leg data, this
-    // is the authoritative number for inter-cycle profit.
-    const legPnL = computeLegBasedPnL(position, liveData.legPrices ?? []);
-    if (legPnL) realizedPnL += legPnL.realized;
+    // per-leg close prices land). For PMCC, use the same complete leg-aware
+    // source as the headline so roll transactions cannot distort basis.
+    if (legHeadlinePnL) {
+        realizedPnL += legHeadlinePnL.realized;
+    } else {
+        const legPnL = computeLegBasedPnL(position, liveData.legPrices ?? []);
+        if (legPnL) realizedPnL += legPnL.realized;
+    }
 
     const daysToExp = daysUntil(position.expiration);
 
     // TP Progress (0-100%+)
-    const tpProgress = (isCreditStrategy && avgPrice > 0 && currentPrice != null)
-        ? Math.max(0, ((avgPrice - currentPrice) / (avgPrice * tpFraction)) * 100)
-        : (!isCreditStrategy && avgPrice > 0 && currentPrice != null)
-            ? Math.max(0, ((currentPrice - avgPrice) / (avgPrice * tpFraction)) * 100)
-            : null;
+    const tpProgress = (legHeadlinePnL && stratProfile?.kind === 'diagonal' && tpFraction > 0)
+        ? Math.max(0, (legHeadlinePnL.longUnrealized / (legHeadlinePnL.basis * tpFraction)) * 100)
+        : (isCreditStrategy && avgPrice > 0 && currentPrice != null)
+            ? Math.max(0, ((avgPrice - currentPrice) / (avgPrice * tpFraction)) * 100)
+            : (!isCreditStrategy && avgPrice > 0 && currentPrice != null)
+                ? Math.max(0, ((currentPrice - avgPrice) / (avgPrice * tpFraction)) * 100)
+                : null;
     const tpReady = tpProgress != null && tpProgress >= 100;
 
     // Time Stop thresholds (from strategy profile; DTE5 = 0 = hold-to-expiry)
