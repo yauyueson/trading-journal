@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeDiagonalHeadline, computeLegBasedHeadlinePnL, computeLegBasedPnL, isCycleRollTransaction, filterCycleRolls, computeLivePnL } from '../legPnL';
+import { computeDiagonalHeadline, computeNetSpreadPrice, computeLegBasedHeadlinePnL, computeLegBasedPnL, isCycleRollTransaction, filterCycleRolls, computeLivePnL } from '../legPnL';
 import type { Position } from '../types';
 
 const basePosition: Position = {
@@ -164,6 +164,45 @@ describe('computeDiagonalHeadline', () => {
     expect(h.known).toBe(false);
     expect(h.unrealized).toBe(0);
     expect(h.realized).toBeCloseTo(175);
+  });
+});
+
+describe('computeNetSpreadPrice', () => {
+  const bcd: Position = {
+    ...basePosition,
+    type: 'Debit Call Spread',
+    strategy_type: 'bcd',
+    legs: [
+      { strike: 741, type: 'Call', side: 'long', expiration: '2026-07-02', openedDebit: 18.48, cycleQty: 1 },
+      { strike: 780, type: 'Call', side: 'short', expiration: '2026-07-02', openedCredit: 4.73, cycleQty: 1 },
+    ],
+  };
+
+  it('BCD: entry = long debit − short credit; current = long mark − short mark', () => {
+    const net = computeNetSpreadPrice(bcd, [4.09, 0.14]);
+    expect(net.entry).toBeCloseTo(13.75); // 18.48 − 4.73
+    expect(net.current).toBeCloseTo(3.95); // 4.09 − 0.14
+  });
+
+  it('current is null when any open leg lacks a mark; entry still resolves', () => {
+    const net = computeNetSpreadPrice(bcd, [4.09]); // short mark missing
+    expect(net.entry).toBeCloseTo(13.75);
+    expect(net.current).toBeNull();
+  });
+
+  it('PMCC: ignores the closed rolled short leg', () => {
+    const pmcc: Position = {
+      ...basePosition,
+      strategy_type: 'pmcc',
+      legs: [
+        { strike: 630, type: 'Call', side: 'long', expiration: '2027-01-15', openedDebit: 105.28, cycleQty: 1 },
+        { strike: 756, type: 'Call', side: 'short', expiration: '2026-07-17', openedCredit: 7.32, cycleQty: 1 },
+        { strike: 725, type: 'Call', side: 'short', expiration: '2026-06-12', openedCredit: 6.1, closedCost: 4.35, closedAt: '2026-06-05T18:00:00Z', cycleQty: 1 },
+      ],
+    };
+    const net = computeNetSpreadPrice(pmcc, [123.28, 7.315, undefined]);
+    expect(net.entry).toBeCloseTo(97.96); // 105.28 − 7.32 (closed leg excluded)
+    expect(net.current).toBeCloseTo(115.965); // 123.28 − 7.315
   });
 });
 

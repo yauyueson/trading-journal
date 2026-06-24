@@ -7,7 +7,7 @@ import { LegPanel } from './position/LegPanel';
 import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory, PositionAction } from '../lib/types';
 import { splitPMCCLegs, cycleRealizedPnL, totalRealizedShortPnL } from '../lib/pmccCycles';
-import { computeDiagonalHeadline, computeLegBasedPnL, isCycleRollTransaction } from '../lib/legPnL';
+import { computeDiagonalHeadline, computeNetSpreadPrice, computeLegBasedPnL, isCycleRollTransaction } from '../lib/legPnL';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
@@ -474,6 +474,36 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
         ? computeDiagonalHeadline(position, liveData.legPrices ?? [])
         : null;
 
+    // Position-level spread price (BCD + PMCC): what the open structure cost to
+    // open (entry net debit) vs what it's worth now (current net). Mirrors the
+    // per-leg Entry/Current columns at the net level so "what did I pay / what's
+    // it worth now" is answerable without summing legs by hand.
+    const netSpread = (position.strategy_type === 'bcd' || position.strategy_type === 'pmcc')
+        ? computeNetSpreadPrice(position, liveData.legPrices ?? [])
+        : null;
+    let netSpreadStrip: React.ReactNode = null;
+    if (netSpread && netSpread.entry != null) {
+        const entryNet = netSpread.entry;
+        const currentNet = netSpread.current;
+        netSpreadStrip = (
+            <div className="flex items-center justify-between px-3 py-2 rounded bg-terminal-black/40 border border-border-default/40 text-xs font-mono">
+                <span className="text-text-tertiary uppercase tracking-wider">Net debit</span>
+                <span className="flex items-center gap-2">
+                    <span className="text-text-tertiary">entry</span>
+                    <span className="text-text-primary font-bold">{formatPrice(entryNet)}</span>
+                    <span className="text-text-tertiary">→ now</span>
+                    <span className={currentNet == null
+                        ? 'text-text-tertiary'
+                        : currentNet >= entryNet
+                            ? 'text-phosphor-green text-glow-green font-bold'
+                            : 'text-phosphor-red text-glow-red font-bold'}>
+                        {currentNet != null ? formatPrice(currentNet) : '—'}
+                    </span>
+                </span>
+            </div>
+        );
+    }
+
     let unrealizedPnL = 0;
     let unrealizedPnLPct = 0;
     // For a PMCC diagonal we only trust leg-aware marks. When they're missing
@@ -835,6 +865,8 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                             />
                         )}
 
+                        {netSpreadStrip}
+
                         {/* Combined Greeks (compact) */}
                         <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 sm:gap-4 pt-2">
                             <div>
@@ -927,8 +959,10 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                                 currentValue={liveData.legPrices?.[shortIdx]}
                             />
                         )}
+                        {netSpreadStrip}
+
                         {/* Combined Greeks compact */}
-                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 sm:gap-4 pt-2">
+                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 sm:gap-4 pt-2">
                             <div>
                                 <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">Delta</div>
                                 <div className="metric-value text-text-primary">{liveData.delta !== undefined ? liveData.delta.toFixed(2) : '—'}</div>
@@ -948,10 +982,6 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                             <div>
                                 <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">IV</div>
                                 <div className="metric-value text-text-primary">{liveData.iv !== undefined ? (liveData.iv * 100).toFixed(1) + '%' : '—'}</div>
-                            </div>
-                            <div>
-                                <div className="text-[11px] text-text-tertiary uppercase tracking-wider mb-1">Net debit</div>
-                                <div className="metric-value text-text-primary">{formatPrice(entryPrice)}</div>
                             </div>
                         </div>
                     </div>

@@ -187,6 +187,48 @@ export function computeDiagonalHeadline(
   };
 }
 
+export interface NetSpreadPrice {
+  /** Net debit per share at entry across OPEN legs: Σ (long +openedDebit, short −openedCredit). null if any open leg lacks its fill. */
+  entry: number | null;
+  /** Net debit per share now across OPEN legs: Σ (long +mark, short −mark). null if any open leg lacks a live mark. */
+  current: number | null;
+}
+
+/**
+ * Position-level "spread price" for a multi-leg debit/diagonal: what you paid
+ * to open the current open structure (entry) vs what it's worth now (current).
+ *
+ * Only OPEN legs count — a rolled-off short is realized separately. The current
+ * value sums the SAME per-leg marks the Current column shows, so entry → now is
+ * verifiable against the leg rows (e.g. BCD long 4.09 − short 0.14 = 3.95).
+ */
+export function computeNetSpreadPrice(
+  position: Position,
+  legCurrentValues: Array<number | undefined> = [],
+): NetSpreadPrice {
+  const legs = position.legs ?? [];
+  let entry = 0;
+  let current = 0;
+  let entryKnown = true;
+  let currentKnown = true;
+  let sawOpenLeg = false;
+  legs.forEach((leg, i) => {
+    if (leg.closedAt) return;
+    sawOpenLeg = true;
+    const sign = leg.side === 'short' ? -1 : 1;
+    const fill = leg.side === 'short' ? leg.openedCredit : leg.openedDebit;
+    if (fill != null) entry += sign * fill;
+    else entryKnown = false;
+    const mark = legCurrentValues[i];
+    if (mark != null && Number.isFinite(mark)) current += sign * mark;
+    else currentKnown = false;
+  });
+  return {
+    entry: sawOpenLeg && entryKnown ? entry : null,
+    current: sawOpenLeg && currentKnown ? current : null,
+  };
+}
+
 /**
  * Returns true when a transaction should be excluded from the legacy
  * realized-P&L sum because its cash flow is already captured at the leg
