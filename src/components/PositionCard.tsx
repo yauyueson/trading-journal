@@ -7,7 +7,7 @@ import { LegPanel } from './position/LegPanel';
 import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory, PositionAction } from '../lib/types';
 import { splitPMCCLegs, cycleRealizedPnL, totalRealizedShortPnL } from '../lib/pmccCycles';
-import { computeDiagonalHeadline, computeNetSpreadPrice, computeLegBasedPnL, isCycleRollTransaction } from '../lib/legPnL';
+import { computeDiagonalHeadline, computeNetSpreadPrice, debitSpreadTpProgress, computeLegBasedPnL, isCycleRollTransaction } from '../lib/legPnL';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
@@ -536,15 +536,27 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     //   diagonal (PMCC): close the WHOLE position at long-leg PT (longProfitTarget,
     //     default 60%). The short-leg cycle PT only closes the short leg, not the
     //     position — so it's not the right anchor for the position-level bar.
-    //   debit_spread (BCD): use the profile's profitTarget (50% on debit paid).
+    //   debit_spread (BCD): tpFraction of MAX profit (width − net debit), matching
+    //     the sealed backtest (worker.ts) — NOT tpFraction of the debit paid.
     //   credit_spread: use the profile's profitTarget.
     //   No profile / unknown: legacy defaults (credit 30% / debit 25%).
     const tpFraction = stratProfile?.kind === 'diagonal'
         ? (stratProfile.longProfitTarget ?? 0.60)
         : (stratProfile?.profitTarget ?? (isCreditStrategy ? 0.30 : 0.25));
+    // BCD strike width (per share) from the open legs — the basis of max profit.
+    const bcdWidth = stratProfile?.kind === 'debit_spread'
+        ? (() => {
+            const legs = position.legs ?? [];
+            const longLeg = legs.find(l => l.side === 'long' && !l.closedAt);
+            const shortLeg = legs.find(l => l.side === 'short' && !l.closedAt);
+            return longLeg && shortLeg ? Math.abs(shortLeg.strike - longLeg.strike) : null;
+        })()
+        : null;
     const calculatedTarget = isCreditStrategy
         ? avgPrice * (1 - tpFraction) // credit: close at (1-TP%) of avg credit
-        : avgPrice * (1 + tpFraction);
+        : (stratProfile?.kind === 'debit_spread' && bcdWidth != null && bcdWidth - avgPrice > 0
+            ? avgPrice + tpFraction * (bcdWidth - avgPrice) // debit: entry + tpFraction of max profit
+            : avgPrice * (1 + tpFraction));
     // position.target_price is sometimes stored as a fraction (legacy BCD/PMCC entry rows).
     // Treat values < 1 as misuse and ignore them — the entry debit on a real spread
     // is always at least a few dollars, never sub-$1 per contract.
@@ -591,11 +603,20 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
         ? (diagHeadline?.known && diagHeadline.basis > 0 && tpFraction > 0
             ? Math.max(0, (diagHeadline.longUnrealized / (diagHeadline.basis * tpFraction)) * 100)
             : null)
-        : (isCreditStrategy && avgPrice > 0 && currentPrice != null)
-            ? Math.max(0, ((avgPrice - currentPrice) / (avgPrice * tpFraction)) * 100)
-            : (!isCreditStrategy && avgPrice > 0 && currentPrice != null)
-                ? Math.max(0, ((currentPrice - avgPrice) / (avgPrice * tpFraction)) * 100)
-                : null;
+        : stratProfile?.kind === 'debit_spread'
+            // BCD: +tpFraction of MAX profit (width − net debit), matching the sealed
+            // backtest — not +tpFraction of debit paid. Mid-based current net value.
+            ? debitSpreadTpProgress({
+                entryDebit: avgPrice > 0 ? avgPrice : null,
+                currentValue: netSpread?.current ?? null,
+                width: bcdWidth,
+                tpFraction,
+            })
+            : (isCreditStrategy && avgPrice > 0 && currentPrice != null)
+                ? Math.max(0, ((avgPrice - currentPrice) / (avgPrice * tpFraction)) * 100)
+                : (!isCreditStrategy && avgPrice > 0 && currentPrice != null)
+                    ? Math.max(0, ((currentPrice - avgPrice) / (avgPrice * tpFraction)) * 100)
+                    : null;
     const tpReady = tpProgress != null && tpProgress >= 100;
 
     // Time Stop thresholds (from strategy profile; DTE5 = 0 = hold-to-expiry)

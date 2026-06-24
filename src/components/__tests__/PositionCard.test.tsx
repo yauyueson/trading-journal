@@ -32,6 +32,9 @@ import type { Position, Transaction } from '../../lib/types';
 const QUOTES: Record<string, unknown> = {
   '630': { price: 130.28, bid: 130.0, ask: 130.56, delta: 0.78, gamma: 0.002, theta: -0.05, vega: 0.3, iv: 0.22, underlyingPrice: 600 },
   '756': { price: 2.32, bid: 2.2, ask: 2.44, delta: 0.22, gamma: 0.004, theta: -0.08, vega: 0.2, iv: 0.2, underlyingPrice: 600 },
+  // BCD legs: long mid 20.0, short mid 0.05 → current net 19.95.
+  '741': { price: 20.0, bid: 19.9, ask: 20.1, delta: 0.5, gamma: 0.01, theta: -0.1, vega: 0.3, iv: 0.27, underlyingPrice: 770 },
+  '780': { price: 0.05, bid: 0.0, ask: 0.1, delta: 0.2, gamma: 0.008, theta: -0.05, vega: 0.2, iv: 0.27, underlyingPrice: 770 },
 };
 
 let failingStrikes = new Set<string>();
@@ -109,5 +112,39 @@ describe('PositionCard — PMCC live-quote fetch with a closed/expired leg', () 
     failingStrikes = new Set(['630']); // long leg quote fails → cannot mark the net
     renderCard();
     await waitFor(() => expect(screen.getByText(/no live price/i)).toBeInTheDocument());
+  });
+});
+
+describe('PositionCard — BCD take-profit progress (max-profit basis)', () => {
+  // BCD: long $741 @18.48, short $780 @4.73 → entry net debit 13.75, width 39,
+  // max profit 25.25. Current net 19.95 (long mid 20.0 − short mid 0.05).
+  // Corrected rule (+50% of max profit): profit 6.20 / target 12.625 = 49%.
+  // Old rule (+50% of debit paid) would have shown ~88%.
+  function bcdPosition(): Position {
+    return {
+      id: 'b1', ticker: 'QQQ', strike: 741, type: 'Call', expiration: '2026-07-02',
+      status: 'active', setup: 'BCD', entry_score: 0, current_score: 0,
+      strategy_type: 'bcd', is_paper: true, current_price: 13.75,
+      legs: [
+        { strike: 741, type: 'Call', side: 'long', expiration: '2026-07-02', openedDebit: 18.48, cycleQty: 1 },
+        { strike: 780, type: 'Call', side: 'short', expiration: '2026-07-02', openedCredit: 4.73, cycleQty: 1 },
+      ],
+    };
+  }
+  const bcdTxns: Transaction[] = [
+    { id: 'bt1', position_id: 'b1', date: '2026-06-12', type: 'Open', quantity: 1, price: 13.75, note: 'Open' },
+  ];
+
+  it('TP bar reflects +50% of MAX profit (≈49%), not +50% of debit (≈88%)', async () => {
+    render(
+      <PositionCard
+        position={bcdPosition()}
+        transactions={bcdTxns}
+        fetchEarningsForTicker={async () => ({ daysUntil: null, date: null })}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('49%')).toBeInTheDocument());
+    expect(screen.queryByText('88%')).toBeNull();
+    expect(screen.queryByText('90%')).toBeNull();
   });
 });

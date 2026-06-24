@@ -99,7 +99,7 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     defaultDelta: 0.50,        // long leg delta (the bullish leg we're buying)
     spreadWidths: [5, 10, 15, 20],
     defaultWidth: 10,
-    profitTarget: 0.50,        // close at +50% of debit paid
+    profitTarget: 0.50,        // close at +50% of MAX profit (width − debit), per sealed backtest
     stopLossMultiple: 0,       // no credit-multiple SL for debit
     trailingActivatePct: 0,
     trailingFloorPct: 0,

@@ -230,6 +230,34 @@ export function computeNetSpreadPrice(
 }
 
 /**
+ * Take-profit progress (%) for a debit spread (BCD), anchored to the SEALED
+ * backtest's exit rule: the target is `tpFraction` of MAX profit (width − net
+ * debit), NOT `tpFraction` of the debit paid. Mirrors scripts/autoresearch/
+ * worker.ts, which exits when `curSpreadMid − netDebit ≥ debitProfitTargetPct ×
+ * (width − netDebit)`. Uses the mid net value (like the worker's curSpreadMid).
+ *
+ * Returns null when any input is missing or max profit is non-positive — the
+ * caller hides the bar rather than showing a wrong number.
+ */
+export function debitSpreadTpProgress(args: {
+  /** Net debit paid per share at entry. */
+  entryDebit: number | null;
+  /** Current net spread value per share (long mid − short mid). */
+  currentValue: number | null;
+  /** Strike width per share (|short strike − long strike|). */
+  width: number | null;
+  /** Profit-target fraction of max profit, e.g. 0.50. */
+  tpFraction: number;
+}): number | null {
+  const { entryDebit, currentValue, width, tpFraction } = args;
+  if (entryDebit == null || currentValue == null || width == null) return null;
+  if (!(tpFraction > 0)) return null;
+  const maxProfit = width - entryDebit;
+  if (!(maxProfit > 0)) return null;
+  return Math.max(0, ((currentValue - entryDebit) / (tpFraction * maxProfit)) * 100);
+}
+
+/**
  * Returns true when a transaction should be excluded from the legacy
  * realized-P&L sum because its cash flow is already captured at the leg
  * level. Currently flags PMCC short rolls and per-leg close transactions.

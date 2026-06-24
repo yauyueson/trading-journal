@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeDiagonalHeadline, computeNetSpreadPrice, computeLegBasedHeadlinePnL, computeLegBasedPnL, isCycleRollTransaction, filterCycleRolls, computeLivePnL } from '../legPnL';
+import { computeDiagonalHeadline, computeNetSpreadPrice, debitSpreadTpProgress, computeLegBasedHeadlinePnL, computeLegBasedPnL, isCycleRollTransaction, filterCycleRolls, computeLivePnL } from '../legPnL';
 import type { Position } from '../types';
 
 const basePosition: Position = {
@@ -203,6 +203,31 @@ describe('computeNetSpreadPrice', () => {
     const net = computeNetSpreadPrice(pmcc, [123.28, 7.315, undefined]);
     expect(net.entry).toBeCloseTo(97.96); // 105.28 − 7.32 (closed leg excluded)
     expect(net.current).toBeCloseTo(115.965); // 123.28 − 7.315
+  });
+});
+
+describe('debitSpreadTpProgress', () => {
+  // BCD: entry net debit 13.75, width 39 → max profit 25.25, tpFraction 0.50
+  // → target profit 12.625 (spread value 26.375).
+  const base = { entryDebit: 13.75, width: 39, tpFraction: 0.5 };
+
+  it('reaches 100% at +50% of MAX profit (spread value 26.375), not +50% of debit', () => {
+    expect(debitSpreadTpProgress({ ...base, currentValue: 26.375 })).toBeCloseTo(100);
+  });
+
+  it('the old +50%-of-debit target (20.625) is only ~54% under the corrected rule', () => {
+    // profit 6.875 / target 12.625 = 54.46%
+    expect(debitSpreadTpProgress({ ...base, currentValue: 20.625 })).toBeCloseTo(54.46, 1);
+  });
+
+  it('floors at 0 when underwater', () => {
+    expect(debitSpreadTpProgress({ ...base, currentValue: 3.95 })).toBe(0);
+  });
+
+  it('returns null on missing inputs or non-positive max profit', () => {
+    expect(debitSpreadTpProgress({ ...base, currentValue: null })).toBeNull();
+    expect(debitSpreadTpProgress({ ...base, width: null, currentValue: 26 })).toBeNull();
+    expect(debitSpreadTpProgress({ entryDebit: 40, currentValue: 41, width: 39, tpFraction: 0.5 })).toBeNull(); // debit ≥ width
   });
 });
 
