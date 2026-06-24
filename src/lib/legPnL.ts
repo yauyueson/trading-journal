@@ -136,6 +136,57 @@ export function computeLegBasedHeadlinePnL(
   };
 }
 
+export interface DiagonalHeadline {
+  /**
+   * False when the position's open legs lack complete live marks. Callers MUST
+   * render the unrealized headline as "—" in this case and must NOT fall back to
+   * single-instrument (mark − blendedCost) math — that is meaningless for a
+   * two-leg diagonal and fabricates a number (the long leg's mark valued as the
+   * whole position, with the short liability and roll cash-flows ignored).
+   */
+  known: boolean;
+  /** Net unrealized across open legs (long + active short). 0 when !known. */
+  unrealized: number;
+  /** Net unrealized as % of long-debit basis. 0 when !known. */
+  unrealizedPct: number;
+  /** Open long leg unrealized only (for the long-leg PT bar). 0 when !known. */
+  longUnrealized: number;
+  /** Long-debit basis. 0 when !known. */
+  basis: number;
+  /**
+   * Realized P&L from closed short cycles. This is valid even when !known —
+   * closed legs carry their own openedCredit/closedCost and need no live mark.
+   */
+  realized: number;
+}
+
+/**
+ * Single decision point for a PMCC/diagonal position's headline P&L.
+ *
+ * When every open leg has a live mark, returns the full leg-aware numbers
+ * (known: true). When any open leg is missing a mark, returns known: false so
+ * the caller shows "—" instead of fabricating a number from the legacy
+ * single-instrument path. Realized cycle P&L is always returned.
+ */
+export function computeDiagonalHeadline(
+  position: Position,
+  legCurrentValues: Array<number | undefined> = [],
+): DiagonalHeadline {
+  const headline = computeLegBasedHeadlinePnL(position, legCurrentValues);
+  const realized = headline?.realized ?? computeLegBasedPnL(position, legCurrentValues)?.realized ?? 0;
+  if (!headline) {
+    return { known: false, unrealized: 0, unrealizedPct: 0, longUnrealized: 0, basis: 0, realized };
+  }
+  return {
+    known: true,
+    unrealized: headline.unrealized,
+    unrealizedPct: headline.unrealizedPct,
+    longUnrealized: headline.longUnrealized,
+    basis: headline.basis,
+    realized,
+  };
+}
+
 /**
  * Returns true when a transaction should be excluded from the legacy
  * realized-P&L sum because its cash flow is already captured at the leg

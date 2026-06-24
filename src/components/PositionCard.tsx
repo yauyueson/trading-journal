@@ -7,7 +7,7 @@ import { LegPanel } from './position/LegPanel';
 import { Tooltip } from './Tooltip';
 import { Position, Transaction, LiveData, GreeksHistory, PositionAction } from '../lib/types';
 import { splitPMCCLegs, cycleRealizedPnL, totalRealizedShortPnL } from '../lib/pmccCycles';
-import { computeLegBasedHeadlinePnL, computeLegBasedPnL, isCycleRollTransaction } from '../lib/legPnL';
+import { computeDiagonalHeadline, computeLegBasedPnL, isCycleRollTransaction } from '../lib/legPnL';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
@@ -460,16 +460,23 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
 
     const currentPrice = liveData.price !== undefined ? liveData.price : (position.current_price || 0);
 
-    const legHeadlinePnL = position.strategy_type === 'pmcc'
-        ? computeLegBasedHeadlinePnL(position, liveData.legPrices ?? [])
+    const diagHeadline = position.strategy_type === 'pmcc'
+        ? computeDiagonalHeadline(position, liveData.legPrices ?? [])
         : null;
 
     let unrealizedPnL = 0;
     let unrealizedPnLPct = 0;
+    // For a PMCC diagonal we only trust leg-aware marks. When they're missing
+    // (diagHeadline.known === false) the unrealized headline is unknown — render
+    // "—" rather than fall back to the single-instrument path below, which
+    // values the long leg's mark as the whole position and ignores the short
+    // liability (the source of the fabricated +128.96% / +$6.7K headline).
+    let unrealizedKnown = true;
 
-    if (legHeadlinePnL) {
-        unrealizedPnL = legHeadlinePnL.unrealized;
-        unrealizedPnLPct = legHeadlinePnL.unrealizedPct;
+    if (diagHeadline) {
+        unrealizedKnown = diagHeadline.known;
+        unrealizedPnL = diagHeadline.unrealized;
+        unrealizedPnLPct = diagHeadline.unrealizedPct;
     } else if (totalQty > 0 && currentPrice) {
         if (isCreditStrategy) {
             unrealizedPnL = (avgPrice - currentPrice) * totalQty * CONTRACT_MULTIPLIER;
@@ -526,8 +533,10 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     // Add leg-level realized P&L (PMCC closed-short cycles, BCD legs once
     // per-leg close prices land). For PMCC, use the same complete leg-aware
     // source as the headline so roll transactions cannot distort basis.
-    if (legHeadlinePnL) {
-        realizedPnL += legHeadlinePnL.realized;
+    if (diagHeadline) {
+        // diagHeadline.realized is valid even when marks are missing (closed
+        // short cycles carry their own openedCredit/closedCost).
+        realizedPnL += diagHeadline.realized;
     } else {
         const legPnL = computeLegBasedPnL(position, liveData.legPrices ?? []);
         if (legPnL) realizedPnL += legPnL.realized;
@@ -536,8 +545,12 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const daysToExp = daysUntil(position.expiration);
 
     // TP Progress (0-100%+)
-    const tpProgress = (legHeadlinePnL && stratProfile?.kind === 'diagonal' && tpFraction > 0)
-        ? Math.max(0, (legHeadlinePnL.longUnrealized / (legHeadlinePnL.basis * tpFraction)) * 100)
+    const tpProgress = stratProfile?.kind === 'diagonal'
+        // Diagonal: long-leg PT only off leg-aware marks. No marks → unknown (null),
+        // never the single-instrument debit branch (which produced the fake 215%).
+        ? (diagHeadline?.known && diagHeadline.basis > 0 && tpFraction > 0
+            ? Math.max(0, (diagHeadline.longUnrealized / (diagHeadline.basis * tpFraction)) * 100)
+            : null)
         : (isCreditStrategy && avgPrice > 0 && currentPrice != null)
             ? Math.max(0, ((avgPrice - currentPrice) / (avgPrice * tpFraction)) * 100)
             : (!isCreditStrategy && avgPrice > 0 && currentPrice != null)
@@ -567,7 +580,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
         if (!isCreditStrategy && currentPrice <= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }
     }
     // Heavy loss warning
-    if (unrealizedPnLPct <= -50) { alerts.push('Heavy Loss'); alertLevel = 'danger'; }
+    if (unrealizedKnown && unrealizedPnLPct <= -50) { alerts.push('Heavy Loss'); alertLevel = 'danger'; }
     // DTE warning (approaching but not yet time stop)
     if (alertLevel === 'none' && daysToExp <= 7 && daysToExp > timeStopDTE) {
         alerts.push(`${daysToExp}d left`); alertLevel = 'warning';
@@ -584,7 +597,9 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     else if (alertLevel === 'success') cardClass = 'terminal-panel border-phosphor-green/45';
     else if (earningsWarning) cardClass = 'terminal-panel terminal-panel-amber';
 
-    const pnlColor = unrealizedPnL >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red';
+    const pnlColor = !unrealizedKnown
+        ? 'text-text-tertiary'
+        : unrealizedPnL >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red';
 
     return (
         <div className={`${cardClass} p-4 sm:p-5 fade-in`}>
@@ -728,10 +743,10 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                 </div>
                 <div className="text-right shrink-0">
                     <div className={`text-2xl sm:text-3xl font-bold tracking-tight leading-none ${pnlColor}`}>
-                        {formatPercent(unrealizedPnLPct)}
+                        {unrealizedKnown ? formatPercent(unrealizedPnLPct) : '—'}
                     </div>
                     <div className={`text-xs sm:text-sm font-mono ${pnlColor} mb-1`}>
-                        {unrealizedPnL >= 0 ? '+' : ''}{formatCurrency(unrealizedPnL)}
+                        {unrealizedKnown ? `${unrealizedPnL >= 0 ? '+' : ''}${formatCurrency(unrealizedPnL)}` : 'no live price'}
                     </div>
                     <div className={`text-[10px] sm:text-xs font-mono font-medium ${realizedPnL > 0 ? 'text-phosphor-green text-glow-green' : realizedPnL < 0 ? 'text-phosphor-red text-glow-red' : 'text-text-tertiary'} flex items-center justify-end gap-1`}>
                         <span className="text-text-tertiary text-[10px] uppercase tracking-wider hidden sm:inline">Realized</span>

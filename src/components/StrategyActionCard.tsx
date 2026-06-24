@@ -3,7 +3,7 @@ import { ChevronRight } from 'lucide-react';
 import type { StrategyStatus } from '../hooks/useStrategyStatus';
 import type { Transaction } from '../lib/types';
 import { formatCurrency, getStrategyKind } from '../lib/utils';
-import { computeLivePnL } from '../lib/legPnL';
+import { computeLivePnL, computeLegBasedPnL } from '../lib/legPnL';
 
 interface Props {
   status: StrategyStatus;
@@ -43,9 +43,18 @@ export const StrategyActionCard: React.FC<Props> = ({
   const { strategy, profile, openPosition, state } = status;
   const ticker = profile.tickers?.[0] ?? 'QQQ';
 
-  const livePnl = openPosition
-    ? computeLivePnL(openPosition, positionTransactions, getStrategyKind(openPosition) === 'credit')
+  // This card has no live option marks. A credit strategy banks premium up front,
+  // so its cash-flow figure is a meaningful P&L without marks. A debit/diagonal
+  // open position CANNOT be marked-to-market here — computeLivePnL would surface
+  // the unrecovered entry debit as a phantom loss (e.g. an open PMCC showing
+  // −$9.8K). For those we only show realized-to-date (closed roll cycles) and
+  // render the unmarkable total as "—", consistent with PositionCard.
+  const kind = openPosition ? getStrategyKind(openPosition) : null;
+  const cashFlowIsPnL = kind === 'credit';
+  const livePnl = openPosition && cashFlowIsPnL
+    ? computeLivePnL(openPosition, positionTransactions, true)
     : 0;
+  const realizedToDate = openPosition ? (computeLegBasedPnL(openPosition)?.realized ?? 0) : 0;
 
   const pill = PILL_BY_STATE[state];
   const pillLabel =
@@ -60,8 +69,15 @@ export const StrategyActionCard: React.FC<Props> = ({
   let contextLine: string;
   if (state === 'open' && openPosition) {
     const date = status.openSinceDate ?? '?';
-    const pnlSign = livePnl >= 0 ? '+' : '−';
-    contextLine = `Open since ${date} · ${pnlSign}${formatCurrency(Math.abs(livePnl))}`;
+    if (cashFlowIsPnL) {
+      const pnlSign = livePnl >= 0 ? '+' : '−';
+      contextLine = `Open since ${date} · ${pnlSign}${formatCurrency(Math.abs(livePnl))}`;
+    } else if (realizedToDate !== 0) {
+      const sign = realizedToDate > 0 ? '+' : '−';
+      contextLine = `Open since ${date} · ${sign}${formatCurrency(Math.abs(realizedToDate))} realized`;
+    } else {
+      contextLine = `Open since ${date} · P&L —`;
+    }
   } else if (state === 'ready') {
     contextLine =
       strategy === 'pmcc'

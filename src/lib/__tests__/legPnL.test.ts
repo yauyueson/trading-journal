@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeLegBasedHeadlinePnL, computeLegBasedPnL, isCycleRollTransaction, filterCycleRolls, computeLivePnL } from '../legPnL';
+import { computeDiagonalHeadline, computeLegBasedHeadlinePnL, computeLegBasedPnL, isCycleRollTransaction, filterCycleRolls, computeLivePnL } from '../legPnL';
 import type { Position } from '../types';
 
 const basePosition: Position = {
@@ -121,6 +121,49 @@ describe('computeLegBasedHeadlinePnL', () => {
     expect(result!.longUnrealized).toBeCloseTo(1800);
     expect(result!.basis).toBeCloseTo(10528);
     expect(result!.unrealizedPct).toBeCloseTo(17.10, 2);
+  });
+});
+
+describe('computeDiagonalHeadline', () => {
+  // Real QQQ PMCC paper position: long $630C @105.28, active short $756C @7.32,
+  // closed roll short $725C (6.10 → 4.35 = +175 realized).
+  const realPmcc: Position = {
+    ...basePosition,
+    strategy_type: 'pmcc',
+    legs: [
+      { strike: 630, type: 'Call', side: 'long', expiration: '2027-01-15', openedDebit: 105.28, cycleQty: 1 },
+      { strike: 756, type: 'Call', side: 'short', expiration: '2026-07-17', openedCredit: 7.32, cycleQty: 1 },
+      { strike: 725, type: 'Call', side: 'short', expiration: '2026-06-12', openedCredit: 6.10, closedCost: 4.35, closedAt: '2026-06-05T18:00:00Z', cycleQty: 1 },
+    ],
+  };
+
+  it('known: true with full leg-aware numbers when every open leg has a mark', () => {
+    const h = computeDiagonalHeadline(realPmcc, [123.28, 7.315, undefined]);
+    expect(h.known).toBe(true);
+    expect(h.unrealized).toBeCloseTo(1800.5);
+    expect(h.longUnrealized).toBeCloseTo(1800);
+    expect(h.basis).toBeCloseTo(10528);
+    expect(h.unrealizedPct).toBeCloseTo(17.10, 2);
+    expect(h.realized).toBeCloseTo(175);
+  });
+
+  it('known: false when NO live marks are available (the bug scenario) — realized still valid', () => {
+    const h = computeDiagonalHeadline(realPmcc, []);
+    expect(h.known).toBe(false);
+    // Must NOT fabricate the legacy +128.96% / +$6.7K headline.
+    expect(h.unrealized).toBe(0);
+    expect(h.unrealizedPct).toBe(0);
+    expect(h.longUnrealized).toBe(0);
+    expect(h.basis).toBe(0);
+    // Closed-cycle realized needs no mark, so it survives.
+    expect(h.realized).toBeCloseTo(175);
+  });
+
+  it('known: false when only the short leg is missing a mark (cannot value the net)', () => {
+    const h = computeDiagonalHeadline(realPmcc, [123.28, undefined, undefined]);
+    expect(h.known).toBe(false);
+    expect(h.unrealized).toBe(0);
+    expect(h.realized).toBeCloseTo(175);
   });
 });
 
