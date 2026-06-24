@@ -170,6 +170,11 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                     // Use the TOP-LEVEL result (which has price, bid, ask, delta etc.) not d.data
                     // (d.data is the raw normalized option which lacks a computed `price` field).
                     results = position.legs.map(leg => {
+                        // Closed legs (e.g. rolled-off PMCC short cycles) are realized
+                        // and need no live quote. They also expire and drop out of the
+                        // chain — quoting them returns null and would abort the whole
+                        // update below. Use `undefined` (≠ null) so the guard ignores them.
+                        if (leg.closedAt) return undefined;
                         const match = effectiveData.find(d =>
                             d.expiration === leg.expiration &&
                             String(d.strike) === String(leg.strike) &&
@@ -179,6 +184,8 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                     });
                 } else {
                     const promises = position.legs.map(async (leg) => {
+                        // Skip closed legs — see note above (they 404 once expired).
+                        if (leg.closedAt) return undefined;
                         const params = new URLSearchParams({ ticker: position.ticker, expiration: normalizeExpiration(leg.expiration), strike: leg.strike.toString(), type: leg.type });
                         const res = await fetch(`/api/option-price?${params}`);
                         return res.ok ? await res.json() : null;
@@ -186,7 +193,8 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                     results = await Promise.all(promises);
                 }
 
-                // Prevent partial data update (wiping Greeks) if some requests failed
+                // Prevent partial data update (wiping Greeks) if an OPEN leg's request
+                // failed (null). Closed legs are `undefined` here and don't count.
                 if (results.some(r => r === null)) {
                     setLoading(false);
                     return;
@@ -197,8 +205,10 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                 let netPrice = 0;
                 let validLegs = 0;
 
-                const shortIndex = position.legs.findIndex(l => l.side === 'short');
-                const longIndex = position.legs.findIndex(l => l.side === 'long');
+                // Bind to the ACTIVE (open) legs — a rolled-off closed short is
+                // `undefined` in results, so the index must point at the live leg.
+                const shortIndex = position.legs.findIndex(l => l.side === 'short' && !l.closedAt);
+                const longIndex = position.legs.findIndex(l => l.side === 'long' && !l.closedAt);
 
                 // Ensure we have data for both legs
                 const shortData = shortIndex >= 0 ? results[shortIndex] : null;
