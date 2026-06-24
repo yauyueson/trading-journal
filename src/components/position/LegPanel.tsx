@@ -119,6 +119,10 @@ export const LegPanel: React.FC<LegPanelProps> = ({
     ? (leg.openedCredit != null ? `$${leg.openedCredit.toFixed(2)}` : '—')
     : (leg.openedDebit != null ? `$${leg.openedDebit.toFixed(2)}` : '—');
   const fillColor = isShort ? 'text-phosphor-green text-glow-green' : 'text-text-primary';
+  // Current per-share mark (mid/last). "—" when no live quote is available.
+  const currentDisplay = currentValue != null && Number.isFinite(currentValue)
+    ? `$${currentValue.toFixed(2)}`
+    : '—';
 
   const resetEditForm = () => {
     setStrike(leg.strike?.toString() ?? '');
@@ -240,7 +244,7 @@ export const LegPanel: React.FC<LegPanelProps> = ({
               aria-hidden="true"
             />
           </SummaryHeader>
-          <SummaryRow leg={leg} dte={dte} dteClass={dteClass} fillFieldLabel={fillFieldLabel} fillDisplay={fillDisplay} fillColor={fillColor} pnl={pnl} pnlLabel={pnlLabel} />
+          <SummaryRow leg={leg} dte={dte} dteClass={dteClass} fillFieldLabel={fillFieldLabel} fillDisplay={fillDisplay} fillColor={fillColor} currentDisplay={currentDisplay} pnl={pnl} pnlLabel={pnlLabel} />
         </button>
       )}
 
@@ -278,7 +282,7 @@ export const LegPanel: React.FC<LegPanelProps> = ({
 
             {/* Persistent summary (read-only) inside expanded views — anchors context */}
             <div className="mb-3 px-3 py-2 rounded bg-terminal-black/40 border border-border-default/40">
-              <SummaryRow leg={leg} dte={dte} dteClass={dteClass} fillFieldLabel={fillFieldLabel} fillDisplay={fillDisplay} fillColor={fillColor} pnl={pnl} pnlLabel={pnlLabel} compact />
+              <SummaryRow leg={leg} dte={dte} dteClass={dteClass} fillFieldLabel={fillFieldLabel} fillDisplay={fillDisplay} fillColor={fillColor} currentDisplay={currentDisplay} pnl={pnl} pnlLabel={pnlLabel} compact />
             </div>
 
             {/* MODE: menu — action chooser */}
@@ -412,15 +416,17 @@ const SummaryRow: React.FC<{
   fillFieldLabel: string;
   fillDisplay: string;
   fillColor: string;
+  currentDisplay: string;
   pnl: number | undefined;
   pnlLabel?: string;
   compact?: boolean;
-}> = ({ leg, dte, dteClass, fillFieldLabel, fillDisplay, fillColor, pnl, pnlLabel, compact }) => (
-  <div className={`grid grid-cols-2 sm:grid-cols-5 gap-3 ${compact ? 'text-[11px]' : 'text-xs'} font-mono`}>
+}> = ({ leg, dte, dteClass, fillFieldLabel, fillDisplay, fillColor, currentDisplay, pnl, pnlLabel, compact }) => (
+  <div className={`grid grid-cols-2 sm:grid-cols-6 gap-3 ${compact ? 'text-[11px]' : 'text-xs'} font-mono`}>
     <SummaryCell label="Strike" value={<span className={compact ? '' : 'text-base'}>${leg.strike}</span>} />
     <SummaryCell label="Expiration" value={formatDateWithYear(leg.expiration)} />
     <SummaryCell label="DTE" value={dte != null ? `${dte}d` : '—'} valueClass={`${compact ? '' : 'text-base'} font-bold ${dteClass}`} />
     <SummaryCell label={fillFieldLabel} value={fillDisplay} valueClass={fillColor} />
+    <SummaryCell label="Current" value={currentDisplay} valueClass={currentDisplay === '—' ? 'text-text-tertiary' : 'text-text-primary'} />
     <SummaryCell
       label={pnlLabel ?? 'Unrealized'}
       value={pnl == null ? '—' : `${pnl >= 0 ? '+' : ''}${formatCurrency(pnl)}`}
