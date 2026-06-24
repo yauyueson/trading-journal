@@ -4,6 +4,7 @@ import type { StrategyStatus } from '../hooks/useStrategyStatus';
 import type { Transaction } from '../lib/types';
 import { formatCurrency, getStrategyKind } from '../lib/utils';
 import { computeLivePnL, computeLegBasedPnL } from '../lib/legPnL';
+import { evaluateExitProximity } from '../lib/exitProximity';
 
 interface Props {
   status: StrategyStatus;
@@ -56,6 +57,16 @@ export const StrategyActionCard: React.FC<Props> = ({
     : 0;
   const realizedToDate = openPosition ? (computeLegBasedPnL(openPosition)?.realized ?? 0) : 0;
 
+  // Exit-proximity heads-up. The summary has no live marks, so this is the
+  // reliable-from-the-row view: exact time stop (DTE) + last-known-price TP for
+  // BCD. PMCC returns 'none' (its PT/SL/roll signals stay on the card).
+  const exit = state === 'open' && openPosition ? evaluateExitProximity(openPosition, profile) : null;
+  const exitChipClass = exit?.level === 'met'
+    ? (exit.reason === 'tp'
+        ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green ring-phosphor-green/40'
+        : 'bg-phosphor-red/10 text-phosphor-red text-glow-red ring-phosphor-red/40')
+    : 'bg-phosphor-amber/10 text-phosphor-amber text-glow-amber ring-phosphor-amber/40';
+
   const pill = PILL_BY_STATE[state];
   const pillLabel =
     state === 'open'
@@ -100,6 +111,13 @@ export const StrategyActionCard: React.FC<Props> = ({
           {pillLabel}
         </span>
       </div>
+
+      {exit && exit.level !== 'none' && (
+        <div className={`inline-flex items-center gap-1.5 self-start px-2 py-0.5 mb-2 rounded text-[10px] font-mono font-bold tracking-wider uppercase ring-1 ${exitChipClass}`}>
+          <span className="w-1.5 h-1.5 rounded-full bg-current pulse-glow" aria-hidden="true" />
+          {exit.label}
+        </div>
+      )}
 
       <p className="text-text-secondary text-xs font-mono mb-3 min-h-[18px]">{contextLine}</p>
 

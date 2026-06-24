@@ -5,6 +5,16 @@ import { STRATEGY_PROFILES } from '../../lib/strategyProfiles';
 import type { StrategyStatus } from '../../hooks/useStrategyStatus';
 import type { Position, Transaction } from '../../lib/types';
 
+/** Local YYYY-MM-DD exactly n days from today. */
+function isoDaysFromNow(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 const basePosition: Omit<Position, 'strategy_type' | 'legs'> = {
   id: 'p1',
   ticker: 'QQQ',
@@ -75,5 +85,42 @@ describe('StrategyActionCard — open-position P&L without live marks', () => {
     render(<StrategyActionCard status={status} positionTransactions={txns} onEnter={() => {}} />);
 
     expect(screen.getByText(/P&L —/)).toBeInTheDocument();
+  });
+});
+
+describe('StrategyActionCard — exit-proximity chip', () => {
+  function bcdStatus(expDays: number, currentPrice: number): StrategyStatus {
+    return {
+      strategy: 'bcd',
+      profile: STRATEGY_PROFILES.bcd,
+      state: 'open',
+      openSinceDate: '2026-06-12',
+      openPosition: {
+        ...basePosition,
+        setup: 'BCD',
+        strategy_type: 'bcd',
+        expiration: isoDaysFromNow(expDays),
+        current_price: currentPrice,
+        legs: [
+          { strike: 741, type: 'Call', side: 'long', expiration: isoDaysFromNow(expDays), openedDebit: 18.48, cycleQty: 1 },
+          { strike: 780, type: 'Call', side: 'short', expiration: isoDaysFromNow(expDays), openedCredit: 4.73, cycleQty: 1 },
+        ],
+      } as Position,
+    };
+  }
+
+  it('BCD nearing the 7-DTE time stop shows an "EXIT IN 2d" chip', () => {
+    render(<StrategyActionCard status={bcdStatus(9, 3.95)} positionTransactions={[]} onEnter={() => {}} />);
+    expect(screen.getByText('EXIT IN 2d')).toBeInTheDocument();
+  });
+
+  it('BCD at its TP target shows a "TP READY" chip', () => {
+    render(<StrategyActionCard status={bcdStatus(40, 26.375)} positionTransactions={[]} onEnter={() => {}} />);
+    expect(screen.getByText('TP READY')).toBeInTheDocument();
+  });
+
+  it('BCD far from any exit shows no chip', () => {
+    render(<StrategyActionCard status={bcdStatus(40, 3.95)} positionTransactions={[]} onEnter={() => {}} />);
+    expect(screen.queryByText(/EXIT IN|TIME STOP|TP /)).toBeNull();
   });
 });
