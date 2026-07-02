@@ -130,6 +130,22 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
     && contracts > 0 && width != null && width > 0
     && longStrikeNum < shortStrikeNum;
 
+  // First unmet requirement, surfaced under the disabled OPEN BCD button so a
+  // greyed-out button explains itself instead of looking broken. Order mirrors
+  // canSubmit — when every branch passes, canSubmit is true and this is null.
+  const submitReason: string | null =
+    !ticker ? 'Enter a ticker'
+    : !expiration ? 'Choose an expiration date'
+    : isNaN(longStrikeNum) ? 'Enter the long (buy) strike'
+    : isNaN(shortStrikeNum) ? 'Enter the short (sell) strike'
+    : !(longStrikeNum < shortStrikeNum) ? 'Long strike must be below the short strike (bull call debit)'
+    : isNaN(longDebitNum) || longDebitNum <= 0 ? 'Enter the long-leg debit paid'
+    : isNaN(shortCreditNum) || shortCreditNum < 0 ? 'Enter the short-leg credit received'
+    : !(debitNum > 0) ? 'Net debit must be positive — long debit must exceed short credit'
+    : width == null || width <= 0 ? 'Strike width must be greater than zero'
+    : !(contracts > 0) ? 'Enter a contract quantity of at least 1'
+    : null;
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -406,6 +422,10 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 </span>
               </div>
             </div>
+          )}
+
+          {submitReason && !submitting && (
+            <p className="text-[11px] text-phosphor-amber font-mono">▌ {submitReason}</p>
           )}
 
           <div className="flex gap-2">

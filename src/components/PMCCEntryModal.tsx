@@ -154,6 +154,21 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
     && shortStrikeNum > longStrikeNum
     && contracts > 0;
 
+  // First unmet requirement, surfaced under the disabled OPEN PMCC button so a
+  // greyed-out button explains itself instead of looking broken. Order mirrors
+  // canSubmit — when every branch passes, canSubmit is true and this is null.
+  const submitReason: string | null =
+    !ticker ? 'Enter a ticker'
+    : !longExpiration ? 'Choose the long LEAP expiration'
+    : !shortExpiration ? 'Choose the short-leg expiration'
+    : isNaN(longStrikeNum) ? 'Enter the long LEAP strike'
+    : isNaN(shortStrikeNum) ? 'Enter the short-leg strike'
+    : isNaN(longDebitNum) ? 'Enter the LEAP debit paid'
+    : isNaN(shortCreditNum) ? 'Enter the short-leg credit received'
+    : !(shortStrikeNum > longStrikeNum) ? 'Short strike must be above the LEAP strike'
+    : !(contracts > 0) ? 'Enter a contract quantity of at least 1'
+    : null;
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -468,6 +483,10 @@ export const PMCCEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 </span>
               </div>
             </div>
+          )}
+
+          {submitReason && !submitting && (
+            <p className="text-[11px] text-phosphor-amber font-mono">▌ {submitReason}</p>
           )}
 
           <div className="flex gap-2">
