@@ -48,6 +48,7 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [shortCredit, setShortCredit] = useState('');
   const [quantityOverride, setQuantityOverride] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [pickedExpiration, setPickedExpiration] = useState<string | null>(null);
 
   // Fetch the long (δ ≈ 0.50) and short (δ ≈ 0.20) legs in two narrow-band
@@ -116,6 +117,10 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
     ? Math.max(1, Math.floor(budget / maxLossPerContract))
     : 0;
   const contracts = quantityOverride ? parseInt(quantityOverride) : suggestedContracts;
+  const totalMaxLoss = maxLossPerContract != null && contracts > 0
+    ? maxLossPerContract * contracts
+    : null;
+  const exceedsRiskCap = totalMaxLoss != null && totalMaxLoss > budget + 0.005;
 
   const dte = useMemo(() => {
     if (!expiration) return null;
@@ -128,7 +133,8 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
     && !isNaN(shortCreditNum) && shortCreditNum >= 0
     && debitNum > 0
     && contracts > 0 && width != null && width > 0
-    && longStrikeNum < shortStrikeNum;
+    && longStrikeNum < shortStrikeNum
+    && !exceedsRiskCap;
 
   // First unmet requirement, surfaced under the disabled OPEN BCD button so a
   // greyed-out button explains itself instead of looking broken. Order mirrors
@@ -144,13 +150,20 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
     : !(debitNum > 0) ? 'Net debit must be positive — long debit must exceed short credit'
     : width == null || width <= 0 ? 'Strike width must be greater than zero'
     : !(contracts > 0) ? 'Enter a contract quantity of at least 1'
+    : exceedsRiskCap ? `Max loss $${totalMaxLoss!.toFixed(0)} exceeds the $${budget.toFixed(0)} BCD risk cap — choose a lower-debit spread`
     : null;
+
+  const handleClose = () => {
+    setSubmitError(null);
+    onClose();
+  };
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
+    setSubmitError(null);
     setSubmitting(true);
     try {
       const legs: PositionLeg[] = [
@@ -190,7 +203,7 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         legs,
         fill_diagnostics: fillDiagnostics,
       });
-      onClose();
+      handleClose();
       // reset
       setExpiration('');
       setLongStrike('');
@@ -198,6 +211,9 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
       setLongDebit('');
       setShortCredit('');
       setQuantityOverride('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setSubmitError(message.replace(/^Execution ticket blocked:\s*/i, 'Trade blocked: '));
     } finally {
       setSubmitting(false);
     }
@@ -209,7 +225,7 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center modal-overlay"
-      onClick={onClose}
+      onClick={handleClose}
       role="dialog"
       aria-modal="true"
       aria-label="Enter BCD bull call debit spread position"
@@ -218,17 +234,18 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25 }}
-        className="card-glass-elevated w-full max-w-md sm:rounded-2xl rounded-t-2xl overflow-hidden"
+        data-testid="bcd-entry-panel"
+        className="card-glass-elevated w-full max-w-md sm:rounded-2xl rounded-t-2xl max-h-[100dvh] sm:max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+        <div className="sticky top-0 z-10 flex items-center justify-between px-5 pt-5 pb-3 bg-bg-primary/95 backdrop-blur-md border-b border-transparent">
           <div>
             <h3 className="text-sm font-mono font-bold uppercase tracking-widest text-phosphor-green text-glow-green">▌ OPEN_BCD_POSITION</h3>
             <p className="text-[11px] text-text-tertiary font-mono mt-0.5">
               {profile.subtitle}
             </p>
           </div>
-          <button onClick={onClose} className="text-text-tertiary hover:text-phosphor-amber p-1 cursor-pointer" aria-label="Close">
+          <button onClick={handleClose} className="text-text-tertiary hover:text-phosphor-amber p-1 cursor-pointer" aria-label="Close">
             <X size={16} />
           </button>
         </div>
@@ -428,10 +445,16 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
             <p className="text-[11px] text-phosphor-amber font-mono">▌ {submitReason}</p>
           )}
 
+          {submitError && !submitting && (
+            <p role="alert" className="text-[11px] text-phosphor-red text-glow-red font-mono">
+              ▌ COULDN'T OPEN BCD: {submitError}
+            </p>
+          )}
+
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="btn-terminal-danger flex-1"
               disabled={submitting}
             >
