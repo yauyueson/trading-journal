@@ -102,6 +102,19 @@ export function computeLegBasedPnL(
 }
 
 /**
+ * Realized short-cycle P&L that has already been banked inside PMCC positions
+ * which are still active. Closed PMCC positions are intentionally excluded:
+ * their complete cash flow is already counted by the legacy transaction-based
+ * closed-position P&L aggregate.
+ */
+export function computeActivePMCCRealizedPnL(positions: Position[]): number {
+  return positions.reduce((total, position) => {
+    if (position.status !== 'active' || position.strategy_type !== 'pmcc') return total;
+    return total + (computeLegBasedPnL(position)?.realized ?? 0);
+  }, 0);
+}
+
+/**
  * Headline P&L for rich leg-based positions.
  *
  * PMCC uses the long LEAP debit as the return denominator. Rolled short cycles

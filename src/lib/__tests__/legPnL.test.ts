@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeDiagonalHeadline, computeNetSpreadPrice, debitSpreadTpProgress, computeLegBasedHeadlinePnL, computeLegBasedPnL, isCycleRollTransaction, filterCycleRolls, computeLivePnL } from '../legPnL';
+import { computeActivePMCCRealizedPnL, computeDiagonalHeadline, computeNetSpreadPrice, debitSpreadTpProgress, computeLegBasedHeadlinePnL, computeLegBasedPnL, isCycleRollTransaction, filterCycleRolls, computeLivePnL } from '../legPnL';
 import type { Position } from '../types';
 
 const basePosition: Position = {
@@ -98,6 +98,30 @@ describe('computeLegBasedPnL', () => {
     // short unrealized = (0.5-0.4)*100 = 10
     expect(result.unrealized).toBeCloseTo(310);
     expect(result.realized).toBe(0);
+  });
+});
+
+describe('computeActivePMCCRealizedPnL', () => {
+  const rolledPmcc: Position = {
+    ...basePosition,
+    strategy_type: 'pmcc',
+    legs: [
+      { strike: 630, type: 'Call', side: 'long', expiration: '2027-01-15', openedDebit: 105.28, cycleQty: 1 },
+      { strike: 756, type: 'Call', side: 'short', expiration: '2026-07-17', openedCredit: 7.32, cycleQty: 1 },
+      { strike: 725, type: 'Call', side: 'short', expiration: '2026-06-12', openedCredit: 6.10, closedCost: 4.35, closedAt: '2026-06-05T18:00:00Z', cycleQty: 1 },
+    ],
+  };
+
+  it('adds banked short-cycle profit from an active PMCC', () => {
+    expect(computeActivePMCCRealizedPnL([rolledPmcc])).toBeCloseTo(175);
+  });
+
+  it('excludes a fully closed PMCC because closed-position cash flow counts it', () => {
+    expect(computeActivePMCCRealizedPnL([{ ...rolledPmcc, status: 'closed' }])).toBe(0);
+  });
+
+  it('excludes active non-PMCC positions', () => {
+    expect(computeActivePMCCRealizedPnL([{ ...rolledPmcc, strategy_type: 'bcd' }])).toBe(0);
   });
 });
 

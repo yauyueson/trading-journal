@@ -14,6 +14,7 @@ import { BCDEntryModal } from '../components/BCDEntryModal';
 import { PMCCEntryModal } from '../components/PMCCEntryModal';
 import type { Position, PositionAction as PositionActionType } from '../lib/types';
 import { computePositionPnL, getStrategyKind, groupTransactionsByPositionId } from '../lib/utils';
+import { computeActivePMCCRealizedPnL } from '../lib/legPnL';
 import { ACTIVE_STRATEGIES, STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
 import { CHART_COLORS, CHART_FONT_MONO, axisProps } from '../lib/chartTheme';
 
@@ -55,6 +56,9 @@ export function DashboardPage() {
       pnl += p;
       if (p > 0) wins++;
     }
+    if (strategy === 'pmcc') {
+      pnl += computeActivePMCCRealizedPnL(positions);
+    }
     return {
       strategy,
       profile,
@@ -70,12 +74,10 @@ export function DashboardPage() {
 
   // Combined performance across all active strategies — for the hero P&L + chart.
   const { perfStats, chartData } = useMemo(() => {
+    const activePmccRealized = computeActivePMCCRealizedPnL(positions);
     const closedAll = positions
       .filter(p => p.strategy_type && ACTIVE_STRATEGIES.includes(p.strategy_type as StrategyType) && p.status === 'closed')
       .sort((a, b) => (a.closed_at ?? '').localeCompare(b.closed_at ?? ''));
-    if (closedAll.length === 0) {
-      return { perfStats: { pnl: 0, winRate: 0, trades: 0 }, chartData: [] as { trade: string; pnl: number }[] };
-    }
     let wins = 0;
     let totalPnl = 0;
     const data: { trade: string; pnl: number }[] = [{ trade: '0', pnl: 0 }];
@@ -87,13 +89,18 @@ export function DashboardPage() {
       if (pnl > 0) wins++;
       data.push({ trade: String(i + 1), pnl: totalPnl });
     }
+    totalPnl += activePmccRealized;
+    if (activePmccRealized !== 0) {
+      data.push({ trade: 'live', pnl: totalPnl });
+    }
     return {
       perfStats: {
         pnl: totalPnl,
-        winRate: Math.round((wins / closedAll.length) * 100),
+        winRate: closedAll.length > 0 ? Math.round((wins / closedAll.length) * 100) : 0,
         trades: closedAll.length,
+        activePmccRealized,
       },
-      chartData: data,
+      chartData: data.length >= 2 ? data : [],
     };
   }, [positions, transactionsByPosition]);
 
@@ -162,10 +169,15 @@ export function DashboardPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
             >
-              <span className="label-mono">NET P&L</span>
+              <span
+                className="label-mono"
+                title="Fully closed positions plus realized short-cycle P&L already banked inside active PMCC positions"
+              >
+                NET P&L
+              </span>
               <p className={`font-mono font-bold tabular-nums leading-none mt-1 ${perfStats.pnl >= 0 ? 'metric-glow-pos' : 'metric-glow-neg'}`}
                  style={{ fontSize: 'clamp(1.5rem, 5.5vw, 2.75rem)' }}>
-                {perfStats.pnl >= 0 ? '+' : ''}${Math.abs(perfStats.pnl).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                {perfStats.pnl >= 0 ? '+' : '-'}${Math.abs(perfStats.pnl).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </p>
               <span className={`inline-flex items-center gap-1 mt-2 text-[10px] sm:text-xs font-mono font-semibold ${
                 returnPct >= 0 ? 'text-phosphor-green' : 'text-phosphor-red'
@@ -173,6 +185,11 @@ export function DashboardPage() {
                 {returnPct >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
                 {returnPct >= 0 ? '+' : ''}{returnPct.toFixed(2)}%
               </span>
+              {perfStats.activePmccRealized !== 0 && (
+                <span className="block mt-1 text-[9px] sm:text-[10px] font-mono text-text-tertiary uppercase tracking-wider">
+                  incl. {perfStats.activePmccRealized >= 0 ? '+' : ''}${perfStats.activePmccRealized.toFixed(0)} active PMCC realized
+                </span>
+              )}
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -246,7 +263,7 @@ export function DashboardPage() {
                   <Tooltip
                     contentStyle={{ background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.tooltipBorder}`, borderRadius: 6, fontSize: 12, fontFamily: CHART_FONT_MONO, boxShadow: CHART_COLORS.tooltipShadow }}
                     formatter={(value: number | undefined) => [`$${(value ?? 0) >= 0 ? '+' : ''}${(value ?? 0).toFixed(0)}`, 'P&L']}
-                    labelFormatter={(label) => `TRADE #${label}`}
+                    labelFormatter={(label) => label === 'live' ? 'ACTIVE PMCC REALIZED' : `TRADE #${label}`}
                   />
                   <Area type="monotone" dataKey="pnl" stroke={chartColor} strokeWidth={2} fill="url(#pnlGrad)" dot={false}
                     activeDot={{ r: 4, fill: chartColor, stroke: CHART_COLORS.tooltipBg, strokeWidth: 2 }}
@@ -300,7 +317,7 @@ export function DashboardPage() {
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-text-tertiary font-mono">{b.closedCount} TRADES · {b.winRate}% WR</span>
                   <span className={`font-mono font-bold tabular-nums ${b.pnl >= 0 ? 'text-phosphor-green text-glow-green' : 'text-phosphor-red text-glow-red'}`}>
-                    {b.pnl >= 0 ? '+' : ''}${Math.abs(b.pnl).toFixed(0)}
+                    {b.pnl >= 0 ? '+' : '-'}${Math.abs(b.pnl).toFixed(0)}
                   </span>
                 </div>
                 <p className="text-text-tertiary text-[10px] font-mono mt-1 truncate">{b.profile.subtitle}</p>
