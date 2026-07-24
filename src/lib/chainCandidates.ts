@@ -192,17 +192,28 @@ export function buildPMCCShortCandidates(
 export interface PMCCRollShortCandidateParams {
     leapStrike: number;
     currentShortStrike: number;
+    currentShortExpiration?: string;
     targetDelta?: number;
 }
 
 /**
- * Roll-short candidates for a PMCC. The strategy rolls the short call up/out,
- * so suggestions must clear both the long LEAP strike and current short strike.
+ * Roll-short candidates for a PMCC. Prefer an up-and-out roll. If the old
+ * strike is now above every contract in the target delta band (common after an
+ * OTM short expires), fall back to the best later-dated short above the LEAP
+ * strike instead of returning an empty, fully manual ticket.
  */
 export function buildPMCCRollShortCandidates(
     options: ChainOption[],
     params: PMCCRollShortCandidateParams,
 ): ChainOption[] {
-    const floor = Math.max(params.leapStrike, params.currentShortStrike);
-    return buildPMCCShortCandidates(options, floor, params.targetDelta ?? 0.25);
+    const laterDated = buildPMCCShortCandidates(
+        options,
+        params.leapStrike,
+        params.targetDelta ?? 0.25,
+    ).filter(option => (
+        !params.currentShortExpiration
+        || option.expiration > params.currentShortExpiration
+    ));
+    const upAndOut = laterDated.filter(option => option.strike > params.currentShortStrike);
+    return upAndOut.length > 0 ? upAndOut : laterDated;
 }

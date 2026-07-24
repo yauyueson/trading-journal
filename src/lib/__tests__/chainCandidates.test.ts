@@ -139,9 +139,42 @@ describe('buildPMCCRollShortCandidates', () => {
     const candidates = buildPMCCRollShortCandidates(chain, {
       leapStrike: 410,
       currentShortStrike: 430,
+      currentShortExpiration: '2026-05-15',
       targetDelta: 0.25,
     });
 
     expect(candidates.map(o => o.strike)).toEqual([440, 450, 460]);
+  });
+
+  it('falls back to the best later-dated target-delta short when no higher strike exists', () => {
+    const chain: ChainOption[] = [
+      mkOpt({ strike: 420, dte: 35, delta: 0.25, expiration: '2026-06-19' }),
+      mkOpt({ strike: 440, dte: 42, delta: 0.24, expiration: '2026-06-26' }),
+    ];
+
+    const candidates = buildPMCCRollShortCandidates(chain, {
+      leapStrike: 400,
+      currentShortStrike: 470,
+      currentShortExpiration: '2026-05-15',
+      targetDelta: 0.25,
+    });
+
+    expect(candidates.map(o => o.strike)).toEqual([420, 440]);
+  });
+
+  it('does not suggest the same or an earlier expiration', () => {
+    const chain: ChainOption[] = [
+      mkOpt({ strike: 440, dte: 10, delta: 0.25, expiration: '2026-06-19' }),
+      mkOpt({ strike: 445, dte: 35, delta: 0.24, expiration: '2026-07-17' }),
+    ];
+
+    const candidates = buildPMCCRollShortCandidates(chain, {
+      leapStrike: 400,
+      currentShortStrike: 430,
+      currentShortExpiration: '2026-06-19',
+      targetDelta: 0.25,
+    });
+
+    expect(candidates.map(o => o.expiration)).toEqual(['2026-07-17']);
   });
 });

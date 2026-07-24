@@ -4,11 +4,12 @@
  * short tenants (PMCC short), long anchors (LEAPs), debit/credit spread
  * legs, or naked options.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRollLeg } from '../hooks/usePositionMutations';
 import { useChainCandidates } from '../hooks/useChainCandidates';
+import { useOptionQuote } from '../hooks/useOptionQuote';
 import { STRATEGY_PROFILES } from '../lib/strategyProfiles';
 import { formatDate, formatDateWithYear, CONTRACT_MULTIPLIER } from '../lib/utils';
 import {
@@ -38,6 +39,12 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
   const [pickedCandidate, setPickedCandidate] = useState<ChainOption | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const didAutoPickCandidate = useRef(false);
+  const didAutoPriceClose = useRef(false);
+
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const legExpired = Boolean(leg?.expiration && leg.expiration < today);
 
   const shortQuery = useChainCandidates(isOpen && isPMCCShortRoll && position.ticker ? {
     ticker: position.ticker,
@@ -49,13 +56,26 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
     maxDelta: profile.shortDeltaMax ?? 0.30,
     strikeRange: 0.25,
     minVolume: 0,
+    maxSpreadPct: 0.30,
   } : null);
+
+  const currentLegQuote = useOptionQuote(
+    isOpen && isPMCCShortRoll && leg && !legExpired
+      ? {
+          ticker: position.ticker,
+          expiration: leg.expiration,
+          strike: leg.strike,
+          type: leg.type,
+        }
+      : null,
+  );
 
   const rollCandidates = useMemo(() => {
     if (!isPMCCShortRoll || !leg) return [];
     return buildPMCCRollShortCandidates(shortQuery.data ?? [], {
       leapStrike: longLeg?.strike ?? 0,
       currentShortStrike: leg.strike,
+      currentShortExpiration: leg.expiration,
       targetDelta: 0.25,
     }).slice(0, 5);
   }, [isPMCCShortRoll, leg, longLeg, shortQuery.data]);
@@ -63,9 +83,67 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
   const applyCandidate = (opt: ChainOption) => {
     setNewExpiration(opt.expiration);
     setNewStrike(String(opt.strike));
-    setNewFill(opt.price.toFixed(2));
+    const sellPrice = opt.liquidity.bid > 0 ? opt.liquidity.bid : opt.price;
+    setNewFill(sellPrice.toFixed(2));
     setPickedCandidate(opt);
   };
+
+  useEffect(() => {
+    if (!isOpen) {
+      didAutoPickCandidate.current = false;
+      setNewExpiration('');
+      setNewStrike('');
+      setNewFill('');
+      setPickedCandidate(null);
+      return;
+    }
+    const recommended = rollCandidates[0];
+    if (!recommended || didAutoPickCandidate.current) return;
+    if (newExpiration || newStrike || newFill) {
+      didAutoPickCandidate.current = true;
+      return;
+    }
+    const sellPrice = recommended.liquidity.bid > 0
+      ? recommended.liquidity.bid
+      : recommended.price;
+    setNewExpiration(recommended.expiration);
+    setNewStrike(String(recommended.strike));
+    setNewFill(sellPrice.toFixed(2));
+    setPickedCandidate(recommended);
+    didAutoPickCandidate.current = true;
+  }, [isOpen, newExpiration, newFill, newStrike, rollCandidates]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      didAutoPriceClose.current = false;
+      setCloseFill('');
+      return;
+    }
+    if (!isPMCCShortRoll || didAutoPriceClose.current) return;
+    if (closeFill) {
+      didAutoPriceClose.current = true;
+      return;
+    }
+
+    if (legExpired && position.is_paper) {
+      setCloseFill('0.00');
+      didAutoPriceClose.current = true;
+      return;
+    }
+
+    const buybackPrice = currentLegQuote.data?.ask ?? currentLegQuote.data?.price;
+    if (buybackPrice != null && Number.isFinite(buybackPrice)) {
+      setCloseFill(buybackPrice.toFixed(2));
+      didAutoPriceClose.current = true;
+    }
+  }, [
+    closeFill,
+    currentLegQuote.data,
+    isOpen,
+    isPMCCShortRoll,
+    legExpired,
+    position.is_paper,
+  ]);
 
   if (!isOpen) return null;
 
@@ -170,6 +248,7 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
             </div>
             <label className="label-mono mb-1 block">{closeFieldLabel}</label>
             <input
+              aria-label={closeFieldLabel}
               type="number"
               step="0.01"
               min="0"
@@ -179,6 +258,21 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
               placeholder="per share"
               autoFocus
             />
+            {isPMCCShortRoll && currentLegQuote.isFetching && (
+              <p className="mt-1.5 text-[10px] text-phosphor-dim font-mono">Loading live buyback ask…</p>
+            )}
+            {isPMCCShortRoll && !legExpired && currentLegQuote.data && (
+              <p className="mt-1.5 text-[10px] text-text-tertiary font-mono">Live ask auto-filled. Replace it with your broker fill before confirming.</p>
+            )}
+            {isPMCCShortRoll && !legExpired && currentLegQuote.isError && (
+              <p className="mt-1.5 text-[10px] text-phosphor-amber font-mono">Live buyback quote unavailable — enter your broker fill.</p>
+            )}
+            {isPMCCShortRoll && legExpired && position.is_paper && (
+              <p className="mt-1.5 text-[10px] text-phosphor-amber font-mono">Expired paper short defaults to $0.00. Confirm it expired worthless before rolling.</p>
+            )}
+            {isPMCCShortRoll && legExpired && !position.is_paper && (
+              <p className="mt-1.5 text-[10px] text-phosphor-amber font-mono">Expired live short cannot be quoted. Enter the broker settlement or assignment cost.</p>
+            )}
             {cyclePnL != null && (
               <div className="mt-2 text-[11px] font-mono text-text-tertiary">
                 Cycle realized: <span className={cyclePnL >= 0 ? 'text-phosphor-green' : 'text-phosphor-red'}>
@@ -204,8 +298,13 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
                 {rollCandidates.length > 0 && (
                   <div className="space-y-1 mb-3">
                     <div className="flex items-center gap-1 text-[10px] text-text-tertiary font-mono uppercase tracking-wider">
-                      <Sparkles size={10} className="text-phosphor-green" /> suggested roll shorts (K &gt; ${leg.strike})
+                      <Sparkles size={10} className="text-phosphor-green" /> recommended short auto-selected
                     </div>
+                    {rollCandidates[0].strike <= leg.strike && (
+                      <p className="text-[10px] text-phosphor-amber font-mono">
+                        No higher strike was returned in-band, so this is the best later-dated reset above the LEAP strike.
+                      </p>
+                    )}
                     {rollCandidates.map(opt => {
                       const isPicked = pickedCandidate?.strike === opt.strike && pickedCandidate?.expiration === opt.expiration;
                       return (
@@ -219,7 +318,9 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
                             <span className="font-mono text-text-primary tabular-nums">
                               ${opt.strike} · {formatDate(opt.expiration)} ({opt.dte}d)
                             </span>
-                            <span className="font-mono text-phosphor-green tabular-nums">δ{Math.abs(opt.greeks.delta).toFixed(2)} · ${opt.price.toFixed(2)}</span>
+                            <span className="font-mono text-phosphor-green tabular-nums">
+                              δ{Math.abs(opt.greeks.delta).toFixed(2)} · bid ${(opt.liquidity.bid > 0 ? opt.liquidity.bid : opt.price).toFixed(2)}
+                            </span>
                           </div>
                         </button>
                       );
@@ -238,6 +339,7 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
               <div>
                 <label className="label-mono mb-1 block">Expiration</label>
                 <input
+                  aria-label="New expiration"
                   type="date"
                   value={newExpiration}
                   onChange={e => {
@@ -250,6 +352,7 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
               <div>
                 <label className="label-mono mb-1 block">Strike</label>
                 <input
+                  aria-label="New strike"
                   type="number"
                   step="0.5"
                   value={newStrike}
@@ -264,6 +367,7 @@ export const LegRollModal: React.FC<Props> = ({ position, legIndex, isOpen, onCl
             </div>
             <label className="label-mono mb-1 block">{openFieldLabel}</label>
             <input
+              aria-label={openFieldLabel}
               type="number"
               step="0.01"
               min="0"
