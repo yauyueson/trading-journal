@@ -88,6 +88,96 @@ describe('StrategyActionCard — open-position P&L without live marks', () => {
   });
 });
 
+describe('StrategyActionCard — live spread price from leg marks', () => {
+  // Real active BCD (2026-08-12): long 724C @18.50, short 757C @5.20 → entry net
+  // debit 13.30. Live mids: long 3.45, short 0.01 → current net 3.44.
+  const bcdPosition: Position = {
+    ...basePosition,
+    setup: 'BCD',
+    strategy_type: 'bcd',
+    expiration: '2026-08-14',
+    legs: [
+      { strike: 724, type: 'Call', side: 'long', expiration: '2026-08-14', openedDebit: 18.5, cycleQty: 1 },
+      { strike: 757, type: 'Call', side: 'short', expiration: '2026-08-14', openedCredit: 5.2, cycleQty: 1 },
+    ],
+  };
+  const bcdStatus: StrategyStatus = {
+    strategy: 'bcd',
+    profile: STRATEGY_PROFILES.bcd,
+    openPosition: bcdPosition,
+    state: 'open',
+    openSinceDate: '2026-07-15',
+  };
+
+  it('BCD: shows entry → now net debit and the live unrealized P&L', () => {
+    render(
+      <StrategyActionCard
+        status={bcdStatus}
+        positionTransactions={[]}
+        legMarks={[3.45, 0.01]}
+        onEnter={() => {}}
+      />,
+    );
+
+    // (3.45 − 18.50)·100 + (5.20 − 0.01)·100 = −1505 + 519 = −986.
+    expect(screen.getByText(/−\$986\.00/)).toBeInTheDocument();
+    expect(screen.getByText('$13.30')).toBeInTheDocument();
+    expect(screen.getByText('$3.44')).toBeInTheDocument();
+    expect(screen.queryByText(/P&L —/)).toBeNull();
+  });
+
+  it('BCD: falls back to "P&L —" when an open leg has no mark', () => {
+    render(
+      <StrategyActionCard
+        status={bcdStatus}
+        positionTransactions={[]}
+        legMarks={[3.45, undefined]}
+        onEnter={() => {}}
+      />,
+    );
+
+    expect(screen.getByText(/P&L —/)).toBeInTheDocument();
+    // Entry is known without marks, so it still shows — only "now" is unknown.
+    expect(screen.getByText('$13.30')).toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  it('PMCC: shows live unrealized alongside realized roll cycles', () => {
+    const position: Position = {
+      ...basePosition,
+      strategy_type: 'pmcc',
+      legs: [
+        { strike: 630, type: 'Call', side: 'long', expiration: '2027-01-15', openedDebit: 105.28, cycleQty: 1 },
+        { strike: 732, type: 'Call', side: 'short', expiration: '2026-08-31', openedCredit: 6.46, cycleQty: 1 },
+        { strike: 725, type: 'Call', side: 'short', expiration: '2026-06-12', openedCredit: 6.1, closedCost: 4.35, closedAt: '2026-06-05T18:00:00Z', cycleQty: 1 },
+      ],
+    };
+    const status: StrategyStatus = {
+      strategy: 'pmcc',
+      profile: STRATEGY_PROFILES.pmcc,
+      openPosition: position,
+      state: 'open',
+      openSinceDate: '2026-05-07',
+    };
+
+    render(
+      <StrategyActionCard
+        status={status}
+        positionTransactions={[]}
+        legMarks={[116.14, 8.06, undefined]}
+        onEnter={() => {}}
+      />,
+    );
+
+    // Unrealized: (116.14 − 105.28)·100 + (6.46 − 8.06)·100 = 1086 − 160 = 926.
+    expect(screen.getByText(/\+\$926\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/\+\$175\.00 realized/)).toBeInTheDocument();
+    // Entry net 105.28 − 6.46 = 98.82; now 116.14 − 8.06 = 108.08.
+    expect(screen.getByText('$98.82')).toBeInTheDocument();
+    expect(screen.getByText('$108.08')).toBeInTheDocument();
+  });
+});
+
 describe('StrategyActionCard — exit-proximity chip', () => {
   function bcdStatus(expDays: number, currentPrice: number): StrategyStatus {
     return {

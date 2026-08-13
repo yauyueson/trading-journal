@@ -2,14 +2,20 @@ import React from 'react';
 import { ChevronRight } from 'lucide-react';
 import type { StrategyStatus } from '../hooks/useStrategyStatus';
 import type { Transaction } from '../lib/types';
-import { formatCurrency, getStrategyKind } from '../lib/utils';
-import { computeLivePnL, computeLegBasedPnL } from '../lib/legPnL';
+import { formatCurrency, formatPrice, getStrategyKind } from '../lib/utils';
+import { computeLivePnL, computeLegBasedPnL, computeDiagonalHeadline, computeNetSpreadPrice } from '../lib/legPnL';
 import { evaluateExitProximity } from '../lib/exitProximity';
 
 interface Props {
   status: StrategyStatus;
   /** Transactions for the open position only (already filtered). */
   positionTransactions: Transaction[];
+  /**
+   * Live per-share marks indexed to match `openPosition.legs` (closed legs
+   * undefined). Omit — or leave an open leg undefined — and the card falls back
+   * to its mark-free view rather than fabricating a P&L.
+   */
+  legMarks?: Array<number | undefined>;
   onEnter: () => void;
   onManage?: () => void;
 }
@@ -38,24 +44,36 @@ const PILL_BY_STATE = {
 export const StrategyActionCard: React.FC<Props> = ({
   status,
   positionTransactions,
+  legMarks,
   onEnter,
   onManage,
 }) => {
   const { strategy, profile, openPosition, state } = status;
   const ticker = profile.tickers?.[0] ?? 'QQQ';
 
-  // This card has no live option marks. A credit strategy banks premium up front,
-  // so its cash-flow figure is a meaningful P&L without marks. A debit/diagonal
-  // open position CANNOT be marked-to-market here — computeLivePnL would surface
-  // the unrecovered entry debit as a phantom loss (e.g. an open PMCC showing
-  // −$9.8K). For those we only show realized-to-date (closed roll cycles) and
-  // render the unmarkable total as "—", consistent with PositionCard.
+  // A credit strategy banks premium up front, so its cash-flow figure is a
+  // meaningful P&L with or without marks. A debit/diagonal open position can
+  // only be marked-to-market when `legMarks` covers every open leg —
+  // computeLivePnL would otherwise surface the unrecovered entry debit as a
+  // phantom loss (e.g. an open PMCC showing −$9.8K). Without complete marks we
+  // fall back to realized-to-date and render the total as "—", as PositionCard does.
   const kind = openPosition ? getStrategyKind(openPosition) : null;
   const cashFlowIsPnL = kind === 'credit';
   const livePnl = openPosition && cashFlowIsPnL
     ? computeLivePnL(openPosition, positionTransactions, true)
     : 0;
   const realizedToDate = openPosition ? (computeLegBasedPnL(openPosition)?.realized ?? 0) : 0;
+
+  // Leg-mark view: net unrealized across the open legs, plus the position-level
+  // spread price (entry → now). `known` is false the moment any open leg lacks
+  // a mark, which is what keeps the fallback above honest.
+  const headline = openPosition && !cashFlowIsPnL
+    ? computeDiagonalHeadline(openPosition, legMarks ?? [])
+    : null;
+  const markedUnrealized = headline?.known ? headline.unrealized : null;
+  const netSpread = openPosition && !cashFlowIsPnL
+    ? computeNetSpreadPrice(openPosition, legMarks ?? [])
+    : null;
 
   // Exit-proximity heads-up. The summary has no live marks, so this is the
   // reliable-from-the-row view: exact time stop (DTE) + last-known-price TP for
@@ -83,6 +101,12 @@ export const StrategyActionCard: React.FC<Props> = ({
     if (cashFlowIsPnL) {
       const pnlSign = livePnl >= 0 ? '+' : '−';
       contextLine = `Open since ${date} · ${pnlSign}${formatCurrency(Math.abs(livePnl))}`;
+    } else if (markedUnrealized != null) {
+      const sign = markedUnrealized >= 0 ? '+' : '−';
+      const realizedSuffix = realizedToDate !== 0
+        ? ` · ${realizedToDate > 0 ? '+' : '−'}${formatCurrency(Math.abs(realizedToDate))} realized`
+        : '';
+      contextLine = `Open since ${date} · ${sign}${formatCurrency(Math.abs(markedUnrealized))}${realizedSuffix}`;
     } else if (realizedToDate !== 0) {
       const sign = realizedToDate > 0 ? '+' : '−';
       contextLine = `Open since ${date} · ${sign}${formatCurrency(Math.abs(realizedToDate))} realized`;
@@ -119,7 +143,22 @@ export const StrategyActionCard: React.FC<Props> = ({
         </div>
       )}
 
-      <p className="text-text-secondary text-xs font-mono mb-3 min-h-[18px]">{contextLine}</p>
+      <p className="text-text-secondary text-xs font-mono mb-2 min-h-[18px]">{contextLine}</p>
+
+      {netSpread?.entry != null && (
+        <p className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider mb-3">
+          <span className="text-text-tertiary">Net debit</span>
+          <span className="text-text-primary font-bold">{formatPrice(netSpread.entry)}</span>
+          <span className="text-text-tertiary" aria-hidden="true">→</span>
+          <span className={netSpread.current == null
+            ? 'text-text-tertiary'
+            : netSpread.current >= netSpread.entry
+              ? 'text-phosphor-green text-glow-green font-bold'
+              : 'text-phosphor-red text-glow-red font-bold'}>
+            {netSpread.current != null ? formatPrice(netSpread.current) : '—'}
+          </span>
+        </p>
+      )}
 
       <p className="text-text-tertiary text-[10px] font-mono uppercase tracking-wider mb-3 truncate">
         {profile.subtitle}

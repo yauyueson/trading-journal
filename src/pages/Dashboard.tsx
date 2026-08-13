@@ -15,6 +15,8 @@ import { PMCCEntryModal } from '../components/PMCCEntryModal';
 import type { Position, PositionAction as PositionActionType } from '../lib/types';
 import { computePositionPnL, getStrategyKind, groupTransactionsByPositionId } from '../lib/utils';
 import { computeActivePMCCRealizedPnL } from '../lib/legPnL';
+import { openLegRequests, legMarksFromQuotes } from '../lib/optionMarks';
+import { useOptionPrices } from '../hooks/useOptionPrices';
 import { ACTIVE_STRATEGIES, STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
 import { CHART_COLORS, CHART_FONT_MONO, axisProps } from '../lib/chartTheme';
 
@@ -32,6 +34,28 @@ export function DashboardPage() {
   const [entryModal, setEntryModal] = useState<StrategyType | null>(null);
 
   useAutoCloseStuckPositions(positions, transactions);
+
+  // Live marks for the strategy summary cards. Without these a BCD/PMCC summary
+  // can only show realized roll cycles — the open structure has no mark-to-market.
+  // Open legs only: a rolled-off short expires out of the chain and 404s.
+  const strategyLegsToFetch = useMemo(
+    () => strategyStatuses.flatMap(s => (s.openPosition ? openLegRequests(s.openPosition) : [])),
+    [strategyStatuses],
+  );
+  const strategyQuotes = useOptionPrices(strategyLegsToFetch, strategyLegsToFetch.length > 0);
+  const legMarksByPosition = useMemo(() => {
+    const quotes = strategyQuotes.data ?? [];
+    const byPosition: Record<string, Array<number | undefined>> = {};
+    for (const status of strategyStatuses) {
+      const position = status.openPosition;
+      if (!position) continue;
+      byPosition[position.id] = legMarksFromQuotes(
+        position,
+        quotes.filter(q => q.id === position.id),
+      );
+    }
+    return byPosition;
+  }, [strategyQuotes.data, strategyStatuses]);
 
   const activePositions = useMemo(
     () => positions
@@ -145,6 +169,7 @@ export function DashboardPage() {
                 positionTransactions={
                   status.openPosition ? transactionsByPosition[status.openPosition.id] ?? [] : []
                 }
+                legMarks={status.openPosition ? legMarksByPosition[status.openPosition.id] : undefined}
                 onEnter={() => setEntryModal(status.strategy)}
               />
             </motion.div>
