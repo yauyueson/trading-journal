@@ -2,62 +2,69 @@
 
 ## Engines
 
-| Engine | Role | Config |
-|--------|------|--------|
-| Gemini 3.1 Pro | The Analyst — thinks, plans, reviews | GEMINI.md |
-| Claude Opus 4.6 | The Executor — builds, debugs, tests | CLAUDE.md |
+| Engine | Role | Config | Status |
+|--------|------|--------|--------|
+| Claude Opus 4.7 | Primary Builder + Planner — designs, implements, debugs, tests; owns the `.handoff/` workflow | CLAUDE.md | Active |
+| Codex (GPT-5) | Adversarial Reviewer + Rescue — second-pass review, cross-checks, fresh-eyes diagnosis, alternative implementations | Codex session + repo docs | Active |
+| Gemini 3.1 Pro | The Analyst — thinks, plans, reviews long docs, native web grounding | GEMINI.md | **Paused (2026-05-08)** — may be revived; routing language below preserved for that case |
 
 ## Task Routing
 
-**Simple rule: "Am I thinking or building?"**
+**Simple rule: "Am I building, or having my work checked?"**
 
-- Thinking -> Gemini
-- Building -> Claude
-- Both -> Gemini drafts, Claude executes
+- Building (plan + implement) -> Claude
+- Adversarial review, second opinion, rescue when stuck -> Codex
+- Claude/Codex disagree after one round-trip -> human tiebreaks
 
-Full routing table:
+Full routing table (active engines):
 
 | Task | Engine | Rationale |
 |------|--------|-----------|
-| Explore an idea | Gemini | Best reasoning, cheap for iteration |
-| Analyze code / "what does X do" | Gemini | 1M context, strong analysis |
-| Design architecture | Gemini first, Claude validates | Gemini drafts, Claude reviews for feasibility |
-| Write a spec or plan | Gemini | Cheaper for iterative drafting |
-| Code review (first pass) | Gemini | Catches logic issues cheap |
-| Code review (final) | Claude | Catches subtle quality issues |
-| Implement a feature | Claude | Best execution quality |
-| Multi-file refactor | Claude | Best at cross-file changes |
-| Fix a bug | Claude | Best autonomous debug loops |
-| Write tests | Claude | Stronger at edge cases |
-| Quick edit / rename | Gemini (inline) | Fast, free, already there |
-| Research a library or API | Gemini | Native Google Search grounding |
+| Explore an idea | Claude | Long context + repo skills/memory; Codex as second opinion if needed |
+| Analyze code / "what does X do" | Claude | 1M context, strong cross-file analysis |
+| Design architecture | Claude drafts, Codex adversarial-reviews | Single primary planner avoids handoff churn; Codex stress-tests feasibility |
+| Write a spec or plan | Claude | Plans live in `.handoff/current.md` and feed directly into Claude's build loop |
+| Code review (first pass) | Claude (self-review per `verification-before-completion`) | No cheap-iteration analyst until Gemini revives — replace with explicit verify step |
+| Code review (final, adversarial) | Codex | Different model family = real fresh eyes; see `feedback_codex-review-discipline.md` |
+| Implement a feature | Claude | Tool integration (Claude Code, MCP, agents, skills) is here |
+| Multi-file refactor | Claude | Cross-file edits with parity-test discipline (e.g., `oss-core.ts` ↔ `scoring.cjs`) |
+| Fix a bug | Claude primary; Codex via `codex:codex-rescue` if stuck | Rescue agent exists for exactly this case |
+| Write tests | Claude | Edge-case-focused implementation + verification; Codex reviews adversarially |
+| Quick edit / rename | Claude (inline) | — |
+| Research a library or API | Claude with `documentation-lookup` / Context7; Codex for second opinion | Lost Gemini's native web grounding; use MCP-backed docs lookup instead |
+| Adoption-affecting code (sealer, gates, parity tests) | Claude implements, Codex adversarial-reviews **before merge** | Research-cannot-approve-its-own-model still holds; Codex is the cross-check |
+
+In shared handoffs, Claude and Codex use the same role-lens vocabulary from `docs/08_AGENT_ROLES_AND_KNOWLEDGE_BASE.md` and the same guardrails.
 
 ## Role Lens Layer
 
 The engine assignment above answers "which model should do the work?" The role lens answers "which responsibility is being exercised?" Use `docs/08_AGENT_ROLES_AND_KNOWLEDGE_BASE.md` as the source of truth for role responsibilities, knowledge bases, decision rights, and guardrails.
 
-Default mapping:
+Default mapping (active 2-engine team):
 
-| Work Type | Primary Role Lens | Common Engine |
+| Work Type | Primary Role Lens | Engine Assignment |
 |---|---|---|
-| Strategy hypothesis, pre-registration, factor idea | Quant Research Agent | Gemini first |
-| Backtest skepticism, leakage, overfit, adoption challenge | Research Validation / Model Risk Agent | Gemini first, Claude final for code-level checks |
-| Simulator, scoring, API, test implementation | Quant Dev / Simulation Engineer Agent | Claude |
-| ORATS/Tiingo/Supabase freshness, coverage, lineage | Data Engineering / Data Steward Agent | Gemini for analysis, Claude for fixes |
-| Live entry, roll, no-trade ticket | Trader / Execution Agent | Gemini drafts, Claude validates UI/data path if needed |
-| Position size, drawdown, concentration, Greeks | Risk Manager Agent | Gemini for analysis, Claude for implementation |
-| Workflow design and decision states | Product / UX Discipline Agent | Gemini drafts, Claude implements |
+| Strategy hypothesis, pre-registration, factor idea | Quant Research Agent | Claude drafts; **Codex adversarial-reviews before runner starts** |
+| Backtest skepticism, leakage, overfit, adoption challenge | Research Validation / Model Risk Agent | Codex primary (must be a different engine than the one that built the strategy) |
+| Simulator, scoring, API, test implementation | Quant Dev / Simulation Engineer Agent | Claude; Codex reviews parity-critical code (`oss-core.ts` ↔ `scoring.cjs`, sealer, adoption gates) |
+| ORATS/Tiingo/Supabase freshness, coverage, lineage | Data Engineering / Data Steward Agent | Claude |
+| Live entry, roll, no-trade ticket | Trader / Execution Agent | Claude validates UI/data path; **human confirms any real-money action** |
+| Position size, drawdown, concentration, Greeks | Risk Manager Agent | Claude implements; Codex reviews; **human signs off on limit changes** |
+| Workflow design and decision states | Product / UX Discipline Agent | Claude |
 | React/Tailwind/Query work | Frontend / App Engineer Agent | Claude |
-| Vercel, cron, env, CI, RLS, production readiness | Platform / DevOps / Security Agent | Claude |
-| Trade review, Academy, behavioral feedback | Journal / Education Agent | Gemini drafts, Claude implements |
-| Strategy adoption and capital allocation | Portfolio Governor / CIO Agent | Human decision, with Gemini/Claude support |
+| Vercel, cron, env, CI, RLS, production readiness | Platform / DevOps / Security Agent | Claude; Codex reviews secrets/permission changes |
+| Trade review, Academy, behavioral feedback | Journal / Education Agent | Claude |
+| Strategy adoption and capital allocation | Portfolio Governor / CIO Agent | **Human decision**, with Claude + Codex support |
+
+The "different engine reviews adoption-affecting code" rule replaces what used to be Gemini's first-pass review lane. Without it, the research-cannot-approve-its-own-model guardrail collapses to self-review.
 
 Guardrails:
-- Research cannot approve its own model.
+- Research cannot approve its own model — **enforced now by routing the adversarial review to the engine that did *not* implement the change** (Claude builds → Codex reviews; if Codex rescued/built → Claude reviews).
 - Risk can veto execution.
 - Data quality issues block performance claims.
 - Human confirmation is required for real-money orders.
 - Trade-affecting UI changes need Product / UX plus Risk review.
+- **Human is the sole tiebreaker** when Claude and Codex disagree (no third engine to mediate while Gemini is paused).
 
 ## Handoff Format
 
@@ -67,8 +74,8 @@ Active task lives in `.handoff/current.md`. Schema:
 ---
 task: <short description>
 stage: thinking | review | building | blocked | done
-owner: gemini | claude
-from: gemini | claude | human
+owner: gemini | claude | codex
+from: gemini | claude | codex | human
 timestamp: YYYY-MM-DDTHH:MM:SS (local time)
 ---
 
@@ -166,7 +173,7 @@ Options trading journal: React 18 + Vite 5 + React Router v6 + React Query v5 fr
 
 Critical rules:
 - `src/lib/oss-core.ts` and `lib/_shared/scoring.cjs` MUST stay in sync (307 parity tests)
-- All 683 existing tests must keep passing after any change
+- The full automated test suite must keep passing after any change; run `npm run test` for the current suite size
 - Data providers: ORATS (options) + Tiingo (stock candles + IEX intraday for 130M)
 - Crons: most triggered via cronjobs.org. Exception: `cron-iv` uses Vercel cron (22:00 UTC weekdays)
 - Short-term strategy uses 130M timeframe (not 4H). Scoring overhaul phase 1 complete (VRP, orFcst20d).

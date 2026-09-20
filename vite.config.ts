@@ -98,241 +98,84 @@ function localApiPlugin(): Plugin {
   return {
     name: 'local-api',
     configureServer(server) {
-      // Handle /api/option-price
-      server.middlewares.use('/api/option-price', async (req, res) => {
+      // Unified handler for /api/option-price, /api/option-prices, /api/option-prices-bulk
+      // Thin shim → calls the REAL api/option-prices.js handler (supporting both GET single & POST bulk).
+      const handleOptionPricesShim = async (req: any, res: any) => {
         const url = new URL(req.url || '', `http://${req.headers.host}`);
-        const ticker = url.searchParams.get('ticker');
-        const expiration = url.searchParams.get('expiration');
-        const strike = url.searchParams.get('strike');
-        const type = url.searchParams.get('type');
 
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-        if (!ticker || !expiration || !strike || !type) {
-          res.statusCode = 400;
-          res.end(JSON.stringify({ error: 'Missing parameters' }));
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 200;
+          res.end();
           return;
         }
 
         try {
-          const upperTicker = ticker.toUpperCase();
-          const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
-
-          const response = await fetch(cboeUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Referer': 'https://www.cboe.com/',
-              'Origin': 'https://www.cboe.com'
+          // Read request body for POST/PUT
+          let body: any = {};
+          if (req.method === 'POST' || req.method === 'PUT') {
+            const chunks: Buffer[] = [];
+            for await (const chunk of req) {
+              chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
             }
-          });
-
-          if (!response.ok) {
-            console.error(`❌ CBOE API Error [${upperTicker}]: ${response.status} ${response.statusText}`);
-            res.statusCode = response.status;
-            res.end(JSON.stringify({ error: 'CBOE API error', status: response.status }));
-            return;
-          }
-
-          const data = await response.json();
-
-          if (!data.data || !data.data.options) {
-            res.statusCode = 404;
-            res.end(JSON.stringify({ error: 'No options data found' }));
-            return;
-          }
-
-          // Generate OCC symbol
-          const paddedSymbol = upperTicker.padEnd(6, ' ');
-          const parts = expiration.split('-');
-          const yy = parts[0].slice(2);
-          const mm = parts[1].padStart(2, '0');
-          const dd = parts[2].padStart(2, '0');
-          const dateStr = `${yy}${mm}${dd}`;
-          const typeCode = (type.toLowerCase().includes('call') || type.toLowerCase() === 'c') ? 'C' : 'P';
-          const strikeNum = Math.round(parseFloat(strike) * 1000);
-          const strikeStr = strikeNum.toString().padStart(8, '0');
-          const cboeSymbol = `${paddedSymbol}${dateStr}${typeCode}${strikeStr}`.replace(/\s/g, '');
-
-          // Find matching option
-          const options = data.data.options;
-          let targetOption = options.find((opt: any) => opt.option === cboeSymbol);
-
-          // Fuzzy match: 严格按 OCC 第 13 位 (index 12) 匹配 C/P，避免 CALL 请求匹配到 PUT
-          if (!targetOption) {
-            const expDateStr = expiration.replace(/-/g, '').slice(2);
-            targetOption = options.find((opt: any) => {
-              if (!opt.option) return false;
-              const sym = opt.option.replace(/\s/g, '');
-              return sym.includes(expDateStr) && sym.charAt(12) === typeCode && sym.endsWith(strikeStr);
-            });
-          }
-
-          if (!targetOption) {
-            res.statusCode = 404;
-            res.end(JSON.stringify({ error: 'Option contract not found', symbol: cboeSymbol }));
-            return;
-          }
-
-          // Format response
-          let price = targetOption.last_trade_price;
-          let priceSource = 'last';
-          if (targetOption.bid > 0 && targetOption.ask > 0) {
-            price = (targetOption.bid + targetOption.ask) / 2;
-            priceSource = 'mid';
-          }
-
-          // Calculate Score (Baselines)
-          // Calculate Score (Baselines)
-          const currentStockPrice = data.data.current_price;
-          let score = 0;
-          let metrics = {};
-
-          // Calculate IV Ratio (4-Card Method) - Copied from Scanner
-          const getATMIV = (targetDTE: number): number | null => {
-            const chain = data.data.options;
-            const now = new Date();
-            now.setHours(0, 0, 0, 0);
-
-            // Helper to get DTE
-            const getDte = (opt: any) => {
-              const symbol = opt.option || '';
-              const dateMatch = symbol.match(/(\d{6})[CP]/);
-              if (dateMatch) {
-                const dateStr = dateMatch[1];
-                const yy = parseInt(dateStr.slice(0, 2));
-                const mm = parseInt(dateStr.slice(2, 4));
-                const dd = parseInt(dateStr.slice(4, 6));
-                const expDate = new Date(2000 + yy, mm - 1, dd);
-                return Math.ceil((expDate.getTime() - now.getTime()) / 86400000);
-              }
-              return 30;
-            };
-
-            const candidates = chain.filter((opt: any) => {
-              const dte = getDte(opt);
-              const type = opt.option?.includes('C') && opt.option?.match(/\d{6}C/) ? 'Call' : 'Put';
-              return type === 'Call' && Math.abs(dte - targetDTE) <= 10;
-            });
-
-            if (candidates.length < 2) return null;
-
-            // Parse strikes
-            const candidatesWithStrike = candidates.map((opt: any) => {
-              const strikeMatch = opt.option.match(/[CP](\d{8})$/);
-              const strike = strikeMatch ? parseInt(strikeMatch[1]) / 1000 : 0;
-              return { ...opt, strike };
-            });
-
-            candidatesWithStrike.sort((a: any, b: any) => a.strike - b.strike);
-
-            for (let i = 0; i < candidatesWithStrike.length - 1; i++) {
-              if (candidatesWithStrike[i].strike <= currentStockPrice && candidatesWithStrike[i + 1].strike >= currentStockPrice) {
-                return (candidatesWithStrike[i].iv + candidatesWithStrike[i + 1].iv) / 2;
+            const rawBody = Buffer.concat(chunks).toString('utf-8');
+            if (rawBody.trim()) {
+              try {
+                body = JSON.parse(rawBody);
+              } catch (e) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+                return;
               }
             }
-            return candidatesWithStrike[0].iv;
+          }
+
+          const dynamicImport = new Function('path', 'return import(path)') as (p: string) => Promise<any>;
+          const handlerPath = new URL('./api/option-prices.js', import.meta.url).href;
+          const mod = await dynamicImport(`${handlerPath}?_t=${Date.now()}`).catch(
+            () => dynamicImport(handlerPath)
+          );
+          const handler = (mod as any).default ?? mod;
+
+          const mockReq: any = {
+            method: req.method || 'GET',
+            query: Object.fromEntries(url.searchParams.entries()),
+            body,
+            headers: req.headers,
           };
 
-          const iv30 = getATMIV(30);
-          const iv90 = getATMIV(90);
-          const ivRatio = (iv30 && iv90 && iv90 > 0) ? iv30 / iv90 : 1.0;
+          let statusCode = 200;
+          const mockRes: any = {
+            setHeader: () => { },
+            status(code: number) { statusCode = code; return mockRes; },
+            json(bodyData: unknown) {
+              res.statusCode = statusCode;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(bodyData));
+              return mockRes;
+            },
+            end(bodyData?: string) {
+              res.statusCode = statusCode;
+              if (bodyData) res.end(bodyData); else res.end();
+              return mockRes;
+            },
+          };
 
-
-          if (targetOption.delta && targetOption.gamma && targetOption.theta && price > 0 && currentStockPrice > 0) {
-            // 1. Raw Metrics
-            const lambda = Math.abs(targetOption.delta) * (currentStockPrice / price);
-            const gammaEff = targetOption.gamma / price;
-            const thetaBurn = Math.abs(targetOption.theta) / price;
-
-            // 2. Normalize (using baselines from scoring.ts)
-            // Baselines: Lambda=8(std4), Gamma=0.02(std0.015), Theta=0.03(std0.02)
-            const zLambda = (lambda - 8) / 4;
-            const zGamma = (gammaEff - 0.02) / 0.015;
-            const zTheta = (thetaBurn - 0.03) / 0.02;
-
-            // 3. Modifiers
-            // const ivRatio = 1.0; // Replaced with calculated ivRatio above
-            const ivAdjustment = getIVAdjustment(ivRatio, 'long'); // Defaults to contango bonus approx
-            const deltaBonus = getDeltaBonus(targetOption.delta);
-            const thetaPenalty = getThetaPenalty(thetaBurn);
-
-            // 4. Calculate DTE for Context Awareness
-            const today = new Date();
-            const expDate = new Date(expiration);
-            const diffTime = expDate.getTime() - today.getTime();
-            const dte = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            // 5. Score Calculation with Context Awareness
-            // User Rule: Portfolio always checks DTE <= 5 for Day Trade Mode.
-            // Scanner checks DTE <= 5 ONLY if maxDte <= 14 (passed via query param context, or implicitly handled here? 
-            // Since this is the SINGLE option endpoint, we treat it as "Portfolio Mode" which matches User Rule 1).
-            const isDayTrade = dte <= 5;
-
-            let wLambda = 0.40;
-            let wGamma = 0.30;
-            let wTheta = 0.15;
-            let penaltyMultiplier = 1.0;
-
-            if (isDayTrade) {
-              // "Day Trade Mode" - Ignore time decay, focus on gamma sprint
-              wTheta = 0.05;      // Reduced from 0.15
-              wGamma = 0.50;      // Increased from 0.30
-              penaltyMultiplier = 0.2; // Significantly reduce the detailed "Theta Pain" penalty
-            }
-
-            const rawScore = (
-              wLambda * zLambda +
-              wGamma * zGamma -
-              wTheta * zTheta + // Note: zTheta is traditionally "bad", so we subtract it. Coefficient is smaller now.
-              0.15 * deltaBonus +
-              ivAdjustment -
-              (thetaPenalty * penaltyMultiplier)
-            );
-
-            score = normalizeScoreTo100(rawScore);
-
-            metrics = { lambda, gammaEff, thetaBurn, isDayTrade, ivRatio };
-          }
-
-          res.statusCode = 200;
-          res.end(JSON.stringify({
-            success: true,
-            symbol: cboeSymbol,
-            price: parseFloat(price?.toFixed(2) || '0'),
-            score,
-            metrics,
-            priceSource,
-            bid: targetOption.bid || null,
-            ask: targetOption.ask || null,
-            lastPrice: targetOption.last_trade_price || null,
-            iv: targetOption.iv || null,
-            delta: targetOption.delta || null,
-            gamma: targetOption.gamma || null,
-            theta: targetOption.theta || null,
-            vega: targetOption.vega || null,
-            rho: targetOption.rho || null,
-            volume: targetOption.volume || null,
-            openInterest: targetOption.open_interest || null,
-            underlyingPrice: data.data.current_price || null,
-            dataSource: 'CBOE',
-            timestamp: Date.now(),
-            // Debug: Show all available fields from CBOE
-            availableFields: Object.keys(targetOption),
-            rawGreeks: {
-              delta: targetOption.delta,
-              gamma: targetOption.gamma,
-              theta: targetOption.theta,
-              vega: targetOption.vega,
-              rho: targetOption.rho,
-              iv: targetOption.iv
-            }
-          }));
+          await handler(mockReq, mockRes);
         } catch (error: any) {
+          console.error('[vite-shim] option-prices error:', error.message);
           res.statusCode = 500;
           res.end(JSON.stringify({ error: 'Internal Server Error', message: error.message }));
         }
-      });
+      };
+
+      server.middlewares.use('/api/option-prices-bulk', handleOptionPricesShim);
+      server.middlewares.use('/api/option-prices', handleOptionPricesShim);
+      server.middlewares.use('/api/option-price', handleOptionPricesShim);
 
       // Handle /api/earnings
       server.middlewares.use('/api/earnings', async (req, res) => {

@@ -112,8 +112,10 @@ export default async function handler(req, res) {
       }
     }
 
-    if (dataSource === 'CBOE' || Object.keys(optionChains).length === 0) {
+    const needsCboe = dataSource === 'CBOE' || uniqueTickers.some(t => !optionChains[t] || optionChains[t].length === 0);
+    if (needsCboe) {
       await Promise.all(uniqueTickers.map(async function (ticker) {
+        if (optionChains[ticker] && optionChains[ticker].length > 0) return;
         try {
           const cboeUrl = 'https://cdn.cboe.com/api/global/delayed_quotes/options/' + ticker + '.json';
           const resp = await fetch(cboeUrl, {

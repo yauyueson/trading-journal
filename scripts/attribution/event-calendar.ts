@@ -1,13 +1,16 @@
 /**
  * Hardcoded FOMC + CPI release calendar 2018-01 through 2026-02.
+ * NFP_DATES is generated as the first Friday of each month (BLS Employment
+ * Situation default schedule); the helper below produces them deterministically.
  *
  * FOMC dates are the *decision day* (last day of two-day meeting, including
  * unscheduled meetings like the 2020 emergency cuts).
  *
  * CPI dates are U.S. BLS CPI-U release dates for the prior month's data.
  *
- * These are best-effort approximations from the FRB / BLS public schedules.
- * Treat ±1 trading day as the precision floor for proximity flags.
+ * NFP dates are the first Friday of the month. A handful of historical NFP
+ * releases moved by ±1 trading day (e.g. shutdown weeks); ±1 trading-day
+ * tolerance is the precision floor for all three series.
  */
 
 export const FOMC_DATES: string[] = [
@@ -67,6 +70,26 @@ export const CPI_DATES: string[] = [
   // 2026
   '2026-01-13', '2026-02-11',
 ];
+
+function firstFridayOfMonth(year: number, monthIdx0: number): string {
+  const d = new Date(Date.UTC(year, monthIdx0, 1));
+  const offset = (5 - d.getUTCDay() + 7) % 7;
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+function buildNfpDates(): string[] {
+  const out: string[] = [];
+  for (let y = 2018; y <= 2026; y++) {
+    for (let m = 0; m < 12; m++) {
+      if (y === 2026 && m > 4) break;
+      out.push(firstFridayOfMonth(y, m));
+    }
+  }
+  return out;
+}
+
+export const NFP_DATES: string[] = buildNfpDates();
 
 /**
  * Return absolute trading-day distance from `entryDate` to nearest event in

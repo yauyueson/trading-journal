@@ -196,39 +196,77 @@ async function handleORATS(legs, res) {
             }
         }
 
+        // If ORATS returned zero successful results, fall back to CBOE
+        const anySuccess = results.some(r => r.success);
+        if (!anySuccess) {
+            console.warn('[option-prices] ORATS yielded 0 matches. Falling back to CBOE...');
+            return await handleCBOE(legs, res);
+        }
+
         if (legs.length === 1) {
             return res.status(results[0].success ? 200 : 404).json(results[0]);
         }
         return res.status(200).json({ success: true, results, timestamp: Date.now() });
     } catch (error) {
-        console.error('[option-prices]', error);
-        return res.status(500).json({ error: 'Internal server error' });
+        console.warn('[option-prices] ORATS handler failed, falling back to CBOE. Error:', error.message);
+        return await handleCBOE(legs, res);
     }
 }
 
 async function handleCBOE(legs, res) {
-    // For CBOE, we still have to loop individually if it's bulk
-    const results = [];
-    for (const leg of legs) {
-        try {
-            const upperTicker = leg.ticker.toUpperCase();
-            const exp = normalizeExpiration(leg.expiration);
-            const occSymbol = generateOCCSymbol(upperTicker, exp, leg.type, leg.strike);
-            const cboeSymbol = occSymbol.replace(/\s/g, '');
+    // 1. Fetch CBOE quote files in parallel, cached once per unique ticker
+    const uniqueTickers = [...new Set(legs.map(l => (l.ticker || '').toUpperCase()).filter(Boolean))];
+    const cboeDataByTicker = new Map();
 
+    await Promise.all(uniqueTickers.map(async (upperTicker) => {
+        try {
             const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
             const response = await fetch(cboeUrl, {
                 headers: { 'User-Agent': 'Mozilla/5.0' }
             });
 
-            if (!response.ok) {
-                results.push({ ...leg, success: false, error: `CBOE Error ${response.status}` });
+            if (response.ok) {
+                const data = await response.json();
+                cboeDataByTicker.set(upperTicker, data);
+            } else {
+                console.warn(`[option-prices] CBOE HTTP ${response.status} for ${upperTicker}`);
+            }
+        } catch (e) {
+            console.warn(`[option-prices] CBOE fetch failed for ${upperTicker}:`, e.message);
+        }
+    }));
+
+    // 2. Resolve each leg against the fetched CBOE data
+    const results = [];
+    for (const leg of legs) {
+        try {
+            const upperTicker = (leg.ticker || '').toUpperCase();
+            const exp = normalizeExpiration(leg.expiration);
+            const occSymbol = generateOCCSymbol(upperTicker, exp, leg.type, leg.strike);
+            const cboeSymbol = occSymbol ? occSymbol.replace(/\s/g, '') : '';
+
+            const data = cboeDataByTicker.get(upperTicker);
+            if (!data || !data?.data?.options) {
+                results.push({ ...leg, success: false, error: `CBOE data unavailable for ${upperTicker}` });
                 continue;
             }
 
-            const data = await response.json();
-            const options = data?.data?.options || [];
-            const match = options.find(opt => opt.option === cboeSymbol);
+            const options = data.data.options || [];
+
+            // Primary: exact OCC symbol match
+            let match = cboeSymbol ? options.find(opt => opt.option === cboeSymbol) : null;
+
+            // Secondary: fuzzy match on expiration date + type + padded strike
+            if (!match && exp) {
+                const expDateStr = exp.replace(/-/g, '').slice(2);
+                const typeCode = (leg.type || '').toLowerCase().includes('put') ? 'P' : 'C';
+                const strikeStr = Math.round(parseFloat(leg.strike) * 1000).toString().padStart(8, '0');
+                match = options.find(o => {
+                    if (!o.option) return false;
+                    const sym = o.option.replace(/\s/g, '');
+                    return sym.includes(expDateStr) && sym.endsWith(`${typeCode}${strikeStr}`);
+                });
+            }
 
             if (match) {
                 let price = match.last_trade_price;
@@ -238,13 +276,12 @@ async function handleCBOE(legs, res) {
                     source = 'mid';
                 }
                 const underlyingPrice = data.data.current_price || 0;
-                // Compute DTE from expiration string (YYYYMMDD in OCC symbol)
-                const expStr = exp; // normalizeExpiration already applied
-                const dteDays = expStr ? Math.max(0, Math.round((new Date(expStr).getTime() - Date.now()) / 86400000)) : 30;
+                // Compute DTE from expiration string
+                const dteDays = exp ? Math.max(0, Math.round((new Date(exp).getTime() - Date.now()) / 86400000)) : 30;
                 results.push({
                     ...leg,
                     success: true,
-                    symbol: occSymbol,
+                    symbol: occSymbol || match.option,
                     price: parseFloat(price?.toFixed(2) || 0),
                     priceSource: source,
                     bid: match.bid,

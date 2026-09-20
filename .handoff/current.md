@@ -1,147 +1,50 @@
 ---
-task: Phase F1 — BCD QQQ wide (10-day emission, flat-gated) singleton adoption attempt (second post-F0 seal, v2 after Codex prose correction)
-stage: pre-reg
-owner: claude
-from: user
-timestamp: 2026-04-23T22:30:00Z
+task: Switch quote route back from ORATS to CBOE + fix portal quote access
+stage: done
+owner: user
+from: gemini
+timestamp: 2026-09-20T11:25:00-04:00
 ---
 
 ## Objective
 
-Seal bull call debit spread (BCD) QQQ "wide" structure — long δ 0.50,
-short δ 0.20, DTE 30-60, PT 50% — as the second Phase F1 adoption
-candidate under the post-F0 clean-slate attempt counter. Targets
-small-account feasibility ($2K starting capital, ~$200-300 per spread).
+Switch the portal quote route back to CBOE following expiration of the ORATS subscription. Fix quote failures in both local development (Vite dev server) and production (Vercel serverless API), optimize CBOE bulk quote fetching performance, and ensure graceful fallback across all option endpoints.
 
-This pre-reg references the Phase F0 boundary 2026-04-23T02:20:00Z UTC
-(declaration commit `0edb7f8`). Trials before that timestamp are
-excluded from the F0-effective attempt counter used in the
-deflatedSharpeMertens gate.
+## Context
 
-Residual informal priors (disclosure, not mechanical correction):
-- Pre-F0 Phase E10 + E11 established BCD-wide as a qualified PASS
-  (5 of 6 gates), failing only on dsrM under global N=106. Under F0,
-  the same row would clear 6/6.
-- The F0 exploration sweep (2026-04-23) tested 17 BCD variants. 9
-  cleared adoption under F0-effective N-at-seal-time. This pre-reg
-  is drawn from that sweep — the "wide" config + 10-day cadence
-  combination is influenced by prior peeking. The F0 reset does not
-  claim a clean epistemic slate for this candidate.
-- Orthogonal null test (`strategy-bcd-qqq-random.ts`,
-  `strategy-bcd-qqq-nosignal.ts`) established that the EMA34 entry
-  filter used in E10/E11 contributes no timing alpha. The BCD edge is
-  structural (bull call debit payoff during QQQ positive-drift
-  regime), not signal-driven. This pre-reg drops EMA34 in favor of
-  fixed 10-day cadence to avoid carrying cosmetic complexity into the
-  live config.
+- **ORATS Subscription Status**: ORATS API calls return HTTP 403 Forbidden (`User is not authorized to access this resource`).
+- **CBOE API Status**: CBOE delayed quotes (`https://cdn.cboe.com/api/global/delayed_quotes/options/{TICKER}.json`) are fully functional (HTTP 200, 10,400+ options per index ticker, with bid/ask/Greeks/IV).
+- **Tiingo Status**: Tiingo stock candles and IEX live prices (`api/live-prices.js`) are fully active (HTTP 200).
+- Relevant files:
+  - `lib/_shared/config.js` (line 4: `DATA_SOURCE`)
+  - `api/option-prices.js` (lines 91–272: `handler`, `handleORATS`, `handleCBOE`)
+  - `api/scan-options.js` (lines 85–150: data source branching)
+  - `api/strategy-recommend.js` (lines 1161–1368: CBOE path)
+  - `api/check-alerts.js` (lines 96–150) & `api/daily-recap.js` (lines 78–130)
+  - `vite.config.ts` (lines 102–185: `localApiPlugin` middleware)
+  - `.env`, `.env.local`, `.env.development.local`
 
-## Pre-Registration
+## Work Done
 
-**Hypothesis**: Bull call debit spreads on QQQ with config (long δ
-0.50, short δ 0.20, DTE 30-60, profit target 50%, max hold 45 days,
-min exit DTE 7, bid/ask fills), entered from a 10-trading-day
-signal-emission cadence under portfolio constraint maxPositions=1
-(i.e. emitted signals are accepted only when flat; signals arriving
-while a prior spread is still open are skipped and NOT queued — so
-observed inter-entry spacing is ≥ 10 trading days, often longer after
-long-held trades), earn positive risk-adjusted alpha over SPY AND
-clear all 6 standard adoption gates — including deflatedSharpeMertens
-> 0 computed under the F0-effective attempt counter at this seal's
-timestamp.
+### Gemini (The Analyst) — 2026-09-20T11:18:00-04:00
+Identified the root causes of portal quote failure and verified CBOE connectivity:
+1. **ORATS 403 Unhandled in `api/option-prices.js`**: `lib/_shared/config.js` and `.env.local` set `DATA_SOURCE=ORATS`. When `handleORATS` receives a 403 error, it does not fall back to CBOE; it throws HTTP 500 or 404, breaking marks in `Dashboard.tsx` and `Portfolio.tsx`.
+2. **Missing Bulk Endpoint in `vite.config.ts`**: `localApiPlugin()` in Vite only hooks `/api/option-price` (single GET). Requests to `/api/option-prices-bulk` (multi-leg POST used by `useOptionPrices.ts`) return HTTP 404 on Vite dev server.
+3. **CBOE Bulk Inefficiency in `api/option-prices.js`**: `handleCBOE()` sequentially downloads the full ~4.6 MB JSON file per leg. For 4 legs on QQQ, that is ~18 MB downloaded serially, risking Vercel 15s timeout.
+4. **Fallback check bug in `check-alerts.js` / `daily-recap.js`**: `if (dataSource === 'CBOE' || Object.keys(optionChains).length === 0)` fails to trigger CBOE fallback when ORATS assigns `optionChains[ticker] = []` because `Object.keys()` is non-zero.
 
-**Config Grid**: 1 variant (singleton named anchor):
+Authored comprehensive implementation plan in `implementation_plan.md`.
 
-| Variant | Long δ | Short δ | DTE | PT | Signal emission | Position cap |
-|---|---|---|---|---|---|---|
-| bcd-qqq-wide-f1-anchor | 0.50 | 0.20 | 30-60 | 50% | every 10 trading days from i=60 | maxPositions=1 |
+## Artifacts
 
-Defined in `scripts/autoresearch/strategy-bcd-qqq-wide-f1.ts`. The
-10-trading-day spacing applies to signal emission (loop stride in
-`generateSignals`); actual entry dates are filtered by the runner's
-portfolio-state gate via `evaluateConfiguredSignalsWithState()`. This
-is the same emission-plus-flat-gate pattern validated by
-`bcd-nosignal-10d-anchor` in the F0 exploration sweep
-(`data/leaderboard-full-f0-bcd-nosignal-10d.json`).
+- `implementation_plan.md`: Comprehensive plan covering configuration update, CBOE caching/optimization, ORATS fallback, and Vite dev server middleware fixes.
 
-**Decision Rule**: The named anchor `bcd-qqq-wide-f1-anchor` is always
-the sealed candidate (no variants to choose among). Seal via
-`scripts/evaluate-holdout.ts`.
+## Next Action
 
-**Adoption Threshold**: The sealed row must satisfy ALL of the
-standard 6 adoption gates as machine-enforced by
-`scripts/autoresearch/lib/seal-holdout.ts::computeStandardAdoption`:
-- `holdoutSpyIR >= 0`
-- `holdoutSharpe >= 0.3`
-- `oosSharpe >= 0.8`
-- `passesStability = true`
-- `passesStatConsistency = true`
-- `deflatedSharpeMertens > 0` (computed under F0-effective attempt counter)
-
-**Holdout Window Hash**: sha256:4bde4339e7cb212ab59bb19dc727321d020d410f7b3e394c5389a16c06e7dbc9
-
-**Declared Env Overrides**: none
-
-## Relationship to pre-F0 Phase E11 bull-call-debit-qqq-solo-anchor
-
-Pre-F0 Phase E11 sealed `bull-call-debit-qqq-solo-anchor` as a 5/6
-PASS, failing only dsrM at −0.27 under the global attempt counter
-(N=106). That artifact is demoted to historical-only under the Phase
-F0 declaration.
-
-This pre-reg is materially different from the E11 solo anchor:
-1. **Entry**: drops EMA34 signal in favor of 10-trading-day signal
-   emission (per F0 null-test finding that the EMA34 filter adds no
-   alpha).
-2. **F0-effective N at seal**: will be ≥30 (v2 re-run) vs the pre-F0
-   N=106, which changes the dsrM gate outcome from FAIL to expected
-   PASS.
-
-Both changes combine to produce a different identity triple (name,
-blob, preReg) — not a re-run of E11 under a counter reset.
-
-## Relationship to v1 seal (2026-04-23-e281292f4870)
-
-An earlier pre-reg (block hash `e281292f4870bbbd…`, committed
-`d409ef4`) sealed the same strategy file as `bcd-qqq-wide-f1-anchor`
-with verdict 6/6 PASS. Codex adversarial review of that seal flagged
-a P1 finding: the v1 pre-reg hypothesis text called the entry a
-"fixed 10-trading-day cadence," but the code emits signals every 10
-days and lets the runner's portfolio-state gate skip signals that
-arrive while a prior spread is still open. The strategy file and
-measured numbers were correct; only the prose overstated what was
-mechanically enforced.
-
-This v2 pre-reg corrects the prose (describing emission-plus-
-flat-gate rather than "fixed cadence") and produces a new
-`preRegBlockHash` so the sealer requires a fresh audit row. The v1
-seal remains in `docs/holdout-evaluations/2026-04-23-e281292f4870.md`
-as historical evidence of the prose-mismatched seal and is superseded
-by the v2 seal produced from this pre-reg.
-
-## Caveats
-
-- The "wide" config and 10-day cadence choice are informed by prior
-  F0 sweep peeking. This is a residual-priors disclosure, not a clean
-  first-look. Per the F0 declaration, the 6 gates remain the floor
-  but do not fully correct for informal priors.
-- 10-day cadence selected over 5-day because the F0 `nosignal-5d`
-  variant failed holdoutSpyIR at −0.19 (over-trading drag during the
-  2024-2026 Mag7 rally caps upside too aggressively against long-SPY).
-  20-day cadence selected against because its oosSharpe (0.68) was
-  too low to clear dsrM at current F0-effective N.
-- Holdout has been iterated against by prior runs — see
-  `docs/sealed-holdout.md` "Known limitations." Not a fresh holdout;
-  the October 2026 refresh is the clean data reset.
-
-## References
-
-- Strategy file: `scripts/autoresearch/strategy-bcd-qqq-wide-f1.ts`
-- F0 declaration: `docs/phase-f0-clean-slate-declaration.md`
-- F0 boundary lib: `scripts/autoresearch/lib/f0-boundary.ts`
-- Sealer: `scripts/autoresearch/lib/seal-holdout.ts::computeStandardAdoption`
-- Pre-F0 E11 BCD solo seal (historical): `docs/holdout-evaluations/2026-04-22-e95532f9b3a3.md`
-- F0 BCD exploration leaderboards:
-  - `data/leaderboard-full-f0-bcd-sweep.json` (wide variant row)
-  - `data/leaderboard-full-f0-bcd-nosignal-5d.json` (failed IR)
-  - `data/leaderboard-full-f0-bcd-nosignal-20d.json` (failed dsrM)
-- First F1 seal (PMCC pt60, reference pattern): `docs/holdout-evaluations/2026-04-23-7e9c2026f3df.md`
+Claude / Builder to implement the proposed changes in `implementation_plan.md`:
+1. Update `lib/_shared/config.js` default `DATA_SOURCE` to `'CBOE'`.
+2. Update `.env.local`, `.env.development.local`, `.env` to `DATA_SOURCE=CBOE`.
+3. Optimize `api/option-prices.js` `handleCBOE` with in-request ticker caching and fuzzy OCC matching; wrap `handleORATS` with CBOE fallback.
+4. Harden `api/scan-options.js`, `api/check-alerts.js`, `api/daily-recap.js` fallback paths.
+5. Update `vite.config.ts` to support `/api/option-prices-bulk` and `/api/option-prices`.
+6. Run verification tests.

@@ -131,8 +131,10 @@ export default async function handler(req, res) {
     }
 
     // CBOE fallback if ORATS not configured or failed
-    if (dataSource === 'CBOE' || Object.keys(optionChains).length === 0) {
+    const needsCboe = dataSource === 'CBOE' || uniqueTickers.some(t => !optionChains[t] || optionChains[t].length === 0);
+    if (needsCboe) {
       await Promise.all(uniqueTickers.map(async (ticker) => {
+        if (optionChains[ticker] && optionChains[ticker].length > 0) return;
         try {
           const resp = await fetch(
             'https://cdn.cboe.com/api/global/delayed_quotes/options/' + ticker + '.json',

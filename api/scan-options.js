@@ -88,45 +88,52 @@ export default async function handler(req, res) {
         let cboeTimestamp = null;
         let quoteFreshness = null;
 
+        let oratsSuccess = false;
         if (dataSource === 'POLYGON' || dataSource === 'ORATS') {
-            // 'POLYGON' accepted as legacy alias → routes to ORATS
-            const { getOptionChain, getUnderlyingPrice, checkQuoteFreshness } = await import('../lib/orats-client.js');
-            console.log(`Scanning ${upperTicker} via ORATS`);
+            try {
+                // 'POLYGON' accepted as legacy alias → routes to ORATS
+                const { getOptionChain, getUnderlyingPrice, checkQuoteFreshness } = await import('../lib/orats-client.js');
+                console.log(`Scanning ${upperTicker} via ORATS`);
 
-            // Get underlying price first so we request only the strike range we use (reduces payload/API)
-            const underlyingPrice = await getUnderlyingPrice(upperTicker);
-            const minStrike = underlyingPrice > 0 ? underlyingPrice * (1 - strikeRangeNum) : undefined;
-            const maxStrike = underlyingPrice > 0 ? underlyingPrice * (1 + strikeRangeNum) : undefined;
+                // Get underlying price first so we request only the strike range we use (reduces payload/API)
+                const underlyingPrice = await getUnderlyingPrice(upperTicker);
+                const minStrike = underlyingPrice > 0 ? underlyingPrice * (1 - strikeRangeNum) : undefined;
+                const maxStrike = underlyingPrice > 0 ? underlyingPrice * (1 + strikeRangeNum) : undefined;
 
-            const filters = {
-                minDte: dteMinNum,
-                maxDte: dteMaxNum
-            };
-            if (minStrike != null && maxStrike != null) {
-                filters.minStrike = minStrike;
-                filters.maxStrike = maxStrike;
-            }
-            if (direction === 'call') filters.side = 'call';
-            if (direction === 'put') filters.side = 'put';
-
-            const chainData = await getOptionChain(upperTicker, filters);
-
-            if (chainData && chainData.length > 0) {
-                options = chainData;
-                // Prefer fresh stock snapshot price; only use chain underlying if it agrees
-                const chainUP = chainData.find(o => o.underlyingPrice > 0)?.underlyingPrice || 0;
-                if (underlyingPrice > 0) {
-                    const div = chainUP > 0 ? Math.abs(chainUP - underlyingPrice) / underlyingPrice : 1;
-                    currentPrice = div <= 0.15 ? chainUP : underlyingPrice;
-                } else {
-                    currentPrice = chainUP;
+                const filters = {
+                    minDte: dteMinNum,
+                    maxDte: dteMaxNum
+                };
+                if (minStrike != null && maxStrike != null) {
+                    filters.minStrike = minStrike;
+                    filters.maxStrike = maxStrike;
                 }
-                quoteFreshness = checkQuoteFreshness(chainData);
-            } else {
-                return res.status(200).json({ success: true, results: [], context: { note: 'No data from ORATS' } });
-            }
+                if (direction === 'call') filters.side = 'call';
+                if (direction === 'put') filters.side = 'put';
 
-        } else {
+                const chainData = await getOptionChain(upperTicker, filters);
+
+                if (chainData && chainData.length > 0) {
+                    options = chainData;
+                    // Prefer fresh stock snapshot price; only use chain underlying if it agrees
+                    const chainUP = chainData.find(o => o.underlyingPrice > 0)?.underlyingPrice || 0;
+                    if (underlyingPrice > 0) {
+                        const div = chainUP > 0 ? Math.abs(chainUP - underlyingPrice) / underlyingPrice : 1;
+                        currentPrice = div <= 0.15 ? chainUP : underlyingPrice;
+                    } else {
+                        currentPrice = chainUP;
+                    }
+                    quoteFreshness = checkQuoteFreshness(chainData);
+                    oratsSuccess = true;
+                } else {
+                    console.warn(`[scan-options] ORATS returned empty chain for ${upperTicker}. Falling back to CBOE...`);
+                }
+            } catch (oratsErr) {
+                console.warn(`[scan-options] ORATS scan failed for ${upperTicker}, falling back to CBOE. Error:`, oratsErr.message);
+            }
+        }
+
+        if (!oratsSuccess) {
             // CBOE Legacy
             const response = await fetch(cboeUrl, {
                 headers: {
