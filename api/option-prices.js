@@ -2,7 +2,7 @@
 // Universal Fetcher for Options (Single or Bulk)
 // Supports GET (query params) for single leg and POST (body) for bulk.
 
-import { generateOCCSymbol, normalizeExpiration } from '../lib/_shared/utils.js';
+import { generateOCCSymbol, normalizeExpiration, isOptionExpired } from '../lib/_shared/utils.js';
 import { bsmDelta as _bsmDelta } from '../lib/_shared/bsm-util.js';
 import { DATA_SOURCE } from '../lib/_shared/config.js';
 
@@ -291,6 +291,33 @@ async function handleCBOE(legs, res) {
                         underlyingPrice, parseFloat(leg.strike), dteDays, leg.type
                     ),
                     underlyingPrice,
+                    dataSource: 'CBOE'
+                });
+            } else if (isOptionExpired(exp)) {
+                // Expired option: dropped from live exchange chain.
+                // Value at intrinsic liquidation mark (0 if OTM, underlying - strike if ITM).
+                const underlyingPrice = data.data.current_price || data.data.close || data.data.prev_day_close || 0;
+                const isCall = (leg.type || '').toLowerCase().includes('call');
+                const strikeNum = parseFloat(leg.strike) || 0;
+                const intrinsic = underlyingPrice > 0
+                    ? (isCall ? Math.max(0, underlyingPrice - strikeNum) : Math.max(0, strikeNum - underlyingPrice))
+                    : 0;
+                const roundedIntrinsic = parseFloat(intrinsic.toFixed(2));
+                results.push({
+                    ...leg,
+                    success: true,
+                    symbol: occSymbol || `${upperTicker}${exp}${leg.type}${leg.strike}`,
+                    price: roundedIntrinsic,
+                    priceSource: 'intrinsic_expired',
+                    bid: roundedIntrinsic,
+                    ask: roundedIntrinsic,
+                    delta: intrinsic > 0 ? (isCall ? 1 : -1) : 0,
+                    gamma: 0,
+                    theta: 0,
+                    vega: 0,
+                    iv: 0,
+                    underlyingPrice,
+                    expired: true,
                     dataSource: 'CBOE'
                 });
             } else {

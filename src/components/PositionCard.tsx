@@ -10,7 +10,7 @@ import { splitPMCCLegs, cycleRealizedPnL, totalRealizedShortPnL } from '../lib/p
 import { computeDiagonalHeadline, computeNetSpreadPrice, debitSpreadTpProgress, computeLegBasedPnL, isCycleRollTransaction } from '../lib/legPnL';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
-import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
+import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, isOptionExpired, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
 import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQWithFactors } from '../lib/scoring';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
 import { STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
@@ -163,6 +163,28 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
         try {
             if (isSpread && position.legs) {
                 let results;
+                const makeExpiredLegQuote = (leg: any, uPrice = 0) => {
+                    const isCall = (leg.type || '').toLowerCase().includes('call');
+                    const strikeNum = Number(leg.strike) || 0;
+                    const intrinsic = uPrice > 0
+                        ? (isCall ? Math.max(0, uPrice - strikeNum) : Math.max(0, strikeNum - uPrice))
+                        : 0;
+                    const roundedIntrinsic = Math.round(intrinsic * 100) / 100;
+                    return {
+                        ...leg,
+                        price: roundedIntrinsic,
+                        bid: roundedIntrinsic,
+                        ask: roundedIntrinsic,
+                        delta: intrinsic > 0 ? (isCall ? 1 : -1) : 0,
+                        gamma: 0,
+                        theta: 0,
+                        vega: 0,
+                        iv: 0,
+                        underlyingPrice: uPrice,
+                        expired: true,
+                        success: true,
+                    };
+                };
 
                 if (effectiveData && effectiveData.length > 0) {
                     // Map initialData back to legs order.
@@ -180,7 +202,12 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                             String(d.strike) === String(leg.strike) &&
                             d.type === leg.type
                         );
-                        return match || null;
+                        if (match) return match;
+                        if (isOptionExpired(leg.expiration)) {
+                            const uPrice = effectiveData.find(d => d.underlyingPrice > 0)?.underlyingPrice || 0;
+                            return makeExpiredLegQuote(leg, uPrice);
+                        }
+                        return null;
                     });
                 } else {
                     const promises = position.legs.map(async (leg) => {
@@ -188,9 +215,24 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                         if (leg.closedAt) return undefined;
                         const params = new URLSearchParams({ ticker: position.ticker, expiration: normalizeExpiration(leg.expiration), strike: leg.strike.toString(), type: leg.type });
                         const res = await fetch(`/api/option-price?${params}`);
-                        return res.ok ? await res.json() : null;
+                        if (res.ok) {
+                            return await res.json();
+                        }
+                        if (isOptionExpired(leg.expiration)) {
+                            return makeExpiredLegQuote(leg, 0);
+                        }
+                        return null;
                     });
                     results = await Promise.all(promises);
+                    const knownUPrice = results.find(r => r?.underlyingPrice > 0)?.underlyingPrice || 0;
+                    if (knownUPrice > 0) {
+                        results = results.map((r, i) => {
+                            if (r && r.expired && (!r.underlyingPrice || r.underlyingPrice === 0)) {
+                                return makeExpiredLegQuote(position.legs![i], knownUPrice);
+                            }
+                            return r;
+                        });
+                    }
                 }
 
                 // Prevent partial data update (wiping Greeks) if an OPEN leg's request
@@ -357,6 +399,19 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
                     const response = await fetch(`/api/option-price?${params}`);
                     if (response.ok) {
                         data = await response.json();
+                    } else if (isOptionExpired(position.expiration)) {
+                        data = {
+                            price: 0,
+                            bid: 0,
+                            ask: 0,
+                            delta: 0,
+                            gamma: 0,
+                            theta: 0,
+                            vega: 0,
+                            iv: 0,
+                            expired: true,
+                            success: true,
+                        };
                     }
                 }
 

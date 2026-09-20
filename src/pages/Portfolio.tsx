@@ -13,7 +13,7 @@ import { PortfolioGreeksWidget } from '../components/PortfolioGreeksWidget';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { getProfile, RETIRED_STRATEGIES, type StrategyType } from '../lib/strategyProfiles';
 import { getPositionRiskAtStopOutDollars, aggregatePortfolioGreeks } from '../lib/riskSizing';
-import { formatCurrency, daysUntil, groupTransactionsByPositionId } from '../lib/utils';
+import { formatCurrency, daysUntil, isOptionExpired, groupTransactionsByPositionId } from '../lib/utils';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAutoCloseStuckPositions } from '../hooks/useAutoCloseStuckPositions';
@@ -137,13 +137,15 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
     const legsToFetch = useMemo<OptionPriceLeg[]>(() => {
         return activePositions.flatMap(pos => {
             if (pos.legs && pos.legs.length > 0) {
-                return pos.legs.map(leg => ({
-                    ticker: pos.ticker,
-                    expiration: leg.expiration,
-                    strike: leg.strike,
-                    type: leg.type,
-                    id: pos.id,
-                }));
+                return pos.legs
+                    .filter(leg => !leg.closedAt)
+                    .map(leg => ({
+                        ticker: pos.ticker,
+                        expiration: leg.expiration,
+                        strike: leg.strike,
+                        type: leg.type,
+                        id: pos.id,
+                    }));
             }
             return [{
                 ticker: pos.ticker,
@@ -169,10 +171,19 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
         if (!optionPricesQuery.isSuccess) return new Set<string>();
         const failedIds = new Set<string>();
         for (const result of optionPricesQuery.data ?? []) {
-            if (result.id && result.success === false) failedIds.add(result.id);
+            if (result.id && result.success === false && !isOptionExpired(result.expiration)) {
+                failedIds.add(result.id);
+            }
         }
         for (const position of activePositions) {
-            if (!bulkData[position.id]) failedIds.add(position.id);
+            if (!bulkData[position.id]) {
+                const hasUnexpiredLegs = position.legs && position.legs.length > 0
+                    ? position.legs.some(l => !l.closedAt && !isOptionExpired(l.expiration))
+                    : !isOptionExpired(position.expiration);
+                if (hasUnexpiredLegs) {
+                    failedIds.add(position.id);
+                }
+            }
         }
         return failedIds;
     }, [activePositions, bulkData, optionPricesQuery.data, optionPricesQuery.isError, optionPricesQuery.isSuccess]);

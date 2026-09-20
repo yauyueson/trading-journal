@@ -53,6 +53,28 @@ export const daysUntil = (d: string): number => {
     return Math.ceil((target.getTime() - today.getTime()) / 86400000);
 };
 
+/**
+ * Check whether an option expiration date has passed (i.e. contract is expired).
+ * Standard equity option trading ceases at 16:00 ET on expiration date.
+ */
+export const isOptionExpired = (expiration?: string): boolean => {
+    if (!expiration || typeof expiration !== 'string') return false;
+    const expDate = expiration.trim().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(expDate)) return false;
+    const now = new Date();
+    const nyDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(now);
+    if (expDate < nyDateStr) return true;
+    if (expDate > nyDateStr) return false;
+    const nyTimeStr = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        hour: '2-digit',
+        hour12: false,
+        minute: '2-digit',
+    }).format(now);
+    const [hour] = nyTimeStr.split(':').map(Number);
+    return hour >= 16;
+};
+
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _env = (import.meta as any).env ?? {};

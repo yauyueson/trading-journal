@@ -113,6 +113,31 @@ describe('PositionCard — PMCC live-quote fetch with a closed/expired leg', () 
     renderCard();
     await waitFor(() => expect(screen.getByText(/no live price/i)).toBeInTheDocument());
   });
+
+  it('handles an open short leg that has expired: values short at $0 intrinsic and displays live P&L instead of "no live price"', async () => {
+    // PMCC where short leg strike 732 expired in the past and fails to quote from live chain (404)
+    const expiredShortPmcc: Position = {
+      ...pmccPosition(),
+      legs: [
+        { strike: 630, type: 'Call', side: 'long', expiration: '2027-01-15', openedDebit: 105.28, cycleQty: 1 },
+        { strike: 732, type: 'Call', side: 'short', expiration: '2026-08-31', openedCredit: 6.46, cycleQty: 1 },
+      ],
+    };
+    failingStrikes = new Set(['732']); // Expired short leg 404s on live chain
+    render(
+      <PositionCard
+        position={expiredShortPmcc}
+        transactions={txns}
+        fetchEarningsForTicker={async () => ({ daysUntil: null, date: null })}
+      />,
+    );
+
+    // Long unrealized = (130.28 - 105.28) * 100 = $2500
+    // Short unrealized = (6.46 - 0) * 100 = $646 (kept 100% of credit)
+    // Net unrealized = $3146 (+$3.1K)
+    await waitFor(() => expect(screen.getByText('+$3.1K')).toBeInTheDocument());
+    expect(screen.queryByText(/no live price/i)).toBeNull();
+  });
 });
 
 describe('PositionCard — BCD take-profit progress (max-profit basis)', () => {
