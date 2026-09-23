@@ -13,7 +13,7 @@ import { StrategyActionCard } from '../components/StrategyActionCard';
 import { BCDEntryModal } from '../components/BCDEntryModal';
 import { PMCCEntryModal } from '../components/PMCCEntryModal';
 import type { Position, PositionAction as PositionActionType } from '../lib/types';
-import { computePositionPnL, getStrategyKind, groupTransactionsByPositionId } from '../lib/utils';
+import { computePositionPnL, formatDate, formatDateWithYear, getStrategyKind, groupTransactionsByPositionId } from '../lib/utils';
 import { computeActivePMCCRealizedPnL } from '../lib/legPnL';
 import { openLegRequests, legMarksFromQuotes } from '../lib/optionMarks';
 import { useOptionPrices } from '../hooks/useOptionPrices';
@@ -104,18 +104,25 @@ export function DashboardPage() {
       .sort((a, b) => (a.closed_at ?? '').localeCompare(b.closed_at ?? ''));
     let wins = 0;
     let totalPnl = 0;
-    const data: { trade: string; pnl: number }[] = [{ trade: '0', pnl: 0 }];
-    for (let i = 0; i < closedAll.length; i++) {
-      const pos = closedAll[i];
+    // One point per local close date; same-day closes collapse into a single step.
+    const data: { date: string; pnl: number; trades: number }[] = [{ date: 'start', pnl: 0, trades: 0 }];
+    for (const pos of closedAll) {
       const txns = transactionsByPosition[pos.id] ?? [];
       const pnl = computePositionPnL(txns, getStrategyKind(pos));
       totalPnl += pnl;
       if (pnl > 0) wins++;
-      data.push({ trade: String(i + 1), pnl: totalPnl });
+      const date = pos.closed_at ? new Date(pos.closed_at).toLocaleDateString('en-CA') : 'unknown';
+      const last = data[data.length - 1];
+      if (last.date === date) {
+        last.pnl = totalPnl;
+        last.trades++;
+      } else {
+        data.push({ date, pnl: totalPnl, trades: 1 });
+      }
     }
     totalPnl += activePmccRealized;
     if (activePmccRealized !== 0) {
-      data.push({ trade: 'live', pnl: totalPnl });
+      data.push({ date: 'live', pnl: totalPnl, trades: 0 });
     }
     return {
       perfStats: {
@@ -281,14 +288,21 @@ export function DashboardPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke={CHART_COLORS.grid} strokeDasharray="3 3" />
-                  <XAxis dataKey="trade" {...axisProps} axisLine={{ stroke: CHART_COLORS.axisLine }} />
+                  <XAxis dataKey="date" {...axisProps} axisLine={{ stroke: CHART_COLORS.axisLine }}
+                    tickFormatter={(d: string) => d === 'start' ? 'START' : d === 'live' ? 'NOW' : formatDate(d)}
+                  />
                   <YAxis {...axisProps} axisLine={false}
                     tickFormatter={(v: number) => `$${v >= 0 ? '' : '-'}${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(1) + 'K' : Math.abs(v).toFixed(0)}`}
                   />
                   <Tooltip
                     contentStyle={{ background: CHART_COLORS.tooltipBg, border: `1px solid ${CHART_COLORS.tooltipBorder}`, borderRadius: 6, fontSize: 12, fontFamily: CHART_FONT_MONO, boxShadow: CHART_COLORS.tooltipShadow }}
                     formatter={(value: number | undefined) => [`$${(value ?? 0) >= 0 ? '+' : ''}${(value ?? 0).toFixed(0)}`, 'P&L']}
-                    labelFormatter={(label) => label === 'live' ? 'ACTIVE PMCC REALIZED' : `TRADE #${label}`}
+                    labelFormatter={(label, payload) => {
+                      if (label === 'live') return 'ACTIVE PMCC REALIZED';
+                      if (label === 'start') return 'START';
+                      const trades = (payload?.[0]?.payload as { trades?: number } | undefined)?.trades ?? 0;
+                      return `${formatDateWithYear(String(label))} · ${trades} CLOSED`;
+                    }}
                   />
                   <Area type="monotone" dataKey="pnl" stroke={chartColor} strokeWidth={2} fill="url(#pnlGrad)" dot={false}
                     activeDot={{ r: 4, fill: chartColor, stroke: CHART_COLORS.tooltipBg, strokeWidth: 2 }}
