@@ -397,6 +397,7 @@ const refreshAllPrices = async () => {
                         const pmccCount = activePositions.filter(p => p.strategy_type === 'pmcc').length;
                         const legacyCount = activePositions.filter(p => p.strategy_type && RETIRED_STRATEGIES.has(p.strategy_type as StrategyType)).length;
                         const untaggedCount = activePositions.length - bcdCount - pmccCount - legacyCount;
+                        // netTheta is already dollars per day (× contracts × 100) — don't scale again.
                         const dailyTheta = portfolioGreeks?.netTheta ?? 0;
 
                         // Find nearest expiring position
@@ -419,7 +420,7 @@ const refreshAllPrices = async () => {
                                 </span>
                                 {dailyTheta !== 0 && (
                                     <span className="text-text-secondary">
-                                        <span className="text-phosphor-green text-glow-green font-bold">${(dailyTheta * 100).toFixed(0)}</span>/DAY THETA
+                                        <span className="text-phosphor-green text-glow-green font-bold">${dailyTheta.toFixed(0)}</span>/DAY THETA
                                     </span>
                                 )}
                                 {nearest && nearestDTE != null && (
