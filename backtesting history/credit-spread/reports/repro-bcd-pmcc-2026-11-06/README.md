@@ -16,7 +16,7 @@ Ledger-free replay of the two 2026-04-23 sealed adoptions, run on the same data 
 
 ## Inputs (main checkout, read-only; hashed before and after, unchanged)
 
-`inputs-before.txt` and `inputs-after.txt` are byte-identical after their header lines (SHA256, mtime and size, plus combined hashes of `data/trial-ledger/` and all leaderboards).
+`inputs-before.txt` and `inputs-after.txt` are byte-identical after their header lines. `inputs-after2.txt` was taken after the simulator-fix replays; its content hashes and file mtimes are identical too. Only the `ls -la` fingerprint differs, because `data/`'s own mtime moved when another session edited `data/strategy-config.json` in the main checkout at 11:38. This session never wrote there. (SHA256, mtime and size, plus combined hashes of `data/trial-ledger/` and all leaderboards).
 
 | File | SHA256 | Size |
 |---|---|---:|
