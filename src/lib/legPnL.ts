@@ -13,7 +13,7 @@
  * decides whether to fall back to the legacy transaction-based path.
  */
 import type { Position, PositionLeg } from './types';
-import { CONTRACT_MULTIPLIER } from './utils';
+import { CONTRACT_MULTIPLIER, isLegLevelTransaction as isLegLevelTransactionNote } from './utils';
 
 export interface LegPnLEntry {
   legIndex: number;
@@ -275,12 +275,7 @@ export function debitSpreadTpProgress(args: {
  * realized-P&L sum because its cash flow is already captured at the leg
  * level. Currently flags PMCC short rolls and per-leg close transactions.
  */
-export function isLegLevelTransaction(note: string | null | undefined): boolean {
-  if (!note) return false;
-  return note.startsWith('PMCC roll:')
-    || note.startsWith('Close leg:')
-    || note.startsWith('Roll leg:');
-}
+export const isLegLevelTransaction = isLegLevelTransactionNote;
 
 /** @deprecated use isLegLevelTransaction — kept for back-compat with older callers. */
 export const isCycleRollTransaction = isLegLevelTransaction;

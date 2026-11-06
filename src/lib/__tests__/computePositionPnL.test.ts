@@ -4,6 +4,7 @@ import {
   computeRiskMultiple,
   CONTRACT_MULTIPLIER,
   getOpenedQuantity,
+  getPositionEntrySummary,
   getStrategyKind,
   groupTransactionsByPositionId,
   isCreditStrategy,
@@ -238,5 +239,44 @@ describe('computeRiskMultiple', () => {
     const pnl = computePositionPnL(txns, 'credit');
     expect(pnl).toBe(60);
     expect(computeRiskMultiple(pnl, 450, getOpenedQuantity(txns))).toBeCloseTo(0.0666667, 6);
+  });
+});
+
+describe('leg-level transactions (rolls / per-leg closes) do not count as position units', () => {
+  // Mirrors the live PMCC: Open 1 @ 99.37 net debit, then two short rolls
+  // recorded as paired 'Roll leg:' Take-Profit txns (+1 close cost, −1 new credit).
+  const pmccTxns = [
+    { quantity: 1, price: 99.37, note: 'Paper autopilot entry' },
+    { quantity: 1, price: 4.35, note: 'Roll leg: close short K=725 exp=2026-06-12' },
+    { quantity: -1, price: 7.32, note: 'Roll leg: open short K=756 exp=2026-07-17' },
+    { quantity: 1, price: 0.0, note: 'PMCC roll: close short K=732 exp=2026-08-31' },
+    { quantity: -1, price: 5.56, note: 'PMCC roll: open short K=753 exp=2026-10-30' },
+    { quantity: 1, price: 0.1, note: 'Close leg: short Call K=753 exp=2026-10-30' },
+  ];
+
+  it('getOpenedQuantity counts only position-level opens', () => {
+    expect(getOpenedQuantity(pmccTxns)).toBe(1);
+  });
+
+  it('getPositionEntrySummary returns the real entry basis', () => {
+    const s = getPositionEntrySummary(pmccTxns);
+    expect(s.openedQty).toBe(1);
+    expect(s.openQty).toBe(1);
+    expect(s.avgEntryPrice).toBeCloseTo(99.37, 6);
+  });
+
+  it('getPositionEntrySummary handles scale-in and partial close', () => {
+    const s = getPositionEntrySummary([
+      { quantity: 2, price: 10 },
+      { quantity: 1, price: 13 },
+      { quantity: -1, price: 15, note: 'Size Down' },
+    ]);
+    expect(s.openedQty).toBe(3);
+    expect(s.openQty).toBe(2);
+    expect(s.avgEntryPrice).toBeCloseTo(11, 6);
+  });
+
+  it('getPositionEntrySummary is zero-safe', () => {
+    expect(getPositionEntrySummary([])).toEqual({ openedQty: 0, openQty: 0, avgEntryPrice: 0 });
   });
 });

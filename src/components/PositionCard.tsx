@@ -10,7 +10,7 @@ import { splitPMCCLegs, cycleRealizedPnL, totalRealizedShortPnL } from '../lib/p
 import { computeDiagonalHeadline, computeNetSpreadPrice, debitSpreadTpProgress, computeLegBasedPnL, isCycleRollTransaction } from '../lib/legPnL';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
-import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, isOptionExpired, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
+import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, isOptionExpired, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn, getPositionEntrySummary } from '../lib/utils';
 import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQWithFactors } from '../lib/scoring';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
 import { STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
@@ -506,17 +506,11 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     }
     const positionTxns = transactions;
 
-    let totalQtyBought = 0, totalCostBasis = 0, totalQtySold = 0;
-    positionTxns.forEach(t => {
-        const qty = t.quantity;
-        const price = t.price * CONTRACT_MULTIPLIER;
-        if (qty > 0) { totalQtyBought += qty; totalCostBasis += qty * price; }
-        else { totalQtySold += Math.abs(qty); }
-    });
-
-    const totalQty = totalQtyBought - totalQtySold;
-    const avgCostPerContract = totalQtyBought > 0 ? totalCostBasis / totalQtyBought : 0;
-    const avgPrice = avgCostPerContract / CONTRACT_MULTIPLIER;
+    // Leg-level txns (rolls / per-leg closes) are not position units — see getPositionEntrySummary.
+    const entrySummary = getPositionEntrySummary(positionTxns);
+    const totalQty = entrySummary.openQty;
+    const avgPrice = entrySummary.avgEntryPrice;
+    const avgCostPerContract = avgPrice * CONTRACT_MULTIPLIER;
     const sortedTxns = [...positionTxns].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const firstBuy = sortedTxns.find(t => t.quantity > 0);
     const entryPrice = firstBuy ? Math.abs(firstBuy.price) : 0;
