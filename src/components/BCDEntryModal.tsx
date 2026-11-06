@@ -25,6 +25,7 @@ import type { PositionLeg } from '../lib/types';
 import { CONTRACT_MULTIPLIER, formatDate } from '../lib/utils';
 import { buildBCDCandidates, type BCDCandidate } from '../lib/chainCandidates';
 import { buildBcdFillDiagnostics } from '../lib/fillDiagnostics';
+import { debitSpreadTargetValue } from '../lib/legPnL';
 
 interface Props {
   isOpen: boolean;
@@ -197,9 +198,9 @@ export const BCDEntryModal: React.FC<Props> = ({ isOpen, onClose }) => {
         trade_profile: 'debit_spread',
         is_paper: true,
         execution_account_size: capital,
-        // target_price: actual dollar target = entry debit × (1 + profit-target%).
-        // BCD profit target is on debit paid, so target = debitNum × 1.50 by default.
-        target_price: debitNum * (1 + profile.profitTarget),
+        // target_price: spread value where the sealed BCD take-profit fires —
+        // entry + profitTarget × max profit (width − debit), per worker.ts.
+        target_price: debitSpreadTargetValue(debitNum, width, profile.profitTarget) ?? undefined,
         legs,
         fill_diagnostics: fillDiagnostics,
       });

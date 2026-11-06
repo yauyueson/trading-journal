@@ -118,6 +118,8 @@ describe('BCDEntryModal — disabled-submit hint', () => {
       quantity: 3,
       max_risk_entry: 420,
     }));
+    // Sealed BCD TP: entry 4.20 + 50% × (width 10 − 4.20) = 7.10 (not 4.20 × 1.5).
+    expect(mutateAsync.mock.calls[0][0].target_price).toBeCloseTo(7.1, 6);
     expect(onClose).toHaveBeenCalledOnce();
   });
 });

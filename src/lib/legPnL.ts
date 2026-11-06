@@ -317,3 +317,19 @@ export function computeLivePnL(
   const cycleRealized = computeLegBasedPnL(position)?.realized ?? 0;
   return cashFlow + cycleRealized;
 }
+
+/**
+ * Spread value (per share) at which the sealed BCD take-profit fires:
+ * entry + tpFraction × (width − entry). Same rule as debitSpreadTpProgress;
+ * null when width is unknown or there is no positive max profit.
+ */
+export function debitSpreadTargetValue(
+  entryDebit: number,
+  width: number | null | undefined,
+  tpFraction: number,
+): number | null {
+  if (width == null || !(entryDebit > 0) || !(tpFraction > 0)) return null;
+  const maxProfit = width - entryDebit;
+  if (!(maxProfit > 0)) return null;
+  return entryDebit + tpFraction * maxProfit;
+}

@@ -10,7 +10,7 @@ import { splitPMCCLegs, cycleRealizedPnL, totalRealizedShortPnL } from '../lib/p
 import { computeDiagonalHeadline, computeNetSpreadPrice, debitSpreadTpProgress, computeLegBasedPnL, isCycleRollTransaction } from '../lib/legPnL';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
-import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, isOptionExpired, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn, getPositionEntrySummary } from '../lib/utils';
+import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, isOptionExpired, formatPrice, CONTRACT_MULTIPLIER, getStrategyKind, getPositionEntrySummary } from '../lib/utils';
 import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQWithFactors } from '../lib/scoring';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
 import { STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
@@ -117,7 +117,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const [historyLoading, setHistoryLoading] = useState(false);
 
     const isSpread = !!position.legs && position.legs.length > 0;
-    const isCreditStrategy = isCreditStrategyFn(position.type);
+    const isCreditStrategy = getStrategyKind(position) === 'credit';
 
     // Fetch Earnings (uses cached lookup if provided, else falls back to direct API call)
     useEffect(() => {
