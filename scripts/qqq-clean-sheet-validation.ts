@@ -23,9 +23,13 @@ import {
 } from '../src/lib/backtest/wfa-options';
 import { loadDailyCandlesFromIntradayCache } from './wfa-local-cache';
 import { makeDebitSpreadEvaluator, makeDiagonalEvaluator } from './autoresearch/worker';
+import { loadDatasetManifest, windowFallsInHoldout } from './autoresearch/lib/dataset-manifest';
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const GENERATED_AT = '2026-05-07T00:00:00.000Z';
+// Run date names the output files; the 2026-05-07 artifacts must never be overwritten.
+const RUN_DATE = process.env.CLEAN_SHEET_RUN_DATE ?? new Date().toISOString().slice(0, 10);
+if (!/^\d{4}-\d{2}-\d{2}$/.test(RUN_DATE)) throw new Error(`CLEAN_SHEET_RUN_DATE must be YYYY-MM-DD, got ${RUN_DATE}`);
+const GENERATED_AT = `${RUN_DATE}T00:00:00.000Z`;
 
 const WFA = {
   trainWindowDays: 252,
@@ -34,9 +38,12 @@ const WFA = {
   mode: 'rolling' as const,
 };
 const HOLDOUT_COUNT = 5;
-const DATA_START = '2017-01-01';
+// Data range and holdout are pinned to config/dataset-manifest.json (same
+// source the autoresearch runner and sealer use).
+const MANIFEST = loadDatasetManifest({ repoRoot: ROOT_DIR });
+const DATA_START = MANIFEST.manifest.dataStartDate;
 const WFA_START_FLOOR = '2018-01-01';
-const DATA_END = '2026-02-28';
+const DATA_END = MANIFEST.manifest.dataEndDate;
 
 const BCD_CONFIG: SimConfig = {
   ...DEFAULT_LEAP_CONFIG,
@@ -123,6 +130,7 @@ type ValidationReport = {
   benchmark: 'SPY';
   dataStart: string;
   dataEnd: string;
+  datasetManifestHash: string;
   wfa: typeof WFA & { holdoutCount: number; wfaStartDate: string };
   ranges: {
     selectionOOS: [string, string];
@@ -372,6 +380,7 @@ function markdownReport(report: ValidationReport): string {
   lines.push(`Generated: ${report.generatedAt}`);
   lines.push(`Mode: ${report.mode}; observed API calls: ${report.apiCallsObserved}`);
   lines.push(`Data: ${report.dataStart} to ${report.dataEnd}`);
+  lines.push(`Dataset manifest sha256: ${report.datasetManifestHash}`);
   lines.push(`Selection OOS: ${report.ranges.selectionOOS[0]} to ${report.ranges.selectionOOS[1]}`);
   lines.push(`Holdout OOS: ${report.ranges.holdoutOOS[0]} to ${report.ranges.holdoutOOS[1]}`);
   lines.push('');
@@ -444,6 +453,27 @@ export function buildCleanSheetValidationReport(): ValidationReport {
     if (selectionWindows.length === 0 || holdoutWindows.length !== HOLDOUT_COUNT) {
       throw new Error(`Insufficient WFA windows: ${selectionWindows.length} selection, ${holdoutWindows.length} holdout`);
     }
+    // Same guard as runner.ts: every holdout window must sit inside the
+    // manifest holdout. Catches calendar drift (e.g. phantom candle dates
+    // shifting the holdout start before 2024-01-22).
+    for (const w of holdoutWindows) {
+      if (!windowFallsInHoldout(w.oosStart, w.oosEnd, MANIFEST.manifest)) {
+        throw new Error(
+          `Holdout window [${w.oosStart}..${w.oosEnd}] falls outside manifest holdout ` +
+          `[${MANIFEST.manifest.holdoutStartDate}..${MANIFEST.manifest.holdoutEndDate}]`,
+        );
+      }
+    }
+    // Stricter than the runner: the holdout must also START at the first
+    // trading day on/after the manifest holdout start, so selection windows
+    // can never leak into (or leave a gap before) the sealed holdout.
+    const expectedHoldoutStart = allDates.find(date => date >= MANIFEST.manifest.holdoutStartDate);
+    if (holdoutWindows[0].oosStart !== expectedHoldoutStart) {
+      throw new Error(
+        `Holdout starts ${holdoutWindows[0].oosStart}, expected ${expectedHoldoutStart} ` +
+        `(manifest holdoutStartDate ${MANIFEST.manifest.holdoutStartDate})`,
+      );
+    }
 
     const specs: StrategySpec[] = [
       {
@@ -476,6 +506,7 @@ export function buildCleanSheetValidationReport(): ValidationReport {
       benchmark: 'SPY',
       dataStart: DATA_START,
       dataEnd: DATA_END,
+      datasetManifestHash: MANIFEST.rawHash,
       wfa: { ...WFA, holdoutCount: HOLDOUT_COUNT, wfaStartDate },
       ranges: {
         selectionOOS: [selectionWindows[0].oosStart, selectionWindows[selectionWindows.length - 1].oosEnd],
@@ -504,8 +535,11 @@ export function buildCleanSheetValidationReport(): ValidationReport {
 }
 
 function writeReport(report: ValidationReport): { jsonPath: string; markdownPath: string } {
-  const jsonPath = path.join(ROOT_DIR, 'data/runs/qqq-clean-sheet-validation-2026-05-07.json');
-  const markdownPath = path.join(ROOT_DIR, 'docs/wfa/QQQ-CLEAN-SHEET-VALIDATION-RESULTS-2026-05-07.md');
+  const jsonPath = path.join(ROOT_DIR, `data/runs/qqq-clean-sheet-validation-${RUN_DATE}.json`);
+  const markdownPath = path.join(ROOT_DIR, `docs/wfa/QQQ-CLEAN-SHEET-VALIDATION-RESULTS-${RUN_DATE}.md`);
+  for (const p of [jsonPath, markdownPath]) {
+    if (fs.existsSync(p)) throw new Error(`Refusing to overwrite existing validation artifact ${p}; set CLEAN_SHEET_RUN_DATE.`);
+  }
   fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
   fs.mkdirSync(path.dirname(markdownPath), { recursive: true });
   fs.writeFileSync(jsonPath, `${JSON.stringify(report, null, 2)}\n`);

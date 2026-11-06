@@ -856,6 +856,45 @@ already sourced real bid/ask.
 
 ---
 
+### 44. PMCC short calls that go deep ITM vanish from the cache and are settled at $0
+**Trap — found 2026-11-06 (repro audit), NOT yet fixed**
+**File:** `scripts/autoresearch/worker.ts` — `makeDiagonalEvaluator` (short-cycle mark ~line 557; "Settle open short at long exit" ~lines 626-631)
+
+**What happened:** The chain cache only stores contracts with roughly 0.01 < |δ| < 0.99. When QQQ rallies through a PMCC short call, the short's row disappears. `findContractOnDateSync` then returns null, so the cycle is never marked, never hits `close_expired` (no ASSIGNED settlement at expiry), and is finally booked at `buyBackCost = 0` with `exitReason: 'FORCE_CLOSE'` when the long LEAP exits. The trade gets the LEAP's upside without paying for the short call it lost.
+
+**How it was discovered:** Independent hand-recompute of the sealed PMCC pt60 F1 trade list from raw chain rows (`backtesting history/credit-spread/reports/repro-bcd-pmcc-2026-11-06/`). There were 18 short cycles with `exitReason=FORCE_CLOSE`, `exitCost=0` and spot well above strike: 13 OOS and 5 holdout, all on PROFIT_TARGET trades. Example: holdout #1 sold the 434 call on 2024-04-19 and booked it at $0 on 2024-06-10 with spot at 464.33. Settled at expiry intrinsic, holdout PnL drops from $18,669 to about $5,218 and OOS PnL from $34,408 to about $14,250. This is an upper bound on the bias: the missed re-roll premium is not credited back.
+
+**Fingerprint:**
+- `shortCallCycles` entries with `exitReason='FORCE_CLOSE'` and `exitCost=0` where spot on the exit date is above strike
+- Almost no `ASSIGNED` short cycles despite a strongly rising underlying (1 of 152 cycles in the F1 anchor)
+- PMCC profit concentrated in PROFIT_TARGET trades during sharp rallies
+
+**Prevention:**
+- When the short row is missing on or after expiry, settle at intrinsic using that day's chain `stock_price`. When it is missing at the long exit, value it at intrinsic (lower bound) and never at 0.
+- Add an invariant test: any short cycle closed with spot > strike must have exitCost ≥ spot − strike.
+
+### 45. BCD missing-chain exit books a stale ORATS mid with no slippage
+**Trap — found 2026-11-06 (repro audit), NOT yet fixed**
+**File:** `scripts/autoresearch/worker.ts` — `makeDebitSpreadEvaluator` (~lines 819-825)
+
+**What happened:** When the short leg's δ drops below ~0.01 its row disappears from the cache. After 3 missing days the evaluator closes the spread at the last seen (3-day-old) ORATS mid with no bid/ask or slippage, labelled `FORCE_CLOSE`. In the BCD F1 anchor, 25 of 26 FORCE_CLOSE exits are this path; only one is a genuine 45-day max-hold exit. This partly undoes the bid/ask fill discipline of gotcha #3.
+
+**Fingerprint:** Many `FORCE_CLOSE` exits well before `debitMaxHoldDays`; their exit price equals the spread mid from 3 trading days earlier.
+
+**Prevention:** Price the exit at the long leg's bid on the exit day, treating the vanished short as ~0, with slippage applied. Bounded impact on F1: holdout $5,497 → ≤ ~$4,600 and OOS $7,165 → ≤ ~$5,280.
+
+### 46. Intraday-derived daily candles bucketed by UTC date with no session filter
+**Fixed:** 2026-11-06 (repro audit branch)
+**File:** `scripts/wfa-local-cache.ts` — `loadDailyCandlesFromIntradayCache`
+
+**What happened:** Daily candles for the cache-only WFA were built by grouping `candles_1h` on its UTC `date` column. From ~2024-03 the vendor stores extended-hours bars, so a Friday 19:00 ET bar became a phantom Saturday candle and after-hours bars set the close. Before 2024-03 the vendor stores full regular-session bars on NYSE holidays. The result was 2,405 QQQ "trading days" instead of 2,301 over 2017-01-01 → 2026-02-28. That shifted every WFA window, and the 2026-05-07 clean-sheet validation's holdout started on 2023-11-02 instead of the manifest's 2024-01-22.
+
+**Fingerprint:** Daily candle count above the runner's reference series; weekend or holiday dates in candle output; holdout start earlier than `config/dataset-manifest.json`.
+
+**Prevention:** Bucket bars by America/New_York date, keep only bars opening in [09:00, session close) ET, and drop weekends and NYSE holidays using the rule-based calendar in `scripts/wfa-local-cache.ts` (tests in `tests/wfa-local-cache.test.ts`). `scripts/qqq-clean-sheet-validation.ts` now throws if a holdout window falls outside the manifest holdout.
+
+---
+
 ## Appendix: adding a new gotcha
 
 When you find a new gotcha, add an entry with this shape:

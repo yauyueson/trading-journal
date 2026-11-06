@@ -6,7 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   buildLocalSwingTickerData,
+  isNyseHoliday,
+  loadDailyCandlesFromIntradayCache,
   loadIVDataFromOptionChainCache,
+  nyseSessionCloseHourET,
 } from '../scripts/wfa-local-cache';
 import { fetchTickerData as fetchSwingTickerData } from '../scripts/wfa-pipeline-swing';
 import { fetchTickerData as fetchShortTickerData } from '../scripts/wfa-pipeline-short';
@@ -188,5 +191,109 @@ describe('WFA local cache inputs', () => {
     } finally {
       intradayDb.close();
     }
+  });
+});
+
+// Regression for the 2026-11-06 repro audit: the old loader grouped 1h bars by
+// the UTC `date` column with no session filter, so (a) a Friday 19:00 ET
+// after-hours bar (00:00 UTC Saturday) became a phantom Saturday candle,
+// (b) extended-hours bars set the daily open/close/high/low, and (c) pre-2024
+// vendor rows that carry full regular-session bars on NYSE holidays became
+// fake trading days.
+describe('loadDailyCandlesFromIntradayCache session handling', () => {
+  let tmpDir: string;
+  let dbPath: string;
+
+  function utcBar(utc: string, open: number, high: number, low: number, close: number, volume: number) {
+    return { datetime: utc, open, high, low, close, volume };
+  }
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wfa-session-'));
+    dbPath = path.join(tmpDir, 'intraday-candles.sqlite');
+    const db = new Database(dbPath);
+    db.exec(`
+      CREATE TABLE candles_1h (
+        ticker TEXT NOT NULL, timestamp INTEGER NOT NULL, datetime TEXT NOT NULL, date TEXT NOT NULL,
+        open REAL NOT NULL, high REAL NOT NULL, low REAL NOT NULL, close REAL NOT NULL, volume REAL NOT NULL
+      );
+    `);
+    const bars = [
+      // Thu 2025-03-06 19:00 ET after-hours bar, stored under UTC date 2025-03-07.
+      utcBar('2025-03-07 00:00:00', 900, 900, 900, 900, 1),
+      // Fri 2025-03-07 (EST, UTC-5): pre-market 04:00 ET, then regular 09:00..15:00 ET.
+      utcBar('2025-03-07 09:00:00', 800, 800, 800, 800, 1),
+      utcBar('2025-03-07 14:00:00', 100, 105, 99, 104, 10),
+      utcBar('2025-03-07 15:00:00', 104, 106, 103, 105, 10),
+      utcBar('2025-03-07 16:00:00', 105, 107, 104, 106, 10),
+      utcBar('2025-03-07 17:00:00', 106, 108, 105, 107, 10),
+      utcBar('2025-03-07 18:00:00', 107, 109, 106, 108, 10),
+      utcBar('2025-03-07 19:00:00', 108, 110, 107, 109, 10),
+      utcBar('2025-03-07 20:00:00', 109, 111, 108, 110, 10),
+      // Fri after-hours 16:00 and 19:00 ET (the latter is UTC Saturday).
+      utcBar('2025-03-07 21:00:00', 500, 500, 500, 500, 1),
+      utcBar('2025-03-08 00:00:00', 600, 600, 600, 600, 1),
+      // Mon 2025-03-10 (EDT, UTC-4): regular 09:00 ET bar is 13:00 UTC.
+      utcBar('2025-03-10 08:00:00', 700, 700, 700, 700, 1),
+      utcBar('2025-03-10 13:00:00', 110, 112, 109, 111, 20),
+      utcBar('2025-03-10 19:00:00', 111, 113, 110, 112, 20),
+      utcBar('2025-03-10 20:00:00', 400, 400, 400, 400, 1),
+      // MLK day 2024-01-15: legacy vendor rows carry regular-hours bars on holidays.
+      utcBar('2024-01-15 14:00:00', 300, 300, 300, 300, 5),
+      utcBar('2024-01-15 20:00:00', 300, 300, 300, 300, 5),
+      // Day after Thanksgiving 2025-11-28 closes 13:00 ET; the 13:00 ET bar is post-close.
+      utcBar('2025-11-28 14:00:00', 120, 121, 119, 120, 30),
+      utcBar('2025-11-28 17:00:00', 120, 122, 118, 121, 30),
+      utcBar('2025-11-28 18:00:00', 999, 999, 1, 999, 1),
+    ];
+    const insert = db.prepare(`
+      INSERT INTO candles_1h (ticker, timestamp, datetime, date, open, high, low, close, volume)
+      VALUES ('QQQ', ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const b of bars) {
+      insert.run(Date.parse(b.datetime.replace(' ', 'T') + 'Z'), b.datetime, b.datetime.slice(0, 10),
+        b.open, b.high, b.low, b.close, b.volume);
+    }
+    db.close();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('buckets by US/Eastern date, keeps regular session only, drops weekends and holidays', () => {
+    const candles = loadDailyCandlesFromIntradayCache({
+      ticker: 'QQQ', startDate: '2024-01-01', endDate: '2025-12-31', intradayDbPath: dbPath,
+    });
+
+    expect(candles.map(c => c.date)).toEqual(['2025-03-07', '2025-03-10', '2025-11-28']);
+    expect(candles[0]).toMatchObject({ open: 100, high: 111, low: 99, close: 110, volume: 70 });
+    expect(candles[1]).toMatchObject({ open: 110, high: 113, low: 109, close: 112, volume: 40 });
+    expect(candles[2]).toMatchObject({ open: 120, high: 122, low: 118, close: 121, volume: 60 });
+  });
+
+  it('applies the requested date range to Eastern dates', () => {
+    const candles = loadDailyCandlesFromIntradayCache({
+      ticker: 'QQQ', startDate: '2025-03-08', endDate: '2025-03-10', intradayDbPath: dbPath,
+    });
+    expect(candles.map(c => c.date)).toEqual(['2025-03-10']);
+  });
+});
+
+describe('NYSE calendar helpers', () => {
+  it('flags full-day closures including observed and special closures', () => {
+    for (const d of [
+      '2017-01-02', '2017-12-25', '2018-12-05', '2019-04-19', '2020-07-03',
+      '2021-12-24', '2022-06-20', '2022-12-26', '2023-01-02', '2025-01-09', '2026-07-03',
+    ]) expect(isNyseHoliday(d), d).toBe(true);
+    for (const d of ['2017-01-03', '2021-12-31', '2022-01-03', '2021-06-18', '2025-03-07'])
+      expect(isNyseHoliday(d), d).toBe(false);
+  });
+
+  it('returns 13:00 ET close on early-close days and 16:00 otherwise', () => {
+    for (const d of ['2017-07-03', '2018-12-24', '2020-11-27', '2024-07-03', '2025-12-24'])
+      expect(nyseSessionCloseHourET(d), d).toBe(13);
+    for (const d of ['2021-07-02', '2022-07-01', '2025-03-07'])
+      expect(nyseSessionCloseHourET(d), d).toBe(16);
   });
 });
