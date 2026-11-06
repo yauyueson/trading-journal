@@ -303,3 +303,54 @@ describe('makeDebitSpreadEvaluator — validation guards', () => {
       .toThrow(/must be <|debitShortDelta/);
   });
 });
+
+// Gotcha #45 (2026-11-06 repro audit): when one leg vanishes from the cache
+// (|δ| outside 0.01–0.99) the missing-chain force-close booked the last
+// (stale) spread mid with no fills. It must price the surviving leg at today's
+// bid/ask and the vanished leg at intrinsic.
+describe('makeDebitSpreadEvaluator — missing-leg force-close pricing (gotcha #45)', () => {
+  beforeEach(() => mockChainByDate.clear());
+
+  it('prices the exit off today\'s surviving leg + vanished-leg intrinsic, not the stale mid', () => {
+    const row = (d: string, dte: number, strike: number, spot: number, bid: number, mid: number, ask: number, delta: number) =>
+      makeRow({ ticker: 'QQQ', date: d, expiry: '2026-02-20', dte, strike, spot, callBid: bid, callMid: mid, callAsk: ask, delta });
+    mockChainByDate.set('2026-01-05', [row('2026-01-05', 46, 400, 400, 10, 10, 10, 0.50), row('2026-01-05', 46, 420, 400, 2, 2, 2, 0.20)]);
+    mockChainByDate.set('2026-01-06', [row('2026-01-06', 45, 400, 402, 11, 11, 11, 0.53), row('2026-01-06', 45, 420, 402, 2.5, 2.5, 2.5, 0.22)]);
+    // Short (420) vanishes (δ < 0.01) as QQQ drops; long row still quoted.
+    mockChainByDate.set('2026-01-07', [row('2026-01-07', 44, 400, 392, 6, 6.1, 6.2, 0.35)]);
+    mockChainByDate.set('2026-01-08', [row('2026-01-08', 43, 400, 390, 5.4, 5.5, 5.6, 0.30)]);
+    mockChainByDate.set('2026-01-09', [row('2026-01-09', 42, 400, 388, 5.0, 5.2, 5.4, 0.28)]);
+
+    const config: SimConfig = { ...BASE_CONFIG, missingChainExitAfterDays: 3 };
+    const trade = makeDebitSpreadEvaluator(config)(
+      { ticker: 'QQQ', date: '2026-01-05', direction: 'CALL', score: 0 } as EntrySignal,
+      config, buildWeekdays('2026-01-05', '2026-01-15'), '2026-02-28');
+
+    expect(trade).not.toBeNull();
+    expect(trade!.exitType).toBe('FORCE_CLOSE');
+    expect(trade!.exitDate).toBe('2026-01-09');
+    // mid fill mode: long closes at today's mid 5.2; vanished OTM short = intrinsic 0.
+    // Pre-fix: stale 01-06 mark 11 − 2.5 = 8.5.
+    expect(trade!.exitPrice).toBeCloseTo(5.2, 6);
+    expect(trade!.exitStockPrice).toBe(388);
+    expect(trade!.pnl).toBeCloseTo((5.2 - 8) * 100, 6);
+  });
+
+  it('applies bid/ask fills to the surviving leg in bidask mode', () => {
+    const row = (d: string, dte: number, strike: number, spot: number, bid: number, mid: number, ask: number, delta: number) =>
+      makeRow({ ticker: 'QQQ', date: d, expiry: '2026-02-20', dte, strike, spot, callBid: bid, callMid: mid, callAsk: ask, delta });
+    mockChainByDate.set('2026-01-05', [row('2026-01-05', 46, 400, 400, 10, 10, 10, 0.50), row('2026-01-05', 46, 420, 400, 2, 2, 2, 0.20)]);
+    for (const [d, dte] of [['2026-01-06', 45], ['2026-01-07', 44], ['2026-01-08', 43]] as const) {
+      mockChainByDate.set(d, [row(d, dte, 400, 388, 5.0, 5.2, 5.4, 0.28)]);
+    }
+    const config: SimConfig = { ...BASE_CONFIG, fillMode: 'bidask', missingChainExitAfterDays: 3 };
+    const trade = makeDebitSpreadEvaluator(config)(
+      { ticker: 'QQQ', date: '2026-01-05', direction: 'CALL', score: 0 } as EntrySignal,
+      config, buildWeekdays('2026-01-05', '2026-01-15'), '2026-02-28');
+
+    expect(trade!.exitType).toBe('FORCE_CLOSE');
+    // Sell at bid minus a small impact — strictly at or below the bid, far below the stale mark.
+    expect(trade!.exitPrice).toBeLessThanOrEqual(5.0);
+    expect(trade!.exitPrice).toBeGreaterThan(4.95);
+  });
+});

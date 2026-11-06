@@ -591,3 +591,70 @@ describe('Parity: makeDiagonalEvaluator vs simulateDiagonal', () => {
     expect(syncTrade!.exitDate).toBe(asyncTrade!.exitDate);
   });
 });
+
+// Gotcha #44 (2026-11-06 repro audit): the chain cache only stores contracts
+// with 0.01 < |δ| < 0.99, so a short call that goes deep ITM vanishes. Both the
+// sync worker evaluator (used by the autoresearch runner) and the async
+// simulateDiagonal used to skip it, never settle it at expiry, and book it at
+// $0 at the long exit. These run every scenario through BOTH paths (parity).
+describe('Vanished deep-ITM short (gotcha #44)', () => {
+  beforeEach(() => mockChainByDate.clear());
+
+  const baseConfig: SimConfig = { ...DEFAULT_LEAP_CONFIG, mode: 'DIAGONAL',
+    fillMode: 'mid',
+    diagLongDeltaRange: [0.65, 0.80], diagLongDTERange: [240, 300],
+    diagShortDeltaRange: [0.20, 0.30], diagShortDTERange: [25, 60],
+    diagLongProfitTarget: 0.40, diagLongStopLoss: 0.35, diagLongTimeStopDTE: 90,
+    diagShortProfitTarget: 0.50, diagRollTriggerMoneyness: 0.02,
+    monitoringIntervalDays: 1 };
+  const signal: EntrySignal = { ticker: 'QQQ', date: '2023-01-20', direction: 'CALL', score: 0 };
+  const long = (date: string, dte: number, spot: number, mid: number) =>
+    makeDiagonalChainRow({ ticker: 'QQQ', date, expiry: '2023-10-20', dte, strike: 340, spot, callBid: mid, callMid: mid, callAsk: mid, delta: 0.9 });
+
+  async function runBoth(allDates: string[]) {
+    const sync = makeDiagonalEvaluator(baseConfig)(signal, baseConfig, allDates, '2023-12-31');
+    const async_ = await simulateDiagonal('', signal, baseConfig, allDates, '2023-12-31');
+    return [sync, async_] as const;
+  }
+
+  it('settles a short that vanished before expiry at expiry intrinsic (ASSIGNED), not $0', async () => {
+    mockChainByDate.set('2023-01-20', [
+      long('2023-01-20', 273, 380, 45),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-02-17', dte: 28, strike: 400, spot: 380, callBid: 2.5, callMid: 2.5, callAsk: 2.5, delta: 0.25 }),
+    ]);
+    // Short row absent (δ > 0.99) on 02-10 and on expiry day 02-17.
+    mockChainByDate.set('2023-02-10', [long('2023-02-10', 252, 420, 60)]);
+    mockChainByDate.set('2023-02-17', [long('2023-02-17', 245, 415, 58)]);
+    mockChainByDate.set('2023-07-24', [long('2023-07-24', 88, 395, 58.5)]);
+
+    for (const trade of await runBoth(buildWeekdays('2023-01-20', '2023-07-24'))) {
+      expect(trade).not.toBeNull();
+      const cycle = trade!.diagonalLegs!.shortCallCycles[0];
+      expect(cycle.exitReason).toBe('ASSIGNED');
+      expect(cycle.exitDate).toBe('2023-02-17');
+      expect(cycle.exitCost).toBeCloseTo(15, 6);
+      // Missing day is marked at intrinsic so portfolio MtM sees the loss.
+      expect(cycle.dailyMtM.find(m => m.date === '2023-02-10')?.premium).toBeCloseTo(20, 6);
+    }
+  });
+
+  it('buys back a short still open but missing at the long exit at intrinsic, not $0', async () => {
+    mockChainByDate.set('2023-01-20', [
+      long('2023-01-20', 273, 380, 45),
+      makeDiagonalChainRow({ ticker: 'QQQ', date: '2023-01-20', expiry: '2023-03-17', dte: 56, strike: 400, spot: 380, callBid: 3, callMid: 3, callAsk: 3, delta: 0.25 }),
+    ]);
+    // Long hits +40% PT on 03-01 while the short (exp 03-17) is deep ITM and absent.
+    mockChainByDate.set('2023-03-01', [long('2023-03-01', 233, 425, 70)]);
+
+    for (const trade of await runBoth(buildWeekdays('2023-01-20', '2023-07-24'))) {
+      expect(trade).not.toBeNull();
+      expect(trade!.exitType).toBe('PROFIT_TARGET');
+      const cycles = trade!.diagonalLegs!.shortCallCycles;
+      const last = cycles[cycles.length - 1];
+      expect(last.exitReason).toBe('FORCE_CLOSE');
+      expect(last.exitDate).toBe('2023-03-01');
+      expect(last.exitCost).toBeCloseTo(25, 6);
+      expect(trade!.pnl).toBeCloseTo(100 * (70 - 45) + 100 * (3 - 25), 6);
+    }
+  });
+});

@@ -8,7 +8,9 @@ Ledger-free replay of the two 2026-04-23 sealed adoptions, run on the same data 
 2. **Correctness of those numbers: NOT CLEAN.** An independent recompute from raw chain rows reproduces all 123 trades mechanically: strikes, fills and exit dates match to ≤1e-6 per share, and no lookahead was found. It also exposed two simulator bugs that flatter the sealed PnL, plus end-of-window artifacts:
    - **PMCC (large):** 18 short calls that went deep ITM vanished from the cache and were booked at **$0**. Settled at intrinsic, holdout PnL falls from $18,669 to about $5,218 and OOS PnL from $34,408 to about $14,250. These are upper bounds on the bias, because the re-roll premium the sim also missed is not credited back. New gotcha #44.
    - **BCD (moderate):** 25 of 26 `FORCE_CLOSE` exits are missing-chain exits at a 3-day-old mid with no slippage. Corrected, holdout PnL is at most about $4,600 (was $5,497) and OOS at most about $5,280 (was $7,165). New gotcha #45.
-   - The sealed Sharpe, IR and dsrM figures were therefore computed on inflated PnL. They were **not** recomputed here: that needs a simulator fix plus a governed re-evaluation, which is outside this audit's scope (see "Not done").
+   - **Both bugs are now fixed on this branch (see "Simulator fix" below).** A ledger-free diagnostic replay on the same data, with the same trades and dates, gives the results below. **Neither strategy would clear the 6-gate standard adoption threshold under the corrected simulator.** This is a diagnostic only, not a seal; governance status is unchanged.
+     - BCD: oosSharpe 0.971 → **0.775**, below the 0.8 gate. dsrM at F0 N=30 is **−0.141**.
+     - PMCC: oosSharpe 1.724 → **0.769**. holdoutSharpe 1.629 → 0.557. holdoutSpyIR +0.149 → **−0.703**. dsrM at F0 N=25 is **−0.081**.
 3. **Capital mismatch matters for one gate.** At the governance tiers ($5K BCD / $20K PMCC) instead of the strategy-file capital ($2K / $10K), the trades are identical, but PMCC holdoutSpyIR falls from +0.149 to **−0.153**, which would fail the `holdoutSpyIR >= 0` gate.
 4. **May-7 validation, corrected.** The intraday loader bug (gotcha #46) is fixed. The cache-only validation now holds out exactly the manifest window and reproduces the seal metrics exactly. Its SPY IR is higher only because it benchmarks against SPY without dividends.
 
@@ -133,10 +135,48 @@ Outputs: `docs/wfa/QQQ-CLEAN-SHEET-VALIDATION-RESULTS-2026-11-06.md` and `qqq-cl
 
 ## Tests
 
-`npx tsc --noEmit` is clean. `npm run test`: 71 files, **1349 passed, 2 skipped**, on Node 24.11.1.
+`npx tsc --noEmit` is clean.
+
+`npm run test` on Node 24.11.1:
+- Before the simulator fix: 71 files, 1349 passed, 2 skipped.
+- After the fix: **1350 passed, 5 skipped**. The 3 extra skips are `tests/pmcc-oracle.test.ts`, which needs the real cache; it was run separately against a cache clone and passed 3/3.
+
+## Simulator fix (gotchas #44 and #45)
+
+The human approved this on 2026-11-06 ("Yes, fix both here"). No re-seal and no governance change.
+
+Changes:
+- `scripts/autoresearch/worker.ts` `makeDiagonalEvaluator` and its async mirror `src/lib/backtest/option-sim.ts` `simulateDiagonal`. A PMCC short with no chain row is marked at intrinsic off the day's spot, settles as ASSIGNED/EXPIRATION at expiry and then rolls. If it is still open but missing at the long exit, it is bought back at intrinsic, never at $0. PT and pin-roll checks still require a quoted row.
+- `makeDebitSpreadEvaluator`. At the missing-chain cap, a quoted leg closes at its bid/ask fill with slippage and a vanished leg at intrinsic. The last mark is used only if the whole chain is absent that day.
+
+Tests were written first and failed for the stated reasons: 2 in `tests/diagonal-sim.test.ts` (each run on both the sync and async paths) and 2 in `tests/debit-spread-evaluator.test.ts`. The PMCC oracle replay (`tests/pmcc-oracle.test.ts`, real cache, run on a separate disposable clone) still passes 3/3.
+
+Diagnostic replay with the fixed simulator. It ran in a throwaway worktree at `920de06` plus the fix, with the same data, an empty ledger and nothing written to the main checkout. Trade entries, exits, counts and exit types are identical to the sealed run; only the pricing changed (24 BCD and 18 PMCC trades):
+
+| | BCD sealed | BCD fixed | PMCC sealed | PMCC fixed |
+|---|---:|---:|---:|---:|
+| OOS PnL | $7,164.65 | $5,279.98 | $34,407.66 | $11,091.99 |
+| Holdout PnL | $5,496.89 | $4,598.88 | $18,668.82 | $3,025.51 |
+| oosSharpe (gate ≥ 0.8) | 0.971 | **0.775 ✗** | 1.724 | **0.769 ✗** |
+| holdoutSharpe (gate ≥ 0.3) | 1.223 | 1.056 | 1.629 | 0.557 |
+| holdoutSpyIR (gate ≥ 0) | +0.395 | +0.440 | +0.149 | **−0.703 ✗** |
+| oosMaxDD % | 39.8 | 54.6 | 17.5 | 28.8 |
+| passesStability / statConsistency | ✓ / ✓ | ✓ / ✓ | ✓ / ✓ | ✓ / ✓ |
+| dsrM at seal F0 N (gate > 0) | +0.065 (N=30) | **−0.141 ✗** | +0.845 (N=25) | **−0.081 ✗** |
+| Gates passed | 6/6 | **4/6** | 6/6 | **3/6** |
+
+At the governance capital tier ($5K BCD / $20K PMCC) with the fixed simulator:
+- BCD: oosSharpe 0.675, holdoutSpyIR +0.094.
+- PMCC: oosSharpe 0.716, holdoutSpyIR −1.348.
+
+Cross-check: the cache-only validation pipeline, which goes through the same evaluators with the fixed loader, gives identical Sharpe and PnL. Its own looser classifier marks PMCC `blocked` (holdout SPY IR −0.59 against price-only SPY) and BCD `paper_candidate`.
+
+These numbers are a **diagnostic**, not a seal or a new adoption trial. They were not appended to the trial ledger, and `config/strategy-governance.json` was not changed. Both strategies are still recorded as `paper-approved`. Whether that should change is a Model Risk / Portfolio Governor decision for the human, with Codex review of this fix first.
 
 ## Not done (out of scope; needs governance routing)
 
-- No fix to #44 or #45, and no re-evaluation of either seal with corrected settlement. That would be a simulator change on the adoption path, which needs Codex review and human sign-off, and any re-evaluation would be a new trial.
+- No re-seal, ledger entry or governance change for either strategy. The diagnostic above shows that, under the corrected simulator, neither clears the standard 6-gate threshold.
+- No Codex review of the simulator fix or the loader fix yet; Codex CLI is blocked on its model config. Both changes touch the adoption path, so they must not merge before Codex reviews them.
 - No change to the strategy-file capital ($2K / $10K) vs the governance tiers ($5K / $20K).
 - No change to the validation script's SPY benchmark source.
+- Not fixed: the window-end artifacts (zero-length trades on the last day; PMCC window-end closes labelled `TIME_STOP`), and the BCD window-end `FORCE_CLOSE` at the last mark without slippage (`worker.ts` "Forced close at maxDate").

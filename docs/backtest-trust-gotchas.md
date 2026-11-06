@@ -857,8 +857,8 @@ already sourced real bid/ask.
 ---
 
 ### 44. PMCC short calls that go deep ITM vanish from the cache and are settled at $0
-**Trap — found 2026-11-06 (repro audit), NOT yet fixed**
-**File:** `scripts/autoresearch/worker.ts` — `makeDiagonalEvaluator` (short-cycle mark ~line 557; "Settle open short at long exit" ~lines 626-631)
+**Fixed:** 2026-11-06 (repro audit branch `claude/dazzling-lumiere-1aecfe`)
+**Files:** `scripts/autoresearch/worker.ts` — `makeDiagonalEvaluator`; `src/lib/backtest/option-sim.ts` — `simulateDiagonal` (same defect in the async mirror)
 
 **What happened:** The chain cache only stores contracts with roughly 0.01 < |δ| < 0.99. When QQQ rallies through a PMCC short call, the short's row disappears. `findContractOnDateSync` then returns null, so the cycle is never marked, never hits `close_expired` (no ASSIGNED settlement at expiry), and is finally booked at `buyBackCost = 0` with `exitReason: 'FORCE_CLOSE'` when the long LEAP exits. The trade gets the LEAP's upside without paying for the short call it lost.
 
@@ -869,19 +869,17 @@ already sourced real bid/ask.
 - Almost no `ASSIGNED` short cycles despite a strongly rising underlying (1 of 152 cycles in the F1 anchor)
 - PMCC profit concentrated in PROFIT_TARGET trades during sharp rallies
 
-**Prevention:**
-- When the short row is missing on or after expiry, settle at intrinsic using that day's chain `stock_price`. When it is missing at the long exit, value it at intrinsic (lower bound) and never at 0.
-- Add an invariant test: any short cycle closed with spot > strike must have exitCost ≥ spot − strike.
+**Fix:** a missing short row is marked at intrinsic off the day's spot (short row → long row → any chain row), settles as ASSIGNED/EXPIRATION at expiry and then rolls normally. A short still open but missing at the long exit is bought back at intrinsic. PT and pin checks still need a quoted row. Tests: `tests/diagonal-sim.test.ts` "Vanished deep-ITM short (gotcha #44)" (sync and async paths). Effect on the F1 anchor (ledger-free replay, same data): OOS PnL $34,408 → $11,092; holdout PnL $18,669 → $3,026; oosSharpe 1.724 → 0.769; holdoutSharpe 1.629 → 0.557; holdoutSpyIR +0.149 → −0.703.
 
 ### 45. BCD missing-chain exit books a stale ORATS mid with no slippage
-**Trap — found 2026-11-06 (repro audit), NOT yet fixed**
+**Fixed:** 2026-11-06 (repro audit branch `claude/dazzling-lumiere-1aecfe`)
 **File:** `scripts/autoresearch/worker.ts` — `makeDebitSpreadEvaluator` (~lines 819-825)
 
 **What happened:** When the short leg's δ drops below ~0.01 its row disappears from the cache. After 3 missing days the evaluator closes the spread at the last seen (3-day-old) ORATS mid with no bid/ask or slippage, labelled `FORCE_CLOSE`. In the BCD F1 anchor, 25 of 26 FORCE_CLOSE exits are this path; only one is a genuine 45-day max-hold exit. This partly undoes the bid/ask fill discipline of gotcha #3.
 
 **Fingerprint:** Many `FORCE_CLOSE` exits well before `debitMaxHoldDays`; their exit price equals the spread mid from 3 trading days earlier.
 
-**Prevention:** Price the exit at the long leg's bid on the exit day, treating the vanished short as ~0, with slippage applied. Bounded impact on F1: holdout $5,497 → ≤ ~$4,600 and OOS $7,165 → ≤ ~$5,280.
+**Fix:** at the missing-chain cap, a quoted leg closes at its bid/ask fill with slippage and a vanished leg at intrinsic. The last mark is used only when the whole chain is absent that day. Tests: `tests/debit-spread-evaluator.test.ts` "missing-leg force-close pricing (gotcha #45)". Effect on the F1 anchor (ledger-free replay): OOS PnL $7,165 → $5,280; holdout $5,497 → $4,599; oosSharpe 0.971 → 0.775; holdoutSharpe 1.223 → 1.056.
 
 ### 46. Intraday-derived daily candles bucketed by UTC date with no session filter
 **Fixed:** 2026-11-06 (repro audit branch)

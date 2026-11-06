@@ -28,5 +28,5 @@ Live deployment remains blocked unless a separate governance review explicitly p
 
 ## Caveats (added by hand after generation, 2026-11-06 repro audit)
 
-- These numbers reproduce the 2026-04-23 seals exactly. The same audit found simulator bugs that overstate PnL: PMCC deep-ITM shorts are booked at $0 (gotcha #44), and BCD missing-chain exits are booked at a stale mid (gotcha #45). Do not cite this file as clean adoption evidence. See `backtesting history/credit-spread/reports/repro-bcd-pmcc-2026-11-06/README.md`.
+- These numbers were produced by the simulator **before** the gotcha #44/#45 fixes and reproduce the 2026-04-23 seals exactly. Both fixes overstated PnL, so these figures are **superseded**. With the fixes on the same data: BCD sel 0.78 / hold 1.06 Sharpe; PMCC sel 0.77 / hold 0.56 Sharpe, holdout SPY IR −0.59 (price-only SPY), `blocked`. Do not cite this file as adoption evidence. See `backtesting history/credit-spread/reports/repro-bcd-pmcc-2026-11-06/README.md`.
 - The SPY benchmark here is price-only (raw intraday closes, no dividends). That overstates holdout IR by about 0.08–0.11 compared with the runner's dividend-adjusted SPY.
