@@ -13,6 +13,7 @@ import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
 import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, isOptionExpired, formatPrice, CONTRACT_MULTIPLIER, getStrategyKind, getPositionEntrySummary } from '../lib/utils';
 import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQWithFactors } from '../lib/scoring';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
+import { evaluateExitProximity } from '../lib/exitProximity';
 import { STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
 import { useAppSettings } from '../context/AppSettingsContext';
 import {
@@ -684,6 +685,11 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     if (tpReady) { alerts.push('TP Ready'); alertLevel = 'success'; }
     // Time Stop — must close
     if (isTimeStop) { alerts.push(`TIME STOP (DTE ${daysToExp})`); alertLevel = 'danger'; }
+    // PMCC LEAP stop-loss / time stop (sealed long-leg exits; TP is covered by tpReady)
+    if (stratProfile?.kind === 'diagonal') {
+        const leapExit = evaluateExitProximity(position, stratProfile, { legMarks: liveData.legPrices });
+        if (leapExit.level === 'met' && leapExit.reason !== 'tp') { alerts.push(leapExit.label); alertLevel = 'danger'; }
+    }
     // User-set stop loss hit
     if (currentStopLoss != null && currentPrice) {
         if (isCreditStrategy && currentPrice >= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }

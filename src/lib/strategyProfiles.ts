@@ -67,6 +67,8 @@ export interface StrategyProfile {
   shortProfitTarget?: number;
   /** Diagonal: stop-loss on the long LEAP (e.g. 0.35 = close LEAP at -35% P&L). */
   longStopLoss?: number;
+  /** Diagonal: close the LEAP when its own DTE falls to this value (sealed diagLongTimeStopDTE). */
+  longTimeStopDTE?: number;
   /** Diagonal: roll the short leg when underlying price gets within this fraction of the short strike (e.g. 0.02 = 2%). */
   rollTriggerMoneyness?: number;
 
@@ -171,6 +173,7 @@ export const STRATEGY_PROFILES: Record<StrategyType, StrategyProfile> = {
     longProfitTarget: 0.60,       // close LEAP at +60%
     shortProfitTarget: 0.50,      // close each short cycle at +50%
     longStopLoss: 0.35,           // close LEAP at -35%
+    longTimeStopDTE: 90,          // close LEAP at ≤ 90 DTE (strategy-pmcc-qqq-pt60-f1.ts diagLongTimeStopDTE)
     rollTriggerMoneyness: 0.02,   // roll short when underlying within 2% of short strike
     tickers: ['QQQ'],
     direction: 'bull',
