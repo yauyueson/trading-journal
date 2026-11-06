@@ -75,10 +75,9 @@ export const StrategyActionCard: React.FC<Props> = ({
     ? computeNetSpreadPrice(openPosition, legMarks ?? [])
     : null;
 
-  // Exit-proximity heads-up. The summary has no live marks, so this is the
-  // reliable-from-the-row view: exact time stop (DTE) + last-known-price TP for
-  // BCD. PMCC returns 'none' (its PT/SL/roll signals stay on the card).
-  const exit = state === 'open' && openPosition ? evaluateExitProximity(openPosition, profile) : null;
+  // Exit-proximity heads-up: exact time stops (DTE), last-known-price TP for
+  // BCD, and PMCC LEAP stop-loss / take-profit from the live leg marks.
+  const exit = state === 'open' && openPosition ? evaluateExitProximity(openPosition, profile, { legMarks }) : null;
   const exitChipClass = exit?.level === 'met'
     ? (exit.reason === 'tp'
         ? 'bg-phosphor-green/10 text-phosphor-green text-glow-green ring-phosphor-green/40'

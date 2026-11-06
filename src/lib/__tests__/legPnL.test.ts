@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeActivePMCCRealizedPnL, computeDiagonalHeadline, computeNetSpreadPrice, debitSpreadTpProgress, computeLegBasedHeadlinePnL, computeLegBasedPnL, isCycleRollTransaction, filterCycleRolls, computeLivePnL } from '../legPnL';
+import { computeActivePMCCRealizedPnL, computeDiagonalHeadline, computeNetSpreadPrice, debitSpreadTpProgress, debitSpreadTargetValue, computeLegBasedHeadlinePnL, computeLegBasedPnL, isCycleRollTransaction, filterCycleRolls, computeLivePnL } from '../legPnL';
 import type { Position } from '../types';
 
 const basePosition: Position = {
@@ -316,5 +316,21 @@ describe('isCycleRollTransaction', () => {
     expect(isCycleRollTransaction(undefined)).toBe(false);
     expect(isCycleRollTransaction(null)).toBe(false);
     expect(isCycleRollTransaction('')).toBe(false);
+  });
+});
+
+describe('debitSpreadTargetValue', () => {
+  it('is entry + tpFraction × max profit (sealed BCD rule)', () => {
+    // dfac18b7: debit 12.36, width 34 → max profit 21.64 → target 12.36 + 10.82
+    expect(debitSpreadTargetValue(12.36, 34, 0.5)).toBeCloseTo(23.18, 6);
+  });
+  it('agrees with debitSpreadTpProgress at 100%', () => {
+    const target = debitSpreadTargetValue(13.75, 39, 0.5)!;
+    expect(debitSpreadTpProgress({ entryDebit: 13.75, currentValue: target, width: 39, tpFraction: 0.5 })).toBeCloseTo(100, 6);
+  });
+  it('returns null when width is unknown or debit ≥ width', () => {
+    expect(debitSpreadTargetValue(10, null, 0.5)).toBeNull();
+    expect(debitSpreadTargetValue(10, 10, 0.5)).toBeNull();
+    expect(debitSpreadTargetValue(0, 10, 0.5)).toBeNull();
   });
 });

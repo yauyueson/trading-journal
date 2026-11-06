@@ -7,7 +7,7 @@
 
 import type { SpreadRecommendation, SingleLegRecommendation, Recommendation } from './types';
 import type { Position, Transaction } from './types';
-import { CONTRACT_MULTIPLIER, getStrategyKind, groupTransactionsByPositionId } from './utils';
+import { CONTRACT_MULTIPLIER, getStrategyKind, groupTransactionsByPositionId, getPositionEntrySummary } from './utils';
 
 /** Stop-out level: we size and display risk as "lose this much then stop" (e.g. 50% of max loss). */
 export const STOP_OUT_PCT = 0.5;
@@ -222,32 +222,23 @@ export function aggregatePortfolioGreeks(
         const legData = bulkData[pos.id];
         if (!legData || legData.length === 0) return;
 
-        const posTxns = transactionsByPosition[pos.id] ?? [];
-        let qtyBought = 0, qtySold = 0, totalCostBasis = 0;
-        posTxns.forEach(t => {
-            if (t.quantity > 0) {
-                qtyBought += t.quantity;
-                totalCostBasis += t.quantity * Math.abs(t.price);
-            } else {
-                qtySold += Math.abs(t.quantity);
-            }
-        });
-        const qty = qtyBought - qtySold;
+        const { openQty: qty, avgEntryPrice: avgPrice } = getPositionEntrySummary(transactionsByPosition[pos.id] ?? []);
         if (qty <= 0) return;
-        const avgPrice = qtyBought > 0 ? totalCostBasis / qtyBought : 0;
 
         let posNetDelta = 0, posNetGamma = 0, posNetTheta = 0, posNetVega = 0;
         let hasData = false;
 
         if (pos.legs && pos.legs.length > 0) {
             pos.legs.forEach(leg => {
+                if (leg.closedAt) return; // rolled-off / closed legs carry no live exposure
                 const legResult = (legData as any[]).find((d: any) =>
                     d.expiration === leg.expiration &&
                     String(d.strike) === String(leg.strike) &&
                     d.type === leg.type
                 );
-                const data = legResult?.data;
-                if (!data) return;
+                // CBOE results carry Greeks at the top level; legacy ORATS results nest them in `data`.
+                const data = legResult?.data ?? legResult;
+                if (!data || (data.delta == null && data.theta == null)) return;
                 const mult = leg.side === 'short' ? -1 : 1;
                 posNetDelta += (data.delta || 0) * mult;
                 posNetGamma += (data.gamma || 0) * mult;

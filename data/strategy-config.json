@@ -59,6 +59,7 @@
       "longProfitTarget": 0.60,
       "shortProfitTarget": 0.50,
       "longStopLoss": 0.35,
+      "longTimeStopDTE": 90,
       "rollTriggerMoneyness": 0.02,
       "tickers": ["QQQ"],
       "direction": "bull",

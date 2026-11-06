@@ -170,15 +170,51 @@ export function groupTransactionsByPositionId<T extends { position_id: string }>
     }, {});
 }
 
-export function getOpenQuantity(transactions: { quantity: number }[]): number {
-    return transactions.reduce((sum, transaction) => sum + transaction.quantity, 0);
+/**
+ * True for transactions whose cash flow belongs to a single leg (PMCC short
+ * rolls, generic leg rolls, per-leg closes). They are real cash flows for P&L
+ * but are NOT position units: a roll's "+1 close short" must not count as a
+ * second contract opened or pull down the average entry price.
+ */
+export function isLegLevelTransaction(note: string | null | undefined): boolean {
+    if (!note) return false;
+    return note.startsWith('PMCC roll:')
+        || note.startsWith('Close leg:')
+        || note.startsWith('Roll leg:');
 }
 
-export function getOpenedQuantity(transactions: { quantity: number }[]): number {
+type QtyTxn = { quantity: number; note?: string | null };
+
+export function getOpenQuantity(transactions: QtyTxn[]): number {
     return transactions.reduce(
-        (sum, transaction) => sum + (transaction.quantity > 0 ? transaction.quantity : 0),
+        (sum, transaction) => (isLegLevelTransaction(transaction.note) ? sum : sum + transaction.quantity),
         0,
     );
+}
+
+export function getOpenedQuantity(transactions: QtyTxn[]): number {
+    return transactions.reduce(
+        (sum, transaction) => sum + (transaction.quantity > 0 && !isLegLevelTransaction(transaction.note) ? transaction.quantity : 0),
+        0,
+    );
+}
+
+/** Opened / still-open contracts and average per-share entry price, ignoring leg-level txns. */
+export function getPositionEntrySummary(transactions: (QtyTxn & { price: number })[]): {
+    openedQty: number;
+    openQty: number;
+    avgEntryPrice: number;
+} {
+    let openedQty = 0, openQty = 0, cost = 0;
+    for (const t of transactions) {
+        if (isLegLevelTransaction(t.note)) continue;
+        openQty += t.quantity;
+        if (t.quantity > 0) {
+            openedQty += t.quantity;
+            cost += t.quantity * Math.abs(t.price);
+        }
+    }
+    return { openedQty, openQty, avgEntryPrice: openedQty > 0 ? cost / openedQty : 0 };
 }
 
 /** `maxRiskEntryDollars` is already dollars per contract, not per-share option price. */

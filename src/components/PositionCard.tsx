@@ -10,9 +10,10 @@ import { splitPMCCLegs, cycleRealizedPnL, totalRealizedShortPnL } from '../lib/p
 import { computeDiagonalHeadline, computeNetSpreadPrice, debitSpreadTpProgress, computeLegBasedPnL, isCycleRollTransaction } from '../lib/legPnL';
 import { GreeksHistoryChart } from './GreeksHistoryChart';
 import { saveGreeksHistory, fetchGreeksHistory } from '../lib/greeksHistory';
-import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, isOptionExpired, formatPrice, CONTRACT_MULTIPLIER, isCreditStrategy as isCreditStrategyFn } from '../lib/utils';
+import { formatDate, formatDateWithYear, formatCurrency, formatPercent, daysUntil, isOptionExpired, formatPrice, CONTRACT_MULTIPLIER, getStrategyKind, getPositionEntrySummary } from '../lib/utils';
 import { calculateCreditSpreadScore, calculateDebitSpreadScore, calculateSingleLOQWithFactors } from '../lib/scoring';
 import { getPositionRiskAtStopOutDollars } from '../lib/riskSizing';
+import { evaluateExitProximity } from '../lib/exitProximity';
 import { STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
 import { useAppSettings } from '../context/AppSettingsContext';
 import {
@@ -117,7 +118,7 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     const [historyLoading, setHistoryLoading] = useState(false);
 
     const isSpread = !!position.legs && position.legs.length > 0;
-    const isCreditStrategy = isCreditStrategyFn(position.type);
+    const isCreditStrategy = getStrategyKind(position) === 'credit';
 
     // Fetch Earnings (uses cached lookup if provided, else falls back to direct API call)
     useEffect(() => {
@@ -506,17 +507,11 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     }
     const positionTxns = transactions;
 
-    let totalQtyBought = 0, totalCostBasis = 0, totalQtySold = 0;
-    positionTxns.forEach(t => {
-        const qty = t.quantity;
-        const price = t.price * CONTRACT_MULTIPLIER;
-        if (qty > 0) { totalQtyBought += qty; totalCostBasis += qty * price; }
-        else { totalQtySold += Math.abs(qty); }
-    });
-
-    const totalQty = totalQtyBought - totalQtySold;
-    const avgCostPerContract = totalQtyBought > 0 ? totalCostBasis / totalQtyBought : 0;
-    const avgPrice = avgCostPerContract / CONTRACT_MULTIPLIER;
+    // Leg-level txns (rolls / per-leg closes) are not position units — see getPositionEntrySummary.
+    const entrySummary = getPositionEntrySummary(positionTxns);
+    const totalQty = entrySummary.openQty;
+    const avgPrice = entrySummary.avgEntryPrice;
+    const avgCostPerContract = avgPrice * CONTRACT_MULTIPLIER;
     const sortedTxns = [...positionTxns].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const firstBuy = sortedTxns.find(t => t.quantity > 0);
     const entryPrice = firstBuy ? Math.abs(firstBuy.price) : 0;
@@ -690,6 +685,11 @@ const PositionCardInner: React.FC<PositionCardProps> = (props) => {
     if (tpReady) { alerts.push('TP Ready'); alertLevel = 'success'; }
     // Time Stop — must close
     if (isTimeStop) { alerts.push(`TIME STOP (DTE ${daysToExp})`); alertLevel = 'danger'; }
+    // PMCC LEAP stop-loss / time stop (sealed long-leg exits; TP is covered by tpReady)
+    if (stratProfile?.kind === 'diagonal') {
+        const leapExit = evaluateExitProximity(position, stratProfile, { legMarks: liveData.legPrices });
+        if (leapExit.level === 'met' && leapExit.reason !== 'tp') { alerts.push(leapExit.label); alertLevel = 'danger'; }
+    }
     // User-set stop loss hit
     if (currentStopLoss != null && currentPrice) {
         if (isCreditStrategy && currentPrice >= currentStopLoss) { alerts.push('Hit Stop'); alertLevel = 'danger'; }

@@ -92,6 +92,9 @@ export default async function handler(req, res) {
 
     // 1. Determine Legs (Single vs Bulk)
     let legs = [];
+    // POST callers (useOptionPrices) always expect { success, results[] },
+    // even for one leg; only GET returns a bare single-leg object.
+    const isBulk = req.method === 'POST';
     if (req.method === 'POST') {
         legs = req.body.legs || [];
     } else {
@@ -107,13 +110,13 @@ export default async function handler(req, res) {
 
     // 2. Process based on Data Source
     if (dataSource === 'POLYGON' || dataSource === 'ORATS') {
-        return await handleORATS(legs, res);
+        return await handleORATS(legs, res, isBulk);
     } else {
-        return await handleCBOE(legs, res);
+        return await handleCBOE(legs, res, isBulk);
     }
 }
 
-async function handleORATS(legs, res) {
+async function handleORATS(legs, res, isBulk) {
     try {
         const { getOptionChain, getUnderlyingPrice } = await import('../lib/orats-client.js');
 
@@ -200,40 +203,61 @@ async function handleORATS(legs, res) {
         const anySuccess = results.some(r => r.success);
         if (!anySuccess) {
             console.warn('[option-prices] ORATS yielded 0 matches. Falling back to CBOE...');
-            return await handleCBOE(legs, res);
+            return await handleCBOE(legs, res, isBulk);
         }
 
-        if (legs.length === 1) {
+        if (!isBulk && legs.length === 1) {
             return res.status(results[0].success ? 200 : 404).json(results[0]);
         }
         return res.status(200).json({ success: true, results, timestamp: Date.now() });
     } catch (error) {
         console.warn('[option-prices] ORATS handler failed, falling back to CBOE. Error:', error.message);
-        return await handleCBOE(legs, res);
+        return await handleCBOE(legs, res, isBulk);
     }
 }
 
-async function handleCBOE(legs, res) {
-    // 1. Fetch CBOE quote files in parallel, cached once per unique ticker
+// A full CBOE chain is several MB (QQQ ≈ 5 MB) and CBOE itself only refreshes
+// it every few seconds (s-maxage=5). Warm function instances reuse one download
+// per ticker for CBOE_CACHE_MS instead of re-fetching it for every card/leg.
+const CBOE_CACHE_MS = 15_000;
+const cboeCache = new Map(); // ticker -> { at, promise }
+
+export function __resetCboeCacheForTests() {
+    cboeCache.clear();
+}
+
+function getCboeChain(upperTicker) {
+    const hit = cboeCache.get(upperTicker);
+    if (hit && Date.now() - hit.at < CBOE_CACHE_MS) return hit.promise;
+
+    const promise = (async () => {
+        try {
+            // cdn.cboe.com 307-redirects here; go direct.
+            const cboeUrl = `https://cdn-api.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
+            const response = await fetch(cboeUrl, {
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
+            if (response.ok) return await response.json();
+            console.warn(`[option-prices] CBOE HTTP ${response.status} for ${upperTicker}`);
+        } catch (e) {
+            console.warn(`[option-prices] CBOE fetch failed for ${upperTicker}:`, e.message);
+        }
+        return null;
+    })();
+    cboeCache.set(upperTicker, { at: Date.now(), promise });
+    // Never cache a failure.
+    promise.then(data => { if (!data && cboeCache.get(upperTicker)?.promise === promise) cboeCache.delete(upperTicker); });
+    return promise;
+}
+
+async function handleCBOE(legs, res, isBulk) {
+    // 1. Fetch CBOE quote files in parallel, once per unique ticker (short in-memory cache)
     const uniqueTickers = [...new Set(legs.map(l => (l.ticker || '').toUpperCase()).filter(Boolean))];
     const cboeDataByTicker = new Map();
 
     await Promise.all(uniqueTickers.map(async (upperTicker) => {
-        try {
-            const cboeUrl = `https://cdn.cboe.com/api/global/delayed_quotes/options/${upperTicker}.json`;
-            const response = await fetch(cboeUrl, {
-                headers: { 'User-Agent': 'Mozilla/5.0' }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                cboeDataByTicker.set(upperTicker, data);
-            } else {
-                console.warn(`[option-prices] CBOE HTTP ${response.status} for ${upperTicker}`);
-            }
-        } catch (e) {
-            console.warn(`[option-prices] CBOE fetch failed for ${upperTicker}:`, e.message);
-        }
+        const data = await getCboeChain(upperTicker);
+        if (data) cboeDataByTicker.set(upperTicker, data);
     }));
 
     // 2. Resolve each leg against the fetched CBOE data
@@ -328,7 +352,7 @@ async function handleCBOE(legs, res) {
         }
     }
 
-    if (legs.length === 1) {
+    if (!isBulk && legs.length === 1) {
         return res.status(results[0].success ? 200 : 404).json(results[0]);
     }
     return res.status(200).json({ success: true, results, timestamp: Date.now() });

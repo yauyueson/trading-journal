@@ -13,7 +13,7 @@ import { PortfolioGreeksWidget } from '../components/PortfolioGreeksWidget';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { getProfile, RETIRED_STRATEGIES, type StrategyType } from '../lib/strategyProfiles';
 import { getPositionRiskAtStopOutDollars, aggregatePortfolioGreeks } from '../lib/riskSizing';
-import { formatCurrency, daysUntil, isOptionExpired, groupTransactionsByPositionId } from '../lib/utils';
+import { formatCurrency, daysUntil, isOptionExpired, groupTransactionsByPositionId, getPositionEntrySummary } from '../lib/utils';
 import { usePositions } from '../hooks/usePositions';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAutoCloseStuckPositions } from '../hooks/useAutoCloseStuckPositions';
@@ -200,20 +200,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = (props) => {
 
     // ... (risk calc unchanged)
     const totalRiskDollars = activePositions.reduce((sum, position) => {
-        const posTxns = transactionsByPosition[position.id] ?? [];
-        let totalQtyBought = 0, totalQtySold = 0, totalCostBasis = 0;
-        posTxns.forEach(t => {
-            const qty = t.quantity;
-            if (qty > 0) {
-                totalQtyBought += qty;
-                totalCostBasis += qty * Math.abs(t.price);
-            } else {
-                totalQtySold += Math.abs(qty);
-            }
-        });
-        const totalQty = totalQtyBought - totalQtySold;
-        const avgPrice = totalQtyBought > 0 ? totalCostBasis / totalQtyBought : 0;
-        return sum + getPositionRiskAtStopOutDollars(position, totalQty, avgPrice, stopOutFraction);
+        const { openQty, avgEntryPrice } = getPositionEntrySummary(transactionsByPosition[position.id] ?? []);
+        return sum + getPositionRiskAtStopOutDollars(position, openQty, avgEntryPrice, stopOutFraction);
     }, 0);
     const totalRiskPct = portfolioTotal > 0 ? (totalRiskDollars / portfolioTotal) * 100 : 0;
 
@@ -409,6 +397,7 @@ const refreshAllPrices = async () => {
                         const pmccCount = activePositions.filter(p => p.strategy_type === 'pmcc').length;
                         const legacyCount = activePositions.filter(p => p.strategy_type && RETIRED_STRATEGIES.has(p.strategy_type as StrategyType)).length;
                         const untaggedCount = activePositions.length - bcdCount - pmccCount - legacyCount;
+                        // netTheta is already dollars per day (× contracts × 100) — don't scale again.
                         const dailyTheta = portfolioGreeks?.netTheta ?? 0;
 
                         // Find nearest expiring position
@@ -431,7 +420,7 @@ const refreshAllPrices = async () => {
                                 </span>
                                 {dailyTheta !== 0 && (
                                     <span className="text-text-secondary">
-                                        <span className="text-phosphor-green text-glow-green font-bold">${(dailyTheta * 100).toFixed(0)}</span>/DAY THETA
+                                        <span className="text-phosphor-green text-glow-green font-bold">${dailyTheta.toFixed(0)}</span>/DAY THETA
                                     </span>
                                 )}
                                 {nearest && nearestDTE != null && (

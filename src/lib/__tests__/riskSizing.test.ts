@@ -184,6 +184,40 @@ describe('aggregatePortfolioGreeks', () => {
     expect(result!.netDelta).toBeCloseTo(100, 2);
   });
 
+  it('aggregates spread Greeks from CBOE-shaped (top-level) quotes and skips closed legs', () => {
+    // PMCC after a roll: long LEAP open, one closed short, one open short.
+    const pos = {
+      id: 'pm', ticker: 'QQQ', type: 'PMCC', strategy_type: 'pmcc', status: 'active',
+      expiration: '2027-01-15',
+      legs: [
+        { strike: 630, type: 'Call', side: 'long', expiration: '2027-01-15', openedDebit: 105.28 },
+        { strike: 701, type: 'Call', side: 'short', expiration: '2026-12-18', openedCredit: 7.48 },
+        { strike: 753, type: 'Call', side: 'short', expiration: '2026-10-30', openedCredit: 5.56, closedAt: '2026-11-06T15:59:03Z' },
+      ],
+    } as any;
+    const txns = [
+      { position_id: 'pm', quantity: 1, price: 99.37, note: 'Paper autopilot entry' },
+      { position_id: 'pm', quantity: 1, price: 0, note: 'Roll leg: close short K=753 exp=2026-10-30' },
+      { position_id: 'pm', quantity: -1, price: 7.48, note: 'Roll leg: open short K=701 exp=2026-12-18' },
+    ] as any[];
+    // CBOE result shape: Greeks at top level, no nested `data`.
+    const bulk = {
+      pm: [
+        { expiration: '2027-01-15', strike: 630, type: 'Call', delta: 0.80, gamma: 0.002, theta: -0.05, vega: 1.5 },
+        { expiration: '2026-12-18', strike: 701, type: 'Call', delta: 0.26, gamma: 0.006, theta: -0.20, vega: 0.73 },
+      ],
+    };
+    const result = aggregatePortfolioGreeks([pos], txns, bulk, 50000);
+    expect(result).not.toBeNull();
+    expect(result!.positionsWithData).toBe(1);
+    // (0.80 - 0.26) * 1 contract * 100
+    expect(result!.netDelta).toBeCloseTo(54, 6);
+    expect(result!.netTheta).toBeCloseTo((-0.05 + 0.20) * 100, 6);
+    // Risk uses the real basis (99.37), not one diluted by roll txns:
+    // max loss 9937 * 0.5 stop-out / 50000 = 9.937%
+    expect(result!.largestRiskPct).toBeCloseTo(9.937, 3);
+  });
+
   it('concentration warnings fire for >25% single ticker', () => {
     // 1 position with huge risk relative to portfolio
     const pos = singleLegPos({ id: 'p1', ticker: 'TSLA' });

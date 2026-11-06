@@ -9,8 +9,11 @@
  *     (position.current_price) against the sealed-backtest target
  *     (tpFraction of max profit). A "near" heads-up, not a fill signal.
  *
- * PMCC (diagonal) exits — long PT 60%, long SL 35%, short roll — need per-leg
- * marks the row doesn't carry, so they stay on the card; this returns 'none'.
+ * PMCC (diagonal) long-leg exits, mirroring worker.ts (LEAP return on its own
+ * debit, mid mark):
+ *   - LEAP time stop: LEAP leg DTE ≤ profile.longTimeStopDTE — exact, no marks.
+ *   - LEAP SL / PT: need the LEAP mark, so only when `opts.legMarks` (indexed
+ *     like position.legs) is passed. Short-roll signals stay on the card.
  */
 import type { Position } from './types';
 import type { StrategyProfile } from './strategyProfiles';
@@ -23,7 +26,7 @@ export interface ExitProximity {
   level: ExitLevel;
   /** Short badge label, e.g. "TIME STOP · DTE 7", "EXIT IN 2d", "TP READY", "TP 88%". */
   label: string;
-  reason: 'time' | 'tp' | null;
+  reason: 'time' | 'tp' | 'sl' | null;
 }
 
 const NONE: ExitProximity = { level: 'none', label: '', reason: null };
@@ -31,8 +34,9 @@ const NONE: ExitProximity = { level: 'none', label: '', reason: null };
 export function evaluateExitProximity(
   position: Position,
   profile: StrategyProfile,
-  opts: { timeCloseBufferDays?: number; tpNearPct?: number } = {},
+  opts: { timeCloseBufferDays?: number; tpNearPct?: number; legMarks?: Array<number | undefined> } = {},
 ): ExitProximity {
+  if (profile.kind === 'diagonal') return evaluateDiagonalLongExit(position, profile, opts);
   const timeCloseBuffer = opts.timeCloseBufferDays ?? 3;
   const tpNearPct = opts.tpNearPct ?? 85;
 
@@ -72,6 +76,42 @@ export function evaluateExitProximity(
 
   // Most urgent wins: a met signal beats a close one; TP is preferred when tied.
   const candidates = [tpProx, timeProx].filter(p => p.level !== 'none');
+  if (candidates.length === 0) return NONE;
+  return candidates.find(p => p.level === 'met') ?? candidates[0];
+}
+
+function evaluateDiagonalLongExit(
+  position: Position,
+  profile: StrategyProfile,
+  opts: { timeCloseBufferDays?: number; legMarks?: Array<number | undefined> },
+): ExitProximity {
+  const timeCloseBuffer = opts.timeCloseBufferDays ?? 3;
+  const legs = position.legs ?? [];
+  const longIdx = legs.findIndex(l => l.side === 'long' && !l.closedAt);
+  if (longIdx < 0) return NONE;
+  const longLeg = legs[longIdx];
+
+  let priceProx: ExitProximity = NONE;
+  const mark = opts.legMarks?.[longIdx];
+  const debit = longLeg.openedDebit;
+  if (mark != null && Number.isFinite(mark) && debit != null && debit > 0) {
+    const ret = (mark - debit) / debit;
+    if (profile.longProfitTarget != null && ret >= profile.longProfitTarget) {
+      priceProx = { level: 'met', label: 'LEAP TP READY', reason: 'tp' };
+    } else if (profile.longStopLoss != null && ret <= -profile.longStopLoss) {
+      priceProx = { level: 'met', label: `LEAP STOP · ${Math.round(ret * 100)}%`, reason: 'sl' };
+    }
+  }
+
+  let timeProx: ExitProximity = NONE;
+  const stopDte = profile.longTimeStopDTE ?? 0;
+  if (stopDte > 0 && longLeg.expiration) {
+    const dte = daysUntil(longLeg.expiration);
+    if (dte <= stopDte) timeProx = { level: 'met', label: `LEAP TIME STOP · DTE ${dte}`, reason: 'time' };
+    else if (dte <= stopDte + timeCloseBuffer) timeProx = { level: 'close', label: `EXIT IN ${dte - stopDte}d`, reason: 'time' };
+  }
+
+  const candidates = [priceProx, timeProx].filter(p => p.level !== 'none');
   if (candidates.length === 0) return NONE;
   return candidates.find(p => p.level === 'met') ?? candidates[0];
 }

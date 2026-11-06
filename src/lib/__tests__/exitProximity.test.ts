@@ -63,17 +63,53 @@ describe('evaluateExitProximity — BCD', () => {
   });
 });
 
-describe('evaluateExitProximity — PMCC returns none (exit signals stay on the card)', () => {
-  it('PMCC has no time stop and TP needs leg marks → none', () => {
-    const pmcc: Position = {
-      id: 'p1', ticker: 'QQQ', strike: 630, type: 'Call', expiration: isoDaysFromNow(5),
-      status: 'active', setup: 'PMCC', entry_score: 0, current_score: 0,
-      strategy_type: 'pmcc', current_price: 100,
-      legs: [
-        { strike: 630, type: 'Call', side: 'long', expiration: '2027-01-15', openedDebit: 105.28, cycleQty: 1 },
-        { strike: 756, type: 'Call', side: 'short', expiration: '2026-07-17', openedCredit: 7.32, cycleQty: 1 },
-      ],
-    } as Position;
-    expect(evaluateExitProximity(pmcc, STRATEGY_PROFILES.pmcc).level).toBe('none');
+describe('evaluateExitProximity — PMCC long-leg exits (sealed: PT +60%, SL −35%, time stop ≤ 90 DTE)', () => {
+  // Mirrors the live paper PMCC: LEAP 630C bought at 105.28, short 701C open,
+  // one closed short cycle.
+  const pmcc = (leapDte: number): Position => ({
+    id: 'p1', ticker: 'QQQ', strike: 630, type: 'Call', expiration: isoDaysFromNow(leapDte),
+    status: 'active', setup: 'PMCC', entry_score: 0, current_score: 0,
+    strategy_type: 'pmcc', current_price: 44,
+    legs: [
+      { strike: 630, type: 'Call', side: 'long', expiration: isoDaysFromNow(leapDte), openedDebit: 105.28, cycleQty: 1 },
+      { strike: 701, type: 'Call', side: 'short', expiration: isoDaysFromNow(42), openedCredit: 7.48, cycleQty: 1 },
+      { strike: 753, type: 'Call', side: 'short', expiration: isoDaysFromNow(-7), openedCredit: 5.56, closedCost: 0, closedAt: '2026-11-06T15:59:03Z', cycleQty: 1 },
+    ],
+  }) as Position;
+  const P = STRATEGY_PROFILES.pmcc;
+
+  it('profile carries the sealed 90-DTE LEAP time stop', () => {
+    expect(P.longTimeStopDTE).toBe(90);
+  });
+
+  it('none when LEAP is far from every exit and marks are inside the band', () => {
+    expect(evaluateExitProximity(pmcc(200), P, { legMarks: [120, 7.5, undefined] }).level).toBe('none');
+  });
+
+  it('none with no marks and LEAP far from the time stop', () => {
+    expect(evaluateExitProximity(pmcc(200), P).level).toBe('none');
+  });
+
+  it('LEAP stop-loss MET at ≤ −35% (51.72 vs 105.28 = −51%)', () => {
+    const r = evaluateExitProximity(pmcc(200), P, { legMarks: [51.72, 7.56, undefined] });
+    expect(r).toMatchObject({ level: 'met', reason: 'sl' });
+    expect(r.label).toContain('-51%');
+  });
+
+  it('LEAP stop-loss not met at −34%', () => {
+    expect(evaluateExitProximity(pmcc(200), P, { legMarks: [105.28 * 0.66, 7.5, undefined] }).level).toBe('none');
+  });
+
+  it('LEAP take-profit MET at ≥ +60%', () => {
+    expect(evaluateExitProximity(pmcc(200), P, { legMarks: [105.28 * 1.6 + 0.01, 7.5, undefined] }))
+      .toMatchObject({ level: 'met', reason: 'tp', label: 'LEAP TP READY' });
+  });
+
+  it('LEAP time stop MET at DTE ≤ 90 from the LEAP leg expiry, without marks', () => {
+    expect(evaluateExitProximity(pmcc(70), P)).toMatchObject({ level: 'met', reason: 'time', label: 'LEAP TIME STOP · DTE 70' });
+  });
+
+  it('LEAP time stop CLOSE inside the buffer (DTE 92 → EXIT IN 2d)', () => {
+    expect(evaluateExitProximity(pmcc(92), P)).toMatchObject({ level: 'close', reason: 'time', label: 'EXIT IN 2d' });
   });
 });
