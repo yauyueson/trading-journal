@@ -16,7 +16,7 @@ import type { Position, PositionAction as PositionActionType } from '../lib/type
 import { computePositionPnL, formatDate, formatDateWithYear, getStrategyKind, groupTransactionsByPositionId } from '../lib/utils';
 import { computeActivePMCCRealizedPnL } from '../lib/legPnL';
 import { openLegRequests, legMarksFromQuotes } from '../lib/optionMarks';
-import { useOptionPrices } from '../hooks/useOptionPrices';
+import { useOptionPrices, type OptionPriceResult } from '../hooks/useOptionPrices';
 import { ACTIVE_STRATEGIES, STRATEGY_PROFILES, type StrategyType } from '../lib/strategyProfiles';
 import { CHART_COLORS, CHART_FONT_MONO, axisProps } from '../lib/chartTheme';
 
@@ -56,6 +56,21 @@ export function DashboardPage() {
     }
     return byPosition;
   }, [strategyQuotes.data, strategyStatuses]);
+
+  // Hand the same quotes to the position cards so they don't re-fetch every leg
+  // (stable per-position arrays: PositionCard re-prices whenever initialData changes).
+  const strategyQuotesByPosition = useMemo(() => {
+    const byPosition: Record<string, OptionPriceResult[]> = {};
+    for (const q of strategyQuotes.data ?? []) {
+      if (!q.id || q.success === false) continue;
+      (byPosition[q.id] ??= []).push(q);
+    }
+    return byPosition;
+  }, [strategyQuotes.data]);
+  const strategyPositionIds = useMemo(
+    () => new Set(strategyStatuses.flatMap(s => (s.openPosition ? [s.openPosition.id] : []))),
+    [strategyStatuses],
+  );
 
   const activePositions = useMemo(
     () => positions
@@ -412,6 +427,8 @@ export function DashboardPage() {
                   transactions={transactionsByPosition[pos.id] ?? []}
                   onAction={handleAction}
                   onUpdatePrice={handleUpdatePrice}
+                  initialData={strategyQuotesByPosition[pos.id]}
+                  parentManagedPrices={strategyPositionIds.has(pos.id) && !strategyQuotes.isError && (strategyQuotes.isPending || !!strategyQuotesByPosition[pos.id])}
                 />
               </motion.div>
             ))}
