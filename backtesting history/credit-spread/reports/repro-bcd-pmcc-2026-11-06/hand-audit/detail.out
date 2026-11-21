@@ -1,0 +1,155 @@
+## BCD detail
+
+### BCD oos#0  2019-01-29 -> 2019-02-05  sim exitType PROFIT_TARGET  (replay: PROFIT_TARGET)
+- expiry menu (call OI sum, DTE 30-60): 2019-03-01:21965, 2019-03-08:1624, 2019-03-15:448431, 2019-03-29:73555 → chosen 2019-03-15
+- long  K=163.0: bid 4.39 / ORATSmid 4.4245 / ask 4.44 (quote-mid 4.415) oi 12121 dte 46 δ 0.485 S 161.58
+- short K=171.0: bid 1.18 / ORATSmid 1.2517 / ask 1.20 (quote-mid 1.190) oi 3944 dte 46 δ 0.215 S 161.58
+- fills: long buy 4.4409, short sell 1.1797 → debit 3.2612 (sim 3.2612) Δ=0.00e+00; width 8.00, maxProfit 4.7388, PT level spreadMid ≥ 5.6306
+- max spreadMid before exit day: ('2019-02-04', 5.295636721909349) | exit-day/last mark: ('2019-02-05', 5.803650502932278)
+- exit long : bid 9.93 / ORATSmid 9.9214 / ask 9.99 (quote-mid 9.960) oi 11521 dte 39 δ 0.784 S 171.03
+- exit short: bid 4.16 / ORATSmid 4.1177 / ask 4.18 (quote-mid 4.170) oi 4442 dte 39 δ 0.530 S 171.03
+- exit fills: long sell 9.9279, short buy 4.1809 → 5.7470 (sim 5.7470)
+- pnl recomputed 248.5810 vs sim 248.5810; candle close on entry 154.234 vs chain S 161.58
+
+### BCD oos#20  2020-09-28 -> 2020-11-12  sim exitType FORCE_CLOSE  (replay: FORCE_CLOSE(maxhold))
+- expiry menu (call OI sum, DTE 30-60): 2020-10-30:22997, 2020-11-06:1418, 2020-11-20:249116 → chosen 2020-11-20
+- long  K=279.0: bid 13.19 / ORATSmid 13.2347 / ask 13.27 (quote-mid 13.230) oi 785 dte 54 δ 0.500 S 276.76
+- short K=306.0: bid 3.18 / ORATSmid 3.1979 / ask 3.22 (quote-mid 3.200) oi 229 dte 54 δ 0.200 S 276.76
+- fills: long buy 13.2743, short sell 3.1780 → debit 10.0964 (sim 10.0964) Δ=0.00e+00; width 27.00, maxProfit 16.9036, PT level spreadMid ≥ 18.5482
+- max spreadMid before exit day: ('2020-11-06', 16.521013095935526) | exit-day/last mark: ('2020-11-12', 10.686359506173895)
+- exit long : bid 10.78 / ORATSmid 10.8584 / ask 10.95 (quote-mid 10.865) oi 2546 dte 9 δ 0.751 S 287.79
+- exit short: bid 0.16 / ORATSmid 0.1720 / ask 0.18 (quote-mid 0.170) oi 3349 dte 9 δ 0.046 S 287.79
+- exit fills: long sell 10.7774, short buy 0.1800 → 10.5974 (sim 10.5974)
+- pnl recomputed 50.0993 vs sim 50.0993; candle close on entry 268.207 vs chain S 276.76
+
+### BCD hol#0  2024-02-14 -> 2024-03-11  sim exitType TIME_STOP  (replay: TIME_STOP)
+- expiry menu (call OI sum, DTE 30-60): 2024-03-15:943837, 2024-03-22:18709, 2024-03-28:45056 → chosen 2024-03-15
+- long  K=436.0: bid 7.49 / ORATSmid 7.5032 / ask 7.52 (quote-mid 7.505) oi 6525 dte 31 δ 0.492 S 433.00
+- short K=452.0: bid 1.94 / ORATSmid 1.9511 / ask 1.96 (quote-mid 1.950) oi 33965 dte 31 δ 0.194 S 433.00
+- fills: long buy 7.5216, short sell 1.9396 → debit 5.5820 (sim 5.5820) Δ=0.00e+00; width 16.00, maxProfit 10.4180, PT level spreadMid ≥ 10.7910
+- max spreadMid before exit day: ('2024-03-01', 9.692316742645797) | exit-day/last mark: ('2024-03-11', 4.98509384975775)
+- exit long : bid 5.29 / ORATSmid 5.3280 / ask 5.37 (quote-mid 5.330) oi 9043 dte 5 δ 0.593 S 437.81
+- exit short: bid 0.34 / ORATSmid 0.3429 / ask 0.35 (quote-mid 0.345) oi 29545 dte 5 δ 0.087 S 437.81
+- exit fills: long sell 5.2882, short buy 0.3501 → 4.9381 (sim 4.9381)
+- pnl recomputed -64.3888 vs sim -64.3888; candle close on entry 427.985 vs chain S 433.00
+
+### BCD hol#2  2024-04-26 -> 2024-05-20  sim exitType PROFIT_TARGET  (replay: PROFIT_TARGET)
+- expiry menu (call OI sum, DTE 30-60): 2024-05-31:20418, 2024-06-07:652, 2024-06-21:834662 → chosen 2024-06-21
+- long  K=435.0: bid 12.19 / ORATSmid 12.2022 / ask 12.23 (quote-mid 12.210) oi 29486 dte 57 δ 0.518 S 431.63
+- short K=459.78: bid 2.99 / ORATSmid 2.9953 / ask 3.01 (quote-mid 3.000) oi 7246 dte 57 δ 0.200 S 431.63
+- fills: long buy 12.2325, short sell 2.9894 → debit 9.2431 (sim 9.2431) Δ=0.00e+00; width 24.78, maxProfit 15.5369, PT level spreadMid ≥ 17.0116
+- max spreadMid before exit day: ('2024-05-15', 16.577176042069976) | exit-day/last mark: ('2024-05-20', 17.54991961515296)
+- exit long : bid 23.76 / ORATSmid 23.8684 / ask 23.94 (quote-mid 23.850) oi 31137 dte 33 δ 0.839 S 454.72
+- exit short: bid 6.30 / ORATSmid 6.3185 / ask 6.33 (quote-mid 6.315) oi 8185 dte 33 δ 0.450 S 454.72
+- exit fills: long sell 23.7551, short buy 6.3313 → 17.4238 (sim 17.4238)
+- pnl recomputed 818.0687 vs sim 818.0687; candle close on entry 426.350 vs chain S 431.63
+
+### BCD hol#5  2024-07-10 -> 2024-07-26  sim exitType FORCE_CLOSE  (replay: FORCE_CLOSE(missing-chain))
+- expiry menu (call OI sum, DTE 30-60): 2024-08-09:22102, 2024-08-16:312261, 2024-08-23:5986 → chosen 2024-08-16
+- long  K=505.0: bid 10.58 / ORATSmid 10.5802 / ask 10.62 (quote-mid 10.600) oi 21135 dte 38 δ 0.524 S 502.81
+- short K=530.0: bid 2.11 / ORATSmid 2.1227 / ask 2.14 (quote-mid 2.125) oi 2083 dte 38 δ 0.188 S 502.81
+- fills: long buy 10.6222, short sell 2.1095 → debit 8.5127 (sim 8.5127) Δ=0.00e+00; width 25.00, maxProfit 16.4873, PT level spreadMid ≥ 16.7563
+- max spreadMid before exit day: ('2024-07-12', 5.428236709936766) | exit-day/last mark: ('2024-07-23', 1.682070356152891)
+- exit value (no fill, last mid): 1.682070356152891 missing days ['2024-07-24', '2024-07-25', '2024-07-26']
+- pnl recomputed -683.0622 vs sim -683.0622; candle close on entry 498.333 vs chain S 502.81
+
+### BCD hol#24  2026-02-27 -> 2026-02-27  sim exitType FORCE_CLOSE  (replay: FORCE_CLOSE(window-end))
+- expiry menu (call OI sum, DTE 30-60): 2026-03-31:160097, 2026-04-02:18155, 2026-04-10:181, 2026-04-17:302791 → chosen 2026-04-17
+- long  K=610.0: bid 17.53 / ORATSmid 17.5591 / ask 17.59 (quote-mid 17.560) oi 5551 dte 50 δ 0.499 S 606.07
+- short K=641.0: bid 3.93 / ORATSmid 3.9594 / ask 3.98 (quote-mid 3.955) oi 440 dte 50 δ 0.199 S 606.07
+- fills: long buy 17.5938, short sell 3.9283 → debit 13.6655 (sim 13.6655) Δ=0.00e+00; width 31.00, maxProfit 17.3345, PT level spreadMid ≥ 22.3328
+- exit value (no fill, last mid): 13.665519899982156 missing days None
+- pnl recomputed 0.0000 vs sim 0.0000; candle close on entry 606.534 vs chain S 606.07
+
+## PMCC detail
+
+### PMCC oos#16  2022-02-23 -> 2022-05-09  sim exitType STOP_LOSS (replay STOP_LOSS)
+- LEAP expiry menu (DTE 240-300): 2022-12-16:296567
+- long  K=285.0 exp 2022-12-16: bid 62.19 / ORATSmid 62.7684 / ask 63.39 (quote-mid 62.790) oi 1213 dte 297 δ 0.747 S 330.08
+- long buy fill 63.4077 (sim 63.4077)
+- long ret range before exit day: max +0.523 (2022-03-29), min -0.287 (2022-05-06); PT +0.60 / SL -0.35
+- long exit-day mark ('2022-05-09', 37.825073130753566) ret -0.4035; exit row bid 37.66 ask 37.99 oi 1274 dte 222 → sell fill 37.6495 (sim 37.6495)
+  - cycle 0 K=351.0 exp 2022-03-31 2022-02-23→2022-03-08 credit 3.9986 (sim 3.9986) cost 1.8908 (sim 1.8908) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 1.84 / ORATSmid 1.8660 / ask 1.89 (quote-mid 1.865) oi 484 dte 24 δ 0.154 S 324.37
+  - cycle 1 K=347.0 exp 2022-04-14 2022-03-08→2022-03-14 credit 4.3988 (sim 4.3988) cost 2.2106 (sim 2.2106) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 2.18 / ORATSmid 2.1930 / ask 2.21 (quote-mid 2.195) oi 1549 dte 32 δ 0.161 S 318.44
+  - cycle 2 K=339.0 exp 2022-04-14 2022-03-14→2022-04-14 credit 4.0287 (sim 4.0287) cost 0.2050 (sim 0.2050) ASSIGNED (sim ASSIGNED)
+      exit row: bid 0.60 / ORATSmid 0.6215 / ask 0.64 (quote-mid 0.620) oi 1127 dte 1 δ 0.566 S 339.20
+  - cycle 3 K=357.0 exp 2022-05-20 2022-04-14→2022-04-22 credit 3.3693 (sim 3.3693) cost 1.1702 (sim 1.1702) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 1.15 / ORATSmid 1.1597 / ask 1.17 (quote-mid 1.160) oi 6421 dte 29 δ 0.108 S 327.33
+  - cycle 4 K=347.0 exp 2022-05-27 2022-04-22→2022-04-27 credit 3.7570 (sim 3.7570) cost 1.5605 (sim 1.5605) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 1.51 / ORATSmid 1.5362 / ask 1.56 (quote-mid 1.535) oi 847 dte 31 δ 0.131 S 317.30
+  - cycle 5 K=338.0 exp 2022-05-31 2022-04-27→2022-05-06 credit 3.6290 (sim 3.6290) cost 1.1203 (sim 1.1203) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 1.07 / ORATSmid 1.0941 / ask 1.12 (quote-mid 1.095) oi 1509 dte 26 δ 0.113 S 308.90
+  - cycle 6 K=332.0 exp 2022-06-17 2022-05-06→2022-05-09 credit 4.1888 (sim 4.1888) cost 2.2806 (sim 2.2806) FORCE_CLOSE (sim FORCE_CLOSE)
+      exit row: bid 2.24 / ORATSmid 2.2524 / ask 2.28 (quote-mid 2.260) oi 1250 dte 40 δ 0.153 S 297.35
+- pnl: long -2575.83 + shorts 1693.21 = -882.6124 (sim -882.6124)
+
+### PMCC hol#0  2024-03-01 -> 2024-04-19  sim exitType STOP_LOSS (replay STOP_LOSS)
+- LEAP expiry menu (DTE 240-300): 2024-11-15:6414, 2024-12-20:215201
+- long  K=415.0 exp 2024-12-20: bid 60.19 / ORATSmid 60.4209 / ask 60.59 (quote-mid 60.390) oi 566 dte 295 δ 0.755 S 445.88
+- long buy fill 60.6128 (sim 60.6128)
+- long ret range before exit day: max +0.007 (2024-03-07), min -0.292 (2024-04-18); PT +0.60 / SL -0.35
+- long exit-day mark ('2024-04-19', 36.163178117262696) ret -0.4034; exit row bid 35.94 ask 36.37 oi 405 dte 246 → sell fill 35.9238 (sim 35.9238)
+  - cycle 0 K=460.0 exp 2024-04-05 2024-03-01→2024-03-05 credit 3.5985 (sim 3.5985) cost 1.4003 (sim 1.4003) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 1.37 / ORATSmid 1.3750 / ask 1.40 (quote-mid 1.385) oi 2873 dte 32 δ 0.138 S 434.81
+  - cycle 1 K=450.0 exp 2024-04-05 2024-03-05→2024-03-28 credit 3.2892 (sim 3.2892) cost 1.3703 (sim 1.3703) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 1.36 / ORATSmid 1.3656 / ask 1.37 (quote-mid 1.365) oi 13763 dte 9 δ 0.275 S 444.50
+  - cycle 2 K=460.0 exp 2024-04-26 2024-03-28→2024-04-04 credit 2.4694 (sim 2.4694) cost 0.9302 (sim 0.9302) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 0.90 / ORATSmid 0.9147 / ask 0.93 (quote-mid 0.915) oi 2107 dte 23 δ 0.114 S 436.23
+  - cycle 3 K=455.0 exp 2024-05-17 2024-04-04→2024-04-17 credit 4.2191 (sim 4.2191) cost 1.3003 (sim 1.3003) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 1.29 / ORATSmid 1.3231 / ask 1.30 (quote-mid 1.295) oi 18927 dte 31 δ 0.129 S 426.57
+  - cycle 4 K=445.0 exp 2024-05-17 2024-04-17→2024-04-19 credit 3.1993 (sim 3.1993) cost 0.9202 (sim 0.9202) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 0.90 / ORATSmid 0.8989 / ask 0.92 (quote-mid 0.910) oi 40219 dte 29 δ 0.102 S 413.57
+- pnl: long -2468.89 + shorts 1085.43 = -1383.4650 (sim -1383.4650)
+
+### PMCC hol#1  2024-04-19 -> 2024-06-10  sim exitType PROFIT_TARGET (replay PROFIT_TARGET)
+- LEAP expiry menu (DTE 240-300): 2024-12-20:263731, 2024-12-31:7301, 2025-01-17:184428
+- long  K=379.78 exp 2024-12-20: bid 59.09 / ORATSmid 59.8462 / ask 60.58 (quote-mid 59.835) oi 4731 dte 246 δ 0.749 S 413.57
+- long buy fill 60.5932 (sim 60.5932)
+- long ret range before exit day: max +0.600 (2024-06-06), min +0.041 (2024-04-22); PT +0.60 / SL -0.35
+- long exit-day mark ('2024-06-10', 97.99105270685675) ret +0.6172; exit row bid 97.81 ask 98.22 oi 4722 dte 194 → sell fill 97.7883 (sim 97.7883)
+  - cycle 0 K=434.0 exp 2024-05-24 2024-04-19→2024-06-10 credit 3.7854 (sim 3.7854) cost 0.0000 (sim 0.0000) FORCE_CLOSE (sim FORCE_CLOSE)
+      !! contract row missing on settle date → cost 0; last mtm ('2024-05-22', 20.973102834443615)
+- pnl: long 3719.51 + shorts 378.54 = 4098.0496 (sim 4098.0496)
+
+### PMCC hol#2  2024-06-10 -> 2024-12-04  sim exitType PROFIT_TARGET (replay PROFIT_TARGET)
+- LEAP expiry menu (DTE 240-300): 2025-03-21:48481, 2025-03-31:19338
+- long  K=433.0 exp 2025-03-21: bid 61.02 / ORATSmid 61.2827 / ask 61.55 (quote-mid 61.285) oi 17 dte 285 δ 0.751 S 464.33
+- long buy fill 61.6235 (sim 61.6235)
+- long ret range before exit day: max +0.507 (2024-07-10), min -0.320 (2024-08-07); PT +0.60 / SL -0.35
+- long exit-day mark ('2024-12-04', 98.99344187224153) ret +0.6064; exit row bid 98.81 ask 99.17 oi 323 dte 108 → sell fill 98.7596 (sim 98.7596)
+  - cycle 0 K=480.0 exp 2024-07-19 2024-06-10→2024-07-18 credit 3.4193 (sim 3.4193) cost 2.6213 (sim 2.6213) PIN_ROLL (sim PIN_ROLL)
+      exit row: bid 2.61 / ORATSmid 2.6049 / ask 2.62 (quote-mid 2.615) oi 45623 dte 2 δ 0.508 S 479.88
+      pin check: dte 2, |S/K-1| raw = 0.0002; with candle close 475.08 → 0.0103
+  - cycle 1 K=500.0 exp 2024-08-16 2024-07-18→2024-07-24 credit 3.0394 (sim 3.0394) cost 0.8402 (sim 0.8402) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 0.82 / ORATSmid 0.8275 / ask 0.84 (quote-mid 0.830) oi 66082 dte 24 δ 0.083 S 465.01
+  - cycle 2 K=489.0 exp 2024-08-30 2024-07-24→2024-08-02 credit 4.0851 (sim 4.0851) cost 1.3814 (sim 1.3814) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 1.29 / ORATSmid 1.3302 / ask 1.38 (quote-mid 1.335) oi 120 dte 29 δ 0.106 S 447.65
+  - cycle 3 K=474.0 exp 2024-09-06 2024-08-02→2024-08-07 credit 4.7077 (sim 4.7077) cost 2.0309 (sim 2.0309) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 1.96 / ORATSmid 1.9949 / ask 2.03 (quote-mid 1.995) oi 367 dte 31 δ 0.144 S 437.13
+  - cycle 4 K=469.78 exp 2024-09-20 2024-08-07→2024-09-06 credit 4.3290 (sim 4.3290) cost 1.6204 (sim 1.6204) PROFIT_TARGET (sim PROFIT_TARGET)
+      exit row: bid 1.61 / ORATSmid 1.6215 / ask 1.62 (quote-mid 1.615) oi 4543 dte 15 δ 0.168 S 449.83
+  - cycle 5 K=475.0 exp 2024-10-18 2024-09-06→2024-12-04 credit 4.2691 (sim 4.2691) cost 0.0000 (sim 0.0000) FORCE_CLOSE (sim FORCE_CLOSE)
+      !! contract row missing on settle date → cost 0; last mtm ('2024-10-16', 16.195086614787517)
+- pnl: long 3713.60 + shorts 1535.54 = 5249.1453 (sim 5249.1453)
+
+### PMCC hol#10  2026-02-27 -> 2026-02-27  sim exitType TIME_STOP (replay TIME_STOP)
+- LEAP expiry menu (DTE 240-300): 2026-12-18:221660
+- long  K=545.0 exp 2026-12-18: bid 98.34 / ORATSmid 100.1013 / ask 101.44 (quote-mid 99.890) oi 1098 dte 295 δ 0.750 S 606.07
+- long buy fill 101.4691 (sim 101.4691)
+- no monitoring days; long exit uses entry row bid/ask with mark = entry fill: sell fill 98.2514
+  - cycle 0 K=629.0 exp 2026-03-31 2026-02-27→2026-02-27 credit 4.2882 (sim 4.2882) cost 4.3318 (sim 4.3318) FORCE_CLOSE (sim FORCE_CLOSE)
+      exit row: bid 4.29 / ORATSmid 4.3148 / ask 4.33 (quote-mid 4.310) oi 443 dte 33 δ 0.255 S 606.07
+- pnl: long -321.77 + shorts -4.37 = -326.1416 (sim -326.1416)
+
+## Pin-roll trigger: raw chain S vs dividend-adjusted candle close (all PMCC cycles, all monitored days with dte<=2)
+  differs oos 1 2019-05-02 K 185.5 raw S 187.92 candle 179.90 raw-trigger True candle-trigger False
+  differs oos 3 2019-07-25 K 192.0 raw S 193.43 candle 185.27 raw-trigger True candle-trigger False
+  differs oos 8 2020-05-21 K 221.0 raw S 229.25 candle 220.75 raw-trigger False candle-trigger True
+  differs oos 9 2020-07-30 K 255.0 raw S 261.01 candle 252.29 raw-trigger False candle-trigger True
+  differs oos 10 2020-10-22 K 281.0 raw S 284.40 candle 274.96 raw-trigger True candle-trigger False
+  differs oos 13 2021-09-16 K 376.0 raw S 378.51 candle 367.58 raw-trigger True candle-trigger False
+  differs oos 16 2022-04-13 K 339.0 raw S 347.22 candle 337.76 raw-trigger False candle-trigger True
+  differs oos 23 2023-04-20 K 306.0 raw S 315.58 candle 310.80 raw-trigger False candle-trigger True
+  day-checks with dte<=2: 13 | would differ under candle close: 8

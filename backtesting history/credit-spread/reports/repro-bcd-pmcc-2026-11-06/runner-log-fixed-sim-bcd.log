@@ -1,0 +1,90 @@
+=== Autoresearch Runner ===
+
+Acquired runner lock at /private/tmp/claude-501/-Users-yuchenqiu-03-Projects-trading-journal--claude-worktrees-dazzling-lumiere-1aecfe/6f3b52ab-b425-422e-b309-ea7dcc0149a7/scratchpad/wt-fix/data/autoresearch-runner.lock
+
+Adoption gates loaded from config/adoption-gates.json (raw sha256 8b8830e7b655...)
+  minOosTrades=100  maxOosDD=45%  maxSaneSharpe=3
+  minHoldoutSharpe=0  minHoldoutMetric=0.3  minHoldoutIRFloor=0
+  bootstrapIter=1000  naiveBaselineInterval=5d
+Dataset manifest loaded from config/dataset-manifest.json (sha256 4bde4339e7cb...)
+  data: 2017-01-01 → 2026-02-28
+  holdout: 2024-01-22 → 2026-02-28
+  version: 2
+
+Pre-Registration BYPASSED via AUTORESEARCH_PREREG_BYPASS='repro 2026-11-06' (logged, counts as a declared trial).
+
+CAMPAIGN MODE: leaderboard suffix="-fix-bcd" — isolated from primary leaderboard
+
+DTE5 baseline: Sharpe 0.525, 1638 dates
+Using local data cache (generated: 2026-04-18T19:52:17.818Z)
+Tip: re-run prefetch-data.ts to refresh if data range changes
+
+Loading SPY benchmark + market context...
+SPY benchmark: 2300 daily returns, 2301 market context dates
+
+Bundling strategy-bcd-qqq-wide-f1.ts...
+Strategy: "bcd-qqq-wide-f1-anchor", tickers: [QQQ]
+
+Strategy git SHA: fb5cae6dcd
+  (working tree has uncommitted changes — produced rows will be unsealable)
+Strategy blob:    50261969b7
+
+Loading ticker data...
+  QQQ: 2301 candles
+Ticker coverage hash: df22a73b591d...
+
+Generating signals...
+  QQQ: 225 signals
+  Total: 225 signals
+
+WFA: 10 selection + 5 holdout windows
+
+Spawning workers...
+Workers ready. Naive baseline: 449 CALL signals
+
+[SAVE_TRADES] Dumped 59 OOS + 25 holdout trades to /private/tmp/claude-501/-Users-yuchenqiu-03-Projects-trading-journal--claude-worktrees-dazzling-lumiere-1aecfe/6f3b52ab-b425-422e-b309-ea7dcc0149a7/scratchpad/wt-fix/scripts/autoresearch/campaign-trades-bcd-qqq-wide-f1-anchor.json
+
+============================================================
+=== RUN RESULT ===
+Strategy: bcd-qqq-wide-f1-anchor
+Status: INVALID_FOR_SEARCH (59 trades < 100 min, MaxDD 54.6% > 45% limit, delta gates: signal timing does not beat naive baseline)
+Attempt: #1
+
+--- Performance ---
+Combined Sharpe: 0.749 (current best: 0.000)
+Correlation with DTE5: 0.365
+Standalone: Sharpe 0.775 | MaxDD 54.6% | WR 64.4% | Trades 59
+Total P&L: $53
+
+--- SPY Benchmark (market-regime-neutral alpha) ---
+OOS Information Ratio: 0.529 (excess return 19.89%/yr over SPY)
+
+--- Overfitting Checks (agent-safe — no holdout signal) ---
+Bootstrap 95% CI: [-0.171, 1.555] ✗ NOT significant
+Deflated Sharpe: 0.775 (bootstrap SE, adjusted for 1 attempts) ✓ survives
+Deflated Sharpe (Mertens): 0.775
+SE estimator consistency: ratio 1.01x ✓ pass
+N_eff(OOS daily): 1343 of 1260 days (ratio 1.07)
+Mertens Sharpe SE: 0.434 vs bootstrap SE 0.440 (skew -0.05, kurt 7.11)
+WF Efficiency: 1.29 (avg train: 0.602)
+
+--- Signal Timing Alpha (vs naive baseline) ---
+Baseline: Sharpe 0.994 | MaxDD 41.5% | Corr 0.373 | SPY IR 0.735 | Trades 64
+ΔSPY IR: -0.206 ✗ FAIL (strategy IR ≤ baseline)
+ΔMaxDD: 13.1pp ✗ FAIL (strategy DD > baseline)
+ΔCorrelation: -0.008 ✓
+Delta gates: FAIL — no alpha over naive always-long
+
+Exit types: PROFIT_TARGET:30, TIME_STOP:11, FORCE_CLOSE:18
+Elapsed: 3.2s
+Verdict (search-time): DISCARDED (failed search validity)
+__BEGIN_REVIEWER_ONLY__
+--- Holdout Evaluation (do NOT feed to search agent) ---
+Holdout Sharpe gate: PASS (Sharpe 1.056, 25 trades)
+Holdout-or-IR gate: PASS (IR 0.440, excess 9.30%/yr)
+Holdout stability: STABLE (ratio 1.36, gate PASS — bounds [0.50, 2.00])
+Overall validity (search+holdout): INVALID
+True champion verdict: NOT CHAMPION
+__END_REVIEWER_ONLY__
+============================================================
+exit=0

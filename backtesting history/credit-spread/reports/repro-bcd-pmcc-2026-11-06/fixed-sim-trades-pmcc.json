@@ -1,0 +1,319 @@
+{
+ "note": "diagnostic replay with gotcha #44/#45 fixes, same data, ledger-free; NOT a seal",
+ "oosTrades": [
+  {
+   "entryDate": "2019-01-17",
+   "exitDate": "2019-03-21",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 534.9654390554404,
+   "entryPrice": 23.15933027372653,
+   "exitPrice": 39.06259880381166
+  },
+  {
+   "entryDate": "2019-03-21",
+   "exitDate": "2019-06-03",
+   "exitType": "STOP_LOSS",
+   "pnl": -652.5998006349619,
+   "entryPrice": 22.659861564868205,
+   "exitPrice": 13.633536914217782
+  },
+  {
+   "entryDate": "2019-06-03",
+   "exitDate": "2019-06-21",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 487.2535541362075,
+   "entryPrice": 25.162456499916146,
+   "exitPrice": 41.64866135020219
+  },
+  {
+   "entryDate": "2019-06-21",
+   "exitDate": "2019-12-18",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 1016.5582375115682,
+   "entryPrice": 24.161826576556194,
+   "exitPrice": 40.80060074708342
+  },
+  {
+   "entryDate": "2019-12-18",
+   "exitDate": "2020-02-10",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 502.8722998589483,
+   "entryPrice": 26.65261633968292,
+   "exitPrice": 44.86372498888798
+  },
+  {
+   "entryDate": "2020-02-24",
+   "exitDate": "2020-02-28",
+   "exitType": "STOP_LOSS",
+   "pnl": -1264.992398054598,
+   "entryPrice": 33.22229298814496,
+   "exitPrice": 20.88428653236613
+  },
+  {
+   "entryDate": "2020-02-28",
+   "exitDate": "2020-03-20",
+   "exitType": "STOP_LOSS",
+   "pnl": -1009.2503726946741,
+   "entryPrice": 34.24452363101326,
+   "exitPrice": 20.544592398709796
+  },
+  {
+   "entryDate": "2020-03-20",
+   "exitDate": "2020-04-14",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 1177.3422338910696,
+   "entryPrice": 41.67687483683002,
+   "exitPrice": 74.2800650017659
+  },
+  {
+   "entryDate": "2020-04-14",
+   "exitDate": "2020-06-09",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 1631.804367515284,
+   "entryPrice": 38.67391108495585,
+   "exitPrice": 66.31836657894802
+  },
+  {
+   "entryDate": "2020-06-09",
+   "exitDate": "2020-08-17",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 1898.5712884890881,
+   "entryPrice": 41.65295483264298,
+   "exitPrice": 71.00308975942932
+  },
+  {
+   "entryDate": "2020-08-24",
+   "exitDate": "2021-01-25",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 2642.0885935627216,
+   "entryPrice": 53.06809826012722,
+   "exitPrice": 89.95178010842409
+  },
+  {
+   "entryDate": "2021-01-25",
+   "exitDate": "2021-03-08",
+   "exitType": "STOP_LOSS",
+   "pnl": -1320.4701800681464,
+   "entryPrice": 56.55315803674461,
+   "exitPrice": 36.625686880153104
+  },
+  {
+   "entryDate": "2021-03-08",
+   "exitDate": "2021-06-24",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 1575.2042087247787,
+   "entryPrice": 53.81603119052482,
+   "exitPrice": 92.10103106464433
+  },
+  {
+   "entryDate": "2021-06-24",
+   "exitDate": "2021-11-03",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 1876.7808106708048,
+   "entryPrice": 49.737568074365115,
+   "exitPrice": 85.93692045061472
+  },
+  {
+   "entryDate": "2021-11-03",
+   "exitDate": "2022-01-20",
+   "exitType": "STOP_LOSS",
+   "pnl": -1120.8814091719398,
+   "entryPrice": 55.17060787215189,
+   "exitPrice": 34.518328267143225
+  },
+  {
+   "entryDate": "2022-01-20",
+   "exitDate": "2022-02-23",
+   "exitType": "STOP_LOSS",
+   "pnl": -1526.6526098266315,
+   "entryPrice": 57.72382456618522,
+   "exitPrice": 35.36730387509997
+  },
+  {
+   "entryDate": "2022-02-23",
+   "exitDate": "2022-05-09",
+   "exitType": "STOP_LOSS",
+   "pnl": -882.6123588671753,
+   "entryPrice": 59.40911052967163,
+   "exitPrice": 37.64946598434317
+  },
+  {
+   "entryDate": "2022-05-09",
+   "exitDate": "2022-06-16",
+   "exitType": "STOP_LOSS",
+   "pnl": -1274.5717669653804,
+   "entryPrice": 55.4496985360102,
+   "exitPrice": 37.27818296723926
+  },
+  {
+   "entryDate": "2022-06-16",
+   "exitDate": "2022-07-29",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 2560.0354968341967,
+   "entryPrice": 51.42746576078203,
+   "exitPrice": 89.4622653294763
+  },
+  {
+   "entryDate": "2022-07-29",
+   "exitDate": "2022-09-15",
+   "exitType": "STOP_LOSS",
+   "pnl": -1086.6422425649966,
+   "entryPrice": 52.02764347554421,
+   "exitPrice": 34.977768431737736
+  },
+  {
+   "entryDate": "2022-09-15",
+   "exitDate": "2022-10-11",
+   "exitType": "STOP_LOSS",
+   "pnl": -1442.793337237339,
+   "entryPrice": 53.71117792046161,
+   "exitPrice": 35.38737003764793
+  },
+  {
+   "entryDate": "2022-10-11",
+   "exitDate": "2023-02-02",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 2174.3295347762814,
+   "entryPrice": 48.5333611881693,
+   "exitPrice": 84.61676356421717
+  },
+  {
+   "entryDate": "2023-02-02",
+   "exitDate": "2023-03-10",
+   "exitType": "STOP_LOSS",
+   "pnl": -1012.6299696930854,
+   "entryPrice": 43.587528021537004,
+   "exitPrice": 29.474357258225623
+  },
+  {
+   "entryDate": "2023-03-10",
+   "exitDate": "2023-05-16",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 2237.015639278755,
+   "entryPrice": 46.29148972948455,
+   "exitPrice": 79.08269697678341
+  },
+  {
+   "entryDate": "2023-05-16",
+   "exitDate": "2023-06-14",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 641.2948111556921,
+   "entryPrice": 46.360624767675,
+   "exitPrice": 77.40357287923192
+  },
+  {
+   "entryDate": "2023-06-14",
+   "exitDate": "2023-10-25",
+   "exitType": "STOP_LOSS",
+   "pnl": -679.7027603597958,
+   "entryPrice": 50.33395166340145,
+   "exitPrice": 33.20000351595012
+  },
+  {
+   "entryDate": "2023-10-25",
+   "exitDate": "2023-12-11",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 977.25259739794,
+   "entryPrice": 50.47204471584795,
+   "exitPrice": 86.52150871133865
+  },
+  {
+   "entryDate": "2023-12-11",
+   "exitDate": "2024-03-01",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 2432.417337864519,
+   "entryPrice": 53.27975903374557,
+   "exitPrice": 93.81715709079222
+  }
+ ],
+ "holdoutTrades": [
+  {
+   "entryDate": "2024-03-01",
+   "exitDate": "2024-04-19",
+   "exitType": "STOP_LOSS",
+   "pnl": -1383.4650496970444,
+   "entryPrice": 57.014304833852364,
+   "exitPrice": 35.92383818459451
+  },
+  {
+   "entryDate": "2024-04-19",
+   "exitDate": "2024-06-10",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 1422.5181025392972,
+   "entryPrice": 56.80783028805374,
+   "exitPrice": 97.78832658715649
+  },
+  {
+   "entryDate": "2024-06-10",
+   "exitDate": "2024-12-04",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 3155.4551987051527,
+   "entryPrice": 58.20423447274729,
+   "exitPrice": 98.7595531872069
+  },
+  {
+   "entryDate": "2024-12-04",
+   "exitDate": "2025-03-03",
+   "exitType": "STOP_LOSS",
+   "pnl": -1571.0088091251266,
+   "entryPrice": 68.98320639879508,
+   "exitPrice": 44.94599322690355
+  },
+  {
+   "entryDate": "2025-03-03",
+   "exitDate": "2025-04-03",
+   "exitType": "STOP_LOSS",
+   "pnl": -2249.9132222872795,
+   "entryPrice": 74.57932259458563,
+   "exitPrice": 45.17971611923697
+  },
+  {
+   "entryDate": "2025-04-03",
+   "exitDate": "2025-05-13",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 293.63820892514013,
+   "entryPrice": 68.30871782323725,
+   "exitPrice": 123.06693821544897
+  },
+  {
+   "entryDate": "2025-05-13",
+   "exitDate": "2025-08-12",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 3139.3868540005706,
+   "entryPrice": 67.89387100185108,
+   "exitPrice": 116.98161213742016
+  },
+  {
+   "entryDate": "2025-08-25",
+   "exitDate": "2025-10-29",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 2496.027462468014,
+   "entryPrice": 79.9519613654561,
+   "exitPrice": 132.93503809193692
+  },
+  {
+   "entryDate": "2025-10-29",
+   "exitDate": "2025-11-20",
+   "exitType": "STOP_LOSS",
+   "pnl": -2412.3110655685914,
+   "entryPrice": 85.81560260385626,
+   "exitPrice": 54.775131904598126
+  },
+  {
+   "entryDate": "2025-11-24",
+   "exitDate": "2026-02-27",
+   "exitType": "TIME_STOP",
+   "pnl": 461.3211004872114,
+   "entryPrice": 96.51964979925617,
+   "exitPrice": 88.59058451514397
+  },
+  {
+   "entryDate": "2026-02-27",
+   "exitDate": "2026-02-27",
+   "exitType": "TIME_STOP",
+   "pnl": -326.141617645139,
+   "entryPrice": 97.18097391532905,
+   "exitPrice": 98.25139470992517
+  }
+ ]
+}

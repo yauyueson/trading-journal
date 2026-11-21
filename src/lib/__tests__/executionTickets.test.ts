@@ -44,6 +44,14 @@ describe('execution ticket risk gate', () => {
     expect(evaluation.blocks).toContain('live trading is blocked by strategy governance');
   });
 
+  it('blocks new PMCC paper tickets while PMCC is suspended (2026-11-21 repro audit)', () => {
+    const evaluation = evaluateExecutionTicket({ ...baseInput, strategyType: 'pmcc' });
+
+    expect(evaluation.decision).toBe('blocked');
+    expect(evaluation.blocks).toContain('strategy status suspended is not tradable');
+    expect(evaluation.blocks).toContain('paper trading is blocked by strategy governance');
+  });
+
   it('blocks tickets that exceed capital-tier risk or same-strategy concurrency', () => {
     const oversized = evaluateExecutionTicket({ ...baseInput, maxRiskPerContract: 1600 });
     expect(oversized.decision).toBe('blocked');
@@ -163,7 +171,7 @@ describe('execution ticket risk gate', () => {
       max_risk_dollars: 250,
       risk_cap_dollars: 1500,
       evidence_path: 'docs/wfa/QQQ-CLEAN-SHEET-VALIDATION-RESULTS-2026-05-07.md',
-      governance_version: 1,
+      governance_version: 2,
       blocks: [],
     });
     expect(approved!.input_snapshot).toMatchObject({ setup: 'BCD QQQ wide F1' });

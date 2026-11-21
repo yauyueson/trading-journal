@@ -1,0 +1,679 @@
+{
+ "note": "diagnostic replay with gotcha #44/#45 fixes, same data, ledger-free; NOT a seal",
+ "oosTrades": [
+  {
+   "entryDate": "2019-01-29",
+   "exitDate": "2019-02-05",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 248.58098982255487,
+   "entryPrice": 3.2612034733561313,
+   "exitPrice": 5.74701337158168
+  },
+  {
+   "entryDate": "2019-02-12",
+   "exitDate": "2019-03-11",
+   "exitType": "TIME_STOP",
+   "pnl": 100.77976424277786,
+   "entryPrice": 2.8408635175211296,
+   "exitPrice": 3.8486611599489082
+  },
+  {
+   "entryDate": "2019-03-13",
+   "exitDate": "2019-04-02",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 156.76709019775183,
+   "entryPrice": 2.070756583904248,
+   "exitPrice": 3.638427485881766
+  },
+  {
+   "entryDate": "2019-04-10",
+   "exitDate": "2019-05-15",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -264.1055612133921,
+   "entryPrice": 2.8309563539086944,
+   "exitPrice": 0.1899007417747733
+  },
+  {
+   "entryDate": "2019-05-23",
+   "exitDate": "2019-06-17",
+   "exitType": "TIME_STOP",
+   "pnl": 182.25113740097134,
+   "entryPrice": 3.145110553480168,
+   "exitPrice": 4.967621927489882
+  },
+  {
+   "entryDate": "2019-06-21",
+   "exitDate": "2019-08-07",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -340.1987541022039,
+   "entryPrice": 4.1218280850946165,
+   "exitPrice": 0.7198405440725772
+  },
+  {
+   "entryDate": "2019-08-19",
+   "exitDate": "2019-09-16",
+   "exitType": "TIME_STOP",
+   "pnl": 19.77234934011216,
+   "entryPrice": 3.061070005666358,
+   "exitPrice": 3.2587934990674796
+  },
+  {
+   "entryDate": "2019-09-17",
+   "exitDate": "2019-10-15",
+   "exitType": "TIME_STOP",
+   "pnl": -114.14666277662586,
+   "entryPrice": 2.530925891108164,
+   "exitPrice": 1.3894592633419054
+  },
+  {
+   "entryDate": "2019-10-15",
+   "exitDate": "2019-11-04",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 189.73425599305034,
+   "entryPrice": 2.67091803827913,
+   "exitPrice": 4.568260598209633
+  },
+  {
+   "entryDate": "2019-11-12",
+   "exitDate": "2019-12-13",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 231.76872979584707,
+   "entryPrice": 2.7610584049721734,
+   "exitPrice": 5.078745702930644
+  },
+  {
+   "entryDate": "2019-12-26",
+   "exitDate": "2020-01-16",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 240.57487493200682,
+   "entryPrice": 3.2416696471431816,
+   "exitPrice": 5.64741839646325
+  },
+  {
+   "entryDate": "2020-01-27",
+   "exitDate": "2020-02-06",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 324.43859477948854,
+   "entryPrice": 4.791654053654412,
+   "exitPrice": 8.036040001449297
+  },
+  {
+   "entryDate": "2020-02-10",
+   "exitDate": "2020-03-03",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -388.153023619375,
+   "entryPrice": 4.031489522310043,
+   "exitPrice": 0.14995928611629267
+  },
+  {
+   "entryDate": "2020-03-10",
+   "exitDate": "2020-04-03",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -829.3562975139808,
+   "entryPrice": 8.493508374020337,
+   "exitPrice": 0.1999453988805283
+  },
+  {
+   "entryDate": "2020-04-07",
+   "exitDate": "2020-04-27",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 545.3027526909034,
+   "entryPrice": 6.882264132549452,
+   "exitPrice": 12.335291659458486
+  },
+  {
+   "entryDate": "2020-05-06",
+   "exitDate": "2020-06-01",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 475.32690871462256,
+   "entryPrice": 6.482573036653173,
+   "exitPrice": 11.235842123799399
+  },
+  {
+   "entryDate": "2020-06-04",
+   "exitDate": "2020-06-23",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 409.3078144591036,
+   "entryPrice": 5.391848128525805,
+   "exitPrice": 9.484926273116841
+  },
+  {
+   "entryDate": "2020-07-02",
+   "exitDate": "2020-08-03",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 574.0004032667266,
+   "entryPrice": 6.904695941055368,
+   "exitPrice": 12.644699973722634
+  },
+  {
+   "entryDate": "2020-08-14",
+   "exitDate": "2020-08-26",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 585.074873147271,
+   "entryPrice": 6.40232349540336,
+   "exitPrice": 12.25307222687607
+  },
+  {
+   "entryDate": "2020-08-28",
+   "exitDate": "2020-09-25",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -876.4303218987291,
+   "entryPrice": 9.45415538944113,
+   "exitPrice": 0.6898521704538397
+  },
+  {
+   "entryDate": "2020-09-28",
+   "exitDate": "2020-11-12",
+   "exitType": "FORCE_CLOSE",
+   "pnl": 50.099335378820165,
+   "entryPrice": 10.096368952436626,
+   "exitPrice": 10.597362306224827
+  },
+  {
+   "entryDate": "2020-11-23",
+   "exitDate": "2020-12-16",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 649.0464741240206,
+   "entryPrice": 7.872945502043724,
+   "exitPrice": 14.36341024328393
+  },
+  {
+   "entryDate": "2020-12-22",
+   "exitDate": "2021-02-02",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 656.7941318541951,
+   "entryPrice": 8.885935708025787,
+   "exitPrice": 15.453877026567739
+  },
+  {
+   "entryDate": "2021-02-05",
+   "exitDate": "2021-03-05",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -724.3435772479862,
+   "entryPrice": 7.593359291980712,
+   "exitPrice": 0.34992351950085004
+  },
+  {
+   "entryDate": "2021-03-08",
+   "exitDate": "2021-04-01",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 835.7589383193083,
+   "entryPrice": 8.344119499293779,
+   "exitPrice": 16.701708882486862
+  },
+  {
+   "entryDate": "2021-04-06",
+   "exitDate": "2021-05-14",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -563.3444465732666,
+   "entryPrice": 6.983158516854726,
+   "exitPrice": 1.3497140511220593
+  },
+  {
+   "entryDate": "2021-05-18",
+   "exitDate": "2021-06-09",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 447.4907928390157,
+   "entryPrice": 6.0420087364123285,
+   "exitPrice": 10.516916664802485
+  },
+  {
+   "entryDate": "2021-06-16",
+   "exitDate": "2021-06-28",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 435.4872917500147,
+   "entryPrice": 4.871620388269362,
+   "exitPrice": 9.226493305769509
+  },
+  {
+   "entryDate": "2021-06-30",
+   "exitDate": "2021-08-05",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 563.2227042103264,
+   "entryPrice": 6.573194562565078,
+   "exitPrice": 12.205421604668341
+  },
+  {
+   "entryDate": "2021-08-12",
+   "exitDate": "2021-08-30",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 470.4159909806817,
+   "entryPrice": 5.792042893636234,
+   "exitPrice": 10.496202803443051
+  },
+  {
+   "entryDate": "2021-09-10",
+   "exitDate": "2021-10-06",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -576.2025282612872,
+   "entryPrice": 5.89199656874874,
+   "exitPrice": 0.12997128613586856
+  },
+  {
+   "entryDate": "2021-10-08",
+   "exitDate": "2021-10-21",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 488.0769247330526,
+   "entryPrice": 7.432843547910166,
+   "exitPrice": 12.313612795240692
+  },
+  {
+   "entryDate": "2021-10-22",
+   "exitDate": "2021-11-03",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 611.1139750344332,
+   "entryPrice": 7.532489286576203,
+   "exitPrice": 13.643629036920535
+  },
+  {
+   "entryDate": "2021-11-05",
+   "exitDate": "2021-12-15",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -631.6824825507715,
+   "entryPrice": 7.496273755884071,
+   "exitPrice": 1.1794489303763565
+  },
+  {
+   "entryDate": "2021-12-20",
+   "exitDate": "2021-12-23",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 604.2098140548266,
+   "entryPrice": 8.226085374611454,
+   "exitPrice": 14.26818351515972
+  },
+  {
+   "entryDate": "2022-01-04",
+   "exitDate": "2022-01-25",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -792.3407176589365,
+   "entryPrice": 8.163348785616712,
+   "exitPrice": 0.23994160902734765
+  },
+  {
+   "entryDate": "2022-02-02",
+   "exitDate": "2022-03-07",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -883.3107052438677,
+   "entryPrice": 8.903091899737472,
+   "exitPrice": 0.06998484729879526
+  },
+  {
+   "entryDate": "2022-03-17",
+   "exitDate": "2022-03-28",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 633.9187764087415,
+   "entryPrice": 7.91600244187034,
+   "exitPrice": 14.255190205957755
+  },
+  {
+   "entryDate": "2022-03-31",
+   "exitDate": "2022-04-26",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -923.3890814564313,
+   "entryPrice": 9.513825731755272,
+   "exitPrice": 0.2799349171909593
+  },
+  {
+   "entryDate": "2022-04-29",
+   "exitDate": "2022-06-10",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -1111.5223002694995,
+   "entryPrice": 11.265191751289574,
+   "exitPrice": 0.14996874859457976
+  },
+  {
+   "entryDate": "2022-06-13",
+   "exitDate": "2022-07-11",
+   "exitType": "TIME_STOP",
+   "pnl": 284.71546397818537,
+   "entryPrice": 8.558461778089093,
+   "exitPrice": 11.405616417870947
+  },
+  {
+   "entryDate": "2022-07-13",
+   "exitDate": "2022-07-27",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 707.0749863391598,
+   "entryPrice": 8.202915715713155,
+   "exitPrice": 15.273665579104753
+  },
+  {
+   "entryDate": "2022-07-27",
+   "exitDate": "2022-08-15",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 847.9721837289396,
+   "entryPrice": 8.84295935454142,
+   "exitPrice": 17.322681191830817
+  },
+  {
+   "entryDate": "2022-08-24",
+   "exitDate": "2022-09-26",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -947.4110004119725,
+   "entryPrice": 9.814037814138109,
+   "exitPrice": 0.3399278100183845
+  },
+  {
+   "entryDate": "2022-10-06",
+   "exitDate": "2022-11-07",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -772.3786967518677,
+   "entryPrice": 9.193479036446618,
+   "exitPrice": 1.469692068927941
+  },
+  {
+   "entryDate": "2022-11-17",
+   "exitDate": "2022-12-12",
+   "exitType": "TIME_STOP",
+   "pnl": -148.43555514501423,
+   "entryPrice": 6.342418431893054,
+   "exitPrice": 4.858062880442912
+  },
+  {
+   "entryDate": "2022-12-16",
+   "exitDate": "2023-01-17",
+   "exitType": "TIME_STOP",
+   "pnl": -35.47899012907916,
+   "entryPrice": 6.362420968774318,
+   "exitPrice": 6.007631067483526
+  },
+  {
+   "entryDate": "2023-01-18",
+   "exitDate": "2023-02-01",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 703.8665057470957,
+   "entryPrice": 7.382845910008408,
+   "exitPrice": 14.421510967479366
+  },
+  {
+   "entryDate": "2023-02-01",
+   "exitDate": "2023-03-13",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -633.2504726208425,
+   "entryPrice": 6.882327273856996,
+   "exitPrice": 0.5498225476485712
+  },
+  {
+   "entryDate": "2023-03-16",
+   "exitDate": "2023-04-17",
+   "exitType": "TIME_STOP",
+   "pnl": 345.3685691773904,
+   "entryPrice": 6.962564169842905,
+   "exitPrice": 10.416249861616809
+  },
+  {
+   "entryDate": "2023-04-28",
+   "exitDate": "2023-05-22",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 512.3546832300301,
+   "entryPrice": 6.602194359255645,
+   "exitPrice": 11.725741191555946
+  },
+  {
+   "entryDate": "2023-05-26",
+   "exitDate": "2023-06-15",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 645.7033834952291,
+   "entryPrice": 7.586137904861253,
+   "exitPrice": 14.043171739813545
+  },
+  {
+   "entryDate": "2023-06-27",
+   "exitDate": "2023-07-18",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 704.04397103262,
+   "entryPrice": 7.112764967790889,
+   "exitPrice": 14.153204678117088
+  },
+  {
+   "entryDate": "2023-07-26",
+   "exitDate": "2023-09-08",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -621.2965135448618,
+   "entryPrice": 6.652873195417829,
+   "exitPrice": 0.43990805996921106
+  },
+  {
+   "entryDate": "2023-09-21",
+   "exitDate": "2023-10-16",
+   "exitType": "TIME_STOP",
+   "pnl": 325.3143838084595,
+   "entryPrice": 5.792986387988428,
+   "exitPrice": 9.046130226073023
+  },
+  {
+   "entryDate": "2023-10-19",
+   "exitDate": "2023-11-14",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 842.9665540843637,
+   "entryPrice": 8.953218965576689,
+   "exitPrice": 17.382884506420325
+  },
+  {
+   "entryDate": "2023-11-16",
+   "exitDate": "2023-12-11",
+   "exitType": "TIME_STOP",
+   "pnl": 258.5222797421098,
+   "entryPrice": 5.121761398038189,
+   "exitPrice": 7.706984195459287
+  },
+  {
+   "entryDate": "2023-12-15",
+   "exitDate": "2024-01-16",
+   "exitType": "TIME_STOP",
+   "pnl": -140.327880407519,
+   "entryPrice": 5.101753891676775,
+   "exitPrice": 3.698475087601585
+  },
+  {
+   "entryDate": "2024-01-17",
+   "exitDate": "2024-02-02",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 689.8621306925653,
+   "entryPrice": 8.003502351745604,
+   "exitPrice": 14.902123658671258
+  }
+ ],
+ "holdoutTrades": [
+  {
+   "entryDate": "2024-02-14",
+   "exitDate": "2024-03-11",
+   "exitType": "TIME_STOP",
+   "pnl": -64.38883031517122,
+   "entryPrice": 5.582011584504681,
+   "exitPrice": 4.9381232813529685
+  },
+  {
+   "entryDate": "2024-03-14",
+   "exitDate": "2024-04-17",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -687.238330888909,
+   "entryPrice": 6.982331731968584,
+   "exitPrice": 0.10994842307949404
+  },
+  {
+   "entryDate": "2024-04-26",
+   "exitDate": "2024-05-20",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 818.0686530708261,
+   "entryPrice": 9.243122221126871,
+   "exitPrice": 17.423808751835132
+  },
+  {
+   "entryDate": "2024-05-24",
+   "exitDate": "2024-06-13",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 604.1304050801466,
+   "entryPrice": 7.822740604730706,
+   "exitPrice": 13.864044655532172
+  },
+  {
+   "entryDate": "2024-06-25",
+   "exitDate": "2024-07-10",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 648.9542834557828,
+   "entryPrice": 7.233102346679092,
+   "exitPrice": 13.72264518123692
+  },
+  {
+   "entryDate": "2024-07-10",
+   "exitDate": "2024-07-26",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -818.2760686080027,
+   "entryPrice": 8.512692541571639,
+   "exitPrice": 0.3299318554916125
+  },
+  {
+   "entryDate": "2024-08-07",
+   "exitDate": "2024-08-15",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 1308.5225741041238,
+   "entryPrice": 13.68414410202325,
+   "exitPrice": 26.76936984306449
+  },
+  {
+   "entryDate": "2024-08-21",
+   "exitDate": "2024-09-06",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -707.2649735140717,
+   "entryPrice": 7.292602971474669,
+   "exitPrice": 0.21995323633395214
+  },
+  {
+   "entryDate": "2024-09-19",
+   "exitDate": "2024-10-14",
+   "exitType": "TIME_STOP",
+   "pnl": 527.3085053058312,
+   "entryPrice": 8.36237445130992,
+   "exitPrice": 13.635459504368232
+  },
+  {
+   "entryDate": "2024-10-17",
+   "exitDate": "2024-11-07",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 792.2219313303399,
+   "entryPrice": 7.722700701345827,
+   "exitPrice": 15.644920014649227
+  },
+  {
+   "entryDate": "2024-11-14",
+   "exitDate": "2024-12-06",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 574.2769165852978,
+   "entryPrice": 6.802701063409568,
+   "exitPrice": 12.545470229262547
+  },
+  {
+   "entryDate": "2024-12-13",
+   "exitDate": "2025-01-13",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -560.2299220433679,
+   "entryPrice": 5.602299220433679,
+   "exitPrice": 0
+  },
+  {
+   "entryDate": "2025-01-15",
+   "exitDate": "2025-02-13",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 593.3067888786841,
+   "entryPrice": 8.11305817558815,
+   "exitPrice": 14.046126064374992
+  },
+  {
+   "entryDate": "2025-02-13",
+   "exitDate": "2025-03-04",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -712.2688753232236,
+   "entryPrice": 7.472615336025349,
+   "exitPrice": 0.3499265827931133
+  },
+  {
+   "entryDate": "2025-03-14",
+   "exitDate": "2025-04-15",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -1089.3822711576133,
+   "entryPrice": 11.033758895124112,
+   "exitPrice": 0.13993618354797938
+  },
+  {
+   "entryDate": "2025-04-28",
+   "exitDate": "2025-05-12",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 943.5227021264595,
+   "entryPrice": 11.754668475590435,
+   "exitPrice": 21.18989549685503
+  },
+  {
+   "entryDate": "2025-05-12",
+   "exitDate": "2025-06-04",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 812.9805779136199,
+   "entryPrice": 9.143931770613463,
+   "exitPrice": 17.27373754974966
+  },
+  {
+   "entryDate": "2025-06-10",
+   "exitDate": "2025-07-03",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 807.7168608397611,
+   "entryPrice": 9.075586357793663,
+   "exitPrice": 17.152754966191274
+  },
+  {
+   "entryDate": "2025-07-10",
+   "exitDate": "2025-08-11",
+   "exitType": "TIME_STOP",
+   "pnl": 520.2645858049515,
+   "entryPrice": 8.432685268875197,
+   "exitPrice": 13.635331126924711
+  },
+  {
+   "entryDate": "2025-08-21",
+   "exitDate": "2025-09-11",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 757.979529675659,
+   "entryPrice": 8.533857563521256,
+   "exitPrice": 16.113652860277845
+  },
+  {
+   "entryDate": "2025-09-19",
+   "exitDate": "2025-10-27",
+   "exitType": "PROFIT_TARGET",
+   "pnl": 1169.8168013728357,
+   "entryPrice": 10.380178691194306,
+   "exitPrice": 22.078346704922662
+  },
+  {
+   "entryDate": "2025-10-31",
+   "exitDate": "2025-12-08",
+   "exitType": "FORCE_CLOSE",
+   "pnl": -1054.748868237872,
+   "entryPrice": 13.426802681962085,
+   "exitPrice": 2.8793139995833656
+  },
+  {
+   "entryDate": "2025-12-15",
+   "exitDate": "2026-01-12",
+   "exitType": "TIME_STOP",
+   "pnl": 442.2232260883989,
+   "entryPrice": 9.30294153766327,
+   "exitPrice": 13.725173798547258
+  },
+  {
+   "entryDate": "2026-01-14",
+   "exitDate": "2026-02-17",
+   "exitType": "TIME_STOP",
+   "pnl": -1028.6135281441066,
+   "entryPrice": 10.386087628751099,
+   "exitPrice": 0.09995234731003382
+  },
+  {
+   "entryDate": "2026-02-27",
+   "exitDate": "2026-02-27",
+   "exitType": "FORCE_CLOSE",
+   "pnl": 0,
+   "entryPrice": 13.665519899982156,
+   "exitPrice": 13.665519899982156
+  }
+ ]
+}

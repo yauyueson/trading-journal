@@ -1029,31 +1029,39 @@ export async function simulateDiagonal(
     // Mark short leg + check for expiry close.
     if (curShort) {
       const shortContract = await fetchContractOnDate(token, signal.ticker, d, curShort.strike, curShort.expiry, 'Call', config.useDirectLookup ?? true);
-      if (shortContract) {
-        const shortMid = shortContract.mid;
+      // Gotcha #44: the cache only holds 0.01 < |δ| < 0.99, so a short that
+      // goes deep ITM (or far OTM) has no row. Mark and settle it at intrinsic
+      // off the day's spot instead of skipping it (mirrors the sync worker).
+      const spot = shortContract?.row.stock_price ?? longContract?.row.stock_price
+        ?? await spotOnDate(token, signal.ticker, d);
+      if (spot != null) {
+        const shortMid = shortContract ? shortContract.mid : Math.max(0, spot - curShort.strike);
         const shortPnl = 100 * (curShort.entryCredit - shortMid);
         curShort.dailyMtM.push({ date: d, premium: shortMid, pnl: shortPnl });
 
         // State machine: expiry, profit-target, pin-risk. Task 6 adds rolling.
-        const action = decideShortAction(d, curShort, shortContract.row, config);
+        // PT / pin checks need a quoted row; a missing row can only expire.
+        const action: ShortActionDecision = shortContract
+          ? decideShortAction(d, curShort, shortContract.row, config)
+          : (d >= curShort.expiry ? 'close_expired' : 'hold');
         if (action !== 'hold') {
           let exitCost: number;
           let exitReason: 'EXPIRATION' | 'PROFIT_TARGET' | 'PIN_ROLL' | 'FORCE_CLOSE' | 'ASSIGNED';
           if (action === 'close_expired') {
-            const assigned = shortContract.row.stock_price >= curShort.strike;
-            exitCost = assigned ? Math.max(0, shortContract.row.stock_price - curShort.strike) : 0;
+            const assigned = spot >= curShort.strike;
+            exitCost = assigned ? Math.max(0, spot - curShort.strike) : 0;
             exitReason = assigned ? 'ASSIGNED' : 'EXPIRATION';
           } else {
             exitCost = applyFill(
-              config.fillMode, shortContract.row.call_mid, shortContract.row.call_bid, shortContract.row.call_ask,
-              'buy', config.slippage, shortContract.row.call_oi, shortContract.row.dte,
+              config.fillMode, shortContract!.row.call_mid, shortContract!.row.call_bid, shortContract!.row.call_ask,
+              'buy', config.slippage, shortContract!.row.call_oi, shortContract!.row.dte,
             ).fillPrice;
             exitReason = action === 'close_pt' ? 'PROFIT_TARGET' : 'PIN_ROLL';
           }
           shortCycles.push({
             strike: curShort.strike, entryDate: curShort.entryDate, exitDate: d,
             entryCredit: curShort.entryCredit, exitCost,
-            entryDTE: curShort.entryDTE, exitDTE: shortContract.row.dte, entryDelta: curShort.entryDelta,
+            entryDTE: curShort.entryDTE, exitDTE: shortContract?.row.dte ?? 0, entryDelta: curShort.entryDelta,
             exitReason,
             dailyMtM: curShort.dailyMtM,
           });
@@ -1092,10 +1100,13 @@ export async function simulateDiagonal(
   // ─── 3. Settle any open short at long exit. ───────────────────────
   if (curShort) {
     const closingContract = await fetchContractOnDate(token, signal.ticker, longExitDate, curShort.strike, curShort.expiry, 'Call', config.useDirectLookup ?? true);
+    // Gotcha #44: a missing row is a deep-ITM/far-OTM short — buy back at
+    // intrinsic (≈ value at |δ|≈1, exactly 0 when OTM), never at $0 blindly.
+    const exitSpot = (await spotOnDate(token, signal.ticker, longExitDate)) ?? lastSpot;
     const buyBackCost = closingContract ? applyFill(
       config.fillMode, closingContract.mid, closingContract.row.call_bid, closingContract.row.call_ask,
       'buy', config.slippage, closingContract.row.call_oi, closingContract.row.dte,
-    ).fillPrice : 0;
+    ).fillPrice : Math.max(0, exitSpot - curShort.strike);
     shortCycles.push({
       strike: curShort.strike, entryDate: curShort.entryDate, exitDate: longExitDate,
       entryCredit: curShort.entryCredit, exitCost: buyBackCost,
@@ -1210,6 +1221,12 @@ function decideShortAction(
   const pnlPct = (curShort.entryCredit - shortMid) / curShort.entryCredit;
   if (pnlPct >= config.diagShortProfitTarget!) return 'close_pt';
   return 'hold';
+}
+
+/** Underlying spot from any chain row on `date`, or null if the day has no chain. */
+async function spotOnDate(token: string, ticker: string, date: string): Promise<number | null> {
+  const chain = await fetchHistoricalChain(token, ticker, date);
+  return chain.length > 0 ? chain[0].stock_price : null;
 }
 
 /**

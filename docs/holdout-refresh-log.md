@@ -6,6 +6,27 @@ Each entry records the trigger, the old and new windows, and what happened to ac
 
 ---
 
+## 2026-11-21 — F1 seals invalidated by simulator bugs; PMCC suspended, BCD under review
+
+**Trigger:** the 2026-11-06 reproduction audit ([report](../backtesting%20history/credit-spread/reports/repro-bcd-pmcc-2026-11-06/README.md)). This is a governance status change, not a manifest refresh: the manifest and the holdout window are unchanged.
+
+**Findings:**
+- Both 2026-04-23 seals reproduce bit-exactly on the sealed data.
+- An independent recompute from raw chain rows found two simulator bugs that inflated PnL:
+  - Gotcha #44: PMCC deep-ITM short calls were booked at $0.
+  - Gotcha #45: BCD missing-leg exits used a stale mid with no slippage.
+- Both bugs are fixed. A ledger-free diagnostic replay on the same data (not a seal) gives:
+  - BCD: 4 of 6 standard gates. oosSharpe 0.775, dsrM −0.141.
+  - PMCC: 3 of 6. oosSharpe 0.769, holdoutSpyIR −0.703, dsrM −0.081.
+
+**Decision (human, 2026-11-21):**
+- PMCC QQQ pt60: `suspended`, with paper permission off. The execution-ticket gate blocks new entries; existing positions can still be managed.
+- BCD QQQ wide: stays `paper-approved` as a candidate only, flagged `evidenceReview: under-review`. It needs a pre-registered frozen-spec evaluation on data not yet backtested, or retirement.
+- Neither 2026-04-23 seal counts as adoption evidence any longer. Live adoption stays blocked for both.
+- The Codex review of the fixes was waived by the human, because the Codex CLI is unavailable on this account.
+
+---
+
 ## 2026-05-06 — F1 paper approval recorded and clean-sheet WFA reset
 
 **Trigger:** Platform trust overhaul and role-based governance review.

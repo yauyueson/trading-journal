@@ -441,6 +441,12 @@ function findContractOnDateSync(
   return findContract(chain, strike, expiry, type);
 }
 
+/** Underlying spot from any cached chain row on `date`, or null if the day has no chain. */
+function spotOnDateSync(ticker: string, date: string): number | null {
+  const chain = getCachedChain(ticker, date);
+  return chain.length > 0 ? chain[0].stock_price : null;
+}
+
 export function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
   return (signal, _config, allDates, maxDate) => {
     // Validate config
@@ -555,16 +561,20 @@ export function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
       // Mark + close short cycle
       if (curShort) {
         const shortContract = findContractOnDateSync(signal.ticker, d, curShort.strike, curShort.expiry, 'Call', config.useDirectLookup ?? true);
-        if (shortContract) {
-          const shortMid = shortContract.mid;
+        // Gotcha #44: the cache only holds 0.01 < |δ| < 0.99, so a short that
+        // goes deep ITM (or far OTM) has no row. Mark and settle it at
+        // intrinsic off the day's spot instead of skipping it.
+        const spot = shortContract?.row.stock_price ?? longContract?.row.stock_price ?? spotOnDateSync(signal.ticker, d);
+        if (spot != null) {
+          const shortMid = shortContract ? shortContract.mid : Math.max(0, spot - curShort.strike);
           const shortPnl = 100 * (curShort.entryCredit - shortMid);
           curShort.dailyMtM.push({ date: d, premium: shortMid, pnl: shortPnl });
 
-          // Mirror decideShortAction inline (sync)
+          // Mirror decideShortAction inline (sync). PT / pin checks need a quoted row.
           let action: 'hold' | 'close_pt' | 'close_pin' | 'close_expired' = 'hold';
           if (d >= curShort.expiry) {
             action = 'close_expired';
-          } else {
+          } else if (shortContract) {
             const moneyness = Math.abs(shortContract.row.stock_price / curShort.strike - 1);
             if (shortContract.row.dte <= 2 && moneyness <= config.diagRollTriggerMoneyness!) {
               action = 'close_pin';
@@ -578,20 +588,20 @@ export function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
             let exitCost: number;
             let exitReason: ShortCycle['exitReason'];
             if (action === 'close_expired') {
-              const assigned = shortContract.row.stock_price >= curShort.strike;
-              exitCost = assigned ? Math.max(0, shortContract.row.stock_price - curShort.strike) : 0;
+              const assigned = spot >= curShort.strike;
+              exitCost = assigned ? Math.max(0, spot - curShort.strike) : 0;
               exitReason = assigned ? 'ASSIGNED' : 'EXPIRATION';
             } else {
               exitCost = applyFill(
-                config.fillMode, shortContract.row.call_mid, shortContract.row.call_bid, shortContract.row.call_ask,
-                'buy', config.slippage, shortContract.row.call_oi, shortContract.row.dte,
+                config.fillMode, shortContract!.row.call_mid, shortContract!.row.call_bid, shortContract!.row.call_ask,
+                'buy', config.slippage, shortContract!.row.call_oi, shortContract!.row.dte,
               ).fillPrice;
               exitReason = action === 'close_pt' ? 'PROFIT_TARGET' : 'PIN_ROLL';
             }
             shortCycles.push({
               strike: curShort.strike, entryDate: curShort.entryDate, exitDate: d,
               entryCredit: curShort.entryCredit, exitCost,
-              entryDTE: curShort.entryDTE, exitDTE: shortContract.row.dte,
+              entryDTE: curShort.entryDTE, exitDTE: shortContract?.row.dte ?? 0,
               entryDelta: curShort.entryDelta,
               exitReason,
               dailyMtM: curShort.dailyMtM,
@@ -625,10 +635,13 @@ export function makeDiagonalEvaluator(config: SimConfig): TradeEvaluator {
     // Settle open short at long exit
     if (curShort) {
       const closingContract = findContractOnDateSync(signal.ticker, longExitDate, curShort.strike, curShort.expiry, 'Call', config.useDirectLookup ?? true);
+      // Gotcha #44: a missing row is a deep-ITM/far-OTM short — buy back at
+      // intrinsic (≈ value at |δ|≈1, exactly 0 when OTM), never at $0 blindly.
+      const exitSpot = spotOnDateSync(signal.ticker, longExitDate) ?? lastSpot;
       const buyBackCost = closingContract ? applyFill(
         config.fillMode, closingContract.mid, closingContract.row.call_bid, closingContract.row.call_ask,
         'buy', config.slippage, closingContract.row.call_oi, closingContract.row.dte,
-      ).fillPrice : 0;
+      ).fillPrice : Math.max(0, exitSpot - curShort.strike);
       shortCycles.push({
         strike: curShort.strike, entryDate: curShort.entryDate, exitDate: longExitDate,
         entryCredit: curShort.entryCredit, exitCost: buyBackCost,
@@ -816,9 +829,26 @@ export function makeDebitSpreadEvaluator(config: SimConfig): TradeEvaluator {
       if (!longCur || !shortCur) {
         consecutiveMissing++;
         if (consecutiveMissing >= missingChainCap) {
-          // Force-close at last known mark to avoid stale-price drift.
-          const last = dailyMtM[dailyMtM.length - 1];
-          exitSpreadValue = last ? last.spreadMid : netDebit;
+          // Gotcha #45: price the exit off today's data — a quoted leg at its
+          // bid/ask fill, a vanished leg (|δ| outside the cache's 0.01–0.99
+          // band) at intrinsic. Only when the whole chain is absent today fall
+          // back to the last known mark.
+          const spot = longCur?.row.stock_price ?? shortCur?.row.stock_price ?? spotOnDateSync(signal.ticker, d);
+          if (spot != null) {
+            const intrinsic = (k: number) => optionType === 'Call' ? Math.max(0, spot - k) : Math.max(0, k - spot);
+            const fillLeg = (cur: NonNullable<typeof longCur>, side: 'buy' | 'sell') => applyFill(config.fillMode, cur.mid,
+              optionType === 'Call' ? cur.row.call_bid : cur.row.put_bid,
+              optionType === 'Call' ? cur.row.call_ask : cur.row.put_ask,
+              side, config.slippage, optionType === 'Call' ? cur.row.call_oi : cur.row.put_oi, cur.row.dte).fillPrice;
+            const longValue = longCur ? fillLeg(longCur, 'sell') : intrinsic(longRow.strike);
+            const shortValue = shortCur ? fillLeg(shortCur, 'buy') : intrinsic(shortRow.strike);
+            exitSpreadValue = longValue - shortValue;
+            exitStockPrice = spot;
+            if (longCur) exitDTE = longCur.row.dte;
+          } else {
+            const last = dailyMtM[dailyMtM.length - 1];
+            exitSpreadValue = last ? last.spreadMid : netDebit;
+          }
           exitDate = d;
           exitType = 'FORCE_CLOSE';
           stopped = true;
