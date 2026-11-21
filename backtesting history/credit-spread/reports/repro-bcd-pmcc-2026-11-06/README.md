@@ -180,3 +180,12 @@ These numbers are a **diagnostic**, not a seal or a new adoption trial. They wer
 - No change to the strategy-file capital ($2K / $10K) vs the governance tiers ($5K / $20K).
 - No change to the validation script's SPY benchmark source.
 - Not fixed: the window-end artifacts (zero-length trades on the last day; PMCC window-end closes labelled `TIME_STOP`), and the BCD window-end `FORCE_CLOSE` at the last mark without slippage (`worker.ts` "Forced close at maxDate").
+
+## Governance decision (2026-11-21)
+
+The human reviewed this report and decided:
+
+- **PMCC QQQ pt60 → `suspended`.** `config/strategy-governance.json` version 2 sets paper permission off and adds a `suspension` record. The execution-ticket gate now blocks new paper and live PMCC entries. Existing positions can still be managed.
+- **BCD QQQ wide → stays `paper-approved` as a candidate only**, with an `evidenceReview: under-review` record. It needs a pre-registered frozen-spec evaluation on data not yet backtested, or retirement.
+- **Codex review is waived** ("do it here, no need codex"), because the Codex CLI is unavailable on this account. The independent Claude review and the raw-chain recompute stand in for it.
+- Also updated: CLAUDE.md ("Active Strategies"), `docs/holdout-refresh-log.md`, and the governance and ticket-gate tests. The tests now assert that PMCC tickets are blocked.

@@ -1,11 +1,12 @@
 {
-  "version": 1,
-  "lastUpdated": "2026-05-06",
+  "version": 2,
+  "lastUpdated": "2026-11-21",
   "purpose": "Canonical governance registry for strategies allowed to appear as active platform strategies. This file governs status and permissions; strategy parameters remain in src/lib/strategyProfiles.ts and data/strategy-config.json.",
   "statusDefinitions": {
     "research": "Exploratory only; cannot appear as an active strategy or trade ticket.",
     "sealed-pass": "Passed a sealed evaluation, but no platform trading permission is implied.",
     "paper-approved": "Allowed for paper trading and platform workflow validation only.",
+    "suspended": "Evidence invalidated or under model-risk review; no new entries (paper or live). Existing positions may still be managed and closed, and are retained for display and audit.",
     "live-adopted": "Allowed for live trading after model-risk, data, execution, and risk signoff.",
     "retired": "Historical only; retained for audit and legacy position display."
   },
@@ -55,17 +56,25 @@
         "required": true,
         "approvedBy": "model-risk",
         "reason": "low-frequency sealed strategy with reviewer-invalid row under legacy minOosTrades, accepted only as paper-approved evidence pending clean-sheet forward review"
+      },
+      "evidenceReview": {
+        "status": "under-review",
+        "date": "2026-11-21",
+        "approvedBy": "human",
+        "reason": "2026-11-06 repro audit: missing-leg exits were booked at a stale mid with no slippage (gotcha #45). With that fixed, on the sealed data, oosSharpe falls from 0.971 to 0.775 (below the 0.8 gate) and dsrM (F0 N=30) to -0.141; holdout stays positive (Sharpe 1.056, holdoutSpyIR +0.440); 4 of 6 standard gates pass. Paper trading continues as a candidate only; the 2026-04-23 seal no longer supports adoption.",
+        "evidencePath": "backtesting history/credit-spread/reports/repro-bcd-pmcc-2026-11-06/README.md",
+        "resolutionRequires": "a pre-registered frozen-spec evaluation on data not yet backtested (e.g. 2026-03 to 2026-08), or retirement"
       }
     },
     "pmcc": {
       "label": "PMCC QQQ pt60",
-      "status": "paper-approved",
+      "status": "suspended",
       "canonicalSealPath": "docs/holdout-evaluations/2026-04-23-7e9c2026f3df.md",
       "canonicalSealSha256": "3c947dfc6661b4ea5226dbd76e5dee9d7c97ba0f750f7904ecf25694da5f517a",
       "supersedesSealPaths": [],
       "strategyType": "pmcc",
       "permission": {
-        "paper": true,
+        "paper": false,
         "live": false,
         "liveRequires": [
           "fresh forward-data review",
@@ -89,6 +98,13 @@
         "required": true,
         "approvedBy": "model-risk",
         "reason": "low-frequency sealed strategy with reviewer-invalid row under legacy minOosTrades, accepted only as paper-approved evidence pending clean-sheet forward review"
+      },
+      "suspension": {
+        "date": "2026-11-21",
+        "approvedBy": "human",
+        "reason": "2026-11-06 repro audit: the simulator booked deep-ITM short calls at $0 (gotcha #44). With settlement fixed, on the sealed data, holdout PnL falls from $18,669 to $3,026, holdoutSpyIR from +0.149 to -0.703, oosSharpe from 1.724 to 0.769 and dsrM (F0 N=25) to -0.081; 3 of 6 standard gates pass. The sealed edge was a simulator artifact.",
+        "evidencePath": "backtesting history/credit-spread/reports/repro-bcd-pmcc-2026-11-06/README.md",
+        "reinstatementRequires": "a new pre-registered evaluation under the corrected simulator; the 2026-04-23 seal is no longer adoption evidence"
       }
     }
   },

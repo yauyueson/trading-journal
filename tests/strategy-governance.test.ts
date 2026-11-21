@@ -22,12 +22,24 @@ describe('strategy governance registry', () => {
 
     for (const strategy of ACTIVE_STRATEGIES) {
       const entry = strategies[strategy];
-      expect(entry.status).toBe('paper-approved');
+      expect(['paper-approved', 'suspended']).toContain(entry.status);
       expect(entry.canonicalSealPath).toMatch(/^docs\/holdout-evaluations\/.+\.md$/);
-      expect(entry.permission).toMatchObject({ paper: true, live: false });
+      // A suspended strategy may not take new paper entries; nothing is live.
+      expect(entry.permission).toMatchObject({ paper: entry.status === 'paper-approved', live: false });
       expect(entry.capitalTier?.startingCapital).toBeGreaterThan(0);
       expect(entry.riskPolicy?.maxConcurrentPositions).toBe(1);
     }
+  });
+
+  it('records the 2026-11-21 repro-audit decisions: PMCC suspended, BCD under review', () => {
+    const registry = readJson(governancePath);
+    const { bcd, pmcc } = registry.strategies;
+    expect(registry.statusDefinitions.suspended).toBeTruthy();
+    expect(pmcc.status).toBe('suspended');
+    expect(pmcc.suspension).toMatchObject({ approvedBy: 'human' });
+    expect(existsSync(resolve(repoRoot, pmcc.suspension.evidencePath))).toBe(true);
+    expect(bcd.status).toBe('paper-approved');
+    expect(bcd.evidenceReview).toMatchObject({ status: 'under-review', approvedBy: 'human' });
   });
 
   it('does not allow retired strategies in the active governance registry', () => {

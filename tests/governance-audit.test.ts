@@ -13,8 +13,10 @@ describe('governance audit command', () => {
 
     expect(audit.ok).toBe(true);
     expect(audit.strategies.map(s => s.strategy).sort()).toEqual(['bcd', 'pmcc']);
-    expect(audit.strategies.every(s => s.status === 'paper-approved')).toBe(true);
-    expect(audit.strategies.every(s => s.permission.paper === true)).toBe(true);
+    // 2026-11-21: PMCC suspended (paper blocked); BCD stays paper-approved.
+    const byName = Object.fromEntries(audit.strategies.map(s => [s.strategy, s]));
+    expect(byName.bcd).toMatchObject({ status: 'paper-approved', permission: { paper: true, live: false } });
+    expect(byName.pmcc).toMatchObject({ status: 'suspended', permission: { paper: false, live: false } });
     expect(audit.strategies.every(s => s.permission.live === false)).toBe(true);
     expect(audit.strategies.every(s => s.liveBlockers.length > 0)).toBe(true);
   });
